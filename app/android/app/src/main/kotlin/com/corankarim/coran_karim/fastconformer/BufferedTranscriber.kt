@@ -1,0 +1,275 @@
+package com.corankarim.coran_karim.fastconformer
+
+import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.sqrt
+
+/**
+ * "Streaming bufferise" : re-transcrit le buffer audio du SEGMENT COURANT avec
+ * le modele OFFLINE (FastConformerCtc) toutes les ~1,5s de nouvel audio.
+ * Latence percue ~1,5-3s, mais continu et sans arret manuel.
+ *
+ * Pourquoi pas le vrai streaming cache-aware : verdict du 2026-07-04 — notre
+ * checkpoint est entraine en mode offline avec des convolutions NON-causales
+ * (subsampling + convs depthwise regardent ~4 frames dans le futur). Le masque
+ * d'attention chunked_limited fonctionne en zero-shot sur un enonce complet,
+ * mais le decoupage chunk-par-chunk avec cache corrompt chaque frontiere (le
+ * cache ne transporte que le contexte gauche des convs) -> decode 100% blank ;
+ * meme le chemin officiel NeMo conformer_stream_step crashe (rel_shift sur
+ * tenseur vide au 1er chunk). Le vrai streaming exige un fine-tune dedie avec
+ * convolutions causales (config fastconformer_hybrid_..._streaming.yaml) —
+ * planifie apres la fin du training offline en cours.
+ *
+ * v2 (2026-07-04) — instabilite constatee sur device : la re-transcription
+ * peut s'effondrer (quasi-vide) une seconde apres avoir parfaitement reconnu
+ * le meme debut d'enonce. Cause probable : la normalisation "per_feature" du
+ * modele (mean/std recalcules sur TOUT le buffer a chaque appel) est perturbee
+ * par les silences entre versets qui s'accumulent au fil de la session.
+ * Mitigation tentee : plafonner le silence CONSERVE dans le buffer (~300ms max
+ * par pause).
+ *
+ * v3 (2026-07-05) — la mitigation v2 attenue mais n'elimine PAS la derive :
+ * confirme par test reel (Al-Fatiha), une snapshot couvrant les versets 4-6
+ * quasi-parfaite a ete suivie de re-transcriptions DEGRADEES du meme contenu
+ * (melange de versets, mots perdus) alors que l'utilisateur recitait
+ * correctement. La vraie cause : le buffer entier (potentiellement plusieurs
+ * dizaines de secondes sur une sourate) reste bien au-dela de la duree d'un
+ * clip d'entrainement -> la normalisation "per_feature" (recalculee sur tout
+ * le buffer a chaque appel) derive structurellement, meme avec le silence
+ * plafonne. Fix reel : sur une pause franche (~700ms de silence continu,
+ * typiquement fin de verset/groupe de mots), on FIGE (commit) la
+ * transcription du segment courant — elle n'est PLUS JAMAIS reconsideree,
+ * eliminant la corruption retroactive — et on repart sur un buffer neuf pour
+ * la suite. Chaque segment reste ainsi proche d'un clip d'entrainement, avec
+ * des statistiques de normalisation stables sur toute sa duree de vie. Le
+ * texte retourne = segments figes (stables) + apercu du segment courant
+ * (encore susceptible d'evoluer jusqu'a sa propre pause de fin).
+ *
+ * Durcissement (2026-07-05, suite a relecture independante) : le seul
+ * declenchement par pause laissait un trou -- une recitation continue sans
+ * pause franche (le cas d'usage principal !) laisse le buffer regonfler sans
+ * borne et reintroduit la derive silencieusement. Ajoute : MAX_SEGMENT_SECONDS
+ * force un gel meme sans silence detecte (risque residuel accepte : coupure
+ * en plein mot dans ce cas limite, rare) ; MIN_COMMIT_SECONDS evite de figer
+ * un segment trop court sur des statistiques de normalisation peu fiables.
+ * Piste non retenue faute de temps de validation : remplacer la normalisation
+ * "per_feature" par des statistiques FIXES (precalculees sur le corpus
+ * d'entrainement, cf. option NeMo fixed_mean/fixed_std) -- eliminerait la
+ * derive quelle que soit la taille du segment, mais demande de valider que le
+ * checkpoint tolere ce changement (jamais vu ces stats a l'entrainement).
+ */
+class BufferedTranscriber(private val engine: FastConformerCtc) {
+
+    companion object {
+        private const val TAG = "BufferedTranscriber"
+        private const val SAMPLE_RATE = 16000
+        private const val MAX_SECONDS = 180          // garde-fou memoire/latence par segment
+        private const val MIN_NEW_SECONDS = 1.5f     // cadence de re-transcription du segment courant
+        private const val SILENCE_RMS_THRESHOLD = 0.02f      // approx -34dBFS
+        private const val MAX_SILENCE_SAMPLES = (SAMPLE_RATE * 0.3f).toInt() // 300ms max garde par pause (dans un segment)
+        // 450ms par defaut (et non 700ms) : test reel 2026-07-05 — une recitation
+        // fluide ne marque jamais 700ms entre versets, le gel sur pause ne tirait
+        // donc jamais et seule la borne dure (12s, deja trop long pour le modele)
+        // agissait. Ajustable par profil personnel via setCommitSilenceMs().
+        private const val DEFAULT_COMMIT_SILENCE_MS = 450
+        private const val MIN_COMMIT_SECONDS = 2.5f   // pas de gel sur un segment trop court (stats de normalisation peu fiables)
+        // 12s (et non 20s) : test reel du 2026-07-05 — la derive de normalisation
+        // est deja nette a ~10s de buffer, un gel force a 20s fige du texte degrade.
+        private const val MAX_SEGMENT_SECONDS = 12f   // borne dure : force le gel meme sans pause
+        private const val MIN_TRACKED_PAUSE_MS = 150  // pauses plus courtes = micro-respirations, ignorees du profil
+    }
+
+    private val lock = Any()
+    private var samples = FloatArray(0)
+    @Volatile private var latestText = ""      // apercu du segment courant (encore revisable)
+    @Volatile private var committedText = ""   // segments precedents, definitivement figes
+
+    // Exposes separement pour que le scoring Dart puisse s'ANCRER sur la partie
+    // figee (append-only, jamais revisee) et ne re-aligner que l'apercu -- le
+    // re-alignement complet depuis le mot 0 calait des que le debut du texte
+    // etait perdu par une re-transcription (curseur bloque, test 2026-07-05).
+    val committed: String get() = committedText
+    val preview: String get() = latestText
+    private val busy = AtomicBoolean(false)
+    @Volatile private var lastRunSize = 0
+    // Deux compteurs distincts (bug corrige 2026-07-05) : retainedSilence sert au
+    // plafond de silence CONSERVE dans le buffer (300ms) ; pauseSamples mesure la
+    // duree REELLE de la pause en cours et continue de compter meme quand les
+    // blocs sont jetes — sinon il plafonne a ~300ms et le gel sur pause (700ms)
+    // ne se declenche jamais (seule la borne dure tombait, trop tard).
+    private var retainedSilenceSamples = 0
+    private var pauseSamples = 0
+    @Volatile private var pendingCommit = false
+    @Volatile private var pendingForceCommit = false
+    // Taille du buffer couverte par le dernier apercu (latestText) — permet au
+    // gel force de figer l'apercu sans re-transcrire (cf. borne dure ci-dessous).
+    @Volatile private var lastPreviewSize = 0
+    // Seuil de gel sur pause, personnalisable par le profil utilisateur (Dart).
+    @Volatile private var commitSilenceSamples =
+        SAMPLE_RATE * DEFAULT_COMMIT_SILENCE_MS / 1000
+    // Duree (ms) de chaque pause terminee de la session — sert a apprendre le
+    // profil de pauses de l'utilisateur (idee "personnalisation" 2026-07-05 :
+    // la 1ere recitation complete revele ou et combien la personne s'arrete).
+    private val sessionPausesMs = mutableListOf<Int>()
+
+    /** Ajuste le seuil de gel sur pause (profil personnel). Borne 300-1500ms. */
+    fun setCommitSilenceMs(ms: Int) {
+        val clamped = ms.coerceIn(300, 1500)
+        commitSilenceSamples = SAMPLE_RATE * clamped / 1000
+        Log.i(TAG, "seuil de gel personnalise : ${clamped}ms")
+    }
+
+    /** Durees (ms) des pauses >= ${MIN_TRACKED_PAUSE_MS}ms observees depuis reset(). */
+    fun getSessionPausesMs(): List<Int> = synchronized(sessionPausesMs) { sessionPausesMs.toList() }
+
+    fun reset() {
+        synchronized(lock) { samples = FloatArray(0) }
+        latestText = ""
+        committedText = ""
+        lastRunSize = 0
+        retainedSilenceSamples = 0
+        pauseSamples = 0
+        pendingCommit = false
+        pendingForceCommit = false
+        lastPreviewSize = 0
+        synchronized(sessionPausesMs) { sessionPausesMs.clear() }
+    }
+
+    /**
+     * Ajoute du PCM et declenche une re-transcription en arriere-plan si assez
+     * de nouvel audio s'est accumule (ou qu'une pause franche impose de figer
+     * le segment courant) et qu'aucune inference n'est en cours. Retourne
+     * immediatement le texte complet connu (segments figes + apercu courant).
+     */
+    fun feed(newSamples: FloatArray, scope: CoroutineScope): String {
+        var sumSq = 0.0
+        for (v in newSamples) sumSq += v.toDouble() * v
+        val rms = sqrt(sumSq / newSamples.size)
+        val isSilence = rms < SILENCE_RMS_THRESHOLD
+
+        val toAppend: FloatArray? = if (!isSilence) {
+            // Fin d'une pause : consigner sa duree reelle dans le profil de session.
+            if (pauseSamples >= SAMPLE_RATE * MIN_TRACKED_PAUSE_MS / 1000) {
+                val ms = pauseSamples * 1000 / SAMPLE_RATE
+                synchronized(sessionPausesMs) { sessionPausesMs.add(ms) }
+            }
+            retainedSilenceSamples = 0
+            pauseSamples = 0
+            newSamples
+        } else {
+            pauseSamples += newSamples.size // duree reelle de la pause, sans plafond
+            if (retainedSilenceSamples >= MAX_SILENCE_SAMPLES) {
+                null // deja assez de silence conserve pour cette pause -> on jette ce bloc
+            } else {
+                retainedSilenceSamples += newSamples.size
+                newSamples
+            }
+        }
+
+        var size: Int
+        synchronized(lock) {
+            if (toAppend != null && samples.size < SAMPLE_RATE * MAX_SECONDS) {
+                val old = samples
+                samples = old.copyOf(old.size + toAppend.size)
+                System.arraycopy(toAppend, 0, samples, old.size, toAppend.size)
+            }
+            size = samples.size
+        }
+
+        val sizeSeconds = size.toFloat() / SAMPLE_RATE
+        // Le gel exige un segment assez long — verifie ICI (au moment de armer
+        // le flag) ET au lancement (le flag peut survivre a un gel precedent :
+        // course observee en test reel, micro-segment d'1s fige corrompu).
+        if (isSilence && pauseSamples >= commitSilenceSamples &&
+            sizeSeconds >= MIN_COMMIT_SECONDS
+        ) {
+            pendingCommit = true // pause franche sur un segment assez long -> fin de verset/groupe probable
+        }
+        if (sizeSeconds >= MAX_SEGMENT_SECONDS) {
+            // Borne dure : recitation continue sans pause detectee. On ne
+            // RE-transcrit PAS (test reel 2026-07-05 : a 12s la re-transcription
+            // de gel etait degradee alors que le dernier apercu etait parfait) —
+            // on fige le dernier apercu tel quel et on ne retire du buffer que
+            // l'audio qu'il couvrait.
+            pendingForceCommit = true
+        }
+        if (pendingCommit && sizeSeconds < MIN_COMMIT_SECONDS) {
+            pendingCommit = false // flag herite d'un gel precedent, segment courant trop court
+        }
+
+        if (pendingForceCommit && !busy.get()) {
+            pendingForceCommit = false
+            val previewText = latestText
+            val covered = lastPreviewSize
+            if (previewText.isNotEmpty() && covered > 0) {
+                synchronized(lock) {
+                    samples = if (samples.size > covered) {
+                        samples.copyOfRange(covered, samples.size)
+                    } else {
+                        FloatArray(0)
+                    }
+                    lastRunSize = 0
+                }
+                val sep = if (committedText.isEmpty()) "" else " "
+                committedText = committedText + sep + previewText
+                latestText = ""
+                lastPreviewSize = 0
+                Log.i(TAG, "segment FIGE (borne ${MAX_SEGMENT_SECONDS}s, apercu reutilise, ${covered / SAMPLE_RATE}s couverts) : \"${previewText.take(80)}\"")
+            } else {
+                // Pas d'apercu utilisable -> gel classique avec re-transcription.
+                pendingCommit = true
+            }
+        }
+
+        val newSinceLast = size - lastRunSize
+        val shouldRun =
+            size > 0 && (newSinceLast >= (SAMPLE_RATE * MIN_NEW_SECONDS).toInt() || pendingCommit)
+        if (shouldRun && busy.compareAndSet(false, true)) {
+            lastRunSize = size
+            val committing = pendingCommit
+            pendingCommit = false
+            val snapshot: FloatArray
+            synchronized(lock) { snapshot = samples.copyOf() }
+            scope.launch(Dispatchers.Default) {
+                try {
+                    val t0 = System.nanoTime()
+                    val text = engine.transcribe(snapshot)
+                    val ms = (System.nanoTime() - t0) / 1_000_000
+                    if (committing) {
+                        // Segment fige : plus jamais reconsidere. On ne retire du
+                        // buffer QUE la portion transcrite ici -- de l'audio a pu
+                        // arriver pendant l'inference (feed() n'est pas bloquant).
+                        synchronized(lock) {
+                            samples = if (samples.size > snapshot.size) {
+                                samples.copyOfRange(snapshot.size, samples.size)
+                            } else {
+                                FloatArray(0)
+                            }
+                            lastRunSize = samples.size
+                        }
+                        val sep = if (committedText.isEmpty()) "" else " "
+                        committedText = committedText + sep + text
+                        latestText = ""
+                        lastPreviewSize = 0
+                        Log.i(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
+                    } else {
+                        latestText = text
+                        lastPreviewSize = snapshot.size
+                        Log.i(TAG, "retranscription ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "echec retranscription", e)
+                } finally {
+                    busy.set(false)
+                }
+            }
+        }
+        val committed = committedText
+        val preview = latestText
+        val sep = if (committed.isEmpty() || preview.isEmpty()) "" else " "
+        return committed + sep + preview
+    }
+}

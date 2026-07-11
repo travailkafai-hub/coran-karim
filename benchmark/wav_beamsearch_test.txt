@@ -1,0 +1,4 @@
+### greedy_search ###
+  [device_wavs/rec_last.wav] بِسْمِ للَّهِ لرَّحْمَـنِ لر
+  [device_wavs/rec_biggest.wav]  لْحَمْدُ لِلَّهِ رَبِّ لْعَـلَمِينَ لْحَمْدُ لِلَّهِ رَبِّ لْعَـلَمِينَ لْحَمْدُ لِلَّهِ رَبِّ لْعَـلَم
+D:\a\sherpa-onnx\sherpa-onnx\sherpa-onnx/csrc/offline-recognizer-whisper-impl.h:Init:59 Only greedy_search is supported at present for whisper. Given modified_beam_search

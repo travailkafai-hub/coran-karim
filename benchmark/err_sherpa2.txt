@@ -1,0 +1,3 @@
+D:\a\sherpa-onnx\sherpa-onnx\sherpa-onnx/csrc/offline-recognizer-whisper-impl.h:DecodeStream:99 Only waves less than 30 seconds are supported. We process only the first 30 seconds and discard the remaining data
+D:\a\sherpa-onnx\sherpa-onnx\sherpa-onnx/csrc/offline-recognizer-whisper-impl.h:DecodeStream:99 Only waves less than 30 seconds are supported. We process only the first 30 seconds and discard the remaining data
+D:\a\sherpa-onnx\sherpa-onnx\sherpa-onnx/csrc/offline-recognizer-whisper-impl.h:DecodeStream:99 Only waves less than 30 seconds are supported. We process only the first 30 seconds and discard the remaining data

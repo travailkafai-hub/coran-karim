@@ -1,0 +1,5 @@
+Chargement modele fp32 (peut prendre du temps)...
+charge en 5.3s
+[device_wavs/rec_last.wav] (8.7s) بِسْمِ للَّهِ لرَّحْمَـنِ لر
+[device_wavs/rec_biggest.wav] (30.8s)  لْحَمْدُ لِلَّهِ رَبِّ لْعَـلَمِينَ لْحَمْدُ لِلَّهِ رَبِّ لْعَـلَمِينَ لْحَمْدُ لِلَّهِ رَبِّ لْعَـلَم
+ALL DONE

@@ -1,0 +1,51 @@
+# ── Artefacts lourds (modèles, données, exports) — jamais dans git ──────────
+# benchmark/ fait ~158 Go au total ; on ne versionne que les scripts/docs.
+benchmark/models/
+benchmark/arabic_speech_corpus/
+benchmark/data/
+benchmark/ggml_out*/
+benchmark/sherpa-whisper-medium-ft/
+benchmark/logs/
+benchmark/augmented_manifests/
+benchmark/nemo_manifests/
+benchmark/device_wavs/
+benchmark/results/
+benchmark/slr61/
+benchmark/.hf/
+benchmark/__pycache__/
+.venv*/
+**/.venv*/
+venv/
+**/__pycache__/
+*.ckpt
+*.nemo
+*.onnx
+*.litertlm
+*.task
+*.safetensors
+*.gguf
+*.bin
+*.wav
+*.mp3
+*.pt
+*.onnx.data
+*.a
+patches/**/.cxx/
+
+# ── Flutter / Android (app/ a déjà son propre .gitignore, ceci est un filet) ─
+app/build/
+app/.dart_tool/
+app/android/.gradle/
+patches/**/build/
+
+# ── Fichiers de travail temporaires ──────────────────────────────────────────
+scratch_*
+*.log
+scratch_kotlin_test/
+scratch_screens/
+
+# ── IDE / OS ─────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+.DS_Store
+Thumbs.db

@@ -1,0 +1,32 @@
+whisper_init_from_file_with_params_no_state: loading model from 'D:\Coran Karim\benchmark\ggml_out_small_v2\ggml-model.bin'
+whisper_init_with_params_no_state: use gpu    = 1
+whisper_init_with_params_no_state: flash attn = 1
+whisper_init_with_params_no_state: gpu_device = 0
+whisper_init_with_params_no_state: dtw        = 0
+whisper_init_with_params_no_state: devices    = 1
+whisper_init_with_params_no_state: backends   = 1
+whisper_model_load: loading model
+whisper_model_load: n_vocab       = 51865
+whisper_model_load: n_audio_ctx   = 1500
+whisper_model_load: n_audio_state = 768
+whisper_model_load: n_audio_head  = 12
+whisper_model_load: n_audio_layer = 12
+whisper_model_load: n_text_ctx    = 448
+whisper_model_load: n_text_state  = 768
+whisper_model_load: n_text_head   = 12
+whisper_model_load: n_text_layer  = 12
+whisper_model_load: n_mels        = 80
+whisper_model_load: ftype         = 1
+whisper_model_load: qntvr         = 0
+whisper_model_load: type          = 3 (small)
+whisper_model_load: adding 1608 extra tokens
+whisper_model_load: n_langs       = 99
+whisper_model_load:          CPU total size =   487.01 MB
+Traceback (most recent call last):
+  File "<stdin>", line 5, in <module>
+  File "D:\Coran Karim\benchmark\.venv\Lib\site-packages\pywhispercpp\model.py", line 177, in __init__
+    self._init_model()
+  File "D:\Coran Karim\benchmark\.venv\Lib\site-packages\pywhispercpp\model.py", line 383, in _init_model
+    self._ctx = pw.whisper_init_from_file_with_params(self.model_path, self._context_params)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: vector too long
