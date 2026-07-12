@@ -6,6 +6,9 @@
     <!-- Lecture modèles ONNX sur stockage externe (Android ≤ 12) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!-- Boussole Qibla : direction vers la Mecque depuis la position actuelle -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <application
         android:label="Coran Karim"

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
 
 /// Maps quran.com tajweed class names to display colors.
@@ -168,8 +169,24 @@ List<TextSpan> _remapWordColors(
 /// LETTRE et on se contente d'y superposer la couleur.
 List<List<TextSpan>> tajweedSpansPerWord(
     String plainText, String? tajweedHtml, TextStyle base) {
-  final plainWords =
-      plainText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  // MÊME filtre que ArabicNormalizer.splitExpectedWords (source de la liste
+  // récitable RecitedWord, indexée en parallèle de celle-ci par _wordSpan) —
+  // bug corrigé 2026-07-11 : ce filtre ne retirait avant que les mots
+  // totalement vides, pas les marques décoratives isolées (ex. "۞" rub el
+  // hizb, présent comme token à part entière séparé par un espace dans
+  // text_uthmani du verset 100:9). Une telle marque restait ici comme "mot"
+  // à part entière alors que splitExpectedWords l'exclut déjà (normalize("۞")
+  // est vide) -- décalait de 1 TOUS les index de coloration tajwid par
+  // rapport à RecitedWord à partir de ce verset, pour le reste du passage
+  // (la marque elle-même s'affichait comme "mot", et chaque mot réel suivant
+  // affichait le texte/la couleur du mot précédent). Même classe de bug que
+  // le marqueur de fin de verset `<span class=end>` (cf. `_endMarkerRe`
+  // ci-dessus) et la marque de waqf de la sourate 110 (cf. commentaire de
+  // `ArabicNormalizer.splitExpectedWords`) -- laquelle "۞" avait échappé.
+  final plainWords = plainText
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty && ArabicNormalizer.normalize(w).isNotEmpty)
+      .toList();
   if (tajweedHtml == null || tajweedHtml.isEmpty) {
     return [
       for (final w in plainWords) [TextSpan(text: w, style: base)],
@@ -346,7 +363,13 @@ class TajweedText extends StatelessWidget {
         style: base,
       );
     }
-    final words = textUthmani.split(' ');
+    // Même filtre que tajweedSpansPerWord/ArabicNormalizer.splitExpectedWords
+    // (cf. commentaire ci-dessus) : sans lui, une marque décorative isolée
+    // (ex. "۞") décale l'index passé à onWordTap par rapport à RecitedWord.
+    final words = textUthmani
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty && ArabicNormalizer.normalize(w).isNotEmpty)
+        .toList();
     return RichText(
       textDirection: TextDirection.rtl,
       text: TextSpan(

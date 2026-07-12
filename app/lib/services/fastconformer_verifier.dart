@@ -1,8 +1,77 @@
+import 'dart:async' show unawaited;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'diagnostic_log.dart';
+
+// ── Alignement forcé GOP (cf. ForcedAligner.kt, refonte 2026-07-11) ──────────
+
+/// Résultat d'alignement pour UN mot attendu. [gop] = forced - free (toujours
+/// ≤ 0) : proche de 0 = l'audio soutient pleinement le mot attendu (harakat
+/// comprises) ; très négatif = le modèle est bien plus sûr d'avoir entendu
+/// autre chose ([actual] dit quoi — décodage libre sur la plage de frames que
+/// l'alignement attribue à ce mot).
+class AlignedWord {
+  final int index; // index ABSOLU dans le texte attendu complet
+  final double gop;
+  final double forced;
+  final bool covered; // false = mot encore en cours de prononciation (frontière)
+  final String actual;
+
+  const AlignedWord({
+    required this.index,
+    required this.gop,
+    required this.forced,
+    required this.covered,
+    required this.actual,
+  });
+}
+
+/// Une passe d'alignement complète. [isFinal] : segment figé — l'audio de ces
+/// mots ne sera plus jamais réanalysé, jugements définitifs. [frontier] :
+/// premier mot que l'audio ne couvre pas complètement (= mot courant UI).
+class AlignPayload {
+  final int seq;
+  final int anchor;
+  final int frontier;
+  final bool isFinal;
+  final List<AlignedWord> words;
+
+  const AlignPayload({
+    required this.seq,
+    required this.anchor,
+    required this.frontier,
+    required this.isFinal,
+    required this.words,
+  });
+
+  static AlignPayload? fromMap(dynamic m) {
+    if (m is! Map) return null;
+    final rawWords = m['words'];
+    final words = <AlignedWord>[];
+    if (rawWords is List) {
+      for (final w in rawWords) {
+        if (w is! Map) continue;
+        words.add(AlignedWord(
+          index: (w['i'] as num).toInt(),
+          gop: (w['gop'] as num).toDouble(),
+          forced: (w['forced'] as num).toDouble(),
+          covered: w['covered'] as bool? ?? false,
+          actual: w['actual'] as String? ?? '',
+        ));
+      }
+    }
+    return AlignPayload(
+      seq: (m['seq'] as num?)?.toInt() ?? -1,
+      anchor: (m['anchor'] as num?)?.toInt() ?? 0,
+      frontier: (m['frontier'] as num?)?.toInt() ?? 0,
+      isFinal: m['final'] as bool? ?? false,
+      words: words,
+    );
+  }
+}
 
 /// Deuxième vérificateur ASR (FastConformer CTC, entraîné sur le corpus Coran,
 /// cf. benchmark/models/fastconformer-quran-pcd), tournant EN PARALLÈLE de
@@ -23,6 +92,12 @@ class FastConformerVerifier {
   static const _kModelSubdir = 'models/fastconformer-ctc-pcd';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
+  // Dictionnaire mot -> IDs de tokens précalculé avec le VRAI tokenizer NeMo
+  // (benchmark/build_word_token_lookup.py) — remplace la tokenisation greedy
+  // heuristique de CtcTokenizer.kt comme source PRIMAIRE pour l'alignement
+  // forcé (celle-ci reste un repli pour les mots hors dictionnaire, ex. texte
+  // hors-Coran). Optionnel : absent → CtcTokenizer.kt gère tout en greedy.
+  static const _kWordTokensFile = 'word_tokens.json';
 
   bool _loaded = false;
 
@@ -35,17 +110,33 @@ class FastConformerVerifier {
     final appDir = await getApplicationSupportDirectory();
     final modelFile = File('${appDir.path}/$_kModelSubdir/$_kModelFile');
     final vocabFile = File('${appDir.path}/$_kModelSubdir/$_kVocabFile');
+    final wordTokensFile = File('${appDir.path}/$_kModelSubdir/$_kWordTokensFile');
     if (!await modelFile.exists() || !await vocabFile.exists()) {
       debugPrint('[FastConformer] Modèle/vocab absents (${modelFile.path}) — ignoré');
       return false;
+    }
+    final hasWordTokens = await wordTokensFile.exists();
+    if (!hasWordTokens) {
+      debugPrint('[FastConformer] word_tokens.json absent — alignement forcé '
+          'utilisera la tokenisation greedy (repli) pour tous les mots');
     }
     try {
       final ok = await _channel.invokeMethod<bool>('loadModel', {
         'modelPath': modelFile.path,
         'vocabPath': vocabFile.path,
+        'wordTokensPath': hasWordTokens ? wordTokensFile.path : null,
       });
       _loaded = ok ?? false;
       debugPrint('[FastConformer] Modèle chargé : $_loaded');
+      // Relie le fichier de log natif (BufferedTranscriber, ForcedAligner) au
+      // MÊME fichier persistant que le côté Dart (cf. diagnostic_log.dart) —
+      // une seule chronologie, récupérable par adb pull sans connexion
+      // continue (demande utilisateur 2026-07-11).
+      final logPath = DiagnosticLog.path;
+      if (_loaded && logPath != null) {
+        unawaited(
+            _channel.invokeMethod('setLogFile', {'path': logPath}));
+      }
       return _loaded;
     } catch (e) {
       debugPrint('[FastConformer] Échec chargement modèle : $e');
@@ -148,13 +239,18 @@ class FastConformerVerifier {
   /// susceptible de changer à chaque re-transcription). Le scoring s'ancre sur
   /// la partie figée — re-partir du mot 0 à chaque passe calait dès que le
   /// début du texte était perdu par une re-transcription.
-  Future<({String committed, String preview})?> feedBufferedAudio(Uint8List pcm16) async {
+  Future<({String committed, String preview, AlignPayload? align})?>
+      feedBufferedAudio(Uint8List pcm16) async {
     if (!_loaded) return null;
     try {
       final raw = await _channel
-          .invokeMapMethod<String, String>('feedBufferedAudio', {'pcm16': pcm16});
+          .invokeMapMethod<String, dynamic>('feedBufferedAudio', {'pcm16': pcm16});
       if (raw == null) return null;
-      return (committed: raw['committed'] ?? '', preview: raw['preview'] ?? '');
+      return (
+        committed: raw['committed'] as String? ?? '',
+        preview: raw['preview'] as String? ?? '',
+        align: AlignPayload.fromMap(raw['align']),
+      );
     } catch (e) {
       debugPrint('[FastConformer] Échec feedBufferedAudio : $e');
       return null;
@@ -166,5 +262,67 @@ class FastConformerVerifier {
     try {
       await _channel.invokeMethod('resetBuffered');
     } catch (_) {}
+  }
+
+  // ── Alignement forcé GOP ────────────────────────────────────────────────────
+
+  /// Déclare le texte attendu (formes STRICTES : harakat conservées, variantes
+  /// uthmani rabattues — ArabicNormalizer.normalizeStrict, même normalisation
+  /// que le corpus d'entraînement) et l'ancre de départ. Retourne true si
+  /// l'alignement est actif (modèle chargé + tokenisation OK) — sinon le
+  /// scoring Dart doit retomber sur le diff textuel historique.
+  Future<bool> setAlignmentTarget(List<String> strictWords, int anchor) async {
+    if (!_loaded) return false;
+    try {
+      final ok = await _channel.invokeMethod<bool>('setAlignmentTarget', {
+        'words': strictWords,
+        'anchor': anchor,
+      });
+      return ok ?? false;
+    } catch (e) {
+      debugPrint('[FastConformer] Échec setAlignmentTarget : $e');
+      return false;
+    }
+  }
+
+  /// Repositionne l'ancre d'alignement (correction/recul : la prochaine passe
+  /// compare l'audio au mot [anchor], pas à la suite).
+  Future<void> setAlignmentAnchor(int anchor) async {
+    if (!_loaded) return;
+    try {
+      await _channel.invokeMethod('setAlignmentAnchor', {'anchor': anchor});
+    } catch (e) {
+      debugPrint('[FastConformer] Échec setAlignmentAnchor : $e');
+    }
+  }
+
+  /// Alignement one-shot d'un WAV complet (mode coach, segment unique) contre
+  /// la cible déclarée via [setAlignmentTarget]. Null si indisponible.
+  Future<AlignPayload?> alignFile(String wavPath) async {
+    if (!_loaded) return null;
+    try {
+      final raw = await _channel
+          .invokeMapMethod<String, dynamic>('alignFile', {'wavPath': wavPath});
+      return AlignPayload.fromMap(raw);
+    } catch (e) {
+      debugPrint('[FastConformer] Échec alignFile : $e');
+      return null;
+    }
+  }
+
+  /// Étend la cible d'alignement avec des mots supplémentaires (formes
+  /// STRICTES d'entraînement), à la SUITE de la cible actuelle — SANS toucher
+  /// l'ancre. Enchaînement sur la sourate suivante sans interrompre la session.
+  Future<bool> extendAlignmentTarget(List<String> strictWords) async {
+    if (!_loaded) return false;
+    try {
+      final ok = await _channel.invokeMethod<bool>('extendAlignmentTarget', {
+        'words': strictWords,
+      });
+      return ok ?? false;
+    } catch (e) {
+      debugPrint('[FastConformer] Échec extendAlignmentTarget : $e');
+      return false;
+    }
   }
 }

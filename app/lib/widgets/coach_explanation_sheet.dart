@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/cascade_explanation.dart';
 import '../models/verse.dart';
+import '../providers/app_settings_provider.dart';
 import '../services/quran_api.dart';
+import '../services/quran_sciences_service.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/tutor_llm_service.dart';
 import '../theme/app_theme.dart';
@@ -11,18 +15,29 @@ import '../theme/app_theme.dart';
 /// Mushaf, et tap sur un mot dans le Mushaf — demande utilisateur
 /// 2026-07-10).
 ///
+/// Source de l'explication (demande utilisateur 2026-07-12,
+/// WORD_AYAH_EXPLANATION_PLAN.md) : d'ABORD la cascade offline
+/// (`QuranSciencesService`, texte de tafsir déjà écrit/sourcé, paliers
+/// synthétique -> érudit, zéro génération) -- le tuteur Gemma (LLM) ne sert
+/// de repli QUE si les données offline ne sont pas déployées sur cet
+/// appareil ou n'ont rien pour ce verset/cette langue.
+///
 /// [focusWord] : mot précis à expliquer (registre SENS, ex. tap sur un mot
-/// pendant la lecture) — prioritaire sur le journal d'erreurs.
+/// pendant la lecture) — prioritaire sur le journal d'erreurs. [focusWordIndex] :
+/// sa position 0-based dans le découpage de la sourate (nécessaire pour lever
+/// toute ambiguïté quand le même mot apparaît plusieurs fois dans un verset,
+/// cf. `QuranSciencesService.explainWord`).
 /// [useErrorLog] : si true (défaut, onglet Coach IA), le journal d'erreurs
-/// de récitation pour cette aya oriente l'explication vers le registre
-/// MÉMORISATION. Le Mushaf passe `false` : lire un verset n'est pas une
-/// session de révision d'erreur, même si ce verset a été raté par ailleurs.
+/// de récitation pour cette aya oriente l'explication Gemma (repli) vers le
+/// registre MÉMORISATION. Le Mushaf passe `false` : lire un verset n'est pas
+/// une session de révision d'erreur, même si ce verset a été raté par ailleurs.
 void showCoachExplanation(
   BuildContext context, {
   required int surahNumber,
   required int ayahNumber,
   required String title,
   String? focusWord,
+  int? focusWordIndex,
   String? testMistakenWord,
   bool useErrorLog = true,
 }) {
@@ -37,17 +52,19 @@ void showCoachExplanation(
       ayahNumber: ayahNumber,
       title: title,
       focusWord: focusWord,
+      focusWordIndex: focusWordIndex,
       testMistakenWord: testMistakenWord,
       useErrorLog: useErrorLog,
     ),
   );
 }
 
-class CoachExplanationSheet extends StatefulWidget {
+class CoachExplanationSheet extends ConsumerStatefulWidget {
   final int surahNumber;
   final int ayahNumber;
   final String title;
   final String? focusWord;
+  final int? focusWordIndex;
   // Mot fixe utilisé uniquement par le bouton "Tester le Coach IA" (pas
   // d'erreur réelle journalisée pour ce verset de démo).
   final String? testMistakenWord;
@@ -58,17 +75,24 @@ class CoachExplanationSheet extends StatefulWidget {
     required this.ayahNumber,
     required this.title,
     this.focusWord,
+    this.focusWordIndex,
     this.testMistakenWord,
     this.useErrorLog = true,
   });
 
   @override
-  State<CoachExplanationSheet> createState() => _CoachExplanationSheetState();
+  ConsumerState<CoachExplanationSheet> createState() =>
+      _CoachExplanationSheetState();
 }
 
-class _CoachExplanationSheetState extends State<CoachExplanationSheet> {
-  String? _explanation;
+class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
+  static const _kLangLabels = {'ar': 'العربية', 'fr': 'Français', 'en': 'English'};
+
+  CascadeExplanation? _cascade;
+  int _expandedTier = 1;
+  String? _gemmaExplanation; // repli, seulement si _cascade reste null
   String? _error;
+  bool _loading = true;
 
   @override
   void initState() {
@@ -77,6 +101,54 @@ class _CoachExplanationSheetState extends State<CoachExplanationSheet> {
   }
 
   Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _cascade = null;
+      _gemmaExplanation = null;
+      _expandedTier = 1;
+    });
+    final lang = ref.read(explanationLanguageProvider);
+    try {
+      CascadeExplanation? cascade;
+      if (widget.focusWord != null) {
+        cascade = await QuranSciencesService.instance.explainWord(
+          widget.surahNumber,
+          widget.ayahNumber,
+          widget.focusWordIndex ?? -1,
+          widget.focusWord!,
+          lang,
+        );
+        // Pas de dictionnaire mot-à-mot dans cette langue (fréquent en
+        // FR/EN, cf. plan) -- repli sur l'explication du VERSET entier,
+        // toujours plus utile qu'un vide pur.
+        cascade ??= await QuranSciencesService.instance
+            .explainAyah(widget.surahNumber, widget.ayahNumber, lang);
+      } else {
+        cascade = await QuranSciencesService.instance
+            .explainAyah(widget.surahNumber, widget.ayahNumber, lang);
+      }
+      if (!mounted) return;
+      if (cascade != null) {
+        setState(() {
+          _cascade = cascade;
+          _loading = false;
+        });
+        return;
+      }
+      // Repli Gemma : données offline absentes de l'appareil ou rien pour
+      // ce verset/cette langue.
+      await _loadGemmaFallback();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadGemmaFallback() async {
     try {
       final results = await Future.wait([
         QuranApi.fetchVerses(widget.surahNumber),
@@ -100,21 +172,31 @@ class _CoachExplanationSheetState extends State<CoachExplanationSheet> {
       );
       if (!mounted) return;
       setState(() {
-        _explanation = explanation ??
-            "Le Coach IA n'est pas encore disponible sur cet appareil.";
+        _gemmaExplanation = explanation ??
+            "Aucune explication disponible pour ce passage sur cet appareil.";
+        _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
+  }
+
+  void _changeLanguage(String lang) {
+    ref.read(explanationLanguageProvider.notifier).set(lang);
+    _load();
   }
 
   @override
   Widget build(BuildContext context) {
+    final lang = ref.watch(explanationLanguageProvider);
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.7,
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
         ),
         child: SingleChildScrollView(
           padding: EdgeInsets.only(
@@ -125,22 +207,31 @@ class _CoachExplanationSheetState extends State<CoachExplanationSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.title,
-                  style: GoogleFonts.scheherazadeNew(
-                      fontSize: 20, color: AppColors.green900)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(widget.title,
+                        style: GoogleFonts.scheherazadeNew(
+                            fontSize: 20, color: AppColors.green900)),
+                  ),
+                  _languageSelector(lang),
+                ],
+              ),
               const SizedBox(height: 16),
               if (_error != null)
                 Text('Erreur : $_error',
                     style: const TextStyle(color: AppColors.green700))
-              else if (_explanation == null)
+              else if (_loading)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
                   child: Center(
                       child:
                           CircularProgressIndicator(color: AppColors.green700)),
                 )
+              else if (_cascade != null)
+                _cascadeView(_cascade!)
               else
-                Text(_explanation!,
+                Text(_gemmaExplanation ?? '',
                     style:
                         const TextStyle(color: AppColors.green900, height: 1.4)),
               const SizedBox(height: 12),
@@ -148,6 +239,75 @@ class _CoachExplanationSheetState extends State<CoachExplanationSheet> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _languageSelector(String current) {
+    return PopupMenuButton<String>(
+      tooltip: 'Langue',
+      initialValue: current,
+      onSelected: _changeLanguage,
+      itemBuilder: (_) => _kLangLabels.entries
+          .map((e) => PopupMenuItem(value: e.key, child: Text(e.value)))
+          .toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.green900.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(_kLangLabels[current] ?? current,
+              style: const TextStyle(color: AppColors.green900, fontSize: 13)),
+          const SizedBox(width: 4),
+          const Icon(Icons.expand_more, size: 18, color: AppColors.green900),
+        ]),
+      ),
+    );
+  }
+
+  /// Cascade synthétique -> érudit : palier 1 toujours visible, un bouton
+  /// "approfondir" dévoile le palier suivant (jamais tout d'un coup, cf. le
+  /// plan). Source toujours citée, y compris au palier 1.
+  Widget _cascadeView(CascadeExplanation cascade) {
+    final visibleTiers = [
+      for (var t = 1; t <= _expandedTier; t++)
+        if (cascade.tier(t) != null) t
+    ];
+    final hasMore = _expandedTier < cascade.maxTier;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (cascade.root != null) ...[
+          Text('Racine : ${cascade.root}',
+              style: const TextStyle(
+                  color: AppColors.brass,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13)),
+          const SizedBox(height: 10),
+        ],
+        for (final t in visibleTiers) ...[
+          for (final src in cascade.tier(t)!) ...[
+            Text(src.source,
+                style: const TextStyle(
+                    color: AppColors.brass,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12)),
+            const SizedBox(height: 4),
+            Text(src.text,
+                style:
+                    const TextStyle(color: AppColors.green900, height: 1.5)),
+            const SizedBox(height: 14),
+          ],
+        ],
+        if (hasMore)
+          TextButton.icon(
+            onPressed: () => setState(() => _expandedTier++),
+            icon: const Icon(Icons.expand_more, color: AppColors.green700),
+            label: const Text('Approfondir',
+                style: TextStyle(color: AppColors.green700)),
+          ),
+      ],
     );
   }
 }

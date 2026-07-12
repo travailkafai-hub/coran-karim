@@ -25,6 +25,16 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     // applique des sa construction, sinon un setCommitSilenceMs appele avant le
     // premier bloc audio serait perdu.
     @Volatile private var pendingCommitSilenceMs: Int? = null
+    // Cible d'alignement force GOP (cf. ForcedAligner.kt) : mots attendus
+    // tokenises + ancre. Stockee au niveau plugin (meme pattern que
+    // pendingCommitSilenceMs : setAlignmentTarget peut arriver AVANT le premier
+    // bloc audio qui cree le BufferedTranscriber) ET utilisee directement par
+    // alignFile (mode coach, un seul WAV, pas de BufferedTranscriber).
+    @Volatile private var alignTokens: List<IntArray>? = null
+    @Volatile private var alignAnchor: Int = 0
+    private var tokenizer: CtcTokenizer? = null
+    // Dictionnaire mot->tokens precalcule (cf. loadModel) -- null si absent.
+    @Volatile private var wordTokenLookup: Map<String, IntArray>? = null
     private var fingerprint: VoiceFingerprint? = null
     private val scope = CoroutineScope(Dispatchers.Default)
 
@@ -45,6 +55,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
+            // Relie le fichier de log persistant sur le telephone (cf.
+            // lib/services/diagnostic_log.dart) -- BufferedTranscriber et
+            // ForcedAligner y ecrivent via DiagnosticLog.kt pour que TOUT le
+            // pipeline (Dart + natif) atterrisse dans la meme chronologie,
+            // recuperable par `adb pull` a la demande (demande utilisateur
+            // 2026-07-11), independamment de toute connexion adb continue.
+            "setLogFile" -> {
+                val path = call.argument<String>("path")
+                if (path != null) DiagnosticLog.setFile(path)
+                result.success(null)
+            }
             "loadModel" -> scope.launch {
                 try {
                     // Idempotent : NE PAS fermer/recreer un moteur deja charge.
@@ -66,6 +87,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     val modelPath = call.argument<String>("modelPath")!!
                     val vocabPath = call.argument<String>("vocabPath")!!
                     engine = FastConformerCtc(modelPath, vocabPath)
+                    // Dictionnaire mot->tokens precalcule (optionnel, cf.
+                    // build_word_token_lookup.py) -- source primaire du
+                    // tokenizer de l'alignement force, null si absent
+                    // (CtcTokenizer se rabat alors sur le greedy pour tout).
+                    val wordTokensPath = call.argument<String>("wordTokensPath")
+                    wordTokenLookup = wordTokensPath?.let { loadWordTokenLookup(it) }
+                    tokenizer = null // reconstruit au prochain setAlignmentTarget avec le bon lookup
                     withContext(Dispatchers.Main) { result.success(true) }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { result.error("LOAD_FAILED", e.message, null) }
@@ -141,14 +169,18 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     if (buffered == null) {
                         buffered = BufferedTranscriber(current)
                         pendingCommitSilenceMs?.let { buffered!!.setCommitSilenceMs(it) }
+                        alignTokens?.let { buffered!!.setAlignmentTarget(it, alignAnchor) }
                     }
                     val samples = pcm16ToFloat(pcm16)
                     buffered!!.feed(samples, scope)
                     // Parties figee/apercu separees : le scoring Dart s'ancre sur
                     // la partie figee (append-only) au lieu de re-aligner du mot 0.
+                    // "align" : dernier resultat d'alignement force GOP (nullable,
+                    // deduplique cote Dart par son champ "seq").
                     val payload = mapOf(
                         "committed" to buffered!!.committed,
                         "preview" to buffered!!.preview,
+                        "align" to buffered!!.alignmentPayload(),
                     )
                     withContext(Dispatchers.Main) { result.success(payload) }
                 } catch (e: Exception) {
@@ -158,6 +190,112 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "resetBuffered" -> {
                 buffered?.reset()
                 result.success(null)
+            }
+            // ── Alignement force GOP (cf. ForcedAligner.kt) ────────────────────
+            // Le texte attendu est CONNU d'avance : chaque passe de transcription
+            // aligne de force les mots restants sur les logprobs et retourne un
+            // score par mot (gop = forced - free) au lieu de laisser Dart faire
+            // un diff textuel flou apres coup.
+            "setAlignmentTarget" -> scope.launch {
+                try {
+                    val current = engine
+                    if (current == null) {
+                        // Pas une erreur : le modele n'est juste pas encore deploye.
+                        withContext(Dispatchers.Main) { result.success(false) }
+                        return@launch
+                    }
+                    val words = call.argument<List<String>>("words")!!
+                    val anchor = call.argument<Int>("anchor") ?: 0
+                    if (tokenizer == null) tokenizer = CtcTokenizer(current.vocabPieces, wordTokenLookup)
+                    val tokens = words.map { tokenizer!!.tokenizeWord(it) }
+                    val empty = tokens.count { it.isEmpty() }
+                    if (empty > 0) {
+                        DiagnosticLog.log("FastConformerCtcPlugin",
+                            "$empty mot(s) intokenisable(s) sur ${words.size} — alignement quand meme actif")
+                    }
+                    alignTokens = tokens
+                    alignAnchor = anchor
+                    buffered?.setAlignmentTarget(tokens, anchor)
+                    withContext(Dispatchers.Main) { result.success(true) }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) { result.error("SET_ALIGN_TARGET_FAILED", e.message, null) }
+                }
+            }
+            "setAlignmentAnchor" -> {
+                val anchor = call.argument<Int>("anchor")
+                if (anchor != null) {
+                    alignAnchor = anchor
+                    buffered?.setAlignmentAnchor(anchor)
+                }
+                result.success(null)
+            }
+            // Enchainement sur la sourate suivante (demande utilisateur
+            // 2026-07-11) : ajoute des mots a la SUITE de la cible actuelle sans
+            // toucher l'ancre -- la recitation continue exactement ou elle en
+            // etait, juste avec plus de texte a reciter derriere.
+            "extendAlignmentTarget" -> scope.launch {
+                try {
+                    val current = engine
+                    if (current == null) {
+                        withContext(Dispatchers.Main) { result.success(false) }
+                        return@launch
+                    }
+                    val words = call.argument<List<String>>("words")!!
+                    if (tokenizer == null) tokenizer = CtcTokenizer(current.vocabPieces, wordTokenLookup)
+                    val newTokens = words.map { tokenizer!!.tokenizeWord(it) }
+                    alignTokens = (alignTokens ?: emptyList()) + newTokens
+                    buffered?.extendAlignmentTarget(newTokens)
+                    DiagnosticLog.log("FastConformerCtcPlugin",
+                        "cible etendue : +${newTokens.size} mots, total=${alignTokens?.size}")
+                    withContext(Dispatchers.Main) { result.success(true) }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) { result.error("EXTEND_ALIGN_TARGET_FAILED", e.message, null) }
+                }
+            }
+            // Mode coach (segment WAV unique) : une inference + alignement force
+            // one-shot sur la cible courante. Resultat toujours final (l'audio
+            // est complet, il ne sera jamais reanalyse).
+            "alignFile" -> scope.launch {
+                try {
+                    val current = engine
+                    val tokens = alignTokens
+                    if (current == null || tokens == null) {
+                        withContext(Dispatchers.Main) { result.success(null) }
+                        return@launch
+                    }
+                    val wavPath = call.argument<String>("wavPath")!!
+                    val anchor = alignAnchor.coerceIn(0, tokens.size)
+                    if (anchor >= tokens.size) {
+                        withContext(Dispatchers.Main) { result.success(null) }
+                        return@launch
+                    }
+                    val pcm = WavReader.readMono16kFloat(wavPath)
+                    val logprobs = current.computeLogProbs(pcm)
+                    val aligner = ForcedAligner(current.vocabPieces, current.blank)
+                    val res = aligner.align(logprobs, tokens.subList(anchor, tokens.size), anchor)
+                    if (res == null) {
+                        withContext(Dispatchers.Main) { result.success(null) }
+                        return@launch
+                    }
+                    val payload = mapOf(
+                        "seq" to -1, // one-shot : pas de dedup necessaire cote Dart
+                        "anchor" to anchor,
+                        "frontier" to res.frontier,
+                        "final" to true,
+                        "words" to res.words.map {
+                            mapOf(
+                                "i" to it.index,
+                                "gop" to it.gop,
+                                "forced" to it.forced,
+                                "covered" to it.covered,
+                                "actual" to it.actual,
+                            )
+                        },
+                    )
+                    withContext(Dispatchers.Main) { result.success(payload) }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) { result.error("ALIGN_FILE_FAILED", e.message, null) }
+                }
             }
             // Profil de pauses personnel (par passage, cf. BufferedTranscriber) :
             // le seuil de gel s'adapte a la facon dont CET utilisateur recite CE

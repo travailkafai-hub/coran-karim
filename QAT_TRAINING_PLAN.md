@@ -129,7 +129,11 @@ model = AutoModelForMultimodalLM.from_pretrained(
 model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
 
 lora = LoraConfig(
-    r=16, lora_alpha=32, lora_dropout=0.05,
+    r=128, lora_alpha=256, lora_dropout=0.05,  # r=128 (vs 16 pour le fix PTQ v6) : plus de
+    # capacite pour l'adaptateur, decide pour ce run QAT afin de mieux compenser le bruit
+    # de quantification INT4. alpha garde le ratio alpha/r=2 du run v6 (memes proportions
+    # d'echelle effective de l'adaptation) — a ajuster si l'entrainement ne converge pas
+    # comme attendu avec ce ratio.
     target_modules=r".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$",
     task_type=TaskType.CAUSAL_LM,
 )

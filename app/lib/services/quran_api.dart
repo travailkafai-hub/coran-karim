@@ -37,7 +37,7 @@ class QuranApi {
       '/verses/by_chapter/$surahNumber',
       queryParameters: {
         'translations': '136',  // fr-montada
-        'fields': 'text_uthmani,text_uthmani_tajweed',
+        'fields': 'text_uthmani,text_uthmani_tajweed,page_number',
         'per_page': '286',
       },
     );
@@ -51,11 +51,31 @@ class QuranApi {
         ayahNumber: verse.ayahNumber,
         textUthmani: verse.textUthmani,
         textUthmaniTajweed: map['text_uthmani_tajweed'] as String?,
+        pageNumber: verse.pageNumber,
         translationFr: translations?.isNotEmpty == true
             ? translations!.first['text'] as String?
             : null,
       );
     }).toList();
+  }
+
+  /// Une page du Mushaf standard (1-604) -- utilisé pour l'enchaînement
+  /// dynamique entre sourates (KaraokeRecitationScreen._maybeExtendNextPage) :
+  /// charger une page à la fois plutôt que la sourate suivante en entier
+  /// (une sourate longue comme Al-Baqarah, 286 versets/~6100 mots, chargeait
+  /// tout instantanément dès qu'on en approchait -- demande utilisateur
+  /// 2026-07-11 : "il faut faire ça dynamiquement, une page avant et une page
+  /// après").
+  static Future<List<Verse>> fetchVersesByPage(int pageNumber) async {
+    final r = await _dio.get(
+      '/verses/by_page/$pageNumber',
+      queryParameters: {
+        'fields': 'text_uthmani,text_uthmani_tajweed,page_number',
+        'per_page': '50', // large marge -- une page du Mushaf ne dépasse jamais ~15 versets
+      },
+    );
+    final list = r.data['verses'] as List;
+    return list.map((v) => Verse.fromJson(v as Map<String, dynamic>)).toList();
   }
 
   /// Returns all audio file URLs for a surah, keyed by verse_key.

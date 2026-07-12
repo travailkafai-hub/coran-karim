@@ -219,3 +219,89 @@ plusieurs chances d'être bien reconnu au lieu d'une seule décision figée.
 Changement d'architecture conséquent côté moteur natif Kotlin — pas encore
 implémenté, en attente d'une décision sur la priorité par rapport aux
 autres chantiers ASR en cours.
+
+---
+
+## 5. Pistes pour un prochain entraînement — découvertes pendant la refonte GOP (2026-07-11)
+
+Contexte : refonte complète du scoring karaoké, remplaçant le diff textuel
+flou par un **alignement forcé CTC** (le texte attendu est connu d'avance,
+on aligne de force la séquence de tokens dessus et on mesure l'écart entre
+la probabilité du chemin forcé et celle du meilleur chemin libre — score
+GOP, cf. `ForcedAligner.kt`). Cette refonte a fait remonter des signaux
+directement exploitables pour évaluer/améliorer le prochain modèle.
+
+### 5.1 — Anomalie GOP constatée sur un mot bien prononcé : piste de diagnostic à grande échelle
+
+En testant sur device, le mot "ٱلرَّحْمَـٰنِ" (ar-Rahman) est ressorti avec un
+score GOP catastrophique (-5.11 puis -5.81 sur deux récitations séparées,
+contre ~0.00 pour les mots voisins "الله" et "الرحيم") **alors que la
+prononciation était correcte** (le décodage libre épelle bien le mot
+attendu). Deux hypothèses vérifiées et écartées : divergence de tokenizer
+(le greedy Kotlin coïncide exactement avec le vrai tokenizer NeMo, testé
+mot par mot ET phrase complète) et normalisation incohérente (corrigée
+séparément, cf. §5.3). La cause reste donc soit un vrai phénomène acoustique
+(liaison/coarticulation entre "الله" et "الرحمن", l'un finissant et l'autre
+commençant par un son proche, qui perturberait spécifiquement l'alignement
+à CETTE frontière de mots), soit une limite de la DP d'alignement forcé
+elle-même sur ce type de transition — pas encore tranché.
+
+**Piste concrète pour la prochaine itération** : construire un script
+d'évaluation systématique (pas juste ce mot isolé) qui fait tourner
+l'alignement forcé sur tout `test_voice_full.jsonl` (récitations déjà
+connues comme correctes) et relève tous les mots/positions dont le GOP est
+anormalement bas malgré une reconnaissance libre correcte. Ça donnerait :
+(a) un vrai jeu de calibration pour fixer `_kGopCorrect`/`_kGopUnclear` sur
+des données réelles plutôt qu'à la main sur quelques exemples, (b) une
+liste de positions structurellement fragiles (probablement concentrées aux
+frontières de mots avec liaison phonétique) qui pourrait justifier un
+objectif d'entraînement complémentaire si le phénomène est confirmé
+récurrent.
+
+### 5.2 — CTC "peaky" et frontières de mots : lien avec la piste madd (§1)
+
+Le doc §1 notait déjà que le CTC est réputé "pointu" (peaky — émet le
+caractère vers la fin du son réel) comme limite de l'option A (timing par
+extraction CTC). L'anomalie 5.1 est cohérente avec cette même limite vue
+sous un autre angle : si le modèle a appris à placer ses tokens de façon
+imprécise dans le temps, l'alignement forcé — qui a besoin de savoir
+précisément OÙ un mot commence/finit pour calculer un score par mot — hérite
+directement de cette imprécision aux frontières. Si l'hypothèse liaison/CTC
+peaky se confirme via 5.1, une piste d'entraînement à évaluer : un objectif
+auxiliaire qui pénalise l'étalement temporel des tokens (encourage des
+transitions plus nettes), ou un fine-tuning spécifique orienté alignement
+plutôt que seulement reconnaissance libre.
+
+### 5.3 — Dérive silencieuse entre normalisation d'entraînement et normalisation app : mettre un garde-fou
+
+Bug trouvé et corrigé pendant cette session (pas une piste, un fait à ne pas
+reproduire) : `ArabicNormalizer.normalizeStrict()` côté app avait accumulé
+des fusions de lettres (أ/إ/آ→ا, ى→ي, ؤ→و, ئ→ي, ة→ه) qui n'existent PAS dans
+`normalize_text()` du pipeline d'entraînement (`prepare_nemo_data.py`) — le
+modèle a appris à distinguer ces lettres, mais la cible envoyée à
+l'alignement forcé les fusionnait, désynchronisant silencieusement la cible
+et ce que le modèle a réellement appris à prédire pour une grande partie du
+vocabulaire coranique (ة apparaît dans des centaines de mots : صَلَاة،
+حَيَاة، رَحْمَة...). Fixé en ajoutant `normalizeTraining()`, une copie fidèle
+de la normalisation d'entraînement, réservée à la cible d'alignement.
+
+**Piste pour éviter la récidive** : les deux fonctions (Python
+`normalize_text` et Dart `normalizeTraining`) sont dupliquées à la main dans
+deux langages — rien n'empêche qu'elles redivergent silencieusement au
+prochain ajustement de l'une des deux. Envisager un test automatisé (script
+qui compare la sortie des deux fonctions sur un échantillon de mots
+coraniques et échoue si elles divergent) à faire tourner avant tout nouveau
+déploiement de modèle, plutôt que de compter sur une relecture manuelle
+pour l'attraper comme cette fois-ci.
+
+### 5.4 — Dictionnaire mot→tokens précalculé avec le vrai tokenizer NeMo
+
+Pas une idée pour le PROCHAIN entraînement à proprement parler, mais un
+changement d'outillage qui devrait accompagner CHAQUE nouveau modèle
+déployé désormais : au lieu de réimplémenter la tokenisation BPE
+("greedy longest-match") côté Kotlin pour l'alignement forcé, précalculer
+le dictionnaire mot→IDs de tokens avec le vrai tokenizer NeMo
+(`build_word_token_lookup.py`, ajouté 2026-07-11) et le déployer comme
+asset à côté de `vocab.json`. Élimine tout risque de divergence entre la
+tokenisation utilisée pour l'alignement et celle réellement apprise par le
+modèle — à régénérer et redéployer à chaque nouveau checkpoint entraîné.

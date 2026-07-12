@@ -26,6 +26,12 @@ class FastConformerCtc(modelPath: String, vocabPath: String) {
     private val vocab: List<String> = loadVocab(vocabPath)
     private val blankId: Int = vocab.size // CTC blank = dernier index (vocab_size), verifie cote Python
 
+    /** Pieces BPE du vocabulaire — pour le tokenizer/aligneur force (cf. ForcedAligner.kt). */
+    val vocabPieces: List<String> get() = vocab
+
+    /** Index du blank CTC — pour l'aligneur force. */
+    val blank: Int get() = blankId
+
     private fun loadVocab(path: String): List<String> {
         val json = File(path).readText(Charsets.UTF_8)
         val arr = JSONArray(json)
@@ -33,7 +39,14 @@ class FastConformerCtc(modelPath: String, vocabPath: String) {
     }
 
     /** @param pcm audio brut mono 16kHz, [-1,1]. @return texte decode (harakat incluses). */
-    fun transcribe(pcm: FloatArray): String {
+    fun transcribe(pcm: FloatArray): String = greedyDecode(computeLogProbs(pcm))
+
+    /**
+     * Log-probabilites par frame (T, vocab+1) — la matiere premiere du decodage
+     * glouton ET de l'alignement force GOP (ForcedAligner). Exposee separement
+     * pour ne lancer l'inference ONNX qu'UNE fois quand les deux en ont besoin.
+     */
+    fun computeLogProbs(pcm: FloatArray): Array<FloatArray> {
         val feats = MelSpectrogram.compute(pcm) // (80, T)
         val nMels = feats.size
         val t = feats[0].size
@@ -52,13 +65,13 @@ class FastConformerCtc(modelPath: String, vocabPath: String) {
                 session.run(inputs).use { results ->
                     @Suppress("UNCHECKED_CAST")
                     val logprobs = results[0].value as Array<Array<FloatArray>> // (1, T, vocab+1)
-                    return greedyDecode(logprobs[0])
+                    return logprobs[0] // copie JVM materialisee par .value — survit au close()
                 }
             }
         }
     }
 
-    private fun greedyDecode(logprobs: Array<FloatArray>): String {
+    fun greedyDecode(logprobs: Array<FloatArray>): String {
         val ids = ArrayList<Int>(logprobs.size)
         var prev = -1
         for (frame in logprobs) {

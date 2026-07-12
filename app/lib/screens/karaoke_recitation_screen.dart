@@ -8,6 +8,7 @@ import '../models/recitation_state.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
+import '../services/diagnostic_log.dart';
 import '../services/pause_profile_service.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
@@ -47,7 +48,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // s'enregistre JAMAIS en douce : c'est une étape explicite, annoncée avant
   // de commencer et confirmée après (demande utilisateur 2026-07-05 —
   // "l'utilisateur doit être conscient qu'il va définir comment il récite").
-  bool? _hasProfile; // null = vérification en cours
+  bool? _hasProfile; // null = vérification en cours (profil DÉDIÉ à ce passage)
+  // Profil GLOBAL (agrégé sur d'autres passages déjà validés, cf.
+  // PauseProfileService) jugé assez stable pour ne plus reproposer de
+  // session de référence à chaque nouveau passage (demande utilisateur
+  // 2026-07-12 : "pendant les premières récitations [propose], quand on aura
+  // quelque chose de stable on ne propose plus"). null = vérification en cours.
+  bool? _globalStable;
   bool _isReferenceSession = false;
   bool _profileSaved = false;
   String? _sessionNotice; // confirmation/échec affiché après la session
@@ -98,7 +105,61 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   bool _ready = false;
   int _bismillahWordCount = 0;
 
-  String get _passageKey => widget.verses.map((v) => v.key).join('-');
+  // Liste MUTABLE (contrairement à widget.verses, figé à l'ouverture) — permet
+  // d'enchaîner sur la sourate suivante sans fermer/rouvrir l'écran (demande
+  // utilisateur 2026-07-11 : "récitation en flux continu... enchaîner sur une
+  // autre sourate"). Initialisée depuis widget.verses, puis étendue PAGE PAR
+  // PAGE par _maybeExtendNextPage() à mesure que la récitation approche de la
+  // fin -- PAS sourate entière d'un coup (revu le même jour après un test réel
+  // montrant "1:1 → 2:286" chargé instantanément : Al-Baqarah entière, 286
+  // versets, alors que le réciteur n'avait fini que la Fatiha. "il faut faire
+  // ça dynamiquement, une page avant et une page après").
+  late List<Verse> _verses;
+  bool _extending = false; // évite deux extensions concurrentes
+  // Dernier verset pour lequel WordCorrectionAudio.prefetch a été déclenché
+  // (demande utilisateur 2026-07-11 : "en cas d'erreur ça prend beaucoup de
+  // temps pour réagir" -- log natif a confirmé 4,5-9,2s de fetch réseau
+  // bloquant au moment de la correction). Évite de relancer le prefetch à
+  // chaque frame tant qu'on reste sur le même verset.
+  String? _prefetchedVerseKey;
+  bool _noMorePages = false; // page 604 (fin du Mushaf) déjà atteinte
+  // Nombre de mots restant AVANT la fin du texte connu qui déclenche la
+  // recherche de la page suivante — assez tôt pour que le fetch réseau
+  // (Bismillah + texte + audio de correction) ait le temps de finir avant que
+  // le réciteur n'atteigne réellement la fin.
+  static const int _kExtendLookaheadWords = 8;
+
+  // Fenêtre de rendu bornée AU-DELÀ du pointeur (demande utilisateur
+  // 2026-07-11, suite à un gel de 3+ minutes constaté en test réel : ajouter
+  // une sourate longue -- ex. Al-Baqarah, 6121 mots -- forçait Flutter à
+  // construire/mettre en page des MILLIERS de widgets-mots en une seule passe
+  // synchrone dans le Wrap, bloquant tout le pipeline audio le temps du
+  // rendu). Les mots très en avance sur le pointeur sont de toute façon
+  // quasi invisibles (WordStatus.pending, opacity 0.04, cf. _wordSpan) --
+  // aucune perte d'expérience à ne pas les construire tant qu'on n'en
+  // approche pas. Largement au-delà de ce qui tient à l'écran (plusieurs
+  // versets d'avance), donc invisible en usage normal.
+  static const int _kRenderLookaheadWords = 150;
+
+  // Métadonnées (nom arabe/français, nombre de versets) des sourates déjà
+  // rencontrées dans _verses — préchargées avant chaque affichage (initial ou
+  // extension) pour que _SurahTransitionBanner puisse les lire de façon
+  // SYNCHRONE au build (demande utilisateur 2026-07-11 : "séparer visuellement
+  // les sourates avec le nom de la sourate, un rendu graphique plus beau").
+  final Map<int, Surah> _surahMeta = {};
+
+  Future<Surah> _fetchSurahMeta(int surahNumber) async {
+    final cached = _surahMeta[surahNumber];
+    if (cached != null) return cached;
+    final json = await QuranApi.fetchSurahInfo(surahNumber);
+    return Surah.fromJson(json);
+  }
+
+  // Clé de profil de pauses CAPTURÉE UNE FOIS au démarrage (pas un getter sur
+  // _verses, qui grandit avec les extensions) -- un profil de rythme reste
+  // attaché au passage de DÉPART, pas à toute la récitation ininterrompue qui
+  // peut s'ensuivre.
+  late final String _initialPassageKey;
 
   // Bismillah attendue au début de toute sourate SAUF Al-Fatiha (déjà son
   // propre verset 1) et At-Tawbah (n'en comporte pas) — demande utilisateur
@@ -108,19 +169,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // via QuranApi.fetchBismillah() (verset 1:1 réel) -- JAMAIS tapé à la main
   // (texte sacré : un caractère tapé à la main a cassé "الرحيم" une fois déjà,
   // 2026-07-09, un "ي" persan invisible à l'œil au lieu du "ي" arabe standard).
-  bool get _needsBismillah =>
-      widget.verses.isNotEmpty &&
-      widget.verses.first.ayahNumber == 1 &&
-      widget.verses.first.surahNumber != 1 &&
-      widget.verses.first.surahNumber != 9;
+  // Logique exacte : voir _bismillahBefore, appliquée verset par verset dans
+  // _buildChunk (généralisé 2026-07-11 pour gérer plusieurs débuts de sourate
+  // dans un même lot chargé -- cf. _maybeExtendNextPage).
 
   @override
   void initState() {
     super.initState();
+    _verses = List.of(widget.verses);
+    _initialPassageKey = widget.verses.map((v) => v.key).join('-');
     _breath = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
     _initAsync();
-    _pauseProfile.hasProfileFor(_passageKey).then((has) {
+    _pauseProfile.hasProfileFor(_initialPassageKey).then((has) {
       if (mounted) setState(() => _hasProfile = has);
+    });
+    _pauseProfile.isGlobalStable().then((stable) {
+      if (mounted) setState(() => _globalStable = stable);
     });
     // Correction automatique (demande utilisateur 2026-07-05) : dès qu'un mot
     // est verrouillé rouge, pause + lecture réciteur + reprise, sans tap —
@@ -133,29 +197,31 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   Future<void> _initAsync() async {
-    final needsBismillah = _needsBismillah;
-    final bismillah = needsBismillah ? await QuranApi.fetchBismillah() : null;
-    final text = (bismillah != null ? '${bismillah.textUthmani} ' : '') +
-        widget.verses.map((v) => v.textUthmani).join(' ');
-    final tajwidSpans = [
-      if (bismillah != null)
-        ...tajweedSpansPerWord(
-          bismillah.textUthmani,
-          bismillah.textUthmaniTajweed,
-          GoogleFonts.scheherazadeNew(fontSize: 30, height: 2.1, color: AppColors.cream),
-        ),
-      for (final v in widget.verses)
-        ...tajweedSpansPerWord(
-          v.textUthmani,
-          v.textUthmaniTajweed,
-          GoogleFonts.scheherazadeNew(fontSize: 30, height: 2.1, color: AppColors.cream),
-        ),
-    ];
+    // Récupérée INCONDITIONNELLEMENT (mise en cache statique par QuranApi,
+    // quasi gratuite si déjà chargée) : même si CETTE session ne l'utilise pas
+    // tout de suite, un enchaînement ultérieur sur la page suivante
+    // (_maybeExtendNextPage) en aura besoin, et _bismillahWordCount doit
+    // déjà être prêt à ce moment-là (le texte de la Bismillah, donc son
+    // nombre de mots, ne change jamais).
+    final bismillahVerse = await QuranApi.fetchBismillah();
+    final chunk = _buildChunk(_verses, null, bismillahVerse);
+    final text = chunk.text;
+    final tajwidSpans = chunk.spans;
     final wordKeys = List.generate(
         ArabicNormalizer.splitExpectedWords(text).length, (_) => GlobalKey());
-    final bismillahWordCount = bismillah != null
-        ? ArabicNormalizer.splitExpectedWords(bismillah.textUthmani).length
-        : 0;
+    final bismillahWordCount =
+        ArabicNormalizer.splitExpectedWords(bismillahVerse.textUthmani).length;
+    // Métadonnées (nom, nombre de versets) de la/les sourate(s) initiale(s) —
+    // pour le bandeau de transition (cf. _SurahTransitionBanner), affiché dès
+    // le tout premier mot, pas seulement aux enchaînements ultérieurs.
+    final initialSurahs = _verses.map((v) => v.surahNumber).toSet();
+    final metaEntries = await Future.wait(initialSurahs.map((n) async {
+      try {
+        return MapEntry(n, await _fetchSurahMeta(n));
+      } catch (_) {
+        return null;
+      }
+    }));
     if (!mounted) return;
     // setup() AVANT de rendre l'écran interactif (_ready=true) : sinon un tap
     // assez rapide entre les deux tombe sur state.words encore vide et
@@ -172,11 +238,112 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _tajwidSpans = tajwidSpans;
       _wordKeys = wordKeys;
       _bismillahWordCount = bismillahWordCount;
+      for (final e in metaEntries) {
+        if (e != null) _surahMeta[e.key] = e.value;
+      }
       _ready = true;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(recitationProvider.notifier).setup(text);
+      final notifier = ref.read(recitationProvider.notifier);
+      notifier.setup(text);
+      // Sensibilité déjà réglée par l'utilisateur (persistée) -- ref.listen
+      // (build()) ne rattrape que les CHANGEMENTS suivants, pas l'état
+      // initial (même raison que le préchauffage de correction ci-dessous).
+      notifier.setSensitivity(ref.read(correctionSensitivityProvider));
     });
+    // Préchauffe le tout premier verset dès maintenant -- ref.listen (build())
+    // ne se déclenche que sur les changements d'état SUIVANTS, pas sur l'état
+    // initial (cf. _maybePrefetchCorrectionAudio).
+    _maybePrefetchCorrectionAudio(0);
+  }
+
+  /// Enchaînement automatique sur la PAGE suivante du Mushaf (pas la sourate
+  /// entière -- revu 2026-07-11 après un test réel montrant l'ancien
+  /// comportement : "1:1 → 2:286" chargé d'un coup, Al-Baqarah entière/6100
+  /// mots dès la fin de la Fatiha. "il faut faire ça dynamiquement, une page
+  /// avant et une page après" : une page de Mushaf ne fait que quelques
+  /// versets, un incrément raisonnable au lieu d'un bond de plusieurs
+  /// milliers de mots dans le texte cible d'alignement). Dès que la
+  /// récitation approche de la fin du texte connu (cf.
+  /// `_kExtendLookaheadWords`), va chercher la page suivante en arrière-plan
+  /// et l'ajoute à la session EN COURS — sans jamais toucher aux mots déjà
+  /// jugés/à l'ancre d'alignement (RecitationNotifier.extendWords).
+  /// Best-effort : si le fetch réseau n'a pas fini avant que le réciteur
+  /// atteigne réellement le dernier mot connu, la session se termine
+  /// normalement (comportement inchangé) plutôt que de bloquer l'attente.
+  Future<void> _maybeExtendNextPage() async {
+    if (_extending || _noMorePages || !mounted) return;
+    if (_verses.isEmpty) return;
+    final lastVerse = _verses.last;
+    final lastPage = lastVerse.pageNumber;
+    if (lastPage == null) return; // pagination inconnue -- pas d'enchaînement possible
+    final nextPage = lastPage + 1;
+    if (nextPage > 604) {
+      _noMorePages = true;
+      return;
+    }
+    _extending = true;
+    try {
+      final fetched = await QuranApi.fetchVersesByPage(nextPage);
+      if (!mounted || fetched.isEmpty) return;
+      // Filet de sécurité : ne jamais réintroduire un verset déjà chargé.
+      final known = _verses.map((v) => v.key).toSet();
+      final nextVerses = fetched.where((v) => !known.contains(v.key)).toList();
+      if (nextVerses.isEmpty) return;
+      final bismillahVerse = await QuranApi.fetchBismillah();
+      // _buildChunk insère une Bismillah devant CHAQUE début de sourate dans
+      // ce lot (une page peut contenir plusieurs débuts de sourate, contraire
+      // à l'ancienne version qui en supposait exactement un par appel).
+      final chunk = _buildChunk(nextVerses, lastVerse.surahNumber, bismillahVerse);
+      // Métadonnées pour le bandeau de transition -- best-effort, seulement
+      // pour les sourates pas déjà en cache.
+      final newSurahs = nextVerses.map((v) => v.surahNumber).toSet()
+        ..removeWhere(_surahMeta.containsKey);
+      final metaEntries = await Future.wait(newSurahs.map((n) async {
+        try {
+          return MapEntry(n, await _fetchSurahMeta(n));
+        } catch (_) {
+          return null;
+        }
+      }));
+      if (!mounted) return;
+      final newWordCount = ArabicNormalizer.splitExpectedWords(chunk.text).length;
+      final newKeys = List.generate(newWordCount, (_) => GlobalKey());
+      DiagnosticLog.log('Karaoke', 'Enchaînement page $nextPage : '
+          '+${nextVerses.length} versets, +$newWordCount mots');
+      setState(() {
+        _verses = [..._verses, ...nextVerses];
+        _tajwidSpans = [...?_tajwidSpans, ...chunk.spans];
+        _wordKeys = [...?_wordKeys, ...newKeys];
+        for (final e in metaEntries) {
+          if (e != null) _surahMeta[e.key] = e.value;
+        }
+      });
+      await ref.read(recitationProvider.notifier).extendWords(chunk.text);
+    } catch (e) {
+      // Best-effort : un échec ici (réseau, API) ne doit pas interrompre la
+      // récitation en cours -- la session se termine juste normalement à la
+      // fin du texte déjà connu, comme avant cette fonctionnalité.
+      DiagnosticLog.log('Karaoke', 'Échec enchaînement page suivante : $e');
+    } finally {
+      _extending = false;
+    }
+  }
+
+  /// Préchauffe l'audio de correction (URLs + segments + fichier MP3 local,
+  /// cf. `WordCorrectionAudio.prefetch`) dès que [pointer] entre dans un
+  /// NOUVEAU verset -- avant qu'une éventuelle erreur ne le nécessite.
+  /// Demande utilisateur 2026-07-11 ("en cas d'erreur ça prend beaucoup de
+  /// temps pour réagir") : le fetch à la demande dans `_onWordFailed` a été
+  /// mesuré à 4,5-9,2s sur un réseau dégradé, capture déjà en pause tout ce
+  /// temps. Fire-and-forget (best-effort) : ne bloque jamais le fil audio
+  /// principal.
+  void _maybePrefetchCorrectionAudio(int pointer) {
+    final verse = _verseContaining(pointer);
+    if (verse == null || verse.key == _prefetchedVerseKey) return;
+    _prefetchedVerseKey = verse.key;
+    final reciter = ref.read(playerProvider).reciter;
+    unawaited(WordCorrectionAudio.prefetch(verse, reciter));
   }
 
   @override
@@ -234,6 +401,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final verse = _verseContaining(wordIndex);
     final local = _localIndexInVerse(wordIndex);
     if (verse == null || local == null) return;
+    DiagnosticLog.log('Correction', 'wordFailed déclenché : wordIndex(global)=$wordIndex '
+        'mot="${wordIndex < words.length ? words[wordIndex].display : "?"}" '
+        'status=${wordIndex < words.length ? words[wordIndex].status : "?"} '
+        'verset=${verse.key} local(dans verset)=$local');
     _autoCorrecting = true;
     final notifier = ref.read(recitationProvider.notifier);
     // À lire AVANT rewindAndUnlock (qui modifie l'ancre) : combien de mots
@@ -261,7 +432,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // des mots pourtant verrouillés rouge). Sans ce catch, une exception
         // ici empêchait rewindAndUnlock plus bas -> le mot restait verrouillé
         // à jamais, sans jamais pouvoir être retenté.
-        debugPrint('[Correction] Échec lecture audio de correction : $e');
+        DiagnosticLog.log('Correction', 'Échec lecture audio de correction : $e');
       }
       // Silence net avant de réécouter : marque clairement "à toi de parler"
       // plutôt qu'un enchaînement immédiat qui ressemble à une boucle.
@@ -300,18 +471,85 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
   }
 
+  /// Vrai si une Bismillah doit être comptée AVANT [v] dans le flux de mots —
+  /// vrai pour le tout premier verset de la session ET pour le premier verset
+  /// de CHAQUE sourate ajoutée par enchaînement (demande utilisateur
+  /// 2026-07-11), sauf Al-Fatiha (déjà son propre verset 1) et At-Tawbah
+  /// (n'en comporte pas). [prevSurah] = numéro de sourate du verset
+  /// PRÉCÉDENT dans `_verses` (null pour le tout premier verset de la liste).
+  bool _bismillahBefore(Verse v, int? prevSurah) =>
+      v.ayahNumber == 1 &&
+      v.surahNumber != 1 &&
+      v.surahNumber != 9 &&
+      v.surahNumber != prevSurah;
+
+  /// Construit le texte plat + les spans tajwid pour [verses], en insérant la
+  /// Bismillah avant chaque début de sourate qui en a besoin (même règle que
+  /// [_bismillahBefore], utilisée par ailleurs pour retrouver le verset d'un
+  /// mot). Généralise ce qui était un simple bool "cette sourate a besoin
+  /// d'une Bismillah" (valable seulement quand un fetch = une sourate entière)
+  /// -- l'extension page par page (demande utilisateur 2026-07-11) peut
+  /// charger un lot contenant 0, 1 ou plusieurs débuts de sourate (fin d'une
+  /// sourate + début de la suivante sur la même page du Mushaf).
+  /// [prevSurahBefore] = sourate du dernier verset AVANT [verses] dans
+  /// `_verses` (null au tout premier appel de la session).
+  ({String text, List<List<TextSpan>> spans}) _buildChunk(
+      List<Verse> verses, int? prevSurahBefore, Verse bismillahVerse) {
+    final style = GoogleFonts.scheherazadeNew(
+        fontSize: 30, height: 2.1, color: AppColors.cream);
+    final parts = <String>[];
+    final spans = <List<TextSpan>>[];
+    var prevSurah = prevSurahBefore;
+    for (final v in verses) {
+      if (_bismillahBefore(v, prevSurah)) {
+        parts.add(bismillahVerse.textUthmani);
+        spans.addAll(tajweedSpansPerWord(
+            bismillahVerse.textUthmani, bismillahVerse.textUthmaniTajweed, style));
+      }
+      parts.add(v.textUthmani);
+      spans.addAll(tajweedSpansPerWord(v.textUthmani, v.textUthmaniTajweed, style));
+      prevSurah = v.surahNumber;
+    }
+    return (text: parts.join(' '), spans: spans);
+  }
+
   /// Verset contenant le mot [wordIndex] (les mots affichés = concaténation
-  /// des versets, découpés avec la même règle `\s+` que setup()).
+  /// des versets, découpés avec la même règle `\s+` que setup()) — compte une
+  /// Bismillah (toujours le même nombre de mots, `_bismillahWordCount`) à
+  /// chaque frontière de sourate qui en a besoin, pas seulement au début de
+  /// la session (cf. `_bismillahBefore`).
   Verse? _verseContaining(int wordIndex) {
     var offset = 0;
-    if (_needsBismillah) {
-      final bismillahCount = _bismillahWordCount;
-      if (wordIndex < bismillahCount) return null; // Bismillah -> pas un verset
-      offset = bismillahCount;
-    }
-    for (final v in widget.verses) {
+    int? prevSurah;
+    for (final v in _verses) {
+      if (_bismillahBefore(v, prevSurah)) {
+        if (wordIndex < offset + _bismillahWordCount) return null; // dans la Bismillah elle-même
+        offset += _bismillahWordCount;
+      }
+      prevSurah = v.surahNumber;
       final count = ArabicNormalizer.splitExpectedWords(v.textUthmani).length;
       if (wordIndex < offset + count) return v;
+      offset += count;
+    }
+    return null;
+  }
+
+  /// Sourate "propriétaire" du mot [wordIndex] — contrairement à
+  /// [_verseContaining] (qui renvoie null pour les mots de la Bismillah, pas
+  /// un verset), attribue les mots de Bismillah à la sourate qu'ils
+  /// PRÉCÈDENT. Sert uniquement à détecter les frontières de sourate dans
+  /// [_verseArea] pour y insérer [_SurahTransitionBanner].
+  int? _surahOwning(int wordIndex) {
+    var offset = 0;
+    int? prevSurah;
+    for (final v in _verses) {
+      if (_bismillahBefore(v, prevSurah)) {
+        if (wordIndex < offset + _bismillahWordCount) return v.surahNumber;
+        offset += _bismillahWordCount;
+      }
+      prevSurah = v.surahNumber;
+      final count = ArabicNormalizer.splitExpectedWords(v.textUthmani).length;
+      if (wordIndex < offset + count) return v.surahNumber;
       offset += count;
     }
     return null;
@@ -325,18 +563,29 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// elle).
   int? _localIndexInVerse(int wordIndex) {
     var offset = 0;
-    if (_needsBismillah) {
-      final bismillahCount = _bismillahWordCount;
-      if (wordIndex < bismillahCount) return null; // Bismillah -> pas un verset
-      offset = bismillahCount;
-    }
-    for (final v in widget.verses) {
+    int? prevSurah;
+    for (final v in _verses) {
+      if (_bismillahBefore(v, prevSurah)) {
+        if (wordIndex < offset + _bismillahWordCount) return null; // dans la Bismillah elle-même
+        offset += _bismillahWordCount;
+      }
+      prevSurah = v.surahNumber;
       final count = ArabicNormalizer.splitExpectedWords(v.textUthmani).length;
       if (wordIndex < offset + count) return wordIndex - offset;
       offset += count;
     }
     return null;
   }
+
+  /// Vrai si LANCER une récitation maintenant en ferait une session de
+  /// référence (pas de profil dédié pour ce passage, ET profil global pas
+  /// encore stable -- cf. `_toggle`). Reflète exactement la décision qui y
+  /// est prise, pour que les bandeaux/labels affichés AVANT le tap restent
+  /// cohérents avec ce qui se passera réellement (demande utilisateur
+  /// 2026-07-12 : ne plus laisser croire à une session de référence une fois
+  /// le profil global stable).
+  bool get _willBeReferenceSession =>
+      _hasProfile == false && _globalStable != true;
 
   Future<void> _toggle(RecitationSessionState st, RecitationNotifier n) async {
     if (st.status == RecitationStatus.listening) {
@@ -345,16 +594,27 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _maybeSaveProfile();
     } else if (st.status != RecitationStatus.processing) {
       _profileSaved = false;
+      // Chaque récitation est indépendante (demande utilisateur 2026-07-12) :
+      // repart de la sensibilité par défaut, jamais de celle laissée par une
+      // récitation précédente (même passage ou non).
+      ref.read(correctionSensitivityProvider.notifier).state = 0.5;
       // Si la vérification d'existence du profil n'est pas encore résolue
       // (ouverture d'écran + tap immédiat), on l'attend — sinon la session de
       // référence n'est pas marquée comme telle et rien n'est enregistré
       // (bug constaté au premier test réel, 2026-07-05).
-      _hasProfile ??= await _pauseProfile.hasProfileFor(_passageKey);
-      // Pas encore de référence pour ce passage -> proposer le choix
-      // (demande utilisateur 2026-07-10 : la session de référence forcée à
-      // la première récitation d'un passage n'était pas un choix, alors que
-      // certains préfèrent la correction automatique dès le premier essai).
-      if (_hasProfile == false) {
+      _hasProfile ??= await _pauseProfile.hasProfileFor(_initialPassageKey);
+      _globalStable ??= await _pauseProfile.isGlobalStable();
+      // Pas encore de référence DÉDIÉE pour ce passage -> proposer le choix,
+      // SAUF si le profil global (autres passages déjà validés) est déjà
+      // stable (demande utilisateur 2026-07-12 : "pendant les premières
+      // récitations [propose], quand on aura quelque chose de stable on ne
+      // propose plus" -- le rythme de pause est une caractéristique de la
+      // personne, pas du texte, donc plus besoin de reproposer une fois
+      // suffisamment caractérisé sur d'autres sourates). Demande utilisateur
+      // 2026-07-10 d'origine : la session de référence forcée à la première
+      // récitation d'un passage n'était pas un choix, alors que certains
+      // préfèrent la correction automatique dès le premier essai.
+      if (_hasProfile == false && _globalStable != true) {
         final wantsReference = await _askReferenceChoice();
         if (wantsReference == null) return; // dialogue annulé
         _isReferenceSession = wantsReference;
@@ -362,9 +622,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         _isReferenceSession = false;
       }
       setState(() => _sessionNotice = null);
-      if (_hasProfile == true) {
-        // Session normale : le seuil de gel s'adapte à la référence mémorisée.
-        await _pauseProfile.applyFor(_passageKey);
+      if (!_isReferenceSession) {
+        // Session normale : seuil de gel adapté à la référence dédiée si elle
+        // existe, sinon au profil global (cf. applyBestFor).
+        await _pauseProfile.applyBestFor(_initialPassageKey);
       }
       await n.startContinuous();
     }
@@ -441,7 +702,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
     _profileSaved = true;
     final pauses = await _pauseProfile.fetchSessionPauses();
-    await _pauseProfile.saveFor(_passageKey, pauses);
+    await _pauseProfile.saveFor(_initialPassageKey, pauses);
     if (mounted) {
       setState(() {
         _hasProfile = true;
@@ -450,6 +711,80 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             '${pauses.length} pauses apprises)';
       });
     }
+  }
+
+  /// Feuille de réglage de la sensibilité du jugement GOP (demande
+  /// utilisateur 2026-07-12) : curseur tolérant <-> strict, effectif
+  /// immédiatement (cf. ref.listen(correctionSensitivityProvider) dans
+  /// build()), y compris en pleine récitation -- pas besoin de s'arrêter
+  /// pour ajuster.
+  void _openSensitivitySheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.green800,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => Consumer(
+        builder: (context, ref, _) {
+          final sensitivity = ref.watch(correctionSensitivityProvider);
+          String label;
+          if (sensitivity < 0.35) {
+            label = 'Tolérant';
+          } else if (sensitivity > 0.65) {
+            label = 'Strict';
+          } else {
+            label = 'Équilibré (par défaut)';
+          }
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Sensibilité de la correction',
+                      style: GoogleFonts.fraunces(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.cream)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Plus tolérant : accepte des harakat/prononciations '
+                    'imprécises en vert. Plus strict : exige une '
+                    'prononciation plus proche du modèle pour valider un mot.',
+                    style: TextStyle(color: AppColors.cream.withOpacity(0.75), fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Text('Tolérant',
+                          style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      Expanded(
+                        child: Slider(
+                          value: sensitivity,
+                          activeColor: AppColors.brassLight,
+                          inactiveColor: Colors.white24,
+                          onChanged: (v) =>
+                              ref.read(correctionSensitivityProvider.notifier).state = v,
+                        ),
+                      ),
+                      const Text('Strict',
+                          style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    ],
+                  ),
+                  Center(
+                    child: Text(label,
+                        style: const TextStyle(
+                            color: AppColors.brassLight,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   /// Refaire volontairement sa référence (geste explicite, top bar).
@@ -476,6 +811,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         body: SizedBox.expand(),
       );
     }
+    // Sensibilité de jugement réglable EN DIRECT (demande utilisateur
+    // 2026-07-12) -- répercute tout changement fait depuis la feuille de
+    // réglage (cf. _openSensitivitySheet) sur le moteur de jugement, sans
+    // interrompre la récitation en cours.
+    ref.listen(correctionSensitivityProvider, (prev, next) {
+      ref.read(recitationProvider.notifier).setSensitivity(next);
+    });
     // Fin automatique (tous les mots validés sans tap manuel) : mémoriser le
     // profil de pauses de la session si la récitation était bonne.
     ref.listen(recitationProvider, (prev, next) {
@@ -483,6 +825,18 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           prev?.status != RecitationStatus.finished) {
         _maybeSaveProfile();
       }
+      // Enchaînement sur la page suivante du Mushaf (demande utilisateur
+      // 2026-07-11, "récitation en flux continu... enchaîner sur une autre
+      // sourate", chargement borné page par page après revue le même jour) :
+      // dès que la récitation approche de la fin du texte CONNU, va chercher
+      // la suite en arrière-plan AVANT d'y arriver -- sinon la session se
+      // termine normalement (pointer >= words.length -> finished) au lieu
+      // d'enchaîner.
+      if (next.status == RecitationStatus.listening &&
+          next.words.length - next.pointer <= _kExtendLookaheadWords) {
+        _maybeExtendNextPage();
+      }
+      _maybePrefetchCorrectionAudio(next.pointer);
       // Le repère "reprends ici" s'efface dès que ce mot a reçu un jugement
       // (l'utilisateur a repris, l'indication n'est plus utile).
       final hint = _resumeHintIndex;
@@ -526,10 +880,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
     final notifier = ref.read(recitationProvider.notifier);
     final listening = st.status == RecitationStatus.listening;
-    final ref0 = widget.verses.first;
-    final subtitle = widget.verses.length == 1
+    final ref0 = _verses.first;
+    final subtitle = _verses.length == 1
         ? 'Verset ${ref0.key}'
-        : '${ref0.key} → ${widget.verses.last.key}';
+        : '${ref0.key} → ${_verses.last.key}';
 
     return Scaffold(
       backgroundColor: AppColors.green900,
@@ -637,6 +991,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               ),
             ),
           ),
+          // Sensibilité du jugement (vert/orange/rouge) réglable EN DIRECT,
+          // y compris pendant l'écoute (demande utilisateur 2026-07-12).
+          IconButton(
+            tooltip: 'Sensibilité de la correction',
+            icon: const Icon(Icons.speed_rounded, color: Colors.white70, size: 20),
+            onPressed: () => _openSensitivitySheet(context),
+          ),
           // Pendant l'écoute : bouton pause/reprise (demande utilisateur
           // 2026-07-10). Sinon, à l'arrêt : geste explicite pour refaire
           // volontairement la référence.
@@ -671,12 +1032,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     if (_sessionNotice != null && !listening) {
       title = null;
       body = _sessionNotice;
-    } else if (_hasProfile == false && !listening) {
+    } else if (_willBeReferenceSession && !listening) {
       title = 'Récitation de référence';
       body = 'Première récitation de ce passage : récite à ton rythme naturel — '
           'ta manière de réciter (pauses, tempo) sera mémorisée et respectée '
           'pour toutes tes prochaines récitations.';
-    } else if (_hasProfile == false && listening) {
+    } else if (_isReferenceSession && listening) {
       title = 'Référence en cours d\'enregistrement';
       body = 'Récite naturellement, à ton rythme.';
     }
@@ -728,9 +1089,36 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   // ── Verset : mots animés, sans jugement vert/rouge marqué ────────────────
+  // Découpé en BLOCS par sourate (pas un unique Wrap géant) — permet
+  // d'insérer un bandeau de transition entre deux sourates (demande
+  // utilisateur 2026-07-11 : "séparer visuellement les sourates avec le nom
+  // de la sourate, un rendu graphique plus beau") au lieu d'enchaîner le
+  // texte à plat. Chaque bloc reste un Wrap RTL normal, inchangé.
   Widget _verseArea(RecitationSessionState st) {
     if (st.words.isEmpty) {
       return const CircularProgressIndicator(color: AppColors.brassLight);
+    }
+    final renderEnd =
+        math.min(st.words.length, st.pointer + _kRenderLookaheadWords);
+    final blocks = <Widget>[];
+    var blockStart = 0;
+    int? blockSurah;
+    for (var i = 0; i <= renderEnd; i++) {
+      final surah = i < renderEnd ? _surahOwning(i) : null;
+      // Frontière = fin de la fenêtre de rendu, OU changement de sourate
+      // détecté (jamais au tout premier mot : blockSurah est encore null à
+      // ce moment-là).
+      final boundary = i == renderEnd ||
+          (surah != null && blockSurah != null && surah != blockSurah);
+      if (boundary) {
+        if (i > blockStart) blocks.add(_wordWrapBlock(st, blockStart, i));
+        blockStart = i;
+        if (i < renderEnd && surah != null) {
+          final meta = _surahMeta[surah];
+          if (meta != null) blocks.add(_SurahTransitionBanner(meta));
+        }
+      }
+      blockSurah = surah ?? blockSurah;
     }
     return NotificationListener<ScrollNotification>(
       // Un scroll DÉMARRÉ PAR UN GLISSEMENT (dragDetails non-null) = geste
@@ -745,24 +1133,28 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       },
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 2,
-            runSpacing: 18,
-            children: [
-              for (var i = 0; i < st.words.length; i++) ...[
-                _wordSpan(st.words[i], i),
-                // Numéro de fin de verset (demande utilisateur 2026-07-10 :
-                // "texte continu", pas de repère d'aya pendant la récitation,
-                // contrairement à l'écran de lecture) -- même convention que
-                // le Mushaf (le numéro marque la FIN du verset, pas son début).
-                if (_isLastWordOfVerse(i)) _KaraokeVerseBadge(_verseContaining(i)!.ayahNumber),
-              ],
-            ],
-          ),
-        ),
+        child: Column(children: blocks),
+      ),
+    );
+  }
+
+  Widget _wordWrapBlock(RecitationSessionState st, int start, int end) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 2,
+        runSpacing: 18,
+        children: [
+          for (var i = start; i < end; i++) ...[
+            _wordSpan(st.words[i], i),
+            // Numéro de fin de verset (demande utilisateur 2026-07-10 :
+            // "texte continu", pas de repère d'aya pendant la récitation,
+            // contrairement à l'écran de lecture) -- même convention que
+            // le Mushaf (le numéro marque la FIN du verset, pas son début).
+            if (_isLastWordOfVerse(i)) _KaraokeVerseBadge(_verseContaining(i)!.ayahNumber),
+          ],
+        ],
       ),
     );
   }
@@ -910,7 +1302,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       context,
       ref,
       verse: verse,
-      playlist: widget.verses,
+      playlist: _verses,
       focusWord: st.words[wordIndex].display,
       wordIndex: wordIndex,
       localWordIndex: local,
@@ -998,7 +1390,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       label = 'À l\'écoute — touche le cercle pour t\'arrêter';
     } else if (st.status == RecitationStatus.finished) {
       label = 'Touche l\'écran pour recommencer';
-    } else if (_hasProfile == false) {
+    } else if (_willBeReferenceSession) {
       label = 'Touche l\'écran pour enregistrer ta récitation de référence';
     } else {
       label = 'Touche l\'écran pour commencer';
@@ -1024,6 +1416,75 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Bandeau de transition entre deux sourates (demande utilisateur
+/// 2026-07-11 : "séparer visuellement les sourates avec le nom de la
+/// sourate, un rendu graphique plus beau" — pas un enchaînement à plat du
+/// texte). Reprend le langage visuel doré/ornemental déjà utilisé ailleurs
+/// dans l'app (MushafHeader, _KaraokeVerseBadge) : filets fins encadrant un
+/// petit motif, nom arabe en grand, repère FR/numéro en dessous.
+class _SurahTransitionBanner extends StatelessWidget {
+  final Surah surah;
+  const _SurahTransitionBanner(this.surah);
+
+  Widget _rule() => Expanded(
+        child: Container(height: 1, color: AppColors.brassLight.withOpacity(0.25)),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 30),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _rule(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Icon(Icons.star_rounded,
+                    size: 9, color: AppColors.brassLight.withOpacity(0.55)),
+              ),
+              _rule(),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'سورة ${surah.nameArabic}',
+            textDirection: TextDirection.rtl,
+            style: GoogleFonts.amiri(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: AppColors.brassLight,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${surah.number} · ${surah.nameSimple} · ${surah.versesCount} versets',
+            style: GoogleFonts.manrope(
+              fontSize: 11,
+              letterSpacing: 0.6,
+              fontWeight: FontWeight.w600,
+              color: AppColors.cream.withOpacity(0.55),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _rule(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Icon(Icons.star_rounded,
+                    size: 9, color: AppColors.brassLight.withOpacity(0.55)),
+              ),
+              _rule(),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

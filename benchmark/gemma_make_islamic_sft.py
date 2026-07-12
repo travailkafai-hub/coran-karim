@@ -1,19 +1,23 @@
 """
-Construit le SFT islamique enrichi pour Gemma (FR + AR).
+Construit le SFT "explication du Coran" pour Gemma — AR + FR + EN.
+Focus explicite : tafsir/exegese, pas les sciences islamiques en general
+(hadith exclu de la sortie, cf. main()) — l'app laisse choisir la langue de
+reponse donc les 3 langues doivent avoir un corpus d'explication comparable.
 
-Sources :
-  - TAFSIR  : data/tafsir/*.jsonl  (classiques: ibn-kathir, tabari, qurtubi,
-              jalalayn, baghawi, saadi, muyassar + trad FR montada/hamidullah/rashid
-              + fr-mokhtasar)
-  - HADITH  : data/islamic_corpus/hadith/*.jsonl  (6 livres canoniques, FR+AR, grades)
+Sources (data/tafsir/*.jsonl, un fichier par edition, cf. TAFSIR_META) :
+  - AR (15) : ibn-kathir, tabari, qurtubi, jalalayn, baghawi, saadi, muyassar,
+              kashshaf, ibn-ashur, razi, alusi, bahr-muhit, baydawi, shawkani,
+              durr-manthur — + 3 sources d'analyse lexicale (tahlil-kalimat,
+              siraj-gharib, muyassar-gharib).
+  - FR (4)  : montada, mokhtasar, rashid-maash, hamidullah.
+  - EN (6)  : ibn-kathir, maarif, mukhtasar, tazkirul, jalalayn, ibn-abbas.
+  - + data/quran_sciences/ : Mufradat (Ar-Raghib), Nuzhat al-A'yun (Ibn al-Jawzi,
+    wujuh wal-naza'ir), chapitres wujuh wal-naza'ir d'Itqan/Burhan.
 
-Principe d'authenticite :
-  - Chaque reponse CITE sa source (nom du tafsir / recueil + numero + grade).
-  - Hadith : Bukhari & Muslim inclus d'office (sahih par consensus).
-             Les 4 Sunan filtres sur grade Sahih/Hasan (daif exclus de l'entrainement).
-  - Le modele apprend a ATTRIBUER, pas a inventer.
+Principe d'authenticite : chaque reponse CITE sa source exacte (nom de
+l'exegete + son tafsir) — le modele apprend a ATTRIBUER, pas a inventer.
 
-Sortie : data/gemma_islamic_sft.jsonl   format {"system","user","target"}
+Sortie : data/gemma_islamic_sft_v2.jsonl (ou $GEMMA_SFT_OUT)  format {"system","user","target"}
 """
 import json, os, random, re, glob
 random.seed(42)
@@ -42,11 +46,10 @@ TASHKEEL_RE = re.compile(r"[ً-ْٰ]")
 MIN_LEN    = 40
 MAX_TARGET = 2200    # caractères (eviter les tafsirs ultra-longs type Tabari/Razi)
 
-SYSTEM = ("Tu es un assistant specialise dans les sciences islamiques : Coran, "
-          "tafsir (exegese), et hadith. Tu reponds en citant systematiquement tes "
-          "sources authentiques (nom de l'exegete ou du recueil, numero, et grade "
-          "d'authenticite pour les hadiths). Tu es precis, pedagogue et tu ne "
-          "pretends jamais une information dont tu n'as pas la source.")
+SYSTEM = ("Tu es un assistant specialise dans l'explication du Coran (tafsir). Tu "
+          "reponds en citant systematiquement ta source (nom de l'exegete et de "
+          "son tafsir). Tu es precis, pedagogue, et tu ne pretends jamais une "
+          "explication dont tu n'as pas la source.")
 
 # Noms d'affichage des tafsirs (slug fichier -> (nom, langue))
 TAFSIR_META = {
@@ -68,6 +71,16 @@ TAFSIR_META = {
     "ar-ibn-ashur":       ("At-Tahrir wa at-Tanwir (Ibn Ashur)", "ar"),
     "ar-siraj-gharib":    ("As-Siraj fi Bayan Gharib al-Qur'an", "ar"),
     "ar-muyassar-gharib": ("Al-Muyassar fi al-Gharib", "ar"),
+    "ar-razi":         ("Mafatih al-Ghayb (ar-Razi)", "ar"),
+    "ar-alusi":        ("Ruh al-Ma'ani (al-Alusi)", "ar"),
+    "ar-bahr-muhit":   ("Al-Bahr al-Muhit (Abu Hayyan)", "ar"),
+    "ar-baydawi":      ("Anwar at-Tanzil (al-Baydawi)", "ar"),
+    "ar-shawkani":     ("Fath al-Qadir (ash-Shawkani)", "ar"),
+    "ar-durr-manthur": ("ad-Durr al-Manthur (as-Suyuti)", "ar"),
+    "en-jalalayn":     ("Tafsir al-Jalalayn (EN)", "en"),
+    "en-ibn-abbas":    ("Tanwir al-Miqbas / Ibn Abbas (EN)", "en"),
+    "en-tazkirul":     ("Tazkirul Qur'an, M. Wahiduddin Khan (EN)", "en"),
+    "en-mukhtasar":    ("Tafsir Al-Mukhtasar (EN)", "en"),
 }
 
 HADITH_DISPLAY = {
@@ -150,24 +163,43 @@ def build_tafsir_examples(arabic):
         ar = arabic.get(key, "")
         if not ar:
             continue
-        # FR : traduction / explication
-        for slug in ("fr-montada", "fr-rashid-maash", "fr-mokhtasar", "fr-hamidullah"):
-            txt = tafsirs.get(slug, {}).get(key, "")
+        # FR : traduction / explication (jusqu'a 2 par verset, varie — l'app laisse
+        # choisir la langue de reponse donc le FR doit etre aussi bien couvert que l'AR)
+        fr_slugs = [s for s in ("fr-montada", "fr-mokhtasar", "fr-rashid-maash", "fr-hamidullah")
+                    if tafsirs.get(s, {}).get(key)]
+        random.shuffle(fr_slugs)
+        for slug in fr_slugs[:2]:
+            txt = tafsirs[slug][key]
             if len(txt) >= MIN_LEN:
                 name = TAFSIR_META[slug][0]
                 examples.append({
                     "system": SYSTEM,
-                    "user": f"Explique le sens du verset {key} du Coran :\n{ar}",
+                    "user": f"D'après {name}, quel est le sens du verset {key} du Coran ?\n{ar}",
                     "target": f"{clip(txt)}\n\n(Source : {name})",
                 })
-                break  # une explication FR par verset suffit
-        # AR : tafsir classique attribue (jusqu'a 2 par verset, varie)
+        # EN : tafsir/explication (jusqu'a 2 par verset, meme logique que FR/AR)
+        en_slugs = [s for s in ("en-ibn-kathir", "en-maarif", "en-mukhtasar",
+                                "en-tazkirul", "en-jalalayn", "en-ibn-abbas")
+                    if tafsirs.get(s, {}).get(key)]
+        random.shuffle(en_slugs)
+        for slug in en_slugs[:2]:
+            txt = tafsirs[slug][key]
+            if len(txt) >= MIN_LEN:
+                name = TAFSIR_META[slug][0]
+                examples.append({
+                    "system": SYSTEM,
+                    "user": f"According to {name}, what is the meaning of verse {key} of the Qur'an?\n{ar}",
+                    "target": f"{clip(txt)}\n\n(Source: {name})",
+                })
+        # AR : tafsir classique attribue (jusqu'a 3 par verset, varie — 15 sources
+        # disponibles desormais, augmenter le tirage pour mieux les representer toutes)
         ar_slugs = [s for s in ("ar-ibn-kathir", "ar-saadi", "ar-tabari",
                                 "ar-qurtubi", "ar-jalalayn", "ar-baghawi", "ar-muyassar",
-                                "ar-kashshaf", "ar-ibn-ashur")
+                                "ar-kashshaf", "ar-ibn-ashur", "ar-razi", "ar-alusi",
+                                "ar-bahr-muhit", "ar-baydawi", "ar-shawkani", "ar-durr-manthur")
                     if tafsirs.get(s, {}).get(key)]
         random.shuffle(ar_slugs)
-        for slug in ar_slugs[:2]:
+        for slug in ar_slugs[:3]:
             txt = tafsirs[slug][key]
             if len(txt) >= MIN_LEN:
                 name = TAFSIR_META[slug][0]
@@ -369,17 +401,16 @@ def main():
     tafsir_ex = build_tafsir_examples(arabic)
     print(f"  {len(tafsir_ex)} exemples tafsir", flush=True)
 
-    print("Construction exemples hadith...", flush=True)
-    hadith_ex = build_hadith_examples()
-    print(f"  {len(hadith_ex)} exemples hadith", flush=True)
-
     print("Construction exemples wujuh wal-naza'ir / mufradat...", flush=True)
     mufradat_ex = build_mufradat_examples()
     nuzhat_ex = build_nuzhat_examples()
     ulum_ex = build_ulum_chapter_examples()
     print(f"  {len(mufradat_ex)} mufradat, {len(nuzhat_ex)} nuzhat al-ayun, {len(ulum_ex)} chapitres ulum", flush=True)
 
-    examples = tafsir_ex + hadith_ex + mufradat_ex + nuzhat_ex + ulum_ex
+    # Hadith volontairement exclu de ce dataset : focus explicite sur l'explication
+    # du Coran (tafsir), pas les sciences islamiques en general. build_hadith_examples()
+    # reste disponible si un dataset "islamique large" est refait plus tard.
+    examples = tafsir_ex + mufradat_ex + nuzhat_ex + ulum_ex
     random.shuffle(examples)
 
     with open(OUT, "w", encoding="utf-8") as f:
@@ -387,9 +418,9 @@ def main():
             f.write(json.dumps(ex, ensure_ascii=False) + "\n")
 
     print(f"\nTOTAL: {len(examples)} exemples -> {OUT}", flush=True)
-    print(f"  tafsir: {len(tafsir_ex)}  hadith: {len(hadith_ex)}  "
+    print(f"  tafsir: {len(tafsir_ex)}  "
           f"mufradat: {len(mufradat_ex)}  nuzhat: {len(nuzhat_ex)}  ulum: {len(ulum_ex)}", flush=True)
-    print("ISLAMIC SFT DONE", flush=True)
+    print("QURAN EXPLANATION SFT DONE (hadith exclu, focus tafsir)", flush=True)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ import '../models/player_state_model.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../theme/app_theme.dart';
+import 'qibla_screen.dart';
 import 'reciter_select_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -97,6 +98,16 @@ class SettingsScreen extends ConsumerWidget {
                 'Répéter le verset × $repeatDrillCount avant de tester ta mémoire',
             onTap: () =>
                 _pickRepeatDrillCount(context, ref, repeatDrillCount),
+          ),
+
+          const SizedBox(height: 12),
+          _SectionHeader('Prière'),
+          _SettingsTile(
+            icon: Icons.explore_rounded,
+            title: 'Direction de la Qibla',
+            subtitle: 'Boussole vers la Mecque depuis ta position',
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const QiblaScreen())),
           ),
 
           const SizedBox(height: 12),

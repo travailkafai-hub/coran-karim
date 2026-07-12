@@ -39,6 +39,10 @@ dependencies:
   flutter_gemma: ^1.2.2
   flutter_gemma_litertlm: ^1.0.2
 
+  # Boussole Qibla (direction de la Mecque)
+  flutter_compass: ^0.8.1
+  geolocator: ^14.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

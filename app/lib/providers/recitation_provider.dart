@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:math' show max;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/recitation_state.dart';
+import '../services/diagnostic_log.dart';
+import '../services/fastconformer_verifier.dart' show AlignPayload;
 import '../services/recitation_verifier.dart';
 
 const double _kSimThreshold = 0.6;
@@ -11,6 +14,35 @@ const double _kSimThreshold = 0.6;
 const double _kUnclearSimThreshold = 0.85;
 const int _kLookahead = 3;
 const int _kAlignLookahead = 6; // tolérance mots sautés/bruit dans le texte reconnu (realign complet)
+
+// ── Seuils GOP (alignement forcé, cf. ForcedAligner.kt — refonte 2026-07-11) ──
+// gop = logprob(chemin forcé = mot attendu) − logprob(meilleur chemin libre),
+// moyenné par frame sur les frames de tokens du mot. Toujours ≤ 0.
+//  - gop ≥ seuil "correct" : l'audio soutient le mot attendu (harakat
+//    comprises) presque aussi bien que ce que le modèle préférerait dire →
+//    correct (vert).
+//  - gop ≥ seuil "unclear" : hésitation nette mais pas un rejet — typiquement
+//    une harakat approximative ou une articulation floue → unclear (orange).
+//  - sinon : le modèle est nettement plus sûr d'avoir entendu AUTRE CHOSE
+//    (le champ `actual` dit quoi) → error (rouge).
+// Valeurs par défaut CALIBRÉES sur device (correspondent à sensibilité=0.5,
+// cf. `correctionSensitivityProvider`) — chaque jugement est logué avec son
+// gop précis pour ajuster (chercher "[GOP]" dans le log persistant).
+const double _kGopCorrectDefault = -0.45;
+const double _kGopUnclearDefault = -1.6;
+// Bornes de la sensibilité réglable (demande utilisateur 2026-07-12 :
+// "je veux que ça soit dynamique... la possibilité de modifier la
+// sensibilité pour que le réciteur veuille quelque chose de strict... ou
+// plus tolérant"). sensibilité=0 -> bande verte large (tolérant), =1 ->
+// bande verte étroite (strict) ; =0.5 reproduit exactement les valeurs
+// calibrées ci-dessus. Deux segments linéaires (tolérant<->défaut,
+// défaut<->strict) pour garantir que 0.5 == comportement historique inchangé.
+const double _kGopCorrectTolerant = -0.90;
+const double _kGopUnclearTolerant = -2.50;
+const double _kGopCorrectStrict = -0.20;
+const double _kGopUnclearStrict = -0.90;
+
+double _lerp(double a, double b, double t) => a + (b - a) * t;
 
 /// Moteur Whisper ONNX on-device.
 /// Remplacer par MockRecitationVerifier() pour tester l'UI sans modèle.
@@ -41,6 +73,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   StreamSubscription<double>? _levelSub;
   StreamSubscription<String>? _rawSub;
   StreamSubscription<({String committed, String preview})>? _structSub;
+  StreamSubscription<AlignPayload>? _alignSub;
 
   // Correction automatique (demande utilisateur 2026-07-05) : émis UNE fois
   // par mot, exactement au moment où il est verrouillé rouge pour la première
@@ -62,6 +95,29 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   int _anchorExp = 0;
   StreamSubscription<int>? _pendingSub;
 
+  // Seuils GOP EN VIGUEUR -- modifiables en direct pendant la récitation via
+  // setSensitivity (demande utilisateur 2026-07-12), cf. constantes ci-dessus
+  // pour le mapping exact 0-1 -> seuils.
+  double _gopCorrect = _kGopCorrectDefault;
+  double _gopUnclear = _kGopUnclearDefault;
+
+  /// Applique une sensibilité 0.0 (tolérant) .. 1.0 (strict) aux seuils GOP,
+  /// EFFECTIVE DÈS LE PROCHAIN MOT JUGÉ (pas besoin de redémarrer la
+  /// session) -- demande utilisateur 2026-07-12 : réglable "surtout pour
+  /// celui qui récite", donc en cours de récitation, pas seulement avant.
+  void setSensitivity(double sensitivity) {
+    final s = sensitivity.clamp(0.0, 1.0);
+    if (s <= 0.5) {
+      final t = s / 0.5;
+      _gopCorrect = _lerp(_kGopCorrectTolerant, _kGopCorrectDefault, t);
+      _gopUnclear = _lerp(_kGopUnclearTolerant, _kGopUnclearDefault, t);
+    } else {
+      final t = (s - 0.5) / 0.5;
+      _gopCorrect = _lerp(_kGopCorrectDefault, _kGopCorrectStrict, t);
+      _gopUnclear = _lerp(_kGopUnclearDefault, _kGopUnclearStrict, t);
+    }
+  }
+
   /// Vrai pendant le stop() — empêche le double-stop et préserve le statut
   /// "processing" pendant que l'ASR tourne dans son isolate.
   bool _stopping = false;
@@ -78,9 +134,33 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
               display: w,
               normalized: ArabicNormalizer.normalize(w),
               strict: ArabicNormalizer.normalizeStrict(w),
+              training: ArabicNormalizer.normalizeTraining(w),
             ))
         .toList();
     state = RecitationSessionState(words: words);
+  }
+
+  /// Étend la session EN COURS avec du texte supplémentaire (enchaînement sur
+  /// la sourate suivante, demande utilisateur 2026-07-11) — contrairement à
+  /// [setup], ne touche RIEN de la progression déjà acquise (mots jugés,
+  /// pointeur, ancre d'alignement) : ajoute seulement de nouveaux mots
+  /// "pending" à la fin de la liste, et étend la cible native en conséquence
+  /// SANS bouger son ancre (cf. RecitationVerifier.extendAlignmentTarget) —
+  /// la récitation continue exactement où elle en était, juste avec plus de
+  /// texte à réciter derrière.
+  Future<void> extendWords(String moreArabicText) async {
+    final newWords = ArabicNormalizer.splitExpectedWords(moreArabicText)
+        .map((w) => RecitedWord(
+              display: w,
+              normalized: ArabicNormalizer.normalize(w),
+              strict: ArabicNormalizer.normalizeStrict(w),
+              training: ArabicNormalizer.normalizeTraining(w),
+            ))
+        .toList();
+    if (newWords.isEmpty) return;
+    state = state.copyWith(words: [...state.words, ...newWords]);
+    await _verifier
+        .extendAlignmentTarget(newWords.map((w) => w.training).toList());
   }
 
   Future<void> start() async {
@@ -102,7 +182,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _levelSub = _verifier.soundLevel
         .listen((lvl) => state = state.copyWith(soundLevel: lvl));
     _rawSub = _verifier.rawTranscript.listen(_onRawSegment);
-    await _verifier.start(state.words.map((w) => w.normalized).toList());
+    _alignSub = _verifier.alignedWords.listen(_onAligned);
+    // Forme fidèle à l'entraînement (PAS `strict`, qui fusionne des lettres
+    // que le modèle a appris à distinguer — cf. normalizeTraining).
+    await _verifier.start(state.words.map((w) => w.training).toList());
   }
 
   /// Démarre une récitation continue (plusieurs versets/une sourate entière),
@@ -131,8 +214,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         .listen((lvl) => state = state.copyWith(soundLevel: lvl));
     _structSub = _verifier.structuredTranscript.listen(_onStructured);
     _pendingSub = _verifier.pendingSegments.listen(_onPendingChanged);
+    _alignSub = _verifier.alignedWords.listen(_onAligned);
+    // Forme fidèle à l'entraînement — cible de l'alignement forcé GOP.
     await _verifier.start(
-      state.words.map((w) => w.normalized).toList(),
+      state.words.map((w) => w.training).toList(),
       continuous: true,
     );
   }
@@ -142,7 +227,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// il n'y a qu'un seul segment par session donc remplacer == accumuler.
   void _onRawSegment(String txt) {
     state = state.copyWith(rawTranscript: txt);
-    _realignFromFullText(txt);
+    // Diff textuel SEULEMENT en repli : quand l'alignement forcé GOP est actif
+    // (modèle déployé), _onAligned est l'unique source de jugement — juger ici
+    // en plus écraserait ses verdicts avec la méthode moins fiable.
+    if (!_verifier.alignmentActive) _realignFromFullText(txt);
     // Phrase de clôture traditionnelle "Sadaqa Allahu al-'Adhim" (صدق الله
     // العظيم) dite en fin de récitation — la détecter arrête l'écoute
     // automatiquement, en complément du bouton dédié (demande utilisateur
@@ -392,10 +480,20 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       .toList();
 
   /// Mode continu : scoring ancré sur les segments figés.
+  /// REPLI uniquement — quand l'alignement forcé GOP est actif, _onAligned
+  /// juge et cette méthode ne fait plus que rafraîchir le texte affiché.
   void _onStructured(({String committed, String preview}) parts) {
     if (state.words.isEmpty) return;
     final s = state.status;
     if (s == RecitationStatus.finished || s == RecitationStatus.idle) return;
+
+    if (_verifier.alignmentActive) {
+      final display = [parts.committed, parts.preview]
+          .where((t) => t.isNotEmpty)
+          .join(' ');
+      state = state.copyWith(rawTranscript: display);
+      return;
+    }
 
     final words = [...state.words];
     final newErrors = <int>[];
@@ -495,6 +593,142 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     if (done) _finish();
     // Émis APRÈS que `state` reflète déjà le nouveau statut, pour que les
     // écouteurs (correction automatique) voient un état cohérent.
+    for (final i in newErrors) {
+      _wordFailedCtrl.add(i);
+    }
+  }
+
+  /// Jugement PRIMAIRE (refonte 2026-07-11) : alignement forcé GOP calculé
+  /// nativement sur les log-probabilités du modèle (cf. ForcedAligner.kt).
+  /// Remplace le diff textuel flou (_alignChunk/_realignFromFullText, gardés
+  /// en repli quand le modèle n'est pas déployé) : chaque mot couvert par
+  /// l'audio reçoit gop = P(mot attendu|audio) − P(meilleur chemin|audio) —
+  /// on mesure si l'AUDIO soutient le mot attendu (harakat comprises), au lieu
+  /// de comparer deux textes après qu'un décodeur biaisé vers le texte
+  /// canonique (cf. SKILL.md) a déjà lissé les erreurs. Les rustines
+  /// d'alignement historiques (écho/doublon, fusion de jetons, tolérance
+  /// arrière, redémarrage de segment) deviennent sans objet ici : la position
+  /// de chaque mot est déterminée acoustiquement par la DP, plus par une
+  /// correspondance de chaînes.
+  void _onAligned(AlignPayload p) {
+    if (state.words.isEmpty) return;
+    final s = state.status;
+    if (s == RecitationStatus.finished || s == RecitationStatus.idle) return;
+
+    final words = [...state.words];
+    final newErrors = <int>[];
+
+    for (final r in p.words) {
+      if (r.index < 0 || r.index >= words.length) continue;
+      if (words[r.index].locked) continue;
+      // Mot à la frontière d'un aperçu : encore en cours de prononciation,
+      // l'audio ne le couvre pas entièrement — ne pas juger (le verrouillage
+      // prématuré d'un mot à moitié décodé est LE bug historique 2026-07-05).
+      if (!r.covered && !p.isFinal) continue;
+
+      final expected = words[r.index];
+      final actualStrict = ArabicNormalizer.normalizeStrict(r.actual);
+      final actualNorm = ArabicNormalizer.normalize(r.actual);
+      final textMatches =
+          ArabicNormalizer.matchesTolerant(actualStrict, expected.strict);
+
+      // IMPORTANT : la confirmation textuelle (`textMatches`) ne peut que
+      // RATTRAPER un score limite vers "correct" — jamais sauver un gop
+      // franchement rejeté (< _kGopUnclear). Bug corrigé 2026-07-11 : la
+      // version précédente acceptait `textMatches` seule, sans plancher —
+      // un mot avec gop=-5.1 (rejet massif du chemin forcé) ressortait quand
+      // même "correct" dès que le décodage libre épelait le mot attendu.
+      // Comme le décodage libre est PRÉCISÉMENT ce que le GOP est censé
+      // contourner (biais du modèle vers le texte canonique, cf. SKILL.md),
+      // ce bypass sans plancher annulait tout l'intérêt de la refonte.
+      final WordStatus judged;
+      if (r.gop >= _gopCorrect ||
+          (textMatches && r.gop >= _gopUnclear)) {
+        judged = WordStatus.correct;
+      } else if (r.gop >= _gopUnclear ||
+          ArabicNormalizer.similarity(actualNorm, expected.normalized) >=
+              _kUnclearSimThreshold) {
+        // Bon mot mais rendu imprécis : hésitation acoustique modérée, ou
+        // squelette quasi identique avec harakat divergentes.
+        judged = WordStatus.unclear;
+      } else {
+        judged = WordStatus.error;
+      }
+      // Une erreur ne se verrouille QUE sur un segment figé (décision
+      // utilisateur 2026-07-10, conservée) : un aperçu peut encore mal couvrir
+      // la fin d'un mot ; le segment figé ultérieur tranche définitivement.
+      final lock = p.isFinal || judged != WordStatus.error;
+      DiagnosticLog.log('GOP', 'mot=${r.index} "${expected.display}" '
+          'gop=${r.gop.toStringAsFixed(2)} forced=${r.forced.toStringAsFixed(2)} '
+          'entendu="${r.actual}" -> $judged (lock=$lock, final=${p.isFinal})');
+      _judge(words, r.index, judged, lock: lock, newErrors: newErrors);
+    }
+
+    // L'ancre (utilisée par la correction, cf. rewindRangeEnd) doit avancer
+    // EXACTEMENT jusqu'où ce bloc a verrouillé des mots — pas jusqu'à
+    // `frontier` seul. Sur un segment figé, TOUS les mots de p.words sont
+    // jugés/verrouillés ci-dessus (y compris celui à la frontière, non
+    // couvert mais quand même jugé puisque isFinal bypasse le garde-fou
+    // `!r.covered`) — donc la vraie étendue verrouillée est
+    // `p.anchor + p.words.length`, pas `p.frontier` (peut être strictement
+    // inférieur d'un mot). Bug corrigé 2026-07-11 : sous-évaluer l'ancre ici
+    // désynchronisait Dart de l'ancre native (cf. BufferedTranscriber.kt,
+    // runAlignment) — l'appel suivant redemandait à la DP de forcer
+    // l'alignement sur un mot déjà verrouillé, absent du nouvel audio,
+    // corrompant l'attribution de frames du mot RÉELLEMENT suivant (constat :
+    // "مَـٰلِكِ" verrouillé error à tort, gop=-7.36, alors que le décodage
+    // libre du même segment le montrait parfaitement reconnu).
+    if (p.isFinal) {
+      final trueExtent = p.anchor + p.words.length;
+      if (trueExtent > _anchorExp) _anchorExp = trueExtent;
+    }
+
+    // Pointeur = frontière acoustique (premier mot que l'audio ne couvre pas
+    // entièrement) — mais sur un segment figé, tous les mots jusqu'à
+    // `_anchorExp` viennent d'être verrouillés (cf. ci-dessus), donc le
+    // pointeur doit au moins les dépasser aussi, pas juste `p.frontier`
+    // (identique à la correction de l'ancre). Jamais en arrière : une passe
+    // ponctuellement dégradée ne fait pas reculer l'UI.
+    final coveredExtent = p.isFinal ? _anchorExp : p.frontier;
+    final pointer =
+        max(state.pointer, coveredExtent.clamp(0, words.length).toInt());
+
+    // Invariant : au plus UN mot "current" à la fois (cf. crash GlobalKey
+    // dupliquée, 2026-07-06).
+    for (var i = 0; i < words.length; i++) {
+      if (i != pointer && words[i].status == WordStatus.current) {
+        words[i] = words[i].copyWith(status: WordStatus.pending);
+      }
+    }
+    if (pointer < words.length && words[pointer].status == WordStatus.pending) {
+      words[pointer] = words[pointer].copyWith(status: WordStatus.current);
+    }
+
+    var correct = 0, unclear = 0, errors = 0;
+    for (final w in words) {
+      switch (w.status) {
+        case WordStatus.correct:
+          correct++;
+        case WordStatus.unclear:
+          unclear++;
+        case WordStatus.error:
+          errors++;
+        default:
+          break;
+      }
+    }
+
+    final done = pointer >= words.length;
+    state = state.copyWith(
+      words: words,
+      pointer: pointer,
+      correctCount: correct,
+      unclearCount: unclear,
+      errorCount: errors,
+      status: done ? RecitationStatus.finished : state.status,
+    );
+    if (done) _finish();
+    // Émis APRÈS que `state` reflète le nouveau statut (cohérence écouteurs).
     for (final i in newErrors) {
       _wordFailedCtrl.add(i);
     }
@@ -693,6 +927,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _rawSub?.cancel();
     _structSub?.cancel();
     _pendingSub?.cancel();
+    _alignSub?.cancel();
     _stopping = false;
     _endingContinuous = false;
     state = state.copyWith(status: RecitationStatus.finished, soundLevel: 0);
@@ -718,7 +953,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     } finally {
       _tokenSub?.cancel();
       _rawSub?.cancel();
-    _structSub?.cancel();
+      _structSub?.cancel();
+      _alignSub?.cancel();
       _stopping = false;
       if (state.status != RecitationStatus.finished) {
         state = state.copyWith(status: RecitationStatus.finished);
@@ -765,6 +1001,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     final wasError = words[index].status == WordStatus.error;
     final wasUnclear = words[index].status == WordStatus.unclear;
     words[index] = words[index].copyWith(status: WordStatus.correct, locked: true);
+    // Mot validé par correction explicite : l'ancre d'alignement (native et
+    // locale) doit repartir APRÈS lui, pour que la suite de la récitation soit
+    // comparée au mot suivant.
+    if (_anchorExp < index + 1) _anchorExp = index + 1;
+    unawaited(_verifier.setAlignmentAnchor(index + 1));
     state = state.copyWith(
       words: words,
       correctCount: state.correctCount + 1,
@@ -820,6 +1061,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // traité comme entièrement nouveau, pas comme une suite du texte d'avant
     // le recul.
     _prevCommitted = '';
+    // Ancre de l'alignement forcé GOP : la prochaine passe doit comparer le
+    // nouvel audio à CE mot, pas à la suite du texte.
+    unawaited(_verifier.setAlignmentAnchor(wordIndex));
     state = state.copyWith(
       words: words,
       errorCount: state.errorCount - errorDelta,
@@ -834,6 +1078,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _rawSub?.cancel();
     _structSub?.cancel();
     _pendingSub?.cancel();
+    _alignSub?.cancel();
     _wordFailedCtrl.close();
     super.dispose();
   }

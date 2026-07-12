@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'diagnostic_log.dart';
 import 'fastconformer_verifier.dart';
 
 // ── Public types ─────────────────────────────────────────────────────────────
@@ -94,6 +95,36 @@ class ArabicNormalizer {
   /// (ex: رَبِّ vs رَبُّ) doit compter comme une erreur, pas un match.
   static String normalizeStrict(String input) {
     return _collapseVariants(input);
+  }
+
+  /// Normalisation "fidèle à l'entraînement" — EXACTEMENT la même
+  /// transformation que `normalize_text()` dans benchmark/prepare_nemo_data.py
+  /// (source de vérité du corpus d'entraînement). Contrairement à
+  /// [normalizeStrict], NE fusionne PAS أ/إ/آ→ا, ى→ي, ؤ→و, ئ→ي, ة→ه — ces
+  /// lettres sont des tokens BPE DISTINCTS que le modèle a appris à produire
+  /// séparément (vérifié empiriquement 2026-07-11 : `_collapseVariants`
+  /// convient à la comparaison textuelle tolérante mais PAS comme cible
+  /// d'alignement forcé — un mot contenant l'une de ces lettres, très
+  /// fréquent dans le Coran (ex. ة dans صَلَاة/حَيَاة/رَحْمَة), envoyait au
+  /// tokenizer une forme que le modèle n'a jamais vue à l'entraînement).
+  /// SEULE forme à utiliser pour construire la cible envoyée à
+  /// setAlignmentTarget/tokenizeWord — jamais pour la comparaison tolérante
+  /// (qui reste sur normalize/normalizeStrict, la fusion y est un atout).
+  static String normalizeTraining(String input) {
+    var t = input;
+    t = t.replaceAll('ٱ', 'ا');
+    t = t.replaceAll('وٰ', 'ا');
+    t = t.replaceAll('ٰ', 'ا');
+    t = t.replaceAll('ۥ', 'و');
+    t = t.replaceAll('ۦ', 'ي');
+    t = t.replaceAll('ٔ', 'ء');
+    t = t.replaceAll('ٓ', '');
+    t = t.replaceAll('ـ', '');
+    t = t.replaceAll('۞', '');
+    t = t.replaceAll('۩', '');
+    t = t.replaceAll(RegExp(r'[ؖ-ؚۖ-ۜ۟-۪ۤۧۨ-ۭ]'), '');
+    t = t.replaceAll(RegExp(r'[،؛؟.,!?:;\-_()\[\]{}"' r"'" r'»«]'), '');
+    return t.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   /// Découpe le texte coranique attendu (`text_uthmani`) en mots récitables,
@@ -201,6 +232,30 @@ abstract class RecitationVerifier {
   /// transcription n'a eu lieu dans la session courante.
   String? get lastAudioPath;
 
+  /// Passes d'alignement forcé GOP (cf. ForcedAligner.kt, refonte 2026-07-11) :
+  /// le texte attendu est connu d'avance, chaque passe d'inférence aligne de
+  /// force les mots restants sur les log-probs du modèle et émet un score par
+  /// mot (gop = forced − free). C'est la source de jugement PRIMAIRE du scoring
+  /// quand [alignmentActive] est vrai — le diff textuel flou historique ne sert
+  /// plus que de repli.
+  Stream<AlignPayload> get alignedWords;
+
+  /// Vrai si l'alignement forcé est actif pour la session courante (cible
+  /// déclarée + modèle chargé). Faux → le scoring doit retomber sur le diff
+  /// textuel historique.
+  bool get alignmentActive;
+
+  /// Repositionne l'ancre d'alignement natif (correction/recul) — la prochaine
+  /// passe compare l'audio au mot [index], pas à la suite du texte.
+  Future<void> setAlignmentAnchor(int index);
+
+  /// Étend la cible d'alignement forcé avec des mots supplémentaires (formes
+  /// STRICTES d'entraînement), à la SUITE de la cible actuelle — SANS toucher
+  /// l'ancre en cours. Utilisé pour enchaîner sur la sourate suivante sans
+  /// interrompre la session (demande utilisateur 2026-07-11) : la récitation
+  /// continue exactement où elle en était, juste avec plus de texte derrière.
+  Future<void> extendAlignmentTarget(List<String> moreTrainingWords);
+
   /// [continuous] : enregistrement continu segmenté par détection de silence
   /// (VAD énergie), pour réciter plusieurs versets/une sourate entière sans
   /// interaction manuelle entre chaque verset.
@@ -233,7 +288,7 @@ abstract class RecitationVerifier {
 // (modèle de production actuel, ~11% WER) mais n'est pas utilisé par CETTE classe
 // pendant que le training du modèle maison est en cours.
 
-const String _kAsrVersion = 'ASR-v44-hidden-pending-text';
+const String _kAsrVersion = 'ASR-v45-gop-forced-align';
 
 class WhisperOnnxVerifier implements RecitationVerifier {
   final _tokenCtrl = StreamController<RecognizedToken>.broadcast();
@@ -241,12 +296,16 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   final _rawCtrl = StreamController<String>.broadcast();
   final _structCtrl =
       StreamController<({String committed, String preview})>.broadcast();
+  final _alignCtrl = StreamController<AlignPayload>.broadcast();
   final _recorder = AudioRecorder();
   Timer? _levelTimer;
 
   final _fastConformer = FastConformerVerifier();
 
   String? _lastAudioPath;
+
+  bool _alignmentActive = false;
+  int _lastAlignSeq = -1;
 
   @override
   Stream<RecognizedToken> get tokens => _tokenCtrl.stream;
@@ -258,7 +317,19 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   Stream<({String committed, String preview})> get structuredTranscript =>
       _structCtrl.stream;
   @override
+  Stream<AlignPayload> get alignedWords => _alignCtrl.stream;
+  @override
+  bool get alignmentActive => _alignmentActive;
+  @override
   String? get lastAudioPath => _lastAudioPath;
+
+  @override
+  Future<void> setAlignmentAnchor(int index) =>
+      _fastConformer.setAlignmentAnchor(index);
+
+  @override
+  Future<void> extendAlignmentTarget(List<String> moreTrainingWords) =>
+      _fastConformer.extendAlignmentTarget(moreTrainingWords);
 
   // ── Segmentation continue (VAD énergie) ──────────────────────────────────
   // dBFS en dessous duquel on considère qu'il y a silence (seuil à ajuster
@@ -292,14 +363,24 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
     _continuous = continuous;
     _sessionEnding = false;
+    _alignmentActive = false;
+    _lastAlignSeq = -1;
 
     if (continuous) {
-      await _startStreamingCapture();
+      await _startStreamingCapture(expectedWords);
       return;
     }
 
     _rawCtrl.add('⏳ Chargement FastConformer CTC…');
-    unawaited(_fastConformer.ensureLoaded().then((ok) {
+    unawaited(_fastConformer.ensureLoaded().then((ok) async {
+      if (ok) {
+        // [expectedWords] = formes STRICTES (normalizeStrict : harakat
+        // conservées, même normalisation que le corpus d'entraînement) — la
+        // cible de l'alignement forcé GOP. false → repli diff textuel.
+        _alignmentActive =
+            await _fastConformer.setAlignmentTarget(expectedWords, 0);
+        DiagnosticLog.log('ASR', 'alignement forcé actif = $_alignmentActive');
+      }
       _rawCtrl.add(ok
           ? '✅ FastConformer chargé — en écoute'
           : '❌ FastConformer introuvable (modèle/vocab absents sur le device)');
@@ -325,7 +406,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// Solution qui marche : re-transcription du buffer complet toutes les
   /// ~1,5s via BufferedTranscriber.kt (modèle offline déjà validé) — latence
   /// perçue ~1,5-3s, mais continu, sans coupure manuelle.
-  Future<void> _startStreamingCapture() async {
+  Future<void> _startStreamingCapture(List<String> expectedWords) async {
     _chunkCount = 0;
     _rawCtrl.add('⏳ Chargement FastConformer…');
     final ok = await _fastConformer.ensureLoaded();
@@ -333,25 +414,28 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         ? '✅ Chargé — en écoute (re-transcription ~1,5s)'
         : '❌ Modèle introuvable (modèle/vocab absents sur le device)');
     if (!ok) return;
+    // Cible de l'alignement forcé GOP (formes strictes, harakat conservées).
+    _alignmentActive = await _fastConformer.setAlignmentTarget(expectedWords, 0);
+    DiagnosticLog.log('ASR', 'alignement forcé actif = $_alignmentActive');
     await _fastConformer.resetBuffered();
 
-    debugPrint('[ASR] Appel _recorder.startStream()…');
+    DiagnosticLog.log('ASR', 'Appel _recorder.startStream()…');
     try {
       final hasPerm = await _recorder.hasPermission();
-      debugPrint('[ASR] hasPermission (juste avant startStream) = $hasPerm');
+      DiagnosticLog.log('ASR', 'hasPermission (juste avant startStream) = $hasPerm');
 
       final stream = await _recorder.startStream(
         const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1),
       );
-      debugPrint('[ASR] startStream() a retourné un Stream — abonnement…');
+      DiagnosticLog.log('ASR', 'startStream() a retourné un Stream — abonnement…');
 
       _pcmSub = stream.listen(
         (bytes) async {
           _chunkCount++;
           if (_chunkCount == 1) {
-            debugPrint('[ASR] PREMIER bloc PCM reçu ! ${bytes.length} octets');
+            DiagnosticLog.log('ASR', 'PREMIER bloc PCM reçu ! ${bytes.length} octets');
           } else if (_chunkCount % 20 == 0) {
-            debugPrint('[ASR] bloc PCM #$_chunkCount (${bytes.length} octets)');
+            DiagnosticLog.log('ASR', 'bloc PCM #$_chunkCount (${bytes.length} octets)');
           }
           _levelCtrl.add(_estimatePcmLevel(bytes));
           try {
@@ -368,17 +452,26 @@ class WhisperOnnxVerifier implements RecitationVerifier {
               _rawCtrl.add(display); // affichage brut (debug/caption)
               // Scoring ancré : la partie figée est append-only, seule
               // l'aperçu est ré-aligné à chaque passe (voir recitation_provider).
-              _structCtrl.add(parts);
+              _structCtrl.add(
+                  (committed: parts.committed, preview: parts.preview));
+            }
+            // Passe d'alignement forcé GOP : dédupliquée par `seq` (le natif
+            // renvoie le DERNIER résultat connu à chaque bloc PCM, mais une
+            // passe d'inférence n'a lieu que toutes les ~1,5s).
+            final align = parts?.align;
+            if (align != null && align.seq != _lastAlignSeq) {
+              _lastAlignSeq = align.seq;
+              _alignCtrl.add(align);
             }
           } catch (e) {
             debugPrint('[FastConformer] Erreur feedBufferedAudio : $e');
           }
         },
-        onError: (e) => debugPrint('[ASR] Erreur sur le flux PCM : $e'),
-        onDone: () => debugPrint('[ASR] Flux PCM terminé (onDone) — $_chunkCount blocs reçus au total'),
+        onError: (e) => DiagnosticLog.log('ASR', 'Erreur sur le flux PCM : $e'),
+        onDone: () => DiagnosticLog.log('ASR', 'Flux PCM terminé (onDone) — $_chunkCount blocs reçus au total'),
       );
     } catch (e, st) {
-      debugPrint('[ASR] EXCEPTION dans _startStreamingCapture : $e\n$st');
+      DiagnosticLog.log('ASR', 'EXCEPTION dans _startStreamingCapture : $e\n$st');
       _rawCtrl.add('❌ Erreur démarrage capture audio : $e');
     }
   }
@@ -416,7 +509,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// immédiatement un nouvel enregistrement pour ne pas perdre la suite.
   Future<void> _cutAndRestart() async {
     final path = await _recorder.stop();
-    debugPrint('[ASR] Segment coupé (silence/durée max) → $path');
+    DiagnosticLog.log('ASR', 'Segment coupé (silence/durée max) → $path');
     _enqueueIfValid(path);
     if (!_sessionEnding) await _beginSegment();
   }
@@ -467,6 +560,13 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         return;
       }
       _rawCtrl.add(text);
+      // Alignement forcé GOP one-shot sur ce même WAV (mode coach, segment
+      // unique) : source de jugement primaire quand actif — le provider
+      // ignore alors le diff textuel sur `text` ci-dessus.
+      if (_alignmentActive) {
+        final payload = await _fastConformer.alignFile(path);
+        if (payload != null) _alignCtrl.add(payload);
+      }
       await _saveStableCopy(path);
     } catch (e) {
       debugPrint('[FastConformer] Erreur decode segment : $e');
@@ -486,7 +586,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       await File(path).copy(stablePath);
       _lastAudioPath = stablePath;
     } catch (e) {
-      debugPrint('[ASR] Échec copie stable pour empreinte vocale : $e');
+      DiagnosticLog.log('ASR', 'Échec copie stable pour empreinte vocale : $e');
     }
   }
 
@@ -520,7 +620,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     // "بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ", mais l'ecran restait bloque sur
     // le message de chargement car plus personne n'ecoutait le stream).
     final path = await _recorder.stop();
-    debugPrint('[ASR] [$_kAsrVersion] stop() | dernier segment=$path');
+    DiagnosticLog.log('ASR', '[$_kAsrVersion] stop() | dernier segment=$path');
     _enqueueIfValid(path);
     if (_draining) {
       await _pendingCtrl.stream.firstWhere((n) => n == 0);
@@ -530,18 +630,29 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   @override
   Future<void> pauseCapture() async {
     try {
-      if (await _recorder.isRecording()) await _recorder.pause();
+      final wasRecording = await _recorder.isRecording();
+      DiagnosticLog.log('ASR', 'pauseCapture() | isRecording=$wasRecording');
+      if (wasRecording) await _recorder.pause();
+      DiagnosticLog.log('ASR', 'pauseCapture() | après pause : '
+          'isRecording=${await _recorder.isRecording()} '
+          'isPaused=${await _recorder.isPaused()}');
     } catch (e) {
-      debugPrint('[ASR] pauseCapture échec : $e');
+      DiagnosticLog.log('ASR', 'pauseCapture échec : $e');
     }
   }
 
   @override
   Future<void> resumeCapture() async {
     try {
-      if (await _recorder.isPaused()) await _recorder.resume();
+      final wasPaused = await _recorder.isPaused();
+      DiagnosticLog.log('ASR', 'resumeCapture() | isPaused=$wasPaused '
+          'pcmSub actif=${_pcmSub != null} chunkCount avant=$_chunkCount');
+      if (wasPaused) await _recorder.resume();
+      DiagnosticLog.log('ASR', 'resumeCapture() | après resume : '
+          'isRecording=${await _recorder.isRecording()} '
+          'isPaused=${await _recorder.isPaused()}');
     } catch (e) {
-      debugPrint('[ASR] resumeCapture échec : $e');
+      DiagnosticLog.log('ASR', 'resumeCapture échec : $e');
     }
   }
 
@@ -559,6 +670,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     _levelCtrl.close();
     _rawCtrl.close();
     _pendingCtrl.close();
+    _alignCtrl.close();
   }
 }
 
@@ -584,6 +696,14 @@ class MockRecitationVerifier implements RecitationVerifier {
   Stream<int> get pendingSegments => const Stream.empty();
   @override
   String? get lastAudioPath => null;
+  @override
+  Stream<AlignPayload> get alignedWords => const Stream.empty();
+  @override
+  bool get alignmentActive => false;
+  @override
+  Future<void> setAlignmentAnchor(int index) async {}
+  @override
+  Future<void> extendAlignmentTarget(List<String> moreTrainingWords) async {}
 
   @override
   Future<void> start(List<String> expectedWords, {bool continuous = false}) async {

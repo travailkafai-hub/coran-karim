@@ -4,6 +4,13 @@ class Verse {
   final String textUthmani;
   final String? textUthmaniTajweed; // HTML with tajweed class spans
   final String? translationFr;
+  // Numéro de page du Mushaf standard (1-604) -- utilisé pour charger le
+  // texte à réciter page par page plutôt que sourate entière d'un coup (cf.
+  // KaraokeRecitationScreen._maybeExtendNextPage, demande utilisateur
+  // 2026-07-11 : charger dix fois moins d'un coup pour un enchaînement
+  // Al-Baqarah, 286 versets, chargeait tout instantanément). Null seulement
+  // si l'appelant n'a pas demandé le champ `page_number` à l'API.
+  final int? pageNumber;
 
   const Verse({
     required this.surahNumber,
@@ -11,6 +18,7 @@ class Verse {
     required this.textUthmani,
     this.textUthmaniTajweed,
     this.translationFr,
+    this.pageNumber,
   });
 
   String get key => '$surahNumber:$ayahNumber';
@@ -23,6 +31,7 @@ class Verse {
       ayahNumber: int.parse(parts[1]),
       textUthmani: json['text_uthmani'] as String? ?? json['text'] as String,
       textUthmaniTajweed: json['text_uthmani_tajweed'] as String?,
+      pageNumber: json['page_number'] as int?,
     );
   }
 }

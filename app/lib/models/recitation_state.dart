@@ -20,6 +20,11 @@ class RecitedWord {
   final String display;     // texte original avec harakat (affichage)
   final String normalized;  // squelette sans harakat (alignement de position)
   final String strict;      // avec harakat (juge si la prononciation est correcte)
+  // Forme fidèle à l'entraînement (ArabicNormalizer.normalizeTraining) — SEULE
+  // forme à envoyer au tokenizer de l'alignement forcé (cf. recitation_verifier.dart) :
+  // ne fusionne PAS أ/إ/آ/ى/ؤ/ئ/ة comme le fait `strict`, qui reste correct pour
+  // la comparaison tolérante mais désaligne la cible envoyée au modèle.
+  final String training;
   final WordStatus status;
   // Jugement DÉFINITIF (plus jamais réécrit) — distinct de [status] : un mot
   // peut avoir un statut (rouge/orange/vert) sans être verrouillé, tant qu'il
@@ -35,6 +40,7 @@ class RecitedWord {
     required this.display,
     required this.normalized,
     required this.strict,
+    required this.training,
     this.status = WordStatus.pending,
     this.locked = false,
   });
@@ -43,6 +49,7 @@ class RecitedWord {
         display: display,
         normalized: normalized,
         strict: strict,
+        training: training,
         status: status ?? this.status,
         locked: locked ?? this.locked,
       );

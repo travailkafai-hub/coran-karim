@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/reciter.dart';
 import '../models/verse.dart';
+import 'diagnostic_log.dart';
 import 'quran_api.dart';
 
 /// Lecteur audio DÉDIÉ à la correction automatique (demande utilisateur
@@ -15,6 +19,25 @@ class WordCorrectionAudio {
   static final _player = AudioPlayer();
   static final _urlCache = <int, Map<String, String>>{};
   static final _segmentsCache = <String, List<List<int>>>{};
+  // Fichier MP3 local déjà téléchargé pour segKey ('${reciter.id}:${verse.key}')
+  // -- le format (MP3, servi tel quel par verses.quran.com) n'est PAS le
+  // problème : le convertir n'aurait réduit ni la taille (déjà compressé) ni
+  // le principal coût mesuré (les DEUX appels réseau JSON de métadonnées
+  // dans playWordRange, cf. `prefetch`). Le vrai levier est QUAND le
+  // téléchargement a lieu : ici, l'audio lui-même est aussi précaché en local
+  // pendant la récitation (avant toute erreur), pour que la lecture démarre
+  // depuis le disque -- zéro dépendance réseau au moment de la correction --
+  // plutôt que de streamer depuis `verses.quran.com` au moment précis où le
+  // réseau peut être dégradé.
+  static final _fileCache = <String, String>{};
+  // Ordre d'insertion (LRU approximatif) -- borne le nombre de clips MP3
+  // conservés sur disque pendant une longue session continue (chaque clip
+  // fait quelques dizaines à ~200 Ko, pas de quoi remplir le stockage, mais
+  // pas de raison d'accumuler indéfiniment sur une récitation de plusieurs
+  // heures/sourates).
+  static final _fileCacheOrder = <String>[];
+  static const _kMaxCachedFiles = 12;
+  static final _dio = Dio();
 
   /// Joue le mot fautif de [verse], entouré d'[wordsBefore] mots avant et
   /// [wordsAfter] mots après (par défaut 1 avant / 0 après = comportement de
@@ -56,6 +79,17 @@ class WordCorrectionAudio {
         orElse: () => segments.last);
     final startMs = startSeg[2];
     final endMs = endSeg[3];
+    // Local si déjà précaché (cf. `prefetch`) -- sinon streaming direct
+    // (comportement d'avant ce correctif) : ne JAMAIS attendre un
+    // téléchargement ici, ce serait aussi lent que l'ancien chemin.
+    final localPath = _fileCache[segKey];
+    final source = localPath != null ? DeviceFileSource(localPath) : UrlSource(url);
+    DiagnosticLog.log('Correction-Audio', 'verset=${verse.key} '
+        'errorWordIndex=$errorWordIndex (mot attendu local) '
+        'fromIdx=$fromIdx toIdx=$toIdx '
+        'startSeg=$startSeg endSeg=$endSeg '
+        'startMs=$startMs endMs=$endMs '
+        'source=${localPath != null ? "local($localPath)" : "url($url)"}');
 
     final completer = Completer<void>();
     late final StreamSubscription posSub;
@@ -74,7 +108,7 @@ class WordCorrectionAudio {
     });
     doneSub = _player.onPlayerComplete.listen((_) => finish());
 
-    await _player.play(UrlSource(url), position: Duration(milliseconds: startMs));
+    await _player.play(source, position: Duration(milliseconds: startMs));
     // Garde-fou : si ni la position ni la fin de lecture ne se déclenchent
     // (URL corrompue, lecteur bloqué), ne pas bloquer la reprise indéfiniment.
     return completer.future.timeout(const Duration(seconds: 15), onTimeout: () {
@@ -82,6 +116,58 @@ class WordCorrectionAudio {
       doneSub.cancel();
       _player.pause();
     });
+  }
+
+  /// Préchauffe les caches réseau (URLs audio du récitateur + segments de
+  /// timing du verset) AVANT qu'une erreur ne survienne (demande utilisateur
+  /// 2026-07-11 : "en cas d'erreur ça prend beaucoup de temps pour réagir").
+  /// Log natif corrélé au moment de l'écriture de ce fix : le fetch À LA
+  /// DEMANDE dans [playWordRange] (`fetchSurahAudioUrls`/`fetchAyahSegments`,
+  /// jamais préchargés) coûtait 4,5 à 9,2 s sur un réseau dégradé -- capture
+  /// déjà en pause tout ce temps, sans le moindre retour utilisateur. Appelé
+  /// dès qu'un nouveau verset devient "courant" pendant la récitation (avant
+  /// toute erreur), pour que le cache soit déjà chaud le temps qu'une
+  /// correction soit éventuellement nécessaire sur CE verset. Best-effort :
+  /// une erreur ici (réseau) est silencieusement ignorée -- [playWordRange]
+  /// retente son propre fetch si le cache n'a pas eu le temps de se remplir.
+  static Future<void> prefetch(Verse verse, Reciter reciter) async {
+    final segKey = '${reciter.id}:${verse.key}';
+    try {
+      _urlCache[verse.surahNumber] ??=
+          await QuranApi.fetchSurahAudioUrls(reciter.id, verse.surahNumber);
+      final url = _urlCache[verse.surahNumber]?[verse.key];
+      _segmentsCache[segKey] ??=
+          await QuranApi.fetchAyahSegments(reciter.id, verse.key);
+      if (url != null && !_fileCache.containsKey(segKey)) {
+        await _downloadToCache(segKey, url);
+      }
+    } catch (_) {
+      // best-effort -- playWordRange retentera son propre fetch/streaming si
+      // le cache n'a pas eu le temps de se remplir.
+    }
+  }
+
+  /// Télécharge [url] vers un fichier local et l'enregistre sous [segKey]
+  /// dans `_fileCache`, en évinçant le plus ancien au-delà de
+  /// `_kMaxCachedFiles` (borne le disque sur une longue session continue).
+  static Future<void> _downloadToCache(String segKey, String url) async {
+    final dir = await getTemporaryDirectory();
+    final safeName = segKey.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final path = '${dir.path}/word_correction_cache/$safeName.mp3';
+    await Directory('${dir.path}/word_correction_cache').create(recursive: true);
+    await _dio.download(url, path);
+    _fileCache[segKey] = path;
+    _fileCacheOrder.remove(segKey);
+    _fileCacheOrder.add(segKey);
+    while (_fileCacheOrder.length > _kMaxCachedFiles) {
+      final evicted = _fileCacheOrder.removeAt(0);
+      final evictedPath = _fileCache.remove(evicted);
+      if (evictedPath != null) {
+        try {
+          await File(evictedPath).delete();
+        } catch (_) {}
+      }
+    }
   }
 
   static Future<void> stop() => _player.stop();

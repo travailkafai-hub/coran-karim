@@ -8,11 +8,15 @@ import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_ai_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/diagnostic_log.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  // Journal persistant sur le téléphone (cf. diagnostic_log.dart) — avant
+  // tout le reste pour capturer même les tout premiers événements.
+  await DiagnosticLog.init();
   // Moteur LiteRT-LM pour le Coach IA (Gemma 4 E2B, .litertlm) — moteur
   // opt-in de flutter_gemma, doit être enregistré avant tout usage.
   await FlutterGemma.initialize(inferenceEngines: [LiteRtLmEngine()]);

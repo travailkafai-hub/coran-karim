@@ -112,6 +112,53 @@ class RepeatDrillCountNotifier extends StateNotifier<int> {
   }
 }
 
+const _kPrefExplanationLanguage = 'explanation_language';
+
+/// Langue de réponse pour les explications mot/verset (Coach IA, cascade
+/// offline `QuranSciencesService` -- demande utilisateur 2026-07-12,
+/// WORD_AYAH_EXPLANATION_PLAN.md section 1). 'ar'/'fr'/'en' -- 'fr' par
+/// défaut (langue dominante de l'interface). Persisté entre les sessions.
+final explanationLanguageProvider =
+    StateNotifierProvider<ExplanationLanguageNotifier, String>((ref) {
+  return ExplanationLanguageNotifier();
+});
+
+class ExplanationLanguageNotifier extends StateNotifier<String> {
+  ExplanationLanguageNotifier() : super('fr') {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_kPrefExplanationLanguage);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(String value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefExplanationLanguage, value);
+  }
+}
+
+/// Sensibilité du jugement GOP (vert/orange/rouge), réglable EN DIRECT
+/// pendant la récitation (demande utilisateur 2026-07-12 : "je veux que ça
+/// soit dynamique surtout pour celui qui récite... la possibilité de
+/// modifier la sensibilité"). 0.0 = très tolérant (bande verte large), 1.0 =
+/// très strict (bande verte étroite) ; 0.5 = valeurs calibrées par défaut
+/// (cf. `_kGopCorrectDefault`/`_kGopUnclearDefault` dans
+/// recitation_provider.dart -- le mapping exact 0-1 -> seuils GOP y reste
+/// encapsulé, ce provider ne fait que porter le curseur utilisateur).
+///
+/// PAS persisté entre sessions (précisé par l'utilisateur : "récitation
+/// indépendante avec valeur par défaut que on peut modifier avec le curseur
+/// durant la récitation") -- chaque NOUVELLE récitation repart de 0.5
+/// (bandes vert/orange/rouge inchangées), et KaraokeRecitationScreen la
+/// remet explicitement à 0.5 au démarrage de chaque session (cf. _toggle) :
+/// un ajustement fait pendant une récitation ne doit pas se répercuter
+/// silencieusement sur la suivante.
+final correctionSensitivityProvider = StateProvider<double>((ref) => 0.5);
+
 const _kPrefStrictCorrection = 'strict_correction_enabled';
 
 /// Rigueur de la correction automatique (demande utilisateur 2026-07-06) :

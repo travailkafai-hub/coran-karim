@@ -29,6 +29,67 @@ Autres points du pattern, à reproduire pour tout nouveau script similaire :
 
 **Le compteur de steps loggé est CUMULÉ sur toutes les epochs, pas remis à zéro par epoch** : `total = math.ceil(len(rows) / ACCUM) * EPOCHS` puis `step` n'est jamais réinitialisé dans la boucle `for ep in range(EPOCHS)`. Le log affiche `ep{N} step {step}/{total}` — le `{total}` est déjà le total sur TOUTES les epochs, donc `step/total` est directement le vrai pourcentage global. Piège rencontré : lire `total` comme "steps de cette epoch" et multiplier par le nombre d'epochs restantes → surestime largement le temps restant (repéré une fois : ça donnait ~19h restantes au lieu des ~8,6h réelles).
 
+## QAT (Quantization-Aware Training) — a faire sous Unix/WSL, PAS Windows
+
+Contexte complet : `QAT_TRAINING_PLAN.md` (racine du projet). Motivation : le
+tutor v6 (fix ci-dessus, entraine en pleine precision puis quantifie en INT4
+pour l'export `.litertlm`) degenere en repetition sur l'appareil apres 1-3
+phrases — le LoRA appris en pleine precision ne compense pas le bruit de
+quantification. Le QAT charge le modele en 4-bit (bitsandbytes NF4,
+`prepare_model_for_kbit_training`) PENDANT l'entrainement, pas seulement a
+l'export, pour que l'adaptateur apprenne a compenser ce bruit.
+
+**Tente sous Windows le 2026-07-11 — abandonne, fragmentation VRAM confirmee** :
+`bitsandbytes` s'installe et charge bien sous Windows (wheel natif
+`win_amd64`, la validation `AutoModelForMultimodalLM` + 4-bit + LoRA r=128
+passe sans erreur : 205 modules matches dans `language_model`, 193M params
+entrainables/5.3B). Mais des les premieres minutes du training reel :
+`nvidia-smi` affiche 100% GPU-Util alors que `utilization.memory` (bande
+passante) reste a 2% et `power.draw` a ~88W sur un cap de 360W — **exactement
+la signature de fragmentation VRAM deja documentee** dans la section
+FastConformer de `asr.md` (le GPU "travaille" a gerer la memoire, pas a
+calculer). Le mitigant habituel echoue ici : `PYTORCH_CUDA_ALLOC_CONF=
+expandable_segments:True` est defini mais le warning `expandable_segments
+not supported on this platform` apparait quand meme au chargement — cette
+option n'est simplement pas disponible sur ce couple Windows/torch/carte.
+**Confirme par l'utilisateur : ce probleme n'existe pas sous Ubuntu** avec le
+meme genre de charge de travail (bitsandbytes 4-bit + LoRA gros rang). Training
+arrete avant le premier step logge (aucun checkpoint perdu). **Regle a
+suivre** : ne pas retenter le QAT bitsandbytes 4-bit sur ce PC Windows tel
+quel — soit WSL/Linux (recommandation d'origine du plan, maintenant
+confirmee empiriquement necessaire et pas juste une precaution), soit
+chercher un contournement Windows-specifique si WSL n'est pas disponible
+(non explore : `bnb_4bit_use_double_quant`, taille de batch/sequence plus
+homogene pour reduire la variabilite d'allocation, ou une version different
+de bitsandbytes/torch).
+
+Script prepare et deja fonctionnel jusqu'au chargement/LoRA :
+`benchmark/gemma_finetune_tutor_qat.py` (copie de `gemma_finetune_tutor.py`
+avec `BitsAndBytesConfig(load_in_4bit=True, nf4, compute_dtype=float16,
+double_quant=False)` + `prepare_model_for_kbit_training` avant le LoRA,
+r=128/alpha=256 par defaut). Venv dedie `.venv_nemotron` (le seul avec
+`AutoModelForMultimodalLM` — `bitsandbytes`+`trl` y ont ete ajoutes le
+2026-07-11 specifiquement pour ce script ; `trl` installe mais finalement
+pas utilise, la boucle manuelle de `gemma_finetune_tutor.py` a ete reprise
+telle quelle plutot que `SFTTrainer`, cf. comparaison ci-dessous). Script de
+validation prealable : `benchmark/validate_qat_setup.py` (a relancer sur
+toute nouvelle machine/venv avant de lancer le vrai training — verifie que
+le regex touche bien `language_model` et pas seulement vision/audio_tower,
+meme piege que le bug v6 mais decouvrable en quelques secondes plutot
+qu'apres des heures de training).
+
+**Comparaison avec la reference qui a marche** (`E:\RECUP_EMTEC\Projet
+Harcelement\detox\finetune\finetune_qat.py`, Gemma 3 1B texte-seul, resultats
+juges bons en reel) : memes bnb_config et logique de fusion post-training
+(`merge_qat.py` — recharger la base fraiche en fp16 HORS de la copie 4-bit,
+appliquer le LoRA, `merge_and_unload()`, ne jamais fusionner depuis le modele
+4-bit d'entrainement). Differences assumees : leur script utilise `trl.
+SFTTrainer` avec un vrai set d'eval (5%) + `EarlyStoppingCallback` + `eval_
+loss` par epoch ; le notre n'a pas d'eval integre (comme v6 deja en prod),
+validation prevue a posteriori par test manuel plutot que pendant
+l'entrainement. lr=2e-4/10 epochs chez eux vs 1e-4/2 epochs ici — volontaire,
+pour comparer au fix v6 a effort egal (cf. `QAT_TRAINING_PLAN.md` §3.4).
+
 ## Discipline de checkpoint (leçon coûteuse, 2026-07-05)
 
 Le script d'origine ne sauvegardait **qu'une seule fois**, après la boucle complète des `EPOCHS` :

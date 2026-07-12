@@ -1,6 +1,5 @@
 package com.corankarim.coran_karim.fastconformer
 
-import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -87,6 +86,104 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     @Volatile private var latestText = ""      // apercu du segment courant (encore revisable)
     @Volatile private var committedText = ""   // segments precedents, definitivement figes
 
+    // ── Alignement force GOP (cf. ForcedAligner.kt, refonte 2026-07-11) ──────
+    // Le texte attendu (tokenise par mot, indices absolus) est fourni par Dart
+    // via le plugin ; chaque passe de re-transcription calcule EN PLUS du texte
+    // un alignement force des mots restants (depuis l'ancre) sur les logprobs
+    // de la MEME inference — zero cout ONNX supplementaire. L'ancre avance
+    // nativement a chaque gel de segment (l'audio de ces mots ne sera plus
+    // jamais reanalyse) ; Dart peut la forcer (correction/recul) via
+    // setAlignmentAnchor.
+    @Volatile private var alignTokens: List<IntArray>? = null
+    @Volatile private var alignAnchor = 0
+    @Volatile private var alignSeq = 0
+    @Volatile private var lastAlign: Map<String, Any>? = null
+    private val aligner: ForcedAligner by lazy {
+        ForcedAligner(engine.vocabPieces, engine.blank)
+    }
+
+    /** Nombre max de mots alignes par passe — borne le cout de la DP (T x 2N+1). */
+    private val maxAlignWords = 80
+
+    fun setAlignmentTarget(tokens: List<IntArray>, anchor: Int) {
+        alignTokens = tokens
+        alignAnchor = anchor.coerceIn(0, tokens.size)
+        lastAlign = null
+        DiagnosticLog.log(TAG, "cible d'alignement : ${tokens.size} mots, ancre=$alignAnchor")
+    }
+
+    fun setAlignmentAnchor(anchor: Int) {
+        val tokens = alignTokens ?: return
+        alignAnchor = anchor.coerceIn(0, tokens.size)
+        lastAlign = null // les resultats en vol reference l'ancienne ancre
+        DiagnosticLog.log(TAG, "ancre d'alignement deplacee : $alignAnchor")
+    }
+
+    /** Etend la cible d'alignement avec des mots supplementaires, a la SUITE de
+     *  la cible actuelle — SANS toucher l'ancre (contrairement a
+     *  setAlignmentTarget, qui remplace tout). Enchainement sur la sourate
+     *  suivante sans interrompre la session en cours (demande utilisateur
+     *  2026-07-11). */
+    fun extendAlignmentTarget(newTokens: List<IntArray>) {
+        val current = alignTokens
+        alignTokens = if (current != null) current + newTokens else newTokens
+        DiagnosticLog.log(TAG, "cible d'alignement etendue : +${newTokens.size} mots, " +
+                "total=${alignTokens?.size}, ancre inchangee=$alignAnchor")
+    }
+
+    /** Dernier resultat d'alignement (ou null) — joint au payload feedBufferedAudio. */
+    fun alignmentPayload(): Map<String, Any>? = lastAlign
+
+    /** Calcule l'alignement force des mots restants sur les logprobs de la passe
+     *  courante. [isFinal] : segment fige (l'audio ne sera plus reanalyse) —
+     *  les jugements de cette passe sont definitifs et l'ancre native avance. */
+    private fun runAlignment(logprobs: Array<FloatArray>, isFinal: Boolean) {
+        val tokens = alignTokens ?: return
+        val anchor = alignAnchor
+        if (anchor >= tokens.size) return
+        try {
+            val slice = tokens.subList(anchor, minOf(tokens.size, anchor + maxAlignWords))
+            val res = aligner.align(logprobs, slice, anchor) ?: return
+            val words = res.words.map {
+                mapOf(
+                    "i" to it.index,
+                    "gop" to it.gop,
+                    "forced" to it.forced,
+                    "covered" to it.covered,
+                    "actual" to it.actual,
+                )
+            }
+            alignSeq++
+            lastAlign = mapOf(
+                "seq" to alignSeq,
+                "anchor" to anchor,
+                "frontier" to res.frontier,
+                "final" to isFinal,
+                "words" to words,
+            )
+            // IMPORTANT (bug corrige 2026-07-11) : sur un segment FIGE, Dart juge
+            // (et verrouille) TOUS les mots de `res.words` -- y compris le mot a
+            // la frontiere lui-meme s'il a recu ne serait-ce que quelques frames
+            // (couvert ou non, cf. `!r.covered && !p.isFinal` cote Dart : le
+            // garde-fou "pas encore couvert" ne s'applique QUE hors segment
+            // final). Faire avancer l'ancre native seulement jusqu'a `frontier`
+            // (au lieu de anchor+words.size) desynchronise donc l'ancre native de
+            // ce que Dart a reellement verrouille : l'appel suivant redemande a
+            // la DP de forcer l'alignement sur un mot DEJA verrouille, qui
+            // n'existe plus dans le nouvel audio -- corrompt l'attribution de
+            // frames et fait retomber le mot SUIVANT (le vrai premier mot du
+            // nouveau segment) avec un score catastrophique malgre une bonne
+            // prononciation (constate : "مَـٰلِكِ" verrouille error, gop=-7.36,
+            // "entendu"="كِ" alors que le decodage libre du meme segment montre
+            // "مَالِكِ..." parfaitement correct).
+            if (isFinal) alignAnchor = anchor + res.words.size
+            DiagnosticLog.log(TAG, "alignement seq=$alignSeq ancre=$anchor frontiere=${res.frontier} " +
+                    "final=$isFinal mots=${words.size} nouvelle_ancre=$alignAnchor")
+        } catch (e: Exception) {
+            DiagnosticLog.log(TAG, "echec alignement force: ${e.message}")
+        }
+    }
+
     // Exposes separement pour que le scoring Dart puisse s'ANCRER sur la partie
     // figee (append-only, jamais revisee) et ne re-aligner que l'apercu -- le
     // re-alignement complet depuis le mot 0 calait des que le debut du texte
@@ -119,7 +216,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     fun setCommitSilenceMs(ms: Int) {
         val clamped = ms.coerceIn(300, 1500)
         commitSilenceSamples = SAMPLE_RATE * clamped / 1000
-        Log.i(TAG, "seuil de gel personnalise : ${clamped}ms")
+        DiagnosticLog.log(TAG, "seuil de gel personnalise : ${clamped}ms")
     }
 
     /** Durees (ms) des pauses >= ${MIN_TRACKED_PAUSE_MS}ms observees depuis reset(). */
@@ -135,6 +232,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         pendingCommit = false
         pendingForceCommit = false
         lastPreviewSize = 0
+        // L'ancre d'alignement n'est PAS touchee ici : reset() est appele
+        // pendant la correction (resetBuffer Dart) qui repositionne l'ancre
+        // elle-meme via setAlignmentAnchor -- seul le resultat en vol (calcule
+        // sur l'audio qu'on vient de jeter) doit etre oublie.
+        lastAlign = null
         synchronized(sessionPausesMs) { sessionPausesMs.clear() }
     }
 
@@ -217,7 +319,27 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 committedText = committedText + sep + previewText
                 latestText = ""
                 lastPreviewSize = 0
-                Log.i(TAG, "segment FIGE (borne ${MAX_SEGMENT_SECONDS}s, apercu reutilise, ${covered / SAMPLE_RATE}s couverts) : \"${previewText.take(80)}\"")
+                // L'apercu reutilise devient definitif sans re-transcription :
+                // promouvoir de meme le dernier alignement (calcule sur ce meme
+                // apercu) en resultat FINAL et avancer l'ancre native.
+                val la = lastAlign
+                if (la != null && la["final"] == false) {
+                    alignSeq++
+                    lastAlign = HashMap(la).apply {
+                        put("final", true)
+                        put("seq", alignSeq)
+                    }
+                    // Meme regle que runAlignment() : Dart verrouille TOUS les
+                    // mots de la liste des lors que final=true (le garde-fou
+                    // "pas encore couvert" ne s'applique qu'aux apercus) --
+                    // l'ancre native doit donc avancer de anchor + words.size,
+                    // pas juste jusqu'a frontier (cf. commentaire runAlignment).
+                    @Suppress("UNCHECKED_CAST")
+                    val wordsList = la["words"] as? List<Map<String, Any>>
+                    val laAnchor = la["anchor"] as Int
+                    alignAnchor = laAnchor + (wordsList?.size ?: 0)
+                }
+                DiagnosticLog.log(TAG, "segment FIGE (borne ${MAX_SEGMENT_SECONDS}s, apercu reutilise, ${covered / SAMPLE_RATE}s couverts) : \"${previewText.take(80)}\"")
             } else {
                 // Pas d'apercu utilisable -> gel classique avec re-transcription.
                 pendingCommit = true
@@ -236,7 +358,10 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             scope.launch(Dispatchers.Default) {
                 try {
                     val t0 = System.nanoTime()
-                    val text = engine.transcribe(snapshot)
+                    // Une seule inference ONNX : les logprobs servent au texte
+                    // (greedy) ET a l'alignement force GOP (cf. runAlignment).
+                    val logprobs = engine.computeLogProbs(snapshot)
+                    val text = engine.greedyDecode(logprobs)
                     val ms = (System.nanoTime() - t0) / 1_000_000
                     if (committing) {
                         // Segment fige : plus jamais reconsidere. On ne retire du
@@ -254,14 +379,16 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         committedText = committedText + sep + text
                         latestText = ""
                         lastPreviewSize = 0
-                        Log.i(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
+                        DiagnosticLog.log(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
+                        runAlignment(logprobs, isFinal = true)
                     } else {
                         latestText = text
                         lastPreviewSize = snapshot.size
-                        Log.i(TAG, "retranscription ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
+                        DiagnosticLog.log(TAG, "retranscription ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
+                        runAlignment(logprobs, isFinal = false)
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "echec retranscription", e)
+                    DiagnosticLog.log(TAG, "echec retranscription: ${e.message}")
                 } finally {
                     busy.set(false)
                 }

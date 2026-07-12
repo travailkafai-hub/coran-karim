@@ -1156,6 +1156,7 @@ class _VerseDisplay extends StatelessWidget {
                       display: w,
                       normalized: ArabicNormalizer.normalize(w),
                       strict: ArabicNormalizer.normalizeStrict(w),
+                      training: ArabicNormalizer.normalizeTraining(w),
                     )))
             .toList();
 

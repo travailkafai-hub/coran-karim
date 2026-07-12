@@ -7,6 +7,7 @@ import '../models/player_state_model.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/quran_api.dart';
+import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
 import '../widgets/verse_tile.dart';
 import '../widgets/mushaf_header.dart';
@@ -141,7 +142,15 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   // Explique un mot précis tapé dans le verset (demande utilisateur
   // 2026-07-10 : granularité mot, pas seulement verset entier).
   void _openWordExplanation(Verse verse, int wordIdx) {
-    final words = verse.textUthmani.split(' ');
+    // Même filtre que tajweedSpansPerWord/TajweedText (source de [wordIdx]
+    // via onWordTap) -- sans lui, une marque décorative isolée (ex. "۞")
+    // désynchronise cet index de la liste ici recalculée, et le mauvais mot
+    // s'affiche dans l'explication (bug corrigé 2026-07-11, même classe que
+    // le décalage de coloration tajwid).
+    final words = verse.textUthmani
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty && ArabicNormalizer.normalize(w).isNotEmpty)
+        .toList();
     if (wordIdx < 0 || wordIdx >= words.length) return;
     showCoachExplanation(
       context,
@@ -149,6 +158,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
       ayahNumber: verse.ayahNumber,
       title: '${widget.surah.nameSimple} ${verse.ayahNumber} — ${words[wordIdx]}',
       focusWord: words[wordIdx],
+      focusWordIndex: wordIdx,
       useErrorLog: false,
     );
   }
