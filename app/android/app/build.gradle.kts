@@ -43,8 +43,12 @@ kotlin {
 }
 
 dependencies {
-    // Inference du modele FastConformer CTC (Quran ASR) en parallele de whisper.cpp
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    // Inference du modele FastConformer CTC (Quran ASR) en parallele de whisper.cpp --
+    // variante "training" (superset : inference + entrainement on-device, cf.
+    // FONCTIONNALITES_FUTURES.md "Personnalisation voix -- niveau 3", chantier
+    // 2026-07-12) -- remplace onnxruntime-android (meme API Java ai.onnxruntime.*,
+    // ne PAS garder les deux en meme temps : classes/lib native dupliquees).
+    implementation("com.microsoft.onnxruntime:onnxruntime-training-android:1.19.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 }
 
