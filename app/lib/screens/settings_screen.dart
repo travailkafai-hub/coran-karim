@@ -5,6 +5,7 @@ import '../models/reciter.dart';
 import '../models/player_state_model.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'qibla_screen.dart';
 import 'reciter_select_screen.dart';
@@ -109,6 +110,10 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const QiblaScreen())),
           ),
+
+          const SizedBox(height: 12),
+          _SectionHeader('Personnalisation vocale'),
+          const _VoiceLoraClipsTile(),
 
           const SizedBox(height: 12),
           _SectionHeader('Affichage'),
@@ -249,6 +254,68 @@ class _SettingsTile extends StatelessWidget {
         ),
         ),
       );
+}
+
+/// Clips de récitation VÉRIFIÉS CORRECTS (sessions de référence validées),
+/// collectés en vue d'un futur mini-LoRA de personnalisation vocale
+/// (FONCTIONNALITES_FUTURES.md, "Personnalisation voix -- niveau 3",
+/// implémenté 2026-07-12). Export MANUEL uniquement (partage natif) -- aucune
+/// synchronisation automatique, donnée vocale sensible.
+class _VoiceLoraClipsTile extends StatefulWidget {
+  const _VoiceLoraClipsTile();
+
+  @override
+  State<_VoiceLoraClipsTile> createState() => _VoiceLoraClipsTileState();
+}
+
+class _VoiceLoraClipsTileState extends State<_VoiceLoraClipsTile> {
+  final _service = VoiceLoraClipService();
+  int? _count;
+  bool _exporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final c = await _service.clipCount();
+    if (mounted) setState(() => _count = c);
+  }
+
+  Future<void> _export() async {
+    setState(() => _exporting = true);
+    final ok = await _service.exportViaShare();
+    if (!mounted) return;
+    setState(() => _exporting = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok
+          ? 'Export lancé — choisis où envoyer le fichier.'
+          : 'Export annulé ou aucun clip disponible.'),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = _count;
+    return _SettingsTile(
+      icon: Icons.mic_external_on_rounded,
+      title: 'Mes clips vérifiés',
+      subtitle: count == null
+          ? 'Chargement…'
+          : count == 0
+              ? 'Aucun clip pour l\'instant — enregistrés lors de tes récitations de référence'
+              : '$count clip${count > 1 ? "s" : ""} vérifié${count > 1 ? "s" : ""} — exporter pour personnaliser le modèle à ta voix',
+      trailing: _exporting
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green700))
+          : const Icon(Icons.ios_share_rounded, color: AppColors.green700),
+      onTap: (count != null && count > 0 && !_exporting) ? _export : null,
+    );
+  }
 }
 
 class _SpeedSheet extends StatelessWidget {

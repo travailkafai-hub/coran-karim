@@ -70,6 +70,9 @@ def parse_args():
                    help="Répertoire de sortie des checkpoints (défaut: models/fastconformer-quran-pcd)")
     p.add_argument("--accumulate_grad_batches", type=int, default=4,
                    help="Accumulation de gradient (batch effectif = batch_size * cette valeur)")
+    p.add_argument("--tokenizer_dir", type=str, default=None,
+                   help="Nouveau tokenizer BPE (dossier avec tokenizer.model) -> change_vocabulary(). "
+                        "Requis pour entrainer un vocabulaire different (ex: tajweed).")
     return p.parse_args()
 
 def build_data_config(manifest_path: str, batch_size: int,
@@ -119,6 +122,22 @@ def main():
     else:
         model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.from_pretrained(MODEL_NAME)
 
+    # ── Nouveau vocabulaire (tokenizer tajweed) ───────────────────────────────
+    # Le tokenizer pcd d'origine n'a AUCUN token de marque tajweed (wasla, dagger
+    # alif, waqf, madda...) car construit sur du texte normalise sans elles ->
+    # elles etaient inapprenables (<unk>). change_vocabulary reinitialise la tete
+    # CTC (et RNNT) avec le nouveau vocab BPE couvrant tout le tajweed. L'encodeur
+    # acoustique (pre-entraine NVIDIA sur arabe general) est CONSERVE intact.
+    if args.tokenizer_dir:
+        print(f"  change_vocabulary -> {args.tokenizer_dir} (bpe)")
+        model.change_vocabulary(new_tokenizer_dir=args.tokenizer_dir, new_tokenizer_type="bpe")
+        # Re-appliquer le mode CTC-only apres le changement de vocab (les tetes
+        # ont ete recreees ; ctc_loss_weight et la ZeroRNNTLoss doivent persister).
+        if hasattr(model, "joint") and hasattr(model.joint, "set_fuse_loss_wer"):
+            model.joint.set_fuse_loss_wer(False, loss=None, metric=None)
+        model.loss = _ZeroRNNTLoss()
+        model.ctc_loss_weight = 1.0
+
     # ── Données ──────────────────────────────────────────────────────────────
     # Après restore_from(), model.cfg.train_ds.manifest_filepath = ???
     # NeMo accède à self.cfg.train_ds/validation_ds en interne → il faut
@@ -136,7 +155,11 @@ def main():
         model.cfg.train_ds = OmegaConf.create(train_cfg)
         model.cfg.validation_ds = OmegaConf.create(val_cfg)
         model.cfg.test_ds = OmegaConf.create({**val_cfg, "shuffle": False})
-        model.cfg.tokenizer.dir = None
+        if not args.tokenizer_dir:
+            # sans change_vocabulary : neutraliser le chemin tokenizer absolu du
+            # .nemo restaure (inexistant ici). AVEC change_vocabulary, le cfg
+            # tokenizer pointe deja sur le nouveau dossier -> ne pas l'ecraser.
+            model.cfg.tokenizer.dir = None
         model.cfg.joint.fuse_loss_wer = False  # cohérence cfg avec set_fuse_loss_wer()
 
     model.setup_training_data(model.cfg.train_ds)
@@ -163,10 +186,13 @@ def main():
     #     param.requires_grad = False
 
     # ── Callbacks ────────────────────────────────────────────────────────────
+    # monitor val_wer_ctc (metrique CTC reelle), PAS val_wer : en mode CTC-only la
+    # tete RNNT est gelee -> son val_wer est du bruit (40-79 ici), inexploitable
+    # pour selectionner le meilleur checkpoint (cf. skill model-training/asr.md).
     checkpoint_cb = pl.callbacks.ModelCheckpoint(
         dirpath=str(CKPT_DIR),
-        filename="fastconformer-quran-{epoch:02d}-{val_wer:.3f}",
-        monitor="val_wer",
+        filename="fastconformer-quran-{epoch:02d}-{val_wer_ctc:.3f}",
+        monitor="val_wer_ctc",
         mode="min",
         save_top_k=3,
         save_last=True,

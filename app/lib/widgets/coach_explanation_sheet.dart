@@ -5,6 +5,7 @@ import '../models/cascade_explanation.dart';
 import '../models/verse.dart';
 import '../providers/app_settings_provider.dart';
 import '../services/quran_api.dart';
+import '../services/explanation_tts_service.dart';
 import '../services/quran_sciences_service.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/tutor_llm_service.dart';
@@ -94,10 +95,47 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
   String? _error;
   bool _loading = true;
 
+  final _tts = ExplanationTtsService.instance;
+
   @override
   void initState() {
     super.initState();
+    _tts.onStateChanged = () {
+      if (mounted) setState(() {});
+    };
     _load();
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    _tts.onStateChanged = null;
+    super.dispose();
+  }
+
+  /// Texte lu à voix haute : les paliers actuellement visibles (ce qui est à
+  /// l'écran) pour une explication en cascade, sinon le repli Gemma. Le
+  /// nettoyage par langue (retrait des citations arabes en fr/en, notes, etc.)
+  /// est fait dans ExplanationTtsService.cleanForTts.
+  String _readableText() {
+    if (_cascade != null) {
+      final buf = StringBuffer();
+      for (var t = 1; t <= _expandedTier; t++) {
+        for (final src in _cascade!.tier(t) ?? const []) {
+          buf.writeln(src.text);
+        }
+      }
+      return buf.toString();
+    }
+    return _gemmaExplanation ?? '';
+  }
+
+  Future<void> _toggleSpeak() async {
+    if (_tts.isSpeaking) {
+      await _tts.stop();
+    } else {
+      await _tts.speak(_readableText(), ref.read(explanationLanguageProvider));
+    }
   }
 
   Future<void> _load() async {
@@ -186,6 +224,7 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
   }
 
   void _changeLanguage(String lang) {
+    _tts.stop(); // ne pas continuer à lire l'ancienne langue
     ref.read(explanationLanguageProvider.notifier).set(lang);
     _load();
   }
@@ -214,6 +253,20 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
                         style: GoogleFonts.scheherazadeNew(
                             fontSize: 20, color: AppColors.green900)),
                   ),
+                  // Lecture vocale on-device (voix = langue choisie). Masqué
+                  // tant que rien n'est chargé (pas de texte à lire).
+                  if (!_loading && _error == null &&
+                      (_cascade != null || _gemmaExplanation != null))
+                    IconButton(
+                      tooltip: _tts.isSpeaking ? 'Arrêter' : 'Écouter',
+                      onPressed: _toggleSpeak,
+                      icon: Icon(
+                        _tts.isSpeaking
+                            ? Icons.stop_circle_outlined
+                            : Icons.volume_up_outlined,
+                        color: AppColors.green700,
+                      ),
+                    ),
                   _languageSelector(lang),
                 ],
               ),

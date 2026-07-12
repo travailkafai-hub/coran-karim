@@ -13,6 +13,7 @@ import '../services/pause_profile_service.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
+import '../services/voice_lora_clip_service.dart';
 import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tajweed_text.dart';
@@ -43,6 +44,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     with SingleTickerProviderStateMixin {
   late final AnimationController _breath;
   final _pauseProfile = PauseProfileService();
+  // Mini-LoRA personnalisation vocale (FONCTIONNALITES_FUTURES.md,
+  // "Personnalisation voix -- niveau 3", implémenté 2026-07-12) : capture des
+  // clips uniquement pendant une session de référence (cf. _toggle),
+  // dossier temporaire actif tant que la session tourne.
+  final _voiceLoraClips = VoiceLoraClipService();
+  String? _activeCaptureDir;
 
   // La référence (manière de réciter ce passage : pauses, tempo) ne
   // s'enregistre JAMAIS en douce : c'est une étape explicite, annoncée avant
@@ -350,6 +357,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   void dispose() {
     _breath.dispose();
     _wordFailedSub?.cancel();
+    // Filet de sécurité : l'utilisateur a quitté l'écran en pleine session de
+    // référence (jamais arrivée jusqu'à _maybeSaveProfile) -- ne pas laisser
+    // le dossier temporaire de capture traîner indéfiniment.
+    final dir = _activeCaptureDir;
+    if (dir != null) _voiceLoraClips.discardTempDir(dir);
     super.dispose();
   }
 
@@ -626,6 +638,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // Session normale : seuil de gel adapté à la référence dédiée si elle
         // existe, sinon au profil global (cf. applyBestFor).
         await _pauseProfile.applyBestFor(_initialPassageKey);
+      } else {
+        // Session de référence -> capture des clips (mini-LoRA personnalisation
+        // vocale, cf. _maybeCommitVoiceClips) : uniquement ici, jamais pendant
+        // une récitation normale (on ne peut garantir la fiabilité du texte
+        // canonique comme vérité que sur une récitation explicitement mesurée).
+        _activeCaptureDir = await _voiceLoraClips.newTempCaptureDir();
+        await ref.read(recitationVerifierProvider).setClipCapture(_activeCaptureDir);
       }
       await n.startContinuous();
     }
@@ -698,11 +717,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           '${missed > 0 ? ', $missed non reconnus' : ''}). '
           'Une référence doit refléter une récitation fiable — rapproche-toi du '
           'micro, réduis le bruit ambiant, et réessaie à ton rythme naturel.');
+      // Récitation pas fiable -> aucun clip de CETTE session n'est une bonne
+      // référence pour la personnalisation vocale non plus (même contrat que
+      // le profil de pauses ci-dessus, cf. _maybeCommitVoiceClips).
+      await _maybeCommitVoiceClips(keep: false);
       return;
     }
     _profileSaved = true;
     final pauses = await _pauseProfile.fetchSessionPauses();
     await _pauseProfile.saveFor(_initialPassageKey, pauses);
+    await _maybeCommitVoiceClips(keep: true);
     if (mounted) {
       setState(() {
         _hasProfile = true;
@@ -710,6 +734,25 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             '(${rst.accuracy.round()}% de reconnaissance, '
             '${pauses.length} pauses apprises)';
       });
+    }
+  }
+
+  /// Termine la capture de clips de la session de référence qui vient de
+  /// finir (mini-LoRA personnalisation vocale) : désactive la capture côté
+  /// natif, puis soit remonte les clips VÉRIFIÉS CORRECTS (cf.
+  /// RecitationNotifier.takeCollectedClips) vers le stockage permanent
+  /// ([keep]=true), soit jette tout le dossier temporaire ([keep]=false,
+  /// récitation jugée pas assez fiable dans son ensemble).
+  Future<void> _maybeCommitVoiceClips({required bool keep}) async {
+    final dir = _activeCaptureDir;
+    if (dir == null) return;
+    _activeCaptureDir = null;
+    await ref.read(recitationVerifierProvider).setClipCapture(null);
+    final clips = ref.read(recitationProvider.notifier).takeCollectedClips();
+    if (keep) {
+      await _voiceLoraClips.commitClips(clips, dir);
+    } else {
+      await _voiceLoraClips.discardTempDir(dir);
     }
   }
 

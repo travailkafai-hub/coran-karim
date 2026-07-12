@@ -25,6 +25,10 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     // applique des sa construction, sinon un setCommitSilenceMs appele avant le
     // premier bloc audio serait perdu.
     @Volatile private var pendingCommitSilenceMs: Int? = null
+    // Meme pattern : dossier de capture des clips de reference (mini-LoRA
+    // personnalisation vocale, cf. setClipCapture), applique des la creation
+    // du BufferedTranscriber si demande avant le premier bloc audio.
+    @Volatile private var pendingClipCaptureDir: String? = null
     // Cible d'alignement force GOP (cf. ForcedAligner.kt) : mots attendus
     // tokenises + ancre. Stockee au niveau plugin (meme pattern que
     // pendingCommitSilenceMs : setAlignmentTarget peut arriver AVANT le premier
@@ -169,6 +173,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     if (buffered == null) {
                         buffered = BufferedTranscriber(current)
                         pendingCommitSilenceMs?.let { buffered!!.setCommitSilenceMs(it) }
+                        buffered!!.setClipCapture(pendingClipCaptureDir)
                         alignTokens?.let { buffered!!.setAlignmentTarget(it, alignAnchor) }
                     }
                     val samples = pcm16ToFloat(pcm16)
@@ -310,6 +315,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             }
             "getSessionPauses" -> {
                 result.success(buffered?.getSessionPausesMs() ?: emptyList<Int>())
+            }
+            // Capture de clips VERIFIES CORRECTS (mini-LoRA personnalisation
+            // vocale, cf. FONCTIONNALITES_FUTURES.md "Personnalisation voix --
+            // niveau 3", implemente 2026-07-12). [dir] = null desactive la
+            // capture (defaut). C'est Dart qui decide, a la fin de la session,
+            // si les clips ecrits sont conserves definitivement ou jetes.
+            "setClipCapture" -> {
+                val dir = call.argument<String>("dir")
+                pendingClipCaptureDir = dir
+                buffered?.setClipCapture(dir)
+                result.success(null)
             }
             // ── Empreinte vocale (niveau 1, comparaison audio-a-audio) ─────────
             // Voir VoiceFingerprint.kt + memoire voice-personalization-idea.

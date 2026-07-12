@@ -256,6 +256,13 @@ abstract class RecitationVerifier {
   /// continue exactement où elle en était, juste avec plus de texte derrière.
   Future<void> extendAlignmentTarget(List<String> moreTrainingWords);
 
+  /// Active/désactive la capture de clips VÉRIFIÉS CORRECTS pour le futur
+  /// mini-LoRA de personnalisation vocale (FONCTIONNALITES_FUTURES.md,
+  /// "Personnalisation voix -- niveau 3", implémenté 2026-07-12). [dir] =
+  /// null désactive. N'écrit rien tant que non activé -- zéro coût hors
+  /// session de référence.
+  Future<void> setClipCapture(String? dir);
+
   /// [continuous] : enregistrement continu segmenté par détection de silence
   /// (VAD énergie), pour réciter plusieurs versets/une sourate entière sans
   /// interaction manuelle entre chaque verset.
@@ -330,6 +337,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   @override
   Future<void> extendAlignmentTarget(List<String> moreTrainingWords) =>
       _fastConformer.extendAlignmentTarget(moreTrainingWords);
+
+  @override
+  Future<void> setClipCapture(String? dir) => _fastConformer.setClipCapture(dir);
 
   // ── Segmentation continue (VAD énergie) ──────────────────────────────────
   // dBFS en dessous duquel on considère qu'il y a silence (seuil à ajuster
@@ -704,6 +714,9 @@ class MockRecitationVerifier implements RecitationVerifier {
   Future<void> setAlignmentAnchor(int index) async {}
   @override
   Future<void> extendAlignmentTarget(List<String> moreTrainingWords) async {}
+
+  @override
+  Future<void> setClipCapture(String? dir) async {}
 
   @override
   Future<void> start(List<String> expectedWords, {bool continuous = false}) async {

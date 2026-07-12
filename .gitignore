@@ -8,6 +8,7 @@ benchmark/sherpa-whisper-medium-ft/
 benchmark/logs/
 benchmark/augmented_manifests/
 benchmark/nemo_manifests/
+benchmark/nemo_manifests_tajweed/
 benchmark/device_wavs/
 benchmark/results/
 benchmark/slr61/

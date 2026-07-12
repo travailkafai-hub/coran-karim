@@ -101,6 +101,23 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   double _gopCorrect = _kGopCorrectDefault;
   double _gopUnclear = _kGopUnclearDefault;
 
+  // Clips VÉRIFIÉS CORRECTS collectés pendant la session courante (mini-LoRA
+  // personnalisation vocale, cf. FONCTIONNALITES_FUTURES.md "Personnalisation
+  // voix -- niveau 3", implémenté 2026-07-12) -- seulement rempli quand la
+  // capture est active (session de référence, cf. KaraokeRecitationScreen).
+  // Un segment n'est retenu QUE si TOUS ses mots sont jugés WordStatus.correct
+  // -- l'unique garantie qu'on a que le texte canonique correspond bien à ce
+  // qui a été dit (même contrat que l'empreinte vocale : une tentative avec
+  // erreur n'est pas une référence fiable).
+  final List<({String path, String text})> _collectedClips = [];
+
+  /// Retourne les clips collectés depuis le dernier appel et vide la liste.
+  List<({String path, String text})> takeCollectedClips() {
+    final clips = List<({String path, String text})>.of(_collectedClips);
+    _collectedClips.clear();
+    return clips;
+  }
+
   /// Applique une sensibilité 0.0 (tolérant) .. 1.0 (strict) aux seuils GOP,
   /// EFFECTIVE DÈS LE PROCHAIN MOT JUGÉ (pas besoin de redémarrer la
   /// session) -- demande utilisateur 2026-07-12 : réglable "surtout pour
@@ -209,6 +226,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     );
     _prevCommitted = '';
     _anchorExp = 0;
+    _collectedClips.clear();
     _tokenSub = _verifier.tokens.listen(_onToken);
     _levelSub = _verifier.soundLevel
         .listen((lvl) => state = state.copyWith(soundLevel: lvl));
@@ -662,6 +680,21 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           'gop=${r.gop.toStringAsFixed(2)} forced=${r.forced.toStringAsFixed(2)} '
           'entendu="${r.actual}" -> $judged (lock=$lock, final=${p.isFinal})');
       _judge(words, r.index, judged, lock: lock, newErrors: newErrors);
+    }
+
+    // Capture de clip (mini-LoRA personnalisation vocale) : ne retenir ce
+    // segment que si TOUS ses mots sont ressortis corrects -- sinon le fichier
+    // WAV écrit côté Kotlin reste orphelin (nettoyé par l'appelant à la fin de
+    // la session, cf. KaraokeRecitationScreen._maybeSaveProfile).
+    if (p.isFinal && p.clipPath != null && p.words.isNotEmpty) {
+      final allCorrect = p.words.every((r) =>
+          r.index >= 0 &&
+          r.index < words.length &&
+          words[r.index].status == WordStatus.correct);
+      if (allCorrect) {
+        final text = p.words.map((r) => words[r.index].display).join(' ');
+        _collectedClips.add((path: p.clipPath!, text: text));
+      }
     }
 
     // L'ancre (utilisée par la correction, cf. rewindRangeEnd) doit avancer

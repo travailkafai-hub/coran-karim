@@ -137,7 +137,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     /** Calcule l'alignement force des mots restants sur les logprobs de la passe
      *  courante. [isFinal] : segment fige (l'audio ne sera plus reanalyse) —
      *  les jugements de cette passe sont definitifs et l'ancre native avance. */
-    private fun runAlignment(logprobs: Array<FloatArray>, isFinal: Boolean) {
+    private fun runAlignment(logprobs: Array<FloatArray>, isFinal: Boolean, clipPath: String? = null) {
         val tokens = alignTokens ?: return
         val anchor = alignAnchor
         if (anchor >= tokens.size) return
@@ -160,7 +160,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 "frontier" to res.frontier,
                 "final" to isFinal,
                 "words" to words,
-            )
+            ) + (if (clipPath != null) mapOf("clipPath" to clipPath) else emptyMap())
             // IMPORTANT (bug corrige 2026-07-11) : sur un segment FIGE, Dart juge
             // (et verrouille) TOUS les mots de `res.words` -- y compris le mot a
             // la frontiere lui-meme s'il a recu ne serait-ce que quelques frames
@@ -211,6 +211,20 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     // profil de pauses de l'utilisateur (idee "personnalisation" 2026-07-05 :
     // la 1ere recitation complete revele ou et combien la personne s'arrete).
     private val sessionPausesMs = mutableListOf<Int>()
+
+    // Capture de clips VERIFIES CORRECTS pour le futur mini-LoRA de
+    // personnalisation vocale (FONCTIONNALITES_FUTURES.md, "Personnalisation
+    // voix -- niveau 3", implemente 2026-07-12). null = capture desactivee
+    // (comportement par defaut, aucun cout). Active par Dart UNIQUEMENT
+    // pendant une session de reference (cf. KaraokeRecitationScreen) --
+    // Dart decide ensuite, a la fin de la session, si les clips sont
+    // definitivement conserves (bon score) ou jetes.
+    @Volatile private var captureDir: String? = null
+
+    fun setClipCapture(dir: String?) {
+        captureDir = dir
+        DiagnosticLog.log(TAG, "capture de clips ${if (dir != null) "activee -> $dir" else "desactivee"}")
+    }
 
     /** Ajuste le seuil de gel sur pause (profil personnel). Borne 300-1500ms. */
     fun setCommitSilenceMs(ms: Int) {
@@ -379,8 +393,22 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         committedText = committedText + sep + text
                         latestText = ""
                         lastPreviewSize = 0
+                        // Capture du clip (session de reference uniquement, cf.
+                        // setClipCapture) -- best-effort, un echec d'ecriture ne
+                        // doit jamais interrompre la recitation en cours.
+                        var clipPath: String? = null
+                        val dir = captureDir
+                        if (dir != null) {
+                            try {
+                                clipPath = "$dir/clip_${System.currentTimeMillis()}.wav"
+                                WavWriter.writeMono16k(clipPath, snapshot)
+                            } catch (e: Exception) {
+                                DiagnosticLog.log(TAG, "echec capture clip: ${e.message}")
+                                clipPath = null
+                            }
+                        }
                         DiagnosticLog.log(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
-                        runAlignment(logprobs, isFinal = true)
+                        runAlignment(logprobs, isFinal = true, clipPath = clipPath)
                     } else {
                         latestText = text
                         lastPreviewSize = snapshot.size

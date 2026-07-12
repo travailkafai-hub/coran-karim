@@ -31,6 +31,10 @@ dependencies:
   # Audio playback
   audioplayers: ^6.1.1
 
+  # Synthèse vocale on-device (lecture des explications par langue, fr/en/ar) —
+  # moteur natif du téléphone (Google TTS), gratuit et offline.
+  flutter_tts: ^4.2.0
+
   # Audio recording (ASR on-device = FastConformer CTC, voir fastconformer_verifier.dart)
   record: ^5.2.0
 
@@ -42,6 +46,12 @@ dependencies:
   # Boussole Qibla (direction de la Mecque)
   flutter_compass: ^0.8.1
   geolocator: ^14.0.3
+
+  # Export des clips vocaux vérifiés (mini-LoRA personnalisation, cf.
+  # VoiceLoraClipService) : partage manuel (pas de sync automatique) +
+  # empaquetage zip.
+  share_plus: ^13.2.0
+  archive: ^3.6.1
 
 dev_dependencies:
   flutter_test:

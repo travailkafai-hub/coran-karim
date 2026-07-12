@@ -38,6 +38,12 @@ class AlignPayload {
   final int frontier;
   final bool isFinal;
   final List<AlignedWord> words;
+  // Chemin du clip WAV capturé pour CE segment figé (mini-LoRA personnalisation
+  // vocale, cf. FONCTIONNALITES_FUTURES.md "Personnalisation voix -- niveau 3",
+  // implémenté 2026-07-12) -- non null seulement si la capture est active
+  // (FastConformerVerifier.setClipCapture) ET que ce payload correspond à un
+  // commit normal (pas le repli "borne dure" qui réutilise l'aperçu sans clip).
+  final String? clipPath;
 
   const AlignPayload({
     required this.seq,
@@ -45,6 +51,7 @@ class AlignPayload {
     required this.frontier,
     required this.isFinal,
     required this.words,
+    this.clipPath,
   });
 
   static AlignPayload? fromMap(dynamic m) {
@@ -69,6 +76,7 @@ class AlignPayload {
       frontier: (m['frontier'] as num?)?.toInt() ?? 0,
       isFinal: m['final'] as bool? ?? false,
       words: words,
+      clipPath: m['clipPath'] as String?,
     );
   }
 }
@@ -293,6 +301,20 @@ class FastConformerVerifier {
       await _channel.invokeMethod('setAlignmentAnchor', {'anchor': anchor});
     } catch (e) {
       debugPrint('[FastConformer] Échec setAlignmentAnchor : $e');
+    }
+  }
+
+  /// Active/désactive la capture de clips VÉRIFIÉS CORRECTS (mini-LoRA
+  /// personnalisation vocale, cf. FONCTIONNALITES_FUTURES.md
+  /// "Personnalisation voix -- niveau 3", implémenté 2026-07-12). [dir] =
+  /// null désactive (défaut). N'écrit rien tant que non activé — zéro coût
+  /// hors session de référence.
+  Future<void> setClipCapture(String? dir) async {
+    if (!_loaded) return;
+    try {
+      await _channel.invokeMethod('setClipCapture', {'dir': dir});
+    } catch (e) {
+      debugPrint('[FastConformer] Échec setClipCapture : $e');
     }
   }
 
