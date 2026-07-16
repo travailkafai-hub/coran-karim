@@ -408,10 +408,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       }
       // Laisse le haut-parleur se taire avant de rouvrir le micro.
       await Future.delayed(const Duration(milliseconds: 400));
-      if (!mounted) return;
-      // Impératif avant de reprendre : purge l'audio capté pendant la lecture
-      // (cf. commentaire de méthode).
+      // Bug corrigé 2026-07-16 (revue de code, Finding #5) : le check `!mounted`
+      // était AVANT ce resetBuffer(), donc sortir de l'écran pendant le délai
+      // ci-dessus sautait la purge -- mais le `finally` appelle resumeCapture()
+      // INCONDITIONNELLEMENT, rouvrant le micro avec l'audio du récitateur
+      // encore dans le buffer natif (réintroduit la classe de bug "micro
+      // entend le haut-parleur" corrigée par ailleurs dans ce même diff).
+      // Purge D'ABORD (ne dépend pas du widget monté), check `mounted` APRÈS,
+      // uniquement pour le `setState` qui suit.
       if (wasListening) await verifier.resetBuffer();
+      if (!mounted) return;
     } finally {
       if (wasListening) await verifier.resumeCapture();
       if (mounted) setState(() => _promptingWord = false);
@@ -464,7 +470,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         !ref.read(strictCorrectionProvider)) {
       return;
     }
-    if (_autoCorrecting) return; // un mot à la fois
+    // Bug corrigé 2026-07-16 (revue de code, Finding #4) : ce guard ne
+    // vérifiait que _autoCorrecting, pas _promptingWord (souffleur) -- les
+    // deux flux appellent pauseCapture()/WordCorrectionAudio.playWordRange()
+    // sur le MÊME lecteur audio statique ; un mot qui échoue pendant que le
+    // souffleur joue lançait une correction en parallèle, les deux jeux
+    // d'abonnements posSub/doneSub s'entrechoquant.
+    if (_autoCorrecting || _promptingWord) return; // un mot/une action a la fois
     // Anti-rafale (demande utilisateur 2026-07-06 : "il me donne pas le temps
     // pour répéter") -- constaté en test réel : quand la reconnaissance
     // décroche (bruit/silence mal interprété), plusieurs mots peuvent

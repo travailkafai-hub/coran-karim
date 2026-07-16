@@ -211,14 +211,37 @@ confirmer le gain avant un éventuel redéploiement.
 
 ---
 
-## 4. Prochaines étapes (proposées, pas encore décidées)
+## 4. Suites données (mise à jour post-revue)
 
-1. Corriger le Finding #2 (garantie 2-chances) en priorité — c'est la cause
-   directe et confirmée du lag vécu ce soir.
-2. Corriger le Finding #1 (course dispose/reopen) et les Findings #4/#5
-   (souffleur) — bugs de concurrence réels, risque de corrompre une session.
-3. Corriger le Finding #6 (borne `isFragment`) — referme un trou dans le
-   correctif principal du jour.
-4. Findings #3, #7, #9, #10 : moins urgents, à planifier.
-5. Finding #8 (régression écran debug) : décider si l'écran debug a encore
-   besoin de couvrir plus d'une page, ou si c'est acceptable tel quel.
+**8/10 corrigés et déployés** (`fix-2chances-infinite-loop` →
+`fix-pendingforcecommit-deferred`, builds successifs) :
+
+| # | correctif | où |
+|---|---|---|
+| 2 | mot forcé à 0 frame → jugement définitif au lieu de boucler | `ForcedAligner.kt:311` |
+| 1 | verrou sérialisé + génération de session sur `start()`/dispose | `recitation_verifier.dart` |
+| 6 | borne min. `isFragment` (≥2 car. ET ≥1/3 du mot attendu) | `recitation_provider.dart:750` |
+| 9 | `hasSpeech` gate désormais TOUTE la chaîne (silence → error, jamais unclear) | `recitation_provider.dart:761` |
+| 3 | `alignFile` retente en interne avec `forceJudgeIndex` si un mot est différé | `FastConformerCtcPlugin.kt:297` |
+| 4 | `_onWordFailed` vérifie aussi `_promptingWord` | `karaoke_recitation_screen.dart:473` |
+| 5 | `resetBuffer()` déplacé avant le check `mounted`, plus jamais sauté | `karaoke_recitation_screen.dart:410` |
+| 7 | `deferredIndex` conservé dans `lastAlign`, relu par le chemin `pendingForceCommit` | `BufferedTranscriber.kt:171,362` |
+
+**2 non corrigés, décision explicite :**
+
+- **#8 (régression écran debug)** — laissé tel quel. Ajouter la pagination
+  demanderait de porter une bonne partie de la logique d'extension du
+  karaoké (liste mutable, détection de fin de page, appel réseau) dans un
+  écran explicitement interne/dev ("juger la qualité du modèle pendant
+  l'entraînement") — ajout de fonctionnalité disproportionné pour ce qui
+  reste un correctif de revue.
+- **#10 (efficacité fallback)** — laissé tel quel, délibérément. "N'étendre
+  que la queue" suppose que le backtrace de la DP partage le même préfixe
+  entre `natural` et le fallback — vrai en pratique sur ce cas (le stall
+  arrive après le préfixe déjà résolu) mais pas garanti mathématiquement
+  (deux états terminaux différents peuvent en théorie diverger plus tôt).
+  Vu l'historique du jour sur cette même DP (4 tentatives d'optimisation
+  ratées, journalées dans `ForcedAligner.kt`, avant la solution retenue),
+  le risque de réintroduire un bug de fond pour un gain de performance sur
+  un chemin rare (seulement segment figé + alignement bloqué) n'est pas
+  justifié sans mesure terrain préalable.

@@ -178,6 +178,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// segments — le statut reste "processing" tant que pendingSegments > 0.
   bool _endingContinuous = false;
 
+  /// Génération de session capturée juste après _verifier.start() (cf.
+  /// Finding #1, revue de code 2026-07-16) — repassée à
+  /// stopIfCurrentSession() au dispose pour que ce nettoyage fire-and-forget
+  /// ne s'applique QUE si aucune session plus récente n'a démarré depuis
+  /// (sinon il saboterait cette nouvelle session sur réouverture rapide de
+  /// l'écran). -1 = aucune session démarrée par ce notifier.
+  int _myGeneration = -1;
+
   RecitationNotifier(this._verifier) : super(const RecitationSessionState());
 
   void setup(String arabicText) {
@@ -238,6 +246,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // Forme fidèle à l'entraînement (PAS `strict`, qui fusionne des lettres
     // que le modèle a appris à distinguer — cf. normalizeTraining).
     await _verifier.start(state.words.map((w) => w.training).toList());
+    _myGeneration = _verifier.sessionGeneration;
   }
 
   /// Démarre une récitation continue (plusieurs versets/une sourate entière),
@@ -273,6 +282,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       state.words.map((w) => w.training).toList(),
       continuous: true,
     );
+    _myGeneration = _verifier.sessionGeneration;
   }
 
   /// Remplace (pas d'accumulation) : en mode streaming, chaque appel renvoie
@@ -727,16 +737,39 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // orange des mots parfaitement récités. Un fragment (préfixe ou suffixe
       // de l'attendu) reste donc jugé sur le gop seul, comme avant ; seule une
       // vraie substitution (lettre/harakat changée) bloque le vert.
+      // Bug corrigé 2026-07-16 (revue de code, Finding #6) : cette borne
+      // (>=2 caractères ET >=1/3 de la longueur du mot attendu) était absente
+      // -- `endsWith`/`startsWith` sur UN SEUL caractère coïncidant avec la
+      // première/dernière lettre de `expected.strict` suffisait à passer
+      // isFragment=true, rouvrant exactement le bug sin/sad de ce même jour
+      // (une transcription fausse d'un seul caractère aurait forcé
+      // spellsDifferentWord=false et renvoyé au jugement gop seul). Calculé
+      // sur les cas réels observés : troncature légitime ("ٱلْحَمْدُ"->"مْدُ")
+      // = ratio 0.44, coïncidence 1 caractère = ratio 0.14 -- un seuil à 1/3
+      // sépare proprement les deux sans perdre le cas de troncature.
+      final isLongEnoughToBeFragment =
+          actualStrict.length >= 2 && actualStrict.length * 3 >= expected.strict.length;
       final isFragment = hasSpeech &&
           actualStrict.isNotEmpty &&
           expected.strict.isNotEmpty &&
+          isLongEnoughToBeFragment &&
           (expected.strict.endsWith(actualStrict) ||
               expected.strict.startsWith(actualStrict));
       final spellsDifferentWord = hasSpeech && !textMatches && !isFragment;
 
       final WordStatus judged;
-      if (hasSpeech &&
-          !spellsDifferentWord &&
+      if (!hasSpeech) {
+        // Bug corrigé 2026-07-16 (revue de code, Finding #9) : `hasSpeech` ne
+        // protégeait QUE la branche `correct` ci-dessous -- un mot jamais
+        // prononcé (r.actual=="") avec un gop proche de 0 par coïncidence
+        // (forced≈free≈0 sur du blank pur, cf. commentaire plus haut) tombait
+        // dans la branche `unclear` juste en dessous (elle ne vérifiait que
+        // `r.gop >= _gopUnclear`, sans hasSpeech). Un mot sans aucun son
+        // capté n'a de sens NI en "correct" NI en "unclear" (les deux
+        // impliquent une tentative) -- toujours `error`, avant même de
+        // regarder gop/similarité.
+        judged = WordStatus.error;
+      } else if (!spellsDifferentWord &&
           (r.gop >= _gopCorrect || (textMatches && r.gop >= _gopUnclear))) {
         judged = WordStatus.correct;
       } else if (r.gop >= _gopUnclear ||
@@ -1220,8 +1253,20 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // l'état natif (samples, texte figé, aperçu) pour que la session suivante
     // reparte réellement de zéro. Fire-and-forget : dispose() est synchrone et
     // ne doit jamais bloquer la fermeture de l'écran.
-    unawaited(_verifier.stop().then((_) => _verifier.resetBuffer()).catchError(
-        (e) => DiagnosticLog.log('ASR', 'arrêt de session au dispose échoué : $e')));
+    //
+    // Bug corrigé 2026-07-16 (revue de code, Finding #1) : ce nettoyage
+    // appelait stop()+resetBuffer() SANS AUCUNE garde contre une nouvelle
+    // session démarrée entre-temps (recitationVerifierProvider n'est PAS
+    // autoDispose -- une réouverture rapide de l'écran karaoké réutilise le
+    // MÊME verifier). Le stop() de cette ancienne session pouvait s'exécuter
+    // APRÈS que la nouvelle ait déjà appelé _recorder.startStream(), tuant
+    // silencieusement le nouvel enregistrement. `stopIfCurrentSession`
+    // (verrou sérialisé + vérification de génération côté verifier) ne fait
+    // plus rien si une session plus récente a déjà pris le relais.
+    if (_myGeneration >= 0) {
+      unawaited(_verifier.stopIfCurrentSession(_myGeneration).catchError(
+          (e) => DiagnosticLog.log('ASR', 'arrêt de session au dispose échoué : $e')));
+    }
 
     super.dispose();
   }

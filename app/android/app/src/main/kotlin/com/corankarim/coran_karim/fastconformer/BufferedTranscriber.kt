@@ -174,7 +174,12 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 "frontier" to res.frontier,
                 "final" to isFinal,
                 "words" to words,
-            ) + (if (clipPath != null) mapOf("clipPath" to clipPath) else emptyMap())
+                // deferredIndex conserve ici (meme sur un apercu) pour que le
+                // chemin MAX_SEGMENT_SECONDS (pendingForceCommit plus bas)
+                // puisse le recuperer s'il promeut CET apercu en final sans
+                // rappeler align() -- cf. Finding #7, revue de code 2026-07-16.
+            ) + (if (res.deferredIndex != null) mapOf("deferredIndex" to res.deferredIndex) else emptyMap()) +
+                (if (clipPath != null) mapOf("clipPath" to clipPath) else emptyMap())
             // IMPORTANT (bug corrige 2026-07-11) : sur un segment FIGE, Dart juge
             // (et verrouille) TOUS les mots de `res.words` -- y compris le mot a
             // la frontiere lui-meme s'il a recu ne serait-ce que quelques frames
@@ -374,6 +379,16 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     val wordsList = la["words"] as? List<Map<String, Any>>
                     val laAnchor = la["anchor"] as Int
                     alignAnchor = laAnchor + (wordsList?.size ?: 0)
+                    // Bug corrige 2026-07-16 (revue de code, Finding #7) : ce
+                    // chemin promeut l'apercu en cache directement en "final"
+                    // SANS rappeler align()/runAlignment() -- deferredOnceIndex
+                    // n'etait donc jamais mis a jour ici, silencieusement
+                    // brisant la garantie "2 chances max" pour cette instance
+                    // (un mot differe dans CET apercu restait sans memoire de
+                    // son differe). Recupere le deferredIndex deja calcule et
+                    // stocke sur l'apercu (cf. runAlignment) -- meme regle que
+                    // la ligne 200 : efface (-1) si rien n'etait differe.
+                    deferredOnceIndex = (la["deferredIndex"] as? Int) ?: -1
                 }
                 DiagnosticLog.log(TAG, "segment FIGE (borne ${MAX_SEGMENT_SECONDS}s, apercu reutilise, ${covered / SAMPLE_RATE}s couverts) : \"${previewText.take(80)}\"")
             } else {

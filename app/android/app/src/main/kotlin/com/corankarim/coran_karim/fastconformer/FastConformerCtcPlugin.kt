@@ -277,17 +277,35 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     val pcm = WavReader.readMono16kFloat(wavPath)
                     val logprobs = current.computeLogProbs(pcm)
                     val aligner = ForcedAligner(current.vocabPieces, current.blank)
-                    val res = aligner.align(logprobs, tokens.subList(anchor, tokens.size), anchor, isFinal = true)
+                    val slice = tokens.subList(anchor, tokens.size)
+                    var res = aligner.align(logprobs, slice, anchor, isFinal = true)
                     if (res == null) {
                         withContext(Dispatchers.Main) { result.success(null) }
                         return@launch
                     }
+                    // Bug corrige 2026-07-16 (revue de code, Finding #3) : ce
+                    // mode one-shot ne rappelait jamais align() avec
+                    // forceJudgeIndex -- un mot differe (res.deferredIndex)
+                    // etait donc perdu DEFINITIVEMENT pour ce clip (pas de
+                    // "prochain appel FINAL" possible ici, contrairement au
+                    // mode continu ou BufferedTranscriber s'en charge via
+                    // deferredOnceIndex). Comme tout l'audio du clip est deja
+                    // disponible, le "prochain appel" peut se faire ICI MEME,
+                    // dans le meme invocation : redemande l'alignement en
+                    // forcant ce mot precis, garantissant le jugement promis
+                    // par le contrat "2 chances max" meme en mode one-shot.
+                    val deferred = res.deferredIndex
+                    if (deferred != null) {
+                        val retried = aligner.align(
+                            logprobs, slice, anchor, forceJudgeIndex = deferred, isFinal = true)
+                        if (retried != null) res = retried
+                    }
                     val payload = mapOf(
                         "seq" to -1, // one-shot : pas de dedup necessaire cote Dart
                         "anchor" to anchor,
-                        "frontier" to res.frontier,
+                        "frontier" to res!!.frontier,
                         "final" to true,
-                        "words" to res.words.map {
+                        "words" to res!!.words.map {
                             mapOf(
                                 "i" to it.index,
                                 "gop" to it.gop,

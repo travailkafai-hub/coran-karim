@@ -97,33 +97,28 @@ class ArabicNormalizer {
     return _collapseVariants(input);
   }
 
-  /// Normalisation "fidèle à l'entraînement" — EXACTEMENT la même
-  /// transformation que `normalize_text()` dans benchmark/prepare_nemo_data.py
-  /// (source de vérité du corpus d'entraînement). Contrairement à
-  /// [normalizeStrict], NE fusionne PAS أ/إ/آ→ا, ى→ي, ؤ→و, ئ→ي, ة→ه — ces
-  /// lettres sont des tokens BPE DISTINCTS que le modèle a appris à produire
-  /// séparément (vérifié empiriquement 2026-07-11 : `_collapseVariants`
-  /// convient à la comparaison textuelle tolérante mais PAS comme cible
-  /// d'alignement forcé — un mot contenant l'une de ces lettres, très
-  /// fréquent dans le Coran (ex. ة dans صَلَاة/حَيَاة/رَحْمَة), envoyait au
-  /// tokenizer une forme que le modèle n'a jamais vue à l'entraînement).
-  /// SEULE forme à utiliser pour construire la cible envoyée à
-  /// setAlignmentTarget/tokenizeWord — jamais pour la comparaison tolérante
-  /// (qui reste sur normalize/normalizeStrict, la fusion y est un atout).
+  /// Normalisation "fidèle à l'entraînement" — DOIT matcher EXACTEMENT la
+  /// normalisation du texte réellement vu par le modèle CTC actuellement
+  /// déployé (ici epoch09, tokenizer tajweed_bpe_v1 -- préserve wasla/
+  /// dagger-alif/sajda/waqf comme tokens distincts, contrairement à pcd).
+  /// Seul le rub-el-hizb (aucune valeur phonétique) et le BOM sont retirés.
+  ///
+  /// Canonicalise aussi l'ordre harakat+shadda -> shadda+harakat (ordre appris
+  /// à l'entraînement, vérifié 100% shadda-premier sur les manifests réels,
+  /// 2026-07-16) : "لَّ" peut s'écrire shadda(0651)+voyelle OU voyelle+shadda --
+  /// visuellement identiques, chaînes différentes, échec de lookup silencieux
+  /// sinon.
   static String normalizeTraining(String input) {
     var t = input;
-    t = t.replaceAll('ٱ', 'ا');
-    t = t.replaceAll('وٰ', 'ا');
-    t = t.replaceAll('ٰ', 'ا');
-    t = t.replaceAll('ۥ', 'و');
-    t = t.replaceAll('ۦ', 'ي');
-    t = t.replaceAll('ٔ', 'ء');
-    t = t.replaceAll('ٓ', '');
-    t = t.replaceAll('ـ', '');
-    t = t.replaceAll('۞', '');
-    t = t.replaceAll('۩', '');
-    t = t.replaceAll(RegExp(r'[ؖ-ؚۖ-ۜ۟-۪ۤۧۨ-ۭ]'), '');
-    t = t.replaceAll(RegExp(r'[،؛؟.,!?:;\-_()\[\]{}"' r"'" r'»«]'), '');
+    t = t.replaceAll('۞', '');    // rub el hizb -> supprime (aucune valeur phonetique)
+    t = t.replaceAll('﻿', '');    // BOM eventuel
+    t = t.replaceAll(RegExp(r'\s+'), ' ');
+    // Canonicalise l'ordre harakat+shadda -> shadda+harakat :
+    // une harakat courte (fathatan/dammatan/kasratan/fatha/damma/kasra/sukun
+    // -- PAS le shadda U+0651 lui-même) suivie du shadda devient shadda+harakat.
+    t = t.replaceAllMapped(
+        RegExp('[ًٌٍَُِْ]' 'ّ'),
+        (m) => 'ّ' '${m[0]![0]}');
     return t.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
@@ -182,6 +177,18 @@ class ArabicNormalizer {
         _harakat.hasMatch(expectedStrict[expectedStrict.length - 1]) &&
         expectedStrict.substring(0, expectedStrict.length - 1) ==
             recognizedStrict) {
+      return true;
+    }
+    // Bavure de frontière avec le mot précédent : en mode continu, la fin du
+    // mot précédent peut déborder dans la fenêtre de transcription de celui-
+    // ci (ex. "دُ لِلَّهِ" pour "لِلَّهِ", "نِ ٱلرَّحِيمِ" pour "ٱلرَّحِيمِ") --
+    // observé sur device 2026-07-16 avec le modèle tajweed epoch09. Le mot
+    // attendu EST bien présent, juste précédé d'un fragment parasite court --
+    // borné à quelques caractères pour ne pas accepter un préfixe non lié.
+    const maxBleedPrefix = 4;
+    if (recognizedStrict.length > expectedStrict.length &&
+        recognizedStrict.length - expectedStrict.length <= maxBleedPrefix &&
+        recognizedStrict.endsWith(expectedStrict)) {
       return true;
     }
     return false;
@@ -269,6 +276,19 @@ abstract class RecitationVerifier {
   Future<void> start(List<String> expectedWords, {bool continuous = false});
   Future<void> stop();
 
+  /// Numero de la session actuellement demarree (0 = aucune) -- capturer
+  /// juste apres start(), repasser a [stopIfCurrentSession] au dispose.
+  int get sessionGeneration;
+
+  /// Comme stop()+resetBuffer(), mais NE FAIT RIEN si [expectedGeneration]
+  /// ne correspond plus a la session actuelle (une session plus recente a
+  /// deja demarre entre-temps). A utiliser depuis un nettoyage fire-and-
+  /// forget (ex. dispose()) pour ne jamais saboter une session qui a deja
+  /// pris le relais (cf. Finding #1, revue de code 2026-07-16 : ce nettoyage
+  /// etait auparavant un simple stop()+resetBuffer() sans garde, capable de
+  /// tuer une session flambant neuve sur reouverture rapide de l'ecran).
+  Future<void> stopIfCurrentSession(int expectedGeneration);
+
   /// Suspend/reprend la capture micro SANS arrêter la session (mots/score
   /// conservés) — utilisé par la correction automatique (demande utilisateur
   /// 2026-07-05) : on coupe l'écoute le temps de jouer la prononciation
@@ -313,6 +333,41 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   bool _alignmentActive = false;
   int _lastAlignSeq = -1;
+
+  // ── Verrou de session (bug corrige 2026-07-16, revue de code, Finding #1) ──
+  // recitationVerifierProvider N'EST PAS autoDispose : CETTE instance survit
+  // aux notifiers (autoDispose, eux) qui la pilotent tour a tour. Le nettoyage
+  // fire-and-forget de RecitationNotifier.dispose() (stop()+resetBuffer(),
+  // necessairement fire-and-forget car dispose() est synchrone) n'avait aucune
+  // synchronisation contre une NOUVELLE session demarree entre-temps -- si
+  // l'utilisateur quitte puis rouvre vite l'ecran karaoke, le stop() de
+  // l'ANCIENNE session peut s'executer APRES que la NOUVELLE ait deja appele
+  // _recorder.startStream(), tuant silencieusement le nouvel enregistrement,
+  // ou son resetBuffer() peut arriver apres le resetBuffered() de la nouvelle
+  // session et vider un buffer qui contient deja de l'audio frais.
+  //
+  // Fix : un verrou serialise (FIFO, cf. _serialized) autour de start() ET du
+  // nettoyage de dispose -- garantit qu'ils ne s'executent JAMAIS en meme
+  // temps, quel que soit l'ordre. Un numero de generation, incremente a
+  // chaque start(), permet en plus au nettoyage d'une session PERIMEE de se
+  // transformer en no-op s'il s'execute apres qu'une nouvelle session a deja
+  // demarre (plutot que de stop()/resetBuffer() une session qui n'est plus la
+  // sienne).
+  int _generation = 0;
+  Future<void> _sessionLock = Future.value();
+
+  Future<T> _serialized<T>(Future<T> Function() action) {
+    final previous = _sessionLock;
+    final completer = Completer<void>();
+    _sessionLock = completer.future;
+    return previous.then((_) => action()).whenComplete(completer.complete);
+  }
+
+  /// Numero de la session actuellement demarree (0 = aucune). Un notifier
+  /// capture cette valeur juste apres son propre start() ; au dispose, il la
+  /// repasse a [stopIfCurrentSession] pour que le nettoyage ne s'applique
+  /// QUE si aucune session plus recente n'a pris le relais depuis.
+  int get sessionGeneration => _generation;
 
   @override
   Stream<RecognizedToken> get tokens => _tokenCtrl.stream;
@@ -365,10 +420,17 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   StreamSubscription<Uint8List>? _pcmSub;
 
   @override
-  Future<void> start(List<String> expectedWords, {bool continuous = false}) async {
+  Future<void> start(List<String> expectedWords, {bool continuous = false}) {
+    return _serialized(
+        () => _startLocked(expectedWords, continuous: continuous));
+  }
+
+  Future<void> _startLocked(List<String> expectedWords,
+      {bool continuous = false}) async {
+    _generation++;
     final hasPerm = await _recorder.hasPermission();
     debugPrint(
-        '[ASR] [$_kAsrVersion] start() | perm=$hasPerm | mots=${expectedWords.length} | continu=$continuous');
+        '[ASR] [$_kAsrVersion] start() | perm=$hasPerm | mots=${expectedWords.length} | continu=$continuous | generation=$_generation');
     if (!hasPerm) return;
 
     _continuous = continuous;
@@ -638,6 +700,25 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   }
 
   @override
+  Future<void> stopIfCurrentSession(int expectedGeneration) {
+    return _serialized(() async {
+      if (_generation != expectedGeneration) {
+        // Une session PLUS RECENTE a deja demarre (generation avancee)
+        // depuis que l'appelant a capture expectedGeneration -- stop()/
+        // resetBuffer() ici saboterait cette nouvelle session au lieu de
+        // nettoyer la sienne. No-op : cf. Finding #1, revue de code
+        // 2026-07-16.
+        DiagnosticLog.log('ASR',
+            'stopIfCurrentSession($expectedGeneration) ignore -- '
+            'generation actuelle=$_generation (session perimee)');
+        return;
+      }
+      await stop();
+      await resetBuffer();
+    });
+  }
+
+  @override
   Future<void> pauseCapture() async {
     try {
       final wasRecording = await _recorder.isRecording();
@@ -718,8 +799,20 @@ class MockRecitationVerifier implements RecitationVerifier {
   @override
   Future<void> setClipCapture(String? dir) async {}
 
+  int _generation = 0;
+  @override
+  int get sessionGeneration => _generation;
+
+  @override
+  Future<void> stopIfCurrentSession(int expectedGeneration) async {
+    if (_generation != expectedGeneration) return;
+    await stop();
+    await resetBuffer();
+  }
+
   @override
   Future<void> start(List<String> expectedWords, {bool continuous = false}) async {
+    _generation++;
     var i = 0;
     _levelTimer = Timer.periodic(const Duration(milliseconds: 90), (_) {
       _levelCtrl.add(0.25 + _rng.nextDouble() * 0.75);

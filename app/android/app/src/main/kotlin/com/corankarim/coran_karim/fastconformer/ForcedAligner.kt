@@ -308,7 +308,39 @@ class ForcedAligner(
             var deferredIndex: Int? = null
             var lastUsedFrame = -1
             for (wi in 0 until w) {
-                if (wordFrames[wi] == 0) break // au-dela de la frontiere, plus de frames
+                if (wordFrames[wi] == 0) {
+                    // Bug corrige 2026-07-16 (revue de code, confirme par un
+                    // cas device reel : 17 tentatives consecutives sur le
+                    // meme mot, l'ancre n'avancant jamais) -- CE break
+                    // s'executait AVANT tout check de forceJudgeIndex, donc
+                    // meme un mot force en 2e chance qui obtient ENCORE zero
+                    // frame de la DP ressortait sans jugement ET sans
+                    // deferredIndex -> BufferedTranscriber remettait
+                    // deferredOnceIndex a -1 (BufferedTranscriber.kt:200),
+                    // effacant toute memoire que ce mot etait en attente :
+                    // le mot pouvait boucler differer->oublier->differer a
+                    // l'infini, jamais tranche.
+                    //
+                    // Fix en deux temps, pour couvrir le cycle complet :
+                    //  - si ce mot est PRECISEMENT celui qu'on force (2e
+                    //    chance) et qu'il n'a TOUJOURS aucune frame, c'est
+                    //    le signal d'erreur le plus fort possible (le
+                    //    meilleur chemin de la DP n'a litteralement aucune
+                    //    place pour lui) -> jugement DEFINITIF ici (error),
+                    //    sans repasser par le differe qui echouerait pareil.
+                    //  - sinon (1ere fois que ce mot n'a aucune frame), le
+                    //    marquer differe comme le cas "trop peu
+                    //    d'opportunite" plus bas -- sinon il disparaissait
+                    //    des `results` sans JAMAIS entrer dans le mecanisme
+                    //    des 2 chances, silencieusement, a chaque appel.
+                    if (anchor + wi == forceJudgeIndex) {
+                        results.add(WordResult(
+                            anchor + wi, -20.0, -20.0, wi < frontierWordRel, ""))
+                    } else {
+                        deferredIndex = anchor + wi
+                    }
+                    break
+                }
                 val covered = wi < frontierWordRel
                 if (!covered && anchor + wi != forceJudgeIndex) {
                     // Opportunite laissee a ce mot = audio disponible depuis
