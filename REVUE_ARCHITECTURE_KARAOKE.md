@@ -246,14 +246,14 @@ construits aujourd'hui se réutilisent tels quels.
    taille ~115 Mo ; passes ÷2 sur device.
 
 ### Étape 5 — P1.2 rescoring par variantes (2–3 jours, le plus important qualité)
-1. **Offline d'abord** : script `benchmark/variant_rescoring_eval.py` —
-   pour chaque clip du holdout TTS annoté (`nemo_manifests_mixed/
-   val_errors_annotated.jsonl`) : logprobs du clip, alignement forcé du
-   `correct_text`, puis sur les frames du mot muté, DP locale du mot attendu
-   ET de la variante `err_detail` → qui gagne ? Rapporter précision par type
-   (letter/harakat) et la distribution des marges.
-   **Go/No-Go : >75 % de verdicts corrects sur `letter`** (sinon, s'arrêter
-   là et documenter pourquoi dans le script).
+1. **[FAIT, cf. §6.6] Offline d'abord** : script `benchmark/variant_rescoring_eval.py`
+   (implémentation réelle : NLL CTC pleine séquence par candidat, pas de DP
+   locale — les clips holdout sont des mots isolés, cf. docstring du script
+   pour la justification). Résultat réel sur 1808 clips : **letter 80,8% (GO)**,
+   **harakat 49,6% (NO-GO, quasi hasard)** — vérifié non-artefact de
+   tokenisation. **Portée de la suite RESTREINTE aux paires `letter`
+   (CONFUSABLE_PAIRS) : ne jamais étendre le verrouillage de verdict aux
+   harakat, où ce signal n'est pas meilleur qu'un tirage au sort.**
 2. Génération des variantes côté app : depuis `word_tokens.json` on n'a que le
    mot canonique → tokeniser les variantes via le greedy `CtcTokenizer`
    (repli déjà validé cohérent) OU précalculer un `word_variants.json` côté
@@ -307,3 +307,113 @@ S3+: Étape 7       → suppression de la cause racine    [mesure : val mixte + 
 ```
 Chaque étape est indépendamment livrable et réversible ; ne JAMAIS empiler deux
 étapes non validées dans le même APK (un seul changement par `_kBuildTag`).
+
+---
+
+## 6. Contre-revue (Sonnet, exécutant désigné) — à approuver ou contester
+
+Relecture avant exécution, avec vérifications concrètes (pas juste un accord de
+principe). Verdict global : le diagnostic tient, le plan est exécutable tel
+quel, avec un chiffre à corriger et un risque à durcir avant l'Étape 7.
+
+### 6.1 Confirmé par vérification directe du code
+- `SessionOptions()` vide et mel recalculé à froid à chaque passe (§3.5.1/.4) :
+  relu `FastConformerCtc.kt`/`MelSpectrogram.kt`, exact.
+- `FastConformerStreamingSession.kt` (271 lignes) existe, corrige déjà 2 bugs
+  (fenêtre de normalisation, causalité) mais **n'est appelé nulle part côté
+  Dart** (`loadStreamingModel`/`feedAudioChunk` définis, jamais invoqués par un
+  écran) — code mort aujourd'hui, cohérent avec le verdict 2026-07-04 cité en
+  P2.2. Confirme la recommandation, pas de contradiction.
+
+### 6.2 À corriger — le chiffre de redondance (§2) est un pire cas, pas la norme
+Distribution réelle des durées de segment sur les logs du jour (141 segments,
+toutes sessions confondues) :
+```
+  62× 3s   38× 2s   24× 4s   11× 5s   qq. 6-9s   1× 12s
+```
+88 % des segments durent 2–4 s. Recalcul pour ces tailles (passes tous les
+1,5 s + re-transcription complète au gel) :
+```
+  2s → compute ≈ 3,5s → ×1,75      3s → compute ≈ 4,5s → ×1,5
+  4s → compute ≈ 8,5s → ×2,1
+```
+Le ×4,5 cité est réel mais concerne le SEUL segment à 12 s observé aujourd'hui
+(1/141). Le régime typique est **×1,5–2,1**, pas ×2,5–4,5. Ne change ni le
+diagnostic (le calcul redondant existe bel et bien) ni la priorité de l'Étape 3
+(qui cible justement le terme dominant du cas typique — le gel qui re-transcrit
+un segment déjà couvert par l'aperçu) — seulement l'ampleur annoncée. À corriger
+dans §2 pour ne pas sur-vendre le gain attendu de P0.3.
+
+### 6.3 Risque à durcir — P2.1 (stats de normalisation fixes)
+Décrit comme « ajout quasi gratuit au run suivant ». Réserve : le fine-tune
+mixte en cours **continue depuis un checkpoint déjà entraîné en normalisation
+`per_feature`** — changer la statistique de normalisation change la
+distribution des entrées vues par l'encodeur, ce n'est pas un simple
+toggle de config au milieu d'une continuation. Proposition : traiter P2.1
+comme nécessitant soit (a) un warm-restart dédié depuis le checkpoint mixte
+validé, avec surveillance du WER canonique sur les 1-2 premières epochs pour
+détecter une dérive, soit (b) le combiner directement avec P2.2 (streaming)
+qui de toute façon repart d'un fine-tune séparé — (b) est probablement le bon
+choix, ça évite un cycle d'entraînement intermédiaire pour rien.
+
+### 6.4 Sur les seuils d'acceptation
+« >75 % » (Étape 5.1) et « ≥8/10 » (Étape 5.6) sont des points de départ
+raisonnables mais arbitraires, pas des cibles dérivées de données. À traiter
+comme tels pendant l'exécution : si l'offline sort par exemple 68 %, ce n'est
+pas un échec binaire, c'est un signal à examiner (par type d'erreur, par
+position dans le mot) avant de décider d'arrêter ou d'ajuster.
+
+### 6.5 Approbation demandée
+Sous réserve des points 6.2 (chiffre à corriger, pas de changement de plan) et
+6.3 (P2.1 à fusionner avec P2.2 plutôt qu'exécuté seul), le plan est approuvé
+pour exécution dans l'ordre proposé. Prochaine action : Étape 5.1 (Go/No-Go
+rescoring, offline, zéro risque) en parallèle des Étapes 1-3 (perf, zéro
+risque qualité) — développée ci-dessous.
+
+### 6.6 Étape 5.1 EXÉCUTÉE — résultat réel, split par type d'erreur
+
+Script : `benchmark/variant_rescoring_eval.py`. Comparaison tête-à-tête
+NLL(prononcé) vs NLL(canonique) via `torch.nn.functional.ctc_loss`, sur les
+1808 clips fautifs du holdout TTS (`val_errors_annotated.jsonl`), modèle
+`mixed-e02-144-snapshot.nemo` (celui déployé aujourd'hui). Incident en cours de
+route : la 1ère exécution a silencieusement sauté les 1808/1808 lignes (refus
+strict sur un sample rate ≠16kHz -- les clips TTS/XTTS sont en 24kHz natif) et
+sorti un faux "NO-GO 0.0%". Corrigé (rééchantillonnage explicite via librosa) et
+re-vérifié sur 5 clips avant de relancer le run complet.
+
+```
+type       n     gagne     %      marge médiane
+letter    854     690    80.8%      +3.80
+harakat   954     473    49.6%      -0.10
+------------------------------------------------
+TOTAL    1808    1163    64.3%
+cibles infaisables : 0
+```
+
+Contrôle fait avant de conclure : les 954 clips `harakat` ont bien des séquences
+de tokens BPE DIFFÉRENTES entre prononcé et canonique (0% de collision) --
+le résultat n'est pas un artefact de tokenisation, c'est une vraie limite
+acoustique du signal.
+
+**Interprétation :**
+- **`letter` (ص↔س, ط↔ت, etc.) : GO net, 80,8%.** Le rescoring règle exactement
+  le problème diagnostiqué ce jour même (sin/sad à gop=-0.35, jugé vert par le
+  score relatif). Une substitution de lettre a une signature spectrale assez
+  large pour qu'une comparaison directe tranche.
+- **`harakat` : NO-GO, quasi pile-ou-face (49,6%, marge médiane ~0).** Une
+  harakat (voyelle brève, 1-3 frames) ne porte pas assez de signal pour
+  qu'une comparaison CTC tête-à-tête discrimine -- ni mieux ni pire que le
+  hasard. Le rescoring N'EST PAS la solution aux harakat ; ni lui ni le gop
+  actuel ne les couvrent bien. Piste à explorer séparément si prioritaire :
+  comparaison directement sur les logprobs de la frame de la voyelle plutôt
+  que sur un NLL de séquence entière (le CTC dilue le signal court sur le
+  chemin complet) -- non testé ici, hors du périmètre P1.2 initial.
+
+**Révision de l'Étape 5 (§5, plan initial) :** le déploiement en mode ombre
+(5.2-5.6) est justifié pour `letter` seulement -- généraliser à `harakat`
+donnerait un signal aussi peu fiable qu'un tirage au sort et NE DOIT PAS
+remplacer le gop pour ce cas. Design révisé : le rescoring vient EN PLUS du
+gop, pas à sa place ; il ne verrouille un verdict que pour les paires
+`CONFUSABLE_PAIRS` (lettres), le gop garde la main sur tout le reste
+(y compris les harakat, où il reste, avec ses limites connues, le seul signal
+disponible pour l'instant).
