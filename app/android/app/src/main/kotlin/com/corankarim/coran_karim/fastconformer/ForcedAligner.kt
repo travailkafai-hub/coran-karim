@@ -369,33 +369,76 @@ class ForcedAligner(
 
         val (natural, naturalLastFrame) = buildFrom(bestEnd)
 
-        // Filet de secours pilote par le decodage LIBRE (cf. companion object).
-        // UNIQUEMENT sur un segment FIGE (isFinal) : sur un apercu, un chemin
-        // partiel est le comportement NORMAL (le recitateur n'a pas fini de
-        // parler) et forcer la couverture produirait des jugements sur des
-        // mots pas encore prononces. Seulement quand l'audio ne sera plus
-        // jamais reanalyse, qu'il reste de l'audio non explique apres le
-        // dernier mot obtenu, et que le decodage libre atteste STRICTEMENT
-        // plus de mots que la DP n'en a couverts.
-        if (isFinal && natural.words.size < w) {
-            val framesSinceLast = (t - 1) - naturalLastFrame
-            if (framesSinceLast >= RETRY_STALL_MIN_FRAMES) {
-                val free = greedyTokenIds(logprobs, 0, t - 1)
-                val attested = coveredWordsFromFree(free, wordTokens)
-                if (attested > natural.words.size) {
-                    // Etat = dernier token du dernier mot atteste. Non
-                    // atteignable (score -infini) => on ne force pas : le
-                    // backtrace serait degenere.
-                    var lastTok = -1
-                    for (i in owner.indices) if (owner[i] == attested - 1) lastTok = i
-                    val target = if (lastTok >= 0) 2 * lastTok + 1 else -1
-                    if (target in 0 until s && prev[target] != negInf) {
-                        val (byFree, _) = buildFrom(target)
-                        if (byFree.words.size > natural.words.size) {
-                            DiagnosticLog.log(TAG,
-                                "blocage rattrape par decodage libre : DP=${natural.words.size} mot(s) " +
-                                        "-> atteste=$attested (ancre=$anchor)")
-                            return byFree
+        if (isFinal) {
+            // Decodage libre du segment ENTIER, calcule une seule fois --
+            // reutilise ci-dessous par la validation globale ET par le filet
+            // de secours existant (stall).
+            val free = greedyTokenIds(logprobs, 0, t - 1)
+
+            // ── Validation GLOBALE prioritaire (idee utilisateur 2026-07-16 soir) ──
+            // Bug reel observe sur device, MEME passe/memes logprobs :
+            //   segment ENTIER (decodage libre, sans frontiere) : "بَلَوْنَـٰهُمْ"
+            //   correct et complet.
+            //   mot ISOLE (actual = greedyDecodeRange borne aux frames que LA DP
+            //   a attribuees a ce mot) : "بَلَـٰهُمْ", TRONQUE -- la DP avait rendu
+            //   la main au mot suivant un peu trop tot (confiance faible sur la
+            //   fin du mot), amputant la plage de frames de ce mot precis.
+            //   Le gop lui-meme etait bon (-0.01, quasi parfait) : SEUL le texte
+            //   `actual`, tronque, faisait declencher spellsDifferentWord cote
+            //   Dart (le texte tronque ne "matche" plus l'attendu) -> jugement
+            //   "unclear" au lieu de "correct" pour un mot pourtant bien recite.
+            //
+            // Fix CIBLE : si le decodage libre GLOBAL confirme la totalite des
+            // `w` mots attendus (wordSpansFromFree renvoie une plage pour
+            // CHACUN, aucun mot manquant) ET que `natural` couvre deja tous
+            // les mots (rien n'a ete laisse de cote, juste potentiellement mal
+            // decoupe) -- on ne touche PAS au score gop/forced (qui garde
+            // toute sa sensibilite habituelle, y compris sur les harakat) --
+            // on remplace SEULEMENT le texte `actual` de chaque mot par celui
+            // du decodage libre global, qui n'a jamais ete borne par une
+            // frontiere de frames fragile.
+            //
+            // Compromis assume (pas une regression nouvelle) : la tolerance de
+            // wordSpansFromFree (>=50% des tokens d'un mot retrouves, meme
+            // regle que coveredWordsFromFree ci-dessous) peut laisser un mot
+            // "confirme" meme si UN token (ex. une harakat) differe legerement
+            // -- mais gop reste le seul juge du VERDICT ici, donc cette
+            // tolerance n'affecte QUE le texte affiche, pas la couleur.
+            val spans = if (natural.words.size == w) wordSpansFromFree(free, wordTokens) else null
+            if (spans != null) {
+                val corrected = natural.words.map { r ->
+                    val wi = r.index - anchor
+                    if (wi in spans.indices) r.copy(actual = decodeFreeSpan(free, spans[wi])) else r
+                }
+                DiagnosticLog.log(TAG,
+                    "validation globale : texte 'actual' recalcule via decodage libre " +
+                            "($w mots confirmes, ancre=$anchor)")
+                return Result(natural.frontier, corrected, natural.deferredIndex)
+            }
+
+            // Filet de secours pilote par le decodage LIBRE (cf. companion
+            // object). Seulement quand il reste de l'audio non explique apres
+            // le dernier mot obtenu, et que le decodage libre atteste
+            // STRICTEMENT plus de mots que la DP n'en a couverts.
+            if (natural.words.size < w) {
+                val framesSinceLast = (t - 1) - naturalLastFrame
+                if (framesSinceLast >= RETRY_STALL_MIN_FRAMES) {
+                    val attested = coveredWordsFromFree(free, wordTokens)
+                    if (attested > natural.words.size) {
+                        // Etat = dernier token du dernier mot atteste. Non
+                        // atteignable (score -infini) => on ne force pas : le
+                        // backtrace serait degenere.
+                        var lastTok = -1
+                        for (i in owner.indices) if (owner[i] == attested - 1) lastTok = i
+                        val target = if (lastTok >= 0) 2 * lastTok + 1 else -1
+                        if (target in 0 until s && prev[target] != negInf) {
+                            val (byFree, _) = buildFrom(target)
+                            if (byFree.words.size > natural.words.size) {
+                                DiagnosticLog.log(TAG,
+                                    "blocage rattrape par decodage libre : DP=${natural.words.size} mot(s) " +
+                                            "-> atteste=$attested (ancre=$anchor)")
+                                return byFree
+                            }
                         }
                     }
                 }
@@ -453,6 +496,48 @@ class ForcedAligner(
             covered++
         }
         return covered
+    }
+
+    /** Comme [coveredWordsFromFree] (meme regle de tolerance, 50% des tokens
+     *  d'un mot retrouves dans l'ordre), mais retourne en plus la plage
+     *  d'indices dans [free] associee a CHAQUE mot -- permet d'extraire un
+     *  texte `actual` qui ne depend PAS des frontieres de frames choisies par
+     *  la DP (cf. validation globale dans align()). Tout-ou-rien : retourne
+     *  null des qu'UN mot n'est pas confirme (pas de plage partielle fiable). */
+    private fun wordSpansFromFree(free: IntArray, wordTokens: List<IntArray>): List<IntRange>? {
+        var fi = 0
+        val spans = ArrayList<IntRange>(wordTokens.size)
+        for (toks in wordTokens) {
+            if (toks.isEmpty()) return null
+            var matched = 0
+            var firstHit = -1
+            var lastHit = -1
+            var probe = fi
+            for (tok in toks) {
+                var j = probe
+                val limit = minOf(free.size, probe + FREE_MATCH_LOOKAHEAD)
+                while (j < limit && free[j] != tok) j++
+                if (j < limit) {
+                    matched++; probe = j + 1; lastHit = j
+                    if (firstHit < 0) firstHit = j
+                }
+            }
+            if (lastHit < 0 || matched * 2 < toks.size) return null
+            spans.add(firstHit..lastHit)
+            fi = lastHit + 1
+        }
+        return spans
+    }
+
+    /** Detokenise une plage d'indices dans un tableau de tokens LIBRES (deja
+     *  collapse par greedyTokenIds -- pas de blanks/repetitions a filtrer ici). */
+    private fun decodeFreeSpan(free: IntArray, span: IntRange): String {
+        val sb = StringBuilder()
+        for (i in span) {
+            val id = free[i]
+            if (id < vocab.size) sb.append(vocab[id])
+        }
+        return sb.toString().replace('▁', ' ').trim()
     }
 
     /** Decodage glouton LIBRE restreint a une plage de frames [from..toIncl] --
