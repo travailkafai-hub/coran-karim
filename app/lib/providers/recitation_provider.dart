@@ -28,6 +28,38 @@ const int _kAlignLookahead = 6; // tolérance mots sautés/bruit dans le texte r
 // Valeurs par défaut CALIBRÉES sur device (correspondent à sensibilité=0.5,
 // cf. `correctionSensitivityProvider`) — chaque jugement est logué avec son
 // gop précis pour ajuster (chercher "[GOP]" dans le log persistant).
+//
+// ── Historique de calibrage (conserver, cf. règle : une piste invalidée reste
+//    documentée AVEC sa raison, sinon elle se re-tente) ────────────────────
+//
+// RECALIBRAGE 2026-07-16 (matin) -> -5.0/-10.0 : **ERREUR, ANNULÉ le soir même**.
+// Motif invoqué à l'époque : au passage au modèle tajweed (tokenizer
+// tajweed_bpe_v1), des mots reconnus EXACTEMENT (entendu == mot attendu)
+// donnaient gop=-4.43/-4.64/-4.70/-8.98 -- tous sous l'ancien seuil tolérant
+// (-2.50), donc plus rien ne pouvait être jugé correct. Conclusion tirée :
+// "ce checkpoint est moins confiant, décalons les seuils".
+//
+// POURQUOI C'ÉTAIT FAUX : ces gop dégradés n'avaient RIEN à voir avec le
+// modèle. `word_tokens.json` était généré avec un token '▁' parasite en tête
+// de chaque mot (bug de build_word_token_lookup.py, cf. le commentaire détaillé
+// dans ce script) : un token que le modèle n'émet jamais, que l'alignement
+// forcé devait quand même placer, et dont la logprob ~-inf polluait la moyenne
+// du mot. Décaler les seuils revenait à ajuster le thermomètre parce que le
+// thermomètre était cassé -- et ça a rendu l'app AVEUGLE : avec "correct" à
+// -5.0, un mot dont le gop tombait à -1.28 avec une shadda manquante à
+// l'oreille ("ٱلصِّرَٰطَ" entendu "ٱلصرَٰطَ") passait vert. Constat utilisateur
+// 2026-07-16 15h06 : "j'ai forcé des erreurs de prononciation mais tout est en
+// vert". Une erreur non détectée est bien pire qu'un faux positif ici.
+//
+// Le '▁' corrigé, le gop est revenu dans sa plage historique (0 à -1.5 sur la
+// Fatiha entière, mesuré 15h05) -- exactement la plage pour laquelle les
+// valeurs pcd ci-dessous avaient été calibrées sur device. Donc : RETOUR aux
+// valeurs pcd, qui n'ont jamais été le problème.
+//
+// LEÇON : un gop hors plage attendue est un signal de BUG dans la chaîne de
+// tokens, pas une invitation à bouger les seuils. Avant tout recalibrage,
+// vérifier que `forced ≈ free` sur un mot correctement prononcé (gop ≈ 0) et
+// qu'aucun token forcé n'est absent de ce que le modèle émet réellement.
 const double _kGopCorrectDefault = -0.45;
 const double _kGopUnclearDefault = -1.6;
 // Bornes de la sensibilité réglable (demande utilisateur 2026-07-12 :
@@ -37,6 +69,9 @@ const double _kGopUnclearDefault = -1.6;
 // bande verte étroite (strict) ; =0.5 reproduit exactement les valeurs
 // calibrées ci-dessus. Deux segments linéaires (tolérant<->défaut,
 // défaut<->strict) pour garantir que 0.5 == comportement historique inchangé.
+// Bornes revenues aux valeurs pcd en même temps que les défauts ci-dessus
+// (elles avaient été décalées proportionnellement au recalibrage erroné du
+// 2026-07-16 matin -> -7/-14/-3/-6, annulé, cf. explication plus haut).
 const double _kGopCorrectTolerant = -0.90;
 const double _kGopUnclearTolerant = -2.50;
 const double _kGopCorrectStrict = -0.20;
@@ -659,9 +694,50 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // Comme le décodage libre est PRÉCISÉMENT ce que le GOP est censé
       // contourner (biais du modèle vers le texte canonique, cf. SKILL.md),
       // ce bypass sans plancher annulait tout l'intérêt de la refonte.
+      // Bug corrigé 2026-07-16 : sur des frames quasi-silencieuses (utilisateur
+      // qui ne parle pas / pause), `r.actual` (entendu) est vide -- le chemin
+      // forcé ET le chemin libre prédisent alors tous deux du blank quasi-pur,
+      // donc leur différence (gop) tombe près de 0 par pur hasard, sans
+      // qu'aucun contenu réel n'ait été confirmé. Observé sur device : gop=0.00,
+      // entendu="" -> jugé "correct" alors que l'utilisateur n'avait rien dit
+      // ("le mot se met au vert tout seul après un silence"). `hasSpeech`
+      // bloque ce cas : jamais "correct" sans au moins un caractère décodé.
+      final hasSpeech = r.actual.trim().isNotEmpty;
+
+      // Le décodage libre épelle-t-il franchement un AUTRE mot ? (2026-07-16)
+      //
+      // Jusqu'ici la comparaison textuelle ne servait que dans UN sens : rendre
+      // le verdict plus INDULGENT (`textMatches` rattrape un gop limite). Rien
+      // n'empêchait l'inverse -- être vert alors que le modèle a écrit un autre
+      // mot. Cas réel mesuré sur device (log 16h59, modèle mixed-e02) :
+      //     attendu "صِرَٰطَ" (sad) / entendu "سَرَٰطَ" (sin)
+      //     gop=-0.35 forced=-1.77 free=-1.42  -> jugé CORRECT (vert)
+      // Le modèle avait PARFAITEMENT entendu le sin de l'utilisateur, mais le
+      // gop est une mesure RELATIVE (forced - free) : le modèle hésitant sur
+      // tout à cet endroit (free=-1.42), le chemin forcé n'était "pas beaucoup
+      // pire" que son meilleur choix -> écart faible -> vert. Aucun réglage de
+      // seuil ne corrige ça proprement (en strict, -0.35 passerait orange par
+      // chance, pas par raisonnement), alors que l'information est là, écrite
+      // noir sur blanc dans `entendu`.
+      //
+      // Distinction essentielle -- SUBSTITUTION vs TRONCATURE : le texte
+      // reconnu diffère aussi pour un pur artefact de découpage, quand la
+      // coupure de segment ampute le mot (même log : attendu "ٱلْحَمْدُ",
+      // entendu "مْدُ", gop=-0.04). Traiter les deux pareil ferait passer
+      // orange des mots parfaitement récités. Un fragment (préfixe ou suffixe
+      // de l'attendu) reste donc jugé sur le gop seul, comme avant ; seule une
+      // vraie substitution (lettre/harakat changée) bloque le vert.
+      final isFragment = hasSpeech &&
+          actualStrict.isNotEmpty &&
+          expected.strict.isNotEmpty &&
+          (expected.strict.endsWith(actualStrict) ||
+              expected.strict.startsWith(actualStrict));
+      final spellsDifferentWord = hasSpeech && !textMatches && !isFragment;
+
       final WordStatus judged;
-      if (r.gop >= _gopCorrect ||
-          (textMatches && r.gop >= _gopUnclear)) {
+      if (hasSpeech &&
+          !spellsDifferentWord &&
+          (r.gop >= _gopCorrect || (textMatches && r.gop >= _gopUnclear))) {
         judged = WordStatus.correct;
       } else if (r.gop >= _gopUnclear ||
           ArabicNormalizer.similarity(actualNorm, expected.normalized) >=
@@ -676,9 +752,17 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // utilisateur 2026-07-10, conservée) : un aperçu peut encore mal couvrir
       // la fin d'un mot ; le segment figé ultérieur tranche définitivement.
       final lock = p.isFinal || judged != WordStatus.error;
+      // `free` (= forced - gop) et `autreMot` sont logués car le gop seul ne
+      // permet PAS de diagnostiquer : un gop proche de 0 signifie soit "bien
+      // récité", soit "modèle hésitant sur tout" (free très négatif), deux
+      // situations opposées. Cf. le cas sin/sad ci-dessus.
       DiagnosticLog.log('GOP', 'mot=${r.index} "${expected.display}" '
           'gop=${r.gop.toStringAsFixed(2)} forced=${r.forced.toStringAsFixed(2)} '
-          'entendu="${r.actual}" -> $judged (lock=$lock, final=${p.isFinal})');
+          'free=${(r.forced - r.gop).toStringAsFixed(2)} '
+          'entendu="${r.actual}"'
+          '${spellsDifferentWord ? " autreMot=OUI" : ""}'
+          '${isFragment ? " fragment" : ""}'
+          ' -> $judged (lock=$lock, final=${p.isFinal})');
       _judge(words, r.index, judged, lock: lock, newErrors: newErrors);
     }
 
@@ -1113,6 +1197,32 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _pendingSub?.cancel();
     _alignSub?.cancel();
     _wordFailedCtrl.close();
+
+    // Bug corrigé 2026-07-16 — FUITE DE SESSION. Ce dispose n'annulait que les
+    // abonnements Dart : le MICRO continuait d'enregistrer et le
+    // BufferedTranscriber natif (un SINGLETON, côté Kotlin) continuait
+    // d'empiler de l'audio après la sortie de l'écran. Ce provider est
+    // autoDispose, mais `recitationVerifierProvider` NE L'EST PAS -- le
+    // verifier (et son enregistreur) survit donc à l'écran qui l'a lancé.
+    //
+    // Constaté sur device (log 17h17-17h21, sourate Al-Baqara) : la session
+    // précédente en était à `bloc PCM #1800` quand la nouvelle démarrait --
+    // deux flux micro concurrents alimentant le MÊME buffer natif. D'où :
+    //   - un `wordFailed` sur "الٓمٓ" 100 ms après l'ouverture, AVANT même le
+    //     premier bloc PCM de la nouvelle session (impossible d'avoir récité) ;
+    //   - des transcriptions de bruit ambiant ("تَسُجْززْ", "يَ") jugées comme
+    //     de vrais mots -> mots marqués rouges, correction automatique
+    //     déclenchée toute seule, audio du récitateur joué sans raison ;
+    //   - remarque utilisateur : "quand je veux tester Baqara il ne part pas du
+    //     début, il retient ce que j'ai fait il y a longtemps".
+    //
+    // `stop()` annule _pcmSub ET arrête l'enregistreur ; `resetBuffer()` purge
+    // l'état natif (samples, texte figé, aperçu) pour que la session suivante
+    // reparte réellement de zéro. Fire-and-forget : dispose() est synchrone et
+    // ne doit jamais bloquer la fermeture de l'écran.
+    unawaited(_verifier.stop().then((_) => _verifier.resetBuffer()).catchError(
+        (e) => DiagnosticLog.log('ASR', 'arrêt de session au dispose échoué : $e')));
+
     super.dispose();
   }
 }

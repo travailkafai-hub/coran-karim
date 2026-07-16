@@ -98,6 +98,14 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     @Volatile private var alignAnchor = 0
     @Volatile private var alignSeq = 0
     @Volatile private var lastAlign: Map<String, Any>? = null
+    // Garde-fou "2 chances max" (2026-07-14, cf. ForcedAligner.MIN_FRAMES_FOR_JUDGMENT) :
+    // index du mot differe par le dernier appel FINAL (segment trop court
+    // apres lui pour juger equitablement), ou -1 si aucun. Repasse en
+    // forceJudgeIndex au prochain appel FINAL -- si le MEME mot se retrouve
+    // encore a la frontiere avec trop peu d'opportunite, on le juge quand
+    // meme cette fois (jamais differe indefiniment, cf. discussion
+    // utilisateur : un vrai mot rate/saute doit finir par passer au rouge).
+    @Volatile private var deferredOnceIndex = -1
     private val aligner: ForcedAligner by lazy {
         ForcedAligner(engine.vocabPieces, engine.blank)
     }
@@ -109,6 +117,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         alignTokens = tokens
         alignAnchor = anchor.coerceIn(0, tokens.size)
         lastAlign = null
+        deferredOnceIndex = -1
         DiagnosticLog.log(TAG, "cible d'alignement : ${tokens.size} mots, ancre=$alignAnchor")
     }
 
@@ -116,6 +125,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         val tokens = alignTokens ?: return
         alignAnchor = anchor.coerceIn(0, tokens.size)
         lastAlign = null // les resultats en vol reference l'ancienne ancre
+        deferredOnceIndex = -1
         DiagnosticLog.log(TAG, "ancre d'alignement deplacee : $alignAnchor")
     }
 
@@ -143,7 +153,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         if (anchor >= tokens.size) return
         try {
             val slice = tokens.subList(anchor, minOf(tokens.size, anchor + maxAlignWords))
-            val res = aligner.align(logprobs, slice, anchor) ?: return
+            // forceJudgeIndex seulement sur un appel FINAL : un apercu ne
+            // verrouille jamais rien, differer un mot sur un apercu ne compte
+            // pas comme une "tentative" reelle.
+            val forceIdx = if (isFinal) deferredOnceIndex else -1
+            val res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal) ?: return
             val words = res.words.map {
                 mapOf(
                     "i" to it.index,
@@ -176,9 +190,17 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // prononciation (constate : "مَـٰلِكِ" verrouille error, gop=-7.36,
             // "entendu"="كِ" alors que le decodage libre du meme segment montre
             // "مَالِكِ..." parfaitement correct).
-            if (isFinal) alignAnchor = anchor + res.words.size
+            if (isFinal) {
+                alignAnchor = anchor + res.words.size
+                // cf. deferredOnceIndex : ce FINAL a soit juge le mot qu'on
+                // forcait (forceIdx, alors deja inclus dans res.words -> on
+                // efface le garde-fou), soit differe un NOUVEAU mot (a
+                // repasser en force au prochain FINAL), soit n'a rien differe
+                // du tout (deferredIndex=null -> RAZ).
+                deferredOnceIndex = res.deferredIndex ?: -1
+            }
             DiagnosticLog.log(TAG, "alignement seq=$alignSeq ancre=$anchor frontiere=${res.frontier} " +
-                    "final=$isFinal mots=${words.size} nouvelle_ancre=$alignAnchor")
+                    "final=$isFinal mots=${words.size} nouvelle_ancre=$alignAnchor differe=$deferredOnceIndex")
         } catch (e: Exception) {
             DiagnosticLog.log(TAG, "echec alignement force: ${e.message}")
         }

@@ -97,7 +97,27 @@ class AlignPayload {
 /// android/app/src/main/kotlin/.../fastconformer/FastConformerCtcPlugin.kt.
 class FastConformerVerifier {
   static const _channel = MethodChannel('com.corankarim/fastconformer_ctc');
-  static const _kModelSubdir = 'models/fastconformer-ctc-pcd';
+  // Entraînement MIXTE, epoch 02 (2026-07-16, exporté sans arrêter le run en
+  // cours). Premier modèle de ce projet à avoir vu des erreurs de prononciation
+  // pendant son entraînement : tous les précédents n'avaient été nourris QUE de
+  // Coran parfaitement récité (284823 clips, 0 erreur -- l'augmentation TTS
+  // avait été perdue lors de la reconstruction du manifeste le 12/07), d'où un
+  // biais qui lui faisait "corriger" les fautes vers la forme canonique -- une
+  // erreur invisible pour le GOP (si le modèle est sûr du canonique,
+  // forced == free -> gop=0 -> vert, aucun seuil ne rattrape ça).
+  // Mélange : Coran 150h (replay anti-oubli) + Arabic Speech Corpus x10 (vraie
+  // voix, arabe NON coranique vocalisé -> aucun prior canonique possible) +
+  // TTS x5 (18084 erreurs délibérées sin/sad, harakat) = 34% de contre-exemples.
+  // Gain mesuré sur 150 clips d'erreurs tenus hors entraînement
+  // (cf. benchmark/eval_error_detection.py) :
+  //     détection d'erreur : 18.7% -> 57.3%   (x3)
+  //     erreur manquée     : 28.7% -> 18.0%
+  //     CER coranique      :  9.03% -> 9.46%  (contrôle anti-oubli, stable)
+  // Même tokenizer tajweed_bpe_v1 -> vocab.json et word_tokens.json identiques
+  // (ce dernier CORRIGÉ du token '▁' parasite, cf. build_word_token_lookup.py).
+  // Rollback : 'models/fastconformer-ctc-tajweed-v2-059' (déployé, ou
+  // 'models/fastconformer-ctc-pcd' -- fichiers jamais supprimés du PC).
+  static const _kModelSubdir = 'models/fastconformer-ctc-mixed-e02';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // Dictionnaire mot -> IDs de tokens précalculé avec le VRAI tokenizer NeMo
@@ -136,6 +156,14 @@ class FastConformerVerifier {
       });
       _loaded = ok ?? false;
       debugPrint('[FastConformer] Modèle chargé : $_loaded');
+      // Trace le modèle REELLEMENT charge (cf. _kBuildTag dans
+      // diagnostic_log.dart, meme motivation) : plusieurs checkpoints ont ete
+      // deployes/compares le 2026-07-16, et leurs plages de gop typiques
+      // different beaucoup (pcd ~0, tajweed -5 a -9). Sans cette ligne, un log
+      // ne permet pas de savoir quel modele a produit les scores qu'on y lit.
+      DiagnosticLog.log('FastConformer',
+          'modele charge=$_loaded subdir=$_kModelSubdir '
+          'word_tokens=${hasWordTokens ? "oui" : "non (repli greedy)"}');
       // Relie le fichier de log natif (BufferedTranscriber, ForcedAligner) au
       // MÊME fichier persistant que le côté Dart (cf. diagnostic_log.dart) —
       // une seule chronologie, récupérable par adb pull sans connexion

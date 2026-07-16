@@ -53,6 +53,12 @@ _PUNCT = re.compile(r"""[،؛؟.,!?:;\-_()\[\]{}"'»«]""")
 _WS = re.compile(r"\s+")
 
 
+   # Harakat courtes SAUF shadda (fathatan/dammatan/kasratan/fatha/damma/
+# kasra/sukun) -- U+064B-064F, 0650, 0652, en excluant explicitement le
+# shadda U+0651 qui tombe au milieu de cette plage.
+_HARAKAT_SHADDA = re.compile("[ًٌٍَُِْ]ّ")
+
+
 def normalize_training(text: str) -> str:
     t = text
     t = t.replace("ٱ", "ا")
@@ -67,6 +73,15 @@ def normalize_training(text: str) -> str:
     t = t.replace("۩", "")
     t = _ANNOTATION_MARKS.sub("", t)
     t = _PUNCT.sub("", t)
+    # Canonicalise harakat+shadda -> shadda+harakat (ordre appris à
+    # l'entraînement) -- vérifié empiriquement 2026-07-16 sur le manifest
+    # réel (50 000 lignes) : 100% des occurrences shadda+harakat sont dans
+    # l'ordre SHADDA PUIS HARAKAT, uniforme quelle que soit la voyelle
+    # (fatha/damma au-dessus, kasra en-dessous). L'API Quran.com produit
+    # nativement ce même ordre -- ce script (qui lit l'API) n'était donc pas
+    # la source du bug, mais on canonicalise quand même défensivement pour
+    # ne jamais dépendre de l'ordre exact retourné par l'API.
+    t = _HARAKAT_SHADDA.sub(lambda m: "ّ" + m.group(0)[0], t)
     return _WS.sub(" ", t).strip()
 
 
@@ -112,11 +127,45 @@ def main():
         str(NEMO_SNAPSHOT), map_location="cpu")
     tok = model.tokenizer
 
-    print("Tokenisation de chaque mot (SentencePiece réel, préfixe ▁)...")
+    print("Tokenisation de chaque mot (SentencePiece réel)...")
     lookup: dict[str, list[int]] = {}
     unk_count = 0
     for w in sorted(words):
-        ids = tok.text_to_ids("▁" + w)
+        # BUG CORRIGÉ 2026-07-16 — NE PAS remettre `"▁" + w` ici.
+        #
+        # Le code d'origine faisait `tok.text_to_ids("▁" + w)`, en croyant devoir
+        # ajouter le marqueur de début de mot SentencePiece à la main. C'est faux :
+        # SentencePiece l'ajoute déjà lui-même (add_dummy_prefix). Le préfixe
+        # manuel produisait donc un marqueur DOUBLÉ :
+        #     text_to_ids("▁"+"رَبِّ") -> ['▁', '▁رَبِّ']   (parasite en tête)
+        #     text_to_ids("رَبِّ")     -> ['▁رَبِّ']         (correct)
+        # Vérifié sur le tokenizer tajweed_bpe_v1 : 19001/19001 entrées touchées,
+        # 5.00 tokens/mot au lieu de 4.00.
+        #
+        # POURQUOI C'ÉTAIT GRAVE (et invisible) : le token '▁' isolé n'est jamais
+        # émis par le modèle (il n'existe pas comme unité dans les transcriptions
+        # d'entraînement). L'alignement forcé devait quand même le placer sur une
+        # frame, où sa logprob est ~-inf -> ça polluait la MOYENNE du mot :
+        #   - mot à 2 tokens (رَبِّ) : 50% du score = parasite -> gop -10.9
+        #   - mot à 4 tokens (بِسْمِ) : 25%                     -> gop -4.5
+        # Conséquences observées sur device : faux "unclear/error" sur des mots
+        # PARFAITEMENT prononcés (entendu="رَبِّ", free≈0 -> le modèle était sûr),
+        # ET blocage de la DP d'alignement (si forcer chaque mot coûte un token
+        # impossible, rester en blank devient moins cher -> la frontière stagne).
+        # Ce blocage a coûté 4 tentatives de correction dans ForcedAligner.kt
+        # (cf. journal des tentatives dans son companion object) qui traitaient
+        # le SYMPTÔME : le diagnostic "checkpoint pas assez entraîné, donc peu
+        # confiant" était faux, le modèle était sain depuis le début.
+        #
+        # Invisible sur le modèle "pcd" (0/18340 entrées avec '▁' en tête, gop ~0) :
+        # son tokenizer ne produisait pas ce doublon, d'où une régression
+        # silencieuse au passage à tajweed_bpe_v1.
+        #
+        # Note : ~840 mots ne "round-trippent" pas à l'identique (SentencePiece
+        # normalise en interne alef+maddah U+0627+U+0653 -> U+0622 alef-with-madda).
+        # Inoffensif : équivalence canonique Unicode (NFC égaux), la clé du lookup
+        # est inchangée et les IDs sont ceux que le modèle a appris.
+        ids = tok.text_to_ids(w)
         lookup[w] = ids
         # Vérif grossière : un id hors vocabulaire (>= taille vocab) signalerait
         # un problème de tokenizer -- ne devrait jamais arriver avec SentencePiece

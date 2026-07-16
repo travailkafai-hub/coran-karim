@@ -37,6 +37,25 @@ class DiagnosticLog {
 
   static String? get path => _file?.path;
 
+  /// Identifiant du CODE embarqué dans l'APK — à bumper manuellement à chaque
+  /// changement de comportement qu'on veut pouvoir tracer dans les logs.
+  ///
+  /// Ajouté 2026-07-16 après une perte de temps réelle : un correctif
+  /// d'alignement (`maxReachable`) avait été compilé mais PAS installé sur le
+  /// téléphone, et le log du test suivant était strictement indiscernable de
+  /// celui de la version précédente -- diagnostic mené sur un binaire qui ne
+  /// contenait pas le fix, conclusions faussées. Une ligne de version en tête
+  /// de session rend l'erreur impossible à répéter silencieusement : si ce
+  /// tag ne correspond pas au fix qu'on croit tester, le log le dit tout de
+  /// suite.
+  ///
+  /// [_kBuildTimestamp] complète le tag manuel : injecté au build via
+  /// `--dart-define=BUILD_TS=...`, il distingue deux compilations du même tag
+  /// (utile quand on itère sans bumper le tag). Vide si non fourni.
+  static const String _kBuildTag = 'mixed-e02+fuite-session+1page';
+  static const String _kBuildTimestamp =
+      String.fromEnvironment('BUILD_TS', defaultValue: '');
+
   static Future<String?> init() async {
     if (_file != null) return _file!.path;
     try {
@@ -44,6 +63,9 @@ class DiagnosticLog {
       if (dir == null) return null;
       _file = File('${dir.path}/recitation_diagnostic.log');
       log('DiagnosticLog', '=== session démarrée ===');
+      log('DiagnosticLog',
+          '=== BUILD code=$_kBuildTag'
+          '${_kBuildTimestamp.isEmpty ? '' : ' compile=$_kBuildTimestamp'} ===');
       return _file!.path;
     } catch (e) {
       debugPrint('[DiagnosticLog] init échoué : $e');

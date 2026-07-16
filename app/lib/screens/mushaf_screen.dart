@@ -326,19 +326,44 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   }
 
   /// Appui long sur le micro : mode karaoké (récitation continue immersive,
-  /// expérience cible) depuis le verset actif jusqu'à la fin de la sourate.
+  /// expérience cible) depuis le verset actif. La suite est chargée PAGE PAR
+  /// PAGE par l'écran lui-même (cf. `_maybeExtendNextPage`), à l'approche de
+  /// la fin -- l'enchaînement reste donc illimité, y compris sur la sourate
+  /// suivante.
+  ///
+  /// Bug corrigé 2026-07-16 : on passait ici `_verses.sublist(_activeVerse)`,
+  /// soit TOUTE la fin de la sourate. Sur Al-Baqara ça faisait **6121 mots**
+  /// d'un coup (log device : "cible d'alignement : 6121 mots"), là où le
+  /// principe retenu est une page à la fois. Effet pervers : l'extension
+  /// page par page se cale sur `_verses.last.pageNumber` -- en chargeant tout,
+  /// cette dernière page était celle de la FIN de la sourate, donc le
+  /// mécanisme ne pouvait jamais servir, et toute la sourate restait tokenisée
+  /// et alignée en mémoire pour rien.
   void _openKaraoke() {
-    final fragment = _verses.sublist(_activeVerse);
     Navigator.push(context,
-        MaterialPageRoute(builder: (_) => KaraokeRecitationScreen(verses: fragment)));
+        MaterialPageRoute(
+            builder: (_) => KaraokeRecitationScreen(verses: _fragmentFromActive())));
+  }
+
+  /// Versets du verset actif jusqu'à la fin de SA page (repli : toute la fin de
+  /// la sourate si la pagination est inconnue -- `pageNumber` est nullable côté
+  /// API).
+  List<Verse> _fragmentFromActive() {
+    final rest = _verses.sublist(_activeVerse);
+    final page = rest.first.pageNumber;
+    if (page == null) return rest;
+    final sameFirstPage = rest.takeWhile((v) => v.pageNumber == page).toList();
+    return sameFirstPage.isEmpty ? rest : sameFirstPage;
   }
 
   /// Double-tap sur le micro : écran de test/debug (transcript brut visible),
   /// utilisé en interne pour juger la qualité du modèle pendant l'entraînement.
   void _openContinuousRecitation() {
-    final fragment = _verses.sublist(_activeVerse);
+    // Même borne d'une page qu'en karaoké (cf. _fragmentFromActive) : cet écran
+    // de debug partageait le bug des 6121 mots chargés d'un coup.
     Navigator.push(context,
-        MaterialPageRoute(builder: (_) => RecitationScreen(verses: fragment)));
+        MaterialPageRoute(
+            builder: (_) => RecitationScreen(verses: _fragmentFromActive())));
   }
 }
 

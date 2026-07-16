@@ -277,7 +277,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     val pcm = WavReader.readMono16kFloat(wavPath)
                     val logprobs = current.computeLogProbs(pcm)
                     val aligner = ForcedAligner(current.vocabPieces, current.blank)
-                    val res = aligner.align(logprobs, tokens.subList(anchor, tokens.size), anchor)
+                    val res = aligner.align(logprobs, tokens.subList(anchor, tokens.size), anchor, isFinal = true)
                     if (res == null) {
                         withContext(Dispatchers.Main) { result.success(null) }
                         return@launch

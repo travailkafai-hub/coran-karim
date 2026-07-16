@@ -68,6 +68,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   StreamSubscription<int>? _wordFailedSub;
   bool _autoCorrecting = false; // évite deux corrections en même temps
   DateTime? _correctionCooldownUntil; // anti-rafale, voir _onWordFailed
+  bool _promptingWord = false; // souffleur en cours, voir _promptCurrentWord
 
   // Pause manuelle (demande utilisateur 2026-07-10 : "il faut que je gère la
   // pause aussi et après je continue") — distincte du STOP (halo central, qui
@@ -351,6 +352,70 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     _prefetchedVerseKey = verse.key;
     final reciter = ref.read(playerProvider).reciter;
     unawaited(WordCorrectionAudio.prefetch(verse, reciter));
+  }
+
+  /// « Souffleur » : joue le mot ATTENDU courant (celui sur lequel le réciteur
+  /// est bloqué) par la voix du récitateur choisi — à la demande explicite de
+  /// l'utilisateur (demande 2026-07-16 : "un moyen d'aide si le user veut que
+  /// le récitateur dise le mot suivant").
+  ///
+  /// Distinct de la correction automatique (`_onWordFailed`), qui se déclenche
+  /// SEULE sur une erreur détectée, rejoue une PLAGE (mot précédent + mots
+  /// sautés) puis FORCE à refaire cette plage (`rewindAndUnlock`). Ici on ne
+  /// juge rien et on ne recule rien : le réciteur a juste un trou de mémoire,
+  /// il demande le mot, il l'entend, il continue. Aucun mot n'est marqué.
+  ///
+  /// Réutilise le même garde-fou audio que la correction automatique, pour une
+  /// raison non négociable : pendant la lecture, le HAUT-PARLEUR est capté par
+  /// le MICRO. Sans `pauseCapture` + `resetBuffer`, la voix du récitateur
+  /// serait transcrite et jugée comme étant celle de l'utilisateur — il aurait
+  /// des mots validés (ou fautés) sans avoir ouvert la bouche.
+  Future<void> _promptCurrentWord() async {
+    // Ne jamais se superposer à une correction automatique en cours : les deux
+    // manipulent capture + buffer, s'entrelacer corromprait l'état.
+    if (_autoCorrecting || _promptingWord) return;
+    final st = ref.read(recitationProvider);
+    final pointer = st.pointer;
+    final verse = _verseContaining(pointer);
+    final local = _localIndexInVerse(pointer);
+    if (verse == null || local == null) return;
+
+    setState(() => _promptingWord = true);
+    final verifier = ref.read(recitationVerifierProvider);
+    final wasListening = st.status == RecitationStatus.listening;
+    DiagnosticLog.log('Souffleur', 'demande mot pointer=$pointer '
+        'mot="${pointer < st.words.length ? st.words[pointer].display : "?"}" '
+        'verset=${verse.key} local=$local');
+    try {
+      if (wasListening) await verifier.pauseCapture();
+      final reciter = ref.read(playerProvider).reciter;
+      try {
+        // wordsBefore/After = 0 : STRICTEMENT le mot demandé. Contrairement à
+        // la correction (qui rejoue le mot précédent pour donner l'élan), ici
+        // l'utilisateur sait où il en est — il veut le mot, pas le contexte.
+        await WordCorrectionAudio.playWordRange(verse, reciter,
+            errorWordIndex: local, wordsBefore: 0, wordsAfter: 0);
+      } catch (e) {
+        // Même raison que dans _onWordFailed : audio/timing indisponible pour
+        // ce récitateur/verset ne doit jamais casser la session en cours.
+        DiagnosticLog.log('Souffleur', 'échec lecture : $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            duration: Duration(seconds: 2),
+            content: Text('Audio indisponible pour ce mot'),
+          ));
+        }
+      }
+      // Laisse le haut-parleur se taire avant de rouvrir le micro.
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      // Impératif avant de reprendre : purge l'audio capté pendant la lecture
+      // (cf. commentaire de méthode).
+      if (wasListening) await verifier.resetBuffer();
+    } finally {
+      if (wasListening) await verifier.resumeCapture();
+      if (mounted) setState(() => _promptingWord = false);
+    }
   }
 
   @override
@@ -1034,6 +1099,25 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               ),
             ),
           ),
+          // Souffleur (demande utilisateur 2026-07-16) : le réciteur bloque sur
+          // un mot et demande à l'entendre. Uniquement pendant l'écoute — hors
+          // session, il n'y a pas de "mot courant" à souffler. Désactivé
+          // pendant une correction automatique (qui pilote déjà capture+audio)
+          // et pendant sa propre lecture.
+          if (st.status == RecitationStatus.listening)
+            IconButton(
+              tooltip: 'Entendre le mot attendu',
+              icon: Icon(
+                Icons.volume_up_rounded,
+                color: (_autoCorrecting || _promptingWord)
+                    ? Colors.white24
+                    : AppColors.brassLight,
+                size: 20,
+              ),
+              onPressed: (_autoCorrecting || _promptingWord)
+                  ? null
+                  : _promptCurrentWord,
+            ),
           // Sensibilité du jugement (vert/orange/rouge) réglable EN DIRECT,
           // y compris pendant l'écoute (demande utilisateur 2026-07-12).
           IconButton(
