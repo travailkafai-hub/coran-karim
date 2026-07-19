@@ -175,31 +175,46 @@ le commit — pas encore confirmé en usage réel.
   redéploiement.
 
 ### Pistes de qualité identifiées mais non commencées
-- **N-gram + KenLM au décodage** (shallow fusion) — effort faible, supporté
-  nativement par NeMo (`pyctcdecode`), jamais testé.
-- **InterCTC / self-conditioned CTC** — supporté nativement par NeMo (config
-  YAML `interctc.loss_weights`), piste concrète si `val_wer_ctc` replafonne.
-- **CR-CTC** (consistency regularization, double forward SpecAugment) — plus
-  intrusif, en réserve si InterCTC ne suffit pas.
-- **Décodage contraint au texte attendu** (par verset, pas un LM général) —
-  cadrage jugé le plus adapté à l'usage réel de l'app (vérification, pas
-  transcription libre), pas implémenté.
-- **Double tête CTC (tajweed strict / relâché)** — évalué (§5 de
-  `HANDOFF_UBUNTU_TRAINING.md`), **option "normaliser le texte attendu selon le
-  mode" recommandée à la place** (zéro coût modèle) ; pas tranché formellement.
-- **Warsh (2e riwaya)** — données repérées, rien commencé (texte différent,
-  numérotation versets décalée, ré-alignement forcé nécessaire).
-- **Cache-aware streaming réel** — architecturalement incompatible en l'état
-  (convolutions non-causales du Conformer) ; nécessiterait un ré-entraînement
-  dédié depuis une config `streaming.yaml` à convolutions causales, jamais
-  entamé.
-- **Qalqala et autres règles tajweed fines** (ghunna, ikhfa, idgham...) — pas
-  de diacritique dédié dans le script Uthmani, donc pas apprenable de la même
-  façon que le madd/waqf/sajda ; nécessiterait DSP ou tête de classification
-  dédiée (hors scope de tout run CTC actuel).
-- **Vérification de la durée du madd** (§1 de `FONCTIONNALITES_FUTURES.md`) —
-  plusieurs options chiffrées (extraction de timing CTC, approche texte-à-texte
-  côté app), aucune implémentée.
+
+**Triage de priorité (2026-07-19, demande utilisateur)** — trois groupes :
+🟢 à tester en premier (pas de réentraînement, testable offline tout de suite) ;
+🟡 quasi-gratuit mais au bon moment (pas dans le premier run hybride, pour
+garder les variables contrôlées) ; 🔴 deuxième lieu (chantier lourd, bloqué,
+ou dépendant d'un résultat pas encore obtenu). Les pistes "double tête",
+"règles/qalqala" et "RNNT" ne sont plus listées ici : elles sont **absorbées
+par `PLAN_ENTRAINEMENT_HYBRIDE.md`**.
+
+- 🟢 **Décodage contraint au texte attendu** (par verset, pas un LM général) —
+  **LA piste à tester en premier** : aucun réentraînement (pur changement de
+  décodage), testable dès aujourd'hui sur epoch14 contre
+  `val_errors_annotated.jsonl`, et c'est le cadrage jugé le plus adapté au
+  cœur du produit (vérification contre un verset connu, pas transcription
+  libre). Rapport valeur/coût maximal de toute la liste.
+- 🟡 **InterCTC / self-conditioned CTC** — supporté nativement par NeMo (une
+  config YAML `interctc.loss_weights`), gain documenté sans coût d'inférence.
+  Quasi-gratuit MAIS ne pas l'empiler dans le premier run hybride (déjà 3
+  variables nouvelles : tokenizer règles + RNNT + séquencement 1a/1b — si le
+  run déçoit, impossible d'attribuer la cause). À activer au run suivant, ou
+  en A/B court après le run hybride.
+- 🟡 **N-gram + KenLM au décodage** (shallow fusion) — effort faible, PAS de
+  réentraînement, mais ⚠️ **côté localisation/"Suivre une prière" UNIQUEMENT**
+  (tête RNNT/transcription libre) : un LM coranique pousse vers le texte
+  canonique, exactement le biais que la vérification combat. L'appliquer à la
+  tête stricte serait contre-productif — le périmètre fait partie du test.
+- 🔴 **CR-CTC** (consistency regularization, double forward SpecAugment) —
+  en réserve si InterCTC ne suffit pas (documenté ainsi dès l'origine), ne pas
+  tester avant.
+- 🔴 **Vérification de la durée du madd** (§1 de `FONCTIONNALITES_FUTURES.md`)
+  — attendre le verdict du set humain de violations de règles (Phase 3.2 du
+  plan hybride) : si les symboles de règles fonctionnent acoustiquement, le
+  madd en profite ; sinon le pivot DSP couvre madd ET qalqala d'un coup.
+  Tester avant ce verdict = travailler deux fois.
+- 🔴 **Warsh (2e riwaya)** — chantier produit séparé et lourd (texte différent,
+  numérotation décalée, ré-alignement forcé) ; rien à y gagner tant que le
+  pipeline Hafs n'est pas stabilisé.
+- 🔴 **Cache-aware streaming réel** — nécessite un ré-entraînement from-scratch
+  (convolutions causales) ; l'architecture par segments fonctionne en attendant.
+  Ne rouvrir qu'en cas de besoin produit fort de latence sub-seconde.
 - **Mini-LoRA v3 "vraiment on-device"** (ONNX Runtime Training) — **non
   viable confirmé** (crash du gradient-builder sur l'attention `rel_pos`,
   indépendant de l'OS) ; rester sur le mini-LoRA v1 PC-assisté sauf
