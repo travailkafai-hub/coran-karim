@@ -26,6 +26,27 @@ n'anticipe PAS le texte canonique (têtes CTC, corpus mixed), la localisation
 Shazam-like a besoin d'un modèle qui l'anticipe (RNNT). Un seul encodeur, deux
 philosophies de décodage, chacune au bon endroit.
 
+### Un 3e usage découvert en discussion (2026-07-19) : mode "enfant" — PAS une 3e tête
+
+Au-delà d'adulte-strict et adulte-tolérant-tajwid, un mode enfant a besoin
+d'une tolérance différente : un enfant peut réellement confondre des lettres
+proches (سص, طت, ضد...) par immaturité articulatoire, pas par "erreur" au
+même sens qu'un adulte. Exiger la même précision letter-level serait injuste.
+
+**Ce mode ne change RIEN à l'entraînement, aux têtes, ni au run en cours** —
+c'est une couche de comparaison **après décodage**, pas un vocabulaire de
+modèle. Prérequis déjà acquis (mixed-e14) : le modèle transcrit fidèlement
+la lettre réellement prononcée (pas corrigée vers le canonique) — donc l'info
+"l'enfant a dit ص au lieu de س" est déjà disponible dans n'importe quelle
+sortie (stricte, tolérante ou RNNT). Le mode enfant n'a besoin que d'une
+**table de tolérance** appliquée à la comparaison finale, sur les paires déjà
+cataloguées dans `generate_tts_augmentation.py::CONFUSABLE_PAIRS` (سص, طت,
+ضد, ذز, حه, قك, عء) — la même table que celle utilisée pour générer des
+erreurs d'entraînement (strictes pour un adulte), réutilisée à l'envers
+(tolérées pour un enfant). Zéro coût modèle, zéro impact sur le training en
+cours ou sur la décision Phase 2 (2e tête) — à implémenter côté app,
+indépendamment, quand le besoin produit se précise.
+
 ---
 
 ## 2. Le piège stratégique n°1 : les symboles de règles ne doivent pas être décoratifs
