@@ -1,0 +1,13 @@
+{
+  "@@locale": "fr",
+  "navQuran": "Coran",
+  "@navQuran": {"description": "Onglet de navigation principal : lecture du Coran"},
+  "navDuas": "Invocations",
+  "@navDuas": {"description": "Onglet de navigation : invocations/adhkar"},
+  "navCoach": "Coach",
+  "@navCoach": {"description": "Onglet de navigation : coach IA"},
+  "navSettings": "Réglages",
+  "@navSettings": {"description": "Onglet de navigation : réglages"},
+  "appTitle": "Coran Karim",
+  "@appTitle": {"description": "Titre de l'application"}
+}

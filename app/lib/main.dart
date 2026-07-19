@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:flutter_gemma_litertlm/flutter_gemma_litertlm.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'l10n/app_localizations.dart';
+import 'providers/app_settings_provider.dart';
 import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_ai_screen.dart';
@@ -23,15 +26,24 @@ void main() async {
   runApp(const ProviderScope(child: CoranKarimApp()));
 }
 
-class CoranKarimApp extends StatelessWidget {
+class CoranKarimApp extends ConsumerWidget {
   const CoranKarimApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(appLocaleProvider);
     return MaterialApp(
       title: 'Coran Karim',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      locale: Locale(locale),
+      supportedLocales: kSupportedAppLocales.map(Locale.new),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: const HomeScreen(),
     );
   }
@@ -63,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildNav() {
+    final t = AppLocalizations.of(context)!;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.green900,
@@ -82,25 +95,25 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _NavItem(
                 icon: Icons.menu_book_rounded,
-                label: 'القرآن',
+                label: t.navQuran,
                 active: _tab == 0,
                 onTap: () => setState(() => _tab = 0),
               ),
               _NavItem(
                 icon: Icons.volunteer_activism_rounded,
-                label: 'الأذكار',
+                label: t.navDuas,
                 active: _tab == 1,
                 onTap: () => setState(() => _tab = 1),
               ),
               _NavItem(
                 icon: Icons.psychology_alt_rounded,
-                label: 'مدرّبي',
+                label: t.navCoach,
                 active: _tab == 2,
                 onTap: () => setState(() => _tab = 2),
               ),
               _NavItem(
                 icon: Icons.settings_rounded,
-                label: 'إعدادات',
+                label: t.navSettings,
                 active: _tab == 3,
                 onTap: () => setState(() => _tab = 3),
               ),
@@ -121,7 +134,23 @@ class _NavItem extends StatelessWidget {
       required this.active, required this.onTap});
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  Widget build(BuildContext context) {
+    // Police arabe (Scheherazade New) seulement en locale arabe -- en fr/en
+    // le libellé de menu est en latin, la police calligraphique arabe ne
+    // convient plus (REFONTE_IHM.md §7bis).
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final labelStyle = isArabic
+        ? GoogleFonts.scheherazadeNew(
+            fontSize: 12,
+            color: active ? AppColors.brass : AppColors.cream.withAlpha(140),
+            fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+          )
+        : GoogleFonts.manrope(
+            fontSize: 10.5,
+            color: active ? AppColors.brass : AppColors.cream.withAlpha(140),
+            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+          );
+    return GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: Padding(
@@ -133,16 +162,10 @@ class _NavItem extends StatelessWidget {
                   color: active ? AppColors.brass : AppColors.cream.withAlpha(140),
                   size: 24),
               const SizedBox(height: 2),
-              Text(label,
-                  style: GoogleFonts.scheherazadeNew(
-                    fontSize: 12,
-                    color: active
-                        ? AppColors.brass
-                        : AppColors.cream.withAlpha(140),
-                    fontWeight: active ? FontWeight.w700 : FontWeight.normal,
-                  )),
+              Text(label, style: labelStyle),
             ],
           ),
         ),
       );
+  }
 }

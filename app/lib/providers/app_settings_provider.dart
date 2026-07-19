@@ -1,3 +1,4 @@
+import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -245,3 +246,48 @@ class FollowWithoutBlockingSettingNotifier extends StateNotifier<bool> {
 // RecitationNotifier.startPrayerFollow), plus adéquat pour l'usage réel
 // (imam qui ne pré-sélectionne pas de sourate) que ce toggle sur le karaoké
 // classique. Voir historique git pour l'implémentation précédente si besoin.
+
+const _kPrefAppLocale = 'app.locale';
+const kSupportedAppLocales = ['ar', 'fr', 'en'];
+
+/// Langue principale de l'application (REFONTE_IHM.md §7bis) : pilote les
+/// menus/UI ET le RTL. Distincte de [explanationLanguageProvider] (qui ne
+/// contrôle que la langue des explications/cascade, réglage plus ancien et
+/// plus étroit, 2026-07-12) -- les deux coexistent pour l'instant ; la
+/// réconciliation (faire suivre explanationLanguageProvider sur celui-ci par
+/// défaut, cf. §7bis point 6) reste à faire lors de l'extraction ARB
+/// écran par écran.
+/// Règle verrouillée : en arabe, tout l'écran est en arabe (aucune
+/// traduction affichée) ; en fr/en, le texte coranique reste TOUJOURS en
+/// arabe, seuls les menus/traductions/explications suivent la langue.
+/// Défaut : langue système si dans {ar, fr, en}, sinon 'fr'.
+final appLocaleProvider =
+    StateNotifierProvider<AppLocaleNotifier, String>((ref) {
+  return AppLocaleNotifier();
+});
+
+class AppLocaleNotifier extends StateNotifier<String> {
+  AppLocaleNotifier() : super(_systemDefault()) {
+    _restore();
+  }
+
+  static String _systemDefault() {
+    final systemLang = PlatformDispatcher.instance.locale.languageCode;
+    return kSupportedAppLocales.contains(systemLang) ? systemLang : 'fr';
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_kPrefAppLocale);
+    if (saved != null && mounted && kSupportedAppLocales.contains(saved)) {
+      state = saved;
+    }
+  }
+
+  Future<void> set(String value) async {
+    if (!kSupportedAppLocales.contains(value)) return;
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefAppLocale, value);
+  }
+}

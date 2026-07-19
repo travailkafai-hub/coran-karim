@@ -151,11 +151,39 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           _SectionHeader('Application'),
           _SettingsTile(
+            icon: Icons.language_rounded,
+            title: 'Langue de l\'application',
+            subtitle: _localeLabel(ref.watch(appLocaleProvider)),
+            onTap: () => _pickLocale(context, ref),
+          ),
+          _SettingsTile(
             icon: Icons.info_outline_rounded,
             title: 'Coran Karim',
             subtitle: 'Version 1.0.0  •  Propulsé par Gemma 4 + Whisper',
           ),
         ],
+      ),
+    );
+  }
+
+  String _localeLabel(String locale) => switch (locale) {
+        'ar' => 'العربية',
+        'en' => 'English',
+        _ => 'Français',
+      };
+
+  void _pickLocale(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.green800,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _LocaleSheet(
+        current: ref.read(appLocaleProvider),
+        onPick: (locale) {
+          ref.read(appLocaleProvider.notifier).set(locale);
+          Navigator.pop(context);
+        },
       ),
     );
   }
@@ -301,6 +329,50 @@ class _VoiceLoraClipsTileState extends State<_VoiceLoraClipsTile> {
       onTap: (count != null && count > 0 && !_exporting) ? _export : null,
     );
   }
+}
+
+class _LocaleSheet extends StatelessWidget {
+  final String current;
+  final void Function(String) onPick;
+  const _LocaleSheet({required this.current, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Langue de l\'application',
+                style: GoogleFonts.fraunces(
+                    fontSize: 16, color: AppColors.brassLight)),
+            const SizedBox(height: 4),
+            Text(
+              'En arabe, tout le contenu (menus et Coran) reste en arabe, sans '
+              'traduction. En français/anglais, le Coran reste toujours en '
+              'arabe ; seuls les menus et les explications changent de langue.',
+              style: GoogleFonts.manrope(fontSize: 11.5, color: AppColors.cream.withAlpha(200)),
+            ),
+            const SizedBox(height: 16),
+            for (final (code, label) in const [
+              ('ar', 'العربية'),
+              ('fr', 'Français'),
+              ('en', 'English'),
+            ])
+              ListTile(
+                title: Text(label,
+                    style: GoogleFonts.manrope(
+                        color: AppColors.cream,
+                        fontWeight: code == current ? FontWeight.w700 : FontWeight.normal)),
+                trailing: code == current
+                    ? const Icon(Icons.check_rounded, color: AppColors.brass)
+                    : null,
+                onTap: () => onPick(code),
+                dense: true,
+              ),
+          ],
+        ),
+      );
 }
 
 class _RepeatDrillCountSheet extends StatefulWidget {

@@ -9,6 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
 
   # State management
   flutter_riverpod: ^2.6.1
@@ -70,6 +73,7 @@ dependency_overrides:
 
 flutter:
   uses-material-design: true
+  generate: true
   assets:
     - assets/data/quran_search_index.json
     - assets/data/quran_chapters.json
