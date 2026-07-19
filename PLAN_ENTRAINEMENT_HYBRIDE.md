@@ -117,6 +117,48 @@ entre les deux hypothèses** — toujours pas fait, toujours le vrai juge de
 paix. Ce test intermédiaire élimine au moins l'hypothèse la plus grossière
 (symboles émis n'importe où/n'importe quand sans rapport à l'audio).
 
+### Triangulation CTC vs RNNT sur les 17 règles (2026-07-19)
+
+Idée : les deux têtes partagent le MÊME encodeur mais ont des paradigmes de
+décodage opposés (CTC frame-indépendant vs RNNT autorégressif avec mémoire de
+langage interne). Si la détection des règles était un artefact décoratif
+propre à l'entraînement CTC, les deux devraient diverger nettement. Testé
+sur les MÊMES clips (comparaison appariée), `test_ctc_vs_rnnt_rules.py`,
+n≤50/classe, dataset fiable (`nemo_manifests_rules/val_manifest.jsonl`,
+PAS le YouTube invalidé ci-dessous) :
+
+| Règle | CTC | RNNT | Règle | CTC | RNNT |
+|---|---|---|---|---|---|
+| madda_necessary (n=32) | 72% | 75% | idgham_shafawi | 92% | 90% |
+| madda_obligatory | 96% | 92% | iqlab | 96% | 96% |
+| madda_permissible | 98% | 98% | idgham_wo_ghunnah | 94% | 96% |
+| madda_normal | 96% | 96% | idgham_mutajanisayn (n=13) | 85% | 77% |
+| ghunnah | 98% | 96% | idgham_mutaqaribayn (n=3) | 100% | 100% |
+| ikhafa | 94% | 94% | laam_shamsiyah | 100% | 100% |
+| ikhafa_shafawi | 96% | 96% | ham_wasl | 94% | 96% |
+| idgham_ghunnah | 100% | 98% | slnt | 90% | 92% |
+| qalaqah | 96% | 96% | | | |
+
+**Convergence quasi parfaite sur 15/17 règles** (±2-4pts, le seul écart
+notable — `idgham_mutajanisayn`, -8pts — porte sur n=13, pas significatif).
+Signal de triangulation utile (deux décodeurs indépendants convergent, rend
+l'hypothèse "décoratif" moins probable) — **et rassurant sur le risque
+redouté** : RNNT ne sur-détecte pas systématiquement par rapport à CTC (pas
+de dérive canonique visible ici). **Ne règle toujours PAS** la question
+cross-récitateur/violation-délibérée (mêmes 54 récitateurs qu'en training) —
+le set humain reste le seul test définitif.
+
+### Exigence produit (2026-07-19) : fiabilité PAR règle, pas de score agrégé
+
+L'app affichera la liste des 17 règles, l'utilisateur choisira lui-même
+lesquelles activer — donc chaque règle a besoin de sa propre fiche de
+fiabilité (voir §1), pas d'une moyenne. Sur la base des deux tests
+ci-dessus, classement provisoire : **prêtes** (≥92% des deux côtés) — la
+majorité des 17 ; **à surveiller** (madda_necessary ~72-75%, classe la plus
+rare) ; **échantillon insuffisant pour trancher** (idgham_mutajanisayn n=13,
+idgham_mutaqaribayn n=3) — reprendre la mesure avec plus de clips avant de
+classer ces deux dernières.
+
 ### Tentative de test cross-récitateur via YouTube (2026-07-19) — INVALIDÉE, méthode à refaire
 
 Motivation : les 54 récitateurs Hafs disponibles sont TOUS déjà utilisés en
