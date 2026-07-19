@@ -79,5 +79,7 @@ flutter:
     - assets/data/quran_chapters.json
     - assets/data/quran_verses.json
     - assets/data/rule_reliability.json
+    - assets/data/quran_rules_annotated.json
     - assets/illumination/medallion.svg
+    - assets/illumination/quran_pattern_tile.svg
     - assets/mindmaps/fr/

@@ -263,7 +263,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final notifier = ref.read(recitationProvider.notifier);
-      notifier.setup(text);
+      // setupVerses (verset-conscient) : annote les règles tajwid pour le
+      // modèle stage1b-260h (cible d'alignement = forme apprise avec symboles).
+      // Fire-and-forget : l'await interne (chargement des annotations, ~1x)
+      // ne bloque pas le frame ; _ready garde déjà l'écran non-interactif tant
+      // que ce callback n'a pas tourné (même garantie qu'avant avec setup()).
+      unawaited(notifier.setupVerses(chunk.segments));
       // Sensibilité déjà réglée par l'utilisateur (persistée) -- ref.listen
       // (build()) ne rattrape que les CHANGEMENTS suivants, pas l'état
       // initial (même raison que le préchauffage de correction ci-dessous).
@@ -337,7 +342,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           if (e != null) _surahMeta[e.key] = e.value;
         }
       });
-      await ref.read(recitationProvider.notifier).extendWords(chunk.text);
+      await ref.read(recitationProvider.notifier).extendVerses(chunk.segments);
     } catch (e) {
       // Best-effort : un échec ici (réseau, API) ne doit pas interrompre la
       // récitation en cours -- la session se termine juste normalement à la
@@ -614,24 +619,32 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// sourate + début de la suivante sur la même page du Mushaf).
   /// [prevSurahBefore] = sourate du dernier verset AVANT [verses] dans
   /// `_verses` (null au tout premier appel de la session).
-  ({String text, List<List<TextSpan>> spans}) _buildChunk(
-      List<Verse> verses, int? prevSurahBefore, Verse bismillahVerse) {
+  ({String text, List<List<TextSpan>> spans, List<RecitationSegment> segments})
+      _buildChunk(
+          List<Verse> verses, int? prevSurahBefore, Verse bismillahVerse) {
     final style = GoogleFonts.scheherazadeNew(
         fontSize: 30, height: 2.1, color: AppColors.cream);
     final parts = <String>[];
     final spans = <List<TextSpan>>[];
+    // Segments verset-clés pour l'annotation des règles tajwid (cf.
+    // RecitationNotifier.setupVerses). La Bismillah insérée en tête de sourate
+    // est le verset 1:1 (mots identiques) -> annotée sous cette clé.
+    final segments = <RecitationSegment>[];
     var prevSurah = prevSurahBefore;
     for (final v in verses) {
       if (_bismillahBefore(v, prevSurah)) {
         parts.add(bismillahVerse.textUthmani);
         spans.addAll(tajweedSpansPerWord(
             bismillahVerse.textUthmani, bismillahVerse.textUthmaniTajweed, style));
+        segments.add((surah: 1, ayah: 1, text: bismillahVerse.textUthmani));
       }
       parts.add(v.textUthmani);
       spans.addAll(tajweedSpansPerWord(v.textUthmani, v.textUthmaniTajweed, style));
+      segments.add(
+          (surah: v.surahNumber, ayah: v.ayahNumber, text: v.textUthmani));
       prevSurah = v.surahNumber;
     }
-    return (text: parts.join(' '), spans: spans);
+    return (text: parts.join(' '), spans: spans, segments: segments);
   }
 
   /// Verset contenant le mot [wordIndex] (les mots affichés = concaténation

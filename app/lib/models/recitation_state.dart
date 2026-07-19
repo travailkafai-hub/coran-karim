@@ -1,8 +1,9 @@
-/// État de la récitation dynamique (validation temps-réel mot-par-mot).
-///
-/// Le principe : l'utilisateur récite en continu, et chaque mot du verset
-/// passe de [pending] → [current] → [correct] (vert) ou [error] (rouge),
-/// sans aucune interaction manuelle pendant la récitation.
+// État de la récitation dynamique (validation temps-réel mot-par-mot).
+//
+// Le principe : l'utilisateur récite en continu, et chaque mot du verset
+// passe de pending → current → correct (vert) ou error (rouge),
+// sans aucune interaction manuelle pendant la récitation.
+import 'judgement_options.dart';
 
 enum WordStatus {
   pending,  // pas encore atteint (gris)
@@ -43,6 +44,21 @@ class RecitedWord {
   // ne fusionne PAS أ/إ/آ/ى/ؤ/ئ/ة comme le fait `strict`, qui reste correct pour
   // la comparaison tolérante mais désaligne la cible envoyée au modèle.
   final String training;
+  // Cible de l'alignement forcé ENVOYÉE au modèle. Pour le modèle stage1b-260h
+  // (2026-07-19), c'est la forme ANNOTÉE de règles tajwid (lettres + harakat +
+  // symboles PUA U+E000..U+E010) que le modèle a apprise à émettre -- aligner
+  // sur `training` nu pénaliserait le chemin forcé sur chaque frame où le
+  // modèle veut émettre un symbole appris, faussant la calibration du gop.
+  // Repli sur `training` (== ancien comportement, sûr) quand aucune annotation
+  // n'est disponible (texte hors-Coran, asset non chargé, ancien modèle sans
+  // symboles). Les symboles n'apparaissent JAMAIS dans display/normalized/
+  // strict (formes de comparaison/affichage) -- uniquement ici.
+  final String alignTarget;
+  // Règles tajwid ATTENDUES sur ce mot (extraites de la forme annotée), dans
+  // l'ordre. Sert à confronter les symboles réellement émis par le modèle à
+  // ceux attendus (détection "règle correctement réalisée ?") et à n'afficher
+  // que les règles activées/fiables. Vide si le mot ne porte aucune règle.
+  final List<TajwidRule> expectedRules;
   final WordStatus status;
   // Jugement DÉFINITIF (plus jamais réécrit) — distinct de [status] : un mot
   // peut avoir un statut (rouge/orange/vert) sans être verrouillé, tant qu'il
@@ -59,15 +75,19 @@ class RecitedWord {
     required this.normalized,
     required this.strict,
     required this.training,
+    String? alignTarget,
+    this.expectedRules = const [],
     this.status = WordStatus.pending,
     this.locked = false,
-  });
+  }) : alignTarget = alignTarget ?? training;
 
   RecitedWord copyWith({WordStatus? status, bool? locked}) => RecitedWord(
         display: display,
         normalized: normalized,
         strict: strict,
         training: training,
+        alignTarget: alignTarget,
+        expectedRules: expectedRules,
         status: status ?? this.status,
         locked: locked ?? this.locked,
       );

@@ -131,7 +131,24 @@ class FastConformerVerifier {
   // (ce dernier CORRIGÉ du token '▁' parasite, cf. build_word_token_lookup.py).
   // Rollback : 'models/fastconformer-ctc-tajweed-v2-059' (déployé, ou
   // 'models/fastconformer-ctc-pcd' -- fichiers jamais supprimés du PC).
-  static const _kModelSubdir = 'models/fastconformer-ctc-mixed-e02';
+  //
+  // MODÈLE STAGE1B-260H (2026-07-19, hybride "vrai tajweed", cf.
+  // PLAN_ENTRAINEMENT_HYBRIDE.md §5ter). Meilleure version mesurée :
+  //   détection d'erreur identique (~65%), corrections silencieuses vers le
+  //   canonique 10,7% (vs 14,7% mixed-e02, -4 pts), CER canonique 6,85%
+  //   (vs 9,18% mixed-e02) -- meilleur sur TOUTES les métriques + émet les
+  //   17 symboles de règles tajwid (U+E000..U+E010) que l'app annote sur la
+  //   cible d'alignement (RecitationNotifier.setupVerses) et surface en badges
+  //   (RecitedWord.expectedRules). Tokenizer DIFFÉRENT (tajweed_rules_bpe_v1,
+  //   1024 tokens dont 41 pièces à symbole) -> vocab.json propre à ce dossier.
+  //   PAS de word_tokens.json (la normalizeTraining supprimerait les symboles :
+  //   incohérent avec ce vocab) -> repli tokenisation greedy de CtcTokenizer.kt
+  //   (gère les symboles PUA comme n'importe quelle pièce).
+  // ROLLBACK IMMÉDIAT : remettre 'models/fastconformer-ctc-mixed-e02'
+  //   ci-dessous (toujours présent sur l'appareil, jamais écrasé) + revenir
+  //   au commit précédent pour l'annotation cible. Les deux modèles coexistent
+  //   dans files/models/ du device.
+  static const _kModelSubdir = 'models/fastconformer-ctc-rules-260h';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // Dictionnaire mot -> IDs de tokens précalculé avec le VRAI tokenizer NeMo

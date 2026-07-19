@@ -2,13 +2,22 @@ import 'dart:async';
 import 'dart:math' show max;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/judgement_options.dart';
 import '../models/recitation_state.dart';
 import '../models/verse.dart' show Verse;
+import '../providers/judgement_provider.dart';
 import '../services/diagnostic_log.dart';
 import '../services/fastconformer_verifier.dart' show AlignPayload;
 import '../services/quran_api.dart';
 import '../services/quran_verse_locator_service.dart';
 import '../services/recitation_verifier.dart';
+import '../services/rule_annotation_service.dart';
+
+/// Segment de texte à réciter, avec sa clé de verset quand elle est connue
+/// (surah/ayah) -- permet l'annotation POSITIONNELLE des règles tajwid par le
+/// [RuleAnnotationService] (cf. RecitedWord.alignTarget). `surah`/`ayah` nuls
+/// = texte hors-Coran (ou verset inconnu) : repli sur la cible canonique, sûr.
+typedef RecitationSegment = ({int? surah, int? ayah, String text});
 
 const double _kSimThreshold = 0.6;
 // Au-dessus de ce seuil de similarité squelette (sans harakat), un mot aligné
@@ -115,7 +124,15 @@ final recitationProvider = StateNotifierProvider.autoDispose<
   // nouvelle instance n'avait aucun abonné (confirmé en log,
   // `hasListener=false` au moment de l'émission).
   ref.keepAlive();
-  return RecitationNotifier(ref.watch(recitationVerifierProvider));
+  final notifier = RecitationNotifier(ref.watch(recitationVerifierProvider));
+  // Options de jugement (preset tajwid/adulte/enfant + règles + toggles) :
+  // état initial + suivi des changements. Le notifier ne les lit pas lui-même
+  // (StateNotifier sans ref) -- on les lui pousse (cf. applyJudgementOptions).
+  notifier.applyJudgementOptions(ref.read(judgementOptionsProvider));
+  ref.listen<JudgementOptions>(judgementOptionsProvider, (_, next) {
+    notifier.applyJudgementOptions(next);
+  });
+  return notifier;
 });
 
 class RecitationNotifier extends StateNotifier<RecitationSessionState> {
@@ -151,6 +168,107 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // pour le mapping exact 0-1 -> seuils.
   double _gopCorrect = _kGopCorrectDefault;
   double _gopUnclear = _kGopUnclearDefault;
+
+  // Options de jugement post-décodage (REFONTE_IHM.md §1, presets
+  // tajwid/adulte/enfant). Poussées par le provider via [applyJudgementOptions]
+  // (ref.listen sur judgementOptionsProvider). Défaut = adulte (strict) tant
+  // que le provider n'a rien poussé. Ces options RELÂCHENT seulement le verdict
+  // (jamais le durcir) : le pipeline GOP reste la source de vérité, et un
+  // preset plus permissif (enfant) ne fait que pardonner certaines classes
+  // d'écart -- il ne peut pas transformer un mot faux en mot juste au-delà de
+  // ce que l'acoustique autorise déjà (mot non prononcé reste rouge).
+  bool _strictHarakat = true;
+  bool _tolerateConfusables = false;
+  Set<TajwidRule> _activeRules = const {};
+
+  /// Poussé par le provider quand l'utilisateur change de preset / de règles.
+  /// Ne touche PAS aux seuils GOP (gérés par setSensitivity, curseur en
+  /// direct) -- agit uniquement à l'étape de RELÂCHE du verdict (_relaxJudged)
+  /// et sur les règles tajwid affichées.
+  void applyJudgementOptions(JudgementOptions opts) {
+    _strictHarakat = opts.strictHarakat;
+    _tolerateConfusables = opts.tolerateConfusables;
+    _activeRules = opts.activeRules;
+  }
+
+  /// Règles tajwid à AFFICHER sur le mot d'index [wordIndex] : celles que le
+  /// modèle attend sur ce mot (RecitedWord.expectedRules) ET que l'utilisateur
+  /// a activées dans son preset ([_activeRules]). Ordre d'apparition dans le
+  /// mot préservé. Vide si aucune règle active ne s'y applique. La fiabilité
+  /// par règle (ready/notReady/insufficient) est appliquée en amont côté écran
+  /// des règles (une règle non fiable n'est jamais sélectionnable), donc pas
+  /// re-filtrée ici. L'UI karaoké lit ceci pour poser des badges de règle.
+  List<TajwidRule> shownRulesFor(int wordIndex) {
+    if (_activeRules.isEmpty) return const [];
+    if (wordIndex < 0 || wordIndex >= state.words.length) return const [];
+    final expected = state.words[wordIndex].expectedRules;
+    if (expected.isEmpty) return const [];
+    return [
+      for (final r in expected)
+        if (_activeRules.contains(r)) r,
+    ];
+  }
+
+  /// Relâche un verdict selon le preset courant (jamais ne le durcit). Appelé
+  /// APRÈS la décision GOP, uniquement quand il y a eu de la parole (un mot
+  /// jamais prononcé reste rouge quel que soit le preset -- on ne saute pas un
+  /// mot). [expected] est le mot attendu, [heardNorm] le squelette réellement
+  /// décodé (biaisé canonique, donc fiable seulement pour ASSOUPLIR).
+  WordStatus _relaxJudged(
+      WordStatus judged, RecitedWord expected, String heardNorm) {
+    if (judged == WordStatus.correct) return judged;
+    final skeletonOk = heardNorm == expected.normalized ||
+        ArabicNormalizer.similarity(heardNorm, expected.normalized) >=
+            _kUnclearSimThreshold;
+    // Harakat non strictes (mode enfant) : lettres bonnes (squelette identique),
+    // seule la voyelle courte / l'articulation fine diverge -> on pardonne.
+    if (!_strictHarakat && skeletonOk) return WordStatus.correct;
+    // Lettres confusables tolérées (mode enfant) : sin/sad, ta/tah... comptées
+    // équivalentes. On ne pardonne que si le SEUL écart squelette est une paire
+    // confusable (pas un mot entièrement différent).
+    if (_tolerateConfusables &&
+        !skeletonOk &&
+        _differsOnlyByConfusables(heardNorm, expected.normalized)) {
+      return _strictHarakat ? WordStatus.unclear : WordStatus.correct;
+    }
+    return judged;
+  }
+
+  // Paires de lettres arabes acoustiquement/graphiquement proches, souvent
+  // confondues par un débutant (mode enfant). Squelette (sans harakat) des deux
+  // côtés. Liste volontairement CONSERVATRICE : uniquement les confusions
+  // classiques d'apprentissage, pas toute la phonologie.
+  static const _confusableClasses = <Set<String>>[
+    {'س', 'ص'}, // sin / sad
+    {'ت', 'ط'}, // ta / tah
+    {'ذ', 'ظ', 'ز'}, // dhal / dha / zay
+    {'ح', 'ه'}, // ha / heh
+    {'ق', 'ك'}, // qaf / kaf
+    {'ض', 'د'}, // dad / dal
+    {'ث', 'س'}, // tha / sin
+  ];
+
+  bool _sameConfusableClass(String a, String b) {
+    if (a == b) return true;
+    for (final c in _confusableClasses) {
+      if (c.contains(a) && c.contains(b)) return true;
+    }
+    return false;
+  }
+
+  /// Vrai si [a] et [b] ont la même longueur et ne diffèrent qu'en lettres
+  /// d'une même classe confusable (au moins une vraie substitution, sinon
+  /// c'est juste l'égalité déjà traitée en amont).
+  bool _differsOnlyByConfusables(String a, String b) {
+    if (a.length != b.length || a.isEmpty) return false;
+    var subs = 0;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] == b[i]) continue;
+      if (!_sameConfusableClass(a[i], b[i])) return false;
+      subs++;
+    }
+    return subs > 0;
+  }
 
   // Mode "réciteur confiant" -- vrai UNIQUEMENT pendant une session démarrée
   // via [startPrayerFollow] (écran dédié "Suivre une prière", plus de toggle
@@ -374,19 +492,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     if (_fatihaWords != null || _fetchingFatiha) return;
     _fetchingFatiha = true;
     try {
+      await RuleAnnotationService.instance.ensureLoaded();
       final verses = await QuranApi.fetchVerses(1);
-      final text = verses.map((v) => v.textUthmani).join(' ');
-      _fatihaWords = ArabicNormalizer.splitExpectedWords(text)
-          .map((w) => RecitedWord(
-                display: w,
-                normalized: ArabicNormalizer.normalize(w),
-                strict: ArabicNormalizer.normalizeStrict(w),
-                training: ArabicNormalizer.normalizeTraining(w),
-              ))
-          .toList();
+      _fatihaWords = _wordsFromVerses(verses);
       _fatihaVerses = verses;
       DiagnosticLog.log('Prière',
           'Al-Fatiha chargée en cache (${_fatihaWords!.length} mots)');
+      return;
     } catch (e) {
       DiagnosticLog.log('Prière', 'échec chargement Al-Fatiha (hors-ligne ?) : $e');
     } finally {
@@ -632,7 +744,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       errorCount: 0,
       prayerPhase: PrayerPhase.fatiha,
     );
-    await _verifier.replaceAlignmentTarget(fatiha.map((w) => w.training).toList(), 0);
+    await _verifier.replaceAlignmentTarget(fatiha.map((w) => w.alignTarget).toList(), 0);
     DiagnosticLog.log('Prière', 'Al-Fatiha reconnue -- suivi actif (${fatiha.length} mots)');
   }
 
@@ -656,7 +768,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       errorCount: 0,
       prayerPhase: PrayerPhase.target,
     );
-    await _verifier.replaceAlignmentTarget(target.map((w) => w.training).toList(), 0);
+    await _verifier.replaceAlignmentTarget(target.map((w) => w.alignTarget).toList(), 0);
     debugPrint('[Prière] Al-Fatiha terminée -- reprise de la sourate suivie '
         '(${target.length} mots)');
   }
@@ -725,16 +837,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         _currentTargetSurah != surahNumber) {
       return;
     }
-    final allWords = <RecitedWord>[];
-    for (final v in verses) {
-      allWords.addAll(ArabicNormalizer.splitExpectedWords(v.textUthmani).map(
-          (w) => RecitedWord(
-                display: w,
-                normalized: ArabicNormalizer.normalize(w),
-                strict: ArabicNormalizer.normalizeStrict(w),
-                training: ArabicNormalizer.normalizeTraining(w),
-              )));
-    }
+    final allWords = _wordsFromVerses(verses);
     if (allWords.isEmpty || anchor >= allWords.length) return;
     final fresh = <RecitedWord>[
       for (var i = 0; i < allWords.length; i++)
@@ -755,7 +858,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       prayerPhase: PrayerPhase.target,
     );
     unawaited(_verifier.replaceAlignmentTarget(
-        allWords.map((w) => w.training).toList(), anchor));
+        allWords.map((w) => w.alignTarget).toList(), anchor));
     debugPrint('[Prière] silence prolongé, aucune identification -- reprise '
         'de la continuité : sourate $surahNumber depuis le mot '
         '$anchor/${allWords.length}');
@@ -804,19 +907,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       return false;
     }
     if (state.prayerPhase != PrayerPhase.detectingTarget) return false;
-    final allWords = <RecitedWord>[];
+    final allWords = _wordsFromVerses(verses);
+    // Ancre = nombre de mots des versets AVANT celui identifié (reprise
+    // possible au milieu de la sourate, pas forcément au verset 1).
     var anchor = 0;
     for (final v in verses) {
-      final vWords = ArabicNormalizer.splitExpectedWords(v.textUthmani)
-          .map((w) => RecitedWord(
-                display: w,
-                normalized: ArabicNormalizer.normalize(w),
-                strict: ArabicNormalizer.normalizeStrict(w),
-                training: ArabicNormalizer.normalizeTraining(w),
-              ))
-          .toList();
-      if (v.ayahNumber < match.ayahNumber) anchor += vWords.length;
-      allWords.addAll(vWords);
+      if (v.ayahNumber < match.ayahNumber) {
+        anchor += ArabicNormalizer.splitExpectedWords(v.textUthmani).length;
+      }
     }
     if (allWords.isEmpty) return false;
     anchor = anchor.clamp(0, allWords.length - 1);
@@ -872,7 +970,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       prayerPhase: PrayerPhase.target,
     );
     await _verifier.replaceAlignmentTarget(
-        allWords.map((w) => w.training).toList(), anchor);
+        allWords.map((w) => w.alignTarget).toList(), anchor);
     DiagnosticLog.log('Prière', 'sourate identifiée : ${match.surahNumber}:'
         '${match.ayahNumber} (confiance ${match.confidence.toStringAsFixed(2)}) '
         '-- suivi actif dès le mot $anchor/${allWords.length}');
@@ -1181,16 +1279,84 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   RecitationNotifier(this._verifier) : super(const RecitationSessionState());
 
   void setup(String arabicText) {
-    final words = ArabicNormalizer.splitExpectedWords(arabicText)
-        .map((w) => RecitedWord(
-              display: w,
-              normalized: ArabicNormalizer.normalize(w),
-              strict: ArabicNormalizer.normalizeStrict(w),
-              training: ArabicNormalizer.normalizeTraining(w),
-            ))
-        .toList();
+    final words = _wordsFromText(arabicText);
     state = RecitationSessionState(words: words);
   }
+
+  /// Construit les mots d'un texte SANS annotation de règles (cible
+  /// d'alignement = forme canonique). Utilisé pour le texte hors-Coran (Coach
+  /// libre) et comme repli. Le modèle stage1b-260h émet quand même ses
+  /// symboles librement, mais le chemin FORCÉ ne les attend pas -> léger biais
+  /// gop sur les frames de symbole (borné, == comportement d'avant l'annotation).
+  static List<RecitedWord> _wordsFromText(String arabicText) =>
+      ArabicNormalizer.splitExpectedWords(arabicText)
+          .map((w) => RecitedWord(
+                display: w,
+                normalized: ArabicNormalizer.normalize(w),
+                strict: ArabicNormalizer.normalizeStrict(w),
+                training: ArabicNormalizer.normalizeTraining(w),
+              ))
+          .toList();
+
+  /// Construit les mots d'un ou plusieurs segments AVEC annotation de règles
+  /// tajwid quand la clé de verset est connue et présente dans l'asset :
+  /// la cible d'alignement forcé (`alignTarget`) devient la forme apprise par
+  /// le modèle (lettres + harakat + symboles), et `expectedRules` liste les
+  /// règles portées par chaque mot. Mapping POSITIONNEL : garanti par la
+  /// génération de l'asset (nombre de mots annotés == canoniques par verset) ;
+  /// tout écart de comptage retombe en silence sur le canonique (sûr) plutôt
+  /// que de risquer un décalage mot-à-mot.
+  static List<RecitedWord> _wordsFromSegments(List<RecitationSegment> segments) {
+    final out = <RecitedWord>[];
+    for (final seg in segments) {
+      final canonWords = ArabicNormalizer.splitExpectedWords(seg.text);
+      List<String>? annotated;
+      if (seg.surah != null && seg.ayah != null) {
+        annotated =
+            RuleAnnotationService.instance.annotatedWords(seg.surah!, seg.ayah!);
+        if (annotated != null && annotated.length != canonWords.length) {
+          // Décalage inattendu (marques de waqf comptées différemment, etc.) :
+          // ne pas risquer un mauvais alignement mot-à-mot, revenir au canonique.
+          DiagnosticLog.log('Rules',
+              'décalage annot ${seg.surah}:${seg.ayah} '
+              '(${annotated.length} vs ${canonWords.length} mots) -> canonique');
+          annotated = null;
+        }
+      }
+      for (var i = 0; i < canonWords.length; i++) {
+        final w = canonWords[i];
+        final aw = annotated?[i];
+        out.add(RecitedWord(
+          display: w,
+          normalized: ArabicNormalizer.normalize(w),
+          strict: ArabicNormalizer.normalizeStrict(w),
+          training: ArabicNormalizer.normalizeTraining(w),
+          alignTarget:
+              aw != null ? ArabicNormalizer.normalizeTraining(aw) : null,
+          expectedRules: aw != null ? RuleSymbols.rulesIn(aw) : const [],
+        ));
+      }
+    }
+    return out;
+  }
+
+  /// Variante verset-consciente de [setup] : annote les règles tajwid. À
+  /// préférer dès que l'appelant connaît les versets (karaoké). Précharge les
+  /// annotations si besoin (idempotent, sans coût après le 1er chargement).
+  Future<void> setupVerses(List<RecitationSegment> segments) async {
+    await RuleAnnotationService.instance.ensureLoaded();
+    state = RecitationSessionState(words: _wordsFromSegments(segments));
+  }
+
+  /// Mots annotés d'une liste de [Verse] (chacun sait sa surah/ayah) — raccourci
+  /// pour les chemins qui tiennent déjà des Verse (Al-Fatiha, cible identifiée
+  /// par Shazam). L'appelant doit avoir chargé les annotations au préalable
+  /// (ensureLoaded) ; à défaut, repli canonique par mot (sûr).
+  static List<RecitedWord> _wordsFromVerses(List<Verse> verses) =>
+      _wordsFromSegments([
+        for (final v in verses)
+          (surah: v.surahNumber, ayah: v.ayahNumber, text: v.textUthmani),
+      ]);
 
   /// Étend la session EN COURS avec du texte supplémentaire (enchaînement sur
   /// la sourate suivante, demande utilisateur 2026-07-11) — contrairement à
@@ -1201,18 +1367,23 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// la récitation continue exactement où elle en était, juste avec plus de
   /// texte à réciter derrière.
   Future<void> extendWords(String moreArabicText) async {
-    final newWords = ArabicNormalizer.splitExpectedWords(moreArabicText)
-        .map((w) => RecitedWord(
-              display: w,
-              normalized: ArabicNormalizer.normalize(w),
-              strict: ArabicNormalizer.normalizeStrict(w),
-              training: ArabicNormalizer.normalizeTraining(w),
-            ))
-        .toList();
+    final newWords = _wordsFromText(moreArabicText);
     if (newWords.isEmpty) return;
     state = state.copyWith(words: [...state.words, ...newWords]);
     await _verifier
-        .extendAlignmentTarget(newWords.map((w) => w.training).toList());
+        .extendAlignmentTarget(newWords.map((w) => w.alignTarget).toList());
+  }
+
+  /// Variante verset-consciente de [extendWords] : annote les règles tajwid
+  /// des nouveaux versets enchaînés (page suivante du Mushaf). Même contrat
+  /// que [extendWords] par ailleurs (n'altère rien de la progression acquise).
+  Future<void> extendVerses(List<RecitationSegment> segments) async {
+    await RuleAnnotationService.instance.ensureLoaded();
+    final newWords = _wordsFromSegments(segments);
+    if (newWords.isEmpty) return;
+    state = state.copyWith(words: [...state.words, ...newWords]);
+    await _verifier
+        .extendAlignmentTarget(newWords.map((w) => w.alignTarget).toList());
   }
 
   Future<void> start() async {
@@ -1237,7 +1408,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _alignSub = _verifier.alignedWords.listen(_onAligned);
     // Forme fidèle à l'entraînement (PAS `strict`, qui fusionne des lettres
     // que le modèle a appris à distinguer — cf. normalizeTraining).
-    await _verifier.start(state.words.map((w) => w.training).toList());
+    await _verifier.start(state.words.map((w) => w.alignTarget).toList());
     _myGeneration = _verifier.sessionGeneration;
   }
 
@@ -1280,7 +1451,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _alignSub = _verifier.alignedWords.listen(_onAligned);
     // Forme fidèle à l'entraînement — cible de l'alignement forcé GOP.
     await _verifier.start(
-      state.words.map((w) => w.training).toList(),
+      state.words.map((w) => w.alignTarget).toList(),
       continuous: true,
     );
     _myGeneration = _verifier.sessionGeneration;
@@ -2086,7 +2257,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
               isOrderedSubsequence);
       final spellsDifferentWord = hasSpeech && !textMatches && !isFragment;
 
-      final WordStatus judged;
+      WordStatus judged;
       if (state.prayerPhase == PrayerPhase.fatiha) {
         // Demande utilisateur 2026-07-19 : "je ne veux pas de correction
         // dans la récitation de Al-Hamdo [Al-Fatiha], elle est très connue
@@ -2121,6 +2292,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         judged = WordStatus.unclear;
       } else {
         judged = WordStatus.error;
+      }
+      // Relâche selon le preset (tajwid/adulte/enfant) -- uniquement quand il y
+      // a eu de la parole (pas en phase Fatiha, déjà forcée à correct). Ne
+      // durcit jamais : un mot faux au-delà du pardon du preset reste rouge.
+      if (hasSpeech && state.prayerPhase != PrayerPhase.fatiha) {
+        judged = _relaxJudged(judged, expected, actualNorm);
       }
       // Une erreur ne se verrouille QUE sur un segment figé (décision
       // utilisateur 2026-07-10, conservée) : un aperçu peut encore mal couvrir
