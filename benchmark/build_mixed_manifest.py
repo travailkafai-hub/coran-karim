@@ -53,7 +53,10 @@ import random
 import wave
 from pathlib import Path
 
-BASE = Path("/mnt/ssd5/Coran Karim/benchmark")
+# Chemin d'origine (autre machine) : Path("/mnt/ssd5/Coran Karim/benchmark")
+# -- remape vers cette machine le 2026-07-19 (meme pattern que les autres
+# scripts d'eval de la session).
+BASE = Path(__file__).parent
 QURAN_TRAIN = BASE / "nemo_manifests_tajweed" / "train_manifest_ubuntu.jsonl"
 QURAN_VAL = BASE / "nemo_manifests_tajweed" / "val_manifest_ubuntu.jsonl"
 ASC_MANIFEST = BASE / "arabic_speech_corpus" / "asc_manifest.jsonl"
@@ -61,9 +64,29 @@ TTS_MANIFEST = BASE / "data" / "tts_augmentation" / "manifest_qa_clean.jsonl"
 TTS_WAV = BASE / "data" / "tts_augmentation" / "wav"
 OUT_DIR = BASE / "nemo_manifests_mixed"
 
-# Les chemins ASC du manifeste source datent de l'epoque Windows.
+# Les chemins ASC du manifeste source datent de l'epoque Windows ; les
+# chemins Coran (nemo_manifests_tajweed) datent d'une session Ubuntu
+# differente (points de montage /mnt/... propres a cette autre machine).
+# Remape directement vers cette machine (2026-07-19, meme pattern que les
+# scripts d'eval de la session).
 WIN_PREFIX = "D:/Coran Karim/benchmark"
-NIX_PREFIX = "/mnt/ssd5/Coran Karim/benchmark"
+NIX_PREFIX = str(BASE)
+HDD_PREFIX_OLD = "/mnt/hdd/Coran Karim/benchmark"
+HDD_PREFIX_NEW = "/run/media/kafai/HDD/Coran Karim/benchmark"
+# Copie locale complete verifiee le 2026-07-19 (414569/414569 clips, meme
+# nombre que le HDD, hash identique sur echantillon) -- utiliser le SSD
+# local (NVMe) plutot que le HDD externe : lectures aleatoires (dataloader
+# shuffle) bien plus rapides, et evite l'usure/la saturation du HDD sur un
+# entrainement de plusieurs heures.
+LOCAL_TRAIN_WAV = str(BASE / "data" / "train_wav_local")
+
+
+def remap_audio_path(p: str) -> str:
+    if p.startswith(HDD_PREFIX_OLD):
+        return LOCAL_TRAIN_WAV + p[len(HDD_PREFIX_OLD + "/data/train_wav"):]
+    if p.startswith(HDD_PREFIX_NEW):
+        return LOCAL_TRAIN_WAV + p[len(HDD_PREFIX_NEW + "/data/train_wav"):]
+    return p
 
 SEED = 1337
 HOLDOUT_FRAC = 0.10  # part d'ASC/TTS tenue hors entrainement, pour mesurer
@@ -103,6 +126,11 @@ def main():
 
     # ── Coran : sous-echantillonnage aleatoire jusqu'au budget d'heures ──────
     quran = load_jsonl(QURAN_TRAIN)
+    for r in quran:
+        r["audio_filepath"] = remap_audio_path(r["audio_filepath"])
+    missing_q = [r for r in quran if not Path(r["audio_filepath"]).exists()]
+    if missing_q:
+        raise SystemExit(f"Coran : {len(missing_q)} fichiers introuvables, ex. {missing_q[0]['audio_filepath']}")
     print(f"Coran source          : {len(quran):>7} clips, {hours(quran):>7.1f} h")
     rng.shuffle(quran)
     kept, acc = [], 0.0
@@ -169,6 +197,15 @@ def main():
     rng.shuffle(train)
 
     val_canon = load_jsonl(QURAN_VAL)
+    # BUG corrige le 2026-07-19 : contrairement a QURAN_TRAIN (ligne ~130),
+    # ce remap manquait ici -- val_canonical.jsonl gardait des chemins morts
+    # /mnt/hdd/... (mount temporaire disparu), en silence jusqu'a ce qu'un
+    # eval tente vraiment de lire ces fichiers (FileNotFoundError).
+    for r in val_canon:
+        r["audio_filepath"] = remap_audio_path(r["audio_filepath"])
+    missing_v = [r for r in val_canon if not Path(r["audio_filepath"]).exists()]
+    if missing_v:
+        raise SystemExit(f"Coran val : {len(missing_v)} fichiers introuvables, ex. {missing_v[0]['audio_filepath']}")
     val_errors = tts_val + asc_val  # ce qu'on veut REELLEMENT mesurer
 
     def write(path, rows):

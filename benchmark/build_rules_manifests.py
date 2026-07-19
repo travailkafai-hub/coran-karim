@@ -61,7 +61,11 @@ def main():
                 continue
             r["audio_filepath"] = p
 
-            m = VERSE_RE.search(p) if "/train_wav_local/" in p else None
+            # "/train_wav_local/" = ancien remap SSD ; "/train_wav/" = chemin
+            # HDD actuel (/run/media/kafai/HDD/... depuis le fix 2026-07-19
+            # de build_mixed_manifest.py) -- les deux designent les clips
+            # Coran, jamais ASC/TTS (noms de fichiers differents).
+            m = VERSE_RE.search(p) if ("/train_wav_local/" in p or "/train_wav/" in p) else None
             if m:
                 key = f"{int(m.group(1))}:{int(m.group(2))}"
                 canon = canonical.get(key)

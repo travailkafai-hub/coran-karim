@@ -524,6 +524,54 @@ CER canonique. Plus deux capacités entièrement nouvelles absentes de
 mixed-e14 : détection des 17 règles de tajwid (92-100% recall, confirmé par
 triangulation CTC/RNNT) et tête RNNT fonctionnelle (localisation).
 
+## 5ter. Continuation sur 260h (vs 150h) — stage1b-260h, 2026-07-19
+
+**Contexte** : le run stage1b (150h) ci-dessus tournait sur une sous-echantillon
+Coran limitee a 150h/1251h disponibles ; l'utilisateur a demande d'augmenter
+ce budget. `build_mixed_manifest.py --quran-hours 260` relance depuis
+`stage1b/stage1b-final.nemo` (seed identique, meme mix ASC×10/TTS×5, donc
+memes contre-exemples, seul le volume Coran change 150h -> 260h, 337.5h
+total). Sortie dans `stage1b-260h/` (rien ecrase, `stage1b/` et
+`stage1b-continued/` — ce dernier vide, tue avant le premier vrai
+checkpoint — restent intacts).
+
+**Deux bugs trouves et corriges avant de pouvoir mesurer quoi que ce soit** :
+1. `build_rules_manifests.py` ne reconnaissait pas le nouveau point de montage
+   HDD (`/run/media/kafai/HDD/...`) — les clips Coran n'etaient PAS annotes
+   avec les symboles de regles (0/156892). Corrige (reconnait aussi
+   `/train_wav/` en plus de `/train_wav_local/`) ; reverifie : 59232/59232
+   clips Coran annotes, 0 mismatch.
+2. `build_mixed_manifest.py` ne remappait jamais les chemins de
+   `val_canonical.jsonl` (seul QURAN_TRAIN etait remappe) — pointaient vers
+   un montage `/mnt/hdd/...` disparu. Invisible jusqu'a ce qu'un eval essaie
+   reellement de lire ces fichiers (`FileNotFoundError`). Corrige (meme
+   `remap_audio_path()` applique a QURAN_VAL), sans impact sur le training
+   deja termine (`val_canonical.jsonl` n'entre pas dans l'entrainement, seul
+   l'eval directe l'utilise).
+
+**Convergence** : `val_wer_ctc` 0,157 (epoch 1) -> **0,147** (meilleur, epoch
+5, retrouve a l'epoch 7) sur 8 epochs — deja meilleur que l'ancien run 150h
+**totalement convergu** (plafonne a 0,1635 vers l'epoch 7-10 sur 11 epochs).
+
+**Comparaison officielle** (`eval_error_detection_rules_stripped.py` —
+wrapper de `eval_error_detection.py` qui ne fait QUE retirer les symboles de
+regles de la sortie avant comparaison, meme metrique/meme protocole/meme
+n=150) :
+
+| Métrique (n=150) | mixed-e14 (déployé) | Hybride 150h | **Hybride 260h** |
+|---|---|---|---|
+| Détection d'erreur (fidèle) | 65,3% | 65,3% | 64,7% (bruit, n=150) |
+| Corrigé à tort vers canonique (invisible) | 14,7% | 10,7% | **10,7%** (identique) |
+| CER anti-oubli | 9,18% | 9,69% (legerement pire) | **6,85%** (nettement meilleur) |
+
+**Le point faible du run 150h (CER canonique degrade de +0,51pt) est
+resolu** — les 110h de Coran supplementaires ont clairement aide a preserver
+l'acquis canonique, SANS perdre le gain anti-biais (corrections silencieuses
+toujours a 10,7%, -4pts vs deploye). Verdict : gain net sur toute la ligne,
+plus les capacites deja listees en 5bis (regles tajwid, RNNT). Ce checkpoint
+(`stage1b-260h/stage1b-final.nemo`) est desormais la meilleure version du
+run hybride a ce jour.
+
 ## 6. Critères de succès / d'arrêt
 
 - **Succès tête stricte** : ≥ epoch14 sur détection lettre/harakat ET
