@@ -26,6 +26,20 @@ n'anticipe PAS le texte canonique (têtes CTC, corpus mixed), la localisation
 Shazam-like a besoin d'un modèle qui l'anticipe (RNNT). Un seul encodeur, deux
 philosophies de décodage, chacune au bon endroit.
 
+### Exigence produit découverte en discussion (2026-07-19) : ciblage par règle, pas de score global
+
+L'app prévoit d'afficher la **liste des 17 règles à l'utilisateur, qui choisit
+lui-même lesquelles il veut se faire corriger** (un débutant peut activer
+seulement qalqala, un avancé toutes). Conséquence directe sur l'évaluation :
+**un score moyen sur les 17 classes ne suffit pas** — il faut une fiche de
+fiabilité **par règle individuelle**, puisque chaque règle sera activée/
+désactivée indépendamment par l'utilisateur. Une règle avec un recall faible
+(ex. `madda_necessary`, la plus rare) ne doit probablement PAS être proposée
+au choix tant qu'elle n'est pas fiable, même si la moyenne globale est bonne.
+**Implication pour la Phase 3** : le rapport final doit classer les 17 règles
+par niveau de fiabilité (prêtes à proposer / à surveiller / pas encore
+fiables), pas juste donner un chiffre agrégé.
+
 ### Un 3e usage découvert en discussion (2026-07-19) : mode "enfant" — PAS une 3e tête
 
 Au-delà d'adulte-strict et adulte-tolérant-tajwid, un mode enfant a besoin
