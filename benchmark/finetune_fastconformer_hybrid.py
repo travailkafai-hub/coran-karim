@@ -106,6 +106,9 @@ def parse_args():
                         "s'entraine alors aussi (seul l'encodeur reste gele).")
     p.add_argument("--limit_train_batches", type=float, default=1.0,
                    help="<1.0 ou entier : smoke test rapide")
+    p.add_argument("--run_tag", default=None,
+                   help="Suffixe du dossier de sortie (stage{N}-{tag}) — utile "
+                        "pour des runs A/B paralleles (ex: comparer ctc_loss_weight)")
     return p.parse_args()
 
 
@@ -136,7 +139,8 @@ def main():
     ctc_weight = (args.ctc_loss_weight if args.ctc_loss_weight is not None
                   else defaults["ctc_weight"])
 
-    ckpt_dir = OUT_ROOT / f"stage{args.stage}"
+    tag = f"-{args.run_tag}" if args.run_tag else ""
+    ckpt_dir = OUT_ROOT / f"stage{args.stage}{tag}"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"=== Entrainement hybride RNNT+CTC — stage {args.stage} ===")

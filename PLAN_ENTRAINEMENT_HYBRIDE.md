@@ -149,10 +149,15 @@ training.
 
 **Décisions d'hyperparamètres actées (et leur statut épistémique)** :
 - `ctc_loss_weight` : 1a=0.5 (**neutre prouvé** — encodeur gelé, les têtes
-  n'interagissent pas) ; 1b = **A/B mesuré 0.3 vs 0.7** (~1 epoch chacun
-  depuis le même snapshot 1a, comparaison val_wer_ctc + val_wer) au lieu
-  d'appliquer aveuglément l'hypothèse "CTC dominante" — demande utilisateur
-  explicite de ne pas appliquer sans preuve.
+  n'interagissent pas) ; 1b = **A/B mesuré le 2026-07-19** (1 epoch chacun
+  depuis le même snapshot 1a, run_tag `ab03`/`ab07`) au lieu d'appliquer
+  aveuglément l'hypothèse "CTC dominante" — demande utilisateur explicite de
+  ne pas appliquer sans preuve. **Résultat** : 0.7 bat 0.3 sur la métrique
+  primaire (`val_wer_ctc` 0,2211 vs 0,2345, ~1,3pt) sans coûter au RNNT
+  (`val_wer` 0,1459 vs 0,1457, différence négligeable) — hypothèse confirmée
+  empiriquement, pas supposée. **Stage 1b complet lancé avec 0.7**, en
+  poursuite depuis le checkpoint `ab07` (pas de redémarrage à zéro — l'epoch
+  déjà investie compte pour les 12 prévues, 11 restantes).
 - Warm-start encodeur mixed-e14 (hypothèse raisonnée ; ablation "base pcd
   vierge" prévue si l'éval Phase 3 déçoit).
 
