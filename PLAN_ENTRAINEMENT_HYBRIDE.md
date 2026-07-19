@@ -147,6 +147,22 @@ training.
   réels attrapés et corrigés : PicklingError Python 3.14 (fix fork), monitor
   1a incohérent.
 
+**Crash réel rencontré et corrigé (2026-07-19)** : le stage 1b complet a crashé
+~1,9 epoch après son lancement — `SIGSEGV` Python natif dans
+`_PyObject_MakeTpCall` (rapport apport Ubuntu), pas une erreur NeMo/PyTorch de
+haut niveau (le `torch.AcceleratorError: launch timed out` visible dans le
+log est une conséquence en cascade pendant le teardown, pas la cause). Cause
+probable : `multiprocessing.set_start_method("fork", force=True)` (ajouté le
+même jour pour contourner un `PicklingError` Python 3.14) appliqué APRÈS que
+le process principal ait initialisé CUDA (`model.cuda()` avant la création
+des workers) — cas documenté comme non défini par PyTorch/NVIDIA, cohérent
+avec un crash aléatoire et tardif jamais reproduit sur les runs plus courts
+(1a, ab03, ab07, tous < 2 epochs). **Fix** : `num_workers=0` par défaut (plus
+aucun worker DataLoader forké → le `PicklingError` d'origine ne se produit
+jamais non plus, pas besoin de fork du tout). Perte quasi nulle : checkpoint
+`epoch=02-val_wer_ctc=0.180` sauvé juste avant le crash, run repris depuis
+`periodic/last.ckpt` sans redémarrage à zéro.
+
 **Décisions d'hyperparamètres actées (et leur statut épistémique)** :
 - `ctc_loss_weight` : 1a=0.5 (**neutre prouvé** — encodeur gelé, les têtes
   n'interagissent pas) ; 1b = **A/B mesuré le 2026-07-19** (1 epoch chacun

@@ -50,11 +50,19 @@ os.environ["USE_JAX"] = "0"
 # doivent PICKLER le dataset, et NeMo contient une classe locale non picklable
 # (TokenizerWrapper) -> PicklingError. fork n'a pas ce probleme (les workers
 # heritent de la memoire, pas de serialisation) et ils ne touchent pas au GPU.
-import multiprocessing as _mp
-try:
-    _mp.set_start_method("fork", force=True)
-except RuntimeError:
-    pass
+#
+# ABANDONNE (2026-07-19, crash reel constate) : force_fork() APRES que le
+# process principal ait deja initialise CUDA (model.cuda() tourne avant la
+# creation des DataLoader workers) est un cas documente comme non defini par
+# PyTorch/NVIDIA -- confirme ici par un crash reel : SIGSEGV Python natif dans
+# _PyObject_MakeTpCall (rapport apport Ubuntu), survenu de maniere aleatoire
+# ~1,9 epoch dans le run "stage1b" complet, jamais reproduit sur les runs plus
+# courts (1a, ab03, ab07). Fix retenu : num_workers=0 par defaut (aucun
+# worker DataLoader -> le PicklingError ne se produit jamais, pas besoin de
+# fork du tout) -- plus lent mais sans risque. Repasser a un start_method
+# fork/forkserver + num_workers>0 UNIQUEMENT si le chargement des donnees
+# redevient un vrai goulot (verifier d'abord si le GPU est deja sature avant
+# d'optimiser ce qui n'est probablement pas le vrai goulot).
 
 from pathlib import Path
 import torch
@@ -93,7 +101,10 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=None)
     p.add_argument("--lr", type=float, default=None)
     p.add_argument("--batch_size", type=int, default=8)
-    p.add_argument("--num_workers", type=int, default=8)
+    p.add_argument("--num_workers", type=int, default=0,
+                   help="0 par defaut depuis le crash SIGSEGV du 2026-07-19 "
+                        "(fork+CUDA) -- remonter seulement si le dataloading "
+                        "est mesure comme le vrai goulot (GPU pas sature)")
     p.add_argument("--max_duration", type=float, default=20.0)
     p.add_argument("--accumulate_grad_batches", type=int, default=4)
     p.add_argument("--ctc_loss_weight", type=float, default=None,
