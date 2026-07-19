@@ -124,6 +124,49 @@ training.
 
 ---
 
+## 4ter. ÉTAT D'EXÉCUTION (mis à jour 2026-07-19 — le run est LANCÉ)
+
+**Phase 0 exécutée et validée le 2026-07-19** :
+- `dl_uthmani_tajweed.py` : 6 236 versets × 2 scripts téléchargés (API quran.com,
+  même source que les couleurs de l'app — l'idée d'origine).
+- `build_rules_annotated_corpus.py` : 56 197 symboles insérés (dont 3 834
+  qalqala), ancrage canonique par alignement Levenshtein (la distance résiduelle
+  vient du numéro de verset ajouté par l'API, absorbé proprement). Placement
+  vérifié à la main sur 1:1, 112:1, 113:1 — qalqala exactement après ق/د.
+- `build_rules_tokenizer.py` : `tokenizers/tajweed_rules_bpe_v1` (BPE 1024),
+  couverture 100% (87 chars + 17 symboles + les 12 marques du §3 de
+  FONCTIONNALITES_FUTURES), roundtrip parfait, zéro <unk>. Bonus : BPE a appris
+  des fusions phonologiquement sensées (sukun+qalqala).
+- `build_rules_manifests.py` : 131 882 train / 3 976 val — 34 222 clips Coran
+  **100% annotés** (matching par verse_key + texte exact, 0 mismatch), 100%
+  des audios présents sur le SSD local, **0 récitateur Warsh** (54 récitateurs
+  audités contre la liste d'exclusion — question historique tranchée pour ce
+  sous-ensemble).
+- Smoke test complet du script hybride (20 batches) : mécanique validée de
+  bout en bout (vraie loss RNNT + checkpoints + snapshot .nemo). Deux bugs
+  réels attrapés et corrigés : PicklingError Python 3.14 (fix fork), monitor
+  1a incohérent.
+
+**Décisions d'hyperparamètres actées (et leur statut épistémique)** :
+- `ctc_loss_weight` : 1a=0.5 (**neutre prouvé** — encodeur gelé, les têtes
+  n'interagissent pas) ; 1b = **A/B mesuré 0.3 vs 0.7** (~1 epoch chacun
+  depuis le même snapshot 1a, comparaison val_wer_ctc + val_wer) au lieu
+  d'appliquer aveuglément l'hypothèse "CTC dominante" — demande utilisateur
+  explicite de ne pas appliquer sans preuve.
+- Warm-start encodeur mixed-e14 (hypothèse raisonnée ; ablation "base pcd
+  vierge" prévue si l'éval Phase 3 déçoit).
+
+**Checklist de déploiement app (à faire APRÈS le run, avant tout déploiement)** :
+1. Régénérer `word_tokens.json` avec le nouveau tokenizer (pattern
+   `build_word_token_lookup_*`).
+2. Décider du sort des symboles PUA en sortie modèle côté app : strip dans la
+   normalisation de comparaison de mots + exploitation séparée pour la
+   vérification des règles.
+3. Ré-adapter les branchements rescoring NLL / décodage contraint (faits le
+   19/07 sur le vocab mixed) au nouveau vocab.
+4. Enregistrer le **set humain de violations de règles** (juge de paix,
+   toujours pas fait) avant de prétendre "règles vérifiées".
+
 ## 4bis. Vue d'ensemble du séquencement (qui apprend quand)
 
 | Étape | Encodeur | Tête RNNT | Tête CTC stricte | Tête CTC tolérante | Données | Durée |
