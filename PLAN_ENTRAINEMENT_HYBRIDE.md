@@ -348,6 +348,16 @@ répare rien, c'est la transcription de base elle-même qui serait dégradée.
    **Dégradation réelle et significative** → passer à 2.2, avec une preuve
    concrète du besoin plutôt qu'une précaution.
 
+**Mesure préliminaire faite le 2026-07-19 sur checkpoint epoch07/11 (PAS le
+final)** : CER 9,72% (règles désymbolisé, n=150) vs 9,18% (baseline
+mixed-e14) — écart de **+0,54 point, pas un zéro parfait**. Ni assez grand
+pour conclure "dégradation confirmée", ni assez petit pour conclure "zéro
+interférence" avec confiance : échantillon modeste (n=150), checkpoint pas
+final (le training continue), et une partie de l'écart peut venir de la
+réinitialisation de la tête CTC (`change_vocabulary`) plutôt que d'une vraie
+interférence règles/lettres. **À refaire avec le checkpoint final** (fin des
+11 epochs) avant de trancher — ne pas décider sur cette mesure intermédiaire.
+
 **Étape 2.2 — Tête CTC tolérante (SEULEMENT si 2.1 confirme le besoin)** :
 - Geler le meilleur checkpoint Phase 1, entraîner la couche
   `Conv1d 512→vocab_normalisé` seule (script court `train_tolerant_head.py`,
