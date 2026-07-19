@@ -14,6 +14,8 @@ App Android (Flutter/Kotlin) de récitation coranique : vérification ASR
 | Tuteur Gemma LoRA (bug regex, QAT, datasets) | `.claude/skills/model-training/references/gemma-llm.md` |
 | Historique des benchmarks et décisions chiffrées | `benchmark/BENCHMARK_RESULTS.md` |
 | Idées validées non implémentées (madd, fenêtre glissante...) | `FONCTIONNALITES_FUTURES.md` |
+| Plan/stratégie du run hybride 3 têtes (RNNT + CTC strict/tolérant) | `PLAN_ENTRAINEMENT_HYBRIDE.md` |
+| Glossaire des techniques (entraînement vs décodage, qui sert quoi) | `GLOSSAIRE_TECHNIQUES_ASR.md` |
 | Chantier "Suivre une prière" (journal détaillé) | `SUIVI_PRIERE.md` |
 
 Tout entraînement/export/diagnostic de modèle : invoquer le skill
