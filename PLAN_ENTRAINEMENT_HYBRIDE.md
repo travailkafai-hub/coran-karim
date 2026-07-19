@@ -297,11 +297,21 @@ deviennent raisonnables. D'où un entraînement en deux temps :
   NeMo standard (une loss hybride par batch), zéro code custom. La tête RNNT
   apprendra donc aussi à transcrire fidèlement les fautes — acceptable, et
   son biais canonique résiduel sera mesuré en Phase 3.3 de toute façon.
-- **v2 (seulement si la Phase 3 montre que la transcription libre RNNT est
-  dégradée par les clips fautifs)** : masquer la loss RNNT sur les clips TTS
-  fautifs (chaque tête voit alors les données alignées avec son rôle — RNNT
-  = canonique/localisation, CTC = tout/vérification). Demande de surcharger
-  `training_step` de NeMo — faisable, mais ne pas le faire préventivement.
+- **v2 (reclassé de "contingence" à "expérience prévue", 2026-07-19 — question
+  utilisateur)** : le corpus mixed actuel (150h Coran **sous-échantillonné**
+  + ASC + TTS fautif) a été conçu pour **combattre** le biais canonique — donc
+  optimal pour CTC (vérification), mais potentiellement **contre-productif**
+  pour RNNT dont la valeur (localisation "Suivre une prière") vient
+  précisément d'un biais canonique fort. Masquer la loss RNNT sur les
+  échantillons non-Coran (ASC, TTS) ET/OU la calculer sur le corpus Coran
+  **complet non dilué** (`manifest_hafs_only.jsonl`, 307 059 clips, ~300h+ vs
+  150h actuels) pendant que la loss CTC continue de voir le mix complet —
+  l'encodeur reste partagé (même audio traité dans les deux cas), seule la
+  contribution RNNT au gradient change. Compute disponible (GPU peu chargé) →
+  **à faire en round dédié après la Phase 3**, informé par la mesure réelle
+  de qualité RNNT en localisation (pas seulement `val_wer`) plutôt que lancé
+  à l'aveugle. Demande de surcharger `training_step` de NeMo (masquage par
+  tag de source dans le manifest) — faisable, pas fait à ce jour.
 
 **Logistique**
 - Script : variante `--rnnt` de `finetune_fastconformer.py` (à écrire —
