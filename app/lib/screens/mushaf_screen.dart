@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
+import 'package:flutter/services.dart' show SystemChrome, SystemUiMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/verse.dart';
@@ -11,10 +13,9 @@ import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
 import '../widgets/verse_tile.dart';
 import '../widgets/mushaf_header.dart';
-import '../widgets/mini_player_bar.dart';
 import '../widgets/reading_settings_sheet.dart';
 import '../widgets/coach_explanation_sheet.dart';
-import '../widgets/quran_shazam_sheet.dart';
+import '../widgets/surah_ornament_header.dart';
 import 'coach_screen.dart';
 import 'recitation_screen.dart';
 import 'karaoke_recitation_screen.dart';
@@ -85,11 +86,27 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   // pendant que le lecteur arrive en bas.
   static const _kLoadMoreThreshold = 1200.0;
 
+  // Lecture plein écran -- REFONTE_IHM.md §3. Le header (nom de sourate,
+  // navigation) n'est plus un appBar fixe : il glisse depuis le haut au tap
+  // sur la bande haute de l'écran, et se remasque après quelques secondes
+  // sans interaction. La barre d'actions du bas (lecture/micro/réglages)
+  // reste toujours visible -- ce sont des contrôles fonctionnels, pas du
+  // chrome de navigation, le plein écran ne vise que le texte + son header.
+  bool _headerVisible = true;
+  Timer? _headerHideTimer;
+  static const _kHeaderAutoHideDelay = Duration(seconds: 4);
+  // Doit correspondre à MushafHeader.preferredSize (widgets/mushaf_header.dart)
+  // -- dupliqué en constante locale ici pour éviter d'instancier un widget
+  // juste pour lire sa taille.
+  static const _kMushafHeaderHeight = 120.0;
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
     _load();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    _scheduleHeaderHide();
   }
 
   @override
@@ -97,7 +114,23 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
     _scrollController.removeListener(_onScroll);
     _autoScrollTicker?.dispose();
     _scrollController.dispose();
+    _headerHideTimer?.cancel();
+    // Restaure le chrome système normal en quittant l'écran de lecture --
+    // ne pas laisser toute l'app en immersif au-delà de cet écran.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
+  }
+
+  void _scheduleHeaderHide() {
+    _headerHideTimer?.cancel();
+    _headerHideTimer = Timer(_kHeaderAutoHideDelay, () {
+      if (mounted) setState(() => _headerVisible = false);
+    });
+  }
+
+  void _showHeader() {
+    setState(() => _headerVisible = true);
+    _scheduleHeaderHide();
   }
 
   Future<void> _load() async {
@@ -282,8 +315,6 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
-    final playerActive = playerState.isActive ||
-        playerState.status == PlayerStatus.loading;
     final autoScroll = ref.watch(autoScrollSpeedProvider);
     ref.listen(autoScrollSpeedProvider, (prev, next) => _syncAutoScroll(next));
 
@@ -304,7 +335,6 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
 
     return Scaffold(
       backgroundColor: AppColors.cream,
-      appBar: MushafHeader(surah: widget.surah),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.green800))
           : _error != null
@@ -322,12 +352,76 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
                               .state = AutoScrollSpeed.off,
                         ),
                       ),
+                    // Bande invisible en haut de l'écran (~15% de hauteur) :
+                    // seule active quand le header est masqué (sinon le
+                    // header, positionné par-dessus, intercepte le tap en
+                    // premier -- ordre du Stack). Ne capte JAMAIS les taps
+                    // plus bas dans le texte (mots/versets gardent leurs
+                    // propres gestes, cf. onWordTap plus bas).
+                    if (!_headerVisible)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: MediaQuery.of(context).size.height * 0.15,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: _showHeader,
+                        ),
+                      ),
+                    // Bouton retour TOUJOURS visible, independant du header --
+                    // retour utilisateur 2026-07-19 ("comment revenir sur
+                    // ecran principal ?") : le header masque etait la SEULE
+                    // facon de revenir en arriere, fragile (il faut se
+                    // souvenir de taper la zone haute). Petit, discret,
+                    // jamais cache par le minuteur.
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: SafeArea(
+                        child: Material(
+                          color: AppColors.green900.withValues(alpha: 0.55),
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                color: AppColors.cream),
+                            onPressed: () => Navigator.of(context).maybePop(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Le header lui-même, hauteur fixe, qui glisse hors écran
+                    // (translation -- ne touche pas à ses contraintes de
+                    // layout internes, donc pas de risque de rognage/overflow
+                    // du contenu). Pas de tap-pour-masquer sur le header
+                    // lui-même : il contient un IconButton (retour) et
+                    // superposer un GestureDetector.onTap risquerait de
+                    // capter la même zone que ce bouton -- masquage laissé au
+                    // minuteur automatique (4s), plus sûr.
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: _kMushafHeaderHeight,
+                      child: AnimatedSlide(
+                        duration: const Duration(milliseconds: 200),
+                        offset: _headerVisible ? Offset.zero : const Offset(0, -1),
+                        child: MushafHeader(
+                          surah: widget.surah,
+                          onBack: () => Navigator.of(context).maybePop(),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
+      // Mini-lecteur retire (retour utilisateur 2026-07-19 : "le bandeau de
+      // lecture n'est pas interessant") -- doublait le bouton Lire/Pause de
+      // _BottomBar juste en dessous ; le verset en cours de lecture reste
+      // visible par son surlignage bleu dans le texte (VerseTile), pas
+      // besoin d'une 2e barre pour ca.
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (playerActive) const MiniPlayerBar(),
           _BottomBar(
             onPlayTap: _verses.isEmpty ? null : _playFromActive,
             onMicTap: _verses.isEmpty ? null : _openMemorization,
@@ -336,7 +430,6 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
             onTranslationTap: () =>
                 setState(() => _showTranslation = !_showTranslation),
             onCoachTap: _verses.isEmpty ? null : _openCoachExplanation,
-            onIdentifyTap: _openShazam,
             onMoreTap: _openReadingSettings,
             showTranslation: _showTranslation,
             isPlaying: playerState.isPlaying,
@@ -358,7 +451,11 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
       },
       child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.only(top: 8, bottom: 100),
+        // top = hauteur du header -- il n'est plus un appBar de Scaffold qui
+        // réserve automatiquement cet espace (c'est maintenant un overlay
+        // flottant, §3 plein écran), donc le contenu doit commencer en
+        // dessous explicitement pour ne pas apparaître caché dessous.
+        padding: const EdgeInsets.only(top: _kMushafHeaderHeight + 8, bottom: 100),
         itemCount: _items.length + (showLoadingFooter ? 1 : 0),
         itemBuilder: (context, i) {
           if (i >= _items.length) {
@@ -494,39 +591,14 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
             builder: (_) => RecitationScreen(verses: _fragmentFromActive())));
   }
 
-  /// "Shazam coranique" (demande utilisateur 2026-07-18) : écoute un extrait
-  /// entendu en ambiance (pas la voix de l'utilisateur en train de réciter un
-  /// texte déjà choisi -- ici le texte est encore INCONNU) et ouvre le Mushaf
-  /// directement au passage identifié.
-  Future<void> _openShazam() async {
-    final match = await showQuranShazamSheet(context, ref);
-    if (match == null || !mounted) return;
-    // Déjà dans le scroll continu actuel (sourate initiale ou une des
-    // suivantes déjà enchaînées par le défilement infini) : on y saute
-    // directement plutôt que de rouvrir un nouvel écran par-dessus.
-    if (_loadedSurahs.any((s) => s.number == match.surahNumber)) {
-      final idx = _verses.indexWhere((v) =>
-          v.surahNumber == match.surahNumber && v.ayahNumber == match.ayahNumber);
-      if (idx >= 0) {
-        setState(() => _activeVerse = idx);
-        _scrollToIndex(idx, const Duration(milliseconds: 400));
-      }
-      return;
-    }
-    final surahs = await QuranApi.fetchSurahs();
-    final target = surahs.firstWhere((s) => s.number == match.surahNumber,
-        orElse: () => widget.surah);
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MushafScreen(
-          surah: target,
-          initialAyahNumber: match.ayahNumber,
-        ),
-      ),
-    );
-  }
+  // Ancienne entree "Identifier" (Shazam coranique) de cet ecran -- RETIREE
+  // (2026-07-19, demande utilisateur) : remontee sur la page principale a
+  // cote de "Suivre une priere" (surah_list_screen.dart::_openShazamFromHome),
+  // point d'entree plus naturel pour une fonction mains-libres. Voir
+  // l'historique git pour l'implementation precedente si besoin (elle
+  // sautait directement dans le scroll continu si la sourate etait deja
+  // chargee, plutot que de repousser un ecran -- a reprendre si on veut
+  // remettre un acces depuis l'ecran de lecture lui-meme).
 }
 
 // Marque le passage à la sourate suivante dans le scroll continu (défilement
@@ -534,35 +606,19 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
 // Bismillah (qui la suit juste en dessous) pour que le lecteur voie sans
 // ambiguïté qu'une nouvelle sourate commence, comme le ferait une page de
 // Mushaf papier.
+// Bandeau de séparation entre sourates -- ancienne version: simple pilule
+// arrondie (couleur unie + nom FR/AR). Remplacé le 2026-07-19 (demande
+// utilisateur : "design arabe" façon cartouche de mushaf imprimé, cf. photos
+// de référence) par SurahOrnamentHeader (widgets/surah_ornament_header.dart,
+// cadre à motifs + étoiles à 8 branches + cartouche calligraphique). Ce
+// wrapper garde le nom de classe `_SurahBanner` utilisé plus haut dans ce
+// fichier (évite de toucher au switch de l'itemBuilder).
 class _SurahBanner extends StatelessWidget {
   final Surah surah;
   const _SurahBanner({required this.surah});
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.fromLTRB(16, 28, 16, 4),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        decoration: BoxDecoration(
-          color: AppColors.green800,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '${surah.number}. ${surah.nameSimple}',
-              style: GoogleFonts.manrope(
-                  fontSize: 13, color: AppColors.cream, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              surah.nameArabic,
-              textDirection: TextDirection.rtl,
-              style: GoogleFonts.amiri(fontSize: 18, color: AppColors.brassLight),
-            ),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) => SurahOrnamentHeader(surah: surah);
 }
 
 class _BismillahBanner extends StatelessWidget {
@@ -596,14 +652,13 @@ class _BottomBar extends StatelessWidget {
   final VoidCallback? onMicDoubleTap;
   final VoidCallback? onTranslationTap;
   final VoidCallback? onCoachTap;
-  final VoidCallback? onIdentifyTap;
   final VoidCallback? onMoreTap;
   final bool showTranslation;
   final bool isPlaying;
 
   const _BottomBar({
     this.onPlayTap, this.onMicTap, this.onMicLongPress, this.onMicDoubleTap,
-    this.onTranslationTap, this.onCoachTap, this.onIdentifyTap, this.onMoreTap,
+    this.onTranslationTap, this.onCoachTap, this.onMoreTap,
     this.showTranslation = false, this.isPlaying = false,
   });
 
@@ -667,13 +722,11 @@ class _BottomBar extends StatelessWidget {
                   label: 'Coach IA',
                   onTap: onCoachTap ?? () {},
                 ),
-                // "Shazam coranique" (demande utilisateur 2026-07-18) : écoute
-                // un passage entendu en ambiance et retrouve où il se trouve.
-                _BarButton(
-                  icon: Icons.hearing_rounded,
-                  label: 'Identifier',
-                  onTap: onIdentifyTap ?? () {},
-                ),
+                // "Identifier" retire d'ici (2026-07-19) -- remonte sur la
+                // page principale a cote de "Suivre une priere" (icones app
+                // bar, cf. surah_list_screen.dart), plus l'entree naturelle
+                // pour une fonction "mains-libres" qu'un onglet d'ecran de
+                // lecture precis.
                 _BarButton(icon: Icons.more_horiz_rounded, label: 'Plus',
                     onTap: onMoreTap ?? () {}),
               ],

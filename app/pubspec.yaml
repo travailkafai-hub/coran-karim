@@ -70,3 +70,4 @@ flutter:
     - assets/data/quran_search_index.json
     - assets/data/quran_chapters.json
     - assets/data/quran_verses.json
+    - assets/data/rule_reliability.json

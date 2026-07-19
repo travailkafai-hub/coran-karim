@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/verse.dart';
 import '../services/quran_api.dart';
 import '../theme/app_theme.dart';
+import '../widgets/quran_shazam_sheet.dart';
 import 'mushaf_screen.dart';
 import 'prayer_follow_screen.dart';
 
-class SurahListScreen extends StatefulWidget {
+class SurahListScreen extends ConsumerStatefulWidget {
   const SurahListScreen({super.key});
 
   @override
-  State<SurahListScreen> createState() => _SurahListScreenState();
+  ConsumerState<SurahListScreen> createState() => _SurahListScreenState();
 }
 
-class _SurahListScreenState extends State<SurahListScreen> {
+class _SurahListScreenState extends ConsumerState<SurahListScreen> {
   List<Surah> _surahs = [];
   bool _loading = true;
   String? _error;
@@ -33,6 +35,29 @@ class _SurahListScreenState extends State<SurahListScreen> {
     }
   }
 
+  // Identification (Shazam coranique) déclenchée depuis la page principale --
+  // REFONTE_IHM.md §5. Ouvre directement le Mushaf au passage identifié (même
+  // logique que mushaf_screen.dart::_openShazam, mais on part toujours d'un
+  // écran neuf ici puisqu'aucune sourate n'est encore chargée en scroll continu).
+  Future<void> _openShazamFromHome() async {
+    final match = await showQuranShazamSheet(context, ref);
+    if (match == null || !mounted) return;
+    _openMushafAt(match.surahNumber, match.ayahNumber);
+  }
+
+  Future<void> _openMushafAt(int surahNumber, int ayahNumber) async {
+    final surahs = _surahs.isNotEmpty ? _surahs : await QuranApi.fetchSurahs();
+    final target = surahs.firstWhere((s) => s.number == surahNumber,
+        orElse: () => surahs.first);
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MushafScreen(surah: target, initialAyahNumber: ayahNumber),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,11 +68,18 @@ class _SurahListScreenState extends State<SurahListScreen> {
             expandedHeight: 140,
             pinned: true,
             backgroundColor: AppColors.green900,
-            // "Suivre une prière" (demande utilisateur 2026-07-18) : point
-            // d'entrée dédié pour un imam, SANS choisir de sourate au
-            // préalable (contrairement au karaoké classique, ouvert depuis
-            // une sourate précise) -- accessible directement depuis l'accueil.
+            // "Suivre une prière" + "Identifier" (Shazam coranique) cote a
+            // cote -- retour utilisateur 2026-07-19 : la version en grandes
+            // cartes (§5 du plan) etait moins bien que les simples icones
+            // d'origine, garder ce style, juste ajouter Identifier a cote de
+            // Suivre une priere plutot que de le laisser seul dans la barre
+            // du bas de l'ecran de lecture.
             actions: [
+              IconButton(
+                icon: const Icon(Icons.hearing_rounded, color: AppColors.cream),
+                tooltip: 'Identifier une récitation',
+                onPressed: _openShazamFromHome,
+              ),
               IconButton(
                 icon: const Icon(Icons.mosque_rounded, color: AppColors.cream),
                 tooltip: 'Suivre une prière',
@@ -125,6 +157,14 @@ class _SurahListScreenState extends State<SurahListScreen> {
     );
   }
 }
+
+// "Suivre une prière" / "Identifier" en grandes cartes (§5 du plan) --
+// ESSAYE puis RETIRE (2026-07-19, retour utilisateur : "avant c'était
+// mieux") : revenu aux simples icônes d'app bar (voir SliverAppBar.actions
+// plus haut), Identifier ajoutée à côté de Suivre une prière plutôt que
+// laissée seule dans la barre du bas de l'écran de lecture. Implémentation
+// des cartes conservée dans l'historique git si on veut la reprendre un jour
+// avec un design différent.
 
 class _SurahTile extends StatelessWidget {
   final Surah surah;

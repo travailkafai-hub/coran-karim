@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/player_state_model.dart' show RepeatMode;
 import '../providers/app_settings_provider.dart';
+import '../providers/player_provider.dart';
 import '../theme/app_theme.dart';
 
 /// Réglages de lecture (demande utilisateur 2026-07-06) : taille du texte
@@ -25,6 +27,11 @@ class _ReadingSettingsSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scale = ref.watch(textScaleProvider);
     final speed = ref.watch(autoScrollSpeedProvider);
+    final playerState = ref.watch(playerProvider);
+    final repeatMode = playerState.repeatMode;
+    final repeatCount = playerState.repeatCount;
+    final playbackSpeed = playerState.speed;
+    const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
     return SafeArea(
       child: Padding(
@@ -121,6 +128,98 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                     onSelected: (_) {
                       ref.read(autoScrollSpeedProvider.notifier).state = s;
                       Navigator.of(context).pop();
+                    },
+                  ),
+              ],
+            ),
+            // Vitesse de lecture (audio) -- regroupee ici avec le defilement
+            // et la repetition (retour utilisateur 2026-07-19 : "répétition
+            // et vitesse seront dans la partie lecture"), retiree des
+            // Reglages globaux. DIFFERENTE du "defilement automatique"
+            // ci-dessus (celui-la fait scroller le TEXTE, celle-ci change la
+            // vitesse de l'AUDIO du reciteur).
+            const SizedBox(height: 20),
+            Text(
+              'VITESSE DE LECTURE (AUDIO)',
+              style: GoogleFonts.manrope(
+                fontSize: 10.5,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkLight,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final s in speedOptions)
+                  ChoiceChip(
+                    label: Text('${s}×'),
+                    selected: playbackSpeed == s,
+                    selectedColor: AppColors.green700,
+                    labelStyle: GoogleFonts.manrope(
+                      fontWeight: FontWeight.w600,
+                      color: playbackSpeed == s ? AppColors.cream : AppColors.ink,
+                    ),
+                    backgroundColor: AppColors.cream200,
+                    onSelected: (_) =>
+                        ref.read(playerProvider.notifier).setSpeed(s),
+                  ),
+              ],
+            ),
+            // Répétition / boucles -- regroupees ici avec le defilement
+            // (retour utilisateur 2026-07-19 : "rajoute via reglage les
+            // modes de lecture le defilement les repetitions les boucles"),
+            // au lieu de rester uniquement dans l'ecran Reglages global,
+            // loin de la lecture en cours.
+            const SizedBox(height: 20),
+            Text(
+              'RÉPÉTITION / BOUCLES',
+              style: GoogleFonts.manrope(
+                fontSize: 10.5,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkLight,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Répète chaque verset (ou toute la sourate) en boucle avant '
+              'de passer au suivant.',
+              style: GoogleFonts.manrope(
+                fontSize: 12,
+                height: 1.4,
+                color: AppColors.inkLight,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final (mode, count, label) in const [
+                  (RepeatMode.off, 0, 'Désactivé'),
+                  (RepeatMode.verse, 3, 'Verset × 3'),
+                  (RepeatMode.verse, 5, 'Verset × 5'),
+                  (RepeatMode.verse, 10, 'Verset × 10'),
+                  (RepeatMode.verse, 0, 'Verset × ∞'),
+                  (RepeatMode.surah, 0, 'Sourate entière'),
+                ])
+                  ChoiceChip(
+                    label: Text(label),
+                    selected: repeatMode == mode &&
+                        (mode != RepeatMode.verse || repeatCount == count),
+                    selectedColor: AppColors.green700,
+                    labelStyle: GoogleFonts.manrope(
+                      fontWeight: FontWeight.w600,
+                      color: repeatMode == mode ? AppColors.cream : AppColors.ink,
+                    ),
+                    backgroundColor: AppColors.cream200,
+                    onSelected: (_) {
+                      final notifier = ref.read(playerProvider.notifier);
+                      notifier.setRepeatMode(mode);
+                      notifier.setRepeatCount(count);
                     },
                   ),
               ],

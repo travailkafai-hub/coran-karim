@@ -13,6 +13,7 @@ import '../providers/recitation_provider.dart';
 import '../services/recitation_verifier.dart';
 import '../services/voice_fingerprint_service.dart';
 import '../theme/app_theme.dart';
+import 'tajwid_rules_screen.dart';
 import '../widgets/tajwid_help_sheet.dart';
 import '../widgets/tajweed_text.dart';
 
@@ -126,6 +127,17 @@ class _Header extends StatelessWidget {
                 style: GoogleFonts.fraunces(color: Colors.white, fontSize: 18),
               ),
             ],
+          ),
+          const Spacer(),
+          // Réglages de vérification (tajwid/adulte/enfant, règles activées)
+          // -- retour utilisateur 2026-07-19 : "alléger les paramètres
+          // globaux", ce reglage vit ici (le Coach est l'ecran de
+          // verification de recitation) plutot que dans Reglages global.
+          IconButton(
+            icon: const Icon(Icons.auto_awesome, color: AppColors.brassLight),
+            tooltip: 'Mode de vérification',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const TajwidRulesScreen())),
           ),
         ],
       ),

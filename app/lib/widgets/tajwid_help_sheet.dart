@@ -17,11 +17,11 @@ import 'tajweed_text.dart';
 /// Règles tajwid affichables : classe quran.com -> (couleur, nom, explication).
 /// Les couleurs répliquent celles de tajweed_text.dart (source de vérité
 /// visuelle : le texte coloré au-dessus de la légende).
-class _TajwidRule {
+class TajwidRuleInfo {
   final Color color;
   final String name;
   final String explanation;
-  const _TajwidRule(this.color, this.name, this.explanation);
+  const TajwidRuleInfo(this.color, this.name, this.explanation);
 }
 
 // Couleurs et noms de classe IDENTIQUES à tajweed_text.dart (source de vérité
@@ -30,40 +30,40 @@ class _TajwidRule {
 // vives). Gris de référence défini une seule fois pour le tri ci-dessous.
 const _kGray = Color(0xFF77766C);
 
-const _kRules = <String, _TajwidRule>{
-  'madda_necessary': _TajwidRule(Color(0xFFA13420), 'Madd — 6 temps (obligatoire)',
+const kTajwidRuleInfo = <String, TajwidRuleInfo>{
+  'madda_necessary': TajwidRuleInfo(Color(0xFFA13420), 'Madd — 6 temps (obligatoire)',
       'Allongement obligatoire de 6 temps (madd lâzim).'),
-  'madda_obligatory': _TajwidRule(Color(0xFFE8391F), 'Madd — 4 ou 5 temps (obligatoire)',
+  'madda_obligatory': TajwidRuleInfo(Color(0xFFE8391F), 'Madd — 4 ou 5 temps (obligatoire)',
       'Allongement obligatoire de 4 à 5 temps.'),
-  'madda_permissible': _TajwidRule(Color(0xFFEB7A1E), 'Madd — 2, 4 ou 6 temps (permis)',
+  'madda_permissible': TajwidRuleInfo(Color(0xFFEB7A1E), 'Madd — 2, 4 ou 6 temps (permis)',
       'Allongement de 2, 4 ou 6 temps selon l\'école de lecture.'),
-  'madda_normal': _TajwidRule(Color(0xFFEB7A1E), 'Madd — 2, 4 ou 6 temps (permis)',
+  'madda_normal': TajwidRuleInfo(Color(0xFFEB7A1E), 'Madd — 2, 4 ou 6 temps (permis)',
       'Allongement de 2, 4 ou 6 temps selon l\'école de lecture.'),
-  'ghunnah': _TajwidRule(Color(0xFF2E9E4F), 'Ghunna / Ikhfâ\'',
+  'ghunnah': TajwidRuleInfo(Color(0xFF2E9E4F), 'Ghunna / Ikhfâ\'',
       'Son nasal tenu environ 2 temps (noûn/mîm doublé), ou dissimulation avec nasalisation.'),
-  'ikhafa': _TajwidRule(Color(0xFF2E9E4F), 'Ikhfâ\' (dissimulation)',
+  'ikhafa': TajwidRuleInfo(Color(0xFF2E9E4F), 'Ikhfâ\' (dissimulation)',
       'Le noûn sâkin/tanwîn se prononce "caché", entre le noûn et la lettre suivante, avec nasalisation.'),
-  'ikhafa_shafawi': _TajwidRule(Color(0xFF2E9E4F), 'Ikhfâ\' shafawî',
+  'ikhafa_shafawi': TajwidRuleInfo(Color(0xFF2E9E4F), 'Ikhfâ\' shafawî',
       'Le mîm sâkin devant bâ\' se prononce légèrement dissimulé, avec nasalisation.'),
-  'idgham_ghunnah': _TajwidRule(Color(0xFF2E9E4F), 'Idghâm avec ghunna',
+  'idgham_ghunnah': TajwidRuleInfo(Color(0xFF2E9E4F), 'Idghâm avec ghunna',
       'Le noûn sâkin/tanwîn s\'assimile à la lettre suivante (ي ن م و) avec nasalisation.'),
-  'idgham_shafawi': _TajwidRule(Color(0xFF2E9E4F), 'Idghâm shafawî',
+  'idgham_shafawi': TajwidRuleInfo(Color(0xFF2E9E4F), 'Idghâm shafawî',
       'Le mîm sâkin s\'assimile au mîm suivant, avec nasalisation.'),
-  'iqlab': _TajwidRule(Color(0xFF2E9E4F), 'Iqlâb (conversion)',
+  'iqlab': TajwidRuleInfo(Color(0xFF2E9E4F), 'Iqlâb (conversion)',
       'Le noûn sâkin/tanwîn devient mîm devant la lettre bâ\', avec nasalisation.'),
-  'idgham_wo_ghunnah': _TajwidRule(_kGray, 'Idghâm sans ghunna',
+  'idgham_wo_ghunnah': TajwidRuleInfo(_kGray, 'Idghâm sans ghunna',
       'Le noûn sâkin/tanwîn s\'assimile complètement à la lettre suivante (ل ر), sans nasalisation.'),
-  'idgham_mutajanisayn': _TajwidRule(_kGray, 'Idghâm mutajânisayn',
+  'idgham_mutajanisayn': TajwidRuleInfo(_kGray, 'Idghâm mutajânisayn',
       'Deux lettres de même point d\'articulation : la première s\'assimile à la seconde.'),
-  'idgham_mutaqaribayn': _TajwidRule(_kGray, 'Idghâm mutaqâribayn',
+  'idgham_mutaqaribayn': TajwidRuleInfo(_kGray, 'Idghâm mutaqâribayn',
       'Deux lettres proches : la première s\'assimile à la seconde.'),
-  'qalaqah': _TajwidRule(Color(0xFF0091EA), 'Qalqala (rebond)',
+  'qalaqah': TajwidRuleInfo(Color(0xFF0091EA), 'Qalqala (rebond)',
       'Rebond sonore sur ق ط ب ج د quand elles portent un soukoûn.'),
-  'ham_wasl': _TajwidRule(_kGray, 'Hamzat al-wasl',
+  'ham_wasl': TajwidRuleInfo(_kGray, 'Hamzat al-wasl',
       'Ne se prononce qu\'en début de lecture — s\'élide quand on enchaîne depuis le mot précédent.'),
-  'laam_shamsiyah': _TajwidRule(_kGray, 'Lâm solaire',
+  'laam_shamsiyah': TajwidRuleInfo(_kGray, 'Lâm solaire',
       'Le lâm de "ال" ne se prononce pas : la lettre suivante est doublée à la place.'),
-  'slnt': _TajwidRule(_kGray, 'Lettre muette',
+  'slnt': TajwidRuleInfo(_kGray, 'Lettre muette',
       'S\'écrit mais ne se prononce pas.'),
 };
 
@@ -91,12 +91,12 @@ void showTajwidHelpSheet(
       .toSet();
   final rules = [
     for (final c in classes)
-      if (_kRules.containsKey(c) && _kRules[c]!.color != _kGray)
-        _kRules[c]!,
+      if (kTajwidRuleInfo.containsKey(c) && kTajwidRuleInfo[c]!.color != _kGray)
+        kTajwidRuleInfo[c]!,
     // Règles "grises" (wasl, lâm solaire, muettes) en fin de liste.
     for (final c in classes)
-      if (_kRules.containsKey(c) && _kRules[c]!.color == _kGray)
-        _kRules[c]!,
+      if (kTajwidRuleInfo.containsKey(c) && kTajwidRuleInfo[c]!.color == _kGray)
+        kTajwidRuleInfo[c]!,
   ];
 
   showModalBottomSheet(

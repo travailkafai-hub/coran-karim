@@ -2,7 +2,6 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/reciter.dart';
-import '../models/player_state_model.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/voice_lora_clip_service.dart';
@@ -37,6 +36,11 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // "Mode de vérification" retiré d'ici (2026-07-19, retour
+          // utilisateur : "alléger les paramètres globaux", chaque page a
+          // son propre paramétrage §2) -- déplacé dans le Coach
+          // (coach_screen.dart::_Header, icône à côté du titre), l'écran où
+          // la vérification a réellement lieu.
           _SectionHeader('Récitation'),
           _SettingsTile(
             icon: Icons.record_voice_over,
@@ -56,18 +60,12 @@ class SettingsScreen extends ConsumerWidget {
               if (picked != null) notifier.setReciter(picked);
             },
           ),
-          _SettingsTile(
-            icon: Icons.speed_rounded,
-            title: 'Vitesse de lecture',
-            subtitle: '${playerState.speed}×',
-            onTap: () => _pickSpeed(context, playerState.speed, notifier),
-          ),
-          _SettingsTile(
-            icon: Icons.repeat_rounded,
-            title: 'Répétition',
-            subtitle: _repeatDesc(playerState.repeatMode, playerState.repeatCount),
-            onTap: () => _pickRepeat(context, notifier),
-          ),
+          // "Vitesse de lecture" et "Répétition" retirées d'ici (2026-07-19,
+          // retour utilisateur : "pas de redondance, chaque module a les
+          // paramètres propres") -- déplacées dans widgets/
+          // reading_settings_sheet.dart (accessible depuis "Plus" en
+          // lecture), à côté du défilement automatique avec lequel elles
+          // forment un seul groupe cohérent "lecture".
           _SettingsTile(
             icon: Icons.record_voice_over_outlined,
             title: 'Correction automatique',
@@ -159,41 +157,6 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-
-  String _repeatDesc(RepeatMode mode, int count) {
-    switch (mode) {
-      case RepeatMode.off: return 'Désactivé';
-      case RepeatMode.verse: return count == 0 ? 'Verset — infini' : 'Verset × $count';
-      case RepeatMode.surah: return 'Sourate entière';
-    }
-  }
-
-  void _pickSpeed(BuildContext context, double current, PlayerNotifier n) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.green800,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _SpeedSheet(current: current, onPick: (s) {
-        n.setSpeed(s);
-        Navigator.pop(context);
-      }),
-    );
-  }
-
-  void _pickRepeat(BuildContext context, PlayerNotifier n) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.green800,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _RepeatSheet(onPick: (mode, count) {
-        n.setRepeatMode(mode);
-        n.setRepeatCount(count);
-        Navigator.pop(context);
-      }),
     );
   }
 
@@ -338,83 +301,6 @@ class _VoiceLoraClipsTileState extends State<_VoiceLoraClipsTile> {
       onTap: (count != null && count > 0 && !_exporting) ? _export : null,
     );
   }
-}
-
-class _SpeedSheet extends StatelessWidget {
-  final double current;
-  final void Function(double) onPick;
-  const _SpeedSheet({required this.current, required this.onPick});
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Vitesse de lecture',
-                style: GoogleFonts.fraunces(
-                    fontSize: 16, color: AppColors.brassLight)),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8, runSpacing: 8,
-              children: [0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((s) {
-                final active = s == current;
-                return GestureDetector(
-                  onTap: () => onPick(s),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: active ? AppColors.brass : AppColors.green700,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Text('${s}×',
-                        style: GoogleFonts.manrope(
-                            color: active ? AppColors.green900 : AppColors.cream,
-                            fontWeight: FontWeight.w700)),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      );
-}
-
-class _RepeatSheet extends StatelessWidget {
-  final void Function(RepeatMode, int) onPick;
-  const _RepeatSheet({required this.onPick});
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Mode de répétition',
-                style: GoogleFonts.fraunces(
-                    fontSize: 16, color: AppColors.brassLight)),
-            const SizedBox(height: 16),
-            ...[
-              (RepeatMode.off,   0,  'Pas de répétition'),
-              (RepeatMode.verse, 3,  'Verset × 3'),
-              (RepeatMode.verse, 5,  'Verset × 5'),
-              (RepeatMode.verse, 10, 'Verset × 10'),
-              (RepeatMode.verse, 0,  'Verset × ∞'),
-              (RepeatMode.surah, 0,  'Sourate entière'),
-            ].map(((RepeatMode, int, String) item) => ListTile(
-                  title: Text(item.$3,
-                      style: GoogleFonts.manrope(color: AppColors.cream)),
-                  onTap: () => onPick(item.$1, item.$2),
-                  dense: true,
-                )),
-            const SizedBox(height: 8),
-          ],
-        ),
-      );
 }
 
 class _RepeatDrillCountSheet extends StatefulWidget {
