@@ -90,32 +90,45 @@ class _HomeScreenState extends State<HomeScreen> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
+          // Chaque onglet dans un Expanded : les 4 se partagent la largeur à
+          // parts égales et un libellé long (fr/en "Invocations"/"Réglages",
+          // plus larges que l'arabe court) rétrécit/ellipse au lieu de faire
+          // déborder la Row (bug "RIGHT OVERFLOWED BY N PIXELS" du 2026-07-19,
+          // introduit par le passage des libellés arabes aux libellés
+          // traduits). Ne plus jamais mettre de padding horizontal FIXE ici.
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _NavItem(
-                icon: Icons.menu_book_rounded,
-                label: t.navQuran,
-                active: _tab == 0,
-                onTap: () => setState(() => _tab = 0),
+              Expanded(
+                child: _NavItem(
+                  icon: Icons.menu_book_rounded,
+                  label: t.navQuran,
+                  active: _tab == 0,
+                  onTap: () => setState(() => _tab = 0),
+                ),
               ),
-              _NavItem(
-                icon: Icons.volunteer_activism_rounded,
-                label: t.navDuas,
-                active: _tab == 1,
-                onTap: () => setState(() => _tab = 1),
+              Expanded(
+                child: _NavItem(
+                  icon: Icons.volunteer_activism_rounded,
+                  label: t.navDuas,
+                  active: _tab == 1,
+                  onTap: () => setState(() => _tab = 1),
+                ),
               ),
-              _NavItem(
-                icon: Icons.psychology_alt_rounded,
-                label: t.navCoach,
-                active: _tab == 2,
-                onTap: () => setState(() => _tab = 2),
+              Expanded(
+                child: _NavItem(
+                  icon: Icons.psychology_alt_rounded,
+                  label: t.navCoach,
+                  active: _tab == 2,
+                  onTap: () => setState(() => _tab = 2),
+                ),
               ),
-              _NavItem(
-                icon: Icons.settings_rounded,
-                label: t.navSettings,
-                active: _tab == 3,
-                onTap: () => setState(() => _tab = 3),
+              Expanded(
+                child: _NavItem(
+                  icon: Icons.settings_rounded,
+                  label: t.navSettings,
+                  active: _tab == 3,
+                  onTap: () => setState(() => _tab = 3),
+                ),
               ),
             ],
           ),
@@ -154,7 +167,10 @@ class _NavItem extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+          // Padding horizontal MODESTE (l'espacement vient du partage Expanded,
+          // plus d'un padding fixe qui débordait) -- garde juste une marge pour
+          // que les libellés ne se touchent pas.
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -162,7 +178,13 @@ class _NavItem extends StatelessWidget {
                   color: active ? AppColors.brass : AppColors.cream.withAlpha(140),
                   size: 24),
               const SizedBox(height: 2),
-              Text(label, style: labelStyle),
+              Text(
+                label,
+                style: labelStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
         ),
