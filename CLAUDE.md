@@ -39,6 +39,25 @@ Tout entraînement/export/diagnostic de modèle : invoquer le skill
   tajweed strict + CTC normalisé tolérant) sur l'encodeur partagé.
 - Avant de committer : vérifier le périmètre avec l'utilisateur (app et
   benchmark ont des cycles de vie différents), ne pas tout committer en bloc.
+- **Avant tout changement important (nouvelle fonctionnalité, refonte,
+  branchement d'une piste dans l'app...), committer d'abord l'état courant**
+  (décision 2026-07-19) — même partiellement/par périmètre si besoin (cf.
+  règle ci-dessus). Sans ce point de départ propre, impossible de distinguer
+  après coup ce qui appartenait à la session précédente de ce que le
+  changement en cours a introduit, et aucun retour en arrière ciblé n'est
+  possible (cf. "aucune piste n'est éliminée tant que le retour en arrière
+  est possible" plus haut — un commit est CE point de retour).
+- **Ne JAMAIS supprimer un commentaire existant qui documente une tentative
+  passée, un piège ou un "pourquoi"** (décision 2026-07-19, suite à un doute
+  légitime de l'utilisateur sur le rescoring NLL : sans cette règle, un futur
+  agent ne peut plus distinguer "jamais essayé" de "essayé et retiré sans
+  laisser de trace"). Si une approche documentée dans un commentaire ne
+  marche plus ou est remplacée : **ajouter** une note à côté expliquant que
+  ça ne marche pas/plus (et pourquoi), ne pas effacer le commentaire
+  d'origine. Ces commentaires sont la seule trace fiable de ce qui a déjà été
+  tenté — les faire disparaître fait perdre cette mémoire pour de bon, aucun
+  historique git ne compense un agent qui ne pense pas à `git log -p` avant
+  d'agir.
 
 ## Spécificités de CETTE machine (Ubuntu, RTX 5080 16 Go)
 

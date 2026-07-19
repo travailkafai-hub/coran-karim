@@ -69,6 +69,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   bool _autoCorrecting = false; // évite deux corrections en même temps
   DateTime? _correctionCooldownUntil; // anti-rafale, voir _onWordFailed
   bool _promptingWord = false; // souffleur en cours, voir _promptCurrentWord
+  // "Un seul essai forcé" (demande utilisateur 2026-07-16 soir) : le mot pour
+  // lequel on a DÉJÀ joué l'audio de correction + reculé l'ancre une fois.
+  // Si wordFailed refire sur ce MÊME mot juste après (le réciteur n'a pas
+  // repris exactement ce que le modèle attendait), on ne reboucle plus
+  // (pause/audio/recul) -- le réciteur est laissé libre d'avancer sur la
+  // suite, le modèle SUIT sans re-bloquer. Repose sur le vécu réel : boucle
+  // de 4+ minutes sur "لَيَصْرِمُنَّهَا" sans jamais aboutir, le réciteur étant
+  // pourtant confiant d'avoir bien récité. Remis à null dès qu'un mot
+  // DIFFÉRENT échoue, pour que celui-ci ait droit à son propre essai.
+  int? _lastAutoCorrectedWordIndex;
 
   // Pause manuelle (demande utilisateur 2026-07-10 : "il faut que je gère la
   // pause aussi et après je continue") — distincte du STOP (halo central, qui
@@ -490,10 +500,32 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final verse = _verseContaining(wordIndex);
     final local = _localIndexInVerse(wordIndex);
     if (verse == null || local == null) return;
+    // Un seul essai forcé (demande utilisateur 2026-07-16 soir, réglable via
+    // followWithoutBlockingProvider) : ce MÊME mot a déjà eu droit à un recul
+    // + audio de correction juste avant, et wordFailed refire dessus -- le
+    // réciteur n'a pas repris exactement ce que le modèle attendait, mais
+    // peut très bien avoir raison (le modèle n'est pas infaillible, cf. les
+    // cas de suppression CTC constatés ce jour). Quand le réglage est
+    // ACTIVÉ (par défaut), on ne reboucle plus ici : pas de nouvelle
+    // pause/audio/recul, le mot garde son statut jugé tel quel et l'ancre
+    // continue d'avancer sur ce que dit le réciteur ensuite -- le modèle
+    // SUIT au lieu de bloquer. Le souffleur manuel (_promptCurrentWord) reste
+    // disponible si le réciteur veut lui-même réentendre/se corriger.
+    // DÉSACTIVÉ -- comportement d'origine : chaque échec rejoue l'audio et
+    // recule l'ancre, sans limite.
+    if (ref.read(followWithoutBlockingProvider) &&
+        _lastAutoCorrectedWordIndex == wordIndex) {
+      _lastAutoCorrectedWordIndex = null;
+      DiagnosticLog.log('Correction',
+          'wordFailed déjà corrigé une fois sur ce mot -> on suit sans rebloquer : '
+          'wordIndex(global)=$wordIndex');
+      return;
+    }
     DiagnosticLog.log('Correction', 'wordFailed déclenché : wordIndex(global)=$wordIndex '
         'mot="${wordIndex < words.length ? words[wordIndex].display : "?"}" '
         'status=${wordIndex < words.length ? words[wordIndex].status : "?"} '
         'verset=${verse.key} local(dans verset)=$local');
+    _lastAutoCorrectedWordIndex = wordIndex;
     _autoCorrecting = true;
     final notifier = ref.read(recitationProvider.notifier);
     // À lire AVANT rewindAndUnlock (qui modifie l'ancre) : combien de mots

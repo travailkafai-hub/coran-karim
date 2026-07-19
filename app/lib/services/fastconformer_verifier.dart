@@ -1,6 +1,6 @@
 import 'dart:async' show unawaited;
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -19,6 +19,16 @@ class AlignedWord {
   final double forced;
   final bool covered; // false = mot encore en cours de prononciation (frontière)
   final String actual;
+  // Rescoring NLL tête-à-tête (cf. ForcedAligner.WordResult.rescoreMargin,
+  // ConfusableVariants) : NLL(mot attendu) − NLL(meilleure variante
+  // confusable) sur les mêmes frames. > 0 : une variante explique MIEUX
+  // l'audio (signal ABSOLU, contrairement au gop qui est relatif). Null si
+  // le rescoring n'est pas activé (FastConformerVerifier.setRescoringEnabled)
+  // ou non calculable pour ce mot. DIAGNOSTIC UNIQUEMENT pour l'instant — ne
+  // participe pas au verdict (cf. recitation_provider.dart), le seuil n'est
+  // pas encore calibré en conditions réelles device.
+  final double? rescoreMargin;
+  final String? rescoreHeard;
 
   const AlignedWord({
     required this.index,
@@ -26,6 +36,8 @@ class AlignedWord {
     required this.forced,
     required this.covered,
     required this.actual,
+    this.rescoreMargin,
+    this.rescoreHeard,
   });
 }
 
@@ -67,6 +79,8 @@ class AlignPayload {
           forced: (w['forced'] as num).toDouble(),
           covered: w['covered'] as bool? ?? false,
           actual: w['actual'] as String? ?? '',
+          rescoreMargin: (w['rescoreMargin'] as num?)?.toDouble(),
+          rescoreHeard: w['rescoreHeard'] as String?,
         ));
       }
     }
@@ -172,6 +186,15 @@ class FastConformerVerifier {
       if (_loaded && logPath != null) {
         unawaited(
             _channel.invokeMethod('setLogFile', {'path': logPath}));
+      }
+      // Rescoring NLL (cf. AlignedWord.rescoreMargin) : activé UNIQUEMENT en
+      // debug pour l'instant (2026-07-19) -- diagnostic pas encore calibré
+      // sur device réel (seuil non déterminé, cf. ETAT_CTC_NEMO.md §5a-bis),
+      // ne doit jamais tourner en release avant calibration. But de ce
+      // if kDebugMode : générer des lignes "[GOP] ... rescore=..." pendant
+      // les tests manuels de calibration, sans exposer de toggle UI.
+      if (_loaded && kDebugMode) {
+        unawaited(setRescoringEnabled(true));
       }
       return _loaded;
     } catch (e) {
@@ -318,6 +341,22 @@ class FastConformerVerifier {
     } catch (e) {
       debugPrint('[FastConformer] Échec setAlignmentTarget : $e');
       return false;
+    }
+  }
+
+  /// Active/désactive le rescoring NLL par mot (cf. AlignedWord.rescoreMargin).
+  /// Désactivé par défaut : coût additionnel (un forward CTC par variante
+  /// confusable sur chaque mot d'une passe finale) pas encore mesuré sur
+  /// device, et le signal n'est PAS branché au verdict (diagnostic loggé
+  /// uniquement — cf. "[GOP]" dans le log persistant, champ rescore). Validé
+  /// offline (2026-07-19) : benchmark/constrained_decoding_eval.py, 82,1%
+  /// d'identification correcte sur les fautes de lettres, 45,0% harakat.
+  Future<void> setRescoringEnabled(bool enabled) async {
+    if (!_loaded) return;
+    try {
+      await _channel.invokeMethod('setRescoringEnabled', {'enabled': enabled});
+    } catch (e) {
+      debugPrint('[FastConformer] Échec setRescoringEnabled : $e');
     }
   }
 

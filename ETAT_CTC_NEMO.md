@@ -134,8 +134,53 @@ contre celle du texte réellement prononcé (au lieu du GOP forced-vs-free jugé
 aveugle sur certaines fautes). Après correction d'un bug initial (WAV TTS à
 24kHz au lieu de 16kHz, faussant un premier essai à 0%) : **letter 80,8%
 (690/854), harakat 49,6% (quasi hasard), total 64,3% → verdict GO** (seuil
->75% atteint sur "letter"). **Validé offline uniquement — aucune trace
-d'intégration dans le code app/Kotlin/Dart.**
+>75% atteint sur "letter").
+
+**Branché dans l'app le 2026-07-19** (`ConfusableVariants.kt`,
+`ForcedAligner.ctcForwardNll`/`WordResult.rescoreMargin`,
+`FastConformerCtcPlugin.setRescoringEnabled`, `AlignedWord.rescoreMargin` côté
+Dart) — **désactivé par défaut**, signal **diagnostique uniquement** (loggé
+dans `[GOP] ... rescore=...`), **ne participe pas au verdict** `judged`
+(`recitation_provider.dart`) : le seuil τ n'est pas calibré en conditions
+device réelles (cf. mesures §5a-bis ci-dessous, marge par-fenêtre-de-mot
+différente de la marge par-clip-isolé validée offline). Activer via
+`FastConformerVerifier.setRescoringEnabled(true)` une fois un seuil choisi.
+
+#### a-bis) Version "aveugle" du rescoring : décodage contraint par variantes générées
+
+`benchmark/constrained_decoding_eval.py` (2026-07-19) — différence avec (a) :
+au lieu de comparer NLL(canonique) à NLL(ce qui a été *réellement* prononcé,
+connu du holdout), on énumère à l'avance toutes les variantes confusables à 1
+édition du mot **attendu seul** (harakat substituées + confusions de lettres
+apprises du corpus TTS, `ConfusableVariants.kt` côté app) et on élit celle qui
+explique le mieux l'audio — c'est exactement ce que fera l'app en production
+(le mot réellement dit n'est jamais connu à l'avance).
+
+**Test A — détection sur `val_errors_annotated.jsonl` (1808 clips fautifs,
+mixed-e14)** : identification du mot exact parmi les candidats — **82,1%
+letter, 45,0% harakat** (total 62,5%) ; détection qu'*une* variante bat le
+canonique (τ=0, seuil le plus permissif) — **91,3% letter, 75,7% harakat**.
+
+**Test B — faux positifs sur `val_canonical.jsonl` (150 versets corrects)** :
+à τ=0, **77,9% des versets** ont au moins une variante qui bat le canonique à
+tort (2,77% des candidats individuels). Le compromis τ mesuré :
+
+| τ | détection letter | détection harakat | versets flagués à tort |
+|---|---|---|---|
+| 0 | 91,3% | 75,7% | 77,9% |
+| 3 | 78,3% | 54,5% | 59,7% |
+| 8 | 39,2% | 25,1% | 40,3% |
+| 20 | 4,6% | 1,9% | 8,7% |
+
+**Lecture** : aucun τ unique n'offre un compromis net (à τ=20, faux positifs
+bas mais détection quasi nulle) — la marge par-fenêtre-de-mot bruite
+davantage que la marge par-clip-isolé du test (a) (mot isolé, silence propre
+en début/fin, meilleure conditions). **Ne PAS calibrer τ sur ces seuls
+chiffres offline** : ils bornent l'ordre de grandeur, pas un seuil prêt à
+déployer — nécessite une calibration sur clips device réels (bruit ambiant,
+frontières de mots moins nettes que dans un holdout TTS synthétique) avant
+d'envisager d'activer `setRescoringEnabled` en production ou de faire
+participer `rescoreMargin` au verdict.
 
 ### b) Global-match (validation globale avant fragmentation mot-par-mot)
 `benchmark/global_match_eval.py` — idée : valider un fragment entier quand le
@@ -167,9 +212,11 @@ le commit — pas encore confirmé en usage réel.
   jamais confirmé dans les notes de session (`HANDOFF_UBUNTU_TRAINING.md` §2
   le signalait déjà comme point ouvert le 12/07, toujours pas vérifié).
 
-### Intégration app (validé offline, pas branché)
-- **Rescoring NLL canonique/prononcé** (§5a) — verdict GO mais aucune
-  intégration Kotlin/Dart à ce jour.
+### Intégration app
+- ~~**Rescoring NLL canonique/prononcé** (§5a)~~ **Branché le 2026-07-19**
+  (désactivé par défaut, diagnostic uniquement — cf. §5a) : reste à faire,
+  **calibrer τ sur clips device réels** (pas seulement le holdout TTS
+  offline) avant d'activer ou de le faire participer au verdict.
 - **Corriger le nom de dossier / commentaire `_kModelSubdir`** (§4) pour
   refléter epoch14 réellement déployé, éviter une confusion pour un futur
   redéploiement.
@@ -184,12 +231,14 @@ ou dépendant d'un résultat pas encore obtenu). Les pistes "double tête",
 "règles/qalqala" et "RNNT" ne sont plus listées ici : elles sont **absorbées
 par `PLAN_ENTRAINEMENT_HYBRIDE.md`**.
 
-- 🟢 **Décodage contraint au texte attendu** (par verset, pas un LM général) —
-  **LA piste à tester en premier** : aucun réentraînement (pur changement de
-  décodage), testable dès aujourd'hui sur epoch14 contre
-  `val_errors_annotated.jsonl`, et c'est le cadrage jugé le plus adapté au
-  cœur du produit (vérification contre un verset connu, pas transcription
-  libre). Rapport valeur/coût maximal de toute la liste.
+- ~~🟢 **Décodage contraint au texte attendu**~~ **Testé le 2026-07-19**
+  (`benchmark/constrained_decoding_eval.py`, cf. §5a-bis) : gain réel mais pas
+  un GO immédiat en l'état — 82,1%/45,0% (letter/harakat) d'identification
+  correcte du mot fautif, mais 77,9% des versets *corrects* auraient au moins
+  un faux positif au seuil le plus permissif. **Branché en app comme signal
+  diagnostique désactivé par défaut** (`ForcedAligner.rescoreMargin`,
+  `setRescoringEnabled`) — reste : calibrer le seuil sur device réel avant
+  toute activation ou tout impact sur le verdict.
 - 🟡 **InterCTC / self-conditioned CTC** — supporté nativement par NeMo (une
   config YAML `interctc.loss_weights`), gain documenté sans coût d'inférence.
   Quasi-gratuit MAIS ne pas l'empiler dans le premier run hybride (déjà 3

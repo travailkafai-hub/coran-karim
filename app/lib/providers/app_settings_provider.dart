@@ -159,6 +159,22 @@ class ExplanationLanguageNotifier extends StateNotifier<String> {
 /// silencieusement sur la suivante.
 final correctionSensitivityProvider = StateProvider<double>((ref) => 0.5);
 
+/// Sensibilité de jugement pour l'écran "Suivre une prière" -- demande
+/// utilisateur 2026-07-19 : "je veux que le paramètre de la sensibilité soit
+/// sur la même page indépendamment de la sensibilité dans la récitation, ils
+/// peuvent avoir deux niveaux différents". Volontairement un provider séparé
+/// de [correctionSensitivityProvider] (pas partagé) : ajuster l'un ne doit
+/// jamais changer l'autre, les deux contextes (pratique karaoké vs suivi
+/// d'un imam en conditions réelles) n'appellent pas la même tolérance.
+final prayerSensitivityProvider = StateProvider<double>((ref) => 0.5);
+
+/// Souffleur automatique sur hésitation longue, spécifique à l'écran
+/// "Suivre une prière" (demande utilisateur 2026-07-19, "puis celui du
+/// souffleur" -- même page que la sensibilité ci-dessus). ACTIVÉ par défaut :
+/// c'est la seule aide offerte dans ce mode (jamais de blocage/correction
+/// forcée, cf. RecitationNotifier._confidentMode).
+final prayerSouffleurEnabledProvider = StateProvider<bool>((ref) => true);
+
 const _kPrefStrictCorrection = 'strict_correction_enabled';
 
 /// Rigueur de la correction automatique (demande utilisateur 2026-07-06) :
@@ -188,3 +204,44 @@ class StrictCorrectionSettingNotifier extends StateNotifier<bool> {
     await prefs.setBool(_kPrefStrictCorrection, value);
   }
 }
+
+const _kPrefFollowWithoutBlocking = 'follow_without_blocking_enabled';
+
+/// "Suit sans bloquer" (demande utilisateur 2026-07-16 soir) : ACTIVÉ (par
+/// défaut) -- sur un mot en échec, l'audio de correction ne se rejoue QU'UNE
+/// FOIS ; si wordFailed refire sur ce même mot juste après, on ne rebloque
+/// plus (pas de nouveau recul d'ancre) -- le réciteur peut avancer sur la
+/// suite, le modèle suit sans forcer. DÉSACTIVÉ -- comportement d'origine :
+/// chaque échec rejoue l'audio et recule l'ancre, le réciteur DOIT reprendre
+/// exactement le mot avant de pouvoir avancer. Cf. cas réel : boucle de 4+
+/// minutes sur "لَيَصْرِمُنَّهَا" sans jamais aboutir alors que le réciteur était
+/// confiant d'avoir bien récité.
+final followWithoutBlockingProvider =
+    StateNotifierProvider<FollowWithoutBlockingSettingNotifier, bool>((ref) {
+  return FollowWithoutBlockingSettingNotifier();
+});
+
+class FollowWithoutBlockingSettingNotifier extends StateNotifier<bool> {
+  FollowWithoutBlockingSettingNotifier() : super(true) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefFollowWithoutBlocking);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefFollowWithoutBlocking, value);
+  }
+}
+
+// Ancien toggle "réciteur confiant" (demande utilisateur 2026-07-18) --
+// RETIRÉ (2026-07-18, même jour) : cette logique vit désormais entièrement
+// dans l'écran dédié "Suivre une prière" (prayer_follow_screen.dart,
+// RecitationNotifier.startPrayerFollow), plus adéquat pour l'usage réel
+// (imam qui ne pré-sélectionne pas de sourate) que ce toggle sur le karaoké
+// classique. Voir historique git pour l'implémentation précédente si besoin.

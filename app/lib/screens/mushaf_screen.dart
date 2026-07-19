@@ -14,16 +14,39 @@ import '../widgets/mushaf_header.dart';
 import '../widgets/mini_player_bar.dart';
 import '../widgets/reading_settings_sheet.dart';
 import '../widgets/coach_explanation_sheet.dart';
+import '../widgets/quran_shazam_sheet.dart';
 import 'coach_screen.dart';
 import 'recitation_screen.dart';
 import 'karaoke_recitation_screen.dart';
 
 class MushafScreen extends ConsumerStatefulWidget {
   final Surah surah;
-  const MushafScreen({super.key, required this.surah});
+  // Verset à afficher/scroller directement à l'ouverture (demande utilisateur
+  // 2026-07-18, "Shazam coranique" : après avoir identifié un passage entendu
+  // en ambiance, ouvrir directement dessus plutôt que le début de la sourate).
+  final int? initialAyahNumber;
+  const MushafScreen({super.key, required this.surah, this.initialAyahNumber});
 
   @override
   ConsumerState<MushafScreen> createState() => _MushafScreenState();
+}
+
+enum _EntryKind { verse, bismillah, surahBanner }
+
+// Un item de la liste rendue : soit un verset (référence par index dans
+// `_verses`, la liste plate à travers toutes les sourates chargées), soit
+// une bannière insérée entre deux sourates (nom de sourate, puis Bismillah).
+class _ListEntry {
+  final _EntryKind kind;
+  final int? verseIndex;
+  final Verse? bismillah;
+  final Surah? surah;
+  const _ListEntry.verse(int index)
+      : kind = _EntryKind.verse, verseIndex = index, bismillah = null, surah = null;
+  const _ListEntry.bismillah(Verse verse)
+      : kind = _EntryKind.bismillah, bismillah = verse, verseIndex = null, surah = null;
+  const _ListEntry.surahBanner(Surah s)
+      : kind = _EntryKind.surahBanner, surah = s, verseIndex = null, bismillah = null;
 }
 
 class _MushafScreenState extends ConsumerState<MushafScreen>
@@ -33,9 +56,20 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   String? _error;
   int _activeVerse = 0;
   bool _showTranslation = false;
-  // Récupérée via l'API (verset 1:1 réel), jamais tapée à la main -- texte
-  // sacré (cf. karaoke_recitation_screen.dart, bug réel du 2026-07-09).
-  Verse? _bismillah;
+
+  // Défilement infini entre sourates (demande utilisateur 2026-07-18 :
+  // "actuellement on affiche sourate par sourate, impossible de passer à la
+  // prochaine sourate" -> "défilement infini automatique", comme un vrai
+  // Mushaf papier). `_verses`/`_verseKeys` restent une liste PLATE, à travers
+  // toutes les sourates chargées -- tout le code existant (index actif,
+  // fragment pour le karaoké, scroll par index) continue de fonctionner sans
+  // changement. `_items` est la liste de RENDU (verset, ou bannière
+  // Bismillah/nom de sourate insérée entre deux sourates).
+  List<Surah> _loadedSurahs = [];
+  int? _nextSurahNumber;
+  bool _loadingMore = false;
+  List<Surah>? _allSurahsCache;
+  List<_ListEntry> _items = [];
 
   final _scrollController = ScrollController();
   Ticker? _autoScrollTicker;
@@ -46,14 +80,21 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   // Scrollable.ensureVisible plutôt qu'un calcul d'offset.
   List<GlobalKey> _verseKeys = [];
 
+  // À moins de 1200px du bas, on déclenche déjà le chargement de la sourate
+  // suivante -- l'enchaînement doit être invisible, jamais un blanc/un à-coup
+  // pendant que le lecteur arrive en bas.
+  static const _kLoadMoreThreshold = 1200.0;
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _load();
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _autoScrollTicker?.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -68,14 +109,87 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
           needsBismillah ? await QuranApi.fetchBismillah() : null;
       setState(() {
         _verses = verses;
-        _bismillah = bismillah;
         _verseKeys = List.generate(verses.length, (_) => GlobalKey());
+        _loadedSurahs = [widget.surah];
+        _nextSurahNumber = widget.surah.number < 114 ? widget.surah.number + 1 : null;
+        _items = [
+          if (bismillah != null) _ListEntry.bismillah(bismillah),
+          for (var i = 0; i < verses.length; i++) _ListEntry.verse(i),
+        ];
         _loading = false;
       });
+      final targetAyah = widget.initialAyahNumber;
+      if (targetAyah != null) {
+        final idx = verses.indexWhere((v) => v.ayahNumber == targetAyah);
+        if (idx >= 0) {
+          setState(() => _activeVerse = idx);
+          _scrollToIndex(idx, const Duration(milliseconds: 400));
+        }
+      }
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
     }
   }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (!_loadingMore &&
+        _nextSurahNumber != null &&
+        pos.maxScrollExtent - pos.pixels < _kLoadMoreThreshold) {
+      _loadNextSurah();
+    }
+  }
+
+  // Charge la sourate suivante et l'ajoute à la suite, dans le même scroll
+  // continu -- avec une bannière de nom de sourate + Bismillah entre les deux
+  // (sauf At-Tawbah, qui n'en a pas). Idempotent/sûr en cas d'appels
+  // rapprochés grâce à `_loadingMore` (le scroll déclenche `_onScroll` à
+  // chaque frame tant qu'on est proche du bas).
+  Future<void> _loadNextSurah() async {
+    final nextNum = _nextSurahNumber;
+    if (nextNum == null || _loadingMore) return;
+    _loadingMore = true;
+    try {
+      _allSurahsCache ??= await QuranApi.fetchSurahs();
+      final nextSurah =
+          _allSurahsCache!.firstWhere((s) => s.number == nextNum);
+      final needsBismillah = nextNum != 1 && nextNum != 9;
+      final verses = await QuranApi.fetchVerses(nextNum);
+      final bismillah =
+          needsBismillah ? await QuranApi.fetchBismillah() : null;
+      if (!mounted) return;
+      setState(() {
+        final baseIdx = _verses.length;
+        _verses = [..._verses, ...verses];
+        _verseKeys = [
+          ..._verseKeys,
+          ...List.generate(verses.length, (_) => GlobalKey()),
+        ];
+        _items = [
+          ..._items,
+          _ListEntry.surahBanner(nextSurah),
+          if (bismillah != null) _ListEntry.bismillah(bismillah),
+          for (var i = 0; i < verses.length; i++) _ListEntry.verse(baseIdx + i),
+        ];
+        _loadedSurahs = [..._loadedSurahs, nextSurah];
+        _nextSurahNumber = nextNum < 114 ? nextNum + 1 : null;
+      });
+    } catch (e) {
+      debugPrint('[Mushaf] échec chargement sourate suivante $nextNum : $e');
+    } finally {
+      _loadingMore = false;
+    }
+  }
+
+  // Nom de la sourate propriétaire d'un verset donné -- nécessaire pour les
+  // titres (Coach IA, explication de mot) depuis que `_verses` peut couvrir
+  // plusieurs sourates : `widget.surah` n'est plus forcément celle du verset
+  // actif.
+  Surah _surahForNumber(int number) => _loadedSurahs.firstWhere(
+        (s) => s.number == number,
+        orElse: () => widget.surah,
+      );
 
   // Défilement automatique "téléprompteur" (demande utilisateur 2026-07-06 :
   // "lire le Coran et ça scroll selon sa vitesse") — un Ticker avance le
@@ -130,11 +244,12 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   void _openCoachExplanation() {
     if (_verses.isEmpty) return;
     final verse = _verses[_activeVerse];
+    final surah = _surahForNumber(verse.surahNumber);
     showCoachExplanation(
       context,
       surahNumber: verse.surahNumber,
       ayahNumber: verse.ayahNumber,
-      title: '${widget.surah.nameSimple} — verset ${verse.ayahNumber}',
+      title: '${surah.nameSimple} — verset ${verse.ayahNumber}',
       useErrorLog: false,
     );
   }
@@ -152,11 +267,12 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
         .where((w) => w.isNotEmpty && ArabicNormalizer.normalize(w).isNotEmpty)
         .toList();
     if (wordIdx < 0 || wordIdx >= words.length) return;
+    final surah = _surahForNumber(verse.surahNumber);
     showCoachExplanation(
       context,
       surahNumber: verse.surahNumber,
       ayahNumber: verse.ayahNumber,
-      title: '${widget.surah.nameSimple} ${verse.ayahNumber} — ${words[wordIdx]}',
+      title: '${surah.nameSimple} ${verse.ayahNumber} — ${words[wordIdx]}',
       focusWord: words[wordIdx],
       focusWordIndex: wordIdx,
       useErrorLog: false,
@@ -220,6 +336,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
             onTranslationTap: () =>
                 setState(() => _showTranslation = !_showTranslation),
             onCoachTap: _verses.isEmpty ? null : _openCoachExplanation,
+            onIdentifyTap: _openShazam,
             onMoreTap: _openReadingSettings,
             showTranslation: _showTranslation,
             isPlaying: playerState.isPlaying,
@@ -230,10 +347,8 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   }
 
   Widget _buildVerses(String? playingVerseKey) {
-    final showBismillah = widget.surah.number != 1 &&
-        widget.surah.number != 9 &&
-        _bismillah != null;
     final textScale = ref.watch(textScaleProvider);
+    final showLoadingFooter = _loadingMore;
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
         if (n is ScrollStartNotification && n.dragDetails != null) {
@@ -244,29 +359,42 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.only(top: 8, bottom: 100),
-        itemCount: _verses.length + (showBismillah ? 1 : 0),
+        itemCount: _items.length + (showLoadingFooter ? 1 : 0),
         itemBuilder: (context, i) {
-          if (showBismillah && i == 0) {
-            return _BismillahBanner(text: _bismillah!.textUthmani);
+          if (i >= _items.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: CircularProgressIndicator(color: AppColors.green800),
+              ),
+            );
           }
-          final idx = showBismillah ? i - 1 : i;
-          final verse = _verses[idx];
-          return VerseTile(
-            key: _verseKeys[idx],
-            verse: verse,
-            isActive: _activeVerse == idx,
-            isPlayingCursor: playingVerseKey != null && verse.key == playingVerseKey,
-            showTranslation: _showTranslation,
-            textScale: textScale,
-            onTap: () => setState(() => _activeVerse = idx),
-            // Tap sur un mot précis = l'expliquer (demande utilisateur
-            // 2026-07-10), pas le jouer -- la lecture reste accessible via
-            // le bouton "Lire" une fois le verset sélectionné.
-            onWordTap: (wordIdx) {
-              setState(() => _activeVerse = idx);
-              _openWordExplanation(verse, wordIdx);
-            },
-          );
+          final entry = _items[i];
+          switch (entry.kind) {
+            case _EntryKind.bismillah:
+              return _BismillahBanner(text: entry.bismillah!.textUthmani);
+            case _EntryKind.surahBanner:
+              return _SurahBanner(surah: entry.surah!);
+            case _EntryKind.verse:
+              final idx = entry.verseIndex!;
+              final verse = _verses[idx];
+              return VerseTile(
+                key: _verseKeys[idx],
+                verse: verse,
+                isActive: _activeVerse == idx,
+                isPlayingCursor: playingVerseKey != null && verse.key == playingVerseKey,
+                showTranslation: _showTranslation,
+                textScale: textScale,
+                onTap: () => setState(() => _activeVerse = idx),
+                // Tap sur un mot précis = l'expliquer (demande utilisateur
+                // 2026-07-10), pas le jouer -- la lecture reste accessible via
+                // le bouton "Lire" une fois le verset sélectionné.
+                onWordTap: (wordIdx) {
+                  setState(() => _activeVerse = idx);
+                  _openWordExplanation(verse, wordIdx);
+                },
+              );
+          }
         },
       ),
     );
@@ -365,6 +493,76 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
         MaterialPageRoute(
             builder: (_) => RecitationScreen(verses: _fragmentFromActive())));
   }
+
+  /// "Shazam coranique" (demande utilisateur 2026-07-18) : écoute un extrait
+  /// entendu en ambiance (pas la voix de l'utilisateur en train de réciter un
+  /// texte déjà choisi -- ici le texte est encore INCONNU) et ouvre le Mushaf
+  /// directement au passage identifié.
+  Future<void> _openShazam() async {
+    final match = await showQuranShazamSheet(context, ref);
+    if (match == null || !mounted) return;
+    // Déjà dans le scroll continu actuel (sourate initiale ou une des
+    // suivantes déjà enchaînées par le défilement infini) : on y saute
+    // directement plutôt que de rouvrir un nouvel écran par-dessus.
+    if (_loadedSurahs.any((s) => s.number == match.surahNumber)) {
+      final idx = _verses.indexWhere((v) =>
+          v.surahNumber == match.surahNumber && v.ayahNumber == match.ayahNumber);
+      if (idx >= 0) {
+        setState(() => _activeVerse = idx);
+        _scrollToIndex(idx, const Duration(milliseconds: 400));
+      }
+      return;
+    }
+    final surahs = await QuranApi.fetchSurahs();
+    final target = surahs.firstWhere((s) => s.number == match.surahNumber,
+        orElse: () => widget.surah);
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MushafScreen(
+          surah: target,
+          initialAyahNumber: match.ayahNumber,
+        ),
+      ),
+    );
+  }
+}
+
+// Marque le passage à la sourate suivante dans le scroll continu (défilement
+// infini automatique, demande utilisateur 2026-07-18) -- distincte de la
+// Bismillah (qui la suit juste en dessous) pour que le lecteur voie sans
+// ambiguïté qu'une nouvelle sourate commence, comme le ferait une page de
+// Mushaf papier.
+class _SurahBanner extends StatelessWidget {
+  final Surah surah;
+  const _SurahBanner({required this.surah});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.fromLTRB(16, 28, 16, 4),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+        decoration: BoxDecoration(
+          color: AppColors.green800,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '${surah.number}. ${surah.nameSimple}',
+              style: GoogleFonts.manrope(
+                  fontSize: 13, color: AppColors.cream, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              surah.nameArabic,
+              textDirection: TextDirection.rtl,
+              style: GoogleFonts.amiri(fontSize: 18, color: AppColors.brassLight),
+            ),
+          ],
+        ),
+      );
 }
 
 class _BismillahBanner extends StatelessWidget {
@@ -398,13 +596,14 @@ class _BottomBar extends StatelessWidget {
   final VoidCallback? onMicDoubleTap;
   final VoidCallback? onTranslationTap;
   final VoidCallback? onCoachTap;
+  final VoidCallback? onIdentifyTap;
   final VoidCallback? onMoreTap;
   final bool showTranslation;
   final bool isPlaying;
 
   const _BottomBar({
     this.onPlayTap, this.onMicTap, this.onMicLongPress, this.onMicDoubleTap,
-    this.onTranslationTap, this.onCoachTap, this.onMoreTap,
+    this.onTranslationTap, this.onCoachTap, this.onIdentifyTap, this.onMoreTap,
     this.showTranslation = false, this.isPlaying = false,
   });
 
@@ -467,6 +666,13 @@ class _BottomBar extends StatelessWidget {
                   icon: Icons.psychology_alt_rounded,
                   label: 'Coach IA',
                   onTap: onCoachTap ?? () {},
+                ),
+                // "Shazam coranique" (demande utilisateur 2026-07-18) : écoute
+                // un passage entendu en ambiance et retrouve où il se trouve.
+                _BarButton(
+                  icon: Icons.hearing_rounded,
+                  label: 'Identifier',
+                  onTap: onIdentifyTap ?? () {},
                 ),
                 _BarButton(icon: Icons.more_horiz_rounded, label: 'Plus',
                     onTap: onMoreTap ?? () {}),

@@ -95,6 +95,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     // jamais reanalyse) ; Dart peut la forcer (correction/recul) via
     // setAlignmentAnchor.
     @Volatile private var alignTokens: List<IntArray>? = null
+    // Variantes confusables par mot, PARALLELE a alignTokens (rescoring NLL,
+    // cf. ForcedAligner.WordResult.rescoreMargin / ConfusableVariants). Null ou
+    // liste vide pour un mot -> pas de rescoring sur ce mot (comportement
+    // identique a avant ce champ).
+    @Volatile private var alignVariants: List<List<Pair<String, IntArray>>>? = null
     @Volatile private var alignAnchor = 0
     @Volatile private var alignSeq = 0
     @Volatile private var lastAlign: Map<String, Any>? = null
@@ -113,8 +118,13 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     /** Nombre max de mots alignes par passe — borne le cout de la DP (T x 2N+1). */
     private val maxAlignWords = 80
 
-    fun setAlignmentTarget(tokens: List<IntArray>, anchor: Int) {
+    fun setAlignmentTarget(
+        tokens: List<IntArray>,
+        anchor: Int,
+        variants: List<List<Pair<String, IntArray>>>? = null,
+    ) {
         alignTokens = tokens
+        alignVariants = variants
         alignAnchor = anchor.coerceIn(0, tokens.size)
         lastAlign = null
         deferredOnceIndex = -1
@@ -134,9 +144,16 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
      *  setAlignmentTarget, qui remplace tout). Enchainement sur la sourate
      *  suivante sans interrompre la session en cours (demande utilisateur
      *  2026-07-11). */
-    fun extendAlignmentTarget(newTokens: List<IntArray>) {
+    fun extendAlignmentTarget(
+        newTokens: List<IntArray>,
+        newVariants: List<List<Pair<String, IntArray>>>? = null,
+    ) {
         val current = alignTokens
         alignTokens = if (current != null) current + newTokens else newTokens
+        if (newVariants != null) {
+            val currentV = alignVariants ?: List(current?.size ?: 0) { emptyList() }
+            alignVariants = currentV + newVariants
+        }
         DiagnosticLog.log(TAG, "cible d'alignement etendue : +${newTokens.size} mots, " +
                 "total=${alignTokens?.size}, ancre inchangee=$alignAnchor")
     }
@@ -152,12 +169,16 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         val anchor = alignAnchor
         if (anchor >= tokens.size) return
         try {
-            val slice = tokens.subList(anchor, minOf(tokens.size, anchor + maxAlignWords))
+            val end = minOf(tokens.size, anchor + maxAlignWords)
+            val slice = tokens.subList(anchor, end)
             // forceJudgeIndex seulement sur un appel FINAL : un apercu ne
             // verrouille jamais rien, differer un mot sur un apercu ne compte
             // pas comme une "tentative" reelle.
             val forceIdx = if (isFinal) deferredOnceIndex else -1
-            val res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal) ?: return
+            val variantsSlice = alignVariants?.let {
+                if (anchor < it.size) it.subList(anchor, minOf(it.size, end)) else null
+            }
+            val res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal, variantsSlice) ?: return
             val words = res.words.map {
                 mapOf(
                     "i" to it.index,
@@ -165,7 +186,8 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     "forced" to it.forced,
                     "covered" to it.covered,
                     "actual" to it.actual,
-                )
+                ) + (it.rescoreMargin?.let { m -> mapOf("rescoreMargin" to m) } ?: emptyMap()) +
+                    (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap())
             }
             alignSeq++
             lastAlign = mapOf(

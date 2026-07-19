@@ -15,6 +15,24 @@ enum WordStatus {
 
 enum RecitationStatus { idle, listening, processing, finished, error }
 
+/// Phase du cycle de prière (mode "réciteur confiant" 2026-07-18, suivi d'un
+/// imam) : une rak'ah dit "الله أكبر" PLUSIEURS fois (lever, rukū', chaque
+/// sujūd...) mais SEULE la sourate suivie et Al-Fatiha sont du texte
+/// coranique à corriger -- les autres takbirs sont suivis de silence/tasbih.
+/// Comme un takbir seul ne dit pas LEQUEL il est, on ne peut pas décider
+/// d'avance : TOUT takbir renvoie en [standby] (on arrête de juger l'ancienne
+/// cible plutôt que de continuer à l'aveugle sur du contenu qui n'est plus
+/// elle), et seule la RECONNAISSANCE EFFECTIVE du début d'Al-Fatiha fait
+/// basculer vers [fatiha] -- les takbirs de rukū'/sujūd restent juste en
+/// [standby] sans dégât, suivis d'un nouveau takbir plus tard.
+enum PrayerPhase {
+  none,            // comportement normal, hors cycle de prière
+  standby,         // takbir détecté, en attente de reconnaître le début d'Al-Fatiha
+  fatiha,          // Al-Fatiha en cours de suivi/correction
+  detectingTarget, // Al-Fatiha terminée -- identification (Shazam) de la sourate suivante
+  target,          // sourate en cours de suivi/correction après Al-Fatiha
+}
+
 /// Un mot du verset avec son texte affiché (harakat) et son état de validation.
 class RecitedWord {
   final String display;     // texte original avec harakat (affichage)
@@ -66,6 +84,7 @@ class RecitationSessionState {
   final String rawTranscript;   // texte brut du modèle (debug/visualisation)
   final bool continuous;        // mode récitation continue (multi-versets, VAD)
   final int pendingSegments;    // segments en file d'attente/en cours d'analyse
+  final PrayerPhase prayerPhase; // cycle de prière (mode "réciteur confiant")
 
   const RecitationSessionState({
     this.words = const [],
@@ -78,6 +97,7 @@ class RecitationSessionState {
     this.rawTranscript = '',
     this.continuous = false,
     this.pendingSegments = 0,
+    this.prayerPhase = PrayerPhase.none,
   });
 
   int get total => words.length;
@@ -108,6 +128,7 @@ class RecitationSessionState {
     String? rawTranscript,
     bool? continuous,
     int? pendingSegments,
+    PrayerPhase? prayerPhase,
   }) {
     return RecitationSessionState(
       words: words ?? this.words,
@@ -120,6 +141,7 @@ class RecitationSessionState {
       rawTranscript: rawTranscript ?? this.rawTranscript,
       continuous: continuous ?? this.continuous,
       pendingSegments: pendingSegments ?? this.pendingSegments,
+      prayerPhase: prayerPhase ?? this.prayerPhase,
     );
   }
 }

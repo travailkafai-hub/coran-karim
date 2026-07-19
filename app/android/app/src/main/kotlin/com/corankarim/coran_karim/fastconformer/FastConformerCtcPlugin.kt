@@ -36,6 +36,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     // alignFile (mode coach, un seul WAV, pas de BufferedTranscriber).
     @Volatile private var alignTokens: List<IntArray>? = null
     @Volatile private var alignAnchor: Int = 0
+    // Rescoring NLL par mot (cf. ForcedAligner.WordResult.rescoreMargin,
+    // ConfusableVariants) : desactive par defaut -- diagnostic pas encore
+    // valide sur device (offline seulement, cf. constrained_decoding_eval.py),
+    // et calcule un forward CTC supplementaire par variante confusable sur
+    // CHAQUE mot d'une passe finale. Active via setRescoringEnabled(true).
+    @Volatile private var rescoringEnabled: Boolean = false
+    @Volatile private var alignVariants: List<List<Pair<String, IntArray>>>? = null
     private var tokenizer: CtcTokenizer? = null
     // Dictionnaire mot->tokens precalcule (cf. loadModel) -- null si absent.
     @Volatile private var wordTokenLookup: Map<String, IntArray>? = null
@@ -174,7 +181,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         buffered = BufferedTranscriber(current)
                         pendingCommitSilenceMs?.let { buffered!!.setCommitSilenceMs(it) }
                         buffered!!.setClipCapture(pendingClipCaptureDir)
-                        alignTokens?.let { buffered!!.setAlignmentTarget(it, alignAnchor) }
+                        alignTokens?.let { buffered!!.setAlignmentTarget(it, alignAnchor, alignVariants) }
                     }
                     val samples = pcm16ToFloat(pcm16)
                     buffered!!.feed(samples, scope)
@@ -220,7 +227,9 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     }
                     alignTokens = tokens
                     alignAnchor = anchor
-                    buffered?.setAlignmentTarget(tokens, anchor)
+                    val variants = if (rescoringEnabled) buildVariants(words) else null
+                    alignVariants = variants
+                    buffered?.setAlignmentTarget(tokens, anchor, variants)
                     withContext(Dispatchers.Main) { result.success(true) }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { result.error("SET_ALIGN_TARGET_FAILED", e.message, null) }
@@ -249,7 +258,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     if (tokenizer == null) tokenizer = CtcTokenizer(current.vocabPieces, wordTokenLookup)
                     val newTokens = words.map { tokenizer!!.tokenizeWord(it) }
                     alignTokens = (alignTokens ?: emptyList()) + newTokens
-                    buffered?.extendAlignmentTarget(newTokens)
+                    val newVariants = if (rescoringEnabled) buildVariants(words) else null
+                    if (newVariants != null) {
+                        val currentV = alignVariants ?: List((alignTokens?.size ?: newTokens.size) - newTokens.size) { emptyList() }
+                        alignVariants = currentV + newVariants
+                    }
+                    buffered?.extendAlignmentTarget(newTokens, newVariants)
                     DiagnosticLog.log("FastConformerCtcPlugin",
                         "cible etendue : +${newTokens.size} mots, total=${alignTokens?.size}")
                     withContext(Dispatchers.Main) { result.success(true) }
@@ -278,7 +292,10 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     val logprobs = current.computeLogProbs(pcm)
                     val aligner = ForcedAligner(current.vocabPieces, current.blank)
                     val slice = tokens.subList(anchor, tokens.size)
-                    var res = aligner.align(logprobs, slice, anchor, isFinal = true)
+                    val variantsSlice = alignVariants?.let {
+                        if (anchor < it.size) it.subList(anchor, it.size) else null
+                    }
+                    var res = aligner.align(logprobs, slice, anchor, isFinal = true, wordVariants = variantsSlice)
                     if (res == null) {
                         withContext(Dispatchers.Main) { result.success(null) }
                         return@launch
@@ -297,7 +314,8 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     val deferred = res.deferredIndex
                     if (deferred != null) {
                         val retried = aligner.align(
-                            logprobs, slice, anchor, forceJudgeIndex = deferred, isFinal = true)
+                            logprobs, slice, anchor, forceJudgeIndex = deferred, isFinal = true,
+                            wordVariants = variantsSlice)
                         if (retried != null) res = retried
                     }
                     val payload = mapOf(
@@ -312,13 +330,23 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                                 "forced" to it.forced,
                                 "covered" to it.covered,
                                 "actual" to it.actual,
-                            )
+                            ) + (it.rescoreMargin?.let { m -> mapOf("rescoreMargin" to m) } ?: emptyMap()) +
+                                (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap())
                         },
                     )
                     withContext(Dispatchers.Main) { result.success(payload) }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { result.error("ALIGN_FILE_FAILED", e.message, null) }
                 }
+            }
+            // Rescoring NLL par mot (cf. ForcedAligner.WordResult.rescoreMargin) :
+            // recalcule les variantes confusables de la cible d'alignement DEJA
+            // fixee (si presente), pour ne pas exiger un nouvel appel
+            // setAlignmentTarget cote Dart juste pour activer le diagnostic.
+            "setRescoringEnabled" -> {
+                val enabled = call.argument<Boolean>("enabled") ?: false
+                rescoringEnabled = enabled
+                result.success(null)
             }
             // Profil de pauses personnel (par passage, cf. BufferedTranscriber) :
             // le seuil de gel s'adapte a la facon dont CET utilisateur recite CE
@@ -404,6 +432,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 result.success(null)
             }
             else -> result.notImplemented()
+        }
+    }
+
+    /** Variantes confusables tokenisees, PARALLELE a la liste [words] (cf.
+     *  ConfusableVariants, ForcedAligner.WordResult.rescoreMargin). Tokenisation
+     *  SILENCIEUSE (tokenizeVariantQuiet) : les variantes sont volontairement
+     *  hors-Coran, presque aucune n'est dans le dictionnaire precalcule. */
+    private fun buildVariants(words: List<String>): List<List<Pair<String, IntArray>>> {
+        val tok = tokenizer ?: return words.map { emptyList() }
+        return words.map { w ->
+            ConfusableVariants.variantsOf(w).map { v -> v to tok.tokenizeVariantQuiet(v) }
         }
     }
 

@@ -19,8 +19,8 @@ checkpoint existant, y compris epoch14 déployé, sans rien réentraîner).
 | **Tête CTC tolérante** | Sortie normalisée (sans exigence tajweed) pour le mode débutant | 🏋️ Entraînement léger (après coup, encodeur gelé — heures) | Planifiée (Phase 2) |
 | **InterCTC** | Noter aussi une couche intermédiaire de l'encodeur pendant l'entraînement (l'élève corrigé à mi-parcours, pas juste à l'examen) | 🏋️ **Entraînement** (une ligne de config) | 🟡 Au run d'APRÈS le hybride (pas d'empilement de variables) |
 | **CR-CTC** | Exiger la même réponse sur deux versions déformées du même audio (robustesse) | 🏋️ **Entraînement** | 🔴 Réserve, si InterCTC ne suffit pas |
-| **Rescoring NLL** | Demander au modèle de départager deux textes candidats (attendu vs entendu) en comparant leurs scores de probabilité | 🎯 **Après (décodage)** — marche avec tout checkpoint | ✅ Validé offline (16/07) : lettres 80,8% GO, harakat 49,6% (hasard). **PAS encore branché dans l'app** |
-| **Décodage contraint au texte attendu** | Au lieu de "transcris librement", demander "l'audio colle-t-il à CE verset, et où ça diverge ?" | 🎯 **Après (décodage)** | 🟢 Priorité n°1, testable aujourd'hui sur epoch14 |
+| **Rescoring NLL** | Demander au modèle de départager deux textes candidats (attendu vs entendu) en comparant leurs scores de probabilité | 🎯 **Après (décodage)** — marche avec tout checkpoint | ✅ Validé offline (16/07). **Branché le 19/07** en signal diagnostique (désactivé par défaut, pas dans le verdict) — seuil à calibrer sur device |
+| **Décodage contraint au texte attendu** | Au lieu de "transcris librement", demander "l'audio colle-t-il à CE verset, et où ça diverge ?" | 🎯 **Après (décodage)** | ✅ Testé le 19/07 (`constrained_decoding_eval.py`) : 82,1%/45,0% identification letter/harakat, mais 77,9% de versets corrects avec ≥1 faux positif au seuil permissif — branché comme même signal diagnostique que le rescoring NLL, seuil non calibré |
 | **N-gram + KenLM** | Table de fréquences des enchaînements de mots du Coran qui aide à trancher les hésitations (comme le clavier prédictif du téléphone) | 🎯 **Après (décodage)** — le "LM" s'entraîne sur le texte seul, minutes, CPU | 🟡 Côté "Suivre une prière" UNIQUEMENT (aggraverait le biais canonique côté vérification) |
 | **Global-match** | Valider un fragment entier quand le décodage libre colle au texte attendu, ne fragmenter mot-par-mot que si mismatch | 🎯 Après (décodage) | ✅ Implémenté et commité (`3fb04c3`), à confirmer sur device |
 | **GOP** (système actuel) | Score forced-vs-free par mot — aveugle quand le modèle est convaincu du canonique (forced == free ⇒ score 0 ⇒ vert à tort) | 🎯 Après (décodage) | En prod, **battu par le rescoring NLL sur les lettres** — remplacement/complément à brancher |
@@ -35,9 +35,10 @@ checkpoint existant, y compris epoch14 déployé, sans rien réentraîner).
 
 **Améliorable à tout moment, sans toucher au training** (donc AUCUNE pression
 à les caser dans le run) :
-- Rescoring NLL → **à brancher dans l'app dès maintenant** (validé, meilleur
-  que le GOP actuel sur les lettres — pas besoin d'attendre le run hybride).
-- Décodage contraint → à prototyper offline sur epoch14 dès maintenant.
+- Rescoring NLL → **branché le 19/07** (diagnostique, désactivé par défaut —
+  seuil à calibrer sur device avant d'agir sur le verdict).
+- Décodage contraint → **prototypé et branché le 19/07** (même mécanisme que
+  le rescoring NLL côté app, cf. `ETAT_CTC_NEMO.md` §5a-bis).
 - KenLM → quand "Suivre une prière" en aura besoin.
 - Global-match → déjà en place.
 

@@ -148,6 +148,10 @@ class ForcedAligner(
         // "le bloc va jusqu'ici".
         private const val RETRY_STALL_MIN_FRAMES = MIN_FRAMES_FOR_JUDGMENT
 
+        // Rescoring NLL : padding (frames) ajoute de part et d'autre de la
+        // fenetre attribuee au mot par la DP. ~80ms/frame.
+        private const val RESCORE_PAD_FRAMES = 2
+
         // Fenetre de recherche (en tokens du decodage libre) pour retrouver un
         // token attendu. Bornee : au-dela, un match est plus probablement une
         // coincidence lointaine qu'un vrai alignement. Assez large pour sauter
@@ -156,13 +160,26 @@ class ForcedAligner(
         private const val FREE_MATCH_LOOKAHEAD = 12
     }
 
-    /** Resultat par mot. [index] est l'index ABSOLU dans le texte attendu complet. */
+    /** Resultat par mot. [index] est l'index ABSOLU dans le texte attendu complet.
+     *  [rescoreMargin]/[rescoreHeard] : rescoring NLL tete-a-tete (2026-07-19,
+     *  valide offline cf. ConfusableVariants) — NLL(mot attendu) - NLL(meilleure
+     *  variante confusable), calcule sur la fenetre de frames du mot. Marge > 0 :
+     *  une variante explique MIEUX l'audio que le mot attendu (signal ABSOLU,
+     *  la ou le gop est relatif et aveugle quand le modele est convaincu du
+     *  canonique : forced == free => gop=0 => vert a tort). Null si non calcule
+     *  (pas de variantes fournies, passe non finale, ou cible infaisable).
+     *  SIGNAL DIAGNOSTIQUE pour l'instant : logge cote Dart ([GOP] rescore=...),
+     *  ne participe PAS au verdict tant que le seuil n'est pas calibre sur
+     *  device (les marges par-fenetre n'ont pas la meme echelle que les marges
+     *  par-clip mesurees offline). */
     data class WordResult(
         val index: Int,
         val gop: Double,
         val forced: Double,
         val covered: Boolean,
         val actual: String,
+        val rescoreMargin: Double? = null,
+        val rescoreHeard: String? = null,
     )
 
     /**
@@ -195,6 +212,11 @@ class ForcedAligner(
         anchor: Int,
         forceJudgeIndex: Int = -1,
         isFinal: Boolean = false,
+        // Variantes confusables par mot (parallele a wordTokens) : (texte, ids).
+        // Fournies -> rescoring NLL par mot sur les passes FINALES uniquement
+        // (les apercus sont re-analyses de toute facon, et c'est le verdict
+        // final qu'on cherche a fiabiliser -- pas de cout DP inutile par passe).
+        wordVariants: List<List<Pair<String, IntArray>>>? = null,
     ): Result? {
         val t = logprobs.size
         if (t == 0 || wordTokens.isEmpty()) return null
@@ -361,7 +383,37 @@ class ForcedAligner(
                 val forced = wordForcedSum[wi] / wordFrames[wi]
                 val free = wordFreeSum[wi] / wordFrames[wi]
                 val actual = greedyDecodeRange(logprobs, wordFirstFrame[wi], wordLastFrame[wi])
-                results.add(WordResult(anchor + wi, forced - free, forced, covered, actual))
+                var rescoreMargin: Double? = null
+                var rescoreHeard: String? = null
+                if (isFinal && wordVariants != null && wi < wordVariants.size &&
+                    wordVariants[wi].isNotEmpty() && wordTokens[wi].isNotEmpty()
+                ) {
+                    // Fenetre du mot elargie de quelques frames : la DP rend
+                    // parfois la main au mot suivant un peu tot (cf. bug
+                    // "validation globale" ci-dessous) -- le padding redonne aux
+                    // candidats les frames de bord. Tous les candidats sont
+                    // scores sur la MEME fenetre : comparaison equitable.
+                    val rf = maxOf(0, wordFirstFrame[wi] - RESCORE_PAD_FRAMES)
+                    val rt = minOf(t - 1, wordLastFrame[wi] + RESCORE_PAD_FRAMES)
+                    val nllExpected = ctcForwardNll(logprobs, rf, rt, wordTokens[wi])
+                    if (nllExpected.isFinite()) {
+                        var bestNll = Double.POSITIVE_INFINITY
+                        var bestText: String? = null
+                        for ((text, toks) in wordVariants[wi]) {
+                            if (toks.isEmpty()) continue
+                            val nll = ctcForwardNll(logprobs, rf, rt, toks)
+                            if (nll < bestNll) {
+                                bestNll = nll; bestText = text
+                            }
+                        }
+                        if (bestText != null && bestNll.isFinite()) {
+                            rescoreMargin = nllExpected - bestNll
+                            rescoreHeard = bestText
+                        }
+                    }
+                }
+                results.add(WordResult(anchor + wi, forced - free, forced, covered, actual,
+                    rescoreMargin, rescoreHeard))
                 lastUsedFrame = maxOf(lastUsedFrame, wordLastFrame[wi])
             }
             return Result(anchor + frontierWordRel, results, deferredIndex) to lastUsedFrame
@@ -404,7 +456,20 @@ class ForcedAligner(
             // "confirme" meme si UN token (ex. une harakat) differe legerement
             // -- mais gop reste le seul juge du VERDICT ici, donc cette
             // tolerance n'affecte QUE le texte affiche, pas la couleur.
-            val spans = if (natural.words.size == w) wordSpansFromFree(free, wordTokens) else null
+            //
+            // Bug corrige 2026-07-16 (constate sur device : jamais declenchee
+            // en usage reel, malgre des cas ou elle aurait du s'appliquer) --
+            // la condition comparait natural.words.size a `w` = wordTokens.size,
+            // qui est la fenetre de LOOKAHEAD complete (jusqu'a maxAlignWords=80
+            // mots futurs, cf. BufferedTranscriber), pas le nombre de mots
+            // reellement prononces dans ce segment audio de quelques secondes.
+            // Exiger que les 80 mots de la fenetre soient TOUS confirmes par le
+            // decodage libre ne peut essentiellement jamais arriver. La bonne
+            // portee est `natural.words.size` lui-meme (les mots pour lesquels
+            // la DP a deja trouve des preuves, correctes ou non) : on ne valide
+            // QUE ce sous-ensemble deja couvert, jamais au-dela.
+            val spans = if (natural.words.isNotEmpty())
+                wordSpansFromFree(free, wordTokens.take(natural.words.size)) else null
             if (spans != null) {
                 val corrected = natural.words.map { r ->
                     val wi = r.index - anchor
@@ -412,7 +477,7 @@ class ForcedAligner(
                 }
                 DiagnosticLog.log(TAG,
                     "validation globale : texte 'actual' recalcule via decodage libre " +
-                            "($w mots confirmes, ancre=$anchor)")
+                            "(${natural.words.size} mots confirmes, ancre=$anchor)")
                 return Result(natural.frontier, corrected, natural.deferredIndex)
             }
 
@@ -445,6 +510,64 @@ class ForcedAligner(
             }
         }
         return natural
+    }
+
+    /** -log P(tokens | frames [from..toIncl]) sous le CTC : algorithme forward
+     *  standard (somme sur TOUS les chemins, log-sum-exp) sur les etats etendus
+     *  [blank, tok0, blank, ..., tokN-1, blank] -- equivalent Kotlin de
+     *  torch.nn.functional.ctc_loss(reduction="sum"), le MEME calcul que la
+     *  validation offline (benchmark/variant_rescoring_eval.py /
+     *  constrained_decoding_eval.py). Distinct de la DP Viterbi de align()
+     *  (meilleur chemin) : ici on veut la probabilite totale de la sequence,
+     *  comparable entre candidats. POSITIVE_INFINITY si infaisable (fenetre
+     *  trop courte pour la sequence) -- jamais 0, qui serait faussement
+     *  "excellent" (cf. zero_infinity=False cote Python, meme raison). */
+    private fun ctcForwardNll(
+        logprobs: Array<FloatArray>,
+        from: Int,
+        toIncl: Int,
+        tokens: IntArray,
+    ): Double {
+        val nTok = tokens.size
+        val tLen = toIncl - from + 1
+        if (nTok == 0 || tLen <= 0) return Double.POSITIVE_INFINITY
+        val s = 2 * nTok + 1
+        val negInf = Double.NEGATIVE_INFINITY
+
+        fun logAdd(a: Double, b: Double): Double {
+            if (a == negInf) return b
+            if (b == negInf) return a
+            val m = if (a > b) a else b
+            val n = if (a > b) b else a
+            return m + Math.log1p(Math.exp(n - m))
+        }
+
+        fun emit(ti: Int, si: Int): Double {
+            val lp = logprobs[from + ti]
+            return if (si % 2 == 0) lp[blankId].toDouble()
+            else lp[tokens[(si - 1) / 2]].toDouble()
+        }
+
+        var prev = DoubleArray(s) { negInf }
+        var cur = DoubleArray(s)
+        prev[0] = emit(0, 0)
+        if (s > 1) prev[1] = emit(0, 1)
+        for (ti in 1 until tLen) {
+            for (si in 0 until s) {
+                var acc = prev[si]
+                if (si >= 1) acc = logAdd(acc, prev[si - 1])
+                if (si >= 3 && si % 2 == 1 &&
+                    tokens[(si - 1) / 2] != tokens[(si - 3) / 2]
+                ) {
+                    acc = logAdd(acc, prev[si - 2])
+                }
+                cur[si] = if (acc == negInf) negInf else acc + emit(ti, si)
+            }
+            val tmp = prev; prev = cur; cur = tmp
+        }
+        // Fin valide : dernier blank OU dernier token.
+        val total = logAdd(prev[s - 1], if (s >= 2) prev[s - 2] else negInf)
+        return if (total == negInf) Double.POSITIVE_INFINITY else -total
     }
 
     /** IDs de tokens du decodage LIBRE sur [from..toIncl] : argmax par frame,
@@ -597,6 +720,19 @@ class CtcTokenizer(vocab: List<String>, private val wordLookup: Map<String, IntA
             DiagnosticLog.log(TAG, "mot absent du dictionnaire precalcule, repli greedy : \"$word\" " +
                     "(hits=$lookupHits misses=$lookupMisses)")
         }
+        return tokenizeWordGreedy(word)
+    }
+
+    /** Tokenisation SILENCIEUSE pour les variantes confusables generees
+     *  (rescoring NLL, cf. ConfusableVariants) : quasi aucune n'existe dans le
+     *  dictionnaire precalcule (mots volontairement hors-Coran) -- logger
+     *  chaque repli en ferait des milliers par sourate. Meme calcul que
+     *  tokenizeWord, sans logs ni compteurs. Le greedy est une approximation
+     *  du vrai tokenizer (verifie coincider sur les mots testes) ; la
+     *  validation offline utilisait le vrai tokenizer -- ecart possible a
+     *  surveiller si les marges device semblent incoherentes. */
+    fun tokenizeVariantQuiet(word: String): IntArray {
+        wordLookup?.get(word)?.let { return it }
         return tokenizeWordGreedy(word)
     }
 

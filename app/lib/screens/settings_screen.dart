@@ -9,6 +9,7 @@ import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'qibla_screen.dart';
 import 'reciter_select_screen.dart';
+import 'voice_calibration_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -19,6 +20,7 @@ class SettingsScreen extends ConsumerWidget {
     final notifier = ref.read(playerProvider.notifier);
     final autoCorrection = ref.watch(autoCorrectionEnabledProvider);
     final strictCorrection = ref.watch(strictCorrectionProvider);
+    final followWithoutBlocking = ref.watch(followWithoutBlockingProvider);
     final repeatDrillCount = ref.watch(repeatDrillCountProvider);
 
     return Scaffold(
@@ -93,6 +95,19 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           _SettingsTile(
+            icon: Icons.fast_forward_rounded,
+            title: 'Suivre sans bloquer',
+            subtitle: followWithoutBlocking
+                ? 'Audio de correction rejoué une fois — ensuite, avance librement même sans reprise exacte'
+                : 'Désactivé — chaque échec rejoue l\'audio et force à reprendre le mot',
+            trailing: Switch.adaptive(
+              value: followWithoutBlocking,
+              onChanged: (v) =>
+                  ref.read(followWithoutBlockingProvider.notifier).set(v),
+              activeColor: AppColors.green700,
+            ),
+          ),
+          _SettingsTile(
             icon: Icons.repeat_on_rounded,
             title: 'Répétitions de mémorisation',
             subtitle:
@@ -113,6 +128,13 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: 12),
           _SectionHeader('Personnalisation vocale'),
+          _SettingsTile(
+            icon: Icons.tune_rounded,
+            title: 'Calibration voix (lettres confusables)',
+            subtitle: 'Enregistre ~14 mots exprès bien/mal prononcés (ص/س, ط/ت...) pour affiner ta sensibilité',
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const VoiceCalibrationScreen())),
+          ),
           const _VoiceLoraClipsTile(),
 
           const SizedBox(height: 12),

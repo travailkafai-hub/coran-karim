@@ -3,8 +3,11 @@ import 'dart:math' show max;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/recitation_state.dart';
+import '../models/verse.dart' show Verse;
 import '../services/diagnostic_log.dart';
 import '../services/fastconformer_verifier.dart' show AlignPayload;
+import '../services/quran_api.dart';
+import '../services/quran_verse_locator_service.dart';
 import '../services/recitation_verifier.dart';
 
 const double _kSimThreshold = 0.6;
@@ -79,6 +82,19 @@ const double _kGopUnclearStrict = -0.90;
 
 double _lerp(double a, double b, double t) => a + (b - a) * t;
 
+/// Vrai si tous les caractères de [sub] apparaissent dans [full] dans le MÊME
+/// ORDRE (pas forcément consécutifs) -- distingue une suppression interne
+/// ("بلهم" dans "بلونهم", و/ن sautés) d'une substitution ("سرط" pour "صرط",
+/// une lettre remplacée par une autre : pas de sous-séquence possible car la
+/// toute première lettre diverge déjà). Cf. isFragment dans _onAlignment.
+bool _isSubsequenceInOrder(String sub, String full) {
+  var i = 0;
+  for (var j = 0; j < full.length && i < sub.length; j++) {
+    if (full[j] == sub[i]) i++;
+  }
+  return i == sub.length;
+}
+
 /// Moteur Whisper ONNX on-device.
 /// Remplacer par MockRecitationVerifier() pour tester l'UI sans modèle.
 final recitationVerifierProvider = Provider<RecitationVerifier>((ref) {
@@ -135,6 +151,982 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // pour le mapping exact 0-1 -> seuils.
   double _gopCorrect = _kGopCorrectDefault;
   double _gopUnclear = _kGopUnclearDefault;
+
+  // Mode "réciteur confiant" -- vrai UNIQUEMENT pendant une session démarrée
+  // via [startPrayerFollow] (écran dédié "Suivre une prière", plus de toggle
+  // séparé depuis le retrait du karaoké classique, 2026-07-18). Ne change PAS
+  // le jugement vert/orange/rouge lui-même (les seuils GOP restent ceux de
+  // setSensitivity) : gouverne la détection du takbir/cycle de prière
+  // ci-dessous, et le blocage/correction côté écran
+  // (karaoke_recitation_screen.dart::_onWordFailed n'y est plus sensible --
+  // seul PrayerFollowScreen tourne avec `_confidentMode` actif).
+  bool _confidentMode = false;
+
+  // Longueur de `parts.committed` déjà scrutée pour le takbir -- `committed`
+  // est append-only et n'est JAMAIS purgé par resetTrackingToStart() : sans
+  // ce curseur, un takbir déjà géré une fois resterait présent dans le texte
+  // accumulé et redéclencherait resetTrackingToStart() à CHAQUE passe
+  // suivante. On ne scrute donc que la portion nouvellement arrivée depuis
+  // le dernier appel.
+  int _takbirScannedCommittedLen = 0;
+
+  // Vrai tant que le takbir n'a pas encore été détecté pour l'aperçu
+  // (`preview`) en cours -- cf. bug réel constaté 2026-07-18 (log device) :
+  // "ٱللَّهُ ٱللَّهُ أَكْبَرُ" est resté en APERÇU PUR pendant ~13s (11 passes
+  // consécutives identiques) avant de finir par être figé -- l'ASR ne fige
+  // un segment que sur un déclencheur externe (ex. début d'une phrase
+  // suivante), pas juste parce que le contenu est stable. Ne scruter que
+  // `committed` (comme avant) retarde donc la détection d'autant, ce qui se
+  // vit comme "il n'a pas détecté Allahu Akbar" alors que l'utilisateur
+  // l'avait déjà dit plusieurs fois. `preview` n'est PAS append-only (il est
+  // ré-évalué/remplacé à chaque passe) donc pas de curseur de longueur
+  // possible dessus -- ce booléen sert de garde à la place : réarmé dès que
+  // l'aperçu redevient vide (nouvelle occurrence), pour ne déclencher qu'une
+  // fois par occurrence plutôt qu'à chaque passe des ~11 qui répètent le
+  // même texte.
+  bool _takbirArmed = true;
+
+  // ── Cycle de prière (mode "réciteur confiant", 2026-07-18) ────────────────
+  // Une salât répète Al-Fatiha à chaque rak'ah puis une sourate au choix de
+  // l'imam -- mais dit aussi "الله أكبر" plusieurs fois PAR rak'ah pour les
+  // changements de position (rukū', sujūd...), pas seulement au lever pour
+  // réciter. Impossible de distinguer ces takbirs entre eux par leur seul
+  // son : TOUT takbir renvoie donc en [PrayerPhase.standby] (cf. _hasTakbir
+  // ci-dessus) -- seule la reconnaissance EFFECTIVE du début d'Al-Fatiha fait
+  // basculer vers [PrayerPhase.fatiha]. Ainsi les takbirs de rukū'/sujūd,
+  // suivis de silence/tasbih (pas de Coran), laissent juste la session en
+  // standby sans dégât, en attendant le prochain vrai début de récitation.
+
+  // Mots d'Al-Fatiha (mêmes champs que RecitedWord normal), chargés une seule
+  // fois et mis en cache -- texte fixe, jamais réévalué. Prefetché dès
+  // startContinuous() en mode confiant pour être prêt AVANT le premier takbir
+  // (une salât peut se dérouler sans réseau fiable, ex. mosquée).
+  List<RecitedWord>? _fatihaWords;
+  List<Verse>? _fatihaVerses;
+  bool _fetchingFatiha = false;
+
+  // Sourate suivie à l'origine (celle chargée à l'ouverture de la session),
+  // TOUJOURS resynchronisée avec `state.words` juste avant de quitter la
+  // phase [target] (cf. _enterPrayerStandby) -- pas une capture figée une
+  // seule fois : sans ça, un enchaînement de page en cours de [target]
+  // (_maybeExtendNextPage côté écran) serait perdu au cycle de prière suivant,
+  // qui reviendrait à une version plus courte du texte suivi.
+  List<RecitedWord>? _originalTargetWords;
+
+  // Longueur de `parts.committed` au moment d'entrer en standby -- borne le
+  // texte scruté pour reconnaître le début d'Al-Fatiha au strict nouveau
+  // contenu depuis CE takbir (pas l'ancien cycle).
+  int _standbyScanStart = 0;
+
+  // ── Découverte dynamique de la sourate suivie (demande utilisateur
+  // 2026-07-18, "Suivre une prière" : "on va dans une sourate puis on récite,
+  // ce n'est pas adéquat... il vaut mieux utiliser Shazam pour détecter où
+  // commence la sourate après Fatiha") ────────────────────────────────────
+  // Vrai UNIQUEMENT pour une session démarrée via startPrayerFollow() : AUCUNE
+  // sourate n'est pré-chargée, celle qui suit Al-Fatiha est identifiée à la
+  // volée (via QuranVerseLocatorService, même moteur que "Shazam coranique")
+  // à CHAQUE rak'ah -- elle peut différer d'un cycle à l'autre. Distingue ce
+  // flux du karaoké classique (sourate fixe pré-sélectionnée, _originalTargetWords)
+  // : dans CE mode, _enterPrayerStandby ne doit jamais figer une sourate
+  // suivie, et la fin d'Al-Fatiha doit relancer une détection, pas restaurer
+  // un texte pré-chargé.
+  bool _dynamicTargetDiscovery = false;
+
+  // Garde contre les appels concurrents à QuranVerseLocatorService.locate()
+  // (async, potentiellement lent au tout premier appel -- chargement de
+  // l'index JSON) : _onStructured peut être invoqué à nouveau avant qu'un
+  // appel précédent ne soit résolu.
+  bool _targetLookupInFlight = false;
+
+  // Longueur de `parts.committed` au moment d'entrer en détection -- même
+  // principe que `_standbyScanStart`, pour ne soumettre à Shazam que le texte
+  // nouvellement reconnu depuis la fin d'Al-Fatiha (pas un résidu d'un cycle
+  // précédent).
+  int _targetDetectScanStart = 0;
+
+  // ── Resynchronisation continue via Shazam (demande utilisateur 2026-07-18,
+  // "le maître c'est le récitateur, il faut qu'il le suive... sinon il doit
+  // lancer probablement plusieurs fois le Shazam pour s'aligner") ──────────
+  // Constat réel (log natif) : l'alignement forcé GOP ne verrouille souvent
+  // que 0-1 mot par segment figé même quand plusieurs mots ont été récités --
+  // le pointeur/l'ancre peuvent donc rester en retard sur ce qui est
+  // RÉELLEMENT dit. Plutôt que de dépendre uniquement de cette passe (lente,
+  // parfois bloquée), on relance PÉRIODIQUEMENT le même moteur de
+  // localisation que "Shazam coranique" sur le texte reconnu pendant
+  // [fatiha]/[target] : s'il retrouve une position plus avancée que l'ancre
+  // actuelle (même sourate), on rattrape l'ancre -- jamais en arrière. Le
+  // récitateur reste maître : l'app rattrape sa position réelle plutôt que de
+  // rester bloquée sur un jugement mot-à-mot en retard.
+  List<Verse>? _currentTargetVerses;
+  int? _currentTargetSurah;
+  bool _resyncInFlight = false;
+  // Longueur de `parts.committed` au moment d'entrer en phase [target] --
+  // le texte figé natif est un buffer GLOBAL à la session (jamais purgé
+  // entre phases) : sans ce curseur, le rattrapage soumettrait à Shazam du
+  // texte d'AVANT cette sourate (Al-Fatiha, standby...), risquant de
+  // matcher une position obsolète.
+  int _targetTrackingScanStart = 0;
+
+  // ── Repli "continuité entre rak'ah" (demande utilisateur 2026-07-19,
+  // "dans la deuxième rak'ah normalement après Fatiha, s'il n'entend rien,
+  // il doit me proposer ce que je lisais avant, la continuité") ──────────
+  // Une sourate longue peut être répartie sur plusieurs rak'ah -- si aucune
+  // identification n'aboutit après un délai de silence, on suppose que
+  // l'imam continue la MÊME sourate depuis où la rak'ah précédente s'est
+  // arrêtée, plutôt que d'attendre indéfiniment une nouvelle identification.
+  // Mémorisés à chaque sortie de [PrayerPhase.target] (cf. _enterPrayerStandby)
+  // -- jamais effacés ailleurs, donc toujours la DERNIÈRE position atteinte.
+  int? _lastTargetSurahForContinuation;
+  int? _lastTargetAnchorForContinuation;
+  Timer? _detectingTargetFallbackTimer;
+  String _lastDetectingTargetProbe = '';
+  static const _kDetectingTargetSilenceFallbackDelay = Duration(seconds: 5);
+
+  // ── Identification en DEUX temps (demande utilisateur 2026-07-19, "il faut
+  // afficher le premier puis le confirmer ; sinon recherche 4-6 mots suivant,
+  // je trouve actuellement la méthode lourde") ──────────────────────────────
+  // Remplace le rescoring de la requête ENTIÈRE accumulée depuis la fin
+  // d'Al-Fatiha (qui grossit sans cesse pendant `detectingTarget`, cf.
+  // commentaire "PAS de plafond _kRecentWindowWords ICI" plus bas) par deux
+  // fenêtres FIXES et COURTES : une première fenêtre donne un candidat
+  // PROVISOIRE, la fenêtre suivante CONFIRME (ou non) contre la vraie
+  // continuation du texte. Avantages sur l'ancienne approche : (a) un bon
+  // match sur les 6 premiers mots n'est plus dilué par du bruit ASR
+  // accumulé sur les mots suivants (le score ne porte que sur une fenêtre à
+  // la fois, jamais sur la requête complète) ; (b) coût de calcul borné par
+  // fenêtre au lieu de re-scorer une chaîne qui grossit sans cesse à chaque
+  // appel (~80-100ms) tant que `detectingTarget` dure.
+  QuranMatch? _provisionalMatch;
+  int _detectWordsConsumed = 0;
+  static const _kProvisionalWindowWords = 6;
+  static const _kConfirmWindowWords = 6;
+  // Seuil plus bas que _kMinIdentifyConfidence (0.70, cf. plus bas) : ce
+  // candidat n'est PAS encore accepté, seulement retenu pour être testé par
+  // la fenêtre de confirmation suivante -- la vraie protection contre les
+  // faux positifs vient de cette confirmation, pas de ce premier seuil.
+  static const _kProvisionalMinConfidence = 0.5;
+  static const _kConfirmMinConfidence = 0.55;
+
+  // ── Filtrage "mots sûrs / mots douteux" (demande utilisateur 2026-07-19,
+  // "avec une boucle, si on trouve pas il recommence en gardant les mots
+  // sûrs et enlève les mots avec doute") ────────────────────────────────
+  // Le texte FIGÉ (`committed`) est par construction "sûr" (jamais
+  // réévalué). L'APERÇU (`preview`), lui, est réévalué à chaque passe --
+  // ses derniers mots peuvent encore changer d'une passe à l'autre (log
+  // device réel : "اهدنااصراط" légèrement différent d'un appel au suivant).
+  // Un mot d'aperçu n'est traité comme "sûr" que s'il reste IDENTIQUE, à la
+  // MÊME position, sur deux passes consécutives -- sinon il est "douteux"
+  // et exclu de la recherche ce tour-ci (il sera réévalué au prochain
+  // aperçu, une fois stabilisé). Coûte au plus un cycle de re-transcription
+  // de latence (~1,5-3s) sur le tout dernier mot, en échange de ne jamais
+  // soumettre à la recherche un mot encore à moitié décodé.
+  List<String> _lastDetectingTargetPreviewTokens = [];
+
+  /// Plus long préfixe de [preview] resté IDENTIQUE depuis la dernière passe
+  /// -- le reste (encore en train de changer) est considéré "douteux" et
+  /// tronqué. Met à jour la mémoire de comparaison pour le prochain appel.
+  String _stablePreviewPrefix(String preview) {
+    final tokens =
+        preview.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    final prevTokens = _lastDetectingTargetPreviewTokens;
+    var stableCount = 0;
+    while (stableCount < tokens.length &&
+        stableCount < prevTokens.length &&
+        tokens[stableCount] == prevTokens[stableCount]) {
+      stableCount++;
+    }
+    _lastDetectingTargetPreviewTokens = tokens;
+    return tokens.take(stableCount).join(' ');
+  }
+
+  // Horodatage du dernier avancement CONFIRMÉ de l'ancre (jugement GOP normal
+  // OU rattrapage Shazam déjà accepté) -- garde-fou contre un rattrapage
+  // ABSURDE (constat réel utilisateur 2026-07-19 : "je récite ayat 5... il y
+  // a le même mot ou deux dans ayat 15, ça active la 15" -- un mot partagé
+  // entre deux versets ÉLOIGNÉS de la même sourate peut faire "matcher"
+  // Shazam sur le mauvais, et rien n'empêchait alors un saut de plusieurs
+  // versets d'un coup). cf. _maybeResyncPosition : le saut proposé est borné
+  // par ce qu'il est PHYSIQUEMENT possible d'avoir récité depuis ce moment.
+  DateTime? _lastAnchorAdvanceAt;
+
+  // Vitesse de récitation MAXIMALE plausible (mots/seconde) -- volontairement
+  // généreuse (une récitation rapide dépasse rarement 3-4 mots/s en continu)
+  // pour ne jamais rejeter un vrai rattrapage, seulement un saut absurde.
+  static const _kMaxPlausibleWordsPerSecond = 4.0;
+
+  // Seuil de confiance BEAUCOUP plus strict que le seuil générique de
+  // QuranVerseLocatorService (0.45, calibré pour "Shazam coranique" -- un
+  // geste explicite de l'utilisateur, qui peut retenter). Ici la recherche
+  // tourne en fond automatiquement sur des micro-fenêtres, en continu :
+  // constat réel 2026-07-19, un match à 0.50 (jute au-dessus du seuil
+  // générique) a verrouillé la session sur "2:277" (mot 5775/6117 d'Al-
+  // Baqarah) alors que rien de tel n'avait été récité -- une confiance
+  // aussi faible sur un texte aussi long ne doit jamais suffire à
+  // engager tout le suivi.
+  static const _kMinIdentifyConfidence = 0.70;
+
+  /// Charge Al-Fatiha (verset 1, 7 ayat) une seule fois -- même construction
+  /// de mots que `setup()`/`extendWords()` (RecitedWord avec ses 4 formes).
+  /// Garde aussi la liste `Verse` brute (`_fatihaVerses`) -- nécessaire pour
+  /// retrouver l'index de mot d'un verset identifié par Shazam pendant la
+  /// resynchronisation (cf. _maybeResyncPosition).
+  Future<void> _ensureFatihaWords() async {
+    if (_fatihaWords != null || _fetchingFatiha) return;
+    _fetchingFatiha = true;
+    try {
+      final verses = await QuranApi.fetchVerses(1);
+      final text = verses.map((v) => v.textUthmani).join(' ');
+      _fatihaWords = ArabicNormalizer.splitExpectedWords(text)
+          .map((w) => RecitedWord(
+                display: w,
+                normalized: ArabicNormalizer.normalize(w),
+                strict: ArabicNormalizer.normalizeStrict(w),
+                training: ArabicNormalizer.normalizeTraining(w),
+              ))
+          .toList();
+      _fatihaVerses = verses;
+      DiagnosticLog.log('Prière',
+          'Al-Fatiha chargée en cache (${_fatihaWords!.length} mots)');
+    } catch (e) {
+      DiagnosticLog.log('Prière', 'échec chargement Al-Fatiha (hors-ligne ?) : $e');
+    } finally {
+      _fetchingFatiha = false;
+    }
+  }
+
+  // Ouvertures reconnaissables d'Al-Fatiha -- avec Bismillah dite à voix
+  // haute, OU direct au verset 2 (Bismillah dite à voix basse/silencieuse,
+  // pratique courante). Comparaison sur une PAIRE consécutive de mots (pas
+  // juste présence isolée) pour ne pas confondre avec une autre formule de la
+  // salât qui partage un mot avec Al-Fatiha -- ex. l'i'tidal "سَمِعَ اللَّهُ
+  // لِمَنْ حَمِدَهُ رَبَّنَا وَلَكَ الْحَمْدُ" contient aussi "الحمد" mais
+  // jamais suivi de "لله".
+  static final _fatihaOpenings = <List<String>>[
+    ['بسم', 'الله'],
+    ['الحمد', 'لله'],
+  ].map((p) => p.map(ArabicNormalizer.normalize).toList()).toList();
+
+  /// BUG corrigé 2026-07-18 (constat réel, log device en conditions de
+  /// mosquée) : cette paire n'était comparée qu'aux 2 PREMIERS mots du texte
+  /// scruté -- en pratique l'ASR a produit ~20s de hallucinations bruyantes
+  /// (shahada répétée, écho probable de l'ambiance mosquée) AVANT que "بسم
+  /// الله" n'apparaisse enfin, donc jamais en position 0/1 -- la session
+  /// restait bloquée en standby indéfiniment malgré Al-Fatiha bel et bien
+  /// récitée. Cherche maintenant la paire n'IMPORTE où dans le texte scruté,
+  /// pas seulement au tout début.
+  ///
+  /// Fenêtre RÉCENTE plutôt que texte cumulé depuis le début de la phase
+  /// (demande utilisateur 2026-07-18 : "la logique pour moi c'est de lancer
+  /// des micro écoutes 3-4 mots, si ça ne correspond pas on refait, jusqu'à
+  /// ce qu'on tombe sur le verset qui correspond") -- utilisée pour les
+  /// requêtes envoyées à QuranVerseLocatorService (identification/
+  /// resynchronisation), qui a besoin d'assez de mots pour un score fiable
+  /// (une fenêtre à 3-4 mots pile sur la frontière bismillah/vrai contenu
+  /// coupe le contenu utile en deux) -- 15 mots reste court (quelques
+  /// secondes de parole), se réessaie à chaque nouveau texte reconnu, et
+  /// "oublie" naturellement un essai raté plutôt que de traîner un texte de
+  /// plus en plus long au fil d'une longue sourate.
+  static const _kRecentWindowWords = 15;
+
+  String _lastWords(String text, int n) {
+    final tokens = text.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    if (tokens.length <= n) return tokens.join(' ');
+    return tokens.sublist(tokens.length - n).join(' ');
+  }
+
+  bool _looksLikeFatihaStart(String rawText) {
+    final tokens = ArabicNormalizer.normalize(rawText)
+        .split(RegExp(r'\s+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
+    for (var i = 0; i + 1 < tokens.length; i++) {
+      for (final o in _fatihaOpenings) {
+        if (tokens[i] == o[0] && tokens[i + 1] == o[1]) return true;
+      }
+    }
+    return false;
+  }
+
+  static final _bismillahWords =
+      ['بسم', 'الله', 'الرحمن', 'الرحيم'].map(ArabicNormalizer.normalize).toList();
+
+  /// Retire la formule d'ouverture "بسم الله الرحمن الرحيم" de [rawText] si
+  /// présente PRÈS du début (mots RAW conservés pour le reste, seule la
+  /// comparaison est normalisée) -- cette formule est identique mot pour mot
+  /// à Al-Fatiha 1:1, la SEULE entrée de l'index de recherche qui la contient
+  /// réellement comme verset (les autres sourates ne l'ont pas dans leur
+  /// texte indexé, cf. QuranApi.fetchBismillah -- ajoutée séparément à
+  /// l'affichage). Sans ce retrait, Shazam ne voit qu'elle tant que la vraie
+  /// sourate n'a pas commencé et identifie systématiquement 1:1.
+  ///
+  /// Cherche la formule à PARTIR de n'importe laquelle des [_kBismillahMaxLead]
+  /// premières positions (pas seulement en tout début strict) -- même classe
+  /// de bug que _looksLikeFatihaStart : en conditions de mosquée réelles,
+  /// quelques mots de bruit/hallucination ASR peuvent précéder la vraie
+  /// formule. Retourne `null` si une formule INCOMPLÈTE se termine pile au
+  /// bout du texte connu (probablement encore en train d'être dictée -- pas
+  /// encore prête à être soumise à la recherche).
+  static const _kBismillahMaxLead = 10;
+
+  String? _stripBismillahPrefix(String rawText) {
+    final rawTokens =
+        rawText.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    final normTokens = rawTokens.map(ArabicNormalizer.normalize).toList();
+    for (var start = 0;
+        start < normTokens.length && start < _kBismillahMaxLead;
+        start++) {
+      var matched = 0;
+      while (matched < _bismillahWords.length &&
+          start + matched < normTokens.length &&
+          normTokens[start + matched] == _bismillahWords[matched]) {
+        matched++;
+      }
+      if (matched == _bismillahWords.length) {
+        return rawTokens.skip(start + matched).join(' ');
+      }
+      if (matched > 0 && start + matched == normTokens.length) {
+        return null; // formule incomplète en fin de texte connu -- attendre la suite
+      }
+    }
+    return rawText; // formule absente (ex. At-Tawbah) -- rien à retirer
+  }
+
+  // Longueur de `parts.committed` au moment d'entrer en phase [fatiha] --
+  // même principe que `_standbyScanStart`, pour la détection de FIN
+  // ci-dessous (_looksLikeFatihaEnd).
+  int _fatihaScanStart = 0;
+
+  // Dernier mot d'Al-Fatiha ("ٱلضَّالِّينَ") -- assez distinctif pour ne pas
+  // se confondre avec une autre formule de la salât.
+  static final _fatihaClosingWord = ArabicNormalizer.normalize('الضالين');
+  // Déclencheur alternatif (2026-07-19, bug réel confirmé par log device) :
+  // "ٱلْمَغْضُوبِ" (avant-dernier mot distinctif du verset 7) -- occurrence
+  // UNIQUE dans tout le Coran (vérifié sur les 6236 versets bundlés
+  // localement), donc tout aussi fiable que le mot de clôture, mais placé
+  // PLUS TÔT dans la phrase. Constat réel : segment ASR figé en plein mot
+  // final ("غَيْرِ ٱلْمَغْضُوبِ عَلَيْهِمْ وَٱلضَّ" -- "الضالين" tronqué en
+  // "والض", coupure de segment avant la fin du mot), donc `_fatihaClosingWord`
+  // seul ne matchait JAMAIS -- la phase restait bloquée en `fatiha`
+  // indéfiniment, empêchant toute identification Shazam de la sourate
+  // suivante (elle n'était même pas tentée). Un mot plus tôt dans la phrase
+  // est moins exposé à ce type de troncature de fin de segment.
+  static final _fatihaAlmostClosingWord = ArabicNormalizer.normalize('المغضوب');
+
+  // Fenêtre de recherche du strip ci-dessous -- généreuse (Fatiha 6-7 peut
+  // représenter jusqu'à ~20 mots : "اهدنا الصراط المستقيم صراط الذين انعمت
+  // عليهم غير المغضوب عليهم ولا الضالين"), même principe que
+  // _kBismillahMaxLead mais pas la même constante (formule différente).
+  static const _kFatihaTailMaxLead = 25;
+
+  /// Retire un résidu de fin d'Al-Fatiha en tête de [rawText] si présent
+  /// (2026-07-19, bug réel confirmé par log device -- requête observée :
+  /// "...غير المغضوب عليهم ولا الضالين ءامر اهلك بالصلاه..." au lieu du seul
+  /// "ءامر اهلك بالصلاه..." attendu, Al-Fatiha 1:7 dominant alors le score
+  /// Shazam au lieu du vrai verset suivant, correctement récité).
+  ///
+  /// CAUSE : `_targetDetectScanStart` (cf. `_beginTargetDetection`) se cale
+  /// sur la longueur du texte COMMITTED au moment où `_looksLikeFatihaEnd`
+  /// répond vrai -- or cette détection scrute `sinceFatihaStart + preview`
+  /// (donc peut se déclencher sur du texte encore en APERÇU, pas encore
+  /// committed). Quand ce même texte finit par committer quelques passes
+  /// plus tard, il tombe malgré tout DANS la fenêtre post-détection (déjà
+  /// "consommée" en théorie) et pollue la requête suivante. Contournement
+  /// ICI (pas une correction du calage de `_targetDetectScanStart` lui-même,
+  /// plus risqué à modifier sans casser d'autres cas) : retire tout ce qui
+  /// précède et inclut la DERNIÈRE occurrence du mot de clôture d'Al-Fatiha
+  /// (ou de son mot précédent, cf. `_fatihaAlmostClosingWord`) dans les
+  /// [_kFatihaTailMaxLead] premiers mots -- au-delà, un match serait plus
+  /// probablement une coïncidence (ex. Al-Baqarah 2:198 contient aussi
+  /// "الضالين", légitimement, si l'imam y a repris) que du résidu.
+  String _stripFatihaTailPrefix(String rawText) {
+    final rawTokens =
+        rawText.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    final normTokens = rawTokens.map(ArabicNormalizer.normalize).toList();
+    var cut = -1;
+    for (var i = 0; i < normTokens.length && i < _kFatihaTailMaxLead; i++) {
+      if (normTokens[i] == _fatihaClosingWord ||
+          normTokens[i] == _fatihaAlmostClosingWord) {
+        cut = i; // dernière occurrence trouvée dans la fenêtre -- pas la 1ère
+      }
+    }
+    if (cut < 0) return rawText;
+    return rawTokens.skip(cut + 1).join(' ');
+  }
+
+  /// Détecte la fin d'Al-Fatiha PAR LE TEXTE reconnu, pas par l'avancée du
+  /// pointeur GOP -- constat réel (log device 2026-07-18) : le pointeur GOP
+  /// peut rester bloqué sur les tout premiers mots pendant plus de 30 secondes
+  /// alors que le texte FIGÉ montre déjà Al-Fatiha ENTIÈREMENT récitée (et
+  /// même la sourate suivante déjà commencée en aperçu). La passe
+  /// d'alignement forcé prend un retard croissant sur le flux réel à mesure
+  /// que le buffer audio de la session grandit (la DP native retraite tout
+  /// le buffer accumulé depuis le début, coût O(T × 2N+1) qui augmente avec
+  /// T) -- attendre `pointer >= words.length` (cf. _onAligned) aurait bloqué
+  /// la bascule vers la sourate suivante indéfiniment alors que l'utilisateur
+  /// avait déjà bel et bien terminé et enchaîné. Utilise la MÊME approche que
+  /// la détection du début (texte reconnu, pas jugement) : plus lent à juger
+  /// mot par mot n'empêche pas de reconnaître que la phrase entière est là.
+  bool _looksLikeFatihaEnd(String rawText) {
+    final tokens = ArabicNormalizer.normalize(rawText)
+        .split(RegExp(r'\s+'))
+        .where((t) => t.isNotEmpty);
+    return tokens.any(
+        (t) => t == _fatihaClosingWord || t == _fatihaAlmostClosingWord);
+  }
+
+  /// Takbir détecté (n'importe lequel) : arrête de juger l'ancienne cible et
+  /// attend de reconnaître le début d'Al-Fatiha (cf. commentaire de
+  /// PrayerPhase). Resynchronise `_originalTargetWords` sur `state.words`
+  /// SEULEMENT si on quitte [none] ou [target] -- jamais depuis [fatiha]
+  /// (Al-Fatiha n'est pas la sourate suivie) ni [standby] (déjà à jour).
+  void _enterPrayerStandby() {
+    if (!_dynamicTargetDiscovery &&
+        (state.prayerPhase == PrayerPhase.none ||
+            state.prayerPhase == PrayerPhase.target)) {
+      _originalTargetWords = List<RecitedWord>.of(state.words);
+    }
+    // Mémorise "où on en était" pour le repli de continuité (cf. commentaire
+    // des champs `_lastTargetSurahForContinuation`) -- que la sortie de
+    // [target] soit une fin normale ou une interruption par ce même takbir
+    // (rukū'/sujūd) en plein milieu, c'est la position à reprendre à la
+    // prochaine rak'ah si rien de nouveau n'est identifié.
+    if (_dynamicTargetDiscovery &&
+        state.prayerPhase == PrayerPhase.target &&
+        _currentTargetSurah != null) {
+      _lastTargetSurahForContinuation = _currentTargetSurah;
+      _lastTargetAnchorForContinuation = _anchorExp;
+    }
+    _detectingTargetFallbackTimer?.cancel();
+    _standbyScanStart = _takbirScannedCommittedLen;
+    // Persisté (pas juste debugPrint) : ce log survit à un logcat qui tourne
+    // (buffer limité, évincé par le bruit UI/graphique en quelques secondes,
+    // constat réel 2026-07-19 -- plusieurs diagnostics ont échoué faute de
+    // cette trace encore disponible au moment de tirer le log).
+    DiagnosticLog.log('Prière', 'standby -- en attente du début d\'Al-Fatiha '
+        '(sourate suivie mémorisée : ${_originalTargetWords?.length ?? 0} mots)');
+    state = state.copyWith(prayerPhase: PrayerPhase.standby);
+  }
+
+  /// Bascule vers Al-Fatiha dès que son début est reconnu (cf.
+  /// _looksLikeFatihaStart). No-op si la phase a déjà changé entre-temps
+  /// (course avec un autre takbir/détection) ou si Al-Fatiha est
+  /// indisponible (échec réseau -- on reste en standby, mode confiant donc
+  /// aucun blocage de toute façon).
+  Future<void> _beginFatihaPhase() async {
+    await _ensureFatihaWords();
+    final fatiha = _fatihaWords;
+    if (fatiha == null || fatiha.isEmpty) return;
+    if (state.prayerPhase != PrayerPhase.standby) return;
+    final fresh =
+        fatiha.map((w) => w.copyWith(status: WordStatus.pending, locked: false)).toList();
+    fresh[0] = fresh[0].copyWith(status: WordStatus.current);
+    _anchorExp = 0;
+    _lastAnchorAdvanceAt = DateTime.now();
+    _prevCommitted = '';
+    _fatihaScanStart = _takbirScannedCommittedLen;
+    state = state.copyWith(
+      words: fresh,
+      pointer: 0,
+      correctCount: 0,
+      unclearCount: 0,
+      errorCount: 0,
+      prayerPhase: PrayerPhase.fatiha,
+    );
+    await _verifier.replaceAlignmentTarget(fatiha.map((w) => w.training).toList(), 0);
+    DiagnosticLog.log('Prière', 'Al-Fatiha reconnue -- suivi actif (${fatiha.length} mots)');
+  }
+
+  /// Al-Fatiha terminée (pointeur au bout) : reprend la sourate suivie à
+  /// l'origine depuis SON début -- "je dois recommencer à réciter la vraie
+  /// sourate" (demande utilisateur 2026-07-18).
+  Future<void> _beginTargetPhase() async {
+    final target = _originalTargetWords;
+    if (target == null || target.isEmpty) return;
+    final fresh =
+        target.map((w) => w.copyWith(status: WordStatus.pending, locked: false)).toList();
+    fresh[0] = fresh[0].copyWith(status: WordStatus.current);
+    _anchorExp = 0;
+    _lastAnchorAdvanceAt = DateTime.now();
+    _prevCommitted = '';
+    state = state.copyWith(
+      words: fresh,
+      pointer: 0,
+      correctCount: 0,
+      unclearCount: 0,
+      errorCount: 0,
+      prayerPhase: PrayerPhase.target,
+    );
+    await _verifier.replaceAlignmentTarget(target.map((w) => w.training).toList(), 0);
+    debugPrint('[Prière] Al-Fatiha terminée -- reprise de la sourate suivie '
+        '(${target.length} mots)');
+  }
+
+  /// Al-Fatiha terminée, mode "Suivre une prière" (_dynamicTargetDiscovery) :
+  /// contrairement à [_beginTargetPhase], AUCUNE sourate n'est déjà connue --
+  /// on efface l'affichage et on attend de RECONNAÎTRE (via Shazam,
+  /// cf. _onStructured) quelle sourate l'imam a choisie pour cette rak'ah.
+  void _beginTargetDetection() {
+    _targetDetectScanStart = _takbirScannedCommittedLen;
+    // Départ du chrono de plausibilité (cf. _kMaxPlausibleWordsPerSecond,
+    // _beginIdentifiedTargetPhase) : borne combien de mots ont PU être
+    // récités entre la fin d'Al-Fatiha et le moment de l'identification.
+    _lastAnchorAdvanceAt = DateTime.now();
+    // Repli "continuité entre rak'ah" (cf. commentaire des champs) : armé
+    // dès l'entrée en détection, réarmé tant que du texte NOUVEAU arrive
+    // (cf. _onStructured) -- ne se déclenche donc que sur un vrai silence
+    // prolongé, jamais pendant une identification encore en cours (même
+    // lente, ex. ouverture par lettres disjointes mal transcrite).
+    _lastDetectingTargetProbe = '';
+    _lastDetectingTargetPreviewTokens = [];
+    // Identification en deux temps (cf. _tryIdentifyTargetTwoStep) : repartir
+    // à zéro à chaque nouvelle entrée en détection (nouveau rak'ah) -- sinon
+    // un candidat provisoire d'un cycle précédent pourrait survivre à tort.
+    _provisionalMatch = null;
+    _detectWordsConsumed = 0;
+    _armDetectingTargetFallbackTimer();
+    state = state.copyWith(
+      words: const [],
+      pointer: 0,
+      correctCount: 0,
+      unclearCount: 0,
+      errorCount: 0,
+      prayerPhase: PrayerPhase.detectingTarget,
+    );
+    debugPrint('[Prière] Al-Fatiha terminée -- identification de la sourate '
+        'suivante (Shazam)');
+  }
+
+  void _armDetectingTargetFallbackTimer() {
+    _detectingTargetFallbackTimer?.cancel();
+    _detectingTargetFallbackTimer =
+        Timer(_kDetectingTargetSilenceFallbackDelay, () {
+      if (state.prayerPhase == PrayerPhase.detectingTarget) {
+        _resumeContinuationIfAvailable();
+      }
+    });
+  }
+
+  /// Repli "continuité entre rak'ah" (cf. commentaire des champs
+  /// `_lastTargetSurahForContinuation`) : appelé quand le silence se
+  /// prolonge en [PrayerPhase.detectingTarget] sans identification aboutie
+  /// -- reprend la MÊME sourate que la rak'ah précédente, exactement où elle
+  /// s'était arrêtée (pas depuis le début), plutôt que d'attendre
+  /// indéfiniment. No-op silencieux si aucune rak'ah précédente n'existe
+  /// encore (1er cycle de la session) -- reste alors en détection normale.
+  void _resumeContinuationIfAvailable() {
+    if (state.prayerPhase != PrayerPhase.detectingTarget) return;
+    final surahNumber = _lastTargetSurahForContinuation;
+    final anchor = _lastTargetAnchorForContinuation;
+    final verses = _currentTargetVerses;
+    if (surahNumber == null ||
+        anchor == null ||
+        verses == null ||
+        verses.isEmpty ||
+        _currentTargetSurah != surahNumber) {
+      return;
+    }
+    final allWords = <RecitedWord>[];
+    for (final v in verses) {
+      allWords.addAll(ArabicNormalizer.splitExpectedWords(v.textUthmani).map(
+          (w) => RecitedWord(
+                display: w,
+                normalized: ArabicNormalizer.normalize(w),
+                strict: ArabicNormalizer.normalizeStrict(w),
+                training: ArabicNormalizer.normalizeTraining(w),
+              )));
+    }
+    if (allWords.isEmpty || anchor >= allWords.length) return;
+    final fresh = <RecitedWord>[
+      for (var i = 0; i < allWords.length; i++)
+        allWords[i].copyWith(
+            status: i < anchor ? WordStatus.skipped : WordStatus.pending),
+    ];
+    fresh[anchor] = fresh[anchor].copyWith(status: WordStatus.current);
+    _anchorExp = anchor;
+    _lastAnchorAdvanceAt = DateTime.now();
+    _prevCommitted = '';
+    _targetTrackingScanStart = _takbirScannedCommittedLen;
+    state = state.copyWith(
+      words: fresh,
+      pointer: anchor,
+      correctCount: 0,
+      unclearCount: 0,
+      errorCount: 0,
+      prayerPhase: PrayerPhase.target,
+    );
+    unawaited(_verifier.replaceAlignmentTarget(
+        allWords.map((w) => w.training).toList(), anchor));
+    debugPrint('[Prière] silence prolongé, aucune identification -- reprise '
+        'de la continuité : sourate $surahNumber depuis le mot '
+        '$anchor/${allWords.length}');
+  }
+
+  /// Verset + index local (dans ce verset) correspondant à l'index ABSOLU
+  /// [wordIndex] dans la liste de mots actuellement suivie (Al-Fatiha ou la
+  /// sourate identifiée) -- utilisé par PrayerFollowScreen pour le souffleur
+  /// automatique (jouer l'extrait audio du bon mot). `null` hors
+  /// [PrayerPhase.fatiha]/[PrayerPhase.target] ou index invalide -- ce mode
+  /// n'a pas de `_verses` propre côté écran comme le karaoké classique,
+  /// contrairement à lui la sourate suivie n'est même pas connue à l'avance.
+  (Verse, int)? verseAndLocalIndexFor(int wordIndex) {
+    final verses = switch (state.prayerPhase) {
+      PrayerPhase.fatiha => _fatihaVerses,
+      PrayerPhase.target => _currentTargetVerses,
+      _ => null,
+    };
+    if (verses == null || wordIndex < 0) return null;
+    var offset = 0;
+    for (final v in verses) {
+      final count = ArabicNormalizer.splitExpectedWords(v.textUthmani).length;
+      if (wordIndex < offset + count) return (v, wordIndex - offset);
+      offset += count;
+    }
+    return null;
+  }
+
+  /// Sourate identifiée (Shazam) pendant [PrayerPhase.detectingTarget] :
+  /// charge sa liste complète de mots, place l'ancre sur le mot exact du
+  /// verset identifié (les mots d'avant -- non entendus par l'ASR avant
+  /// détection -- sont marqués `skipped`, jamais jugés faux) et bascule en
+  /// suivi actif. Retourne `false` (rejeté, RIEN commité) si la phase a déjà
+  /// changé entre-temps ou si le fetch échoue -- appelée par
+  /// `_tryIdentifyTargetTwoStep` UNE FOIS le candidat déjà confirmé (plus de
+  /// garde-fou de confiance/plausibilité ici, la confirmation par
+  /// continuation en tient lieu).
+  Future<bool> _beginIdentifiedTargetPhase(QuranMatch match) async {
+    if (state.prayerPhase != PrayerPhase.detectingTarget) return false;
+    List<Verse> verses;
+    try {
+      verses = await QuranApi.fetchVerses(match.surahNumber);
+    } catch (e) {
+      debugPrint('[Prière] échec chargement sourate identifiée '
+          '(${match.surahNumber}) : $e');
+      return false;
+    }
+    if (state.prayerPhase != PrayerPhase.detectingTarget) return false;
+    final allWords = <RecitedWord>[];
+    var anchor = 0;
+    for (final v in verses) {
+      final vWords = ArabicNormalizer.splitExpectedWords(v.textUthmani)
+          .map((w) => RecitedWord(
+                display: w,
+                normalized: ArabicNormalizer.normalize(w),
+                strict: ArabicNormalizer.normalizeStrict(w),
+                training: ArabicNormalizer.normalizeTraining(w),
+              ))
+          .toList();
+      if (v.ayahNumber < match.ayahNumber) anchor += vWords.length;
+      allWords.addAll(vWords);
+    }
+    if (allWords.isEmpty) return false;
+    anchor = anchor.clamp(0, allWords.length - 1);
+    // Garde-fou de plausibilité RETIRÉ ici (constat device 2026-07-19) :
+    // comparer l'ancre (position ABSOLUE dans la sourate identifiée) au temps
+    // écoulé depuis la fin d'Al-Fatiha supposait à tort que la récitation
+    // reprend TOUJOURS au verset 1 de la nouvelle sourate -- rien n'empêche
+    // l'imam de commencer au milieu (confirmé par l'utilisateur). Log réel :
+    // requête "ما جعل الله" -> 33:29/33:30 (Al-Ahzab) trouvés avec confiance
+    // 0.78-0.87 STABLE sur plus de 10s (8+ passes consécutives), donc
+    // clairement un vrai match, mais rejetés en boucle car l'ancre (~500,
+    // ces versets sont ~40% dans une sourate de 73) dépassait le nombre de
+    // mots jugé "possible" depuis Al-Fatiha -- alors que cette ancre ne
+    // représente pas une distance parcourue depuis Al-Fatiha, juste la
+    // position du verset choisi par l'imam dans la sourate. Le garde-fou
+    // visait à l'origine (cf. §3.10 de SUIVI_PRIERE.md) un faux match à
+    // confiance 0.50 sur Al-Baqarah -- déjà exclu aujourd'hui par le seuil
+    // _kMinIdentifyConfidence=0.70 à lui seul. Ancien code gardé en trace :
+    // if (_lastAnchorAdvanceAt != null) {
+    //   final elapsedMs =
+    //       DateTime.now().difference(_lastAnchorAdvanceAt!).inMilliseconds;
+    //   final maxPlausible =
+    //       (elapsedMs / 1000 * _kMaxPlausibleWordsPerSecond).ceil();
+    //   if (anchor > maxPlausible) {
+    //     debugPrint('[Prière] candidat ${match.surahNumber}:${match.ayahNumber} '
+    //         'rejeté : ancre $anchor invraisemblable (max plausible '
+    //         '$maxPlausible mots en ${elapsedMs}ms depuis la fin d\'Al-Fatiha) '
+    //         '-- candidat suivant');
+    //     return false;
+    //   }
+    // }
+    // Identification aboutie -- plus besoin du repli de continuité (cf.
+    // _armDetectingTargetFallbackTimer) pour ce cycle.
+    _detectingTargetFallbackTimer?.cancel();
+    final fresh = <RecitedWord>[
+      for (var i = 0; i < allWords.length; i++)
+        allWords[i].copyWith(
+            status: i < anchor ? WordStatus.skipped : WordStatus.pending),
+    ];
+    fresh[anchor] = fresh[anchor].copyWith(status: WordStatus.current);
+    _anchorExp = anchor;
+    _lastAnchorAdvanceAt = DateTime.now();
+    _prevCommitted = '';
+    _currentTargetVerses = verses;
+    _currentTargetSurah = match.surahNumber;
+    _targetTrackingScanStart = _takbirScannedCommittedLen;
+    state = state.copyWith(
+      words: fresh,
+      pointer: anchor,
+      correctCount: 0,
+      unclearCount: 0,
+      errorCount: 0,
+      prayerPhase: PrayerPhase.target,
+    );
+    await _verifier.replaceAlignmentTarget(
+        allWords.map((w) => w.training).toList(), anchor);
+    DiagnosticLog.log('Prière', 'sourate identifiée : ${match.surahNumber}:'
+        '${match.ayahNumber} (confiance ${match.confidence.toStringAsFixed(2)}) '
+        '-- suivi actif dès le mot $anchor/${allWords.length}');
+    return true;
+  }
+
+  // ANCIENNE APPROCHE (gardée en référence, convention du projet -- "ne
+  // supprime rien, mets l'ancienne fonction en commentaire") : un seul appel
+  // Shazam sur la requête ENTIÈRE accumulée depuis la fin d'Al-Fatiha, qui
+  // grossit sans cesse tant que `detectingTarget` dure. Essayait chaque
+  // candidat DANS L'ORDRE du score jusqu'à ce qu'un candidat passe tous les
+  // garde-fous (pas "1:1", confiance suffisante) -- déjà un progrès sur un
+  // essai unique (constat 2026-07-19 : requête "ما جعل الله" -> meilleur
+  // candidat coïncidentiel "50:26" rejeté, alors que "33:4" -- la vraie
+  // sourate récitée -- était probablement aussi dans la liste).
+  //
+  // REMPLACÉE (2026-07-19, retour utilisateur : "c'est pas logique, dans deux
+  // versets il y a 20 mots, s'il a détecté 5 mots qui se suivent bien... il
+  // n'aura même pas besoin des deux versets") : le score `_orderedOverlap`
+  // est `matched / longueur_totale_de_la_requête` -- une requête qui GROSSIT
+  // (du bruit ASR s'ajoute sur les mots suivant un bon match) DILUE le score
+  // d'un match par ailleurs excellent, au lieu de le laisser confirmé
+  // rapidement. Cf. _tryIdentifyTargetTwoStep ci-dessous : deux fenêtres
+  // FIXES et courtes (candidat provisoire + confirmation par continuation)
+  // au lieu d'une requête cumulative sans borne.
+  //
+  // Future<void> _tryIdentifyTarget(String probe) async {
+  //   _targetLookupInFlight = true;
+  //   try {
+  //     final matches = await QuranVerseLocatorService.instance.locateTopMatches(probe);
+  //     if (matches.isEmpty || state.prayerPhase != PrayerPhase.detectingTarget) {
+  //       return;
+  //     }
+  //     for (final match in matches) {
+  //       if (match.surahNumber == 1) {
+  //         debugPrint('[Prière] candidat "1:1" ignoré (bismillah/fin '
+  //             'd\'Al-Fatiha encore dans la fenêtre récente) -- candidat suivant');
+  //         continue;
+  //       }
+  //       if (match.confidence < _kMinIdentifyConfidence) {
+  //         debugPrint('[Prière] candidat ${match.surahNumber}:${match.ayahNumber} '
+  //             'ignoré : confiance trop faible '
+  //             '(${match.confidence.toStringAsFixed(2)} < $_kMinIdentifyConfidence) '
+  //             '-- candidat suivant');
+  //         continue;
+  //       }
+  //       if (await _beginIdentifiedTargetPhase(match)) return;
+  //       if (state.prayerPhase != PrayerPhase.detectingTarget) return;
+  //     }
+  //     debugPrint('[Prière] aucun candidat exploitable parmi ${matches.length} '
+  //         '-- nouvelle tentative au prochain texte reconnu');
+  //   } catch (e) {
+  //     debugPrint('[Prière] échec locate() (identification) : $e');
+  //   } finally {
+  //     _targetLookupInFlight = false;
+  //   }
+  // }
+
+  /// Identification en DEUX temps (cf. commentaire des champs
+  /// `_provisionalMatch`/`_detectWordsConsumed`) : une première fenêtre FIXE
+  /// de [_kProvisionalWindowWords] mots donne un candidat PROVISOIRE (seuil
+  /// bas, `_kProvisionalMinConfidence`) ; la fenêtre SUIVANTE de
+  /// [_kConfirmWindowWords] mots est comparée à la VRAIE continuation du
+  /// candidat dans le texte du Coran (pas un rescoring de la requête
+  /// cumulée) -- confirmée seulement si elle colle (`_kConfirmMinConfidence`).
+  /// Sur échec de confirmation, la fenêtre ratée devient la NOUVELLE première
+  /// fenêtre d'un nouvel essai (rien n'est réessayé deux fois, "recherche 4-6
+  /// mots suivant" -- demande utilisateur).
+  Future<void> _tryIdentifyTargetTwoStep(String cleanedProbe) async {
+    if (_targetLookupInFlight) return;
+    final allWords = cleanedProbe
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    _targetLookupInFlight = true;
+    try {
+      if (_provisionalMatch == null) {
+        final remaining = allWords.skip(_detectWordsConsumed).toList();
+        if (remaining.length < _kProvisionalWindowWords) return;
+        final windowWords = remaining.take(_kProvisionalWindowWords).toList();
+        final matches = await QuranVerseLocatorService.instance.locateTopMatches(
+            windowWords.join(' '),
+            minScore: _kProvisionalMinConfidence);
+        QuranMatch? picked;
+        for (final m in matches) {
+          if (m.surahNumber == 1) continue; // bismillah/fin Fatiha résiduelle
+          picked = m;
+          break;
+        }
+        // Avance TOUJOURS (trouvé ou pas) -- ne jamais retenter la MÊME
+        // fenêtre indéfiniment, cf. "sinon recherche 4-6 mots suivant".
+        _detectWordsConsumed += _kProvisionalWindowWords;
+        if (picked != null) {
+          _provisionalMatch = picked;
+          DiagnosticLog.log('Prière', 'candidat PROVISOIRE ${picked.surahNumber}:'
+              '${picked.ayahNumber} (confiance ${picked.confidence.toStringAsFixed(2)}) '
+              '-- en attente de confirmation');
+        } else {
+          debugPrint('[Prière] aucun candidat sur cette fenêtre de '
+              '$_kProvisionalWindowWords mots -- fenêtre suivante');
+        }
+        return;
+      }
+
+      // Un candidat provisoire existe déjà -- chercher la fenêtre de
+      // CONFIRMATION (mots reconnus JUSTE APRÈS la fenêtre provisoire).
+      final remaining = allWords.skip(_detectWordsConsumed).toList();
+      if (remaining.length < _kConfirmWindowWords) return;
+      final confirmWindow = remaining.take(_kConfirmWindowWords).toList();
+      final provisional = _provisionalMatch!;
+      final continuation = await QuranVerseLocatorService.instance
+          .continuationWords(provisional.surahNumber, provisional.ayahNumber,
+              _kConfirmWindowWords + 15); // marge -- offset exact dans le verset inconnu
+      final score = QuranVerseLocatorService.instance
+          .scoreWordWindows(confirmWindow, continuation);
+      if (score >= _kConfirmMinConfidence) {
+        DiagnosticLog.log('Prière', 'candidat ${provisional.surahNumber}:'
+            '${provisional.ayahNumber} CONFIRMÉ (score continuation '
+            '${score.toStringAsFixed(2)})');
+        _provisionalMatch = null;
+        _detectWordsConsumed = 0;
+        await _beginIdentifiedTargetPhase(provisional);
+      } else {
+        DiagnosticLog.log('Prière', 'confirmation échouée pour '
+            '${provisional.surahNumber}:${provisional.ayahNumber} '
+            '(score ${score.toStringAsFixed(2)} < $_kConfirmMinConfidence) -- '
+            'la fenêtre de confirmation devient le nouvel essai');
+        // NE PAS avancer _detectWordsConsumed ici : au prochain appel,
+        // `remaining` (donc `confirmWindow` et la suite) redevient la
+        // PREMIÈRE fenêtre d'un nouvel essai -- rien n'est perdu, rien n'est
+        // réessayé deux fois.
+        _provisionalMatch = null;
+      }
+    } catch (e) {
+      debugPrint('[Prière] échec identification en deux temps : $e');
+    } finally {
+      _targetLookupInFlight = false;
+    }
+  }
+
+  bool _leftFatihaCheckInFlight = false;
+
+  /// Détecte la fin d'Al-Fatiha par un signal INDÉPENDANT du mot de clôture
+  /// exact (cf. commentaire d'appel, `_looksLikeFatihaEnd`) : si la même
+  /// recherche Shazam qui sert au rattrapage (`_maybeResyncPosition`)
+  /// retrouve, avec une confiance suffisante, un passage qui n'appartient
+  /// PLUS à Al-Fatiha (sourate ≠ 1), c'est la preuve qu'on a quitté Al-Fatiha
+  /// -- peu importe si le mot de clôture lui-même a été bien transcrit.
+  /// Seuil aligné sur `_kMinIdentifyConfidence` (0.70) : cette vérification
+  /// déclenche un changement de PHASE, pas un simple rattrapage de position,
+  /// donc mérite la même rigueur que la première identification.
+  Future<void> _checkLeftFatihaViaShazam(String probe) async {
+    if (_leftFatihaCheckInFlight || probe.isEmpty) return;
+    if (state.prayerPhase != PrayerPhase.fatiha) return;
+    _leftFatihaCheckInFlight = true;
+    try {
+      final match = await QuranVerseLocatorService.instance.locate(probe);
+      if (match == null || match.surahNumber == 1) return;
+      if (match.confidence < _kMinIdentifyConfidence) return;
+      if (state.prayerPhase != PrayerPhase.fatiha) return; // phase déjà changée entre-temps
+      DiagnosticLog.log('Prière', 'Al-Fatiha visiblement terminée (Shazam retrouve '
+          '${match.surahNumber}:${match.ayahNumber} hors Al-Fatiha, confiance '
+          '${match.confidence.toStringAsFixed(2)}) -- bascule');
+      if (_dynamicTargetDiscovery) {
+        _beginTargetDetection();
+      } else {
+        unawaited(_beginTargetPhase());
+      }
+    } finally {
+      _leftFatihaCheckInFlight = false;
+    }
+  }
+
+  /// Resynchronisation continue (cf. commentaire des champs
+  /// `_currentTargetVerses`/`_resyncInFlight`) : relance le moteur de
+  /// localisation "Shazam" sur le texte reconnu depuis [scanStart] pendant
+  /// [PrayerPhase.fatiha]/[PrayerPhase.target], et rattrape l'ancre si une
+  /// position PLUS AVANCÉE (même sourate) est retrouvée -- jamais en arrière,
+  /// jamais vers une autre sourate (constat réel : la passe GOP peut rester
+  /// bloquée loin derrière ce qui est réellement récité).
+  void _maybeResyncPosition({
+    required String probe,
+    required int surahNumber,
+    required List<Verse>? verses,
+  }) {
+    if (_resyncInFlight || verses == null || probe.isEmpty) return;
+    _resyncInFlight = true;
+    QuranVerseLocatorService.instance.locate(probe).then((match) {
+      _resyncInFlight = false;
+      if (match == null || match.surahNumber != surahNumber) return;
+      // Toujours la phase visée (pas de course avec un takbir/une bascule
+      // entre-temps) -- comparé après l'await, l'état a pu changer.
+      if (state.prayerPhase != PrayerPhase.fatiha &&
+          state.prayerPhase != PrayerPhase.target) {
+        return;
+      }
+      // Même seuil strict que l'identification initiale (cf.
+      // _kMinIdentifyConfidence) : un rattrapage n'est pas moins risqué
+      // qu'une première identification, un score limite peut tout autant
+      // tomber sur un verset éloigné qui partage un mot ou deux (constat réel
+      // utilisateur 2026-07-19 : "je récite ayat 5... il y a le même mot ou
+      // deux dans ayat 15, ça active la 15").
+      if (match.confidence < _kMinIdentifyConfidence) return;
+      var newAnchor = 0;
+      for (final v in verses) {
+        if (v.ayahNumber >= match.ayahNumber) break;
+        newAnchor += ArabicNormalizer.splitExpectedWords(v.textUthmani).length;
+      }
+      newAnchor = newAnchor.clamp(0, state.words.length);
+      if (newAnchor <= _anchorExp) return; // pas en avance -- rien à rattraper
+      // Garde-fou de plausibilité (cf. _kMaxPlausibleWordsPerSecond) : le
+      // saut proposé ne doit pas dépasser ce qu'il est PHYSIQUEMENT possible
+      // d'avoir récité depuis le dernier avancement confirmé de l'ancre.
+      if (_lastAnchorAdvanceAt != null) {
+        final elapsedMs =
+            DateTime.now().difference(_lastAnchorAdvanceAt!).inMilliseconds;
+        final maxPlausible =
+            (elapsedMs / 1000 * _kMaxPlausibleWordsPerSecond).ceil();
+        final jump = newAnchor - _anchorExp;
+        if (jump > maxPlausible) {
+          debugPrint('[Prière] resynchronisation ignorée : saut de $jump '
+              'mots invraisemblable en ${elapsedMs}ms (max plausible '
+              '$maxPlausible) -- probable faux match Shazam sur un mot '
+              'partagé avec un verset éloigné');
+          return;
+        }
+      }
+      final words = [...state.words];
+      for (var i = _anchorExp; i < newAnchor && i < words.length; i++) {
+        if (!words[i].locked) {
+          words[i] = words[i].copyWith(status: WordStatus.skipped, locked: true);
+        }
+      }
+      _anchorExp = newAnchor;
+      _lastAnchorAdvanceAt = DateTime.now();
+      for (var i = 0; i < words.length; i++) {
+        if (i != newAnchor && words[i].status == WordStatus.current) {
+          words[i] = words[i].copyWith(status: WordStatus.pending);
+        }
+      }
+      if (newAnchor < words.length &&
+          words[newAnchor].status == WordStatus.pending) {
+        words[newAnchor] = words[newAnchor].copyWith(status: WordStatus.current);
+      }
+      state = state.copyWith(words: words, pointer: newAnchor);
+      unawaited(_verifier.setAlignmentAnchor(newAnchor));
+      debugPrint('[Prière] resynchronisation (Shazam) : ancre rattrapée à '
+          '$newAnchor (verset ${match.surahNumber}:${match.ayahNumber}, '
+          'confiance ${match.confidence.toStringAsFixed(2)})');
+    }).catchError((e) {
+      _resyncInFlight = false;
+      debugPrint('[Prière] échec locate() (resynchronisation) : $e');
+    });
+  }
 
   // Clips VÉRIFIÉS CORRECTS collectés pendant la session courante (mini-LoRA
   // personnalisation vocale, cf. FONCTIONNALITES_FUTURES.md "Personnalisation
@@ -267,10 +1259,19 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       rawTranscript: '',
       continuous: true,
       pendingSegments: 0,
+      prayerPhase: PrayerPhase.none,
     );
     _prevCommitted = '';
     _anchorExp = 0;
+    _takbirScannedCommittedLen = 0;
+    _takbirArmed = true;
+    _originalTargetWords = null;
+    _dynamicTargetDiscovery = false;
     _collectedClips.clear();
+    // Prefetch Al-Fatiha en tâche de fond (mode confiant) : prête AVANT le
+    // premier takbir plutôt que de découvrir un réseau indisponible en pleine
+    // salât.
+    if (_confidentMode) unawaited(_ensureFatihaWords());
     _tokenSub = _verifier.tokens.listen(_onToken);
     _levelSub = _verifier.soundLevel
         .listen((lvl) => state = state.copyWith(soundLevel: lvl));
@@ -282,6 +1283,47 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       state.words.map((w) => w.training).toList(),
       continuous: true,
     );
+    _myGeneration = _verifier.sessionGeneration;
+  }
+
+  /// "Suivre une prière" (demande utilisateur 2026-07-18) : point d'entrée
+  /// dédié, SANS sourate pré-sélectionnée -- contrairement à
+  /// [startContinuous] (qui suppose `state.words` déjà rempli via [setup]),
+  /// l'imam peut réciter n'importe quelle sourate après Al-Fatiha, pas
+  /// forcément la même d'une rak'ah à l'autre. La session démarre directement
+  /// en [PrayerPhase.standby] (attend Al-Fatiha, pas besoin d'un takbir
+  /// préalable pour la toute première rak'ah) ; la sourate qui suit chaque
+  /// Al-Fatiha est identifiée à la volée via Shazam
+  /// (cf. _beginTargetDetection/_beginIdentifiedTargetPhase).
+  Future<void> startPrayerFollow() async {
+    if (state.isActive) return;
+    _dynamicTargetDiscovery = true;
+    _confidentMode = true; // ce mode EST le mode confiant, pas une option
+    _endingContinuous = false;
+    _originalTargetWords = null;
+    _prevCommitted = '';
+    _anchorExp = 0;
+    _takbirScannedCommittedLen = 0;
+    _takbirArmed = true;
+    _standbyScanStart = 0;
+    _targetDetectScanStart = 0;
+    _collectedClips.clear();
+    unawaited(_ensureFatihaWords());
+    state = const RecitationSessionState(
+      status: RecitationStatus.listening,
+      continuous: true,
+      prayerPhase: PrayerPhase.standby,
+    );
+    _tokenSub = _verifier.tokens.listen(_onToken);
+    _levelSub = _verifier.soundLevel
+        .listen((lvl) => state = state.copyWith(soundLevel: lvl));
+    _structSub = _verifier.structuredTranscript.listen(_onStructured);
+    _pendingSub = _verifier.pendingSegments.listen(_onPendingChanged);
+    _alignSub = _verifier.alignedWords.listen(_onAligned);
+    // Cible vide au départ -- rien à aligner tant qu'Al-Fatiha n'est pas
+    // reconnue (cf. fix _startStreamingCapture, recitation_verifier.dart :
+    // une cible vide ne doit PAS dégrader la transcription libre).
+    await _verifier.start(const [], continuous: true);
     _myGeneration = _verifier.sessionGeneration;
   }
 
@@ -305,6 +1347,17 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     if (_anchorExp >= state.words.length && _hasClosingPhrase(txt)) {
       stopContinuous();
     }
+    // Takbir "الله أكبر" (mode "réciteur confiant" 2026-07-18, suivi de
+    // prière) : transition entre deux cycles de récitation (ex. nouveau
+    // rak'ah) -- le texte qui suit ne correspond plus à ce qu'on était en
+    // train de suivre, repartir de zéro plutôt que de continuer à juger
+    // contre un texte devenu obsolète. Seulement en mode confiant : dans le
+    // mode normal (apprentissage/vérification), on ne veut PAS qu'un takbir
+    // entendu par erreur (bruit ASR) réinitialise silencieusement la
+    // progression d'un utilisateur qui vérifie sa mémorisation.
+    if (_confidentMode && _hasTakbir(txt)) {
+      resetTrackingToStart();
+    }
   }
 
   static final _closingPhraseWords =
@@ -320,6 +1373,62 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       }
     }
     return false;
+  }
+
+  static final _takbirWords =
+      ['الله', 'اكبر'].map(ArabicNormalizer.normalize).toList();
+
+  /// Détecte "الله أكبر" (takbir) dans un texte reconnu librement. Simplifié
+  /// 2026-07-18 (demande utilisateur, suite à un 1er essai raté sur "الله
+  /// أكبر" reconnu "الله الله وأكبر" -- l'ordre/l'adjacence stricte des deux
+  /// mots ratait trop souvent sur du bruit ASR réel) : "le plus important,
+  /// c'est qu'après Allah et akbar il n'y aura pas de récitation du Coran" --
+  /// on exige seulement la PRÉSENCE des deux mots dans le passage reconnu,
+  /// peu importe l'ordre ou ce qu'il y a entre les deux (répétitions, écho).
+  /// Tolère aussi le second mot collé à un "و" ("وَأَكْبَرُ" -- écriture arabe
+  /// normale, la conjonction ne s'écrit jamais séparée).
+  bool _hasTakbir(String rawText) {
+    final tokens = ArabicNormalizer.normalize(rawText).split(RegExp(r'\s+'));
+    final hasAllah = tokens.any((t) => t == _takbirWords[0]);
+    final hasAkbar =
+        tokens.any((t) => t == _takbirWords[1] || t.endsWith(_takbirWords[1]));
+    return hasAllah && hasAkbar;
+  }
+
+  /// Réinitialise le suivi (ancre d'alignement + statut de tous les mots)
+  /// SANS arrêter la capture ni la session -- pour repartir de zéro sur un
+  /// nouveau cycle de récitation (takbir en prière, mode "réciteur confiant"
+  /// 2026-07-18). Contrairement à stopContinuous()/reset(), l'écoute continue
+  /// sans interruption ; contrairement à setup(), ne touche pas la liste de
+  /// mots elle-même (même texte attendu, on reprend juste au début).
+  ///
+  /// BUG corrigé 2026-07-18 (constat réel, log device) : cette méthode ne
+  /// remettait à zéro QUE `_anchorExp` côté Dart -- jamais l'ancre native
+  /// (ForcedAligner.kt, pilotée via `setAlignmentAnchor`). Or `_onAligned`
+  /// RÉÉCRASE `_anchorExp` avec `p.anchor` (l'ancre native) dès la passe
+  /// suivante (cf. "trueExtent" plus bas) : sans ce reset natif, le native
+  /// continuait de juger/avancer tout seul sur les mots suivants du texte
+  /// D'AVANT le takbir (log réel : mot=17 "فَوَيْلٌ" -> mot=18
+  /// "لِّلْمُصَلِّينَ" -> mot=19 "ٱلَّذِينَ", en erreur, PENDANT que
+  /// l'utilisateur récitait déjà Al-Fatiha) -- la réinitialisation semblait
+  /// n'avoir aucun effet sur le jugement réel, seulement sur l'affichage.
+  void resetTrackingToStart() {
+    final cleared = state.words
+        .map((w) => w.copyWith(status: WordStatus.pending, locked: false))
+        .toList();
+    if (cleared.isNotEmpty) {
+      cleared[0] = cleared[0].copyWith(status: WordStatus.current);
+    }
+    _anchorExp = 0;
+    _prevCommitted = '';
+    unawaited(_verifier.setAlignmentAnchor(0));
+    state = state.copyWith(
+      words: cleared,
+      pointer: 0,
+      correctCount: 0,
+      unclearCount: 0,
+      errorCount: 0,
+    );
   }
 
   // Un mot ayant reçu un jugement DÉFINITIF (vert/orange/rouge) est verrouillé
@@ -546,7 +1655,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// REPLI uniquement — quand l'alignement forcé GOP est actif, _onAligned
   /// juge et cette méthode ne fait plus que rafraîchir le texte affiché.
   void _onStructured(({String committed, String preview}) parts) {
-    if (state.words.isEmpty) return;
+    // Mode "Suivre une prière" (_dynamicTargetDiscovery) : `state.words` est
+    // légitimement VIDE pendant standby/detectingTarget (aucune cible connue
+    // tant qu'Al-Fatiha ou la sourate suivante n'ont pas été reconnues) --
+    // seul le mode normal (aucun cycle de prière) exige des mots déjà chargés.
+    if (state.words.isEmpty && state.prayerPhase == PrayerPhase.none) return;
     final s = state.status;
     if (s == RecitationStatus.finished || s == RecitationStatus.idle) return;
 
@@ -555,6 +1668,185 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           .where((t) => t.isNotEmpty)
           .join(' ');
       state = state.copyWith(rawTranscript: display);
+      // BUG corrigé 2026-07-18 : la détection du takbir vivait dans
+      // _onRawSegment, qui n'est abonnée qu'en mode segment unique (Coach,
+      // cf. start()) -- jamais en mode continu (karaoké, startContinuous()
+      // abonne _onStructured à la place). Résultat : le takbir n'était
+      // JAMAIS détecté en pratique pendant une vraie récitation continue,
+      // alors que c'est exactement le cas d'usage visé (suivi de prière).
+      // Rajouté ici, dans la branche RÉELLEMENT empruntée quand l'alignement
+      // forcé GOP est actif (notre cas courant, modèle déployé).
+      if (_confidentMode) {
+        final newCommitted = parts.committed.length > _takbirScannedCommittedLen
+            ? parts.committed.substring(_takbirScannedCommittedLen)
+            : '';
+        _takbirScannedCommittedLen = parts.committed.length;
+        if (parts.preview.isEmpty) _takbirArmed = true;
+        // Committed (déjà figé, jamais réévalué) OU preview (encore ré-évalué
+        // à chaque passe, cf. commentaire de _takbirArmed -- couvre le cas où
+        // l'ASR met plusieurs secondes à figer le takbir).
+        final detected = _hasTakbir(newCommitted) ||
+            (_takbirArmed && parts.preview.isNotEmpty && _hasTakbir(parts.preview));
+        if (detected) {
+          _takbirArmed = false;
+          // Texte exact loggé (2026-07-19, constat réel : un takbir détecté
+          // en PLEINE Al-Fatiha renvoie à tort en standby, cause jamais
+          // confirmée faute de ce texte encore disponible au moment du log
+          // -- logcat évincé avant qu'on tire le log) -- persisté ici pour
+          // que ça ne se reproduise plus.
+          DiagnosticLog.log('Takbir', '"الله أكبر" détecté (mode confiant) '
+              '-- texte déclencheur committed="$newCommitted" '
+              'preview="${parts.preview}" phase avant=${state.prayerPhase}');
+          _enterPrayerStandby();
+        } else if (state.prayerPhase == PrayerPhase.standby) {
+          // En attente : la salât répète Al-Fatiha à CHAQUE rak'ah, mais
+          // "الله أكبر" est aussi dit pour rukū'/sujūd (pas suivi de Coran) --
+          // on ne bascule sur Al-Fatiha que si son début est RECONNU, jamais
+          // sur le seul takbir (cf. commentaire de PrayerPhase).
+          final sinceStandby = parts.committed.length > _standbyScanStart
+              ? parts.committed.substring(_standbyScanStart)
+              : '';
+          final probe = sinceStandby.isNotEmpty ? sinceStandby : parts.preview;
+          if (probe.isNotEmpty && _looksLikeFatihaStart(probe)) {
+            unawaited(_beginFatihaPhase());
+          }
+        } else if (state.prayerPhase == PrayerPhase.detectingTarget &&
+            !_targetLookupInFlight) {
+          // Al-Fatiha terminée, sourate suivante pas encore identifiée --
+          // même moteur que "Shazam coranique" (QuranVerseLocatorService),
+          // appliqué au texte reconnu depuis la fin d'Al-Fatiha (demande
+          // utilisateur 2026-07-18 : "il vaut mieux utiliser Shazam pour
+          // détecter où commence la sourate après Fatiha" -- pas de sourate
+          // pré-sélectionnée dans ce mode, elle peut changer à chaque rak'ah).
+          final sinceDetect = parts.committed.length > _targetDetectScanStart
+              ? parts.committed.substring(_targetDetectScanStart)
+              : '';
+          // ANCIENNE APPROCHE (gardée en référence, demande utilisateur
+          // 2026-07-19 : "ne supprime rien, mets l'ancienne fonction en
+          // commentaire") -- fenêtre glissante brute sur committed+preview,
+          // incluait des mots d'aperçu encore instables (pas encore
+          // stabilisés d'une passe à l'autre) dans la recherche :
+          // final rawProbe = _lastWords(
+          //     [sinceDetect, parts.preview].where((t) => t.isNotEmpty).join(' '),
+          //     _kRecentWindowWords);
+          //
+          // NOUVELLE APPROCHE : ne garder que les mots "sûrs" (committed,
+          // toujours sûr par construction, + le préfixe stable de l'aperçu,
+          // cf. _stablePreviewPrefix) -- les mots "douteux" (aperçu encore
+          // en train de changer) sont exclus de la recherche ce tour-ci.
+          //
+          // PAS de plafond `_kRecentWindowWords` ICI (demande utilisateur
+          // 2026-07-19, "non il doit prendre en continu -- pour vérifier") :
+          // contrairement au rattrapage pendant fatiha/target (§3.9, une
+          // sourate en cours peut durer longtemps), cette phase
+          // d'identification est courte (quelques secondes tout au plus,
+          // avant match ou repli de continuité) -- laisser le texte "sûr"
+          // s'accumuler en entier depuis la fin d'Al-Fatiha donne à Shazam
+          // de plus en plus de contexte pour DÉPARTAGER un match coïncidentiel
+          // court (ex. "ما جعل الله" seul matchait à tort "50:26") du vrai
+          // verset, plus long dès qu'assez de mots sûrs sont accumulés.
+          final stablePreview = _stablePreviewPrefix(parts.preview);
+          final rawProbe =
+              [sinceDetect, stablePreview].where((t) => t.isNotEmpty).join(' ');
+          // BUG corrigé 2026-07-19 (constat utilisateur : "il y a plusieurs
+          // répétitions du texte") : tant que rien de NOUVEAU n'est reconnu,
+          // `rawProbe` reste identique d'une passe à l'autre (le natif rejoue
+          // le même committed/preview entre deux re-transcriptions réelles) --
+          // relancer Shazam dessus à chaque appel de `_onStructured` (toutes
+          // les ~80-100ms) ne faisait que répéter la MÊME recherche pour rien.
+          // On ne relance donc la recherche QUE si le texte a changé -- ce qui
+          // sert aussi de signal pour réarmer le repli de continuité
+          // (cf. _armDetectingTargetFallbackTimer) : un silence réel se
+          // reconnaît justement à `rawProbe` qui reste inchangé.
+          final probeChanged = rawProbe != _lastDetectingTargetProbe;
+          if (probeChanged) {
+            _lastDetectingTargetProbe = rawProbe;
+            _armDetectingTargetFallbackTimer();
+            // BUG corrigé 2026-07-18 (constat réel, log device) : "بِسْمِ
+            // ٱللَّهِ ٱلرَّحْمَـٰنِ" -> Shazam répond "1:1" avec confiance
+            // 1.00 -- FAUX, c'est juste la formule d'ouverture récitée
+            // devant N'IMPORTE quelle sourate, pas le contenu réel de la
+            // sourate suivante. Elle n'est indexée comme verset QUE dans
+            // Al-Fatiha (1:1) -- les autres sourates ne l'ont pas dans leur
+            // texte indexé (ajoutée séparément à l'affichage, cf.
+            // QuranApi.fetchBismillah) -- donc Shazam matchait TOUJOURS 1:1
+            // tant que seule la Bismillah avait été entendue. On la retire
+            // du DÉBUT du texte avant recherche : la détection attend alors
+            // le vrai contenu distinctif de la sourate.
+            //
+            // Résidu de fin d'Al-Fatiha (cf. _stripFatihaTailPrefix) retiré
+            // AVANT la Bismillah : la fenêtre observée en pratique est
+            // "...ولا الضالين" PUIS potentiellement une nouvelle Bismillah
+            // avant le vrai contenu de la sourate suivante -- l'ordre des
+            // deux strips doit suivre l'ordre réel du texte.
+            final probe = _stripBismillahPrefix(_stripFatihaTailPrefix(rawProbe));
+            if (probe != null && probe.isNotEmpty) {
+              unawaited(_tryIdentifyTargetTwoStep(probe));
+            }
+          }
+        } else if (state.prayerPhase == PrayerPhase.fatiha) {
+          // Fin d'Al-Fatiha détectée par le TEXTE reconnu, PAS par l'avancée
+          // du pointeur GOP (cf. _looksLikeFatihaEnd -- constat réel : le
+          // pointeur peut rester bloqué sur les tout premiers mots pendant
+          // 30s+ alors qu'Al-Fatiha est déjà entièrement récitée, la passe
+          // d'alignement forcé prenant un retard croissant sur le flux réel).
+          final sinceFatihaStart = parts.committed.length > _fatihaScanStart
+              ? parts.committed.substring(_fatihaScanStart)
+              : '';
+          final probe = [sinceFatihaStart, parts.preview]
+              .where((t) => t.isNotEmpty)
+              .join(' ');
+          if (probe.isNotEmpty && _looksLikeFatihaEnd(probe)) {
+            DiagnosticLog.log('Prière', 'fin d\'Al-Fatiha reconnue par le texte '
+                '(pointeur GOP peut être en retard) -- bascule immédiate');
+            if (_dynamicTargetDiscovery) {
+              _beginTargetDetection();
+            } else {
+              unawaited(_beginTargetPhase());
+            }
+          } else {
+            // Al-Fatiha pas encore terminée : rattrape quand même le pointeur
+            // mot-à-mot si le GOP a pris du retard sur ce qui est réellement
+            // récité (cf. _maybeResyncPosition) -- micro-écoute récente
+            // (_kRecentWindowWords), pas tout le texte cumulé depuis le début
+            // de la phase.
+            final recentProbe = _lastWords(probe, _kRecentWindowWords);
+            // Repli complémentaire à _looksLikeFatihaEnd (retour utilisateur
+            // 2026-07-19, "il faut pas lâcher le récitateur, toujours cherche
+            // le mot dans toute la sourate") : le déclencheur textuel exact
+            // (UN seul mot, "الضالين"/"المغضوب") peut échouer si l'ASR
+            // tronque JUSTEMENT ce fragment précis -- déjà arrivé deux fois
+            // cette session malgré le second mot de secours. Ici, si la
+            // recherche Shazam retrouve avec confiance un passage qui n'est
+            // PLUS dans Al-Fatiha du tout, c'est en soi la preuve qu'elle est
+            // terminée, peu importe quel mot précis a été (mal) transcrit en
+            // dernier.
+            unawaited(_checkLeftFatihaViaShazam(recentProbe));
+            _maybeResyncPosition(
+                probe: recentProbe, surahNumber: 1, verses: _fatihaVerses);
+          }
+        } else if (state.prayerPhase == PrayerPhase.target &&
+            _dynamicTargetDiscovery) {
+          // Même rattrapage pendant la sourate suivie (identifiée par
+          // Shazam) -- SEULEMENT en mode "Suivre une prière" : le karaoké
+          // classique connaît sa cible depuis l'ouverture de l'écran (sa
+          // propre extension de page gère déjà la suite, cf.
+          // _maybeExtendNextPage côté écran). Scruté depuis l'entrée en
+          // phase [target] (`_targetTrackingScanStart`) -- `committed` est un
+          // buffer GLOBAL à la session, jamais purgé entre phases : sans ce
+          // curseur, Al-Fatiha/le standby précédents pollueraient la requête.
+          final sinceTarget = parts.committed.length > _targetTrackingScanStart
+              ? parts.committed.substring(_targetTrackingScanStart)
+              : '';
+          final probe = [sinceTarget, parts.preview]
+              .where((t) => t.isNotEmpty)
+              .join(' ');
+          _maybeResyncPosition(
+              probe: _lastWords(probe, _kRecentWindowWords),
+              surahNumber: _currentTargetSurah ?? -1,
+              verses: _currentTargetVerses);
+        }
+      }
       return;
     }
 
@@ -674,12 +1966,34 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// de chaque mot est déterminée acoustiquement par la DP, plus par une
   /// correspondance de chaînes.
   void _onAligned(AlignPayload p) {
+    // En standby (attend Al-Fatiha) OU detectingTarget (Al-Fatiha finie,
+    // sourate suivante pas encore identifiée) : aucune cible valable à juger
+    // (cf. PrayerPhase) -- le natif continue de calculer des passes (cible
+    // encore celle d'avant le takbir/d'Al-Fatiha), on les ignore simplement
+    // plutôt que de juger à l'aveugle contre un texte qui n'est plus récité.
+    // AVANT le check `words.isEmpty` : en mode "Suivre une prière"
+    // (_dynamicTargetDiscovery), `state.words` est précisément vide pendant
+    // ces deux phases -- sans ce test en premier, `pointer(0) >= words.length
+    // (0)` serait trivialement vrai plus bas et terminerait la session à tort.
+    if (state.prayerPhase == PrayerPhase.standby ||
+        state.prayerPhase == PrayerPhase.detectingTarget) {
+      return;
+    }
     if (state.words.isEmpty) return;
     final s = state.status;
     if (s == RecitationStatus.finished || s == RecitationStatus.idle) return;
 
     final words = [...state.words];
     final newErrors = <int>[];
+    // Plus haut index effectivement jugé cette passe (même non verrouillé,
+    // cf. commentaire de `coveredExtent` plus bas) -- constat réel 2026-07-19
+    // (log device) : plusieurs mots d'affilée reçoivent un statut correct en
+    // aperçu (mots 25 à 36 jugés en quelques passes) alors que `p.frontier`
+    // natif, lui, avance beaucoup plus prudemment -- le pointeur (et donc le
+    // marqueur "mot courant"/défilement automatique) restait visuellement en
+    // retard sur des mots déjà colorés, donnant l'impression que l'app "ne
+    // suit pas" alors que le jugement progressait bien.
+    var maxJudgedIndex = -1;
 
     for (final r in p.words) {
       if (r.index < 0 || r.index >= words.length) continue;
@@ -688,6 +2002,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // l'audio ne le couvre pas entièrement — ne pas juger (le verrouillage
       // prématuré d'un mot à moitié décodé est LE bug historique 2026-07-05).
       if (!r.covered && !p.isFinal) continue;
+      if (r.index > maxJudgedIndex) maxJudgedIndex = r.index;
 
       final expected = words[r.index];
       final actualStrict = ArabicNormalizer.normalizeStrict(r.actual);
@@ -749,16 +2064,42 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // sépare proprement les deux sans perdre le cas de troncature.
       final isLongEnoughToBeFragment =
           actualStrict.length >= 2 && actualStrict.length * 3 >= expected.strict.length;
+      // Suppression au milieu (2026-07-16 soir, cas réel device : attendu
+      // "بَلَوْنَـٰهُمْ", entendu "بَلَهُمْ" -- le CTC glouton a avalé "وْنَ" au
+      // milieu, hors des frontières de mot). Contrairement au sin/sad
+      // ci-dessus (VRAIE substitution : une lettre remplacée par une autre),
+      // ici les lettres restantes ("ب ل ه م") apparaissent dans le MÊME ORDRE
+      // que dans l'attendu ("ب ل و ن ه م", و et ن juste sautés) -- une
+      // sous-séquence, pas un remplacement. `endsWith`/`startsWith` ne couvre
+      // que les troncatures en bord de mot ; ceci étend la tolérance aux
+      // suppressions internes SANS rouvrir le cas sin/sad (سرط n'est PAS une
+      // sous-séquence de صرط : la toute première lettre diverge déjà, aucune
+      // lettre commune à sauter par-dessus).
+      final isOrderedSubsequence = actualStrict.isNotEmpty &&
+          _isSubsequenceInOrder(actualStrict, expected.strict);
       final isFragment = hasSpeech &&
           actualStrict.isNotEmpty &&
           expected.strict.isNotEmpty &&
           isLongEnoughToBeFragment &&
           (expected.strict.endsWith(actualStrict) ||
-              expected.strict.startsWith(actualStrict));
+              expected.strict.startsWith(actualStrict) ||
+              isOrderedSubsequence);
       final spellsDifferentWord = hasSpeech && !textMatches && !isFragment;
 
       final WordStatus judged;
-      if (!hasSpeech) {
+      if (state.prayerPhase == PrayerPhase.fatiha) {
+        // Demande utilisateur 2026-07-19 : "je ne veux pas de correction
+        // dans la récitation de Al-Hamdo [Al-Fatiha], elle est très connue
+        // et rare, les erreurs dans cette sourate c'est juste du bruit" --
+        // Al-Fatiha est récitée des dizaines de fois par jour, une vraie
+        // erreur de prononciation y est rarissime ; un rouge/orange dessus
+        // reflète presque toujours du bruit ASR (écho/réverbération de
+        // mosquée, segmentation), pas une vraie faute. On ne juge donc
+        // jamais négativement pendant cette phase -- seule la POSITION
+        // (avancement de l'ancre/du pointeur, cf. plus bas, nécessaire pour
+        // la bascule de phase) continue d'être suivie normalement.
+        judged = WordStatus.correct;
+      } else if (!hasSpeech) {
         // Bug corrigé 2026-07-16 (revue de code, Finding #9) : `hasSpeech` ne
         // protégeait QUE la branche `correct` ci-dessous -- un mot jamais
         // prononcé (r.actual=="") avec un gop proche de 0 par coïncidence
@@ -789,9 +2130,18 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // permet PAS de diagnostiquer : un gop proche de 0 signifie soit "bien
       // récité", soit "modèle hésitant sur tout" (free très négatif), deux
       // situations opposées. Cf. le cas sin/sad ci-dessus.
+      // rescore : signal DIAGNOSTIQUE uniquement (cf. AlignedWord.rescoreMargin)
+      // -- pas encore branché au verdict `judged` ci-dessus, seuil non calibré
+      // sur device. Loggé pour comparer a posteriori aux vrais cas gop=0/vert
+      // à tort une fois le rescoring activé (setRescoringEnabled).
+      final rescoreInfo = r.rescoreMargin != null
+          ? ' rescore=${r.rescoreMargin!.toStringAsFixed(2)}'
+              '${r.rescoreHeard != null ? "(${r.rescoreHeard})" : ""}'
+          : '';
       DiagnosticLog.log('GOP', 'mot=${r.index} "${expected.display}" '
           'gop=${r.gop.toStringAsFixed(2)} forced=${r.forced.toStringAsFixed(2)} '
-          'free=${(r.forced - r.gop).toStringAsFixed(2)} '
+          'free=${(r.forced - r.gop).toStringAsFixed(2)}'
+          '$rescoreInfo '
           'entendu="${r.actual}"'
           '${spellsDifferentWord ? " autreMot=OUI" : ""}'
           '${isFragment ? " fragment" : ""}'
@@ -830,7 +2180,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // libre du même segment le montrait parfaitement reconnu).
     if (p.isFinal) {
       final trueExtent = p.anchor + p.words.length;
-      if (trueExtent > _anchorExp) _anchorExp = trueExtent;
+      if (trueExtent > _anchorExp) {
+        _anchorExp = trueExtent;
+        // Garde à jour la référence temporelle du garde-fou de plausibilité
+        // (cf. _kMaxPlausibleWordsPerSecond) : un jugement GOP normal est
+        // aussi un avancement confirmé de l'ancre, pas seulement un
+        // rattrapage Shazam.
+        _lastAnchorAdvanceAt = DateTime.now();
+      }
     }
 
     // Pointeur = frontière acoustique (premier mot que l'audio ne couvre pas
@@ -839,7 +2196,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // pointeur doit au moins les dépasser aussi, pas juste `p.frontier`
     // (identique à la correction de l'ancre). Jamais en arrière : une passe
     // ponctuellement dégradée ne fait pas reculer l'UI.
-    final coveredExtent = p.isFinal ? _anchorExp : p.frontier;
+    final coveredExtent =
+        p.isFinal ? _anchorExp : max(p.frontier, maxJudgedIndex + 1);
     final pointer =
         max(state.pointer, coveredExtent.clamp(0, words.length).toInt());
 
@@ -869,6 +2227,40 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     }
 
     final done = pointer >= words.length;
+    // Cycle de prière (mode confiant) : la fin d'Al-Fatiha ou de la sourate
+    // suivie N'ARRÊTE PAS la session -- elle enchaîne sur le temps suivant de
+    // la salât (cf. PrayerPhase). Seul le mode normal (aucun cycle en cours)
+    // termine réellement la session sur `done`.
+    if (done && state.prayerPhase == PrayerPhase.fatiha) {
+      state = state.copyWith(
+        words: words, pointer: pointer, correctCount: correct,
+        unclearCount: unclear, errorCount: errors,
+      );
+      for (final i in newErrors) {
+        _wordFailedCtrl.add(i);
+      }
+      // "Suivre une prière" (_dynamicTargetDiscovery) : pas de sourate
+      // pré-chargée -- il faut d'abord l'identifier (Shazam). Karaoké
+      // classique (mode confiant sur une sourate pré-sélectionnée) : reprend
+      // directement cette sourate, déjà connue.
+      if (_dynamicTargetDiscovery) {
+        _beginTargetDetection();
+      } else {
+        unawaited(_beginTargetPhase());
+      }
+      return;
+    }
+    if (done && state.prayerPhase == PrayerPhase.target) {
+      state = state.copyWith(
+        words: words, pointer: pointer, correctCount: correct,
+        unclearCount: unclear, errorCount: errors,
+      );
+      for (final i in newErrors) {
+        _wordFailedCtrl.add(i);
+      }
+      _enterPrayerStandby();
+      return;
+    }
     state = state.copyWith(
       words: words,
       pointer: pointer,
@@ -1229,6 +2621,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _structSub?.cancel();
     _pendingSub?.cancel();
     _alignSub?.cancel();
+    _detectingTargetFallbackTimer?.cancel();
     _wordFailedCtrl.close();
 
     // Bug corrigé 2026-07-16 — FUITE DE SESSION. Ce dispose n'annulait que les

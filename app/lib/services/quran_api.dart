@@ -1,6 +1,25 @@
+import 'dart:convert' show json;
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import '../models/verse.dart';
 
+/// Texte du Coran (chapitres, versets, tajweed, traduction fr) -- 100%
+/// LOCAL depuis le 2026-07-19 (`assets/data/quran_{chapters,verses}.json`,
+/// générés une fois par `benchmark/fetch_quran_full_local.py`, 8 Mo au
+/// total). Avant cette date, `fetchSurahs`/`fetchVerses`/`fetchVersesByPage`
+/// appelaient `api.quran.com` en direct à CHAQUE lancement de l'app -- sans
+/// aucun cache, contrairement au reste du pipeline (ASR/ML) qui est
+/// entièrement on-device. Découvert via un écran "Connexion requise" sur un
+/// téléphone dont le WiFi était en réalité connecté mais dont la résolution
+/// DNS échouait (`api.quran.com` injoignable) -- a révélé que la lecture du
+/// Coran elle-même, pas seulement la vérification, dépendait du réseau.
+/// Nécessaire aussi pour le futur stockage local d'erreurs/mémorisation
+/// (coach) : impossible de bâtir des fonctionnalités locales sur un texte
+/// qui doit être re-téléchargé à chaque session.
+///
+/// Reste volontairement EN LIGNE (streaming, pas raisonnable à embarquer,
+/// des centaines de Mo par récitateur) : `fetchSurahAudioUrls`,
+/// `fetchAyahSegments`, `fetchSurahInfo`.
 class QuranApi {
   static const _base = 'https://api.quran.com/api/v4';
   static final _dio = Dio(BaseOptions(
@@ -9,16 +28,64 @@ class QuranApi {
     receiveTimeout: const Duration(seconds: 30),
   ));
 
+  static List<Surah>? _chapters;
+  static Map<int, List<Verse>>? _versesBySurah;
+  static Map<int, List<Verse>>? _versesByPage;
+  static Future<void>? _loading;
+
+  static Verse _parseVerse(Map<String, dynamic> map) {
+    final verse = Verse.fromJson(map);
+    final translations = map['translations'] as List?;
+    return Verse(
+      surahNumber: verse.surahNumber,
+      ayahNumber: verse.ayahNumber,
+      textUthmani: verse.textUthmani,
+      textUthmaniTajweed: map['text_uthmani_tajweed'] as String?,
+      pageNumber: verse.pageNumber,
+      translationFr: translations?.isNotEmpty == true
+          ? translations!.first['text'] as String?
+          : null,
+    );
+  }
+
+  /// Charge et indexe les deux assets une seule fois (idempotent, réutilisé
+  /// par tous les appels ci-dessous -- même contenu qu'un appel réseau
+  /// aurait renvoyé, juste lu depuis l'APK au lieu de `api.quran.com`).
+  static Future<void> _ensureLoaded() {
+    if (_chapters != null) return Future.value();
+    return _loading ??= () async {
+      final chaptersRaw = json.decode(
+          await rootBundle.loadString('assets/data/quran_chapters.json')) as List;
+      _chapters = chaptersRaw
+          .map((e) => Surah.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      final versesRaw = json.decode(
+          await rootBundle.loadString('assets/data/quran_verses.json')) as List;
+      final bySurah = <int, List<Verse>>{};
+      final byPage = <int, List<Verse>>{};
+      for (final v in versesRaw) {
+        final verse = _parseVerse(v as Map<String, dynamic>);
+        bySurah.putIfAbsent(verse.surahNumber, () => []).add(verse);
+        if (verse.pageNumber != null) {
+          byPage.putIfAbsent(verse.pageNumber!, () => []).add(verse);
+        }
+      }
+      _versesBySurah = bySurah;
+      _versesByPage = byPage;
+    }();
+  }
+
   static Verse? _bismillahCache;
 
   /// La Bismillah = texte du verset 1:1 (Al-Fatiha), VERBATIM identique à ce
   /// qui doit apparaître au début de toute autre sourate (sauf At-Tawbah).
-  /// Récupérée depuis l'API comme n'importe quel autre verset -- JAMAIS
-  /// tapée à la main (texte sacré : un caractère tapé à la main peut se
-  /// tromper de variante Unicode sans que ça se voie -- bug réel du
-  /// 2026-07-09, un "ي" persan au lieu du "ي" arabe standard a cassé la
-  /// reconnaissance de "الرحيم" dans une constante tapée directement dans le
-  /// code). Mise en cache après le premier appel (contenu immuable).
+  /// Récupérée comme n'importe quel autre verset -- JAMAIS tapée à la main
+  /// (texte sacré : un caractère tapé à la main peut se tromper de variante
+  /// Unicode sans que ça se voie -- bug réel du 2026-07-09, un "ي" persan au
+  /// lieu du "ي" arabe standard a cassé la reconnaissance de "الرحيم" dans
+  /// une constante tapée directement dans le code). Mise en cache après le
+  /// premier appel (contenu immuable).
   static Future<Verse> fetchBismillah() async {
     if (_bismillahCache != null) return _bismillahCache!;
     final verses = await fetchVerses(1);
@@ -27,36 +94,13 @@ class QuranApi {
   }
 
   static Future<List<Surah>> fetchSurahs() async {
-    final r = await _dio.get('/chapters', queryParameters: {'language': 'fr'});
-    final list = r.data['chapters'] as List;
-    return list.map((e) => Surah.fromJson(e as Map<String, dynamic>)).toList();
+    await _ensureLoaded();
+    return _chapters!;
   }
 
   static Future<List<Verse>> fetchVerses(int surahNumber) async {
-    final r = await _dio.get(
-      '/verses/by_chapter/$surahNumber',
-      queryParameters: {
-        'translations': '136',  // fr-montada
-        'fields': 'text_uthmani,text_uthmani_tajweed,page_number',
-        'per_page': '286',
-      },
-    );
-    final list = r.data['verses'] as List;
-    return list.map((v) {
-      final map = v as Map<String, dynamic>;
-      final verse = Verse.fromJson(map);
-      final translations = map['translations'] as List?;
-      return Verse(
-        surahNumber: verse.surahNumber,
-        ayahNumber: verse.ayahNumber,
-        textUthmani: verse.textUthmani,
-        textUthmaniTajweed: map['text_uthmani_tajweed'] as String?,
-        pageNumber: verse.pageNumber,
-        translationFr: translations?.isNotEmpty == true
-            ? translations!.first['text'] as String?
-            : null,
-      );
-    }).toList();
+    await _ensureLoaded();
+    return _versesBySurah![surahNumber] ?? const [];
   }
 
   /// Une page du Mushaf standard (1-604) -- utilisé pour l'enchaînement
@@ -67,15 +111,8 @@ class QuranApi {
   /// 2026-07-11 : "il faut faire ça dynamiquement, une page avant et une page
   /// après").
   static Future<List<Verse>> fetchVersesByPage(int pageNumber) async {
-    final r = await _dio.get(
-      '/verses/by_page/$pageNumber',
-      queryParameters: {
-        'fields': 'text_uthmani,text_uthmani_tajweed,page_number',
-        'per_page': '50', // large marge -- une page du Mushaf ne dépasse jamais ~15 versets
-      },
-    );
-    final list = r.data['verses'] as List;
-    return list.map((v) => Verse.fromJson(v as Map<String, dynamic>)).toList();
+    await _ensureLoaded();
+    return _versesByPage![pageNumber] ?? const [];
   }
 
   /// Returns all audio file URLs for a surah, keyed by verse_key.

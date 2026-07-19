@@ -4,6 +4,7 @@ import '../models/verse.dart';
 import '../services/quran_api.dart';
 import '../theme/app_theme.dart';
 import 'mushaf_screen.dart';
+import 'prayer_follow_screen.dart';
 
 class SurahListScreen extends StatefulWidget {
   const SurahListScreen({super.key});
@@ -42,6 +43,18 @@ class _SurahListScreenState extends State<SurahListScreen> {
             expandedHeight: 140,
             pinned: true,
             backgroundColor: AppColors.green900,
+            // "Suivre une prière" (demande utilisateur 2026-07-18) : point
+            // d'entrée dédié pour un imam, SANS choisir de sourate au
+            // préalable (contrairement au karaoké classique, ouvert depuis
+            // une sourate précise) -- accessible directement depuis l'accueil.
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.mosque_rounded, color: AppColors.cream),
+                tooltip: 'Suivre une prière',
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PrayerFollowScreen())),
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: const BoxDecoration(

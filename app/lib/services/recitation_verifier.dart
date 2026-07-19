@@ -256,6 +256,17 @@ abstract class RecitationVerifier {
   /// passe compare l'audio au mot [index], pas à la suite du texte.
   Future<void> setAlignmentAnchor(int index);
 
+  /// Remplace ENTIÈREMENT la cible d'alignement forcé (contrairement à
+  /// [extendAlignmentTarget], qui ajoute à la suite de la cible actuelle SANS
+  /// y toucher) — utilisé pour basculer vers un texte complètement différent
+  /// EN COURS de session sans la redémarrer (mode "réciteur confiant" prière,
+  /// 2026-07-18 : bascule Al-Fatiha <-> sourate suivie entre deux temps de la
+  /// salât, cf. RecitationNotifier._beginFatihaPhase/_beginTargetPhase).
+  /// [trainingWords] = formes fidèles à l'entraînement (mêmes que
+  /// `RecitedWord.training`). Retourne true si l'alignement est actif pour
+  /// cette nouvelle cible (modèle chargé + tokenisation OK).
+  Future<bool> replaceAlignmentTarget(List<String> trainingWords, int anchor);
+
   /// Étend la cible d'alignement forcé avec des mots supplémentaires (formes
   /// STRICTES d'entraînement), à la SUITE de la cible actuelle — SANS toucher
   /// l'ancre en cours. Utilisé pour enchaîner sur la sourate suivante sans
@@ -394,6 +405,14 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       _fastConformer.extendAlignmentTarget(moreTrainingWords);
 
   @override
+  Future<bool> replaceAlignmentTarget(
+      List<String> trainingWords, int anchor) async {
+    _alignmentActive =
+        await _fastConformer.setAlignmentTarget(trainingWords, anchor);
+    return _alignmentActive;
+  }
+
+  @override
   Future<void> setClipCapture(String? dir) => _fastConformer.setClipCapture(dir);
 
   // ── Segmentation continue (VAD énergie) ──────────────────────────────────
@@ -418,6 +437,18 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   Stream<int> get pendingSegments => _pendingCtrl.stream;
 
   StreamSubscription<Uint8List>? _pcmSub;
+
+  // Garde-fou cote app (2026-07-16, cf. bug reel constate : "j'ai fait pause
+  // mais il continue") -- _recorder.pause() est un appel platform-channel
+  // async qui peut mettre plusieurs secondes (jusqu'a 23,8s observe sur
+  // device) avant que le natif arrete reellement le micro. Le listener PCM
+  // ci-dessous, lui, traitait INCONDITIONNELLEMENT chaque bloc recu pendant
+  // ce delai (aucun check isPaused) -- alignement/GOP continuaient a tourner
+  // sur de l'audio arrivant pendant une pause "en cours". Ce flag est mis a
+  // jour de facon SYNCHRONE (avant tout await), independamment de la latence
+  // du native, pour que le pipeline s'arrete immediatement du point de vue
+  // de l'app, meme si le micro physique met du temps a suivre.
+  bool _appPaused = false;
 
   @override
   Future<void> start(List<String> expectedWords, {bool continuous = false}) {
@@ -449,9 +480,18 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         // [expectedWords] = formes STRICTES (normalizeStrict : harakat
         // conservées, même normalisation que le corpus d'entraînement) — la
         // cible de l'alignement forcé GOP. false → repli diff textuel.
-        _alignmentActive =
-            await _fastConformer.setAlignmentTarget(expectedWords, 0);
-        DiagnosticLog.log('ASR', 'alignement forcé actif = $_alignmentActive');
+        // Liste VIDE (demande utilisateur 2026-07-18, "Shazam coranique" :
+        // écoute libre sans texte attendu connu à l'avance) -- pas de cible
+        // à aligner, ne pas tenter setAlignmentTarget du tout : un target
+        // vide n'a aucun sens pour l'alignement forcé et pouvait perturber
+        // la transcription libre elle-même (constat réel : segments tronqués/
+        // dégradés observés en test alors que alignement forcé actif=true
+        // sur une cible vide).
+        if (expectedWords.isNotEmpty) {
+          _alignmentActive =
+              await _fastConformer.setAlignmentTarget(expectedWords, 0);
+          DiagnosticLog.log('ASR', 'alignement forcé actif = $_alignmentActive');
+        }
       }
       _rawCtrl.add(ok
           ? '✅ FastConformer chargé — en écoute'
@@ -486,9 +526,24 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         ? '✅ Chargé — en écoute (re-transcription ~1,5s)'
         : '❌ Modèle introuvable (modèle/vocab absents sur le device)');
     if (!ok) return;
-    // Cible de l'alignement forcé GOP (formes strictes, harakat conservées).
-    _alignmentActive = await _fastConformer.setAlignmentTarget(expectedWords, 0);
-    DiagnosticLog.log('ASR', 'alignement forcé actif = $_alignmentActive');
+    // Moteur prêt -- `alignmentActive` marque désormais "le moteur peut
+    // aligner", pas "une cible est actuellement fixée" (2026-07-18, "Suivre
+    // une prière" : session démarrée SANS sourate connue, cf.
+    // RecitationNotifier.startPrayerFollow). Une cible VIDE ne doit PAS être
+    // envoyée à setAlignmentTarget -- même bug déjà corrigé pour le mode
+    // segment unique (Shazam coranique, cf. _startLocked ci-dessus) : un
+    // target vide dégrade/tronque la transcription libre elle-même, alors
+    // que cette session doit justement pouvoir écouter librement (standby en
+    // attente d'Al-Fatiha) avant qu'une cible existe.
+    _alignmentActive = true;
+    if (expectedWords.isNotEmpty) {
+      await _fastConformer.setAlignmentTarget(expectedWords, 0);
+      DiagnosticLog.log('ASR',
+          'alignement forcé actif = $_alignmentActive (cible=${expectedWords.length} mots)');
+    } else {
+      DiagnosticLog.log('ASR',
+          'alignement forcé actif = $_alignmentActive (cible vide au départ)');
+    }
     await _fastConformer.resetBuffered();
 
     DiagnosticLog.log('ASR', 'Appel _recorder.startStream()…');
@@ -503,6 +558,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
       _pcmSub = stream.listen(
         (bytes) async {
+          if (_appPaused) return;
           _chunkCount++;
           if (_chunkCount == 1) {
             DiagnosticLog.log('ASR', 'PREMIER bloc PCM reçu ! ${bytes.length} octets');
@@ -720,6 +776,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   @override
   Future<void> pauseCapture() async {
+    _appPaused = true; // synchrone, avant tout await -- cf. commentaire _appPaused
     try {
       final wasRecording = await _recorder.isRecording();
       DiagnosticLog.log('ASR', 'pauseCapture() | isRecording=$wasRecording');
@@ -739,10 +796,12 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       DiagnosticLog.log('ASR', 'resumeCapture() | isPaused=$wasPaused '
           'pcmSub actif=${_pcmSub != null} chunkCount avant=$_chunkCount');
       if (wasPaused) await _recorder.resume();
+      _appPaused = false;
       DiagnosticLog.log('ASR', 'resumeCapture() | après resume : '
           'isRecording=${await _recorder.isRecording()} '
           'isPaused=${await _recorder.isPaused()}');
     } catch (e) {
+      _appPaused = false; // ne pas rester bloque en silence sur une exception
       DiagnosticLog.log('ASR', 'resumeCapture échec : $e');
     }
   }
@@ -795,6 +854,10 @@ class MockRecitationVerifier implements RecitationVerifier {
   Future<void> setAlignmentAnchor(int index) async {}
   @override
   Future<void> extendAlignmentTarget(List<String> moreTrainingWords) async {}
+  @override
+  Future<bool> replaceAlignmentTarget(
+          List<String> trainingWords, int anchor) async =>
+      false;
 
   @override
   Future<void> setClipCapture(String? dir) async {}
