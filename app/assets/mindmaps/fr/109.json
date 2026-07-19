@@ -1,0 +1,29 @@
+{
+  "theme_central": "الكافرون",
+  "branches": [
+    {
+      "side": "left",
+      "range": "1-3",
+      "cat": "croyance",
+      "title": "Séparation claire du culte",
+      "resume": "Le Prophète est appelé à déclarer qu'il n'adore pas ce que les mécréants adorent, et eux n'adorent pas ce qu'il adore.",
+      "children": [
+        {"v": "1", "t": "Dis : Ô mécréants !"},
+        {"v": "2", "t": "Je n'adore pas ce que vous adorez"},
+        {"v": "3", "t": "Et vous n'êtes pas adorateurs de ce que j'adore"}
+      ]
+    },
+    {
+      "side": "right",
+      "range": "4-6",
+      "cat": "croyance",
+      "title": "À vous votre religion, à moi la mienne",
+      "resume": "La sourate conclut sur le principe de non-compromis religieux, chacun restant sur sa voie.",
+      "children": [
+        {"v": "4", "t": "Et je ne suis pas adorateur de ce que vous adorez"},
+        {"v": "5", "t": "Ni vous n'êtes adorateurs de ce que j'adore"},
+        {"v": "6", "t": "À vous votre religion, à moi la mienne"}
+      ]
+    }
+  ]
+}

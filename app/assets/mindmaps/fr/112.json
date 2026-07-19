@@ -1,0 +1,27 @@
+{
+  "theme_central": "الإخلاص",
+  "branches": [
+    {
+      "side": "left",
+      "range": "1-2",
+      "cat": "croyance",
+      "title": "L'Unicité absolue d'Allah",
+      "resume": "Déclaration du Tawhid pur : Allah est Un, l'Absolu dont tout dépend et qui ne dépend de rien.",
+      "children": [
+        {"v": "1", "t": "Dis : Il est Allah, Unique"},
+        {"v": "2", "t": "Allah, Le Seul à être imploré pour ce que nous désirons"}
+      ]
+    },
+    {
+      "side": "right",
+      "range": "3-4",
+      "cat": "croyance",
+      "title": "Sans engendrer ni être engendré",
+      "resume": "Allah n'a ni engendré ni été engendré, et nul n'est égal à Lui.",
+      "children": [
+        {"v": "3", "t": "Il n'a jamais engendré, n'a pas été engendré non plus"},
+        {"v": "4", "t": "Et nul n'est égal à Lui"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "theme_central": "العصر",
+  "branches": [
+    {
+      "side": "left",
+      "range": "1-2",
+      "cat": "avertissement",
+      "title": "Le temps et la perte",
+      "resume": "Allah jure par le temps que l'être humain est en perte, sauf exceptions.",
+      "children": [
+        {"v": "1", "t": "Par le Temps !"},
+        {"v": "2", "t": "L'être humain est certes en perte"}
+      ]
+    },
+    {
+      "side": "right",
+      "range": "3",
+      "cat": "loi",
+      "title": "Les quatre conditions du salut",
+      "resume": "Sont épargnés ceux qui réunissent la foi, les bonnes œuvres, et l'exhortation mutuelle à la vérité et à la patience.",
+      "children": [
+        {"v": "3", "t": "Sauf ceux qui croient, font le bien, s'exhortent à la vérité et à l'endurance"}
+      ]
+    }
+  ]
+}

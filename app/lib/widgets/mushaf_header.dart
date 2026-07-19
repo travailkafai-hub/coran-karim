@@ -6,8 +6,9 @@ import '../theme/app_theme.dart';
 class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
   final Surah surah;
   final VoidCallback? onBack;
+  final VoidCallback? onMindMap;
 
-  const MushafHeader({super.key, required this.surah, this.onBack});
+  const MushafHeader({super.key, required this.surah, this.onBack, this.onMindMap});
 
   @override
   Size get preferredSize => const Size.fromHeight(120);
@@ -39,7 +40,7 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
                 _PrayerTimeBanner(),
                 const SizedBox(height: 4),
                 // Navigation row
-                _SurahNavRow(surah: surah, onBack: onBack),
+                _SurahNavRow(surah: surah, onBack: onBack, onMindMap: onMindMap),
               ],
             ),
           ],
@@ -80,8 +81,9 @@ class _PrayerTimeBanner extends StatelessWidget {
 class _SurahNavRow extends StatelessWidget {
   final Surah surah;
   final VoidCallback? onBack;
+  final VoidCallback? onMindMap;
 
-  const _SurahNavRow({required this.surah, this.onBack});
+  const _SurahNavRow({required this.surah, this.onBack, this.onMindMap});
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +107,14 @@ class _SurahNavRow extends StatelessWidget {
               flex: true,
             ),
           ),
+          if (onMindMap != null)
+            IconButton(
+              icon: const Icon(Icons.hub_outlined, color: AppColors.cream, size: 22),
+              tooltip: 'Carte mentale',
+              onPressed: onMindMap,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
         ],
       ),
     );

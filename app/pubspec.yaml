@@ -53,6 +53,10 @@ dependencies:
   share_plus: ^13.2.0
   archive: ^3.6.1
 
+  # Carte mentale des sourates (REFONTE_IHM.md §7) — rendu eventail gauche/droite
+  graphview: ^1.2.0
+  flutter_svg: ^2.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -71,3 +75,5 @@ flutter:
     - assets/data/quran_chapters.json
     - assets/data/quran_verses.json
     - assets/data/rule_reliability.json
+    - assets/illumination/medallion.svg
+    - assets/mindmaps/fr/

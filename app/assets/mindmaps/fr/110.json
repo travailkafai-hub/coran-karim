@@ -1,0 +1,26 @@
+{
+  "theme_central": "النصر",
+  "branches": [
+    {
+      "side": "left",
+      "range": "1-2",
+      "cat": "promesse",
+      "title": "La victoire et l'entrée en masse dans l'Islam",
+      "resume": "Annonce du secours d'Allah, de la victoire, et des gens entrant en foule dans la religion d'Allah.",
+      "children": [
+        {"v": "1", "t": "Quand vient le secours d'Allah, ainsi que la victoire"},
+        {"v": "2", "t": "Et que tu vois les gens entrer en foule dans la religion d'Allah"}
+      ]
+    },
+    {
+      "side": "right",
+      "range": "3",
+      "cat": "loi",
+      "title": "Glorification et pardon",
+      "resume": "Le Prophète est appelé à glorifier Allah et implorer Son pardon.",
+      "children": [
+        {"v": "3", "t": "Glorifie par la louange de ton Seigneur et implore Son pardon, Il est Grand Accueillant au repentir"}
+      ]
+    }
+  ]
+}

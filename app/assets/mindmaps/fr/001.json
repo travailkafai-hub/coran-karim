@@ -1,0 +1,30 @@
+{
+  "theme_central": "الفاتحة",
+  "branches": [
+    {
+      "side": "left",
+      "range": "1-4",
+      "cat": "louange",
+      "title": "Les attributs d'Allah",
+      "resume": "Al-Fatiha s'ouvre sur la louange d'Allah, Seigneur de l'univers, le Tout Miséricordieux, Maître du Jour de la Rétribution.",
+      "children": [
+        {"v": "1", "t": "Basmala : au nom d'Allah, le Tout Miséricordieux"},
+        {"v": "2", "t": "Louange à Allah, Seigneur des mondes"},
+        {"v": "3", "t": "Le Tout Miséricordieux, le Très Miséricordieux"},
+        {"v": "4", "t": "Maître du Jour de la Rétribution"}
+      ]
+    },
+    {
+      "side": "right",
+      "range": "5-7",
+      "cat": "croyance",
+      "title": "Adoration et guidance",
+      "resume": "Le fidèle proclame n'adorer qu'Allah et implore Sa guidance sur le droit chemin, celui des bien-guidés.",
+      "children": [
+        {"v": "5", "t": "C'est Toi que nous adorons, Toi seul dont nous implorons secours"},
+        {"v": "6", "t": "Guide-nous dans le droit chemin"},
+        {"v": "7", "t": "Le chemin de ceux que Tu as comblés de faveurs, non celui de la colère ou de l'égarement"}
+      ]
+    }
+  ]
+}

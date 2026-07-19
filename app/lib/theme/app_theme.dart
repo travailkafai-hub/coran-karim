@@ -29,6 +29,19 @@ class AppColors {
   static const tajwidQalqala  = Color(0xFF0055aa);  // blue — echo
   static const tajwidMadd     = Color(0xFFb85000);  // orange — elongation
   static const tajwidIkhfaa   = Color(0xFF8b0000);  // red — hidden
+
+  // Carte mentale (REFONTE_IHM.md §7) — 6 categories de branches.
+  // PLACEHOLDER (2026-07-19) : la palette definitive doit venir de
+  // l'utilisateur (palette manuscrite deja validee par lui, a recuperer --
+  // "ne pas inventer les hex"). Ces couleurs sont des variantes du theme
+  // existant, juste pour rendre le graphe lisible en attendant ; a
+  // remplacer des reception de la vraie palette, ne pas considerer figees.
+  static const mindmapCroyance      = Color(0xFF16604a);  // green700
+  static const mindmapRecit         = Color(0xFF0055aa);  // bleu (tajwidQalqala)
+  static const mindmapLoi           = Color(0xFFc8a23c);  // brass
+  static const mindmapPromesse      = Color(0xFF1a7a5e);  // green600
+  static const mindmapAvertissement = Color(0xFF8b0000);  // rouge (tajwidIkhfaa)
+  static const mindmapLouange       = Color(0xFFb85000);  // orange (tajwidMadd)
 }
 
 class AppTheme {

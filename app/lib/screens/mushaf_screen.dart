@@ -19,6 +19,7 @@ import '../widgets/surah_ornament_header.dart';
 import 'coach_screen.dart';
 import 'recitation_screen.dart';
 import 'karaoke_recitation_screen.dart';
+import 'mind_map_screen.dart';
 
 class MushafScreen extends ConsumerStatefulWidget {
   final Surah surah;
@@ -409,6 +410,11 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
                         child: MushafHeader(
                           surah: widget.surah,
                           onBack: () => Navigator.of(context).maybePop(),
+                          onMindMap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => MindMapScreen(surah: widget.surah),
+                            ),
+                          ),
                         ),
                       ),
                     ),

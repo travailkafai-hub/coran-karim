@@ -1,0 +1,26 @@
+{
+  "theme_central": "الكوثر",
+  "branches": [
+    {
+      "side": "left",
+      "range": "1",
+      "cat": "promesse",
+      "title": "Le don abondant",
+      "resume": "Allah annonce au Prophète qu'Il lui a accordé al-Kawthar, un bien abondant.",
+      "children": [
+        {"v": "1", "t": "Nous t'avons certes accordé l'Abondance (al-Kawthar)"}
+      ]
+    },
+    {
+      "side": "right",
+      "range": "2-3",
+      "cat": "loi",
+      "title": "Prière, sacrifice et réponse aux détracteurs",
+      "resume": "En retour, le Prophète est appelé à prier et sacrifier pour son Seigneur ; c'est son ennemi qui sera sans postérité, non lui.",
+      "children": [
+        {"v": "2", "t": "Accomplis donc la prière pour ton Seigneur, et sacrifie"},
+        {"v": "3", "t": "C'est celui qui te hait qui sera sans postérité"}
+      ]
+    }
+  ]
+}
