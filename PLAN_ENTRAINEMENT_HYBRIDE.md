@@ -103,6 +103,48 @@ entre les deux hypothèses** — toujours pas fait, toujours le vrai juge de
 paix. Ce test intermédiaire élimine au moins l'hypothèse la plus grossière
 (symboles émis n'importe où/n'importe quand sans rapport à l'audio).
 
+### Tentative de test cross-récitateur via YouTube (2026-07-19) — INVALIDÉE, méthode à refaire
+
+Motivation : les 54 récitateurs Hafs disponibles sont TOUS déjà utilisés en
+train+val (overlap 53/53) — aucune généralisation cross-récitateur testée
+jusqu'ici. `manifest_youtube_clean.jsonl` (3371 clips, jamais touché par ce
+training) semblait un pool gratuit pour ça. **Provenance vérifiée avant
+usage** (demande explicite) : croisement avec les titres vidéo d'origine —
+66% attribués à des Qaris mondialement reconnus (Alafasy, Sudais, Al-Hussary
+— titre "Accurate Tajweed recitation" explicite —, Al-Muaqly, Baleelah...),
+31% à des récitateurs nommés moins célèbres, 3% (103 clips) sans aucune
+attribution (exclus). Sous-set "gold tier" (Imams des Haramain + références
+historiques uniquement, 1979 clips) construit pour la confiance maximale.
+
+**Premier test (recall par règle, n=50/classe) : effondrement à 26-44%**
+(vs 97,5-100% sur le split classique) — semblait indiquer un échec de
+généralisation. **Deuxième test, déclenché par une question méthodologique
+de l'utilisateur** (vérifier qu'on cible bien LA position où la règle
+s'applique, pas juste "n'importe où dans le clip") : mesure du CER de base
+(lettres/harakat, symboles retirés) sur les mêmes clips → **72,75% (médiane
+95%)** — le modèle sort du quasi-charabia sur la plupart des clips
+(`REF: [verset complet] / HYP: إِنمٌ`).
+
+**Cause racine identifiée** (`youtube_align.py` ligne `CHUNK_S = 30`) : ces
+clips sont découpés en **blocs fixes de 30s, sans respect des frontières de
+versets** (coupe à l'aveugle puis appariement du texte a posteriori) — hors
+distribution du training (`max_duration=20s`, clips single-verset de
+quelques secondes). **L'effondrement mesuré n'a rien à voir avec la
+détection de règles ni avec la généralisation cross-récitateur** — c'est un
+échec de transcription général sur un format audio jamais vu. Les chiffres
+26-44% et 72,75% CER sont **à jeter, pas à interpréter**.
+
+**Verdict** : cette piste ne peut PAS répondre à la question de
+généralisation cross-récitateur sans un vrai ré-alignement forcé du YouTube
+(extraire les frontières verset par verset à l'intérieur des blocs de 30s,
+comme déjà fait pour `_assajda` en juillet) — un chantier à part entière, pas
+une correction rapide. **Non fait à ce jour** ; la seule mesure de recall
+valide reste celle sur le split classique (97,5-100%, mêmes 54 récitateurs
+que le train — donc ne teste toujours PAS la généralisation cross-récitateur).
+Scripts conservés (`build_youtube_heldout_rules.py`,
+`nemo_manifests_rules/val_youtube_goldtier.jsonl`) pour une reprise future
+si le ré-alignement forcé est fait.
+
 ---
 
 ## 3. Réponse à la question "rajouter encore des erreurs TTS ?"
