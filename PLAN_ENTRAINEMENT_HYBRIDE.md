@@ -78,6 +78,31 @@ un élève rate la règle.
 ni appliquer ni rater une qalqala/ghunnah de façon contrôlée. Les erreurs TTS
 restent cantonnées aux lettres et harakat.
 
+### Test intermédiaire fait le 2026-07-19 (checkpoint epoch07/11, contre-mesure 1)
+
+Mesuré recall (clips Coran, la règle est vraiment récitée) vs faux positifs
+(clips ASC+TTS, aucune règle attendue) — script `test_rule_detection.py`,
+n=120 par groupe, détail par classe n≤50 :
+
+| | Résultat |
+|---|---|
+| Recall qalaqah | 97,5-100% |
+| Faux positifs qalaqah | 0% |
+| Faux positifs, N'IMPORTE quelle règle (17 confondues) | **0/120 (0%)** |
+| Recall par classe (17) | 72-100%, la plupart 92-100% (point faible : `madda_necessary`, 72%, classe la plus rare — 143 occurrences dans tout le Coran) |
+
+**Signal encourageant, mais PAS encore la preuve définitive.** Ce test oppose
+audio "style Coran professionnel" contre "style ASC/TTS" — le modèle pourrait
+avoir appris un raccourci de DOMAINE ("ça sonne comme une récitation
+professionnelle → j'active les symboles") plutôt qu'une vraie détection
+MOMENT-PAR-MOMENT de la règle, et les deux hypothèses donnent le même
+résultat ici (tous les récitateurs pro du corpus appliquent toujours les
+règles correctement). **Seul le test (2) ci-dessus (set humain, qalqala
+volontairement omise DANS un style Coran par ailleurs correct) peut trancher
+entre les deux hypothèses** — toujours pas fait, toujours le vrai juge de
+paix. Ce test intermédiaire élimine au moins l'hypothèse la plus grossière
+(symboles émis n'importe où/n'importe quand sans rapport à l'audio).
+
 ---
 
 ## 3. Réponse à la question "rajouter encore des erreurs TTS ?"
