@@ -279,13 +279,33 @@ deviennent raisonnables. D'où un entraînement en deux temps :
   clips en ~10h ; 1a est rapide (encodeur gelé), 1b ~1,5-2× plus lent par
   step que du CTC-only → prévoir 20-30h au total, planifier les reprises.
 
-### Phase 2 — Tête CTC tolérante (GPU léger, après Phase 1)
+### Phase 2 — Mode tolérant : TESTER avant de construire (inversé le 2026-07-19)
+
+**Changement de plan suite à question utilisateur** : ne pas construire la 2e
+tête par précaution — la sortie de la tête stricte (lettres+harakat+symboles)
+contient déjà toute l'info nécessaire au mode tolérant si on se contente de
+**retirer les symboles après coup** (normalisation, coût zéro, aucun
+entraînement). Une 2e tête dédiée n'a de valeur QUE si une hypothèse précise
+se vérifie : que l'entraînement aux nuances acoustiques fines (règles) **abîme**
+la reconnaissance de base lettres/harakat pour une récitation valide mais sans
+tajwid formel (interférence entre tâches) — auquel cas retirer le symbole ne
+répare rien, c'est la transcription de base elle-même qui serait dégradée.
+
+**Étape 2.1 — Test d'interférence (obligatoire avant toute décision)** :
+1. Transcrire `val_canonical.jsonl` avec la tête stricte (Phase 1), retirer
+   les symboles de règles de la sortie.
+2. Comparer le WER lettre/harakat résultant à celui de **mixed-e14** (baseline
+   sans aucun entraînement règles) sur le même set.
+3. **Pas de dégradation mesurable** → normalisation seule suffit, verdict :
+   **pas de 2e tête**, économie du travail de la Phase 2.2 ci-dessous.
+   **Dégradation réelle et significative** → passer à 2.2, avec une preuve
+   concrète du besoin plutôt qu'une précaution.
+
+**Étape 2.2 — Tête CTC tolérante (SEULEMENT si 2.1 confirme le besoin)** :
 - Geler le meilleur checkpoint Phase 1, entraîner la couche
   `Conv1d 512→vocab_normalisé` seule (script court `train_tolerant_head.py`,
   `torch.nn.CTCLoss`, labels via `prepare_nemo_data.py::normalize_text`).
-- Rapide (heures) ; si insuffisant en qualité, alternative déjà documentée à
-  coût zéro : normaliser le texte ATTENDU côté app selon le mode
-  (`ArabicNormalizer`), sans 2e tête du tout.
+- Rapide (heures), sur l'encodeur figé — ne peut rien casser côté tête stricte.
 
 ### Phase 3 — Évaluation, garde-fous, export
 1. `eval_error_detection.py` sur la tête stricte — baseline à battre :
