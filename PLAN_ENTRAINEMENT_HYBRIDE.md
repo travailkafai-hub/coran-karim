@@ -505,6 +505,25 @@ interférence règles/lettres. **À refaire avec le checkpoint final** (fin des
 
 ---
 
+## 5bis. Comparaison directe au modèle déployé (mixed-e14) — checkpoint final, 2026-07-19
+
+Question posée en fin de session : "est-ce que c'est mieux que l'ancien ?" —
+protocole `eval_error_detection.py` (le même qui a servi à mesurer mixed-e14),
+symboles de règles retirés avant comparaison (cohérent avec la décision
+Phase 2.1 : la normalisation est la couche de comparaison réelle) :
+
+| Métrique (n=150) | mixed-e14 (déployé) | Nouveau modèle hybride (stage1b-final) |
+|---|---|---|
+| Détection d'erreur (fidèle) | 65,3% | **65,3%** (identique) |
+| Corrigé à tort vers canonique (invisible) | 14,7% | **10,7%** (meilleur, -4pts) |
+| CER anti-oubli | 9,18% | 9,69% (légèrement moins bon, +0,51pt — même écart que Phase 2.1) |
+
+**Meilleur sur la métrique la plus importante** (corrections silencieuses, le
+problème central du chantier mixed) à détection égale, pour un coût mineur en
+CER canonique. Plus deux capacités entièrement nouvelles absentes de
+mixed-e14 : détection des 17 règles de tajwid (92-100% recall, confirmé par
+triangulation CTC/RNNT) et tête RNNT fonctionnelle (localisation).
+
 ## 6. Critères de succès / d'arrêt
 
 - **Succès tête stricte** : ≥ epoch14 sur détection lettre/harakat ET
