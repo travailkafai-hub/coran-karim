@@ -48,6 +48,26 @@ Tout entraînement/export/diagnostic de modèle : invoquer le skill
   changement en cours a introduit, et aucun retour en arrière ciblé n'est
   possible (cf. "aucune piste n'est éliminée tant que le retour en arrière
   est possible" plus haut — un commit est CE point de retour).
+- **Export ONNX vers l'app : TOUJOURS `audio_signal` (mel), JAMAIS `raw_audio`**
+  (piège tombé DEUX fois : 2026-07-13 puis 2026-07-19). Le plugin Kotlin
+  calcule le mel-spectrogramme lui-même (`MelSpectrogram.kt`) et appelle le
+  modèle avec `{"audio_signal": mel (batch,80,time), "length"}`. Un export
+  "E2E" (`raw_audio` → preprocessor+encoder+ctc, cf. les scripts
+  `export_*_full_pipeline.py`) valide pourtant très bien PyTorch==ONNX — il
+  est juste **inutilisable par l'app** : le modèle se charge (`Modèle
+  chargé : true`, rassurant et trompeur) mais CHAQUE transcription échoue en
+  silence avec `[BufferedTranscriber] echec retranscription: Unknown input
+  name audio_signal, expected one of [raw_audio, length]` → aucune
+  transcription, aucun suivi, aucune coloration.
+  → Partir de `export_tajweed_checkpoint.py` ou
+  `export_rules_260h_checkpoint.py` (wrapper encodeur+ctc_decoder seul),
+  jamais d'un `*_full_pipeline.py`.
+  → **Vérification obligatoire avant tout déploiement** (doit afficher
+  `audio_signal`) :
+  `python3 -c "import onnxruntime as ort; print([i.name for i in ort.InferenceSession('<model.onnx>').get_inputs()])"`
+  → Corollaire de diagnostic : "le modèle est chargé" ne prouve RIEN sur son
+  utilisabilité. Toujours vérifier une vraie transcription (log natif
+  `DiagnosticLog`/logcat), pas seulement la ligne de chargement.
 - **Ne JAMAIS supprimer un commentaire existant qui documente une tentative
   passée, un piège ou un "pourquoi"** (décision 2026-07-19, suite à un doute
   légitime de l'utilisateur sur le rescoring NLL : sans cette règle, un futur

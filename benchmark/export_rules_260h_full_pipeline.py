@@ -1,4 +1,16 @@
 """
+!!! NE PAS UTILISER POUR DEPLOYER DANS L'APP (2026-07-19) !!!
+Ce script exporte la variante E2E (raw_audio -> preprocessor+encoder+ctc).
+Elle est VALIDE en soi (PyTorch==ONNX verifie) mais INUTILISABLE par le
+plugin Kotlin, qui calcule le mel lui-meme et envoie audio_signal :
+le modele se charge ("Modele charge : true") mais chaque transcription
+echoue en silence -> aucun suivi, aucune coloration sur device.
+Constate en vrai le 2026-07-19, apres avoir reproduit le piege deja
+documente le 2026-07-13 dans export_tajweed_checkpoint.py.
+=> Utiliser export_rules_260h_checkpoint.py (audio_signal/mel).
+Conserve ici comme trace de la tentative (cf. regle CLAUDE.md sur les
+commentaires qui documentent un piege).
+
 Export deploiement du modele hybride "vrai tajweed" stage1b-260h
 (models/fastconformer-quran-hybrid-v1/stage1b-260h/stage1b-final.nemo --
 meilleure version mesuree, cf. PLAN_ENTRAINEMENT_HYBRIDE.md 5ter :
