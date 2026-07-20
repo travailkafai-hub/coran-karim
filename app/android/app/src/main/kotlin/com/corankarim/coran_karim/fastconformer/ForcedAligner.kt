@@ -61,6 +61,76 @@ class ForcedAligner(
         vocab[i].any { c -> c.code in 0xE000..0xF8FF }
     }
 
+    // CHADDA NU (2026-07-20 soir, constat device : "ٱللَّهِ"/"رَبِّ" bloquent
+    // encore APRES le correctif symboles ci-dessous). Verifie sur le
+    // tokenizer du modele stage1b-260h : le chadda (gemination, U+0651) est
+    // souvent tokenise SEUL, sans lettre ni voyelle -- "ٱللَّهِ" -> [ٱل, لَ,
+    // ّ, هِ], "رَبِّ" -> [رَ, بِ, ّ]. Ce n'est PAS une harakat (voyelle) :
+    // c'est un signe de duree qui s'entend comme un ALLONGEMENT de la meme
+    // consonne, sans signature acoustique propre distincte -- une piece de
+    // vocabulaire sans veritable evenement articulatoire qui lui corresponde
+    // en propre. Mesure hors device ET confirme sur device : "ٱللَّهِ" reste
+    // a gop -13/-14 (identique a l'ANCIEN modele mixed-e14, qui ne connait
+    // meme pas les symboles de regles) MEME sur une recitation correcte --
+    // ce n'est donc ni une regression du modele 260h ni un residu du
+    // probleme symboles, mais un defaut structurel prealable de
+    // l'alignement force sur ce token isole, present dans les DEUX modeles.
+    // A NE PAS CONFONDRE avec les harakat seules (fatha/kasra/damma,
+    // id=936/938/940 dans le vocab teste) : celles-la doivent rester jugees
+    // SANS exception (l'utilisateur exige leur controle strict, cf. exemple
+    // rabbi/rabbo). Seul le chadda SANS voyelle accolee est exclu ici ; les
+    // variantes chadda+voyelle fusionnees en un seul token (ex. "ِّ") portent
+    // une vraie info de voyelle et restent jugees normalement.
+    private val bareShaddaTokens: BooleanArray = BooleanArray(vocab.size) { i ->
+        vocab[i].replace("▁", "") == "ّ"
+    }
+
+    // SUITE DU CORRECTIF CI-DESSUS (2026-07-20 soir) : exclure les symboles du
+    // MAX de `free` ne suffisait pas. Mesure hors device, meme audio, meme mot,
+    // ancien modele (mixed-e14, ne connait pas les symboles) contre nouveau
+    // (stage1b-260h) : sur "يَوْمِ" (mot SANS aucune regle tajwid attendue),
+    // gop ancien = -0,03 (parfait), gop nouveau = -20,09 (catastrophique). Le
+    // mot recoit ~20% de masse de probabilite parasite sur des classes-symboles
+    // MEME LA OU AUCUNE REGLE N'EST ATTENDUE (mesure directe : 0,2033 de masse
+    // moyenne par frame) -- le nouveau modele a simplement moins de confiance
+    // nette partout depuis qu'il partage son vocabulaire avec 40 classes
+    // supplementaires. Cette masse ampute directement log P(bon token) dans
+    // `forced` (jamais touche par le premier correctif), pas seulement le MAX
+    // de `free`. D'ou stripRuleSymbolMass ci-dessous : on retire la masse des
+    // 40 classes-symboles et on RENORMALISE les classes restantes (equivalent
+    // exact a masquer leurs logits a -infini AVANT le softmax), applique a la
+    // DP forcee ET a wordForcedSum/wordFreeSum -- jamais au decodage LIBRE
+    // (`actual`/`entendu`), qui doit continuer a pouvoir emettre ces symboles
+    // pour que la verification tajwid (unrealizedRulesFor cote Dart) fonctionne.
+    // Gain mesure sur "يَوْمِ" : -20,09 -> -9,59. Reel mais INCOMPLET : l'ecart
+    // avec l'ancien modele (-0,03) ne se referme pas entierement -- une partie
+    // de la difference entre les deux modeles reste inexpliquee a ce stade.
+    // Trouvaille separee, meme mesure : les mots a lettre doublee/chadda
+    // (ٱللَّهِ, رَبِّ) restent mal alignes dans les DEUX modeles (ancien ET
+    // nouveau) -- pas une regression du modele 260h ni de ces correctifs, un
+    // defaut preexistant de l'alignement force sur les lettres doublees,
+    // jamais mesure avant aujourd'hui.
+    private fun stripRuleSymbolMass(logprobs: Array<FloatArray>): Array<FloatArray> {
+        return Array(logprobs.size) { ti ->
+            val lp = logprobs[ti]
+            var maxKept = Float.NEGATIVE_INFINITY
+            for (c in lp.indices) {
+                if (c < ruleSymbolTokens.size && ruleSymbolTokens[c]) continue
+                if (lp[c] > maxKept) maxKept = lp[c]
+            }
+            var sumExp = 0.0
+            for (c in lp.indices) {
+                if (c < ruleSymbolTokens.size && ruleSymbolTokens[c]) continue
+                sumExp += Math.exp((lp[c] - maxKept).toDouble())
+            }
+            val logNorm = maxKept + Math.log(sumExp)
+            FloatArray(lp.size) { c ->
+                if (c < ruleSymbolTokens.size && ruleSymbolTokens[c]) Float.NEGATIVE_INFINITY
+                else (lp[c] - logNorm).toFloat()
+            }
+        }
+    }
+
     companion object {
         private const val TAG = "ForcedAligner"
 
@@ -246,6 +316,12 @@ class ForcedAligner(
         val t = logprobs.size
         if (t == 0 || wordTokens.isEmpty()) return null
 
+        // Utilise pour TOUT ce qui juge la prononciation (DP forcee, gop,
+        // rescoring) -- jamais pour le decodage libre (`actual`/`entendu`),
+        // qui reste sur `logprobs` brut pour continuer a exposer les symboles
+        // de regles tajwid. Cf. stripRuleSymbolMass plus haut.
+        val scoringLp = stripRuleSymbolMass(logprobs)
+
         // Sequence plate de tokens + mot proprietaire de chaque token.
         val flat = ArrayList<Int>()
         val owner = ArrayList<Int>()
@@ -269,7 +345,7 @@ class ForcedAligner(
         val bp = Array(t) { ByteArray(s) }
 
         fun emit(ti: Int, si: Int): Double {
-            val lp = logprobs[ti]
+            val lp = scoringLp[ti]
             return if (si % 2 == 0) lp[blankId].toDouble()
             else lp[flat[(si - 1) / 2]].toDouble()
         }
@@ -337,12 +413,23 @@ class ForcedAligner(
                 val wIdx = owner[tokIdx]
                 if (wordFirstFrame[wIdx] < 0) wordFirstFrame[wIdx] = ti
                 wordLastFrame[wIdx] = ti
-                val lp = logprobs[ti]
-                wordForcedSum[wIdx] += lp[flat[tokIdx]].toDouble()
-                // Max par frame en IGNORANT les tokens de symboles de regles
-                // (cf. ruleSymbolTokens plus haut) : sans cette exclusion, une
-                // regle bien realisee fait monter `free` et donc CHUTER le gop
-                // d'un mot pourtant parfaitement recite.
+                // Chadda nu (cf. bareShaddaTokens plus haut) : sa frame est
+                // toujours comptee dans les bornes du mot (texte affiche
+                // inchange) mais JAMAIS dans le gop -- meme logique que les
+                // frames blank, exclues plus bas via `si % 2 == 0`.
+                val expectedTok = flat[tokIdx]
+                if (expectedTok < bareShaddaTokens.size && bareShaddaTokens[expectedTok]) continue
+                // scoringLp (deja masque+renormalise, cf. stripRuleSymbolMass) :
+                // corrige `forced` en plus de `free` -- la simple exclusion du
+                // MAX ci-dessous ne suffisait pas, cf. commentaire 2026-07-20 soir.
+                val lp = scoringLp[ti]
+                wordForcedSum[wIdx] += lp[expectedTok].toDouble()
+                // Le max ignore quand meme explicitement les colonnes-symboles
+                // (deja a -infini apres renormalisation, mais garde-fou
+                // redondant volontaire si jamais un cas limite flottant les
+                // laissait finis) : une regle bien realisee ne doit jamais
+                // faire monter `free` et donc chuter le gop d'un mot
+                // pourtant parfaitement recite.
                 var mx = Float.NEGATIVE_INFINITY
                 for (c in lp.indices) {
                     if (c < ruleSymbolTokens.size && ruleSymbolTokens[c]) continue
@@ -427,13 +514,13 @@ class ForcedAligner(
                     // scores sur la MEME fenetre : comparaison equitable.
                     val rf = maxOf(0, wordFirstFrame[wi] - RESCORE_PAD_FRAMES)
                     val rt = minOf(t - 1, wordLastFrame[wi] + RESCORE_PAD_FRAMES)
-                    val nllExpected = ctcForwardNll(logprobs, rf, rt, wordTokens[wi])
+                    val nllExpected = ctcForwardNll(scoringLp, rf, rt, wordTokens[wi])
                     if (nllExpected.isFinite()) {
                         var bestNll = Double.POSITIVE_INFINITY
                         var bestText: String? = null
                         for ((text, toks) in wordVariants[wi]) {
                             if (toks.isEmpty()) continue
-                            val nll = ctcForwardNll(logprobs, rf, rt, toks)
+                            val nll = ctcForwardNll(scoringLp, rf, rt, toks)
                             if (nll < bestNll) {
                                 bestNll = nll; bestText = text
                             }
