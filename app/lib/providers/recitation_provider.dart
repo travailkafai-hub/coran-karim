@@ -283,6 +283,41 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     return judged;
   }
 
+  /// Règles tajwid ATTENDUES sur ce mot mais NON RÉALISÉES d'après le modèle.
+  ///
+  /// C'est LA vérification du tajwid, celle qui manquait jusqu'au 2026-07-20 :
+  /// jusque-là, l'app avait des toggles, un écran de règles et des statuts de
+  /// fiabilité, mais AUCUN code ne confrontait la règle attendue à la règle
+  /// réalisée. Les deux données existaient pourtant de part et d'autre.
+  ///
+  /// PRINCIPE : le modèle 260h a appris à émettre un symbole (U+E000..U+E010)
+  /// là où il ENTEND la règle réalisée. Si le mot attendu porte `ghunnah` et
+  /// que la transcription de ce mot ne contient pas le symbole ghunnah, c'est
+  /// que la règle n'a pas été réalisée (ou pas détectée).
+  ///
+  /// N'est appliqué QU'AUX RÈGLES ACTIVES : en mode adulte/enfant,
+  /// `_activeRules` est vide -> aucune règle n'est contrôlée, ne pas faire
+  /// l'idgham ou la qalqala n'est PAS une erreur (décision utilisateur :
+  /// « en mode adulte [...] ça ne fait pas une erreur ; avec mode tajweed oui »).
+  ///
+  /// ⚠️ LIMITE : dépend de la capacité du modèle à détecter la règle. Une règle
+  /// à 72% de recall produirait ~28% de FAUSSES accusations (« non réalisée »
+  /// alors qu'elle l'était) -- le pire retour possible pour apprendre. C'est
+  /// pourquoi le mode tajwid n'active d'office que les règles fiables
+  /// (cf. JudgementOptionsNotifier.applyPreset) et pourquoi ce contrôle ne
+  /// produit JAMAIS de rouge : au pire un orange nommé (cf. appel).
+  List<TajwidRule> unrealizedRulesFor(int wordIndex, String heardRaw) {
+    if (_activeRules.isEmpty) return const [];
+    if (wordIndex < 0 || wordIndex >= state.words.length) return const [];
+    final expected = state.words[wordIndex].expectedRules;
+    if (expected.isEmpty) return const [];
+    final emitted = RuleSymbols.rulesIn(heardRaw).toSet();
+    return [
+      for (final r in expected)
+        if (_activeRules.contains(r) && !emitted.contains(r)) r,
+    ];
+  }
+
   /// Classe une erreur de récitation (demande utilisateur 2026-07-20 :
   /// « catégoriser par type : tajwid ou prononciation »).
   ///
@@ -315,6 +350,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     if (heardSkeleton != w.normalized) return RecitationErrorKind.lettre;
     final heardStrict = ArabicNormalizer.normalizeStrict(w.heard);
     if (heardStrict != w.strict) return RecitationErrorKind.harakat;
+    // Règle attendue, ACTIVE, et symbole non émis par le modèle : c'est un
+    // CONSTAT (on a comparé attendu et réalisé), pas la déduction par
+    // élimination décrite plus bas. Depuis 2026-07-20, `w.heard` conserve les
+    // symboles, donc cette comparaison est possible ici aussi.
+    if (unrealizedRulesFor(wordIndex, w.heard).isNotEmpty) {
+      return RecitationErrorKind.tajwid;
+    }
     if (w.expectedRules.isNotEmpty) return RecitationErrorKind.tajwid;
     return RecitationErrorKind.inconnu;
   }
@@ -2453,6 +2495,27 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         judged = _relaxJudged(judged, expected, actualNorm);
         judged = _capByRuleReliability(judged, r.index);
       }
+      // ── Vérification du TAJWID, séparée de la prononciation ──────────────
+      // Le verdict ci-dessus porte sur les LETTRES et les HARAKAT (رَبِّ vs
+      // رَبُّ : le texte change). Ici on regarde une autre nature d'erreur :
+      // le texte est juste, mais une règle de récitation n'a pas été réalisée
+      // (qalqala, ghunnah, idgham). L'utilisateur exige que les deux soient
+      // distinguées -- elles ne s'apprennent ni ne se corrigent pareil.
+      //
+      // Ne s'applique qu'aux règles ACTIVES : vide en adulte/enfant.
+      // N'aggrave JAMAIS au-delà de l'orange, et ne touche pas un mot déjà
+      // rouge (la prononciation prime : inutile de reprocher une ghunnah sur
+      // un mot qui n'est pas le bon).
+      final unrealized = unrealizedRulesFor(r.index, r.actual);
+      if (unrealized.isNotEmpty && judged == WordStatus.correct) {
+        judged = WordStatus.unclear;
+        DiagnosticLog.log(
+            'TAJWID',
+            'mot=${r.index} "${expected.display}" regle(s) NON REALISEE(S) : '
+                '${unrealized.map((x) => x.key).join(",")}'
+                ' | attendues=${expected.expectedRules.map((x) => x.key).join(",")}'
+                ' emises=${RuleSymbols.rulesIn(r.actual).map((x) => x.key).join(",")}');
+      }
       // Une erreur ne se verrouille QUE sur un segment figé (décision
       // utilisateur 2026-07-10, conservée) : un aperçu peut encore mal couvrir
       // la fin d'un mot ; le segment figé ultérieur tranche définitivement.
@@ -2478,8 +2541,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           '${isFragment ? " fragment" : ""}'
           ' -> $judged (lock=$lock, final=${p.isFinal})'
           ' | $_modeTag');
+      // `heard` = transcription BRUTE (symboles de règles conservés) et non
+      // `actualStrict` : la forme stricte filtre la zone privée Unicode, ce qui
+      // effacerait justement les symboles dont la vérification tajwid a besoin.
+      // Les normalisations sont réappliquées à la lecture (classifyError).
       _judge(words, r.index, judged,
-          lock: lock, newErrors: newErrors, heard: actualStrict);
+          lock: lock, newErrors: newErrors, heard: r.actual);
     }
 
     // Capture de clip (mini-LoRA personnalisation vocale) : ne retenir ce

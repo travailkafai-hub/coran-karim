@@ -20,7 +20,17 @@ const _kPrefJudgement = 'judgement_options_v2';
 
 final judgementOptionsProvider =
     StateNotifierProvider<JudgementOptionsNotifier, JudgementOptions>((ref) {
-  return JudgementOptionsNotifier();
+  final n = JudgementOptionsNotifier();
+  // Fiabilité mesurée par règle : sert à choisir quelles règles le mode tajwid
+  // active d'office (cf. applyPreset). Poussée dès que l'asset est chargé.
+  final r0 = ref.read(ruleReliabilityProvider).asData?.value;
+  if (r0 != null) n.setReliability(r0);
+  ref.listen<AsyncValue<Map<TajwidRule, RuleReliability>>>(
+      ruleReliabilityProvider, (_, next) {
+    final v = next.asData?.value;
+    if (v != null) n.setReliability(v);
+  });
+  return n;
 });
 
 class JudgementOptionsNotifier extends StateNotifier<JudgementOptions> {
@@ -50,13 +60,40 @@ class JudgementOptionsNotifier extends StateNotifier<JudgementOptions> {
   /// Applique un preset complet -- écrase toutes les options actuelles.
   Future<void> applyPreset(JudgementPreset preset) async {
     state = switch (preset) {
+      // MODE TAJWID = le tajwid EST contrôlé (décision utilisateur 2026-07-20 :
+      // « en mode adulte, ne pas faire l'idgham ou la qalqala, ça ne fait pas
+      // une erreur ; en mode tajwid, oui »). On active donc les règles d'office
+      // -- sinon « mode tajwid » avec zéro règle ne vérifierait rien, ce qui
+      // était exactement l'état incohérent d'avant.
+      //
+      // Seules les règles FIABLES sont activées par défaut (statut `ready` et
+      // recall >= 0.90) : une règle mal détectée produirait de FAUSSES erreurs
+      // (« ghunnah non réalisée » alors qu'elle l'était), le pire retour
+      // possible pour apprendre. L'utilisateur reste libre d'ajouter les autres
+      // à la main dans l'écran des règles, en connaissance de cause (badge de
+      // fiabilité affiché).
       JudgementPreset.tajwid => JudgementOptions.tajwidDefault
-          .copyWith(activeRules: state.activeRules),
+          .copyWith(activeRules: _reliableRules),
+      // ADULTE / ENFANT : aucune règle -> le tajwid n'est PAS contrôlé. Ne pas
+      // réaliser une ghunnah n'est pas une erreur pour eux.
       JudgementPreset.adulte => JudgementOptions.adulteDefault,
       JudgementPreset.enfant => JudgementOptions.enfantDefault,
       JudgementPreset.custom => state.copyWith(preset: JudgementPreset.custom),
     };
     await _persist();
+  }
+
+  /// Règles jugées assez fiables pour être contrôlées d'office en mode tajwid.
+  /// Alimenté depuis `rule_reliability.json` (asset versionné avec le modèle)
+  /// par le provider ci-dessous -- pas codé en dur : quand un nouveau modèle
+  /// améliore une règle, le fichier suffit à la faire entrer dans le mode.
+  Set<TajwidRule> _reliableRules = const {};
+
+  void setReliability(Map<TajwidRule, RuleReliability> reliability) {
+    _reliableRules = {
+      for (final e in reliability.entries)
+        if (!e.value.capsToUnclear) e.key,
+    };
   }
 
   /// Modifier une option individuelle bascule automatiquement le preset sur
