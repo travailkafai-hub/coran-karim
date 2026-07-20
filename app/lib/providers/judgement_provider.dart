@@ -8,7 +8,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/judgement_options.dart';
 
-const _kPrefJudgement = 'judgement_options_v1';
+// Clé passée en _v2 le 2026-07-20 : les valeurs par défaut du preset « adulte »
+// ont changé (strictHarakat true -> false, cf. judgement_options.dart). Sans ce
+// changement de clé, un réglage DÉJÀ ENREGISTRÉ aurait été restauré tel quel et
+// aurait masqué la nouvelle valeur -- l'utilisateur aurait testé l'ancien
+// comportement en croyant tester le nouveau, et la recette n'aurait rien voulu
+// dire. Effet de bord assumé et signalé : la sélection de règles personnalisée
+// repart à vide (elles ne faisaient de toute façon que plafonner des verts en
+// orange, sans rien vérifier -- cf. audit du même jour).
+const _kPrefJudgement = 'judgement_options_v2';
 
 final judgementOptionsProvider =
     StateNotifierProvider<JudgementOptionsNotifier, JudgementOptions>((ref) {

@@ -53,6 +53,31 @@ class RecitedWord {
   // n'est disponible (texte hors-Coran, asset non chargé, ancien modèle sans
   // symboles). Les symboles n'apparaissent JAMAIS dans display/normalized/
   // strict (formes de comparaison/affichage) -- uniquement ici.
+  //
+  // ⚠️ CE RAISONNEMENT EST INVALIDÉ PAR LA MESURE (2026-07-20). Le commentaire
+  // ci-dessus reste pour mémoire (ce qui avait été tenté et pourquoi), mais la
+  // cible d'alignement est REPASSÉE sur `training` (texte nu) :
+  //
+  // Ce qu'on redoutait (pénaliser le chemin forcé quand le modèle veut émettre
+  // un symbole) est réel, mais l'effet INVERSE l'est bien davantage : en
+  // alignant sur la forme annotée, on EXIGE que le modèle émette le symbole
+  // là où il est attendu. Un récitateur qui ne réalise pas une ghunnah -- ou
+  // un modèle qui ne la détecte pas -- fait s'effondrer `forced` alors que ses
+  // lettres et harakat sont justes. Résultat mesuré sur device : jugement
+  // contaminé par le tajwid EN PERMANENCE, dans TOUS les modes, y compris
+  // avec zéro règle activée (les toggles ne pilotent que l'affichage et le
+  // plafonnement, jamais la cible d'alignement). L'utilisateur l'a diagnostiqué
+  // en récitant : « j'ai l'impression toujours influencé par les règles de
+  // tajweed » -- session en mode adulte, 17 corrections sur un récitateur
+  // professionnel.
+  //
+  // La bonne architecture sépare les deux natures d'erreur, comme demandé :
+  //   - PRONONCIATION (lettres + harakat) -> alignement forcé sur `training`
+  //   - TAJWID (ghunnah, madd, qalqala...) -> vérification SÉPARÉE, à écrire,
+  //     par confrontation de `expectedRules` aux symboles réellement émis.
+  // رَبِّ vs رَبُّ (harakat, change le sens) n'est pas de même nature qu'une
+  // qalqala ratée (texte identique, réalisation différente) : un seul verdict
+  // mélangeant les deux n'a pas de sens pédagogique.
   final String alignTarget;
   // Règles tajwid ATTENDUES sur ce mot (extraites de la forme annotée), dans
   // l'ordre. Sert à confronter les symboles réellement émis par le modèle à

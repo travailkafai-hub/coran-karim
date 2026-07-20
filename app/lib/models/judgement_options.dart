@@ -62,10 +62,28 @@ class JudgementOptions {
     tolerateConfusables: false,
   );
 
+  // ADULTE ASSOUPLI le 2026-07-20 (demande utilisateur, après recette).
+  //
+  // AVANT : strictHarakat: true, tolerateConfusables: false -- soit EXACTEMENT
+  // les mêmes valeurs que `tajwidDefault`. Les deux modes étaient donc
+  // strictement identiques dans le moteur de jugement (`_relaxJudged` ne
+  // déclenchait aucune de ses deux branches ni dans l'un ni dans l'autre), ce
+  // que l'utilisateur a constaté sur device : « je ne vois pas la diff entre
+  // les deux modes ». Ce n'était pas une impression, c'était le code.
+  //
+  // MAINTENANT : strictHarakat: false -> les lettres restent exigées à
+  // l'identique, mais une voyelle courte / une articulation fine imprécise est
+  // pardonnée. tolerateConfusables reste false : confondre س/ص ou ت/ط change le
+  // MOT, ça ne doit pas passer pour un adulte.
+  //
+  // La gradation devient réelle :
+  //   tajwid : harakat strictes  + lettres strictes   (le plus exigeant)
+  //   adulte : harakat souples   + lettres strictes   (intermédiaire)
+  //   enfant : harakat souples   + lettres tolérantes (le plus permissif)
   static const adulteDefault = JudgementOptions(
     preset: JudgementPreset.adulte,
     activeRules: {},
-    strictHarakat: true,
+    strictHarakat: false,
     tolerateConfusables: false,
   );
 

@@ -1474,8 +1474,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           normalized: ArabicNormalizer.normalize(w),
           strict: ArabicNormalizer.normalizeStrict(w),
           training: ArabicNormalizer.normalizeTraining(w),
-          alignTarget:
-              aw != null ? ArabicNormalizer.normalizeTraining(aw) : null,
+          // Cible d'alignement = texte NU (lettres + harakat), PAS la forme
+          // annotée : voir la note « INVALIDÉ PAR LA MESURE » sur
+          // RecitedWord.alignTarget. Aligner sur les symboles de règles
+          // contaminait le jugement de prononciation par le tajwid dans tous
+          // les modes. `expectedRules` (ci-dessous) reste extrait de la forme
+          // annotée : les règles restent connues, elles serviront à une
+          // vérification SÉPARÉE.
+          alignTarget: null,
           expectedRules: aw != null ? RuleSymbols.rulesIn(aw) : const [],
         ));
       }
