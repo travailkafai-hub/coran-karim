@@ -382,6 +382,181 @@ Puis les lots, chacun = commits dédiés + test device avant le suivant :
 5. Faut-il un vrai "profil utilisateur" (adulte/enfant persistant, plusieurs
    utilisateurs sur le même téléphone ?) ou juste le preset courant ?
 
+## 11. Refonte du volet COACH — la mémorisation rassemblée (2026-07-20)
+
+**Demande utilisateur (verbatim)** : « tout ce qui est en lien avec la
+mémorisation il faut le mettre dans coach ; donc le micro de récitation
+mémorisation doit être déplacé dans coach ; et pareil tu revois le volet
+coach pour inclure cette partie de mémorisation ayah par ayah et la
+récitation globale avec tous les paramètres — **il ne faut pas faire juste
+une copie-coller**, refonte IHM coach. Il y aura également l'accès à la
+carte mentale **que je veux que tu enlèves de la première page**. Il y aura
+le volet des erreurs que tu dois penser et organiser **par sourate**,
+peut-être tu fais le lien avec carte mentale ; et surtout **tous les
+paramètres de récitation globale doivent être accessibles** pour
+modification. »
+
+### 11.1 État des lieux réel (mesuré, pas supposé)
+
+| Élément | Fichier | Situation actuelle |
+|---|---|---|
+| Onglet « Coach » | `coach_ai_screen.dart` (174 l.) | **N'est qu'un journal d'erreurs à plat** (liste `_AyahErrorTile` triée par nombre d'erreurs, toutes sourates mélangées) |
+| Vrai coach mémorisation | `coach_screen.dart` (1863 l.) | 3 étapes Lecture→Apprentissage→Contrôle, micro, verset flouté, score. **Atteignable UNIQUEMENT depuis la lecture** (`mushaf_screen.dart:558`) |
+| Micro récitation globale | `karaoke_recitation_screen.dart` (1857 l.) | Lancé depuis le bouton micro jaune de la lecture (`mushaf_screen.dart:578`) |
+| Carte mentale | `mind_map_screen.dart` | Deux entrées : en-tête lecture (`mushaf_screen.dart:417`) **et page principale** (`surah_list_screen.dart:239`) |
+| Journal d'erreurs (données) | `recitation_error_log_service.dart` | sqlite. `errorCountsByAyah()` → liste plate `{surah, ayah, count}` ; `errorsForAyah()` → entrées détaillées (`wordIndex`, `expectedWord`) ; **aucun agrégat par sourate** |
+| `memorization_screen.dart` (421 l.) | — | **Orphelin** : plus référencé nulle part (vérifié par grep). À traiter en §11.6 |
+
+**Conséquence** : la mémorisation est aujourd'hui éclatée (coach réel dans la
+lecture, onglet Coach = simple journal), exactement ce que la demande veut
+corriger.
+
+### 11.2 Cible : l'onglet Coach devient un vrai hub, en 4 zones
+
+Écran `CoachHubScreen` (remplace `CoachAiScreen` dans l'onglet), défilable,
+4 zones dans cet ordre (ordre = priorité d'usage réel, pas esthétique) :
+
+**Zone A — Reprendre** (en tête, seulement si une session existe)
+Carte « Reprendre la mémorisation » : dernière sourate/verset travaillé,
+progression. Un tap relance `CoachScreen` exactement où on s'était arrêté.
+Rationale : c'est l'action n°1 d'un utilisateur qui mémorise au quotidien ;
+elle ne doit jamais demander de re-naviguer.
+
+**Zone B — Mémoriser (ayah par ayah)**
+Sélection sourate → plage de versets → lance `CoachScreen(verses:[...])`
+(les 3 étapes existantes, **réutilisées telles quelles**, pas réécrites).
+C'est ici que vit désormais le micro de mémorisation.
+
+**Zone C — Réciter (récitation globale)**
+Lance `KaraokeRecitationScreen`. **C'est ici que le micro de récitation
+globale déménage** (retiré de la barre du bas de la lecture).
+Accompagné de **tous les paramètres de récitation, modifiables sur place**
+(exigence explicite) — cf. §11.4.
+
+**Zone D — Mes erreurs, par sourate**
+Le volet erreurs repensé — cf. §11.3.
+
+### 11.3 Volet erreurs : organisation par sourate (conception demandée)
+
+**Problème du volet actuel** : liste plate toutes sourates confondues, triée
+par nombre d'erreurs. On voit « An-Nisa v1 : 9 » à côté de « Al-Qalam v20 :
+6 » sans aucune vue d'ensemble : impossible de savoir *quelle sourate* est
+fragile, ni de travailler par bloc cohérent.
+
+**Cible — deux niveaux, repliables :**
+
+1. **Niveau sourate** (agrégat) : `nom de sourate — N erreurs sur M versets`.
+   Tri par nombre d'erreurs décroissant (= le plus actionnable en premier :
+   « où dois-je travailler ? »). Barre de progression fine indiquant la part
+   de versets touchés dans la sourate (contexte : 5 versets fragiles sur 7
+   n'a pas le même sens que 5 sur 286).
+2. **Niveau verset** (au dépliage) : les versets fautifs de CETTE sourate,
+   avec leur compte. Trois actions par verset :
+   - **Revoir** → `CoachScreen(verse)` : attaque la mémorisation exactement
+     sur le verset faible (boucle de correction fermée) ;
+   - **Explication** → `coach_explanation_sheet` existant (Gemma on-device) ;
+   - **Carte mentale** → `MindMapScreen(surah)` (cf. lien ci-dessous).
+
+**Le lien erreurs ↔ carte mentale (idée utilisateur, retenue et motivée)** :
+la carte mentale donne la structure thématique de la sourate et sait déjà
+« Aller au verset ». Depuis une erreur sur le verset N, ouvrir la carte
+mentale situe ce verset **dans le sens du passage** — on ne répète plus un
+verset isolé hors contexte, on voit à quel thème il appartient et ce qui
+l'entoure. C'est une aide de mémorisation par le sens, pas une décoration.
+Lien dans les deux sens : erreur → carte (situer), carte → verset (réviser,
+déjà en place).
+*Réserve honnête* : le contenu de carte mentale n'existe que pour 12 sourates
+courtes aujourd'hui. Le bouton ne doit donc apparaître que si le JSON existe
+pour cette sourate (`mindMapProvider` renvoie non-null), sinon il est masqué
+— jamais un bouton mort.
+
+**Données** : agrégat par sourate calculé **côté client** en regroupant
+`errorCountsByAyah()` (déjà existant) plutôt qu'en ajoutant une requête SQL.
+Volumes réels de l'ordre de quelques centaines de lignes → coût négligeable,
+et zéro risque de régression sur le schéma sqlite. À réévaluer seulement si
+le journal grossit beaucoup.
+
+### 11.4 « Tous les paramètres de récitation accessibles » (exigence explicite)
+
+Regroupés dans la zone C, modifiables sans quitter Coach :
+
+| Paramètre | Provider / écran existant |
+|---|---|
+| Mode de vérification (presets tajwid/adulte/enfant + 17 règles) | `TajwidRulesScreen` / `judgementOptionsProvider` |
+| Sensibilité du jugement | `correctionSensitivityProvider` |
+| Rigueur de la correction | `strictCorrectionProvider` |
+| Correction automatique | `autoCorrectionEnabledProvider` |
+| Suivre sans bloquer | `followWithoutBlockingProvider` |
+| Répétitions de mémorisation | `repeatDrillCountProvider` |
+| Récitateur | `reciter_select_screen` |
+
+**Cohérence avec la règle « pas de redondance » (§2)** : ces réglages
+**quittent** l'écran Réglages global (ils y sont aujourd'hui) pour vivre ici,
+au contact de leur usage. Le Réglages global ne garde que ce qui est
+transverse (langue, Qibla, à-propos). Même mouvement que celui déjà fait pour
+vitesse/répétition → tiroir de lecture.
+
+### 11.5 Retraits (conséquences directes de la demande)
+
+- `surah_list_screen.dart` : **retirer l'icône carte mentale par sourate**
+  (demande explicite « enlève de la première page »). La page principale
+  redevient une simple liste de sourates + les 2 icônes d'app bar
+  (Suivre prière, Identifier).
+- `mushaf_screen.dart` : **retirer le bouton micro** de la barre du bas
+  (la récitation se lance depuis Coach).
+- L'en-tête de lecture **garde** son icône carte mentale (la demande ne visait
+  que la première page).
+
+### 11.6 Points tranchés par l'utilisateur (2026-07-20) — VERROUILLÉS
+
+1. **Raccourci « travailler ce verset » depuis la lecture**
+   (`mushaf_screen.dart:558`, bouton Coach IA) : **GARDÉ**. L'écran de
+   mémorisation reste unique et vit dans Coach ; la lecture ne fait qu'y
+   renvoyer (ce n'est pas une duplication de code). Pratique quand on bute
+   sur un verset en lisant.
+2. **`memorization_screen.dart` (421 l., orphelin)** : **SUPPRIMÉ**. Examiné
+   avant de trancher — c'est une **maquette morte** (`// Demo feedback
+   state`, `_WordResult` factices, aucun ASR réel, un seul verset, aucune
+   sélection de plage à réutiliser), supplantée par `coach_screen.dart`
+   (3 étapes, vrai micro). Rien à en récupérer ; l'historique git la
+   conserve si besoin.
+3. **Réglages de récitation : DÉPLACÉS** (pas dupliqués). Ils quittent
+   l'écran Réglages global pour vivre dans Coach. Réglages global ne garde
+   que le transverse (langue, Qibla, à-propos). Conforme à la règle
+   verrouillée « pas de redondance, chaque module a ses propres
+   paramètres ».
+
+### 11.7 Ordre d'exécution — ÉTAT RÉEL
+
+0. ✅ Commit de l'état courant — point de reprise `59dbae9`.
+1. ✅ `providers/error_review_provider.dart` : `SurahErrorSummary` +
+   `surahErrorSummariesProvider` (regroupement client-side, tri par erreurs
+   décroissantes, ratio de versets touchés).
+2. ✅ `screens/coach_hub_screen.dart` (zones A–D) branché dans l'onglet Coach
+   (`main.dart`). Briques annexes créées :
+   - `screens/surah_picker_screen.dart` : sélecteur de sourate RÉUTILISÉ par
+     les zones B et C (évite la duplication de liste que la demande interdit) ;
+   - `providers/last_coach_verse_provider.dart` : mémoire du dernier verset
+     travaillé (zone A « Reprendre »), écrite par `CoachScreen.initState`.
+3. ✅ Déplacements :
+   - gros micro retiré de la barre du bas de la lecture, remplacé par un
+     bouton discret « Mémoriser » (raccourci verset conservé, §11.6.1) ;
+   - icône carte mentale retirée de la page principale.
+4. ✅ Section « Récitation » entièrement retirée de Réglages global
+   (Réciteur, Correction auto, Rigueur, Suivre sans bloquer, Répétitions)
+   → vit dans le hub Coach zone C, + Mode de vérification, Récitateur et
+   Sensibilité du jugement.
+5. ✅ Fichiers morts supprimés : `memorization_screen.dart` (maquette à
+   feedback factice, §11.6.2) et `coach_ai_screen.dart` (remplacé par le hub).
+6. Build + install + captures de vérification.
+7. Commit par périmètre.
+
+**Reste à faire (non couvert par cette passe)** : sélection d'une PLAGE de
+versets (aujourd'hui la zone B lance la sourate entière) ; ancrage de la carte
+mentale sur le verset précis d'une erreur (aujourd'hui elle ouvre la sourate).
+
+---
+
 ## 10. Décisions VERROUILLÉES (ne pas rouvrir sans l'utilisateur)
 
 - Un seul modèle ; modes = couches de jugement post-décodage (§ principe).

@@ -5,7 +5,6 @@ import '../models/verse.dart';
 import '../services/quran_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/quran_shazam_sheet.dart';
-import 'mind_map_screen.dart';
 import 'mushaf_screen.dart';
 import 'prayer_follow_screen.dart';
 
@@ -230,14 +229,12 @@ class _SurahTile extends StatelessWidget {
                 fontSize: 20, color: AppColors.green800,
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.hub_outlined, size: 20, color: AppColors.green700),
-              tooltip: 'Carte mentale',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => MindMapScreen(surah: surah))),
-            ),
+            // Icône « carte mentale » par sourate RETIRÉE le 2026-07-20
+            // (demande utilisateur : « la carte mentale, je veux que tu
+            // l'enlèves de la première page »). La page principale redevient
+            // une simple liste de sourates. La carte mentale reste accessible
+            // depuis l'en-tête de lecture et depuis le volet erreurs du hub
+            // Coach (REFONTE_IHM.md §11.3/§11.5).
           ],
         ),
       ),

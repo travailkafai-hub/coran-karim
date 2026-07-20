@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../models/reciter.dart';
 import '../providers/app_settings_provider.dart';
-import '../providers/player_provider.dart';
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'qibla_screen.dart';
-import 'reciter_select_screen.dart';
 import 'voice_calibration_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -15,13 +12,6 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playerState = ref.watch(playerProvider);
-    final notifier = ref.read(playerProvider.notifier);
-    final autoCorrection = ref.watch(autoCorrectionEnabledProvider);
-    final strictCorrection = ref.watch(strictCorrectionProvider);
-    final followWithoutBlocking = ref.watch(followWithoutBlockingProvider);
-    final repeatDrillCount = ref.watch(repeatDrillCountProvider);
-
     return Scaffold(
       backgroundColor: AppColors.cream,
       appBar: AppBar(
@@ -41,79 +31,15 @@ class SettingsScreen extends ConsumerWidget {
           // son propre paramétrage §2) -- déplacé dans le Coach
           // (coach_screen.dart::_Header, icône à côté du titre), l'écran où
           // la vérification a réellement lieu.
-          _SectionHeader('Récitation'),
-          _SettingsTile(
-            icon: Icons.record_voice_over,
-            title: 'Réciteur',
-            subtitle: '${playerState.reciter.nameFr}  •  ${playerState.reciter.style}',
-            trailing: Text(playerState.reciter.nameAr,
-                textDirection: TextDirection.rtl,
-                style: GoogleFonts.scheherazadeNew(
-                    fontSize: 14, color: AppColors.green700)),
-            onTap: () async {
-              final picked = await Navigator.push<Reciter>(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => ReciterSelectScreen(
-                        currentId: playerState.reciter.id)),
-              );
-              if (picked != null) notifier.setReciter(picked);
-            },
-          ),
-          // "Vitesse de lecture" et "Répétition" retirées d'ici (2026-07-19,
-          // retour utilisateur : "pas de redondance, chaque module a les
-          // paramètres propres") -- déplacées dans widgets/
-          // reading_settings_sheet.dart (accessible depuis "Plus" en
-          // lecture), à côté du défilement automatique avec lequel elles
-          // forment un seul groupe cohérent "lecture".
-          _SettingsTile(
-            icon: Icons.record_voice_over_outlined,
-            title: 'Correction automatique',
-            subtitle: autoCorrection
-                ? 'Mot rouge → pause, le réciteur corrige, reprise auto'
-                : 'Désactivée — jugement affiché, correction au tap seulement',
-            trailing: Switch.adaptive(
-              value: autoCorrection,
-              onChanged: (v) =>
-                  ref.read(autoCorrectionEnabledProvider.notifier).set(v),
-              activeColor: AppColors.green700,
-            ),
-          ),
-          _SettingsTile(
-            icon: Icons.rule_rounded,
-            title: 'Rigueur de la correction',
-            subtitle: strictCorrection
-                ? 'Strict — rouge ET orange (imprécis) sont repris'
-                : 'Tolérant — seul le rouge (mot faux) est repris',
-            trailing: Switch.adaptive(
-              value: strictCorrection,
-              onChanged: (v) =>
-                  ref.read(strictCorrectionProvider.notifier).set(v),
-              activeColor: AppColors.green700,
-            ),
-          ),
-          _SettingsTile(
-            icon: Icons.fast_forward_rounded,
-            title: 'Suivre sans bloquer',
-            subtitle: followWithoutBlocking
-                ? 'Audio de correction rejoué une fois — ensuite, avance librement même sans reprise exacte'
-                : 'Désactivé — chaque échec rejoue l\'audio et force à reprendre le mot',
-            trailing: Switch.adaptive(
-              value: followWithoutBlocking,
-              onChanged: (v) =>
-                  ref.read(followWithoutBlockingProvider.notifier).set(v),
-              activeColor: AppColors.green700,
-            ),
-          ),
-          _SettingsTile(
-            icon: Icons.repeat_on_rounded,
-            title: 'Répétitions de mémorisation',
-            subtitle:
-                'Répéter le verset × $repeatDrillCount avant de tester ta mémoire',
-            onTap: () =>
-                _pickRepeatDrillCount(context, ref, repeatDrillCount),
-          ),
-
+          // SECTION « RÉCITATION » ENTIÈREMENT DÉPLACÉE dans le hub Coach
+          // le 2026-07-20 (demande utilisateur : « tous les paramètres de
+          // récitation globale doivent être accessibles pour modification »,
+          // + décision verrouillée REFONTE_IHM.md §11.6.3 : DÉPLACÉS, pas
+          // dupliqués). Vivaient ici : Réciteur, Correction automatique,
+          // Rigueur de la correction, Suivre sans bloquer, Répétitions de
+          // mémorisation. Ils sont désormais dans coach_hub_screen.dart,
+          // zone « Réciter », au contact de leur usage réel. Réglages global
+          // ne garde que le transverse (prière, voix, affichage, langue).
           const SizedBox(height: 12),
           _SectionHeader('Prière'),
           _SettingsTile(
@@ -188,21 +114,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _pickRepeatDrillCount(BuildContext context, WidgetRef ref, int current) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.green800,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _RepeatDrillCountSheet(
-        current: current,
-        onPick: (n) {
-          ref.read(repeatDrillCountProvider.notifier).set(n);
-          Navigator.pop(context);
-        },
-      ),
-    );
-  }
 }
 
 class _SectionHeader extends StatelessWidget {

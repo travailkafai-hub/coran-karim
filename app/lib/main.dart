@@ -9,7 +9,7 @@ import 'l10n/app_localizations.dart';
 import 'providers/app_settings_provider.dart';
 import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
-import 'screens/coach_ai_screen.dart';
+import 'screens/coach_hub_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
 import 'theme/app_theme.dart';
@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const _screens = [
     SurahListScreen(),
     DuasScreen(),
-    CoachAiScreen(),
+    CoachHubScreen(),
     SettingsScreen(),
   ];
 

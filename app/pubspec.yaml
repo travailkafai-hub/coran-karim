@@ -75,6 +75,8 @@ flutter:
   uses-material-design: true
   generate: true
   assets:
+    - assets/mindmaps/
+    - assets/illumination/
     - assets/data/quran_search_index.json
     - assets/data/quran_chapters.json
     - assets/data/quran_verses.json

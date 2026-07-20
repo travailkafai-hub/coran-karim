@@ -700,23 +700,22 @@ class _BottomBar extends StatelessWidget {
                 ),
                 _BarButton(icon: Icons.star_border_rounded, label: 'Favoris',
                     onTap: () {}),
-                // Mic — prominent. Tap = ce verset, appui long = mode karaoké
-                // (continu, immersif), double-tap = écran de test/debug interne.
-                GestureDetector(
-                  onTap: onMicTap,
-                  onLongPress: onMicLongPress,
-                  onDoubleTap: onMicDoubleTap,
-                  child: Container(
-                    width: 56, height: 56,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle, color: AppColors.brass,
-                      boxShadow: [
-                        BoxShadow(color: AppColors.brass.withAlpha(100),
-                            blurRadius: 12, spreadRadius: 2)
-                      ],
-                    ),
-                    child: const Icon(Icons.mic, color: AppColors.green900, size: 28),
-                  ),
+                // GROS MICRO DE RÉCITATION RETIRÉ le 2026-07-20 (demande
+                // utilisateur : « le micro de récitation mémorisation doit
+                // être déplacé dans Coach »). Il portait 3 gestes : tap =
+                // mémoriser ce verset, appui long = karaoké continu,
+                // double-tap = écran de test interne. La RÉCITATION (karaoké,
+                // continu) vit désormais dans le hub Coach, zone « Réciter »,
+                // avec tous ses réglages (REFONTE_IHM.md §11.2 zone C).
+                // Seul le raccourci « travailler ce verset » reste ici, en
+                // bouton discret ci-dessous (décision verrouillée §11.6.1) :
+                // pratique quand on bute sur un verset en lisant, et ce n'est
+                // pas une duplication (l'écran de mémorisation reste unique et
+                // vit dans Coach, la lecture ne fait qu'y renvoyer).
+                _BarButton(
+                  icon: Icons.school_rounded,
+                  label: 'Mémoriser',
+                  onTap: onMicTap ?? () {},
                 ),
                 _BarButton(
                   icon: showTranslation

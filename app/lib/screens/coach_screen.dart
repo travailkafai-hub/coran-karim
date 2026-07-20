@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../models/recitation_state.dart';
 import '../models/verse.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/coach_provider.dart';
+import '../providers/last_coach_verse_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
 import '../services/recitation_verifier.dart';
@@ -37,6 +39,15 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
       if (!mounted) return;
       ref.read(coachProvider.notifier).setup(widget.verses);
     });
+    // Mémorise le verset travaillé pour la carte « Reprendre » du hub Coach
+    // (REFONTE_IHM.md §11.2 zone A). Silencieux : un échec d'écriture ne doit
+    // jamais empêcher la session de démarrer.
+    final v = widget.verses.first;
+    unawaited(recordLastCoachVerse(
+      surahNumber: v.surahNumber,
+      ayahNumber: v.ayahNumber,
+      surahName: 'Sourate ${v.surahNumber}',
+    ));
   }
 
   @override
