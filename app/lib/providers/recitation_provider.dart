@@ -198,10 +198,52 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// direct) -- agit uniquement à l'étape de RELÂCHE du verdict (_relaxJudged)
   /// et sur les règles tajwid affichées.
   void applyJudgementOptions(JudgementOptions opts) {
+    // Journalisation du MODE et de ses CHANGEMENTS (demande utilisateur
+    // 2026-07-20 : « rajoute quel type de mode et s'il y a des changements de
+    // mode de récitation, pour meilleure analyse avec les règles actives »).
+    //
+    // POURQUOI C'EST INDISPENSABLE À L'ANALYSE : une ligne [GOP] isolée ne dit
+    // pas sous QUEL régime elle a été jugée. Le même gop=-2.79 devient orange
+    // ou vert selon le preset et la sensibilité ; et un changement de mode EN
+    // COURS de session (possible depuis l'icône de l'écran de récitation)
+    // rendait jusqu'ici les lignes d'avant et d'après incomparables sans
+    // qu'aucune trace ne le signale.
+    final changed = _judgementLogged &&
+        (opts.preset != _preset ||
+            opts.strictHarakat != _strictHarakat ||
+            opts.tolerateConfusables != _tolerateConfusables ||
+            opts.activeRules.length != _activeRules.length);
+    _preset = opts.preset;
     _strictHarakat = opts.strictHarakat;
     _tolerateConfusables = opts.tolerateConfusables;
     _activeRules = opts.activeRules;
+    _judgementLogged = true;
+    final rules = _activeRules.isEmpty
+        ? 'aucune'
+        : '${_activeRules.length} (${_activeRules.map((r) => r.key).join(",")})';
+    DiagnosticLog.log(
+        'MODE',
+        '${changed ? "CHANGEMENT EN COURS DE SESSION -> " : ""}'
+            'preset=${opts.preset.name} '
+            'strictHarakat=${opts.strictHarakat} '
+            'tolereConfusables=${opts.tolerateConfusables} '
+            'reglesActives=$rules');
   }
+
+  /// Preset courant -- mémorisé UNIQUEMENT pour la journalisation (détecter un
+  /// changement en cours de session et taguer les lignes [GOP]). Le jugement
+  /// lui-même n'utilise que les toggles dérivés ci-dessus.
+  JudgementPreset _preset = JudgementPreset.adulte;
+  double _lastSensitivity = 0.5;
+  bool _judgementLogged = false;
+
+  /// Tag compact du régime de jugement, ajouté à chaque ligne [GOP] pour que
+  /// chacune soit interprétable SEULE (sans devoir remonter au dernier [MODE]).
+  String get _modeTag => 'mode=${_preset.name}'
+      '${_strictHarakat ? "" : "/harakatSouple"}'
+      '${_tolerateConfusables ? "/confusablesOK" : ""}'
+      ' seuils=${_gopCorrect.toStringAsFixed(2)}/${_gopUnclear.toStringAsFixed(2)}'
+      ' regles=${_activeRules.length}';
 
   /// Règles dont la détection est trop imprécise pour CERTIFIER un mot correct
   /// (`RuleReliability.capsToUnclear`). Poussé par le provider en même temps
@@ -1344,6 +1386,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// celui qui récite", donc en cours de récitation, pas seulement avant.
   void setSensitivity(double sensitivity) {
     final s = sensitivity.clamp(0.0, 1.0);
+    // Réglable EN DIRECT pendant la récitation -> tracé, sinon deux lignes
+    // [GOP] du même run peuvent avoir été jugées sous des seuils différents
+    // sans que rien ne l'indique.
+    DiagnosticLog.log('MODE',
+        'sensibilite -> ${s.toStringAsFixed(2)} (etait ${_lastSensitivity.toStringAsFixed(2)})');
+    _lastSensitivity = s;
     if (s <= 0.5) {
       final t = s / 0.5;
       _gopCorrect = _lerp(_kGopCorrectTolerant, _kGopCorrectDefault, t);
@@ -2422,7 +2470,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           'entendu="${r.actual}"'
           '${spellsDifferentWord ? " autreMot=OUI" : ""}'
           '${isFragment ? " fragment" : ""}'
-          ' -> $judged (lock=$lock, final=${p.isFinal})');
+          ' -> $judged (lock=$lock, final=${p.isFinal})'
+          ' | $_modeTag');
       _judge(words, r.index, judged,
           lock: lock, newErrors: newErrors, heard: actualStrict);
     }
@@ -2874,6 +2923,16 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       if (words[i].status == WordStatus.unclear) unclearDelta++;
       words[i] = words[i].copyWith(status: WordStatus.pending, locked: false);
     }
+    // Trace décisive pour l'audit du 2026-07-20 (cascade de faux oranges) :
+    // après une correction, l'ancre RECULE sur le mot raté — le système attend
+    // que le réciteur le RÉPÈTE. S'il enchaîne au lieu de répéter, l'alignement
+    // forcé cherche ce mot dans un audio qui ne le contient pas : `forced`
+    // s'effondre pendant que `free` reste bon, et le décalage se propage aux
+    // mots suivants. Sans cette ligne, impossible de distinguer ce scénario
+    // d'une vraie faute de prononciation dans le log.
+    DiagnosticLog.log('ANCRE',
+        'recul $_anchorExp -> $wordIndex (correction sur "${words[wordIndex].display}")'
+        ' | remis en attente: ${end - wordIndex} mot(s)');
     _anchorExp = wordIndex;
     // Le buffer natif est vidé séparément (verifier.resetBuffer(), appelé par
     // l'écran avant resumeCapture()) -- on oublie ici le texte figé déjà vu,
