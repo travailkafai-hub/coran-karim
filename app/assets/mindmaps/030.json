@@ -1,0 +1,62 @@
+{
+  "surah": 30,
+  "name_ar": "الروم",
+  "name_latin": "Ar-Rum",
+  "ayat_count": 60,
+  "theme_central": "Une prophétie géopolitique vérifiable (la victoire des Romains) ouvre la sourate pour asseoir la crédibilité du message, avant une longue méditation sur les signes de la création.",
+  "sources_note": "Structure en 3 parties sourcée (grokipedia) : 1-5/1-7, 8-45, 46-60.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "Prophétie des Romains",
+      "resume": "Les Romains vaincus triompheront dans quelques années — promesse d'Allah, vérifiable.",
+      "children": [
+        { "v": "1-7", "cat": "eschatologie", "t": "Prophétie de la victoire des Romains sur les Perses dans quelques années" }
+      ]
+    },
+    {
+      "range": "8-19",
+      "title": "Méditer, résurrection, glorification",
+      "resume": "Injustice de nier la résurrection, scission entre croyants et mécréants, glorifier Allah matin et soir.",
+      "children": [
+        { "v": "8-16", "cat": "croyance", "t": "Méditer sur soi-même, injustice de nier la résurrection" },
+        { "v": "17-19", "cat": "adoration", "t": "Glorifier Allah matin et soir, faire sortir le vivant du mort" }
+      ]
+    },
+    {
+      "range": "20-32",
+      "title": "Signes du mariage, diversité",
+      "resume": "Tendresse et compassion entre époux, diversité des langues et des couleurs, mise en garde contre les sectes.",
+      "children": [
+        { "v": "20-27", "cat": "signes", "t": "Signes du mariage, diversité des langues et des couleurs, le sommeil" },
+        { "v": "28-32", "cat": "argumentation", "t": "Parabole des esclaves comparés aux associés attribués à Allah ; ne pas diviser la religion en sectes" }
+      ]
+    },
+    {
+      "range": "33-45",
+      "title": "Ingratitude, droits des proches, ribâ",
+      "resume": "Ingratitude de l'homme dans l'aisance, droits des proches et du pauvre, interdiction du ribâ, corruption sur terre.",
+      "children": [
+        { "v": "33-37", "cat": "ethique", "t": "Ingratitude de l'homme dans l'aisance après la détresse" },
+        { "v": "38-40", "cat": "legislation", "t": "Droits des proches et du pauvre, le ribâ n'accroît rien auprès d'Allah" },
+        { "v": "41-45", "cat": "ethique", "t": "Corruption apparue sur terre et en mer à cause des actes des hommes" }
+      ]
+    },
+    {
+      "range": "46-53",
+      "title": "Les vents, la résurrection",
+      "resume": "Les vents porteurs de bonne nouvelle, ressusciter les morts comme la terre revit après la pluie.",
+      "children": [
+        { "v": "46-53", "cat": "signes", "t": "Les vents porteurs de pluie, résurrection comparée à la terre qui revit" }
+      ]
+    },
+    {
+      "range": "54-60",
+      "title": "Étapes de la vie, clôture",
+      "resume": "Faiblesse, force puis faiblesse à nouveau ; patience finale demandée au Prophète.",
+      "children": [
+        { "v": "54-60", "cat": "eschatologie", "t": "Étapes de la vie humaine, sort des injustes, patience finale demandée" }
+      ]
+    }
+  ]
+}

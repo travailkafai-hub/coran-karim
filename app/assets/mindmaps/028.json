@@ -1,0 +1,62 @@
+{
+  "surah": 28,
+  "name_ar": "القصص",
+  "name_latin": "Al-Qasas",
+  "ayat_count": 88,
+  "theme_central": "La loi cosmique d'Allah : humilier les orgueilleux (Pharaon, Qarun) et finir par élever les opprimés — consolation pour le Prophète et les croyants persécutés.",
+  "sources_note": "Découpage précisément sourcé (zamzamacademy.com, grokipedia) : 1-43, 43-75, 76-82, 83-88.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Ouverture, Pharaon oppresseur",
+      "resume": "Pharaon opprime les Fils d'Israël ; Allah veut favoriser les opprimés et en faire des guides.",
+      "children": [
+        { "v": "1-6", "cat": "recits", "t": "Pharaon opprime les Fils d'Israël, Allah veut favoriser les opprimés" }
+      ]
+    },
+    {
+      "range": "7-28",
+      "title": "Moussa enfant, exil, Madyan",
+      "resume": "Sauvé des eaux et rendu à sa mère, tue un homme par accident et fuit, arrive à Madyan.",
+      "children": [
+        { "v": "7-14", "cat": "recits", "t": "Moussa bébé sauvé des eaux, rendu à sa mère par une ruse" },
+        { "v": "15-21", "cat": "recits", "t": "Moussa tue un homme par accident, fuit la cité" },
+        { "v": "22-28", "cat": "recits", "t": "Arrivée à Madyan, aide apportée aux deux femmes, mariage, années de berger" }
+      ]
+    },
+    {
+      "range": "29-46",
+      "title": "Buisson ardent, mission",
+      "resume": "Appel au Mont Sinaï, mission confiée avec Harun, révélation comparée à celle de Moussa.",
+      "children": [
+        { "v": "29-35", "cat": "recits", "t": "Le buisson ardent, la mission, demande l'aide de Harun" },
+        { "v": "36-46", "cat": "croyance", "t": "Confrontation avec Pharaon résumée, révélation adressée au Prophète comme à Moussa" }
+      ]
+    },
+    {
+      "range": "47-75",
+      "title": "Confrontation avec les Quraych",
+      "resume": "Contradictions des Quraych exposées, la guidance appartient à Allah seul.",
+      "children": [
+        { "v": "47-55", "cat": "argumentation", "t": "Contradictions des Quraych exposées, Gens du Livre qui croient au Coran" },
+        { "v": "56-75", "cat": "croyance", "t": "La guidance appartient à Allah seul, sort de qui suit ses passions" }
+      ]
+    },
+    {
+      "range": "76-82",
+      "title": "Qarun",
+      "resume": "Richesse et arrogance de Qarun, engloutissement par la terre en guise de châtiment.",
+      "children": [
+        { "v": "76-82", "cat": "ethique", "t": "Arrogance de Qarun face à sa richesse, engloutissement par la terre" }
+      ]
+    },
+    {
+      "range": "83-88",
+      "title": "Clôture",
+      "resume": "La demeure finale réservée à qui ne cherche ni orgueil ni corruption sur terre.",
+      "children": [
+        { "v": "83-88", "cat": "ethique", "t": "La demeure finale pour qui ne cherche ni orgueil ni corruption" }
+      ]
+    }
+  ]
+}

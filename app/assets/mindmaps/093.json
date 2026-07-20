@@ -1,0 +1,34 @@
+{
+  "surah": 93,
+  "name_ar": "الضحى",
+  "name_latin": "Ad-Duha",
+  "ayat_count": 11,
+  "theme_central": "Réconfort intime au Prophète après une interruption de la révélation : ton Seigneur ne t'a ni abandonné ni détesté — et rappelle-toi ce qu'Il a déjà fait pour toi.",
+  "sources_note": "Contenu largement enseigné et non contesté ; sourate jumelle d'Ash-Sharh.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Serment, réconfort",
+      "resume": "Serment par le jour montant et la nuit ; ton Seigneur ne t'a ni abandonné ni détesté.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Serment, réconfort : Allah n'a ni abandonné ni détesté le Prophète" }
+      ]
+    },
+    {
+      "range": "4-8",
+      "title": "Bienfaits passés rappelés",
+      "resume": "L'au-delà meilleur que la vie présente ; orphelin hébergé, égaré guidé, pauvre enrichi.",
+      "children": [
+        { "v": "4-8", "cat": "croyance", "t": "Bienfaits passés rappelés : orphelin hébergé, égaré guidé, pauvre enrichi" }
+      ]
+    },
+    {
+      "range": "9-11",
+      "title": "Implications éthiques",
+      "resume": "Ne pas brimer l'orphelin, ne pas repousser le mendiant, proclamer le bienfait de son Seigneur.",
+      "children": [
+        { "v": "9-11", "cat": "ethique", "t": "Ne pas brimer l'orphelin, ne pas repousser le mendiant, proclamer le bienfait reçu" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "surah": 31,
+  "name_ar": "لقمان",
+  "name_latin": "Luqman",
+  "ayat_count": 34,
+  "theme_central": "La vraie sagesse (hikma) commence par le Tawhid, s'exprime dans les relations (parents), la pratique (prière) et le caractère (humilité) — transmise par les conseils d'un père à son fils.",
+  "sources_note": "Structure en anneau à 3 sections précisément sourcée (thequran.love, Exhaustive Exegetical and Thematic Analysis) : 1-11, 12-19, 20-34.",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "Le Coran, sagesse et signes divins",
+      "resume": "Le Livre de sagesse, mise en garde contre les paroles futiles, signes de la création.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Le Livre de sagesse, guidance et miséricorde pour les bienfaisants" },
+        { "v": "6-7", "cat": "argumentation", "t": "Mise en garde contre les paroles futiles qui détournent du chemin d'Allah" },
+        { "v": "8-11", "cat": "signes", "t": "Le Paradis promis aux bienfaisants ; les cieux sans piliers visibles" }
+      ]
+    },
+    {
+      "range": "12-19",
+      "title": "Les conseils de Luqman à son fils",
+      "resume": "Le cœur de la sourate : Tawhid, bienfaisance envers les parents, prière, patience, humilité.",
+      "children": [
+        { "v": "12-13", "cat": "croyance", "t": "Sagesse donnée à Luqman : « Ô mon fils, ne donne pas d'associé à Allah »" },
+        { "v": "14-15", "cat": "ethique", "t": "Bienfaisance envers les parents, avec ses limites" },
+        { "v": "16-19", "cat": "ethique", "t": "Le grain de moutarde vu par Allah, prière, patience, humilité dans la marche et la parole" }
+      ]
+    },
+    {
+      "range": "20-34",
+      "title": "Omniscience et souveraineté divine",
+      "resume": "Futilité de l'idolâtrie, signes du jour et de la nuit, clôture sur les cinq clés de l'invisible.",
+      "children": [
+        { "v": "20-28", "cat": "argumentation", "t": "Futilité de l'idolâtrie face à l'immensité de la création" },
+        { "v": "29-32", "cat": "signes", "t": "Alternance jour et nuit, navires en mer par la grâce d'Allah" },
+        { "v": "33-34", "cat": "croyance", "t": "Clôture : les cinq clés de l'invisible connues d'Allah seul" }
+      ]
+    }
+  ]
+}

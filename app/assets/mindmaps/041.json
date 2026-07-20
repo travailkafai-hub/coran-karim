@@ -1,0 +1,61 @@
+{
+  "surah": 41,
+  "name_ar": "فصلت",
+  "name_latin": "Fussilat",
+  "ayat_count": 54,
+  "theme_central": "« Expliqué en détail » : la nature de la révélation divine et la réponse humaine face à elle — du témoignage de la peau des damnés à la recommandation de répondre au mal par le bien.",
+  "sources_note": "Découpage en 6 rukus précisément sourcé (normalbeaconite.blogspot.com), bornes aux versets 8, 18, 25, 32, 44, 54.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Origine divine du Coran",
+      "resume": "Révélation en langue arabe claire, détaillée, pour avertir et annoncer une bonne nouvelle.",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "Le Coran, révélation détaillée en langue arabe claire" }
+      ]
+    },
+    {
+      "range": "9-18",
+      "title": "Étapes de la création, 'Ad et Thamud",
+      "resume": "Terre et cieux créés en six jours par étapes ; bref rappel de 'Ad et Thamud détruits.",
+      "children": [
+        { "v": "9-12", "cat": "signes", "t": "Terre et cieux créés en six étapes, étoiles comme parure et protection" },
+        { "v": "13-18", "cat": "recits", "t": "Bref rappel de 'Ad et Thamud, détruits pour avoir rejeté le message" }
+      ]
+    },
+    {
+      "range": "19-25",
+      "title": "Scène du Jugement",
+      "resume": "La peau, l'ouïe et la vue témoignant contre les mécréants au Jour du Jugement.",
+      "children": [
+        { "v": "19-25", "cat": "eschatologie", "t": "La peau témoigne contre les mécréants, compagnons du mal qui les ont égarés" }
+      ]
+    },
+    {
+      "range": "26-32",
+      "title": "Mise en garde, réconfort des fermes",
+      "resume": "Ceux qui font du bruit pour couvrir la récitation ; les anges rassurent les croyants fermes.",
+      "children": [
+        { "v": "26-32", "cat": "argumentation", "t": "Bruit pour couvrir la récitation ; anges rassurant les croyants fermes" }
+      ]
+    },
+    {
+      "range": "33-44",
+      "title": "Répondre au mal par le bien",
+      "resume": "Repousser le mal par ce qui est meilleur transforme l'ennemi en ami proche ; le Coran guérison pour les croyants.",
+      "children": [
+        { "v": "33-36", "cat": "ethique", "t": "Repousser le mal par le bien, l'ennemi devient un ami proche" },
+        { "v": "37-44", "cat": "croyance", "t": "Signes de la nuit et du jour, le Coran guérison pour les croyants" }
+      ]
+    },
+    {
+      "range": "45-54",
+      "title": "Clôture",
+      "resume": "Divergences anciennes sur le Livre, signes dans l'horizon et en soi-même jusqu'à évidence de la vérité.",
+      "children": [
+        { "v": "45-49", "cat": "argumentation", "t": "Divergences anciennes sur le Livre donné à Moussa" },
+        { "v": "50-54", "cat": "signes", "t": "Signes montrés dans l'horizon et en soi-même jusqu'à évidence de la vérité" }
+      ]
+    }
+  ]
+}

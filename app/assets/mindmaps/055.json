@@ -1,0 +1,61 @@
+{
+  "surah": 55,
+  "name_ar": "الرحمن",
+  "name_latin": "Ar-Rahman",
+  "ayat_count": 78,
+  "theme_central": "« Fiancée du Coran » : un chant rythmé des bienfaits d'Ar-Rahman, scandé par le refrain répété 31 fois — « Lequel donc des bienfaits de votre Seigneur nierez-vous ? ».",
+  "sources_note": "Structure en 3 unités précisément sourcée (medium.com/@soltlane, Wikipedia Ar-Rahman) : 1-30, 31-45, 46-78. Refrain confirmé répété 31 fois.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Ar-Rahman a enseigné le Coran",
+      "resume": "Il a enseigné le Coran, créé l'homme, lui a enseigné l'expression claire.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Ar-Rahman enseigne le Coran, crée l'homme, lui enseigne l'expression claire" }
+      ]
+    },
+    {
+      "range": "5-16",
+      "title": "Signes de la création, équilibre",
+      "resume": "Soleil et lune selon un calcul, la balance équitable, l'homme d'argile et le djinn de feu.",
+      "children": [
+        { "v": "5-13", "cat": "signes", "t": "Soleil et lune réglés, étoiles et arbres prosternés, la balance équitable" },
+        { "v": "14-16", "cat": "signes", "t": "Création de l'homme d'argile sonnante et du djinn de feu pur" }
+      ]
+    },
+    {
+      "range": "17-30",
+      "title": "Les deux mers, tout périt sauf Allah",
+      "resume": "Les deux mers qui se rencontrent sans se mélanger ; toute chose périt sauf la Face de ton Seigneur.",
+      "children": [
+        { "v": "17-25", "cat": "signes", "t": "Les deux mers qui se rencontrent sans se mélanger, perles et coraux" },
+        { "v": "26-30", "cat": "croyance", "t": "Tout périt sauf la Face d'Allah ; chaque jour Il est à une œuvre nouvelle" }
+      ]
+    },
+    {
+      "range": "31-36",
+      "title": "Convocation des hommes et djinns",
+      "resume": "Défi lancé aux hommes et aux djinns de franchir les régions des cieux sans autorisation.",
+      "children": [
+        { "v": "31-36", "cat": "eschatologie", "t": "Convocation des hommes et djinns, défi cosmique de franchir les cieux" }
+      ]
+    },
+    {
+      "range": "37-45",
+      "title": "Scène du Jugement",
+      "resume": "Fente du ciel, flammes et fumée, criminels reconnus à leurs traits, saisis et jetés en Enfer.",
+      "children": [
+        { "v": "37-45", "cat": "eschatologie", "t": "Fente du ciel, criminels reconnus à leurs traits, saisis pour l'Enfer" }
+      ]
+    },
+    {
+      "range": "46-78",
+      "title": "Les jardins du Paradis",
+      "resume": "Pour qui craint de comparaître : deux jardins, puis deux autres — sources, fruits, houris, clôture sur la munificence d'Allah.",
+      "children": [
+        { "v": "46-61", "cat": "eschatologie", "t": "Deux premiers jardins : sources jaillissantes, fruits par paires, houris chastes" },
+        { "v": "62-78", "cat": "eschatologie", "t": "Deux jardins supplémentaires ; clôture sur la grandeur et la munificence d'Allah" }
+      ]
+    }
+  ]
+}

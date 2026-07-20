@@ -1,0 +1,56 @@
+{
+  "surah": 8,
+  "name_ar": "الأنفال",
+  "name_latin": "Al-Anfal",
+  "ayat_count": 75,
+  "theme_central": "Débriefing divin de la bataille de Badr : le butin et la victoire appartiennent à Allah, la vraie force vient de la foi et de l'obéissance, non du nombre.",
+  "sources_note": "Structure en 4 parties bien sourcée (azlyrahman substack / grokipedia, Ramadan Reading #8) : 1-4, 5-18, 19-71, 72-75.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Le butin, les vraies qualités du croyant",
+      "resume": "Dispute sur le partage du butin, immédiatement recadrée : le vrai prix de la victoire est la qualité de la foi.",
+      "children": [
+        { "v": "1", "cat": "legislation", "t": "Le butin appartient à Allah et à Son messager" },
+        { "v": "2-4", "cat": "croyance", "t": "Qualités du vrai croyant : cœur qui tremble, tawakkul, prière, charité" }
+      ]
+    },
+    {
+      "range": "5-18",
+      "title": "Le récit divin de Badr",
+      "resume": "Réticence initiale des croyants, promesse d'Allah, interventions directes : sommeil, pluie, anges.",
+      "children": [
+        { "v": "5-8", "cat": "recits", "t": "Réticence des croyants avant la sortie, discussion sur la marche à suivre" },
+        { "v": "9-14", "cat": "croyance", "t": "Promesse d'un renfort de 1000 anges, la pluie purificatrice" },
+        { "v": "15-18", "cat": "eschatologie", "t": "« Ce n'est pas vous qui les avez tués, mais Allah » — climax théologique" }
+      ]
+    },
+    {
+      "range": "19-40",
+      "title": "Obéissance, complot des mécréants",
+      "resume": "Appel à l'obéissance à Allah et Son messager, le Furqân, complot des Mecquois et leur défaite promise.",
+      "children": [
+        { "v": "19-29", "cat": "ethique", "t": "Obéissance à Allah et au messager, ne pas trahir la confiance, le Furqân (discernement)" },
+        { "v": "30-40", "cat": "argumentation", "t": "Complot des mécréants contre le Prophète, leur défaite annoncée" }
+      ]
+    },
+    {
+      "range": "41-71",
+      "title": "Lois du butin, fermeté, prisonniers",
+      "resume": "Répartition du butin (khums), fermeté au combat, traités rompus, statut des prisonniers de guerre.",
+      "children": [
+        { "v": "41-52", "cat": "legislation", "t": "Répartition du butin (khums), fermeté requise au combat" },
+        { "v": "53-64", "cat": "legislation", "t": "Traités rompus par l'ennemi, préparation militaire dissuasive" },
+        { "v": "65-71", "cat": "legislation", "t": "Encouragement au combat, statut et rançon des prisonniers de guerre" }
+      ]
+    },
+    {
+      "range": "72-75",
+      "title": "Clôture : principes de la communauté",
+      "resume": "Entraide entre émigrés et auxiliaires, principes intemporels au-delà de l'événement de Badr.",
+      "children": [
+        { "v": "72-75", "cat": "ethique", "t": "Alliance et entraide entre émigrés (muhâjirûn) et auxiliaires (ansâr)" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "surah": 34,
+  "name_ar": "سبأ",
+  "name_latin": "Saba",
+  "ayat_count": 54,
+  "theme_central": "Comparaison entre les rois reconnaissants (Dawud, Sulayman) et le royaume ingrat de Saba, détruit malgré son opulence — la vraie puissance vient de la gratitude, non de la possession.",
+  "sources_note": "Structure bien sourcée (grokipedia) : le royaume de Saba (15-21) positionné stratégiquement entre le récit des rois reconnaissants et les mises en garde adressées aux Mecquois.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Ouverture",
+      "resume": "Louange à Allah, propriétaire de tout, connaissant jusqu'au poids d'un atome ; réfutation du doute sur l'Heure.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "Louange à Allah, omniscience absolue, réfutation du doute sur l'Heure" }
+      ]
+    },
+    {
+      "range": "10-14",
+      "title": "Dawud et Sulayman, rois reconnaissants",
+      "resume": "Montagnes et oiseaux glorifiant avec Dawud, vent et djinns soumis à Sulayman.",
+      "children": [
+        { "v": "10-11", "cat": "recits", "t": "Dawud : montagnes et oiseaux glorifiant avec lui, le fer amolli" },
+        { "v": "12-14", "cat": "recits", "t": "Sulayman : vent et djinns soumis, mort découverte par un ver rongeant son bâton" }
+      ]
+    },
+    {
+      "range": "15-21",
+      "title": "Le royaume de Saba",
+      "resume": "D'où le nom de la sourate : les deux jardins, la digue rompue, dispersion du peuple ingrat.",
+      "children": [
+        { "v": "15-17", "cat": "recits", "t": "Les deux jardins de Saba, digue rompue à cause de l'ingratitude" },
+        { "v": "18-21", "cat": "eschatologie", "t": "Dispersion du peuple, épreuve du libre choix confirmée" }
+      ]
+    },
+    {
+      "range": "22-30",
+      "title": "Réfutation des idoles, mission universelle",
+      "resume": "Les idoles ne possèdent rien, ne partagent rien avec Allah ; Muhammad envoyé à toute l'humanité.",
+      "children": [
+        { "v": "22-27", "cat": "argumentation", "t": "Réfutation des idoles, incapables de posséder quoi que ce soit" },
+        { "v": "28-30", "cat": "croyance", "t": "Muhammad envoyé à toute l'humanité, question sur l'échéance de l'Heure" }
+      ]
+    },
+    {
+      "range": "31-42",
+      "title": "Débat faibles/orgueilleux, subsistance",
+      "resume": "Rejet mutuel des responsabilités en Enfer, subsistance élargie ou restreinte selon la sagesse divine.",
+      "children": [
+        { "v": "31-33", "cat": "eschatologie", "t": "Débat entre faibles et orgueilleux en Enfer, rejet mutuel des responsabilités" },
+        { "v": "34-42", "cat": "ethique", "t": "Les gens aisés premiers à rejeter les messagers ; subsistance selon la sagesse divine" }
+      ]
+    },
+    {
+      "range": "43-54",
+      "title": "Réfutation, appel à réfléchir",
+      "resume": "Accusation de magie réfutée, générations précédentes plus puissantes détruites, trop tard face au châtiment.",
+      "children": [
+        { "v": "43-45", "cat": "argumentation", "t": "Accusation de magie réfutée, générations précédentes plus puissantes détruites" },
+        { "v": "46-54", "cat": "eschatologie", "t": "Appel à réfléchir calmement, trop tard pour croire au moment du châtiment" }
+      ]
+    }
+  ]
+}

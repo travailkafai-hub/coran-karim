@@ -1,0 +1,42 @@
+{
+  "surah": 96,
+  "name_ar": "العلق",
+  "name_latin": "Al-Alaq",
+  "ayat_count": 19,
+  "theme_central": "Les cinq premiers versets sont la toute première révélation du Coran — « Lis, au nom de ton Seigneur qui a créé » — suivis d'une mise en garde contre celui qui empêche un serviteur de prier.",
+  "sources_note": "Statut des versets 1-5 comme première révélation historique extrêmement bien établi et non contesté ; identification traditionnelle de l'opposant (Abu Jahl empêchant le Prophète de prier) largement enseignée.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "La première révélation",
+      "resume": "« Lis, au nom de ton Seigneur qui a créé » — l'homme créé d'une adhérence, enseigné par la plume.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Première révélation : « Lis », création de l'homme, enseignement par la plume" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "La rébellion dans l'aisance",
+      "resume": "L'homme devient rebelle dès qu'il se voit à l'aise ; le retour se fait vers Allah.",
+      "children": [
+        { "v": "6-8", "cat": "ethique", "t": "Rébellion de l'homme dans l'aisance, retour inévitable vers Allah" }
+      ]
+    },
+    {
+      "range": "9-14",
+      "title": "Celui qui empêche la prière",
+      "resume": "Mise en garde contre celui qui empêche un serviteur de prier, alors qu'Allah voit tout.",
+      "children": [
+        { "v": "9-14", "cat": "argumentation", "t": "Mise en garde contre celui qui empêche la prière" }
+      ]
+    },
+    {
+      "range": "15-19",
+      "title": "Clôture",
+      "resume": "Menace de saisir l'opposant par le toupet menteur ; ordre de se prosterner et de se rapprocher.",
+      "children": [
+        { "v": "15-19", "cat": "eschatologie", "t": "Menace contre l'opposant, appel final à la prosternation" }
+      ]
+    }
+  ]
+}

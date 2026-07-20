@@ -1,0 +1,77 @@
+{
+  "surah": 17,
+  "name_ar": "الإسراء",
+  "name_latin": "Al-Isra",
+  "ayat_count": 111,
+  "theme_central": "Du Voyage nocturne aux commandements éthiques fondamentaux : la sourate relie l'expérience spirituelle la plus élevée du Prophète à l'exigence morale la plus concrète du quotidien.",
+  "sources_note": "Bloc des commandements éthiques (22-39) précisément sourcé (islampak.com / zamzamacademy.com). Reste reconstruit à partir de repères bien établis (voyage nocturne v.1, question sur l'esprit v.85, défi du Coran v.88-89).",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Voyage nocturne, les Fils d'Israël",
+      "resume": "Le Voyage nocturne (Isra) vers la Mosquée al-Aqsa ; prophétie des deux corruptions des Fils d'Israël.",
+      "children": [
+        { "v": "1", "cat": "croyance", "t": "Le Voyage nocturne de la Mosquée sacrée à la Mosquée al-Aqsa" },
+        { "v": "2-8", "cat": "recits", "t": "Le Livre donné à Moussa, prophétie des deux corruptions des Fils d'Israël" }
+      ]
+    },
+    {
+      "range": "9-21",
+      "title": "Le Coran guide, l'homme pressé",
+      "resume": "Le Coran guide vers ce qui est le plus droit ; chacun agit selon sa disposition ; contraste vie d'ici-bas / au-delà.",
+      "children": [
+        { "v": "9-15", "cat": "croyance", "t": "Le Coran guide vers ce qui est le plus droit, chacun porte le poids de ses actes" },
+        { "v": "16-21", "cat": "eschatologie", "t": "Sort des cités détruites, contraste entre qui veut ce bas monde et qui veut l'au-delà" }
+      ]
+    },
+    {
+      "range": "22-39",
+      "title": "Les commandements éthiques",
+      "resume": "Bloc célèbre : adoration exclusive, bienfaisance envers les parents, droits des proches, contre le gaspillage, l'infanticide, l'adultère, l'injustice, l'orphelin, la mesure juste, l'arrogance.",
+      "children": [
+        { "v": "22-24", "cat": "ethique", "t": "Adorer Allah seul, bienfaisance envers les parents" },
+        { "v": "25-30", "cat": "ethique", "t": "Droits des proches et des nécessiteux, interdiction du gaspillage" },
+        { "v": "31-33", "cat": "legislation", "t": "Interdiction de tuer les enfants, l'adultère, le meurtre injuste" },
+        { "v": "34-39", "cat": "legislation", "t": "Biens de l'orphelin, mesure et poids justes, ne pas marcher sur terre avec arrogance" }
+      ]
+    },
+    {
+      "range": "40-65",
+      "title": "Réfutation, Iblis, invocation",
+      "resume": "Réfutation d'attribuer des filles à Allah, récit d'Iblis refusant de se prosterner devant Adam.",
+      "children": [
+        { "v": "40-52", "cat": "argumentation", "t": "Réfutation d'attribuer des filles à Allah, la résurrection réaffirmée" },
+        { "v": "53-60", "cat": "ethique", "t": "Dire ce qui est meilleur, le Coran comme mise en garde" },
+        { "v": "61-65", "cat": "recits", "t": "Iblis refuse de se prosterner devant Adam, son pouvoir limité sur les sincères" }
+      ]
+    },
+    {
+      "range": "66-84",
+      "title": "Bienfaits, Jugement, la prière",
+      "resume": "Bienfaits du transport terrestre et maritime, scène du Jugement, établissement de la prière.",
+      "children": [
+        { "v": "66-72", "cat": "signes", "t": "Bienfaits du transport ; chaque groupe appelé avec son livre au Jugement" },
+        { "v": "73-77", "cat": "argumentation", "t": "Tentative de détourner le Prophète de la révélation" },
+        { "v": "78-84", "cat": "adoration", "t": "Établissement de la prière, prière surérogatoire nocturne, le Coran guérison" }
+      ]
+    },
+    {
+      "range": "85-104",
+      "title": "L'esprit, le défi du Coran",
+      "resume": "Question sur l'esprit (rûh), défi de produire un livre semblable, rappel bref de Moussa et Pharaon.",
+      "children": [
+        { "v": "85-89", "cat": "croyance", "t": "Question sur l'esprit ; défi : hommes et djinns ne pourraient produire un Coran semblable" },
+        { "v": "90-100", "cat": "argumentation", "t": "Exigences déraisonnables des mécréants, ce qui empêche les gens de croire" },
+        { "v": "101-104", "cat": "recits", "t": "Moussa et Pharaon, les neuf signes clairs" }
+      ]
+    },
+    {
+      "range": "105-111",
+      "title": "Clôture",
+      "resume": "Le Coran révélé en vérité, ceux qui pleurent en l'entendant, louange finale.",
+      "children": [
+        { "v": "105-111", "cat": "croyance", "t": "Le Coran révélé en vérité, louange finale à Allah, Grand au-delà de tout associé" }
+      ]
+    }
+  ]
+}

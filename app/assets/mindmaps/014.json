@@ -1,0 +1,70 @@
+{
+  "surah": 14,
+  "name_ar": "إبراهيم",
+  "name_latin": "Ibrahim",
+  "ayat_count": 52,
+  "theme_central": "La gratitude (shukr) attire les bienfaits, l'ingratitude (kufr) attire le châtiment — illustré par l'histoire de Moussa et la prière d'Ibrahim pour la Mecque.",
+  "sources_note": "Découpage en 7 sections précisément sourcé (iqra-quran.com / bayan-ul-quran.com), petits raccords de bornes (16-18, 27, 31) pour couvrir l'intégralité des 52 versets sans trou.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Ouverture",
+      "resume": "Le Livre révélé pour sortir l'humanité des ténèbres vers la lumière.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Le Livre pour sortir des ténèbres vers la lumière" }
+      ]
+    },
+    {
+      "range": "4-8",
+      "title": "Consolation du Prophète, exemple de Moussa",
+      "resume": "Chaque messager envoyé dans la langue de son peuple ; gratitude (shukr) et ingratitude (kufr).",
+      "children": [
+        { "v": "4-8", "cat": "recits", "t": "Chaque messager parle la langue de son peuple ; Moussa rappelle la gratitude à son peuple" }
+      ]
+    },
+    {
+      "range": "9-18",
+      "title": "Unicité et puissance d'Allah",
+      "resume": "Rejet des messagers par les peuples anciens, mise en garde, l'échec de qui s'oppose à Allah.",
+      "children": [
+        { "v": "9-15", "cat": "argumentation", "t": "Rejet des messagers par Nuh, 'Ad et les peuples suivants" },
+        { "v": "16-18", "cat": "eschatologie", "t": "Sort de qui s'oppose à Allah, œuvres réduites en cendres" }
+      ]
+    },
+    {
+      "range": "19-27",
+      "title": "Jour du Jugement, la bonne parole",
+      "resume": "Dispute entre suiveurs et meneurs, Satan se désolidarise, parabole de la bonne et de la mauvaise parole.",
+      "children": [
+        { "v": "19-23", "cat": "eschatologie", "t": "Dispute entre suiveurs et meneurs, Satan se désolidarise d'eux" },
+        { "v": "24-27", "cat": "argumentation", "t": "Parabole de la bonne parole (arbre solide) et de la mauvaise parole (arbre déraciné)" }
+      ]
+    },
+    {
+      "range": "28-31",
+      "title": "Bienfaits d'Allah",
+      "resume": "Appel à l'adoration et à la gratitude, ceux qui échangent le bienfait d'Allah contre la mécréance.",
+      "children": [
+        { "v": "28-31", "cat": "croyance", "t": "Bienfaits d'Allah, ceux qui les échangent contre la mécréance" }
+      ]
+    },
+    {
+      "range": "32-41",
+      "title": "La prière d'Ibrahim pour la Mecque",
+      "resume": "Ibrahim installe sa descendance près de la Kaaba et prie pour la sécurité et la piété du lieu.",
+      "children": [
+        { "v": "32-37", "cat": "signes", "t": "Bienfaits énumérés (astres, fleuves, jour et nuit) ; Ibrahim installe sa descendance à la Mecque" },
+        { "v": "38-41", "cat": "adoration", "t": "Invocation d'Ibrahim pour la piété de ses descendants et de ses parents" }
+      ]
+    },
+    {
+      "range": "42-52",
+      "title": "Clôture : justice différée, non oubliée",
+      "resume": "Ne pas croire Allah inattentif à l'injustice ; ce Coran est un rappel adressé à toute l'humanité.",
+      "children": [
+        { "v": "42-47", "cat": "eschatologie", "t": "Allah n'est jamais inattentif à l'injustice, même différée" },
+        { "v": "48-52", "cat": "croyance", "t": "Clôture : ce Coran est un rappel adressé à toute l'humanité" }
+      ]
+    }
+  ]
+}

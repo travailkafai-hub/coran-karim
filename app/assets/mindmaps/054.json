@@ -1,0 +1,59 @@
+{
+  "surah": 54,
+  "name_ar": "القمر",
+  "name_latin": "Al-Qamar",
+  "ayat_count": 55,
+  "theme_central": "Le Coran facilité pour le rappel — refrain répété après chaque récit de destruction (Nuh, 'Ad, Thamud, Lot, Pharaon), comme pour demander : qui donc va s'en souvenir ?",
+  "sources_note": "Cinq peuples confirmés (grokipedia, wikipedia Al-Qamar) et refrain répété aux versets 17, 22, 32, 40 précisément sourcé.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "La lune fendue",
+      "resume": "L'Heure approche, la lune s'est fendue — signe rejeté par les mécréants comme « magie continuelle ».",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "La lune fendue, signe rejeté, moquerie des mécréants" }
+      ]
+    },
+    {
+      "range": "9-17",
+      "title": "Nuh, le déluge",
+      "resume": "Rejet de Nuh par son peuple, déluge, sauvetage dans l'arche.",
+      "children": [
+        { "v": "9-17", "cat": "recits", "t": "Nuh rejeté, déluge, « le Coran facilité pour le rappel »" }
+      ]
+    },
+    {
+      "range": "18-22",
+      "title": "'Ad",
+      "resume": "Destruction du peuple de 'Ad par un vent mugissant et glacial.",
+      "children": [
+        { "v": "18-22", "cat": "recits", "t": "'Ad détruit par un vent mugissant" }
+      ]
+    },
+    {
+      "range": "23-32",
+      "title": "Thamud, la chamelle",
+      "resume": "Rejet de Salih et du signe de la chamelle, destruction par un seul Cri.",
+      "children": [
+        { "v": "23-32", "cat": "recits", "t": "Thamud, la chamelle, destruction par un seul Cri" }
+      ]
+    },
+    {
+      "range": "33-46",
+      "title": "Lot, Pharaon",
+      "resume": "Peuple de Lot détruit par une pluie de pierres ; Pharaon et ses gens châtiés.",
+      "children": [
+        { "v": "33-40", "cat": "recits", "t": "Peuple de Lot détruit par une pluie de pierres, sauf sa famille croyante" },
+        { "v": "41-46", "cat": "recits", "t": "Pharaon et ses gens châtiés pour avoir rejeté les signes" }
+      ]
+    },
+    {
+      "range": "47-55",
+      "title": "Clôture",
+      "resume": "Les criminels dans l'égarement, tout est inscrit dans un Livre ; les pieux dans les jardins auprès d'un Souverain Tout-Puissant.",
+      "children": [
+        { "v": "47-55", "cat": "eschatologie", "t": "Tout inscrit dans un Livre ; les pieux au Paradis auprès du Souverain Tout-Puissant" }
+      ]
+    }
+  ]
+}

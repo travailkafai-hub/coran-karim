@@ -1,0 +1,26 @@
+{
+  "surah": 113,
+  "name_ar": "الفلق",
+  "name_latin": "Al-Falaq",
+  "ayat_count": 5,
+  "theme_central": "Refuge auprès du Seigneur de l'aube naissante contre quatre maux précis : les créatures nuisibles, l'obscurité, la magie, l'envie.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Refuge auprès du Seigneur de l'aube",
+      "resume": "Recherche de protection auprès du Seigneur de l'aube naissante, contre le mal des créatures.",
+      "children": [
+        { "v": "1-2", "cat": "adoration", "t": "Refuge auprès du Seigneur de l'aube, contre le mal des créatures" }
+      ]
+    },
+    {
+      "range": "3-5",
+      "title": "Contre les maux spécifiques",
+      "resume": "Contre l'obscurité qui s'approfondit, contre la magie (celles qui soufflent sur les nœuds), contre l'envieux.",
+      "children": [
+        { "v": "3-5", "cat": "adoration", "t": "Protection contre l'obscurité, la magie et l'envie" }
+      ]
+    }
+  ]
+}

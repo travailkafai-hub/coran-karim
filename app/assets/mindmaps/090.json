@@ -1,0 +1,50 @@
+{
+  "surah": 90,
+  "name_ar": "البلد",
+  "name_latin": "Al-Balad",
+  "ayat_count": 20,
+  "theme_central": "L'homme créé dans la peine (kabad) refuse de s'engager sur la voie escarpée — affranchir, nourrir, croire, et se recommander patience et compassion.",
+  "sources_note": "Contenu largement enseigné et non contesté : la « voie escarpée » (al-'aqaba) et les Gens de la droite/gauche sont des repères classiques.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Serment, l'homme dans la peine",
+      "resume": "Serment par cette Cité (la Mecque) et par le Prophète qui y est libre ; l'homme créé dans la peine.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Serment par la Cité sacrée, l'homme créé dans la peine" }
+      ]
+    },
+    {
+      "range": "5-7",
+      "title": "L'illusion de l'impunité",
+      "resume": "L'homme se vante d'avoir dilapidé des biens, pensant que nul ne l'a vu.",
+      "children": [
+        { "v": "5-7", "cat": "ethique", "t": "Illusion de l'impunité, vantardise sur les biens dilapidés" }
+      ]
+    },
+    {
+      "range": "8-10",
+      "title": "Les deux voies montrées",
+      "resume": "Deux yeux, une langue, deux lèvres ; les deux voies du bien et du mal montrées à l'homme.",
+      "children": [
+        { "v": "8-10", "cat": "signes", "t": "Organes donnés à l'homme, les deux voies du bien et du mal montrées" }
+      ]
+    },
+    {
+      "range": "11-16",
+      "title": "La voie escarpée",
+      "resume": "Affranchir un esclave, nourrir en un jour de famine l'orphelin proche ou le pauvre dans le dénuement.",
+      "children": [
+        { "v": "11-16", "cat": "ethique", "t": "La voie escarpée : affranchir, nourrir l'orphelin et le pauvre" }
+      ]
+    },
+    {
+      "range": "17-20",
+      "title": "Gens de la droite, gens de la gauche",
+      "resume": "Croire et se recommander patience et compassion ; sort contrasté selon le camp choisi.",
+      "children": [
+        { "v": "17-20", "cat": "eschatologie", "t": "Foi, patience et compassion ; gens de la droite vs gens de la gauche" }
+      ]
+    }
+  ]
+}

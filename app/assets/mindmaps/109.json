@@ -1,0 +1,26 @@
+{
+  "surah": 109,
+  "name_ar": "الكافرون",
+  "name_latin": "Al-Kafirun",
+  "ayat_count": 6,
+  "theme_central": "Déclaration de rupture claire avec le culte des mécréants — « à vous votre religion, à moi la mienne » — sans compromis ni syncrétisme possible.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Rejet de la mécréance",
+      "resume": "« Ô mécréants, je n'adore pas ce que vous adorez, et vous n'adorez pas ce que j'adore. »",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Rejet clair du culte des mécréants" }
+      ]
+    },
+    {
+      "range": "4-6",
+      "title": "À vous votre religion",
+      "resume": "Répétition insistante du rejet ; clôture : « à vous votre religion, à moi ma religion. »",
+      "children": [
+        { "v": "4-6", "cat": "croyance", "t": "« À vous votre religion, à moi ma religion »" }
+      ]
+    }
+  ]
+}

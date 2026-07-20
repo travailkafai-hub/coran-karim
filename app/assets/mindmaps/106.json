@@ -1,0 +1,26 @@
+{
+  "surah": 106,
+  "name_ar": "قريش",
+  "name_latin": "Quraysh",
+  "ayat_count": 4,
+  "theme_central": "Le pacte commercial de Quraysh (voyages d'hiver et d'été) comme bienfait rendant d'autant plus légitime l'adoration exclusive du Seigneur de la Maison.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Le pacte de Quraysh",
+      "resume": "Le pacte de Quraysh pour les voyages commerciaux d'hiver et d'été, sécurisés par la protection divine de la Mecque.",
+      "children": [
+        { "v": "1-2", "cat": "signes", "t": "Pacte commercial sécurisé de Quraysh, bienfait rappelé" }
+      ]
+    },
+    {
+      "range": "3-4",
+      "title": "Appel à l'adoration",
+      "resume": "Qu'ils adorent donc le Seigneur de cette Maison, qui les a nourris et rassurés.",
+      "children": [
+        { "v": "3-4", "cat": "adoration", "t": "Appel à adorer le Seigneur de la Maison, nourricier et protecteur" }
+      ]
+    }
+  ]
+}

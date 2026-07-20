@@ -1,0 +1,43 @@
+{
+  "surah": 60,
+  "name_ar": "الممتحنة",
+  "name_latin": "Al-Mumtahanah",
+  "ayat_count": 13,
+  "theme_central": "Texte fondateur des frontières socio-politiques de la communauté naissante : loyauté et désaveu (al-walâ' wal-barâ'), avec Ibrahim comme modèle, et l'examen (imtihân) des femmes migrantes qui donne son nom à la sourate.",
+  "sources_note": "Structure en 4 sections précisément sourcée (thequran.love, Comprehensive Commentary) : 1-6, 7-9, 10-11, 12-13.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Loyauté et désaveu, exemple d'Ibrahim",
+      "resume": "Mise en garde contre l'alliance avec les ennemis déclarés d'Allah ; Ibrahim modèle de rupture avec son peuple.",
+      "children": [
+        { "v": "1-3", "cat": "ethique", "t": "Mise en garde contre l'alliance avec les ennemis déclarés" },
+        { "v": "4-6", "cat": "recits", "t": "Ibrahim, modèle de rupture avec son peuple idolâtre" }
+      ]
+    },
+    {
+      "range": "7-9",
+      "title": "Relations avec les non-belligérants",
+      "resume": "Possibilité de relations meilleures si l'ancien ennemi cesse la persécution ; justice envers qui ne combat pas.",
+      "children": [
+        { "v": "7-9", "cat": "legislation", "t": "Justice et bienfaisance envers les non-belligérants" }
+      ]
+    },
+    {
+      "range": "10-11",
+      "title": "Examen des femmes migrantes",
+      "resume": "D'où le nom de la sourate : examiner la foi des femmes qui émigrent et se déclarent musulmanes.",
+      "children": [
+        { "v": "10-11", "cat": "legislation", "t": "Examen (imtihân) de la foi des femmes migrantes" }
+      ]
+    },
+    {
+      "range": "12-13",
+      "title": "Le pacte des femmes",
+      "resume": "Serment des femmes de s'abstenir des péchés majeurs ; clôture sur la rupture avec un peuple qu'Allah a couvert de colère.",
+      "children": [
+        { "v": "12-13", "cat": "legislation", "t": "Pacte des femmes, engagement à s'abstenir des péchés majeurs" }
+      ]
+    }
+  ]
+}

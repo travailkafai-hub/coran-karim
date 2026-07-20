@@ -1,0 +1,42 @@
+{
+  "surah": 70,
+  "name_ar": "المعارج",
+  "name_latin": "Al-Ma'arij",
+  "ayat_count": 44,
+  "theme_central": "Un questionneur réclame par défi le châtiment déjà en marche — réponse par l'échelle cosmique du Seigneur des voies d'ascension, puis le portrait des croyants dont le cœur est déjà tourné vers ce Jour.",
+  "sources_note": "Structure en 3 sections précisément sourcée (excelinhr.wordpress.com, Structural Analysis) : 1-18, 19-35, 36-44.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "Le questionneur, échelle cosmique",
+      "resume": "Un mécréant réclame le châtiment par défi ; un Jour équivalant à 50 000 ans, patience recommandée.",
+      "children": [
+        { "v": "1-7", "cat": "eschatologie", "t": "Défi du questionneur, un Jour équivalant à 50 000 ans" }
+      ]
+    },
+    {
+      "range": "8-18",
+      "title": "Dissolution cosmique",
+      "resume": "Le ciel comme du métal fondu, les montagnes comme laine cardée, les liens sociaux complètement rompus.",
+      "children": [
+        { "v": "8-18", "cat": "eschatologie", "t": "Ciel fondu, montagnes dispersées, liens sociaux rompus, refus de rançon" }
+      ]
+    },
+    {
+      "range": "19-35",
+      "title": "Traits des croyants",
+      "resume": "L'homme est anxieux et avare par nature, sauf les priants constants : chasteté, engagements tenus, prière préservée.",
+      "children": [
+        { "v": "19-35", "cat": "ethique", "t": "Traits des vrais croyants : chasteté, confiance tenue, prière constante" }
+      ]
+    },
+    {
+      "range": "36-44",
+      "title": "Excuses futiles, consolation",
+      "resume": "Excuses futiles des mécréants au Jour du compte, consolation finale adressée au Prophète.",
+      "children": [
+        { "v": "36-44", "cat": "eschatologie", "t": "Excuses futiles des mécréants, consolation finale du Prophète" }
+      ]
+    }
+  ]
+}

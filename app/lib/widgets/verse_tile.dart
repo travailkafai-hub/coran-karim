@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/verse.dart';
@@ -102,24 +104,67 @@ class _VerseNumberBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: 38,
       height: 38,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.brass, width: 1.5),
-        color: AppColors.cream200,
-      ),
-      child: Center(
-        child: Text(
-          _toArabicIndic(number),
-          style: GoogleFonts.amiri(
-            fontSize: 14,
-            color: AppColors.brass,
-            fontWeight: FontWeight.w700,
+      child: CustomPaint(
+        painter: const _OctagonBadgePainter(),
+        child: Center(
+          child: Text(
+            _toArabicIndic(number),
+            style: GoogleFonts.amiri(
+              fontSize: 14,
+              color: AppColors.brass,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+// Repère de fin de verset -- octogone plutôt qu'un simple cercle, pour
+// reprendre le même motif que le filigrane de fond (widgets/
+// quran_pattern_background.dart, formule identique : sommets tous les 45°,
+// décalés de 22.5°) plutôt que d'inventer une seconde forme. Séparation
+// visuelle entre versets minimale et volontairement sobre -- pas de nouvel
+// élément ajouté entre chaque verset, juste ce repère existant qui devient
+// cohérent avec le reste de l'habillage graphique.
+class _OctagonBadgePainter extends CustomPainter {
+  const _OctagonBadgePainter();
+
+  static Path _octagonPath(Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = size.width / 2;
+    final path = Path();
+    for (var i = 0; i < 8; i++) {
+      final rad = (22.5 + i * 45 - 90) * math.pi / 180;
+      final x = cx + r * math.cos(rad);
+      final y = cy + r * math.sin(rad);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    return path..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _octagonPath(size);
+    canvas.drawPath(path, Paint()..color = AppColors.cream200);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = AppColors.brass,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _OctagonBadgePainter oldDelegate) => false;
 }

@@ -1,0 +1,37 @@
+{
+  "surah": 58,
+  "name_ar": "المجادلة",
+  "name_latin": "Al-Mujadila",
+  "ayat_count": 22,
+  "theme_central": "De la plainte d'une femme (Khawla) entendue par Allah Lui-même, jusqu'à la définition des « alliés d'Allah » contre les « alliés de Satan » — le mot « Allah » apparaît dans chacun des 22 versets.",
+  "sources_note": "Structure en 3 sections précisément sourcée (Wikipedia Al-Mujadila) : 1-6 (zihâr), 7-13 (conciliabules secrets), 14-21 (croyants vs mécréants).",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Le zihâr",
+      "resume": "Plainte de Khawla entendue par Allah ; le zihâr déclaré illicite comme méthode de divorce, expiation prescrite.",
+      "children": [
+        { "v": "1-4", "cat": "legislation", "t": "Plainte de Khawla, le zihâr déclaré illicite comme méthode de divorce" },
+        { "v": "5-6", "cat": "legislation", "t": "Expiation : affranchir un esclave, jeûner deux mois, ou nourrir soixante pauvres" }
+      ]
+    },
+    {
+      "range": "7-13",
+      "title": "Conciliabules secrets, bienséance",
+      "resume": "Allah témoin de tout conciliabule ; mise en garde contre les conciliabules d'iniquité ; bienséance dans les assemblées.",
+      "children": [
+        { "v": "7-10", "cat": "croyance", "t": "Allah témoin de tout conciliabule secret, mise en garde contre l'iniquité" },
+        { "v": "11-13", "cat": "ethique", "t": "Bienséance dans les assemblées, faire place aux autres" }
+      ]
+    },
+    {
+      "range": "14-22",
+      "title": "Alliés d'Allah, alliés de Satan",
+      "resume": "Les alliés de Satan oublient le rappel d'Allah ; les alliés d'Allah triompheront, même contre leurs proches.",
+      "children": [
+        { "v": "14-19", "cat": "argumentation", "t": "Les alliés de Satan oublient le rappel d'Allah, leur sort au Jugement" },
+        { "v": "20-22", "cat": "ethique", "t": "Les alliés d'Allah triompheront, ne pas prendre pour amis ceux qui s'opposent à Allah" }
+      ]
+    }
+  ]
+}

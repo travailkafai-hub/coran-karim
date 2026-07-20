@@ -1,0 +1,101 @@
+{
+  "surah": 2,
+  "name_ar": "البقرة",
+  "name_latin": "Al-Baqarah",
+  "ayat_count": 286,
+  "theme_central": "Le pacte (mîthâq) entre Allah et Ses créatures : croire au message, en tirer les leçons de l'histoire des Fils d'Israël, et vivre selon la Loi qui en découle.",
+  "sources_note": "Structure en anneau (chiasme) à 9 sections, corroborée par une analyse structurelle anglophone (academia.edu, Structural Analysis) et une source francophone (la-recherche-du-savoir.fr) : les sections se répondent en miroir (1↔9, 2↔8, 3↔7, 4↔6) autour du pivot central (142-152, changement de Qibla). Le détail fin du bloc législatif 178-253 reste à vérifier verset par verset avant mise en production.",
+  "branches": [
+    {
+      "range": "1-20",
+      "title": "Foi et mécréance",
+      "resume": "Introduction en miroir avec la conclusion (285-286) : croyants, mécréants, hypocrites.",
+      "children": [
+        { "v": "1-7", "cat": "croyance", "t": "Le Livre, guidance pour les pieux ; description des croyants et des mécréants" },
+        { "v": "8-20", "cat": "argumentation", "t": "Les hypocrites, paraboles du feu et de la pluie" }
+      ]
+    },
+    {
+      "range": "21-39",
+      "title": "Création, Adam",
+      "resume": "L'unicité du Créateur, le défi du Coran, Adam et le califat sur terre.",
+      "children": [
+        { "v": "21-29", "cat": "signes", "t": "Unicité du Créateur, défi lancé de produire une sourate semblable" },
+        { "v": "30-39", "cat": "recits", "t": "Adam, le califat sur terre, la chute" }
+      ]
+    },
+    {
+      "range": "40-103",
+      "title": "Bani Israël",
+      "resume": "Rappel des bienfaits accordés aux Fils d'Israël et de leurs rébellions répétées.",
+      "children": [
+        { "v": "40-74", "cat": "recits", "t": "Bienfaits rappelés, le veau d'or, la vache sacrifiée" },
+        { "v": "75-103", "cat": "argumentation", "t": "Durcissement du cœur, rejet des messagers, la magie à Babel" }
+      ]
+    },
+    {
+      "range": "104-141",
+      "title": "Ibrahim, la Kaaba",
+      "resume": "Mise en garde envers les Gens du Livre hostiles ; Ibrahim et Ismaël bâtissent la Kaaba.",
+      "children": [
+        { "v": "104-123", "cat": "argumentation", "t": "Mise en garde envers les Gens du Livre, mérite exclusif revendiqué par chacun" },
+        { "v": "124-141", "cat": "recits", "t": "Ibrahim et Ismaël bâtissent la Kaaba, la Milla d'Ibrahim" }
+      ]
+    },
+    {
+      "range": "142-152",
+      "title": "Changement de Qibla (pivot central)",
+      "resume": "La direction de prière change vers la Kaaba ; unité de la communauté.",
+      "children": [
+        { "v": "142-145", "cat": "legislation", "t": "Nouvelle direction de prière" },
+        { "v": "146-152", "cat": "croyance", "t": "La Kaaba comme unité de la communauté, rappel d'Allah" }
+      ]
+    },
+    {
+      "range": "153-177",
+      "title": "Épreuves, vraie piété",
+      "resume": "Patience dans l'épreuve ; al-birr, la vraie piété, opposée au simple formalisme.",
+      "children": [
+        { "v": "153-157", "cat": "ethique", "t": "Patience et prière comme secours dans l'épreuve" },
+        { "v": "158-177", "cat": "ethique", "t": "Al-birr (la vraie piété) définie, au-delà du rituel formel" }
+      ]
+    },
+    {
+      "range": "178-253",
+      "title": "Lois de la communauté",
+      "resume": "Bloc législatif dense : talion, testament, jeûne, combat, pèlerinage, mariage, divorce.",
+      "children": [
+        { "v": "178-179", "cat": "legislation", "t": "Loi du talion (qisâs)" },
+        { "v": "180-182", "cat": "legislation", "t": "Le testament (wasiyya)" },
+        { "v": "183-187", "cat": "adoration", "t": "Le jeûne du mois de Ramadan" },
+        { "v": "188", "cat": "ethique", "t": "Ne pas s'approprier illégalement les biens d'autrui" },
+        { "v": "190-195", "cat": "legislation", "t": "Combat défensif (qitâl)" },
+        { "v": "196-203", "cat": "adoration", "t": "Le pèlerinage (hajj et omra)" },
+        { "v": "204-220", "cat": "ethique", "t": "Contraste bien/mal, interdiction du vin et des jeux de hasard" },
+        { "v": "221-242", "cat": "legislation", "t": "Mariage, divorce, allaitement, viduité" },
+        { "v": "243-253", "cat": "recits", "t": "Combat pour la cause d'Allah, récit de Talout, Jalout et David" }
+      ]
+    },
+    {
+      "range": "254-284",
+      "title": "Dépense, aumône",
+      "resume": "L'aumône, Ayat al-Kursî, dépenser dans le sentier d'Allah, interdiction du ribâ, contrats de dette.",
+      "children": [
+        { "v": "254-260", "cat": "croyance", "t": "L'aumône, Ayat al-Kursî, la résurrection montrée à Ibrahim" },
+        { "v": "261-274", "cat": "ethique", "t": "Dépenser dans le sentier d'Allah (infaq)" },
+        { "v": "275-281", "cat": "legislation", "t": "Interdiction du ribâ (intérêt usuraire)" },
+        { "v": "282-283", "cat": "legislation", "t": "Contrats de dette écrits, rôle des témoins (verset le plus long du Coran)" },
+        { "v": "284", "cat": "croyance", "t": "Tout ce qui est dans les cieux et la terre appartient à Allah" }
+      ]
+    },
+    {
+      "range": "285-286",
+      "title": "Conclusion",
+      "resume": "Profession de foi collective et invocation finale, en écho à l'ouverture.",
+      "children": [
+        { "v": "285", "cat": "croyance", "t": "Le Messager et les croyants croient en Allah, Ses anges, Ses livres, Ses messagers" },
+        { "v": "286", "cat": "croyance", "t": "Invocation finale : « Notre Seigneur, ne nous charge pas au-delà de nos forces »" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "surah": 59,
+  "name_ar": "الحشر",
+  "name_latin": "Al-Hashr",
+  "ayat_count": 24,
+  "theme_central": "L'expulsion des Banu Nadir comme preuve concrète de la puissance d'Allah — ouverture et clôture sur Sa glorification, dont dix-sept attributs énumérés dans les trois derniers versets.",
+  "sources_note": "Structure en 3 sections précisément sourcée (slideshare.net, alim.org) : 1-5, 6-10, 11-17. Clôture (18-24, les plus beaux noms) largement documentée.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Expulsion des Banu Nadir",
+      "resume": "La tribu juive des Banu Nadir expulsée de Médine pour trahison du pacte.",
+      "children": [
+        { "v": "1-5", "cat": "recits", "t": "Expulsion des Banu Nadir pour trahison du pacte avec les musulmans" }
+      ]
+    },
+    {
+      "range": "6-10",
+      "title": "Répartition des biens, qualités des croyants",
+      "resume": "Répartition des biens des Banu Nadir, qualités des émigrés et des auxiliaires.",
+      "children": [
+        { "v": "6-10", "cat": "legislation", "t": "Répartition des biens ; qualités des émigrés (muhâjirûn) et auxiliaires (ansâr)" }
+      ]
+    },
+    {
+      "range": "11-17",
+      "title": "Trahison des hypocrites",
+      "resume": "Promesses de soutien des hypocrites envers les Banu Nadir, puis fuite au moment décisif.",
+      "children": [
+        { "v": "11-17", "cat": "argumentation", "t": "Hypocrites promettant leur soutien puis fuyant au moment décisif" }
+      ]
+    },
+    {
+      "range": "18-24",
+      "title": "Clôture : les plus beaux noms",
+      "resume": "Exhortation à préparer son avenir dans l'au-delà, clôture sur dix-sept attributs divins.",
+      "children": [
+        { "v": "18-20", "cat": "ethique", "t": "Regarder ce qu'on a préparé pour demain, craindre Allah" },
+        { "v": "21-24", "cat": "croyance", "t": "Clôture : dix-sept attributs divins énumérés (al-asmâ al-husnâ)" }
+      ]
+    }
+  ]
+}

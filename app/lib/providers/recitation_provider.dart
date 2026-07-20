@@ -241,6 +241,42 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     return judged;
   }
 
+  /// Classe une erreur de récitation (demande utilisateur 2026-07-20 :
+  /// « catégoriser par type : tajwid ou prononciation »).
+  ///
+  /// Méthode : COMPARER l'attendu à l'entendu, du plus concret au plus
+  /// déductif — jamais une étiquette posée a priori.
+  ///   1. rien entendu           -> mot sauté
+  ///   2. squelette différent    -> LETTRE (ص/س, ط/ت...)   [prononciation]
+  ///   3. squelette égal mais forme stricte différente
+  ///                             -> HARAKAT (رَبِّ vs رَبُّ) [prononciation]
+  ///   4. lettres ET harakat justes, mais le mot portait une règle tajwid
+  ///                             -> TAJWID
+  ///   5. sinon                  -> indéterminé
+  ///
+  /// ⚠️ LIMITE ASSUMÉE (ne pas la masquer dans l'UI) : le cas 4 est une
+  /// déduction PAR ÉLIMINATION, pas une détection directe de la règle ratée.
+  /// L'écart peut venir d'autre chose (durée, liaison) sans qu'on sache le
+  /// distinguer aujourd'hui. Tant que la mesure « détection de fautes
+  /// délibérées » n'existe pas (REFONTE_IHM.md §12), « Tajwid » se lit
+  /// « écart non expliqué par les lettres ni les harakat, sur un mot qui
+  /// porte une règle » — pas comme une preuve que la règle a été ratée.
+  RecitationErrorKind classifyError(int wordIndex) {
+    if (wordIndex < 0 || wordIndex >= state.words.length) {
+      return RecitationErrorKind.inconnu;
+    }
+    final w = state.words[wordIndex];
+    if (w.status == WordStatus.skipped || w.heard.trim().isEmpty) {
+      return RecitationErrorKind.saute;
+    }
+    final heardSkeleton = ArabicNormalizer.normalize(w.heard);
+    if (heardSkeleton != w.normalized) return RecitationErrorKind.lettre;
+    final heardStrict = ArabicNormalizer.normalizeStrict(w.heard);
+    if (heardStrict != w.strict) return RecitationErrorKind.harakat;
+    if (w.expectedRules.isNotEmpty) return RecitationErrorKind.tajwid;
+    return RecitationErrorKind.inconnu;
+  }
+
   /// Règles tajwid à AFFICHER sur le mot d'index [wordIndex] : celles que le
   /// modèle attend sur ce mot (RecitedWord.expectedRules) ET que l'utilisateur
   /// a activées dans son preset ([_activeRules]). Ordre d'apparition dans le
@@ -1695,9 +1731,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   static const int _kBackToleranceWindow = 5;
 
   void _judge(List<RecitedWord> words, int i, WordStatus judged,
-      {required bool lock, List<int>? newErrors}) {
+      {required bool lock, List<int>? newErrors, String? heard}) {
     if (words[i].locked) return;
-    words[i] = words[i].copyWith(status: judged, locked: lock);
+    // `heard` : ce qui a été réellement entendu, conservé sur le mot pour
+    // pouvoir CLASSER l'erreur ensuite (lettre / harakat / tajwid) --
+    // cf. RecitationErrorKind. Passage unique par _judge, donc un seul
+    // endroit à alimenter.
+    words[i] = words[i].copyWith(status: judged, locked: lock, heard: heard);
     // Rouge (faux), orange (imprécis) ET gris (sauté) déclenchent la
     // correction — demande utilisateur 2026-07-05 (rouge/orange) puis
     // 2026-07-06 (sauté) : "pour moi c'est une erreur aussi" — sauter un mot
@@ -2383,7 +2423,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           '${spellsDifferentWord ? " autreMot=OUI" : ""}'
           '${isFragment ? " fragment" : ""}'
           ' -> $judged (lock=$lock, final=${p.isFinal})');
-      _judge(words, r.index, judged, lock: lock, newErrors: newErrors);
+      _judge(words, r.index, judged,
+          lock: lock, newErrors: newErrors, heard: actualStrict);
     }
 
     // Capture de clip (mini-LoRA personnalisation vocale) : ne retenir ce

@@ -1,0 +1,61 @@
+{
+  "surah": 25,
+  "name_ar": "الفرقان",
+  "name_latin": "Al-Furqan",
+  "ayat_count": 77,
+  "theme_central": "Défense du Coran comme Critère (Furqân) divin et de l'authenticité du Messager, culminant dans le portrait des « serviteurs du Miséricordieux ».",
+  "sources_note": "Sections 21-40, 41-50 et 63-75 précisément sourcées (grokipedia, tafhim al-Qur'an). Reste reconstruit à partir de repères connus.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Le Coran comme Furqân",
+      "resume": "Objections des mécréants réfutées : le Prophète mange, marche dans les marchés comme tout homme.",
+      "children": [
+        { "v": "1-9", "cat": "argumentation", "t": "Objections réfutées : le Prophète mange et marche dans les marchés comme tout homme" }
+      ]
+    },
+    {
+      "range": "10-20",
+      "title": "Meilleur que leurs jardins",
+      "resume": "Promesse de jardins meilleurs que ceux réclamés, interrogation des idoles adorées au Jugement.",
+      "children": [
+        { "v": "10-20", "cat": "eschatologie", "t": "Promesse de jardins meilleurs ; interrogation des idoles adorées au Jugement" }
+      ]
+    },
+    {
+      "range": "21-40",
+      "title": "Missions prophétiques parallèles",
+      "resume": "Moussa et Pharaon, Nuh, 'Ad, Thamud, les gens de Rass : même schéma de rejet répété.",
+      "children": [
+        { "v": "21-40", "cat": "recits", "t": "Moussa/Pharaon, Nuh, 'Ad, Thamud, les gens de Rass : rejet répété des messagers" }
+      ]
+    },
+    {
+      "range": "41-50",
+      "title": "Contraste insouciants/justes",
+      "resume": "Moquerie des mécréants envers le Prophète, signes cosmologiques : l'ombre, le vent, la pluie.",
+      "children": [
+        { "v": "41-50", "cat": "signes", "t": "Moquerie des mécréants, signes cosmologiques : ombre, vent, pluie" }
+      ]
+    },
+    {
+      "range": "51-62",
+      "title": "Envoyé comme avertisseur, les deux mers",
+      "resume": "Mélange des deux mers (douce et salée), création de l'homme à partir de l'eau, les constellations.",
+      "children": [
+        { "v": "51-58", "cat": "croyance", "t": "Envoyé comme avertisseur à toute l'humanité ; mélange des deux mers" },
+        { "v": "59-62", "cat": "signes", "t": "Création à partir de l'eau, les constellations, alternance jour et nuit" }
+      ]
+    },
+    {
+      "range": "63-77",
+      "title": "Les serviteurs du Miséricordieux",
+      "resume": "Portrait célèbre des ibâd ar-Rahmân : humilité, adoration nocturne, évitement des péchés majeurs, repentir.",
+      "children": [
+        { "v": "63-67", "cat": "ethique", "t": "Humilité, adoration nocturne, modération dans les dépenses" },
+        { "v": "68-71", "cat": "legislation", "t": "Ne pas associer, ne pas tuer, ne pas forniquer ; le repentir sincère accepté" },
+        { "v": "72-77", "cat": "ethique", "t": "Fuir le futile, réceptifs aux rappels, invocation pour leur descendance" }
+      ]
+    }
+  ]
+}

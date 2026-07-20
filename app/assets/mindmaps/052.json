@@ -1,0 +1,58 @@
+{
+  "surah": 52,
+  "name_ar": "الطور",
+  "name_latin": "At-Tur",
+  "ayat_count": 49,
+  "theme_central": "Serments par le Mont Sinaï et d'autres réalités cosmiques pour établir l'inévitabilité du Jugement, puis réfutation méthodique des accusations portées contre le Prophète.",
+  "sources_note": "Structure en 2 sections précisément sourcée (quranoasis.com, thelastdialogue.org) : 1-28 (Au-delà), 29-49 (réfutation des accusations).",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Serments",
+      "resume": "Serments par le Mont, le Livre inscrit, la Maison fréquentée, le toit élevé, la mer en furie.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Serments par le Mont Sinaï, le Livre inscrit, la mer en furie" }
+      ]
+    },
+    {
+      "range": "7-16",
+      "title": "Châtiment inévitable",
+      "resume": "Nul ne peut empêcher le châtiment de ceux qui ont douté du Jugement.",
+      "children": [
+        { "v": "7-16", "cat": "eschatologie", "t": "Châtiment inévitable de ceux qui ont douté du Jugement" }
+      ]
+    },
+    {
+      "range": "17-28",
+      "title": "Récompense des croyants",
+      "resume": "Description du Paradis pour les croyants et leur descendance qui les rejoint dans la foi.",
+      "children": [
+        { "v": "17-28", "cat": "eschatologie", "t": "Paradis des croyants, réunis avec leur descendance croyante" }
+      ]
+    },
+    {
+      "range": "29-34",
+      "title": "Réfutation des accusations",
+      "resume": "Le Prophète n'est ni devin, ni fou, ni poète ; défi de produire un discours semblable.",
+      "children": [
+        { "v": "29-34", "cat": "argumentation", "t": "Réfutation des accusations, défi de produire un discours semblable" }
+      ]
+    },
+    {
+      "range": "35-43",
+      "title": "Argument rationnel de la création",
+      "resume": "Créés à partir de rien, ou créateurs d'eux-mêmes ? Possèdent-ils les trésors d'Allah ?",
+      "children": [
+        { "v": "35-43", "cat": "argumentation", "t": "Créés à partir de rien ou créateurs d'eux-mêmes ? Trésors d'Allah hors de leur portée" }
+      ]
+    },
+    {
+      "range": "44-49",
+      "title": "Aveuglement persistant, patience finale",
+      "resume": "Même voyant un pan du ciel tomber, ils n'y croiraient pas ; patience et glorification demandées au Prophète.",
+      "children": [
+        { "v": "44-49", "cat": "argumentation", "t": "Aveuglement persistant même face à un signe évident ; patience finale du Prophète" }
+      ]
+    }
+  ]
+}

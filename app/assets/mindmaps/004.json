@@ -1,0 +1,44 @@
+{
+  "surah": 4,
+  "name_ar": "النساء",
+  "name_latin": "An-Nisa",
+  "ayat_count": 176,
+  "theme_central": "Bâtir une société juste : de la famille (orphelins, femmes, héritage) à la communauté (obéissance, hypocrisie) jusqu'à l'humanité entière.",
+  "sources_note": "Structure en 3 parties d'après l'approche de cohérence d'Amin Ahsan Islahi, reprise par imamghazali.org (Thematic Explanation) ; corroborée par islamophile.org pour le détail 1-43.",
+  "branches": [
+    {
+      "range": "1-43",
+      "title": "Fondations d'une société juste",
+      "resume": "De l'origine commune de l'humanité à la famille : orphelins, héritage, mariage, bienfaisance.",
+      "children": [
+        { "v": "1", "cat": "croyance", "t": "Origine commune de l'humanité (Adam et Hawwa)" },
+        { "v": "2-14", "cat": "legislation", "t": "Droits des orphelins, lois de succession (héritage)" },
+        { "v": "15-35", "cat": "legislation", "t": "Lois du mariage, la dot, résolution des conflits conjugaux" },
+        { "v": "36-43", "cat": "ethique", "t": "Appel à la bienfaisance envers parents, voisins et pauvres" }
+      ]
+    },
+    {
+      "range": "44-126",
+      "title": "Défis à la société juste",
+      "resume": "Déviations des Gens du Livre, obéissance à l'autorité légitime, règles du combat, mise en garde contre les hypocrites.",
+      "children": [
+        { "v": "44-57", "cat": "argumentation", "t": "Déviations des Gens du Livre" },
+        { "v": "58-70", "cat": "legislation", "t": "Obéissance aux dépositaires de l'autorité, justice dans le jugement" },
+        { "v": "71-104", "cat": "legislation", "t": "Combat défensif, prière du danger (salât al-khawf)" },
+        { "v": "105-126", "cat": "argumentation", "t": "Mise en garde extensive contre les hypocrites" }
+      ]
+    },
+    {
+      "range": "127-176",
+      "title": "Accomplissement d'une société juste",
+      "resume": "Retour sur la justice envers femmes et orphelins, appel à être garants de justice, clarifications finales.",
+      "children": [
+        { "v": "127-130", "cat": "legislation", "t": "Retour sur la justice envers femmes et orphelins" },
+        { "v": "131-152", "cat": "ethique", "t": "Appel à être des garants de justice, mise en garde contre l'hypocrisie" },
+        { "v": "153-162", "cat": "argumentation", "t": "Clarifications théologiques adressées aux Gens du Livre" },
+        { "v": "163-175", "cat": "croyance", "t": "La chaîne des prophètes, statut réel de Aïssa (Jésus)" },
+        { "v": "176", "cat": "legislation", "t": "Verset final sur l'héritage (la kalâla)" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "surah": 26,
+  "name_ar": "الشعراء",
+  "name_latin": "Ash-Shu'ara",
+  "ayat_count": 227,
+  "theme_central": "Plus longue sourate mecquoise : sept récits de prophètes (Moussa, Ibrahim, Nuh, Hud, Salih, Lot, Shu'ayb) suivant le même schéma, scellés par le même refrain — « en cela est un signe, et ton Seigneur est le Puissant, le Miséricordieux ».",
+  "sources_note": "Découpage précis et intégral sourcé (medium.com/@soltlane, Deeper Exploration of Surah Ash-Shu'ara) — verset par verset pour les sept récits.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Ouverture",
+      "resume": "Le Prophète se tourmente de leur rejet ; s'ils voulaient, un signe les ferait plier, mais l'épreuve du libre choix demeure.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "Tourment du Prophète face au rejet, la révélation vient du Puissant, le Miséricordieux" }
+      ]
+    },
+    {
+      "range": "10-68",
+      "title": "Moussa",
+      "resume": "Envoyé à Pharaon malgré sa crainte, défi des magiciens, exode et traversée de la mer.",
+      "children": [
+        { "v": "10-28", "cat": "recits", "t": "Moussa envoyé à Pharaon, dialogue, appel à libérer les Fils d'Israël" },
+        { "v": "29-51", "cat": "recits", "t": "Défi des magiciens, leur conversion instantanée à la vue du signe" },
+        { "v": "52-68", "cat": "recits", "t": "Exode, traversée de la mer, noyade de Pharaon" }
+      ]
+    },
+    {
+      "range": "69-104",
+      "title": "Ibrahim",
+      "resume": "Débat avec son père et son peuple contre l'idolâtrie, invocation pour lui-même et pour son père.",
+      "children": [
+        { "v": "69-86", "cat": "recits", "t": "Ibrahim face à son père, arguments contre les idoles" },
+        { "v": "90-104", "cat": "eschatologie", "t": "Invocation d'Ibrahim, Paradis et Enfer rapprochés au Jour dernier" }
+      ]
+    },
+    {
+      "range": "105-122",
+      "title": "Nuh",
+      "resume": "Appel à son peuple, rejet, destruction par le déluge.",
+      "children": [
+        { "v": "105-122", "cat": "recits", "t": "Appel de Nuh, dialogue avec son peuple, rejet, destruction" }
+      ]
+    },
+    {
+      "range": "123-140",
+      "title": "Hud",
+      "resume": "Appel au peuple de 'Ad, rejet, destruction.",
+      "children": [
+        { "v": "123-140", "cat": "recits", "t": "Appel de Hud au peuple de 'Ad, rejet, destruction" }
+      ]
+    },
+    {
+      "range": "141-159",
+      "title": "Salih",
+      "resume": "Appel au peuple de Thamud, la chamelle comme signe, rejet, destruction.",
+      "children": [
+        { "v": "141-159", "cat": "recits", "t": "Appel de Salih, signe de la chamelle, rejet, destruction" }
+      ]
+    },
+    {
+      "range": "160-175",
+      "title": "Lot",
+      "resume": "Appel à son peuple, rejet, destruction par une pluie de pierres.",
+      "children": [
+        { "v": "160-175", "cat": "recits", "t": "Appel de Lot, rejet, destruction par une pluie de pierres" }
+      ]
+    },
+    {
+      "range": "176-191",
+      "title": "Shu'ayb",
+      "resume": "Appel aux gens du Bois, dénonciation de la fraude, rejet, destruction par le châtiment du jour de l'Ombre.",
+      "children": [
+        { "v": "176-191", "cat": "recits", "t": "Appel de Shu'ayb aux gens du Bois, rejet, destruction" }
+      ]
+    },
+    {
+      "range": "192-227",
+      "title": "Clôture",
+      "resume": "Révélation par l'Esprit fidèle en langue arabe claire, réfutation de l'accusation de poésie, sort des poètes égarés.",
+      "children": [
+        { "v": "192-203", "cat": "croyance", "t": "Révélé par l'Esprit fidèle (Jibril) en langue arabe claire, annoncé dans les écritures anciennes" },
+        { "v": "204-212", "cat": "argumentation", "t": "Avertissement non précipité, ce n'est pas l'œuvre des démons" },
+        { "v": "213-220", "cat": "ethique", "t": "Avertir les proches, s'en remettre à Allah le Puissant, le Miséricordieux" },
+        { "v": "221-227", "cat": "argumentation", "t": "Sort des poètes égarés, distinction des croyants qui font le bien" }
+      ]
+    }
+  ]
+}

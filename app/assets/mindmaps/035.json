@@ -1,0 +1,54 @@
+{
+  "surah": 35,
+  "name_ar": "فاطر",
+  "name_latin": "Fatir",
+  "ayat_count": 45,
+  "theme_central": "Allah, l'Originateur des cieux et de la terre : Sa puissance réelle contrastée avec l'impuissance totale des fausses divinités, et la pauvreté foncière de l'homme qui a besoin de Lui à chaque instant.",
+  "sources_note": "Découpage en 5 rukus précisément sourcé (grokipedia, studocu) : 1-8, 9-14, 15-21, 22-28, 29-45.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Création et anges messagers",
+      "resume": "Allah, Originateur des cieux et de la terre, les anges messagers dotés d'ailes.",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "Allah Originateur, les anges messagers ; Satan est un ennemi déclaré" }
+      ]
+    },
+    {
+      "range": "9-14",
+      "title": "Miséricorde et résurrection",
+      "resume": "Le vent, les nuages, la terre morte revivifiée comme image de la résurrection.",
+      "children": [
+        { "v": "9-14", "cat": "eschatologie", "t": "La terre morte revivifiée par la pluie, image de la résurrection" }
+      ]
+    },
+    {
+      "range": "15-21",
+      "title": "Dépendance humaine envers Allah",
+      "resume": "Les hommes sont pauvres, Allah Seul Se suffit à Lui-même ; comparaison aveugle/voyant, vivant/mort.",
+      "children": [
+        { "v": "15-18", "cat": "croyance", "t": "Pauvreté foncière de l'homme, nul ne portera le fardeau d'autrui" },
+        { "v": "19-21", "cat": "argumentation", "t": "Comparaison entre l'aveugle et le voyant, l'ombre et la chaleur brûlante" }
+      ]
+    },
+    {
+      "range": "22-28",
+      "title": "Messagers et signes",
+      "resume": "Chaque communauté a eu son avertisseur ; diversité des couleurs comme signe ; seuls les savants craignent vraiment Allah.",
+      "children": [
+        { "v": "22-25", "cat": "argumentation", "t": "Chaque communauté a eu son avertisseur avant celle-ci" },
+        { "v": "26-28", "cat": "signes", "t": "Diversité des couleurs dans la création ; seuls les savants craignent vraiment Allah" }
+      ]
+    },
+    {
+      "range": "29-45",
+      "title": "Avertissement du Jugement, clôture",
+      "resume": "Ceux qui récitent le Livre espèrent un commerce impérissable ; trois catégories d'héritiers du Livre ; Allah retient les cieux et la terre.",
+      "children": [
+        { "v": "29-32", "cat": "adoration", "t": "Ceux qui récitent le Livre espèrent un commerce qui ne périra jamais" },
+        { "v": "33-37", "cat": "eschatologie", "t": "Trois catégories d'héritiers du Livre ; contraste Paradis et Enfer" },
+        { "v": "38-45", "cat": "croyance", "t": "Allah retient les cieux et la terre ; demande de retour refusée aux mécréants" }
+      ]
+    }
+  ]
+}

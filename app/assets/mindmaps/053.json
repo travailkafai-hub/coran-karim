@@ -1,0 +1,60 @@
+{
+  "surah": 53,
+  "name_ar": "النجم",
+  "name_latin": "An-Najm",
+  "ayat_count": 62,
+  "theme_central": "L'origine divine absolue de la révélation et l'intégrité inébranlable du Messager — témoin oculaire des plus grands signes de son Seigneur lors du Voyage nocturne.",
+  "sources_note": "Découpage précisément sourcé (sunnahmuakada.wordpress.com, thelastdialogue.org) : 1-18, 19-23, 24-32, 33-42.",
+  "branches": [
+    {
+      "range": "1-18",
+      "title": "L'expérience révélatrice du Prophète",
+      "resume": "Description du Voyage nocturne, vision de l'ange Jibril sous sa forme réelle, les plus grands signes du Seigneur.",
+      "children": [
+        { "v": "1-18", "cat": "croyance", "t": "Voyage nocturne, vision de Jibril, les plus grands signes du Seigneur" }
+      ]
+    },
+    {
+      "range": "19-23",
+      "title": "Réfutation des déesses païennes",
+      "resume": "Al-Lât, al-'Uzza et Manât ne sont que des noms inventés par les hommes.",
+      "children": [
+        { "v": "19-23", "cat": "argumentation", "t": "Réfutation des déesses païennes, simples inventions humaines" }
+      ]
+    },
+    {
+      "range": "24-32",
+      "title": "Autorité divine, intercession des anges",
+      "resume": "Nulle intercession des anges sans permission d'Allah ; création éprouvant qui agit bien.",
+      "children": [
+        { "v": "24-32", "cat": "croyance", "t": "Nulle intercession sans permission d'Allah, création pour éprouver les hommes" }
+      ]
+    },
+    {
+      "range": "33-42",
+      "title": "Justice divine, responsabilité individuelle",
+      "resume": "Nul ne portera le fardeau d'autrui ; l'homme n'obtient que le fruit de son effort.",
+      "children": [
+        { "v": "33-42", "cat": "ethique", "t": "Nul ne porte le fardeau d'autrui, l'homme récolte le fruit de son effort" }
+      ]
+    },
+    {
+      "range": "43-54",
+      "title": "Bienfaits divins, peuples anciens",
+      "resume": "Allah fait rire et pleurer, donne la mort et la vie ; destruction de 'Ad, Thamud, Nuh, et des cités renversées.",
+      "children": [
+        { "v": "43-48", "cat": "signes", "t": "Allah fait rire et pleurer, donne la mort et la vie, crée les couples" },
+        { "v": "49-54", "cat": "recits", "t": "Destruction de 'Ad, Thamud, le peuple de Nuh, les cités renversées" }
+      ]
+    },
+    {
+      "range": "55-62",
+      "title": "L'Heure approche, clôture",
+      "resume": "Lequel des bienfaits mettez-vous en doute ? Étonnement de rire plutôt que pleurer ; ordre de prosternation final.",
+      "children": [
+        { "v": "55-58", "cat": "eschatologie", "t": "L'Heure qui approche (al-âzifa), nul ne peut la dévoiler hors Allah" },
+        { "v": "59-62", "cat": "adoration", "t": "Étonnement de rire plutôt que pleurer à l'écoute du Coran, prosternation finale" }
+      ]
+    }
+  ]
+}

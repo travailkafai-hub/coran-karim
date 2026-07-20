@@ -1,0 +1,50 @@
+{
+  "surah": 85,
+  "name_ar": "البروج",
+  "name_latin": "Al-Buruj",
+  "ayat_count": 22,
+  "theme_central": "Le récit des Gens de la Fosse, brûlés vifs pour leur seule foi en Allah — la persécution la plus extrême ne fait que révéler la rigueur et la miséricorde ultimes du Seigneur.",
+  "sources_note": "Récit des Ashâb al-Ukhdûd (Gens de la Fosse) largement enseigné et non contesté ; structure classique en 5 mouvements.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Serment cosmique",
+      "resume": "Serment par le ciel aux constellations, le Jour promis, témoin et témoigné.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Serment par le ciel aux constellations, le Jour promis" }
+      ]
+    },
+    {
+      "range": "4-9",
+      "title": "Les Gens de la Fosse",
+      "resume": "Maudits les gens de la fosse au feu alimenté, assis à regarder le supplice des croyants pour leur seule foi.",
+      "children": [
+        { "v": "4-9", "cat": "recits", "t": "Les Gens de la Fosse brûlent des croyants pour leur seule foi en Allah" }
+      ]
+    },
+    {
+      "range": "10-11",
+      "title": "Sort contrasté",
+      "resume": "Châtiment de la Géhenne pour les persécuteurs impénitents ; Paradis pour ceux qui ont cru et bien agi.",
+      "children": [
+        { "v": "10-11", "cat": "eschatologie", "t": "Géhenne pour les persécuteurs, Paradis pour les croyants" }
+      ]
+    },
+    {
+      "range": "12-16",
+      "title": "La rigueur et l'amour d'Allah",
+      "resume": "Rigueur de ton Seigneur qui crée et recrée ; le Pardonneur, le Plein d'amour, Maître du Trône glorieux.",
+      "children": [
+        { "v": "12-16", "cat": "croyance", "t": "Rigueur et miséricorde d'Allah, Maître du Trône glorieux" }
+      ]
+    },
+    {
+      "range": "17-22",
+      "title": "Clôture",
+      "resume": "Récit des armées de Pharaon et de Thamud ; Coran glorieux sur une Table préservée.",
+      "children": [
+        { "v": "17-22", "cat": "croyance", "t": "Récit de Pharaon et Thamud, Coran préservé sur la Table gardée" }
+      ]
+    }
+  ]
+}

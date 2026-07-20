@@ -1,0 +1,84 @@
+{
+  "surah": 7,
+  "name_ar": "الأعراف",
+  "name_latin": "Al-A'raf",
+  "ayat_count": 206,
+  "theme_central": "L'arrogance (kibr/istikbâr) comme maladie spirituelle centrale — celle d'Iblis, de Pharaon, des chefs orgueilleux de chaque peuple qui rejettent leur prophète.",
+  "sources_note": "Découpage croisé sur deux sources (grokipedia/azlyrahman en anglais, islamreligion.com + nabulsi.com en français), avec verset-clés confirmés (Adam/Iblis 11-27, Nuh 59-64, Hud 65-72, Salih 73-79, Lot 80-84, Shu'ayb 85-92, Moussa 103-171, pacte 172-174).",
+  "branches": [
+    {
+      "range": "1-10",
+      "title": "Ouverture",
+      "resume": "Le Livre envoyé pour avertir ; sort des cités détruites, la pesée des œuvres.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Le Livre pour avertir, suivre uniquement cette révélation" },
+        { "v": "4-10", "cat": "eschatologie", "t": "Sort des cités détruites, la pesée des œuvres" }
+      ]
+    },
+    {
+      "range": "11-58",
+      "title": "Adam, Iblis, la chute — d'où « Al-A'raf »",
+      "resume": "Création d'Adam, refus d'Iblis, l'expulsion du Paradis, puis la scène du Jugement où apparaissent « les gens d'al-A'raf », entre Paradis et Enfer.",
+      "children": [
+        { "v": "11-18", "cat": "recits", "t": "Création d'Adam, refus d'Iblis de se prosterner, son serment de tentation" },
+        { "v": "19-27", "cat": "recits", "t": "Adam et Hawwa au Paradis, le fruit défendu, l'expulsion" },
+        { "v": "28-37", "cat": "argumentation", "t": "Dénonciation des interdits inventés, les vrais interdits d'Allah" },
+        { "v": "38-53", "cat": "eschatologie", "t": "La scène du Jugement : gens du Feu, du Paradis, et les gens d'al-A'raf entre les deux" },
+        { "v": "54-58", "cat": "signes", "t": "Allah créateur des cieux et de la terre, signes dans la pluie et la végétation" }
+      ]
+    },
+    {
+      "range": "59-102",
+      "title": "Les prophètes rejetés",
+      "resume": "Nuh, Hud, Salih, Lot, Shu'ayb : même schéma répété, un peuple qui rejette son prophète par orgueil.",
+      "children": [
+        { "v": "59-64", "cat": "recits", "t": "Nuh et le déluge" },
+        { "v": "65-72", "cat": "recits", "t": "Hud et le peuple de 'Ad" },
+        { "v": "73-79", "cat": "recits", "t": "Salih, le peuple de Thamud et la chamelle" },
+        { "v": "80-84", "cat": "recits", "t": "Lot et son peuple" },
+        { "v": "85-93", "cat": "recits", "t": "Shu'ayb et les gens de Madyan, la fraude dans les échanges" },
+        { "v": "94-102", "cat": "argumentation", "t": "Leçon générale : pourquoi ces cités n'ont pas cru malgré les épreuves" }
+      ]
+    },
+    {
+      "range": "103-171",
+      "title": "Moussa et Pharaon",
+      "resume": "Le développement narratif le plus long de la sourate : défi des magiciens, plaies d'Égypte, veau d'or, les Tables de la Loi.",
+      "children": [
+        { "v": "103-126", "cat": "recits", "t": "Moussa face à Pharaon, le défi des magiciens" },
+        { "v": "127-141", "cat": "recits", "t": "Les plaies d'Égypte, la traversée de la mer" },
+        { "v": "142-156", "cat": "recits", "t": "Les Tables de la Loi, le veau d'or, la colère de Moussa" },
+        { "v": "157-158", "cat": "croyance", "t": "Annonce du Prophète Muhammad attendu dans la Thora et l'Évangile" },
+        { "v": "159-171", "cat": "recits", "t": "Les 12 tribus, le peuple transgressant le Sabbat" }
+      ]
+    },
+    {
+      "range": "172-178",
+      "title": "Le pacte primordial",
+      "resume": "« Ne suis-Je pas votre Seigneur ? » — l'attestation innée de chaque âme, et la parabole de qui la rejette.",
+      "children": [
+        { "v": "172-174", "cat": "croyance", "t": "Le pacte primordial (alastu bi-rabbikum)" },
+        { "v": "175-178", "cat": "argumentation", "t": "Parabole de celui qui rejette les signes, comparé au chien qui halète" }
+      ]
+    },
+    {
+      "range": "179-198",
+      "title": "Les plus beaux noms, l'Heure",
+      "resume": "Ceux dont le cœur ne comprend pas, les plus beaux noms d'Allah, l'incapacité des idoles à se secourir elles-mêmes.",
+      "children": [
+        { "v": "179-181", "cat": "eschatologie", "t": "Ceux créés pour l'Enfer, les plus beaux noms d'Allah (al-asmâ al-husnâ)" },
+        { "v": "182-186", "cat": "argumentation", "t": "Délai accordé aux mécréants, méditer sur la royauté des cieux" },
+        { "v": "187-198", "cat": "argumentation", "t": "Question sur l'Heure, incapacité des idoles à se secourir elles-mêmes" }
+      ]
+    },
+    {
+      "range": "199-206",
+      "title": "Instructions finales",
+      "resume": "Pardon, éloignement des ignorants, refuge contre Satan, prosternation finale.",
+      "children": [
+        { "v": "199-202", "cat": "ethique", "t": "Pardonner, s'éloigner des ignorants, chercher refuge contre les suggestions de Satan" },
+        { "v": "203-206", "cat": "adoration", "t": "Écouter le Coran en silence, verset de la prosternation (sajda)" }
+      ]
+    }
+  ]
+}

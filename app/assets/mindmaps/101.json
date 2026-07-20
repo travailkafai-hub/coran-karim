@@ -1,0 +1,34 @@
+{
+  "surah": 101,
+  "name_ar": "القارعة",
+  "name_latin": "Al-Qari'ah",
+  "ayat_count": 11,
+  "theme_central": "« Le Fracas » : hommes comme papillons éparpillés, montagnes comme laine cardée — tout se joue ensuite au poids de la balance des œuvres.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Le Fracas",
+      "resume": "Qu'est-ce que le Fracas ? Question répétée pour en souligner la gravité.",
+      "children": [
+        { "v": "1-3", "cat": "eschatologie", "t": "Le Fracas annoncé, question répétée sur sa gravité" }
+      ]
+    },
+    {
+      "range": "4-5",
+      "title": "Hommes et montagnes bouleversés",
+      "resume": "Les hommes comme des papillons éparpillés, les montagnes comme de la laine cardée.",
+      "children": [
+        { "v": "4-5", "cat": "eschatologie", "t": "Hommes comme papillons, montagnes comme laine cardée" }
+      ]
+    },
+    {
+      "range": "6-11",
+      "title": "La balance des œuvres",
+      "resume": "Balance lourde : vie agréable ; balance légère : accueil par le Feu ardent.",
+      "children": [
+        { "v": "6-11", "cat": "eschatologie", "t": "Balance lourde ou légère, sort déterminé, feu ardent" }
+      ]
+    }
+  ]
+}

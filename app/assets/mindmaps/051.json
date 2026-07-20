@@ -1,0 +1,62 @@
+{
+  "surah": 51,
+  "name_ar": "الذاريات",
+  "name_latin": "Adh-Dhariyat",
+  "ayat_count": 60,
+  "theme_central": "Serments par les vents et les phénomènes cosmiques pour établir la certitude du Jugement, illustrée par le sort des peuples anciens qui ont rejeté leurs messagers.",
+  "sources_note": "Structure tripartite précisément sourcée (analyse littéraire d'Angelika Neuwirth via grokipedia) : 1-23, 24-46, 47-60. Récit des hôtes d'Ibrahim détaillé (24-30).",
+  "branches": [
+    {
+      "range": "1-14",
+      "title": "Serments, promesse du Jugement",
+      "resume": "Serments par les vents qui dispersent, promesse certaine et inévitable du Jugement.",
+      "children": [
+        { "v": "1-14", "cat": "croyance", "t": "Serments par les vents, promesse certaine du Jugement" }
+      ]
+    },
+    {
+      "range": "15-23",
+      "title": "Paradis des pieux, signes",
+      "resume": "Description du Paradis pour les pieux, signes dans la création et en l'homme lui-même.",
+      "children": [
+        { "v": "15-19", "cat": "eschatologie", "t": "Description du Paradis pour les pieux, peu dormant la nuit, demandant pardon à l'aube" },
+        { "v": "20-23", "cat": "signes", "t": "Signes sur terre et en l'homme lui-même" }
+      ]
+    },
+    {
+      "range": "24-37",
+      "title": "Les hôtes d'Ibrahim, destruction de Lot",
+      "resume": "Les anges chez Ibrahim, annonce d'Ishaq ; destruction du peuple de Lot.",
+      "children": [
+        { "v": "24-30", "cat": "recits", "t": "Les hôtes d'Ibrahim (les anges), annonce de la naissance d'Ishaq" },
+        { "v": "31-37", "cat": "recits", "t": "Destruction du peuple de Lot, sauf les croyants" }
+      ]
+    },
+    {
+      "range": "38-46",
+      "title": "Moussa, 'Ad, Thamud, Nuh",
+      "resume": "Bref rappel de Moussa/Pharaon, 'Ad détruit par le vent, Thamud par le Cri, peuple de Nuh.",
+      "children": [
+        { "v": "38-40", "cat": "recits", "t": "Moussa et Pharaon, noyade" },
+        { "v": "41-46", "cat": "recits", "t": "'Ad détruit par le vent, Thamud par le Cri, peuple de Nuh" }
+      ]
+    },
+    {
+      "range": "47-51",
+      "title": "Signes de la création",
+      "resume": "Le ciel élargi, la terre étendue, toute chose créée en couples ; fuir vers Allah.",
+      "children": [
+        { "v": "47-51", "cat": "signes", "t": "Le ciel élargi, toute chose créée en couples, fuir vers Allah" }
+      ]
+    },
+    {
+      "range": "52-60",
+      "title": "Messagers traités de menteurs",
+      "resume": "Chaque messager traité de magicien ou de fou ; djinns et hommes créés pour adorer Allah seul.",
+      "children": [
+        { "v": "52-55", "cat": "argumentation", "t": "Chaque messager traité de magicien ou de fou par son peuple" },
+        { "v": "56-60", "cat": "croyance", "t": "Djinns et hommes créés pour adorer Allah seul ; Il est le Pourvoyeur" }
+      ]
+    }
+  ]
+}

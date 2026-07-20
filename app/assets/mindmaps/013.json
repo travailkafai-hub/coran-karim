@@ -1,0 +1,67 @@
+{
+  "surah": 13,
+  "name_ar": "الرعد",
+  "name_latin": "Ar-Ra'd",
+  "ayat_count": 43,
+  "theme_central": "Ce qui est vrai se reconnaît à sa solidité, ce qui est faux à sa fragilité — démontré par les signes de la création et les paraboles de l'eau et du métal en fusion.",
+  "sources_note": "Découpage en 7 sections précisément sourcé (alim.org / quran-wiki.com, Overview Surah 13).",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Vérité de la révélation, signes de la création",
+      "resume": "Les cieux élevés sans piliers, la terre étendue, les fruits par paires.",
+      "children": [
+        { "v": "1-4", "cat": "signes", "t": "Les cieux sans piliers, le soleil et la lune sur leur orbite, la terre étendue" }
+      ]
+    },
+    {
+      "range": "5-7",
+      "title": "Mécréance, arrogance",
+      "resume": "Étonnement face au doute sur la résurrection, demande hâtive du châtiment.",
+      "children": [
+        { "v": "5-7", "cat": "argumentation", "t": "Étonnement face au doute sur la résurrection, demande hâtive d'un signe" }
+      ]
+    },
+    {
+      "range": "8-13",
+      "title": "Science, puissance et maîtrise d'Allah",
+      "resume": "Allah connaît chaque grossesse, chaque pensée cachée ; le tonnerre Le glorifie.",
+      "children": [
+        { "v": "8-13", "cat": "croyance", "t": "Omniscience d'Allah, le tonnerre et les anges Le glorifient" }
+      ]
+    },
+    {
+      "range": "14-17",
+      "title": "Vérité contre mensonge",
+      "resume": "Paraboles de l'eau qui charrie l'écume et du métal en fusion : seul ce qui est utile demeure.",
+      "children": [
+        { "v": "14-17", "cat": "argumentation", "t": "Paraboles de l'eau et du métal en fusion : ce qui est utile demeure, le reste s'évapore" }
+      ]
+    },
+    {
+      "range": "18-29",
+      "title": "Croyants et mécréants : traits et sort",
+      "resume": "Ceux qui tiennent leurs engagements envers Allah vs ceux qui les rompent ; la tranquillité par le rappel d'Allah.",
+      "children": [
+        { "v": "18-24", "cat": "ethique", "t": "Traits des doués d'intelligence : tenir ses engagements, patience, prière" },
+        { "v": "25-29", "cat": "eschatologie", "t": "Sort de ceux qui rompent le pacte ; la tranquillité par le rappel d'Allah" }
+      ]
+    },
+    {
+      "range": "30-38",
+      "title": "Mission du Prophète",
+      "resume": "Réactions du peuple face au Coran, comparaison avec les nations précédentes.",
+      "children": [
+        { "v": "30-38", "cat": "argumentation", "t": "Réactions au message, comparaison avec le rejet des nations précédentes" }
+      ]
+    },
+    {
+      "range": "39-43",
+      "title": "Autorité absolue d'Allah",
+      "resume": "Allah efface et confirme ce qu'Il veut ; clôture sur Allah comme témoin suffisant.",
+      "children": [
+        { "v": "39-43", "cat": "croyance", "t": "Allah efface et confirme ce qu'Il veut ; Allah suffit comme témoin" }
+      ]
+    }
+  ]
+}

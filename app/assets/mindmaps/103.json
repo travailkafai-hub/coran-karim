@@ -1,0 +1,26 @@
+{
+  "surah": 103,
+  "name_ar": "العصر",
+  "name_latin": "Al-Asr",
+  "ayat_count": 3,
+  "theme_central": "Serment par le Temps : l'être humain est en perte, sauf s'il réunit foi, bonnes œuvres, et exhortation mutuelle à la vérité et à l'endurance.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Le Temps, la perte",
+      "resume": "Serment par le Temps : l'être humain est certes en perte.",
+      "children": [
+        { "v": "1-2", "cat": "croyance", "t": "Serment par le Temps, l'être humain en perte" }
+      ]
+    },
+    {
+      "range": "3",
+      "title": "Les quatre conditions du salut",
+      "resume": "Sont épargnés ceux qui croient, font le bien, s'exhortent à la vérité et à l'endurance.",
+      "children": [
+        { "v": "3", "cat": "ethique", "t": "Foi, bonnes œuvres, exhortation à la vérité et à l'endurance" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "surah": 3,
+  "name_ar": "آل عمران",
+  "name_latin": "Ali 'Imran",
+  "ayat_count": 200,
+  "theme_central": "Fermeté (thabât) dans la foi face aux épreuves intellectuelles (les Gens du Livre) et aux épreuves matérielles (la bataille d'Uhud).",
+  "sources_note": "Structure en 4 sections croisée sur alsalam.ac.uk (Thematic Overview: Surah Al 'Imran) et islamophile.org — corroborées.",
+  "branches": [
+    {
+      "range": "1-32",
+      "title": "Vérités fondamentales",
+      "resume": "Révélée peu après Badr : le Livre, versets clairs et ambigus, la religion auprès d'Allah.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "Le Livre, versets univoques (muhkam) et à sens multiples (mutashabih), ceux au cœur sain vs dévié" },
+        { "v": "10-17", "cat": "eschatologie", "t": "Sort des mécréants au Jour du Jugement, désir profond des croyants" },
+        { "v": "18-20", "cat": "croyance", "t": "Témoignage d'Allah sur Son unicité, la religion agréée est l'Islam" },
+        { "v": "21-32", "cat": "argumentation", "t": "Mise en garde contre le rejet des signes, appel à suivre le Messager" }
+      ]
+    },
+    {
+      "range": "33-63",
+      "title": "La famille d'Imran, dialogue avec les chrétiens",
+      "resume": "Naissance de Maryam et de Yahya, annonciation et miracles de Aïssa, débat avec la délégation de Najran (9 H).",
+      "children": [
+        { "v": "33-37", "cat": "recits", "t": "Élection de la famille d'Imran, vœu et naissance de Maryam" },
+        { "v": "38-41", "cat": "recits", "t": "Zacharie et l'annonce de la naissance de Yahya" },
+        { "v": "42-51", "cat": "recits", "t": "Annonciation à Maryam, naissance et miracles de Aïssa (Jésus)" },
+        { "v": "52-63", "cat": "argumentation", "t": "Les disciples, débat avec les chrétiens de Najran, la Mubahala" }
+      ]
+    },
+    {
+      "range": "64-120",
+      "title": "Appel à l'unité, mise en garde envers les Gens du Livre",
+      "resume": "Parole commune avec les Gens du Livre, mise en garde contre leurs manœuvres, la Kaaba, cohésion de la communauté.",
+      "children": [
+        { "v": "64-80", "cat": "argumentation", "t": "Appel à une parole commune, manipulations des Gens du Livre dénoncées" },
+        { "v": "81-95", "cat": "croyance", "t": "Pacte des prophètes, la vraie religion, la piété authentique" },
+        { "v": "96-97", "cat": "adoration", "t": "La Kaaba, premier lieu de culte établi, obligation du pèlerinage" },
+        { "v": "98-120", "cat": "ethique", "t": "Mise en garde contre la discorde interne, alliances à ne pas nouer" }
+      ]
+    },
+    {
+      "range": "121-200",
+      "title": "La bataille d'Uhud, endurance",
+      "resume": "Revue de la bataille d'Uhud : l'épreuve, les hypocrites, consolation, exhortation finale à la patience.",
+      "children": [
+        { "v": "121-129", "cat": "recits", "t": "Préparatifs avant la bataille d'Uhud" },
+        { "v": "130-138", "cat": "legislation", "t": "Rappel de l'interdiction du ribâ, exhortation à la piété" },
+        { "v": "139-155", "cat": "recits", "t": "Déroulement de l'épreuve, le repli des hypocrites" },
+        { "v": "156-175", "cat": "eschatologie", "t": "Les martyrs sont vivants auprès d'Allah, consolation face au complot ennemi" },
+        { "v": "176-189", "cat": "ethique", "t": "Ne pas s'affliger du répit accordé aux mécréants" },
+        { "v": "190-200", "cat": "signes", "t": "Méditation des « doués d'intelligence » (ulul albab), invocation finale, exhortation à la patience" }
+      ]
+    }
+  ]
+}

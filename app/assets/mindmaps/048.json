@@ -1,0 +1,51 @@
+{
+  "surah": 48,
+  "name_ar": "الفتح",
+  "name_latin": "Al-Fath",
+  "ayat_count": 29,
+  "theme_central": "Redéfinition divine de la « victoire » : le traité de Hudaybiyya, perçu comme un revers par certains compagnons, est proclamé « victoire éclatante ».",
+  "sources_note": "Découpage précisément sourcé (grokipedia, thequran.love) : 1-4/1-5, 11-18, 19-26.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Victoire éclatante",
+      "resume": "Le traité de Hudaybiyya proclamé victoire éclatante, pardon des péchés passés et futurs du Prophète.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Victoire éclatante proclamée, pardon accordé au Prophète" }
+      ]
+    },
+    {
+      "range": "6-10",
+      "title": "La Sakîna, allégeance au Prophète",
+      "resume": "Châtiment des hypocrites et associateurs, paix intérieure (sakîna) descendue sur les croyants.",
+      "children": [
+        { "v": "6-10", "cat": "croyance", "t": "Châtiment des hypocrites, la sakîna, allégeance au Prophète équivalente à allégeance à Allah" }
+      ]
+    },
+    {
+      "range": "11-18",
+      "title": "Excuses des bédouins",
+      "resume": "Lâcheté et mauvaise foi des bédouins restés en arrière, mise en doute de la véracité du Prophète.",
+      "children": [
+        { "v": "11-18", "cat": "argumentation", "t": "Excuses des bédouins restés en arrière, leur mauvaise foi exposée" }
+      ]
+    },
+    {
+      "range": "19-27",
+      "title": "Victoires futures, vision confirmée",
+      "resume": "Promesse de butin, victoires futures (Khaybar), pacte sous l'arbre, vision du Prophète confirmée.",
+      "children": [
+        { "v": "19-26", "cat": "eschatologie", "t": "Promesse de butin et de victoires futures, pacte sous l'arbre (bay'at ar-ridwân)" },
+        { "v": "27", "cat": "croyance", "t": "Vision confirmée : entrée à la Mosquée sacrée" }
+      ]
+    },
+    {
+      "range": "28-29",
+      "title": "Clôture",
+      "resume": "Description des compagnons du Prophète dans la Thora et l'Évangile.",
+      "children": [
+        { "v": "28-29", "cat": "ethique", "t": "Description des compagnons du Prophète, fermes envers les mécréants, miséricordieux entre eux" }
+      ]
+    }
+  ]
+}

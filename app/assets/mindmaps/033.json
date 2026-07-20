@@ -1,0 +1,73 @@
+{
+  "surah": 33,
+  "name_ar": "الأحزاب",
+  "name_latin": "Al-Ahzab",
+  "ayat_count": 73,
+  "theme_central": "Étude de cas divine d'une communauté en crise : la bataille de la Tranchée au centre, encadrée par les réformes sociales qui en traitent les causes et conséquences profondes.",
+  "sources_note": "Découpage détaillé et précisément sourcé (tafsirzilal.wordpress.com, Prologue Sūrah 33) : 1-3, 4-5, 9-27, 28-34, 35, 36-40, 41-48.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Instructions d'ouverture",
+      "resume": "Obéir à la révélation, s'en remettre à Allah ; les croyants plus proches les uns des autres que par les liens de sang.",
+      "children": [
+        { "v": "1-3", "cat": "ethique", "t": "Obéir à la révélation, s'en remettre à Allah plutôt qu'aux hypocrites" },
+        { "v": "6-8", "cat": "ethique", "t": "Les croyants plus proches les uns des autres ; le pacte des prophètes" }
+      ]
+    },
+    {
+      "range": "4-5",
+      "title": "Réforme sociale : abolition de l'adoption",
+      "resume": "Ziĥâr répudié, appeler les enfants adoptifs du nom de leur père véritable.",
+      "children": [
+        { "v": "4-5", "cat": "legislation", "t": "Abolition de l'adoption pré-islamique, vérité de la filiation confirmée" }
+      ]
+    },
+    {
+      "range": "9-27",
+      "title": "La bataille de la Tranchée",
+      "resume": "Siège de Médine, réactions des croyants et des hypocrites, victoire miraculeuse par le vent.",
+      "children": [
+        { "v": "9-20", "cat": "recits", "t": "Siège de Médine, peur des vacillants, cynisme des hypocrites" },
+        { "v": "21-27", "cat": "recits", "t": "Le Prophète, modèle excellent ; victoire par le vent et des armées invisibles" }
+      ]
+    },
+    {
+      "range": "28-35",
+      "title": "Les épouses du Prophète",
+      "resume": "Choix offert entre vie mondaine et Allah, statut des Mères des croyants, égalité spirituelle des dix qualités.",
+      "children": [
+        { "v": "28-34", "cat": "legislation", "t": "Choix offert aux épouses du Prophète, statut de Mères des croyants" },
+        { "v": "35", "cat": "ethique", "t": "Les dix qualités menant au pardon, égales pour hommes et femmes" }
+      ]
+    },
+    {
+      "range": "36-40",
+      "title": "Mariage avec Zaynab",
+      "resume": "Rupture d'un tabou social, confirmation que Muhammad n'est le père d'aucun homme adulte parmi eux.",
+      "children": [
+        { "v": "36-40", "cat": "legislation", "t": "Mariage avec Zaynab, tabou de l'adoption définitivement aboli" }
+      ]
+    },
+    {
+      "range": "41-52",
+      "title": "Mission du Prophète",
+      "resume": "Témoin, avertisseur, lumière ; règles spécifiques concernant les épouses du Prophète.",
+      "children": [
+        { "v": "41-48", "cat": "croyance", "t": "Le Prophète : témoin, annonciateur, avertisseur, lumière éclatante" },
+        { "v": "49-52", "cat": "legislation", "t": "Règle du divorce avant consommation, catégories licites spécifiques au Prophète" }
+      ]
+    },
+    {
+      "range": "53-73",
+      "title": "Le hijab, respect dû, clôture",
+      "resume": "Verset du hijab, ne pas offenser le Prophète, le voile des croyantes, le dépôt de confiance assumé par l'homme.",
+      "children": [
+        { "v": "53-57", "cat": "legislation", "t": "Verset du hijab, bienséance chez le Prophète, respect dû à Allah et Son messager" },
+        { "v": "58-62", "cat": "legislation", "t": "Ne pas calomnier les croyants, ordre du voile (djilbab) pour les croyantes" },
+        { "v": "63-71", "cat": "eschatologie", "t": "Question sur l'Heure, regret des chefs suivis à tort" },
+        { "v": "72-73", "cat": "croyance", "t": "Le dépôt de confiance (al-amâna) proposé aux cieux et à la terre, assumé par l'homme" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "surah": 56,
+  "name_ar": "الواقعة",
+  "name_latin": "Al-Waqi'ah",
+  "ayat_count": 96,
+  "theme_central": "La certitude absolue de la résurrection et le tri définitif de l'humanité en trois groupes : les Premiers, les gens de la droite, les gens de la gauche.",
+  "sources_note": "Découpage précisément sourcé (ayahguide.com, Deep Reflection & Architecture) : 1-6, 7-12, 13-26, 27-40, 41-56, 57-74, 75-82, 83-96.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "L'événement",
+      "resume": "Quand l'événement (al-wâqi'a) surviendra, la terre sera secouée, les montagnes pulvérisées.",
+      "children": [
+        { "v": "1-6", "cat": "eschatologie", "t": "L'événement, la terre secouée, les montagnes pulvérisées" }
+      ]
+    },
+    {
+      "range": "7-12",
+      "title": "Division tripartite",
+      "resume": "Introduction des trois groupes : les Premiers, les gens de la droite, les gens de la gauche.",
+      "children": [
+        { "v": "7-12", "cat": "eschatologie", "t": "Introduction des trois groupes : Premiers, droite, gauche" }
+      ]
+    },
+    {
+      "range": "13-26",
+      "title": "Les Premiers",
+      "resume": "L'élite la plus proche d'Allah, description de leur félicité au Paradis.",
+      "children": [
+        { "v": "13-26", "cat": "eschatologie", "t": "Les Premiers (as-sâbiqûn), félicité au Paradis" }
+      ]
+    },
+    {
+      "range": "27-40",
+      "title": "Les gens de la droite",
+      "resume": "La majorité pieuse, description de leur récompense au Paradis.",
+      "children": [
+        { "v": "27-40", "cat": "eschatologie", "t": "Les gens de la droite, récompense au Paradis" }
+      ]
+    },
+    {
+      "range": "41-56",
+      "title": "Les gens de la gauche",
+      "resume": "Les dénégateurs, description de leur tourment en Enfer.",
+      "children": [
+        { "v": "41-56", "cat": "eschatologie", "t": "Les gens de la gauche, tourment en Enfer" }
+      ]
+    },
+    {
+      "range": "57-74",
+      "title": "Quatre défis sur la création",
+      "resume": "Agriculture, reproduction, eau, feu : quatre arguments du visible vers l'invisible.",
+      "children": [
+        { "v": "57-74", "cat": "argumentation", "t": "Quatre défis : qui crée vraiment la semence, l'eau, le feu, la récolte ?" }
+      ]
+    },
+    {
+      "range": "75-96",
+      "title": "Serment, agonie, tri final",
+      "resume": "Serment par les positions des étoiles, scène de l'agonie, retour aux trois groupes en ordre inversé.",
+      "children": [
+        { "v": "75-82", "cat": "croyance", "t": "Serment par les positions des étoiles, autorité du Coran" },
+        { "v": "83-96", "cat": "eschatologie", "t": "Scène de l'agonie, tri final selon les trois groupes" }
+      ]
+    }
+  ]
+}

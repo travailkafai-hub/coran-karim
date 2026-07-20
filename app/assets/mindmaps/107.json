@@ -1,0 +1,26 @@
+{
+  "surah": 107,
+  "name_ar": "الماعون",
+  "name_latin": "Al-Ma'un",
+  "ayat_count": 7,
+  "theme_central": "Nier la Rétribution se manifeste très concrètement : négliger l'orphelin et le pauvre, prier sans sincérité, refuser la plus simple entraide.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Négligence de l'orphelin et du pauvre",
+      "resume": "Celui qui traite de mensonge la Rétribution repousse l'orphelin et n'incite pas à nourrir le pauvre.",
+      "children": [
+        { "v": "1-3", "cat": "ethique", "t": "Négligence de l'orphelin et du pauvre, signe du déni de la Rétribution" }
+      ]
+    },
+    {
+      "range": "4-7",
+      "title": "Prière hypocrite, refus de l'entraide",
+      "resume": "Malheur aux priants distraits et ostentatoires, qui refusent l'entraide la plus simple.",
+      "children": [
+        { "v": "4-7", "cat": "legislation", "t": "Prière hypocrite et ostentatoire, refus de l'entraide usuelle" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "surah": 77,
+  "name_ar": "المرسلات",
+  "name_latin": "Al-Mursalat",
+  "ayat_count": 50,
+  "theme_central": "Un martèlement rythmique : « Malheur ce Jour-là aux négateurs ! » — répété dix fois, plus que tout autre refrain du Coran, après chaque preuve de la puissance et de la justice d'Allah.",
+  "sources_note": "Structure précisément sourcée (ayahguide.com, Reflection & Tadabbur) : 1-7, 12-15, 16-28, 45-50 ; refrain confirmé répété dix fois.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "Serments cosmiques",
+      "resume": "Serments par les envoyés successifs, créant une tension montante vers l'événement promis.",
+      "children": [
+        { "v": "1-7", "cat": "croyance", "t": "Serments par les envoyés successifs, l'événement promis en marche" }
+      ]
+    },
+    {
+      "range": "8-15",
+      "title": "Le Jour du Tri",
+      "resume": "Étoiles effacées, ciel fendu, montagnes pulvérisées ; premier refrain : « Malheur ce Jour aux négateurs ! »",
+      "children": [
+        { "v": "8-15", "cat": "eschatologie", "t": "Le Jour du Tri fixé, premier refrain contre les négateurs" }
+      ]
+    },
+    {
+      "range": "16-28",
+      "title": "Les preuves",
+      "resume": "Destruction des négateurs anciens, création à partir d'un liquide vil, terre stable, eau douce.",
+      "children": [
+        { "v": "16-28", "cat": "signes", "t": "Destruction des anciens, création humaine, terre stable, eau douce — preuves répétées" }
+      ]
+    },
+    {
+      "range": "29-40",
+      "title": "Enfer et Paradis contrastés",
+      "resume": "Ombre à trois branches ne protégeant de rien, étincelles comme des châteaux ; jardins et sources pour les pieux.",
+      "children": [
+        { "v": "29-34", "cat": "eschatologie", "t": "Ombre à trois branches, étincelles comme des châteaux pour les négateurs" },
+        { "v": "35-40", "cat": "eschatologie", "t": "Jardins et sources pour les pieux, jour où nul ne parle sans permission" }
+      ]
+    },
+    {
+      "range": "41-50",
+      "title": "Clôture",
+      "resume": "Invitation des pieux à manger et boire agréablement ; refrains finaux adressés directement aux négateurs.",
+      "children": [
+        { "v": "41-50", "cat": "eschatologie", "t": "Récompense des pieux, refrains finaux adressés aux négateurs" }
+      ]
+    }
+  ]
+}

@@ -658,6 +658,58 @@ strictement mieux que l'absence de retour ET que la fausse validation.
 
 ---
 
+## 13. Erreurs catégorisées par type (2026-07-20)
+
+**Demande** : « pour les erreurs de récitation, les catégoriser par type :
+tajwid ou prononciation ».
+
+### Ce qui manquait
+
+Le journal (`recitation_errors`) ne stockait que *où* : sourate, verset, index
+du mot, mot attendu. Jamais *pourquoi*. Et l'information nécessaire — **ce qui
+a été réellement entendu** — n'était conservée nulle part : elle existait le
+temps du jugement puis disparaissait. Impossible donc de reclasser après coup.
+
+### Méthode : comparer, pas étiqueter
+
+`RecitedWord.heard` (nouveau) retient le squelette entendu au moment du
+jugement (point de passage unique : `_judge`). La classification
+(`RecitationNotifier.classifyError`) va du plus concret au plus déductif :
+
+| Constat | Type | Famille |
+|---|---|---|
+| rien entendu | `saute` | Mot sauté |
+| squelette différent | `lettre` (ص/س, ط/ت…) | **Prononciation** |
+| squelette égal, harakat différentes | `harakat` (رَبِّ vs رَبُّ) | **Prononciation** |
+| lettres ET harakat justes, mais le mot porte une règle | `tajwid` | **Tajwid** |
+| sinon | `inconnu` | — |
+
+### ⚠️ Limite assumée, affichée à l'utilisateur
+
+`tajwid` est une **déduction par élimination**, pas une détection directe de la
+règle ratée : l'écart peut venir d'autre chose (durée, liaison) sans qu'on
+sache le distinguer aujourd'hui. Tant que la mesure « détection de fautes
+délibérées » n'existe pas (§12), cette catégorie se lit **« écart non expliqué
+par les lettres ni les harakat, sur un mot porteur d'une règle »**.
+C'est écrit **dans l'UI** sous la barre de répartition — pas seulement dans le
+code : l'utilisateur doit pouvoir juger de la confiance à accorder au chiffre.
+
+### Persistance
+
+Base v1 → **v2**, migration **non destructive** (`ALTER TABLE ADD COLUMN kind`).
+Les erreurs déjà journalisées sont conservées et ressortent en « indéterminé »
+— on ne peut pas reconstruire après coup ce qui avait été entendu, et les
+compter comme du tajwid serait une invention. Le journal est l'historique réel
+de l'utilisateur : jamais de `DROP`/recréation.
+
+### Affichage
+
+Barre empilée + légende chiffrée en tête du volet erreurs du hub Coach, AVANT
+la liste par sourate : les deux répondent à des questions différentes —
+« sur quoi je bute ? » (type) puis « où travailler ? » (sourate).
+
+---
+
 ## 10. Décisions VERROUILLÉES (ne pas rouvrir sans l'utilisateur)
 
 - Un seul modèle ; modes = couches de jugement post-décodage (§ principe).

@@ -1,0 +1,51 @@
+{
+  "surah": 74,
+  "name_ar": "المدثر",
+  "name_latin": "Al-Muddaththir",
+  "ayat_count": 56,
+  "theme_central": "« Lève-toi et avertis ! » — le cœur de la sourate est cet ordre qui fait passer le Prophète de la spiritualité personnelle à la responsabilité publique.",
+  "sources_note": "Structure précisément sourcée (grokipedia) : 1-7, 8-26, 26-30 (Saqar, les 19 gardiens), 49-56.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "Lève-toi et avertis",
+      "resume": "Ordre direct : se lever, avertir, se purifier, patienter — préparation avant la suite de la révélation.",
+      "children": [
+        { "v": "1-7", "cat": "croyance", "t": "« Lève-toi et avertis ! », purification et patience demandées" }
+      ]
+    },
+    {
+      "range": "8-25",
+      "title": "L'opposant riche",
+      "resume": "Portrait d'un notable mecquois (Al-Walid ibn al-Mughira) qui rejette délibérément la vérité malgré tous ses avantages.",
+      "children": [
+        { "v": "8-25", "cat": "recits", "t": "L'opposant riche rejette délibérément la vérité malgré ses avantages" }
+      ]
+    },
+    {
+      "range": "26-31",
+      "title": "Saqar, les dix-neuf gardiens",
+      "resume": "L'Enfer (Saqar) décrit comme un brasier ; dix-neuf gardiens sévères, épreuve pour mécréants et confirmation pour croyants.",
+      "children": [
+        { "v": "26-31", "cat": "eschatologie", "t": "Saqar, dix-neuf gardiens sévères, épreuve pour les cœurs" }
+      ]
+    },
+    {
+      "range": "32-48",
+      "title": "Serments, dialogue en Enfer",
+      "resume": "Serments par la lune, la nuit, l'aube ; dialogue avec les criminels sur ce qui les a menés en Enfer.",
+      "children": [
+        { "v": "32-34", "cat": "croyance", "t": "Serments par la lune, la nuit qui se retire, l'aube qui blanchit" },
+        { "v": "35-48", "cat": "eschatologie", "t": "Dialogue avec les criminels : n'ont pas prié, n'ont pas nourri le pauvre" }
+      ]
+    },
+    {
+      "range": "49-56",
+      "title": "Clôture",
+      "resume": "Pourquoi se détournent-ils comme des ânes effarouchés ? Nul n'est rappelé sauf si Allah le veut.",
+      "children": [
+        { "v": "49-56", "cat": "argumentation", "t": "Fuite comme des ânes effarouchés ; nul rappel sans la volonté d'Allah" }
+      ]
+    }
+  ]
+}

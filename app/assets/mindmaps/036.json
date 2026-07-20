@@ -1,0 +1,83 @@
+{
+  "surah": 36,
+  "name_ar": "يس",
+  "name_latin": "Yasin",
+  "ayat_count": 83,
+  "theme_central": "« Le Cœur du Coran » : établir avec la plus grande éloquence la vérité de la prophétie, l'unicité d'Allah et la certitude de la résurrection.",
+  "sources_note": "Le récit de l'Homme de la Cité (13-29) précisément sourcé (surahsofquran.com, Main Themes of Surah Yaseen). Reste construit sur des repères très largement connus (le Cri unique, le témoignage des mains et des pieds, le sceau final « Sois, et c'est »).",
+  "branches": [
+    {
+      "range": "1-12",
+      "title": "Ouverture, mise en garde",
+      "resume": "Serment par le Coran sage, confirmation de la prophétie, carcans autour du cou des mécréants.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Serment par le Coran sage, confirmation de la prophétie de Muhammad" },
+        { "v": "7-12", "cat": "eschatologie", "t": "Carcans autour du cou des mécréants, résurrection avec les œuvres consignées" }
+      ]
+    },
+    {
+      "range": "13-29",
+      "title": "L'Homme de la Cité",
+      "resume": "Trois envoyés rejetés par une cité, un homme intervient en leur faveur, martyr, entrée immédiate au Paradis.",
+      "children": [
+        { "v": "13-19", "cat": "recits", "t": "Trois envoyés rejetés par les habitants de la cité" },
+        { "v": "20-27", "cat": "recits", "t": "Un homme accourt pour défendre les envoyés, tué, entre immédiatement au Paradis" },
+        { "v": "28-29", "cat": "eschatologie", "t": "Un seul Cri suffit à anéantir son peuple" }
+      ]
+    },
+    {
+      "range": "30-35",
+      "title": "Regret sur les serviteurs, signes",
+      "resume": "Regret divin sur les serviteurs moqueurs de chaque messager ; la terre morte revivifiée.",
+      "children": [
+        { "v": "30-32", "cat": "argumentation", "t": "Regret sur les serviteurs, chaque messager moqué en son temps" },
+        { "v": "33-35", "cat": "signes", "t": "La terre morte revivifiée, jardins de palmiers et de vignes, sources" }
+      ]
+    },
+    {
+      "range": "36-44",
+      "title": "Les couples dans la création, l'arche",
+      "resume": "Allah a créé toute chose en couples ; le soleil et la lune sur leur orbite précise ; l'arche de Nuh.",
+      "children": [
+        { "v": "36-40", "cat": "signes", "t": "Couples créés en toute chose, la nuit détachée du jour, orbites précises du soleil et de la lune" },
+        { "v": "41-44", "cat": "recits", "t": "L'arche de Nuh, signe du transport par grâce divine" }
+      ]
+    },
+    {
+      "range": "45-54",
+      "title": "Moquerie du châtiment, le Cri unique",
+      "resume": "Rappel ignoré, moquerie de la charité, question moqueuse sur l'échéance, un seul Cri suffira.",
+      "children": [
+        { "v": "45-47", "cat": "argumentation", "t": "Rappel ignoré, moquerie de la dépense en charité" },
+        { "v": "48-54", "cat": "eschatologie", "t": "Question moqueuse sur l'échéance ; un seul Cri suffira à la résurrection instantanée" }
+      ]
+    },
+    {
+      "range": "55-68",
+      "title": "Les gens du Paradis, témoignage des membres",
+      "resume": "Occupation heureuse des gens du Paradis, séparation des criminels, mains et pieds témoins de leurs actes.",
+      "children": [
+        { "v": "55-58", "cat": "eschatologie", "t": "Occupation heureuse des gens du Paradis, salutation de paix" },
+        { "v": "59-64", "cat": "eschatologie", "t": "Séparation des criminels, Satan leur ennemi déclaré" },
+        { "v": "65-68", "cat": "eschatologie", "t": "Bouches scellées, mains et pieds témoignant des actes" }
+      ]
+    },
+    {
+      "range": "69-76",
+      "title": "Ce n'est pas de la poésie",
+      "resume": "Le Prophète n'est pas un poète ; ceci est un rappel clair ; le bétail parmi les bienfaits d'Allah.",
+      "children": [
+        { "v": "69-70", "cat": "croyance", "t": "Le Prophète n'est pas un poète, ceci est un rappel et un Coran clair" },
+        { "v": "71-76", "cat": "signes", "t": "Le bétail créé pour l'homme ; recherche de secours auprès de faux dieux, en vain" }
+      ]
+    },
+    {
+      "range": "77-83",
+      "title": "Clôture",
+      "resume": "L'homme conteste la résurrection en oubliant sa propre création ; « Sois, et c'est ».",
+      "children": [
+        { "v": "77-83", "cat": "eschatologie", "t": "L'homme conteste la résurrection ; clôture : « Quand Il veut une chose, Il dit Sois, et elle est »" }
+      ]
+    }
+  ]
+}

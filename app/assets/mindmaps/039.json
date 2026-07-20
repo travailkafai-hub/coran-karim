@@ -1,0 +1,60 @@
+{
+  "surah": 39,
+  "name_ar": "الزمر",
+  "name_latin": "Az-Zumar",
+  "ayat_count": 75,
+  "theme_central": "L'exclusivité de la dévotion à Allah (ikhlâs) comme remède à l'arrogance — culminant dans le verset le plus porteur d'espoir du Coran : ne jamais désespérer de la miséricorde d'Allah.",
+  "sources_note": "Découpage précisément sourcé (grokipedia, thelastdialogue.org) : 1-8, 9-20, 21-31, 32-47. Suite (48-75) reconstruite à partir du verset-clé bien connu 39:53 et de la scène finale des « zumar » (groupes) qui donne son nom à la sourate.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Monothéisme et prophétie",
+      "resume": "La religion pure et sincère appartient à Allah ; création de l'homme par étapes dans le ventre maternel.",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "La religion pure appartient à Allah, création de l'homme par étapes" }
+      ]
+    },
+    {
+      "range": "9-20",
+      "title": "Consolation, fermeté",
+      "resume": "Celui qui adore avec dévotion nocturne n'est pas l'égal de l'insouciant ; ordre de rester ferme et sincère.",
+      "children": [
+        { "v": "9-20", "cat": "ethique", "t": "L'adorateur nocturne n'est pas l'égal de l'insouciant ; sincérité exigée" }
+      ]
+    },
+    {
+      "range": "21-31",
+      "title": "Contraste croyants sincères / insouciants",
+      "resume": "L'eau qui irrigue la terre comme parabole, contraste entre poitrine ouverte à l'islam et cœur endurci.",
+      "children": [
+        { "v": "21-31", "cat": "argumentation", "t": "Parabole de l'eau qui irrigue la terre, poitrine ouverte vs cœur endurci" }
+      ]
+    },
+    {
+      "range": "32-47",
+      "title": "Réfutation du chirk",
+      "resume": "Qui est plus injuste que celui qui ment sur Allah ? Allah suffit à Son serviteur.",
+      "children": [
+        { "v": "32-47", "cat": "argumentation", "t": "Réfutation du chirk, Allah suffit à Son serviteur" }
+      ]
+    },
+    {
+      "range": "48-59",
+      "title": "Le verset de l'espoir",
+      "resume": "Sort au Jugement, puis le verset le plus porteur d'espoir du Coran : ne jamais désespérer de la miséricorde.",
+      "children": [
+        { "v": "48-52", "cat": "eschatologie", "t": "Sort des transgresseurs, extension ou restriction de la subsistance" },
+        { "v": "53-59", "cat": "croyance", "t": "« Ne désespérez pas de la miséricorde d'Allah » — Il pardonne tous les péchés" }
+      ]
+    },
+    {
+      "range": "60-75",
+      "title": "Clôture : les groupes (zumar)",
+      "resume": "D'où le nom de la sourate : les mécréants et les croyants menés en groupes vers l'Enfer et le Paradis.",
+      "children": [
+        { "v": "60-66", "cat": "eschatologie", "t": "Visages noircis des menteurs, appel exclusif à adorer Allah" },
+        { "v": "67-75", "cat": "eschatologie", "t": "Les groupes (zumar) menés vers l'Enfer et le Paradis, le trône entouré d'anges" }
+      ]
+    }
+  ]
+}

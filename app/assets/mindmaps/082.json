@@ -1,0 +1,35 @@
+{
+  "surah": 82,
+  "name_ar": "الانفطار",
+  "name_latin": "Al-Infitar",
+  "ayat_count": 19,
+  "theme_central": "Quand le ciel se fendra, chaque âme saura ce qu'elle a fait et omis — malgré des gardiens scribes qui, jour après jour, consignaient déjà tout.",
+  "sources_note": "Contenu largement enseigné et non contesté.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Bouleversement cosmique",
+      "resume": "Ciel fendu, étoiles dispersées, mers mélangées, tombes bouleversées.",
+      "children": [
+        { "v": "1-5", "cat": "eschatologie", "t": "Bouleversement cosmique, chaque âme sait ce qu'elle a fait et omis" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Ingratitude de l'homme",
+      "resume": "Qu'est-ce qui t'a trompé au sujet de ton Généreux Seigneur qui t'a créé harmonieusement ?",
+      "children": [
+        { "v": "6-8", "cat": "argumentation", "t": "Ingratitude de l'homme envers son Généreux Créateur" }
+      ]
+    },
+    {
+      "range": "9-19",
+      "title": "Gardiens, rétribution finale",
+      "resume": "Nobles scribes veillant sur chacun ; sort contrasté des bons et des libertins au Jour de la Rétribution.",
+      "children": [
+        { "v": "9-12", "cat": "croyance", "t": "Nobles scribes gardiens consignant chaque acte" },
+        { "v": "13-19", "cat": "eschatologie", "t": "Sort contrasté des bons et des libertins au Jour de la Rétribution" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "surah": 87,
+  "name_ar": "الأعلى",
+  "name_latin": "Al-A'la",
+  "ayat_count": 19,
+  "theme_central": "Glorifier le Très-Haut qui crée, proportionne et guide — la révélation facilitée pour qui veut s'en souvenir, ancrée dans les feuillets anciens d'Ibrahim et de Moussa.",
+  "sources_note": "Contenu largement enseigné et non contesté.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Glorifier le Très-Haut",
+      "resume": "Allah crée, proportionne harmonieusement, détermine et guide, fait pousser puis dessèche le pâturage.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Glorification du Très-Haut, création parfaitement proportionnée" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Révélation facilitée",
+      "resume": "Le Prophète récitera sans rien oublier que par la volonté d'Allah ; la voie la plus facile lui est facilitée.",
+      "children": [
+        { "v": "6-8", "cat": "croyance", "t": "Récitation facilitée, la voie la plus facile assurée" }
+      ]
+    },
+    {
+      "range": "9-13",
+      "title": "Le rappel utile",
+      "resume": "Rappelle si le rappel profite ; s'en souviendra celui qui craint, s'en détournera le grand malheureux.",
+      "children": [
+        { "v": "9-13", "cat": "eschatologie", "t": "Le rappel profite à qui craint ; sort du grand malheureux en Enfer" }
+      ]
+    },
+    {
+      "range": "14-19",
+      "title": "Réussite par la purification",
+      "resume": "Réussit qui se purifie et prie ; l'au-delà est meilleur, cela figure dans les feuillets anciens d'Ibrahim et de Moussa.",
+      "children": [
+        { "v": "14-19", "cat": "ethique", "t": "Réussite par la purification et la prière, sagesse des feuillets anciens" }
+      ]
+    }
+  ]
+}

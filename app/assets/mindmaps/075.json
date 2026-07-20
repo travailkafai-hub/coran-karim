@@ -1,0 +1,52 @@
+{
+  "surah": 75,
+  "name_ar": "القيامة",
+  "name_latin": "Al-Qiyamah",
+  "ayat_count": 40,
+  "theme_central": "La certitude de la résurrection, jusque dans le détail des empreintes digitales — la vraie cause de la mécréance est l'amour de ce bas monde éphémère.",
+  "sources_note": "Structure en 2 rukus précisément sourcée (grokipedia) : 1-15, 16-40, avec repères fins (1-4, 6-9, 16-19, 20-30, 31-40).",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Serment, résurrection dans le détail",
+      "resume": "Serment par le Jour de la résurrection ; reconstitution même des empreintes digitales ; éclipses au Jugement.",
+      "children": [
+        { "v": "1-5", "cat": "eschatologie", "t": "Serment par le Jour, résurrection reconstituée jusqu'aux empreintes digitales" },
+        { "v": "6-9", "cat": "eschatologie", "t": "Question moqueuse sur l'échéance, vision dazzled, éclipse du soleil et de la lune" }
+      ]
+    },
+    {
+      "range": "10-15",
+      "title": "Nul refuge ce Jour",
+      "resume": "Nulle fuite possible ; l'homme lui-même témoin contre soi malgré ses excuses.",
+      "children": [
+        { "v": "10-15", "cat": "eschatologie", "t": "Nul refuge ce Jour, l'homme témoin contre lui-même" }
+      ]
+    },
+    {
+      "range": "16-19",
+      "title": "Préservation du Coran",
+      "resume": "Rassurance intime au Prophète : ne pas précipiter sa langue, Allah se charge de la préservation et de l'explication.",
+      "children": [
+        { "v": "16-19", "cat": "croyance", "t": "Préservation et explication du Coran assurées par Allah" }
+      ]
+    },
+    {
+      "range": "20-30",
+      "title": "Vision des pieux, l'agonie",
+      "resume": "Les pieux verront leur Seigneur ; description de l'agonie de la mort, le tibia qui s'enlace à l'autre.",
+      "children": [
+        { "v": "20-25", "cat": "eschatologie", "t": "Amour du bas monde, les pieux verront leur Seigneur" },
+        { "v": "26-30", "cat": "eschatologie", "t": "Description de l'agonie de la mort" }
+      ]
+    },
+    {
+      "range": "31-40",
+      "title": "Le dénégateur, clôture",
+      "resume": "Portrait du dénégateur qui se détourne ; l'homme croit-il qu'il sera laissé sans compte ? Capacité d'Allah à recréer.",
+      "children": [
+        { "v": "31-40", "cat": "argumentation", "t": "Le dénégateur qui se détourne ; capacité d'Allah à recréer l'homme" }
+      ]
+    }
+  ]
+}

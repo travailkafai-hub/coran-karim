@@ -1,0 +1,70 @@
+{
+  "surah": 50,
+  "name_ar": "ق",
+  "name_latin": "Qaf",
+  "ayat_count": 45,
+  "theme_central": "La réalité de la résurrection : Allah, plus proche de l'homme que sa veine jugulaire, consigne chaque parole par deux anges scribes — rien de ce qui a été ne sera perdu.",
+  "sources_note": "Découpage précisément sourcé (medium.com/@louismorris, grokipedia) : 1-4, 5-11, 12-14/15, 15-25 (jugulaire v.16), 30-31, 38, 39-40, 41-44.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Étonnement, doute sur la résurrection",
+      "resume": "Étonnement des mécréants face à un avertisseur issu d'eux-mêmes, déni d'un tel retour.",
+      "children": [
+        { "v": "1-4", "cat": "argumentation", "t": "Étonnement des mécréants, déni de la résurrection jugée impossible" }
+      ]
+    },
+    {
+      "range": "5-11",
+      "title": "Bienfaits, signes de la création",
+      "resume": "Le ciel sans faille, la terre étendue, les palmiers aux régimes superposés.",
+      "children": [
+        { "v": "5-11", "cat": "signes", "t": "Le ciel sans faille, la terre étendue, palmiers et végétation" }
+      ]
+    },
+    {
+      "range": "12-15",
+      "title": "Peuples anciens ayant nié",
+      "resume": "Le peuple de Nuh, Thamud, 'Ad, Pharaon, les frères de Lot, les gens du Bois, le peuple de Tubba'.",
+      "children": [
+        { "v": "12-15", "cat": "recits", "t": "Peuples anciens ayant nié leurs messagers, fatigués par la première création ?" }
+      ]
+    },
+    {
+      "range": "16-26",
+      "title": "Proximité d'Allah, anges scribes",
+      "resume": "Allah plus proche de l'homme que sa veine jugulaire ; deux anges consignent chaque parole.",
+      "children": [
+        { "v": "16-18", "cat": "croyance", "t": "Allah plus proche que la veine jugulaire, deux anges scribes consignent chaque parole" },
+        { "v": "19-26", "cat": "eschatologie", "t": "L'agonie de la mort, sortie du voile, l'ange qui pousse et qui témoigne" }
+      ]
+    },
+    {
+      "range": "27-31",
+      "title": "Dispute, Enfer et Paradis",
+      "resume": "Dispute du compagnon démon avec le damné, l'Enfer et le Paradis rapprochés.",
+      "children": [
+        { "v": "27-29", "cat": "eschatologie", "t": "Dispute du compagnon démon avec le damné devant Allah" },
+        { "v": "30-31", "cat": "eschatologie", "t": "L'Enfer qui se remplit, le Paradis rapproché des pieux" }
+      ]
+    },
+    {
+      "range": "32-40",
+      "title": "Promesse aux pieux, création, prière",
+      "resume": "Promesse au cœur attentif, création des cieux et de la terre en six jours, patience et prière.",
+      "children": [
+        { "v": "32-37", "cat": "croyance", "t": "Promesse aux pieux, rappel pour qui a un cœur attentif" },
+        { "v": "38-40", "cat": "adoration", "t": "Création en six jours sans fatigue, patience et glorification aux heures de prière" }
+      ]
+    },
+    {
+      "range": "41-45",
+      "title": "Le Jour de la sortie des tombes",
+      "resume": "Le Cri, la terre qui se fend, sortie rapide des tombes ; clôture, le Prophète n'est pas contraignant.",
+      "children": [
+        { "v": "41-44", "cat": "eschatologie", "t": "Le Cri annonçant la sortie des tombes, la terre qui se fend" },
+        { "v": "45", "cat": "croyance", "t": "Clôture : le Prophète n'est pas contraignant, rappeler par le Coran" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "surah": 42,
+  "name_ar": "الشورى",
+  "name_latin": "Ash-Shura",
+  "ayat_count": 53,
+  "theme_central": "L'unité et l'universalité de la révélation divine, seul fondement d'une communauté humaine juste — dont l'une des expressions concrètes est la consultation mutuelle (shûra), qui donne son nom à la sourate.",
+  "sources_note": "Structure en 5 grandes parties sourcée (iqna.ir), affinée avec des repères connus (la shûra au verset 38, les trois modes de révélation en clôture 51-53).",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Ouverture, révélation universelle",
+      "resume": "Révélation à Muhammad comme aux prophètes précédents ; les anges demandent pardon pour les habitants de la terre.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Révélation universelle, les anges demandent pardon pour les habitants de la terre" }
+      ]
+    },
+    {
+      "range": "7-19",
+      "title": "Coran arabe, religion unique",
+      "resume": "Averti la Mère des Cités ; la religion prescrite est unique depuis Nuh ; division survenue par jalousie.",
+      "children": [
+        { "v": "7-13", "cat": "croyance", "t": "Coran arabe pour avertir ; religion unique prescrite depuis Nuh" },
+        { "v": "14-19", "cat": "argumentation", "t": "Division survenue par jalousie entre les gens malgré la clarté du message" }
+      ]
+    },
+    {
+      "range": "20-29",
+      "title": "Labour de ce bas monde ou de l'au-delà",
+      "resume": "Choix entre les deux récoltes ; récompense promise ; la pluie envoyée après le désespoir.",
+      "children": [
+        { "v": "20-22", "cat": "eschatologie", "t": "Choix entre labourer pour ce bas monde ou pour l'au-delà" },
+        { "v": "23-29", "cat": "ethique", "t": "Le Prophète ne demande que l'affection des proches ; la pluie après le désespoir" }
+      ]
+    },
+    {
+      "range": "30-35",
+      "title": "Malheurs et actes, signes des navires",
+      "resume": "Les malheurs sont conséquence des actes des hommes ; navires en mer comme signes.",
+      "children": [
+        { "v": "30-35", "cat": "signes", "t": "Malheurs conséquence des actes, navires en mer comme signes" }
+      ]
+    },
+    {
+      "range": "36-43",
+      "title": "Les croyants et la consultation (shûra)",
+      "resume": "Cœur de la sourate : évitement des péchés graves, pardon, consultation mutuelle, défense équitable.",
+      "children": [
+        { "v": "36-39", "cat": "ethique", "t": "Évitement des péchés graves, pardon, consultation mutuelle (shûra)" },
+        { "v": "40-43", "cat": "ethique", "t": "Défense équitable face à l'injustice, patience et pardon préférables" }
+      ]
+    },
+    {
+      "range": "44-53",
+      "title": "Clôture",
+      "resume": "Nul protecteur pour qui Allah égare, dons selon la volonté divine, trois modes de révélation.",
+      "children": [
+        { "v": "44-50", "cat": "croyance", "t": "Nul protecteur pour l'égaré ; dons d'enfants selon la volonté divine" },
+        { "v": "51-53", "cat": "croyance", "t": "Trois modes de révélation ; le Coran, lumière guidant vers le droit chemin" }
+      ]
+    }
+  ]
+}

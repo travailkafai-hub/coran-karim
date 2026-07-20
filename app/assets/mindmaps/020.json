@@ -1,0 +1,76 @@
+{
+  "surah": 20,
+  "name_ar": "طه",
+  "name_latin": "Ta-Ha",
+  "ayat_count": 135,
+  "theme_central": "Structure en anneau autour de deux récits (Moussa, puis Adam), chacun encadré par des instructions au Prophète et suivi d'une évocation du Jour du Jugement.",
+  "sources_note": "Structure en anneau confirmée (Wikipedia Ta-Ha, en anglais) avec repères précis : appel de Moussa v.10, exode/mer Rouge v.77, veau d'or v.88, chute d'Adam v.120.",
+  "branches": [
+    {
+      "range": "1-16",
+      "title": "Ouverture, l'appel au buisson",
+      "resume": "Le Coran non descendu pour affliger ; Moussa voit le feu et reçoit l'appel divin.",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "Le Coran non descendu pour affliger, Allah connaît le secret et le plus caché" },
+        { "v": "9-16", "cat": "recits", "t": "Moussa voit le feu, appel divin : « Je suis Allah, nulle divinité que Moi »" }
+      ]
+    },
+    {
+      "range": "17-56",
+      "title": "Les signes, mission à Pharaon",
+      "resume": "Le bâton et la main lumineuse, mission élargie à Harun, envoi à Pharaon.",
+      "children": [
+        { "v": "17-36", "cat": "recits", "t": "Le bâton et la main lumineuse, Moussa demande l'aide de Harun" },
+        { "v": "37-40", "cat": "recits", "t": "Rappel de l'enfance de Moussa, le coffret sur le fleuve" },
+        { "v": "41-56", "cat": "recits", "t": "Envoi à Pharaon avec parole douce, débat : « Qui est votre Seigneur ? »" }
+      ]
+    },
+    {
+      "range": "57-79",
+      "title": "Défi des magiciens, exode",
+      "resume": "Confrontation avec les magiciens, leur conversion, puis exode et noyade de Pharaon.",
+      "children": [
+        { "v": "57-70", "cat": "recits", "t": "Défi lancé aux magiciens, confrontation" },
+        { "v": "71-76", "cat": "recits", "t": "Conversion des magiciens malgré la menace de Pharaon" },
+        { "v": "77-79", "cat": "eschatologie", "t": "Exode, traversée de la mer, noyade de Pharaon" }
+      ]
+    },
+    {
+      "range": "80-98",
+      "title": "Le veau d'or, le Samiri",
+      "resume": "Bienfaits rappelés, colère de Moussa devant le veau d'or fabriqué par le Samiri.",
+      "children": [
+        { "v": "80-82", "cat": "recits", "t": "Rappel des bienfaits, la manne et les cailles" },
+        { "v": "83-89", "cat": "recits", "t": "Colère de Moussa, le veau d'or fabriqué par le Samiri" },
+        { "v": "90-98", "cat": "recits", "t": "Mise en garde de Harun ignorée, confrontation avec le Samiri" }
+      ]
+    },
+    {
+      "range": "99-114",
+      "title": "Rappel eschatologique",
+      "resume": "Le Coran comme rappel, la Trompette, soumission de toute chose à Ar-Rahman.",
+      "children": [
+        { "v": "99-104", "cat": "eschatologie", "t": "Ce Coran comme rappel, sort de qui s'en détourne" },
+        { "v": "105-112", "cat": "eschatologie", "t": "Question sur les montagnes, la Trompette, soumission à Ar-Rahman" },
+        { "v": "113-114", "cat": "croyance", "t": "Le Coran en arabe, ne pas se presser dans la récitation" }
+      ]
+    },
+    {
+      "range": "115-127",
+      "title": "Récit d'Adam, la chute",
+      "resume": "Le pacte oublié, tentation d'Iblis, chute et promesse de guidance.",
+      "children": [
+        { "v": "115-124", "cat": "recits", "t": "Pacte oublié par Adam, tentation d'Iblis, chute, promesse de guidance" },
+        { "v": "125-127", "cat": "eschatologie", "t": "Vie étroite pour qui se détourne du rappel" }
+      ]
+    },
+    {
+      "range": "128-135",
+      "title": "Clôture",
+      "resume": "Leçon des générations détruites, patience et prière comme soutien du Prophète.",
+      "children": [
+        { "v": "128-135", "cat": "ethique", "t": "Leçon des générations détruites, patience, la prière comme soutien" }
+      ]
+    }
+  ]
+}

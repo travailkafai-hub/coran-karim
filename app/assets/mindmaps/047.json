@@ -1,0 +1,59 @@
+{
+  "surah": 47,
+  "name_ar": "محمد",
+  "name_latin": "Muhammad",
+  "ayat_count": 38,
+  "theme_central": "Contraste tranchant entre foi et mécréance : les œuvres des uns rendues vaines, la condition des autres redressée par Allah.",
+  "sources_note": "Découpage précisément sourcé (grokipedia, verse breakdown détaillé) : 1-6, 7-10, 11-15, 16-19, 20-26, 27-32, 33-38.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Contraste fondamental",
+      "resume": "Les mécréants voient leurs œuvres rendues vaines, les croyants voient leur condition redressée.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Œuvres des mécréants vaines, condition des croyants redressée" }
+      ]
+    },
+    {
+      "range": "7-10",
+      "title": "Aide d'Allah, cités détruites",
+      "resume": "Si vous aidez Allah, Il vous aidera ; sort des cités détruites plus puissantes qu'eux.",
+      "children": [
+        { "v": "7-10", "cat": "ethique", "t": "Aider la cause d'Allah pour être aidé, sort des cités détruites" }
+      ]
+    },
+    {
+      "range": "11-19",
+      "title": "Fleuves du Paradis, critique hypocrite",
+      "resume": "Fleuves d'eau, de lait, de vin et de miel au Paradis ; critique de l'interprétation hypocrite du Coran.",
+      "children": [
+        { "v": "11-15", "cat": "eschatologie", "t": "Fleuves du Paradis contrastés avec le sort des mécréants" },
+        { "v": "16-19", "cat": "argumentation", "t": "Critique de l'interprétation hypocrite, véracité du Prophète affirmée" }
+      ]
+    },
+    {
+      "range": "20-26",
+      "title": "Aversion des hypocrites pour le combat",
+      "resume": "Préférence pour la vie mondaine, faux serments, aversion pour le jihad.",
+      "children": [
+        { "v": "20-26", "cat": "argumentation", "t": "Aversion des hypocrites pour le jihad, faux serments prononcés" }
+      ]
+    },
+    {
+      "range": "27-32",
+      "title": "Regret des hypocrites",
+      "resume": "Regret amer des hypocrites au Jour du Jugement, joie contrastée des croyants.",
+      "children": [
+        { "v": "27-32", "cat": "eschatologie", "t": "Regret des hypocrites au Jugement, joie des croyants" }
+      ]
+    },
+    {
+      "range": "33-38",
+      "title": "Obéissance, clôture",
+      "resume": "Ne pas invalider ses œuvres par la mécréance, mise en garde contre l'avarice, autosuffisance d'Allah.",
+      "children": [
+        { "v": "33-38", "cat": "legislation", "t": "Obéissance à Allah et au Messager, mise en garde contre l'avarice" }
+      ]
+    }
+  ]
+}

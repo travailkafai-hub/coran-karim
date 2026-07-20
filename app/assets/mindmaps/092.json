@@ -1,0 +1,50 @@
+{
+  "surah": 92,
+  "name_ar": "الليل",
+  "name_latin": "Al-Layl",
+  "ayat_count": 21,
+  "theme_central": "Deux voies, deux facilitations : à qui donne et craint Allah, la voie du bien-être est facilitée ; à qui est avare et se dispense, la voie de la difficulté.",
+  "sources_note": "Contenu largement enseigné et non contesté : structure classique en 5 mouvements autour des deux voies opposées.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Serments, efforts divergents",
+      "resume": "Serment par la nuit et le jour, la création du mâle et de la femelle ; vos efforts sont divergents.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Serments par la nuit et le jour, efforts humains divergents" }
+      ]
+    },
+    {
+      "range": "5-7",
+      "title": "La voie du bien-être",
+      "resume": "Celui qui donne et craint Allah, atteste la plus belle récompense : voie du bien-être facilitée.",
+      "children": [
+        { "v": "5-7", "cat": "ethique", "t": "Générosité et crainte d'Allah, voie du bien-être facilitée" }
+      ]
+    },
+    {
+      "range": "8-11",
+      "title": "La voie de la difficulté",
+      "resume": "Celui qui est avare et se dispense, traite de mensonge la belle récompense : voie de la difficulté facilitée.",
+      "children": [
+        { "v": "8-11", "cat": "ethique", "t": "Avarice et déni, voie de la difficulté ; les biens ne serviront à rien" }
+      ]
+    },
+    {
+      "range": "12-16",
+      "title": "Guidance, mise en garde",
+      "resume": "À Allah appartiennent la guidance, l'au-delà et l'ici-bas ; mise en garde d'un Feu pour le grand malheureux.",
+      "children": [
+        { "v": "12-16", "cat": "eschatologie", "t": "Guidance appartenant à Allah, Feu réservé au grand malheureux" }
+      ]
+    },
+    {
+      "range": "17-21",
+      "title": "Le plus pieux",
+      "resume": "Écarté du Feu celui qui donne pour se purifier, sans rien attendre en retour sinon la Face de son Seigneur.",
+      "children": [
+        { "v": "17-21", "cat": "ethique", "t": "Le plus pieux donne sans rien attendre, cherchant la Face d'Allah seul" }
+      ]
+    }
+  ]
+}

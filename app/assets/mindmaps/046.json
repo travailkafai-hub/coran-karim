@@ -1,0 +1,61 @@
+{
+  "surah": 46,
+  "name_ar": "الأحقاف",
+  "name_latin": "Al-Ahqaf",
+  "ayat_count": 35,
+  "theme_central": "Rien n'a été créé en vain, et rien n'est caché à Allah : du devoir envers les parents à la destruction du peuple de 'Ad, jusqu'aux djinns eux-mêmes qui reconnaissent la vérité du Coran.",
+  "sources_note": "Découpage précisément sourcé (slideshare.net, Al Quran Chapter 46) : 1-3, 4-8, 9-14, 15, 21-26, 29-30, 32-35.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Création avec vérité, impuissance des idoles",
+      "resume": "Tout créé avec vérité pour un terme fixé ; ce qu'ils invoquent en dehors d'Allah n'a aucun pouvoir.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Tout créé avec vérité, pour un terme fixé" },
+        { "v": "4-8", "cat": "argumentation", "t": "Impuissance totale de ce qu'ils invoquent en dehors d'Allah" }
+      ]
+    },
+    {
+      "range": "9-14",
+      "title": "Le Prophète, message ancien confirmé",
+      "resume": "Muhammad n'est pas un messager d'un genre nouveau ; le Coran conforme à la Thora donnée à Moussa.",
+      "children": [
+        { "v": "9-14", "cat": "croyance", "t": "Message ancien confirmé, conformité avec la Thora, science de l'invisible réservée à Allah" }
+      ]
+    },
+    {
+      "range": "15-20",
+      "title": "Bienfaisance envers les parents",
+      "resume": "Grossesse et sevrage, gratitude envers les parents ; degrés selon les œuvres, jouissance éphémère reprochée.",
+      "children": [
+        { "v": "15", "cat": "ethique", "t": "Bienfaisance envers les parents, grossesse et sevrage sur 30 mois" },
+        { "v": "16-20", "cat": "eschatologie", "t": "Degrés selon les œuvres, jouissance éphémère de ce bas monde reprochée" }
+      ]
+    },
+    {
+      "range": "21-28",
+      "title": "'Ad, la région d'al-Ahqaf",
+      "resume": "D'où le nom de la sourate : le peuple de 'Ad averti par Hud, rejet, destruction par le vent.",
+      "children": [
+        { "v": "21-26", "cat": "recits", "t": "Le peuple de 'Ad dans la région d'al-Ahqaf, averti par Hud, détruit par le vent" },
+        { "v": "27-28", "cat": "argumentation", "t": "Cités anciennes détruites, leurs fausses divinités impuissantes à les secourir" }
+      ]
+    },
+    {
+      "range": "29-32",
+      "title": "Les djinns et le Coran",
+      "resume": "Un groupe de djinns écoute le Coran, y croit, et retourne prêcher auprès de son peuple.",
+      "children": [
+        { "v": "29-32", "cat": "recits", "t": "Des djinns écoutent le Coran, croient, deviennent prédicateurs auprès des leurs" }
+      ]
+    },
+    {
+      "range": "33-35",
+      "title": "Clôture",
+      "resume": "Allah capable de ressusciter les morts ; patience finale demandée au Prophète.",
+      "children": [
+        { "v": "33-35", "cat": "eschatologie", "t": "Allah capable de ressusciter les morts, patience finale demandée" }
+      ]
+    }
+  ]
+}

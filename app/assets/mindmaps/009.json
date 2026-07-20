@@ -1,0 +1,50 @@
+{
+  "surah": 9,
+  "name_ar": "التوبة",
+  "name_latin": "At-Tawbah",
+  "ayat_count": 129,
+  "theme_central": "Consolidation finale de la communauté : de la déclaration de rupture envers les traités rompus (barâ'a) à l'exposé détaillé de l'hypocrisie, jusqu'à la preuve de la foi par l'action.",
+  "sources_note": "Structure en 2 grandes parties sourcée (imamghazali.org, Thematic Explanation : 1-37 puis 38-110) ; clôture 111-129 reconstruite à partir de repères bien établis (verset de la bay'a 111, Ka'b ibn Malik 117-118, versets finaux 128-129).",
+  "branches": [
+    {
+      "range": "1-37",
+      "title": "Déclaration de rupture (Barâ'a)",
+      "resume": "Ultimatum aux polythéistes qui ont rompu leurs traités, statut des Gens du Livre hostiles, les mois sacrés.",
+      "children": [
+        { "v": "1-6", "cat": "legislation", "t": "Déclaration de rupture, délai de 4 mois, exception pour qui respecte le pacte" },
+        { "v": "7-16", "cat": "argumentation", "t": "Pourquoi rompre avec des polythéistes qui trahissent leurs serments" },
+        { "v": "17-22", "cat": "legislation", "t": "Les polythéistes ne peuvent entretenir les mosquées d'Allah" },
+        { "v": "23-24", "cat": "ethique", "t": "Ne pas prendre pour alliés intimes ceux qui préfèrent la mécréance" },
+        { "v": "25-27", "cat": "recits", "t": "Bataille de Hunayn, la victoire vient d'Allah seul" },
+        { "v": "28-35", "cat": "legislation", "t": "Interdiction aux polythéistes d'approcher la Mosquée sacrée, dénonciation des clercs corrompus" },
+        { "v": "36-37", "cat": "legislation", "t": "Les quatre mois sacrés, condamnation du report des mois (nasî')" }
+      ]
+    },
+    {
+      "range": "38-110",
+      "title": "L'anatomie des hypocrites",
+      "resume": "Long exposé central : mobilisation pour Tabûk, excuses des hypocrites, jusqu'à la Mosquée du Tort.",
+      "children": [
+        { "v": "38-42", "cat": "argumentation", "t": "Appel à la mobilisation pour Tabûk, reproche de la lourdeur à sortir" },
+        { "v": "43-59", "cat": "argumentation", "t": "Excuses et avarice des hypocrites" },
+        { "v": "60", "cat": "legislation", "t": "Répartition de l'aumône (zakât) entre les huit catégories de bénéficiaires" },
+        { "v": "61-72", "cat": "argumentation", "t": "Moqueries des hypocrites envers le Prophète, leurs traits caractéristiques" },
+        { "v": "73-80", "cat": "legislation", "t": "Ordre de lutter contre hypocrisie et mécréance, refus de certains de partir à Tabûk" },
+        { "v": "81-99", "cat": "argumentation", "t": "Psychologie de ceux restés en arrière, les bédouins hypocrites" },
+        { "v": "100-110", "cat": "ethique", "t": "Émigrés et Auxiliaires modèles, l'épisode de la Mosquée du Tort (Masjid al-Dirâr)" }
+      ]
+    },
+    {
+      "range": "111-129",
+      "title": "Preuve de la foi par l'action",
+      "resume": "Le pacte d'Allah avec les croyants, l'épisode des trois retardataires, clôture sur la compassion du Prophète.",
+      "children": [
+        { "v": "111-112", "cat": "croyance", "t": "Allah achète aux croyants leurs personnes et leurs biens contre le Paradis (bay'a)" },
+        { "v": "113-118", "cat": "recits", "t": "Ne pas prier pour les polythéistes ; les trois qui restèrent en arrière (Ka'b ibn Mâlik)" },
+        { "v": "119-122", "cat": "ethique", "t": "Véracité, effort d'apprentissage religieux (jihâd du savoir)" },
+        { "v": "123-127", "cat": "legislation", "t": "Combattre les ennemis proches, réaction des hypocrites à chaque nouvelle sourate" },
+        { "v": "128-129", "cat": "croyance", "t": "Clôture : compassion du Prophète envers les croyants, « Allah me suffit »" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "surah": 110,
+  "name_ar": "النصر",
+  "name_latin": "An-Nasr",
+  "ayat_count": 3,
+  "theme_central": "Quand vient le secours d'Allah et la victoire, la réponse n'est pas la célébration mais la louange et la demande de pardon.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Secours et victoire",
+      "resume": "Le secours d'Allah et la victoire ; les gens entrant en foule dans la religion d'Allah.",
+      "children": [
+        { "v": "1-2", "cat": "croyance", "t": "Secours d'Allah, victoire, entrée en foule dans la religion" }
+      ]
+    },
+    {
+      "range": "3",
+      "title": "Louange et pardon",
+      "resume": "Célébrer la louange de son Seigneur et implorer Son pardon, le Grand Accueillant au repentir.",
+      "children": [
+        { "v": "3", "cat": "adoration", "t": "Louange et demande de pardon face à la victoire" }
+      ]
+    }
+  ]
+}

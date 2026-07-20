@@ -1,0 +1,51 @@
+{
+  "surah": 72,
+  "name_ar": "الجن",
+  "name_latin": "Al-Jinn",
+  "ayat_count": 28,
+  "theme_central": "L'universalité du message coranique : un groupe de djinns, ayant entendu la récitation du Prophète, témoignent de sa vérité — l'islam s'adresse à tout être doué de raison, visible ou invisible.",
+  "sources_note": "Structure en 6 rukus sourcée (al-islam.org, Commentary of Suratul Jinn) : témoignage des djinns, unicité et résurrection, science de l'invisible en clôture.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "Les djinns témoignent",
+      "resume": "Un groupe de djinns a entendu une récitation merveilleuse et reconnu l'unicité d'Allah.",
+      "children": [
+        { "v": "1-7", "cat": "recits", "t": "Les djinns témoignent avoir entendu une récitation merveilleuse et guidante" }
+      ]
+    },
+    {
+      "range": "8-15",
+      "title": "Le ciel gardé, voies diverses",
+      "resume": "Les djinns racontent avoir trouvé le ciel gardé par des projectiles ; parmi eux des vertueux et d'autres égarés.",
+      "children": [
+        { "v": "8-10", "cat": "recits", "t": "Le ciel gardé par des projectiles depuis la révélation du Coran" },
+        { "v": "11-15", "cat": "croyance", "t": "Parmi les djinns, des vertueux et d'autres égarés, chemins divers" }
+      ]
+    },
+    {
+      "range": "16-19",
+      "title": "Épreuve de l'eau, les mosquées",
+      "resume": "S'ils étaient restés droits, Allah les aurait éprouvés par une eau abondante ; les mosquées appartiennent à Allah seul.",
+      "children": [
+        { "v": "16-19", "cat": "croyance", "t": "Épreuve de l'eau abondante, les mosquées appartiennent à Allah seul" }
+      ]
+    },
+    {
+      "range": "20-25",
+      "title": "Mission du Prophète",
+      "resume": "Le Prophète n'invoque que son Seigneur, ne possède ni dommage ni bienfait pour lui-même ; promesse à venir.",
+      "children": [
+        { "v": "20-25", "cat": "croyance", "t": "Le Prophète transmet seulement le message, promesse du Jugement à venir" }
+      ]
+    },
+    {
+      "range": "26-28",
+      "title": "Science de l'invisible",
+      "resume": "Science de l'invisible réservée à Allah, sauf à qui Il agrée parmi Ses messagers.",
+      "children": [
+        { "v": "26-28", "cat": "croyance", "t": "Science de l'invisible réservée à Allah, escorte de gardiens autour des messagers" }
+      ]
+    }
+  ]
+}

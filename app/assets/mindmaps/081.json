@@ -1,0 +1,35 @@
+{
+  "surah": 81,
+  "name_ar": "التكوير",
+  "name_latin": "At-Takwir",
+  "ayat_count": 29,
+  "theme_central": "Douze signes cosmiques annoncent l'Heure — puis serment par les astres et la nuit pour authentifier la parole d'un noble messager digne de confiance.",
+  "sources_note": "Liste des douze signes largement enseignée et non contestée ; structure en 3 mouvements bien établie.",
+  "branches": [
+    {
+      "range": "1-14",
+      "title": "Douze signes de l'Heure",
+      "resume": "Soleil obscurci, étoiles tombantes, montagnes mises en marche, mers portées à ébullition, pages ouvertes.",
+      "children": [
+        { "v": "1-9", "cat": "eschatologie", "t": "Soleil obscurci, étoiles tombantes, mers en ébullition, l'infanticide enterrée vive interrogée" },
+        { "v": "10-14", "cat": "eschatologie", "t": "Pages ouvertes, ciel écorché, Enfer attisé, Paradis rapproché ; chaque âme saura ce qu'elle a apporté" }
+      ]
+    },
+    {
+      "range": "15-21",
+      "title": "Serment par les astres",
+      "resume": "Serment par les astres qui se retirent, la nuit, l'aube — authentification d'un noble messager digne de confiance.",
+      "children": [
+        { "v": "15-21", "cat": "croyance", "t": "Serment par les astres et l'aube ; noble messager digne de confiance" }
+      ]
+    },
+    {
+      "range": "22-29",
+      "title": "Clôture",
+      "resume": "Ce n'est pas la parole d'un démon ; ceci est un rappel pour qui veut suivre le droit chemin.",
+      "children": [
+        { "v": "22-29", "cat": "argumentation", "t": "Réfutation de l'inspiration démoniaque, rappel pour qui veut se diriger droit" }
+      ]
+    }
+  ]
+}

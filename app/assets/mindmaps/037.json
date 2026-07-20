@@ -1,0 +1,67 @@
+{
+  "surah": 37,
+  "name_ar": "الصافات",
+  "name_latin": "As-Saffat",
+  "ayat_count": 182,
+  "theme_central": "Établir le pur Tawhid par une galerie de prophètes unis par le même refrain de paix — culminant dans le sacrifice d'Ismail, l'épreuve la plus intense d'Ibrahim.",
+  "sources_note": "Découpage précisément sourcé (thequran.love, Abraham's Dream and Ishmael's Sacrifice) : 1-11, 12-70, 75-148, avec le récit d'Ibrahim/Ismail détaillé en 83-113.",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "Ouverture, serment des anges",
+      "resume": "Triple serment rythmique par les anges en rangs, qui poussent, qui récitent.",
+      "children": [
+        { "v": "1-11", "cat": "croyance", "t": "Serment par les anges en rangs ; unicité d'Allah, Seigneur des cieux, de la terre et de l'Orient" }
+      ]
+    },
+    {
+      "range": "12-70",
+      "title": "Scène du Jugement",
+      "resume": "Sort terrible et reproches mutuels des polythéistes, félicité des croyants au Paradis.",
+      "children": [
+        { "v": "12-38", "cat": "eschatologie", "t": "Moquerie des mécréants envers la résurrection, sort terrible qui les attend" },
+        { "v": "39-61", "cat": "eschatologie", "t": "Félicité des croyants au Paradis, dialogue avec un compagnon mécréant" },
+        { "v": "62-70", "cat": "eschatologie", "t": "L'arbre de Zaqqoum, nourriture des damnés en Enfer" }
+      ]
+    },
+    {
+      "range": "71-82",
+      "title": "Nuh",
+      "resume": "Sa longue lutte, l'exaucement de son invocation, salut de sa famille croyante.",
+      "children": [
+        { "v": "71-82", "cat": "recits", "t": "Invocation de Nuh exaucée, salut de l'arche, « Paix sur Nuh parmi les mondes »" }
+      ]
+    },
+    {
+      "range": "83-113",
+      "title": "Ibrahim et le sacrifice d'Ismail",
+      "resume": "Le récit prophétique le plus long de la sourate : confrontation avec l'idolâtrie, puis le sacrifice ordonné en rêve.",
+      "children": [
+        { "v": "83-98", "cat": "recits", "t": "Ibrahim brise les idoles, jeté au feu qui devient frais et sûr" },
+        { "v": "99-107", "cat": "recits", "t": "Le rêve du sacrifice, soumission du fils, rançon par le bélier envoyé du ciel" },
+        { "v": "108-113", "cat": "croyance", "t": "« Paix sur Ibrahim », annonce d'Ishaq comme prophète" }
+      ]
+    },
+    {
+      "range": "114-148",
+      "title": "Moussa, Ilyas, Yunus",
+      "resume": "Moussa et Harun sauvés, Ilyas contre le culte de Ba'l, Yunus englouti puis recraché par le poisson.",
+      "children": [
+        { "v": "114-122", "cat": "recits", "t": "Moussa et Harun, « Paix sur Moussa et Harun »" },
+        { "v": "123-132", "cat": "recits", "t": "Ilyas appelle son peuple à délaisser le culte de Ba'l" },
+        { "v": "133-138", "cat": "recits", "t": "Lot sauvé, sa cité détruite" },
+        { "v": "139-148", "cat": "recits", "t": "Yunus englouti par le poisson, son repentir, restauré pour sa mission" }
+      ]
+    },
+    {
+      "range": "149-182",
+      "title": "Réfutation, clôture",
+      "resume": "Réfutation d'attribuer des filles à Allah, promesse de victoire aux messagers, louange finale.",
+      "children": [
+        { "v": "149-166", "cat": "argumentation", "t": "Réfutation d'attribuer des filles à Allah et des djinns comme associés" },
+        { "v": "167-179", "cat": "argumentation", "t": "Promesse de victoire finale accordée aux messagers" },
+        { "v": "180-182", "cat": "croyance", "t": "Clôture : gloire au Seigneur de puissance, paix sur les envoyés, louange à Allah" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "surah": 79,
+  "name_ar": "النازعات",
+  "name_latin": "An-Nazi'at",
+  "ayat_count": 46,
+  "theme_central": "Affirmation de la résurrection, illustrée par Pharaon qui osa dire « Je suis votre seigneur, le Très-Haut » et fut exemplairement châtié.",
+  "sources_note": "Structure en 6 sections précisément sourcée (grokipedia, medium.com/@islamisthesolution) : 1-5, 10-14, 15-26, 27-33, 34-41, 42-46.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Serments par les anges",
+      "resume": "Serments par les anges qui arrachent les âmes, avec violence ou douceur, qui devancent et administrent les ordres.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Serments par les anges qui arrachent les âmes et administrent les ordres" }
+      ]
+    },
+    {
+      "range": "10-14",
+      "title": "Scepticisme sur la résurrection",
+      "resume": "« Serons-nous ramenés à notre état premier après être devenus des ossements pourris ? » Un seul Cri suffira.",
+      "children": [
+        { "v": "10-14", "cat": "argumentation", "t": "Scepticisme sur la résurrection, un seul Cri suffira" }
+      ]
+    },
+    {
+      "range": "15-26",
+      "title": "Moussa et Pharaon",
+      "resume": "Moussa envoyé vers Pharaon, appel à la purification ; Pharaon proclame « je suis votre seigneur », châtiment exemplaire.",
+      "children": [
+        { "v": "15-19", "cat": "recits", "t": "Moussa envoyé à Pharaon, appel à la purification et à la crainte" },
+        { "v": "20-26", "cat": "recits", "t": "Pharaon nie malgré le grand signe, châtiment exemplaire" }
+      ]
+    },
+    {
+      "range": "27-33",
+      "title": "La création d'Allah",
+      "resume": "Êtes-vous plus difficiles à créer que le ciel ? La terre étalée, l'eau et les pâturages, les montagnes ancrées.",
+      "children": [
+        { "v": "27-33", "cat": "signes", "t": "Création du ciel, de la terre, de l'eau et des montagnes" }
+      ]
+    },
+    {
+      "range": "34-41",
+      "title": "Le Jour du Jugement",
+      "resume": "Le grand cataclysme, l'homme se souvient de ses efforts, l'Enfer et le Paradis pour qui a craint son Seigneur.",
+      "children": [
+        { "v": "34-41", "cat": "eschatologie", "t": "Le grand cataclysme, Enfer et Paradis selon la crainte d'Allah" }
+      ]
+    },
+    {
+      "range": "42-46",
+      "title": "Clôture",
+      "resume": "Question sur l'échéance de l'Heure, science réservée à Allah, brièveté perçue du séjour terrestre.",
+      "children": [
+        { "v": "42-46", "cat": "eschatologie", "t": "Échéance de l'Heure réservée à Allah, brièveté du séjour terrestre" }
+      ]
+    }
+  ]
+}

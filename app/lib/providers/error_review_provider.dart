@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/recitation_state.dart' show RecitationErrorKind;
 import '../models/verse.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
@@ -32,6 +33,15 @@ class SurahErrorSummary {
   double get touchedRatio =>
       surah.versesCount == 0 ? 0 : versesTouched / surah.versesCount;
 }
+
+/// Répartition GLOBALE des erreurs par type (demande utilisateur 2026-07-20 :
+/// « catégoriser par type : tajwid ou prononciation »). Affichée en tête du
+/// volet erreurs : elle répond à « sur quoi je bute le plus ? » avant même de
+/// regarder quelle sourate.
+final errorKindBreakdownProvider =
+    FutureProvider.autoDispose<Map<RecitationErrorKind, int>>((ref) async {
+  return RecitationErrorLogService.instance.errorCountsByKind();
+});
 
 /// Journal d'erreurs regroupé par sourate, trié par nombre d'erreurs
 /// décroissant (= le plus actionnable en premier : « où dois-je travailler ? »).

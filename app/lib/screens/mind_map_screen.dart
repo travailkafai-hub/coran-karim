@@ -5,9 +5,13 @@
 // Matrix4.rotationY, pas de package tiers, comme demandé) + navigation
 // "Aller au verset" -> MushafScreen(surah, initialAyahNumber).
 //
-// Contenu chargé depuis assets/mindmaps/fr/{NNN}.json (mindMapProvider).
-// Pas encore rédigé pour toutes les sourates -> stub "Bientôt disponible"
-// tant que le JSON n'existe pas (comportement conservé de la version stub).
+// Contenu chargé depuis assets/mindmaps/{NNN}.json (mindMapProvider) :
+// les 114 sourates sont fournies (2026-07-20). Le stub "bientôt disponible"
+// ne sert plus que de filet en cas de fichier illisible.
+//
+// Le schéma réel porte `cat` sur le PASSAGE (enfant), pas sur la section :
+// une section est donc colorée par sa catégorie DOMINANTE
+// (MindMapBranch.dominantCategory), et chaque passage garde sa couleur propre.
 //
 // Couleurs de catégorie : PLACEHOLDER (AppColors.mindmap*, 2026-07-19) en
 // attendant la palette manuscrite de l'utilisateur -- cf. commentaire dans
@@ -24,21 +28,15 @@ import '../theme/app_theme.dart';
 import 'mushaf_screen.dart';
 
 Color _categoryColor(MindMapCategory cat) => switch (cat) {
+      MindMapCategory.recits => AppColors.mindmapRecits,
       MindMapCategory.croyance => AppColors.mindmapCroyance,
-      MindMapCategory.recit => AppColors.mindmapRecit,
-      MindMapCategory.loi => AppColors.mindmapLoi,
-      MindMapCategory.promesse => AppColors.mindmapPromesse,
-      MindMapCategory.avertissement => AppColors.mindmapAvertissement,
-      MindMapCategory.louange => AppColors.mindmapLouange,
-    };
-
-String _categoryLabel(MindMapCategory cat) => switch (cat) {
-      MindMapCategory.croyance => 'Croyance',
-      MindMapCategory.recit => 'Récit',
-      MindMapCategory.loi => 'Loi',
-      MindMapCategory.promesse => 'Promesse',
-      MindMapCategory.avertissement => 'Avertissement',
-      MindMapCategory.louange => 'Louange',
+      MindMapCategory.eschatologie => AppColors.mindmapEschatologie,
+      MindMapCategory.argumentation => AppColors.mindmapArgumentation,
+      MindMapCategory.ethique => AppColors.mindmapEthique,
+      MindMapCategory.legislation => AppColors.mindmapLegislation,
+      MindMapCategory.signes => AppColors.mindmapSignes,
+      MindMapCategory.adoration => AppColors.mindmapAdoration,
+      MindMapCategory.autre => AppColors.mindmapAutre,
     };
 
 class MindMapScreen extends ConsumerWidget {
@@ -128,7 +126,7 @@ class _MindMapCanvasState extends State<_MindMapCanvas> {
 
   void _buildGraph() {
     final root = Node.Id('root');
-    _content['root'] = widget.data.themeCentral;
+    _content['root'] = widget.data;
     _graph.addNode(root);
 
     for (var i = 0; i < widget.data.branches.length; i++) {
@@ -136,7 +134,7 @@ class _MindMapCanvasState extends State<_MindMapCanvas> {
       final branchId = 'b$i';
       final branchNode = Node.Id(branchId);
       _content[branchId] = branch;
-      _graph.addEdge(root, branchNode, paint: Paint()..color = _categoryColor(branch.cat));
+      _graph.addEdge(root, branchNode, paint: Paint()..color = _categoryColor(branch.dominantCategory));
 
       for (var j = 0; j < branch.children.length; j++) {
         final leaf = branch.children[j];
@@ -144,7 +142,7 @@ class _MindMapCanvasState extends State<_MindMapCanvas> {
         final leafNode = Node.Id(leafId);
         _content[leafId] = leaf;
         _graph.addEdge(branchNode, leafNode,
-            paint: Paint()..color = _categoryColor(branch.cat).withAlpha(140));
+            paint: Paint()..color = _categoryColor(branch.dominantCategory).withAlpha(140));
       }
     }
   }
@@ -174,8 +172,8 @@ class _MindMapCanvasState extends State<_MindMapCanvas> {
         builder: (Node node) {
           final id = node.key!.value as String;
           final content = _content[id];
-          if (content is String) {
-            return _RootCard(themeCentral: content);
+          if (content is MindMapData) {
+            return _RootCard(data: content);
           } else if (content is MindMapBranch) {
             return _BranchCard(
               key: ValueKey(id),
@@ -196,33 +194,125 @@ class _MindMapCanvasState extends State<_MindMapCanvas> {
 }
 
 class _RootCard extends StatelessWidget {
-  final String themeCentral;
-  const _RootCard({required this.themeCentral});
+  final MindMapData data;
+  const _RootCard({required this.data});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 110,
-      height: 110,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.brass, AppColors.green700],
+    // `theme_central` est une PHRASE entière dans les données réelles -- elle
+    // ne tient pas dans un médaillon. Le cercle porte l'identité de la sourate
+    // (nom arabe, n°, nombre de versets) ; la phrase et la note de sources
+    // s'ouvrent au tap, où il y a la place de les lire.
+    return GestureDetector(
+      onTap: () => showModalBottomSheet(
+        context: context,
+        backgroundColor: AppColors.cream,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.75),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 20, 22, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${data.surahNumber}. ${data.nameLatin}',
+                        style: GoogleFonts.fraunces(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.green900)),
+                    const SizedBox(height: 2),
+                    Text('${data.ayatCount} versets',
+                        style: GoogleFonts.manrope(
+                            fontSize: 12, color: AppColors.inkLight)),
+                    const SizedBox(height: 14),
+                    Text('Fil directeur',
+                        style: GoogleFonts.manrope(
+                            fontSize: 10.5,
+                            letterSpacing: 1.1,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.green700)),
+                    const SizedBox(height: 6),
+                    Text(data.themeCentral,
+                        style: GoogleFonts.manrope(
+                            fontSize: 13.5,
+                            height: 1.45,
+                            color: AppColors.ink)),
+                    if (data.sourcesNote.isNotEmpty) ...[
+                      const SizedBox(height: 18),
+                      // Affiché à l'utilisateur, pas masqué : la note dit d'où
+                      // vient la structure et signale parfois qu'une partie
+                      // reste à vérifier. C'est une information d'honnêteté.
+                      Text('Sources et réserves',
+                          style: GoogleFonts.manrope(
+                              fontSize: 10.5,
+                              letterSpacing: 1.1,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.green700)),
+                      const SizedBox(height: 6),
+                      Text(data.sourcesNote,
+                          style: GoogleFonts.manrope(
+                              fontSize: 11.5,
+                              height: 1.4,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.inkLight)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withAlpha(60), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
       ),
-      alignment: Alignment.center,
-      padding: const EdgeInsets.all(8),
-      child: Text(
-        themeCentral,
-        textDirection: TextDirection.rtl,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.scheherazadeNew(
-          fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.cream,
+      child: Container(
+        width: 124,
+        height: 124,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.brass, AppColors.green700],
+          ),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withAlpha(60),
+                blurRadius: 10,
+                offset: const Offset(0, 4)),
+          ],
+        ),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              data.nameAr,
+              textDirection: TextDirection.rtl,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.scheherazadeNew(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: AppColors.cream,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text('${data.ayatCount} versets',
+                style: GoogleFonts.manrope(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.cream)),
+            const SizedBox(height: 3),
+            const Icon(Icons.info_outline_rounded,
+                size: 13, color: AppColors.cream),
+          ],
         ),
       ),
     );
@@ -268,7 +358,7 @@ class _BranchCardState extends State<_BranchCard> with SingleTickerProviderState
 
   @override
   Widget build(BuildContext context) {
-    final color = _categoryColor(widget.branch.cat);
+    final color = _categoryColor(widget.branch.dominantCategory);
     return GestureDetector(
       onTap: _toggle,
       child: AnimatedBuilder(
@@ -313,7 +403,7 @@ class _BranchCardState extends State<_BranchCard> with SingleTickerProviderState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
-            child: Text(_categoryLabel(widget.branch.cat),
+            child: Text(categoryLabel(widget.branch.dominantCategory),
                 style: GoogleFonts.manrope(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 6),
@@ -375,26 +465,54 @@ class _LeafCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        width: 140,
-        padding: const EdgeInsets.all(8),
+        width: 158,
+        padding: const EdgeInsets.all(9),
         decoration: BoxDecoration(
           color: AppColors.cream200,
           borderRadius: BorderRadius.circular(10),
+          // Filet de couleur à gauche : chaque PASSAGE porte sa propre
+          // catégorie dans les données réelles (elle peut différer de la
+          // catégorie dominante de sa section), on la montre donc ici.
+          border: Border(
+            left: BorderSide(color: _categoryColor(leaf.cat), width: 3),
+          ),
         ),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(color: AppColors.brass, borderRadius: BorderRadius.circular(6)),
-              child: Text(leaf.v, style: GoogleFonts.manrope(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                      color: AppColors.brass,
+                      borderRadius: BorderRadius.circular(6)),
+                  child: Text(leaf.v,
+                      style: GoogleFonts.manrope(
+                          fontSize: 9,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(categoryLabel(leaf.cat),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.manrope(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w700,
+                          color: _categoryColor(leaf.cat))),
+                ),
+              ],
             ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(leaf.t,
-                  style: GoogleFonts.manrope(fontSize: 10.5, color: AppColors.ink),
-                  maxLines: 3, overflow: TextOverflow.ellipsis),
-            ),
+            const SizedBox(height: 5),
+            Text(leaf.t,
+                style: GoogleFonts.manrope(
+                    fontSize: 10.5, height: 1.3, color: AppColors.ink),
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis),
           ],
         ),
       ),

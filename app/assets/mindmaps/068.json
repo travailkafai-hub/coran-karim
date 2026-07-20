@@ -1,0 +1,50 @@
+{
+  "surah": 68,
+  "name_ar": "القلم",
+  "name_latin": "Al-Qalam",
+  "ayat_count": 52,
+  "theme_central": "Serment par la plume et ce qui est écrit : la vérité est permanente et consignée, et celui qui la porte est d'un caractère sain — toute la thèse de la sourate tient dans son ouverture.",
+  "sources_note": "Structure en 2 rukus précisément sourcée (grokipedia) : 1-9, parabole des propriétaires du jardin 17-33.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Serment par la plume",
+      "resume": "Serment par la plume et ce qui est écrit, défense de l'intégrité et de la santé mentale du Prophète.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "Serment par la plume, défense de l'intégrité du Prophète" }
+      ]
+    },
+    {
+      "range": "10-16",
+      "title": "L'homme méprisable",
+      "resume": "Description d'un homme méprisable, jureur invétéré, médisant.",
+      "children": [
+        { "v": "10-16", "cat": "argumentation", "t": "Description d'un homme méprisable, jureur et médisant" }
+      ]
+    },
+    {
+      "range": "17-33",
+      "title": "La parabole du jardin",
+      "resume": "Propriétaires d'un jardin devenus ingrats après avoir été bénis, projet de récolte à l'aube sans les pauvres, destruction totale.",
+      "children": [
+        { "v": "17-33", "cat": "recits", "t": "Propriétaires du jardin ingrats, destruction totale en punition" }
+      ]
+    },
+    {
+      "range": "34-47",
+      "title": "Contraste pieux/criminels",
+      "resume": "Les criminels ne peuvent être traités comme les soumis à Allah ; quel pacte auraient-ils avec Lui ?",
+      "children": [
+        { "v": "34-47", "cat": "ethique", "t": "Contraste entre pieux et criminels, aucun pacte réel avec Allah" }
+      ]
+    },
+    {
+      "range": "48-52",
+      "title": "Patience de Yunus, clôture",
+      "resume": "Ne pas être comme Yunus (Dhun-Nun) dans sa détresse ; le Coran, un Rappel pour l'univers entier.",
+      "children": [
+        { "v": "48-52", "cat": "recits", "t": "Patience recommandée comme celle de Yunus ; clôture, Rappel pour l'univers" }
+      ]
+    }
+  ]
+}

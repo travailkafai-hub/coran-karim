@@ -1,0 +1,63 @@
+{
+  "surah": 6,
+  "name_ar": "الأنعام",
+  "name_latin": "Al-An'am",
+  "ayat_count": 165,
+  "theme_central": "Établir le Tawhid de façon absolue et réfuter le polythéisme sous tous ses angles — théologique, rationnel, cosmologique, historique (Ibrahim) et législatif.",
+  "sources_note": "Thèmes généraux confirmés (islamicstudies.info via alim.org : réfutation du chirk, au-delà, réfutation des superstitions, principes moraux, réponse aux objections). Les bornes précises des versets n'ont PAS pu être croisées avec une source dédiée en ligne — reconstruites à partir de repères largement enseignés (Ibrahim v.74-83, les « 10 préceptes » v.151-153). À vérifier verset par verset avant mise en production.",
+  "branches": [
+    {
+      "range": "1-73",
+      "title": "Tawhid, révélation, premières réfutations",
+      "resume": "Allah créateur et omniscient, moqueries envers les signes, mise en garde des mécréants.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Louange, Allah créateur des cieux et de la terre, connaît le secret et le déclaré" },
+        { "v": "4-11", "cat": "argumentation", "t": "Moqueries des mécréants envers les signes, sort des peuples anciens" },
+        { "v": "12-30", "cat": "eschatologie", "t": "Omniscience d'Allah, scène anticipée du Jour du Jugement" },
+        { "v": "31-49", "cat": "argumentation", "t": "Les messagers moqués comme leurs prédécesseurs" },
+        { "v": "50-73", "cat": "ethique", "t": "Ne pas repousser les pauvres croyants, parabole de l'aveugle et du voyant" }
+      ]
+    },
+    {
+      "range": "74-90",
+      "title": "Ibrahim et la lignée des prophètes",
+      "resume": "Ibrahim contemple les astres et rompt avec le polythéisme de son peuple.",
+      "children": [
+        { "v": "74-79", "cat": "recits", "t": "Ibrahim contemple les astres : « Je n'aime pas ce qui décline »" },
+        { "v": "80-83", "cat": "argumentation", "t": "Débat d'Ibrahim avec son peuple sur le chirk" },
+        { "v": "84-90", "cat": "recits", "t": "Liste de 18 prophètes, la guidée transmise de génération en génération" }
+      ]
+    },
+    {
+      "range": "91-121",
+      "title": "Signes de la création, réfutation du chirk",
+      "resume": "Preuves cosmologiques de l'unicité, réfutation des associés attribués à Allah.",
+      "children": [
+        { "v": "91-94", "cat": "argumentation", "t": "Dévalorisation de la révélation par les polythéistes" },
+        { "v": "95-99", "cat": "signes", "t": "Signes dans la création : la graine, l'aube, les étoiles, la pluie" },
+        { "v": "100-107", "cat": "argumentation", "t": "Réfutation des associés attribués à Allah" },
+        { "v": "108-113", "cat": "ethique", "t": "Ne pas insulter leurs idoles ; les signes ne suffisent pas sans volonté de croire" },
+        { "v": "114-121", "cat": "legislation", "t": "Le Coran détaillé, nourriture licite et illicite" }
+      ]
+    },
+    {
+      "range": "122-150",
+      "title": "Les superstitions sur le bétail",
+      "resume": "D'où le nom de la sourate : réfutation des interdits inventés par les Arabes sur le bétail.",
+      "children": [
+        { "v": "122-140", "cat": "argumentation", "t": "Contraste guidée/égarement, superstitions sur le bétail, sacrifices aux idoles" },
+        { "v": "141-150", "cat": "legislation", "t": "Production agricole et bétail : ce qu'Allah a réellement rendu licite ou illicite" }
+      ]
+    },
+    {
+      "range": "151-165",
+      "title": "Préceptes fondamentaux, clôture",
+      "resume": "Les dix préceptes moraux, la Thora, la voie droite d'Ibrahim, l'homme responsable sur terre.",
+      "children": [
+        { "v": "151-153", "cat": "ethique", "t": "Les préceptes moraux fondamentaux (« Dis : venez, je vais réciter... »)" },
+        { "v": "154-157", "cat": "croyance", "t": "La Thora donnée à Moussa, le Coran comme excuse levée" },
+        { "v": "158-165", "cat": "eschatologie", "t": "Attente du Jugement, la voie droite d'Ibrahim, l'homme calife responsable" }
+      ]
+    }
+  ]
+}

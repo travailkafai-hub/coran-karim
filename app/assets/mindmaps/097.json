@@ -1,0 +1,34 @@
+{
+  "surah": 97,
+  "name_ar": "القدر",
+  "name_latin": "Al-Qadr",
+  "ayat_count": 5,
+  "theme_central": "La Nuit du Destin, valant mieux que mille mois — les anges et l'Esprit y descendent, et elle est paix jusqu'à l'apparition de l'aube.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1",
+      "title": "Révélation en la Nuit du Destin",
+      "resume": "Le Coran descendu pendant la Nuit du Destin (Laylat al-Qadr).",
+      "children": [
+        { "v": "1", "cat": "croyance", "t": "Révélation du Coran pendant la Nuit du Destin" }
+      ]
+    },
+    {
+      "range": "2-3",
+      "title": "Valeur de la Nuit",
+      "resume": "Elle vaut mieux que mille mois.",
+      "children": [
+        { "v": "2-3", "cat": "croyance", "t": "La Nuit du Destin vaut mieux que mille mois" }
+      ]
+    },
+    {
+      "range": "4-5",
+      "title": "Descente des anges, paix",
+      "resume": "Les anges et l'Esprit y descendent avec la permission d'Allah ; elle est paix jusqu'à l'aube.",
+      "children": [
+        { "v": "4-5", "cat": "adoration", "t": "Descente des anges et de l'Esprit, paix jusqu'à l'aube" }
+      ]
+    }
+  ]
+}

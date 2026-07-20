@@ -1,0 +1,70 @@
+{
+  "surah": 29,
+  "name_ar": "العنكبوت",
+  "name_latin": "Al-Ankabut",
+  "ayat_count": 69,
+  "theme_central": "L'épreuve est indissociable de la foi ; s'appuyer sur autre chose qu'Allah est aussi fragile qu'une toile d'araignée — le commentaire divin sur les tyrans détruits (Pharaon, Qarun) évoqués juste avant dans Al-Qasas.",
+  "sources_note": "Structure bien sourcée (abrahamicstudyhall.org), articulée explicitement avec la sourate précédente (Al-Qasas) : le parallèle est confirmé par la source elle-même.",
+  "branches": [
+    {
+      "range": "1-13",
+      "title": "Ouverture : l'épreuve indissociable de la foi",
+      "resume": "Nul ne dit « je crois » sans être éprouvé ; bienfaisance envers les parents sauf à désobéir à Allah.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Nul ne dit « je crois » sans être mis à l'épreuve" },
+        { "v": "4-13", "cat": "ethique", "t": "Mise en garde contre l'injustice, bienfaisance envers les parents avec limites" }
+      ]
+    },
+    {
+      "range": "14-27",
+      "title": "Nuh et Ibrahim",
+      "resume": "Longue lutte patiente de Nuh, débat d'Ibrahim avec son peuple, sauvé du feu.",
+      "children": [
+        { "v": "14-15", "cat": "recits", "t": "Nuh, 950 ans de lutte patiente auprès de son peuple" },
+        { "v": "16-27", "cat": "recits", "t": "Ibrahim débat avec son peuple, sauvé miraculeusement du feu" }
+      ]
+    },
+    {
+      "range": "28-40",
+      "title": "Lot, et rappel des tyrans détruits",
+      "resume": "Lot et son peuple, puis bref rappel de Hud, Salih, Shu'ayb, Moussa face à Pharaon et Qarun.",
+      "children": [
+        { "v": "28-35", "cat": "recits", "t": "Lot et son peuple, destruction de la cité corrompue" },
+        { "v": "36-40", "cat": "recits", "t": "Bref rappel de Hud, Salih, Shu'ayb, Moussa face à Pharaon et Qarun" }
+      ]
+    },
+    {
+      "range": "41",
+      "title": "La parabole de la toile d'araignée",
+      "resume": "S'appuyer sur d'autres protecteurs qu'Allah est aussi fragile que la toile d'araignée — la maison la plus faible qui soit.",
+      "children": [
+        { "v": "41", "cat": "argumentation", "t": "La toile d'araignée, maison la plus fragile qui soit — parabole des faux protecteurs" }
+      ]
+    },
+    {
+      "range": "42-51",
+      "title": "La prière, débattre avec les Gens du Livre",
+      "resume": "La prière éloigne de la turpitude ; débattre avec les Gens du Livre de la meilleure manière.",
+      "children": [
+        { "v": "42-46", "cat": "adoration", "t": "La prière éloigne de la turpitude ; débattre de la meilleure manière" },
+        { "v": "47-51", "cat": "croyance", "t": "Ceux qui ont reçu le Livre reconnaissent cette révélation" }
+      ]
+    },
+    {
+      "range": "52-59",
+      "title": "Fermeté, la terre vaste d'Allah",
+      "resume": "Fermeté demandée aux persécutés, invitation à émigrer sur la terre vaste d'Allah.",
+      "children": [
+        { "v": "52-59", "cat": "ethique", "t": "Fermeté face à la persécution, la terre d'Allah est vaste" }
+      ]
+    },
+    {
+      "range": "60-69",
+      "title": "Confiance en la subsistance",
+      "resume": "Combien d'êtres ne pourvoient pas eux-mêmes à leur subsistance ; ceux qui luttent seront guidés.",
+      "children": [
+        { "v": "60-69", "cat": "croyance", "t": "Confiance en la subsistance d'Allah, guidance promise à qui lutte sincèrement" }
+      ]
+    }
+  ]
+}

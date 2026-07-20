@@ -1,0 +1,44 @@
+{
+  "surah": 71,
+  "name_ar": "نوح",
+  "name_latin": "Nuh",
+  "ayat_count": 28,
+  "theme_central": "Rapport détaillé de Nuh à Allah sur sa mission : neuf cent cinquante ans d'appel jour et nuit, public et privé, jusqu'au déluge final.",
+  "sources_note": "Structure en 4 parties précisément sourcée (alsalam.ac.uk, myislam.org) : 1-4, 5-20, 21-26, 27-28.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "La mission confiée à Nuh",
+      "resume": "Avertir son peuple avant un châtiment douloureux.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Mission confiée à Nuh : avertir son peuple avant le châtiment" }
+      ]
+    },
+    {
+      "range": "5-12",
+      "title": "L'appel jour et nuit, l'istighfar",
+      "resume": "Appel public et privé inlassable ; bienfaits de la demande de pardon : pluie, richesse, enfants.",
+      "children": [
+        { "v": "5-9", "cat": "ethique", "t": "Appel inlassable de jour et de nuit, en public et en privé" },
+        { "v": "10-12", "cat": "adoration", "t": "Bienfaits de l'istighfar : pluie, richesse, enfants, jardins, rivières" }
+      ]
+    },
+    {
+      "range": "13-20",
+      "title": "Signes de la création",
+      "resume": "Sept cieux superposés, la lune et le soleil, la terre comme un tapis déployé.",
+      "children": [
+        { "v": "13-20", "cat": "signes", "t": "Sept cieux, lune et soleil, terre déployée comme un tapis" }
+      ]
+    },
+    {
+      "range": "21-28",
+      "title": "Complot, destruction, invocation finale",
+      "resume": "Le peuple complote contre Nuh, destruction par le déluge, invocation finale pour les croyants et ses parents.",
+      "children": [
+        { "v": "21-26", "cat": "recits", "t": "Complot du peuple, destruction par le déluge" },
+        { "v": "27-28", "cat": "adoration", "t": "Invocation finale de Nuh pour les croyants et ses parents" }
+      ]
+    }
+  ]
+}

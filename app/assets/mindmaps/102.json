@@ -1,0 +1,34 @@
+{
+  "surah": 102,
+  "name_ar": "التكاثر",
+  "name_latin": "At-Takathur",
+  "ayat_count": 8,
+  "theme_central": "La course à l'accumulation des richesses distrait l'homme jusqu'à la tombe — puis vient l'interrogatoire sur les délices dont il a profité.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "La course aux richesses",
+      "resume": "La course à l'accumulation distrait l'homme jusqu'à ce qu'il visite les tombes.",
+      "children": [
+        { "v": "1-2", "cat": "ethique", "t": "Course à l'accumulation des richesses jusqu'à la tombe" }
+      ]
+    },
+    {
+      "range": "3-4",
+      "title": "Avertissement répété",
+      "resume": "Non ! Vous saurez bientôt ! Répété une seconde fois pour insister.",
+      "children": [
+        { "v": "3-4", "cat": "argumentation", "t": "Avertissement répété deux fois : « vous saurez bientôt »" }
+      ]
+    },
+    {
+      "range": "5-8",
+      "title": "Vision de la Fournaise, clôture",
+      "resume": "Vision certaine de la Fournaise, puis interrogatoire sur les délices dont chacun a profité.",
+      "children": [
+        { "v": "5-8", "cat": "eschatologie", "t": "Vision de la Fournaise, interrogatoire final sur les délices" }
+      ]
+    }
+  ]
+}

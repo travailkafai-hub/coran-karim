@@ -1,0 +1,51 @@
+{
+  "surah": 89,
+  "name_ar": "الفجر",
+  "name_latin": "Al-Fajr",
+  "ayat_count": 30,
+  "theme_central": "L'aisance ou l'épreuve ne mesurent pas l'honneur réel d'un homme aux yeux d'Allah — ce qui compte, c'est comment il traite l'orphelin et le pauvre ; clôture sur l'âme apaisée invitée à entrer au Paradis.",
+  "sources_note": "Contenu largement enseigné et non contesté : les trois peuples détruits ('Ad, Thamud, Pharaon) et le verset final de l'âme apaisée sont des repères classiques.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Serments",
+      "resume": "Serment par l'aube, les dix nuits, le pair et l'impair, la nuit qui s'écoule.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Serments par l'aube, les dix nuits, le pair et l'impair" }
+      ]
+    },
+    {
+      "range": "6-14",
+      "title": "Les peuples détruits",
+      "resume": "'Ad d'Iram aux colonnes, Thamud qui taillait le roc, Pharaon aux pals : tous ont commis l'excès.",
+      "children": [
+        { "v": "6-14", "cat": "recits", "t": "'Ad, Thamud, Pharaon détruits pour leur excès" }
+      ]
+    },
+    {
+      "range": "15-16",
+      "title": "Aisance et épreuve",
+      "resume": "L'homme confond honneur divin et aisance matérielle, avilissement et épreuve — à tort.",
+      "children": [
+        { "v": "15-16", "cat": "argumentation", "t": "L'aisance ou l'épreuve ne mesurent pas l'honneur réel devant Allah" }
+      ]
+    },
+    {
+      "range": "17-20",
+      "title": "L'orphelin et le pauvre",
+      "resume": "Manquement envers l'orphelin, indifférence envers le pauvre, avidité pour l'héritage et la richesse.",
+      "children": [
+        { "v": "17-20", "cat": "ethique", "t": "Manquement envers l'orphelin et le pauvre, avidité matérielle" }
+      ]
+    },
+    {
+      "range": "21-30",
+      "title": "L'âme apaisée",
+      "resume": "Terre pulvérisée, regret de ne pas avoir fait le bien ; clôture : « Ô âme apaisée, entre dans Mon Paradis ».",
+      "children": [
+        { "v": "21-26", "cat": "eschatologie", "t": "Terre pulvérisée, regret de ne pas avoir fait le bien pour sa vie" },
+        { "v": "27-30", "cat": "eschatologie", "t": "« Ô âme apaisée, retourne satisfaite et agréée, entre dans Mon Paradis »" }
+      ]
+    }
+  ]
+}

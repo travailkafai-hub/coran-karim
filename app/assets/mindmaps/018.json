@@ -1,0 +1,69 @@
+{
+  "surah": 18,
+  "name_ar": "الكهف",
+  "name_latin": "Al-Kahf",
+  "ayat_count": 110,
+  "theme_central": "Se protéger des grandes épreuves (fitan) de la vie par la foi, le savoir divin et le recours à Allah — d'où sa lecture recommandée chaque vendredi (protection contre le Dajjal).",
+  "sources_note": "Structure des « 4 épreuves » : consensus large et bien documenté (surahsofquran.com, jfln.org, onepathnetwork.com, backtojannah.com).",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Ouverture",
+      "resume": "Louange à Allah pour un Livre « sans tordu » — sa mission : avertir et annoncer.",
+      "children": [
+        { "v": "1-2", "cat": "croyance", "t": "Le Livre révélé sans déviation, pour avertir d'une rigueur sévère" },
+        { "v": "3-6", "cat": "eschatologie", "t": "Bonne nouvelle pour les croyants, mise en garde contre le chagrin excessif" },
+        { "v": "7-8", "cat": "signes", "t": "Ce bas monde est un ornement éphémère, une mise à l'épreuve" }
+      ]
+    },
+    {
+      "range": "9-26",
+      "title": "Épreuve de la Foi — Les Gens de la Caverne",
+      "resume": "Jeunes croyants fuient la persécution, sommeil miraculeux de ~300 ans.",
+      "children": [
+        { "v": "9-12", "cat": "recits", "t": "Fuite de jeunes croyants face à une société hostile" },
+        { "v": "13-20", "cat": "recits", "t": "Le sommeil dans la caverne, protection divine" },
+        { "v": "21-26", "cat": "argumentation", "t": "Réveil, débat sur leur nombre et la durée exacte" }
+      ]
+    },
+    {
+      "range": "32-44",
+      "title": "Épreuve de la Richesse — Les Deux Jardins",
+      "resume": "Un homme riche et orgueilleux méprise son voisin croyant plus modeste.",
+      "children": [
+        { "v": "32-36", "cat": "recits", "t": "Fierté du propriétaire des deux jardins" },
+        { "v": "37-41", "cat": "ethique", "t": "Mise en garde de son compagnon croyant" },
+        { "v": "42-44", "cat": "eschatologie", "t": "Ruine du jardin — la richesse est éphémère" }
+      ]
+    },
+    {
+      "range": "60-82",
+      "title": "Épreuve du Savoir — Moussa et Khidr",
+      "resume": "Moussa cherche un serviteur détenteur d'un savoir divin caché ; accepter les limites de sa propre connaissance.",
+      "children": [
+        { "v": "60-65", "cat": "recits", "t": "Moussa part à la recherche du serviteur savant" },
+        { "v": "66-78", "cat": "recits", "t": "Trois actes incompris de Khidr, condition de patience rompue" },
+        { "v": "79-82", "cat": "croyance", "t": "Explication : le sens caché derrière chaque acte" }
+      ]
+    },
+    {
+      "range": "83-98",
+      "title": "Épreuve du Pouvoir — Dhûl-Qarnayn",
+      "resume": "Roi juste et puissant ; construit la barrière contre Gog et Magog.",
+      "children": [
+        { "v": "83-88", "cat": "ethique", "t": "Voyage vers l'occident et l'orient, justice envers les peuples" },
+        { "v": "89-98", "cat": "legislation", "t": "Construction de la barrière — le pouvoir au service de la justice" }
+      ]
+    },
+    {
+      "range": "99-110",
+      "title": "Clôture",
+      "resume": "Rappel du Jugement dernier — la parole d'Allah est infinie.",
+      "children": [
+        { "v": "99-101", "cat": "eschatologie", "t": "Destruction de la barrière, signe de la fin des temps" },
+        { "v": "102-106", "cat": "eschatologie", "t": "Les œuvres vaines de ceux qui doutaient de la rencontre avec Allah" },
+        { "v": "107-110", "cat": "croyance", "t": "L'encre de la mer ne suffirait pas à écrire les paroles d'Allah" }
+      ]
+    }
+  ]
+}

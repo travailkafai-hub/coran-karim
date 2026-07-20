@@ -1,0 +1,71 @@
+{
+  "surah": 43,
+  "name_ar": "الزخرف",
+  "name_latin": "Az-Zukhruf",
+  "ayat_count": 89,
+  "theme_central": "Les parures dorées de ce bas monde (zukhruf) ne mesurent en rien la valeur auprès d'Allah — la vraie richesse est la miséricorde divine, pas l'or.",
+  "sources_note": "Structure en 7 rukus / 9 paragraphes thématiques sourcée (dorar.net, thelastdialogue.org). Détail des bornes reconstruit à partir de repères connus (Ibrahim 26-35, Moussa/Pharaon 46-56, Aïssa signe de l'Heure 57-65).",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Ouverture",
+      "resume": "Révélation en langue arabe claire, la Mère du Livre auprès d'Allah.",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "Révélation en langue arabe claire, exaltée dans la Mère du Livre" }
+      ]
+    },
+    {
+      "range": "9-14",
+      "title": "Reconnaissance contradictoire",
+      "resume": "Ils reconnaissent Allah créateur mais Lui associent des divinités ; bienfaits du transport, terrestre et maritime.",
+      "children": [
+        { "v": "9-14", "cat": "argumentation", "t": "Reconnaissance contradictoire d'Allah créateur ; bienfaits du transport" }
+      ]
+    },
+    {
+      "range": "15-25",
+      "title": "Filles attribuées à Allah, suivisme aveugle",
+      "resume": "Réfutation d'attribuer des filles à Allah ; critique de « nous avons trouvé nos pères sur une religion ».",
+      "children": [
+        { "v": "15-19", "cat": "argumentation", "t": "Réfutation d'attribuer des filles à Allah (les anges)" },
+        { "v": "20-25", "cat": "argumentation", "t": "Critique du suivisme aveugle des ancêtres" }
+      ]
+    },
+    {
+      "range": "26-35",
+      "title": "Ibrahim, richesse et valeur",
+      "resume": "Ibrahim rejette la religion de son père ; la richesse matérielle ne fait pas la valeur d'un homme.",
+      "children": [
+        { "v": "26-29", "cat": "recits", "t": "Ibrahim rejette la religion de son père, parole qui demeure dans sa descendance" },
+        { "v": "30-35", "cat": "ethique", "t": "La richesse matérielle ne mesure pas la valeur auprès d'Allah" }
+      ]
+    },
+    {
+      "range": "36-45",
+      "title": "Le compagnon démon, regret",
+      "resume": "Qui s'aveugle au Rappel se voit assigner un démon compagnon ; regret amer au Jour du Jugement.",
+      "children": [
+        { "v": "36-45", "cat": "eschatologie", "t": "Démon compagnon assigné à l'aveugle du Rappel, regret au Jugement" }
+      ]
+    },
+    {
+      "range": "46-65",
+      "title": "Moussa/Pharaon, Aïssa signe de l'Heure",
+      "resume": "Moussa envoyé à Pharaon avec des signes clairs, noyade ; Aïssa donné en exemple, signe annonciateur de l'Heure.",
+      "children": [
+        { "v": "46-56", "cat": "recits", "t": "Moussa envoyé à Pharaon, moquerie, noyade" },
+        { "v": "57-65", "cat": "argumentation", "t": "Aïssa donné en exemple, signe annonciateur de l'Heure, divergence des sectes" }
+      ]
+    },
+    {
+      "range": "66-89",
+      "title": "Paradis, Enfer, clôture",
+      "resume": "Amis ennemis sauf les pieux, sort des criminels, réfutation finale d'un fils attribué à Allah.",
+      "children": [
+        { "v": "66-73", "cat": "eschatologie", "t": "Amis ennemis ce Jour sauf les pieux, description du Paradis" },
+        { "v": "74-80", "cat": "eschatologie", "t": "Sort des criminels en Enfer, appel au gardien Malik" },
+        { "v": "81-89", "cat": "argumentation", "t": "Réfutation finale d'un fils attribué à Allah, patience du Prophète" }
+      ]
+    }
+  ]
+}

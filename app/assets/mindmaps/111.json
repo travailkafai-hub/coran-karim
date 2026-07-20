@@ -1,0 +1,26 @@
+{
+  "surah": 111,
+  "name_ar": "المسد",
+  "name_latin": "Al-Masad",
+  "ayat_count": 5,
+  "theme_central": "Malédiction d'Abu Lahab, farouche opposant du Prophète : ni sa fortune ni son rang ne le sauveront du Feu, pas plus que sa femme complice.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Malédiction d'Abu Lahab",
+      "resume": "Périssent les deux mains d'Abu Lahab ; sa fortune ne lui servira à rien.",
+      "children": [
+        { "v": "1-2", "cat": "argumentation", "t": "Malédiction d'Abu Lahab, sa fortune inutile" }
+      ]
+    },
+    {
+      "range": "3-5",
+      "title": "Châtiment, sa femme complice",
+      "resume": "Il brûlera dans un Feu de flammes, de même sa femme porteuse de bois.",
+      "children": [
+        { "v": "3-5", "cat": "eschatologie", "t": "Châtiment du Feu pour Abu Lahab et sa femme complice" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "surah": 88,
+  "name_ar": "الغاشية",
+  "name_latin": "Al-Ghashiyah",
+  "ayat_count": 26,
+  "theme_central": "« L'Enveloppante » : visages humiliés dans un feu ardent contrastés avec des visages réjouis dans un jardin élevé — puis retour aux signes visibles de tous : chameaux, ciel, montagnes, terre.",
+  "sources_note": "Contenu largement enseigné et non contesté.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "Visages humiliés",
+      "resume": "Visages humiliés, s'épuisant en efforts vains, brûlant dans un Feu ardent, nourriture qui n'apaise pas la faim.",
+      "children": [
+        { "v": "1-7", "cat": "eschatologie", "t": "Visages humiliés, châtiment et nourriture d'épines" }
+      ]
+    },
+    {
+      "range": "8-16",
+      "title": "Visages réjouis",
+      "resume": "Visages réjouis dans un jardin élevé, sources, lits, coupes et coussins.",
+      "children": [
+        { "v": "8-16", "cat": "eschatologie", "t": "Visages réjouis au Paradis, jardin élevé et confort" }
+      ]
+    },
+    {
+      "range": "17-20",
+      "title": "Signes de la création",
+      "resume": "Les chameaux, le ciel, les montagnes, la terre — invitation à observer comment ils ont été créés.",
+      "children": [
+        { "v": "17-20", "cat": "signes", "t": "Chameaux, ciel, montagnes, terre comme signes à observer" }
+      ]
+    },
+    {
+      "range": "21-26",
+      "title": "Mission du Prophète, clôture",
+      "resume": "Le Prophète n'est qu'un rappeleur sans autorité coercitive ; le retour final est vers Allah.",
+      "children": [
+        { "v": "21-26", "cat": "croyance", "t": "Mission de rappel du Prophète, retour final vers Allah" }
+      ]
+    }
+  ]
+}

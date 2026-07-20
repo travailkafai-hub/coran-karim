@@ -1,0 +1,44 @@
+{
+  "surah": 45,
+  "name_ar": "الجاثية",
+  "name_latin": "Al-Jathiyah",
+  "ayat_count": 37,
+  "theme_central": "Les signes de la création, offerts à la réflexion, culminent dans la scène du Jour où toute nation sera vue agenouillée (jâthiya), appelée à répondre de son registre d'actes.",
+  "sources_note": "Structure en 4 rukus précisément sourcée (slideshare.net / grokipedia) : signes 2-15, divergence après la science reçue, passion prise pour divinité, Jour de l'agenouillement 27-37.",
+  "branches": [
+    {
+      "range": "1-15",
+      "title": "Ouverture, signes dans la création",
+      "resume": "Révélation du Livre, signes dans les cieux, la terre, la nuit, le jour et la mer soumise à l'homme.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Révélation du Livre, signes pour ceux qui ont la certitude" },
+        { "v": "6-15", "cat": "signes", "t": "Alternance jour/nuit, vents, pluie, mer soumise au service de l'homme" }
+      ]
+    },
+    {
+      "range": "16-22",
+      "title": "Héritage des Fils d'Israël, divergence",
+      "resume": "Livre, sagesse et prophétie donnés aux Fils d'Israël ; divergence apparue après avoir reçu la science.",
+      "children": [
+        { "v": "16-22", "cat": "recits", "t": "Héritage donné aux Fils d'Israël, divergence apparue après la science reçue" }
+      ]
+    },
+    {
+      "range": "23-26",
+      "title": "Qui prend sa passion pour divinité",
+      "resume": "Mise en garde contre celui qui suit sa passion comme s'il l'adorait ; doute sur la résurrection.",
+      "children": [
+        { "v": "23-26", "cat": "argumentation", "t": "Celui qui prend sa passion pour divinité, doute sur la résurrection" }
+      ]
+    },
+    {
+      "range": "27-37",
+      "title": "Le Jour de l'agenouillement",
+      "resume": "D'où le nom de la sourate : chaque nation agenouillée, appelée à son registre d'actes ; clôture sur la grandeur d'Allah.",
+      "children": [
+        { "v": "27-32", "cat": "eschatologie", "t": "Chaque nation agenouillée, appelée à répondre de son registre" },
+        { "v": "33-37", "cat": "croyance", "t": "Clôture : la grandeur d'Allah dans les cieux et sur la terre" }
+      ]
+    }
+  ]
+}

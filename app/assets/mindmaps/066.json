@@ -1,0 +1,43 @@
+{
+  "surah": 66,
+  "name_ar": "التحريم",
+  "name_latin": "At-Tahrim",
+  "ayat_count": 12,
+  "theme_central": "Leçon d'éthique domestique : d'une conversation privée avec le Prophète à un appel général au repentir, culminant sur quatre femmes archétypales — deux mises en garde, deux modèles de piété.",
+  "sources_note": "Structure précisément sourcée (grokipedia, Comprehensive Exegetical Study) : 1-5, 6, 7-8, 10-12.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Correction du Prophète, mise en garde aux épouses",
+      "resume": "Le Prophète corrigé d'avoir interdit ce qu'Allah a rendu licite ; mise en garde contre la division entre épouses.",
+      "children": [
+        { "v": "1-5", "cat": "legislation", "t": "Correction du Prophète, mise en garde contre la division entre ses épouses" }
+      ]
+    },
+    {
+      "range": "6",
+      "title": "Protéger sa famille du Feu",
+      "resume": "« Préservez-vous et vos familles d'un Feu dont le combustible est les hommes et les pierres. »",
+      "children": [
+        { "v": "6", "cat": "ethique", "t": "Préserver sa famille du Feu par l'éducation et l'exemple" }
+      ]
+    },
+    {
+      "range": "7-9",
+      "title": "Appel au repentir, combat",
+      "resume": "Repentir sincère demandé aux croyants ; ordre de lutter contre mécréants et hypocrites.",
+      "children": [
+        { "v": "7-9", "cat": "ethique", "t": "Repentir sincère, lutte contre mécréants et hypocrites" }
+      ]
+    },
+    {
+      "range": "10-12",
+      "title": "Quatre femmes archétypales",
+      "resume": "Les épouses de Nuh et Lot, mécréantes malgré leur proximité ; Asiya et Maryam, modèles de piété.",
+      "children": [
+        { "v": "10", "cat": "recits", "t": "Les épouses de Nuh et Lot, mécréantes malgré leur proximité avec des prophètes" },
+        { "v": "11-12", "cat": "recits", "t": "Asiya, épouse de Pharaon, et Maryam : modèles de piété et de pureté" }
+      ]
+    }
+  ]
+}

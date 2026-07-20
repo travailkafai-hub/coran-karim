@@ -1,0 +1,70 @@
+{
+  "surah": 24,
+  "name_ar": "النور",
+  "name_latin": "An-Nur",
+  "ayat_count": 64,
+  "theme_central": "Sourate législative et éthique dense : bâtir le tissu moral de la communauté, de la chasteté à la pudeur domestique, avec au centre le Verset de la Lumière.",
+  "sources_note": "Découpage précis sourcé jusqu'au verset 35 (grokipedia) : 1-10, 11-20, 21-26, 27-33, 35. Suite (36-64) reconstruite à partir de repères connus (promesse de califat 55, règles de politesse domestique 58-61).",
+  "branches": [
+    {
+      "range": "1-10",
+      "title": "Lois sur la moralité sexuelle",
+      "resume": "Peine pour la fornication, quatre témoins requis, peine pour l'accusation infondée (qadhf).",
+      "children": [
+        { "v": "1-10", "cat": "legislation", "t": "Peine pour la fornication et l'accusation infondée, procédure du serment mutuel (li'ân)" }
+      ]
+    },
+    {
+      "range": "11-20",
+      "title": "L'affaire de la calomnie",
+      "resume": "Fausse accusation portée contre Aïcha par des hypocrites, innocence proclamée par la révélation.",
+      "children": [
+        { "v": "11-20", "cat": "recits", "t": "L'affaire de la calomnie (hadith al-ifk), innocence d'Aïcha proclamée" }
+      ]
+    },
+    {
+      "range": "21-26",
+      "title": "Protocoles éthiques, pardon",
+      "resume": "Ne pas suivre les incitations de Satan, appel au pardon plutôt qu'à la rancune.",
+      "children": [
+        { "v": "21-26", "cat": "ethique", "t": "Pardon des fautes passées, mise en garde contre les incitations de Satan" }
+      ]
+    },
+    {
+      "range": "27-33",
+      "title": "Pudeur, vie privée, tenue vestimentaire",
+      "resume": "Demander permission avant d'entrer, baisser le regard, règles du hijab.",
+      "children": [
+        { "v": "27-29", "cat": "legislation", "t": "Demander permission avant d'entrer dans une maison" },
+        { "v": "30-33", "cat": "legislation", "t": "Baisser le regard, garder sa chasteté, règles vestimentaires (hijab)" }
+      ]
+    },
+    {
+      "range": "34-40",
+      "title": "Le Verset de la Lumière",
+      "resume": "La parabole de la lumière d'Allah, comparée aux ténèbres d'une mer profonde pour les mécréants.",
+      "children": [
+        { "v": "34-35", "cat": "croyance", "t": "Le Verset de la Lumière (Âyat an-Nûr)" },
+        { "v": "36-40", "cat": "argumentation", "t": "Maisons où Allah est glorifié ; parabole des ténèbres pour les mécréants" }
+      ]
+    },
+    {
+      "range": "41-57",
+      "title": "Glorification universelle, obéissance",
+      "resume": "Toute chose glorifie Allah ; obéissance au Messager ; promesse de califat aux croyants pieux.",
+      "children": [
+        { "v": "41-46", "cat": "signes", "t": "Toute chose glorifie Allah, alternance du jour et de la nuit" },
+        { "v": "47-57", "cat": "legislation", "t": "Obéissance à Allah et au Messager, promesse de califat, établir prière et zakât" }
+      ]
+    },
+    {
+      "range": "58-64",
+      "title": "Politesse domestique, clôture",
+      "resume": "Demander permission à certains moments, dispense pour les personnes âgées, clôture sur l'omniscience d'Allah.",
+      "children": [
+        { "v": "58-61", "cat": "legislation", "t": "Règles de politesse domestique, dispense pour âgés et handicapés" },
+        { "v": "62-64", "cat": "croyance", "t": "Les vrais croyants demandent permission ; Allah connaît tout ce qui est dans les cieux et la terre" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "surah": 114,
+  "name_ar": "الناس",
+  "name_latin": "An-Nas",
+  "ayat_count": 6,
+  "theme_central": "Refuge auprès du Seigneur, du Souverain et du Dieu des hommes, contre le mal du mauvais conseiller furtif — qu'il soit djinn ou homme. Clôture du Coran.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Le Seigneur des hommes",
+      "resume": "Refuge auprès du Seigneur, du Souverain et du Dieu des hommes.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Refuge auprès du Seigneur, Souverain et Dieu des hommes" }
+      ]
+    },
+    {
+      "range": "4-6",
+      "title": "Contre le mauvais conseiller",
+      "resume": "Contre le mal du mauvais conseiller furtif qui souffle dans les poitrines, qu'il soit djinn ou homme — clôture du Coran.",
+      "children": [
+        { "v": "4-6", "cat": "adoration", "t": "Protection contre le mauvais conseiller, djinn ou homme" }
+      ]
+    }
+  ]
+}

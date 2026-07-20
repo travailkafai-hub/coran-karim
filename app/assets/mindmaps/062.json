@@ -1,0 +1,34 @@
+{
+  "surah": 62,
+  "name_ar": "الجمعة",
+  "name_latin": "Al-Jumu'ah",
+  "ayat_count": 11,
+  "theme_central": "Le Messager envoyé parmi un peuple illettré pour purifier les cœurs et enseigner la sagesse — d'où l'institution de la prière du vendredi, qui donne son nom à la sourate.",
+  "sources_note": "Structure en 3 sections précisément sourcée (ruhanilm.com, thelastdialogue.org) : 1-4, 5-8, 9-11.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Le Messager envoyé parmi les illettrés",
+      "resume": "Toute chose glorifie Allah ; Messager envoyé pour purifier les cœurs et enseigner le Livre.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Messager envoyé parmi les illettrés pour purifier les cœurs" }
+      ]
+    },
+    {
+      "range": "5-8",
+      "title": "La Thora non appliquée",
+      "resume": "Parabole de l'âne portant des livres ; défi lancé à ceux qui prétendent être le peuple élu d'Allah.",
+      "children": [
+        { "v": "5-8", "cat": "argumentation", "t": "Parabole de l'âne portant des livres, défi sur le statut de peuple élu" }
+      ]
+    },
+    {
+      "range": "9-11",
+      "title": "La prière du vendredi",
+      "resume": "Laisser le commerce à l'appel de la prière, se disperser après pour chercher la faveur d'Allah.",
+      "children": [
+        { "v": "9-11", "cat": "adoration", "t": "Laisser le commerce pour la prière du vendredi, dispersion après" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "surah": 86,
+  "name_ar": "الطارق",
+  "name_latin": "At-Tariq",
+  "ayat_count": 17,
+  "theme_central": "L'astre nocturne perçant l'obscurité, comme le Coran est une parole décisive perçant le mensonge — Allah rétorquera Lui-même à la ruse des mécréants.",
+  "sources_note": "Contenu largement enseigné et non contesté.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Serment, l'astre nocturne",
+      "resume": "Serment par le ciel et l'étoile perçante ; nulle âme sans un gardien veillant sur elle.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Serment par l'astre nocturne, gardien veillant sur chaque âme" }
+      ]
+    },
+    {
+      "range": "5-10",
+      "title": "Création de l'homme, capacité de le ressusciter",
+      "resume": "L'homme créé d'une eau jaillissante ; Allah capable de le faire revenir à la vie, jour où les secrets sont divulgués.",
+      "children": [
+        { "v": "5-10", "cat": "signes", "t": "Création d'une eau jaillissante, capacité divine de ressusciter" }
+      ]
+    },
+    {
+      "range": "11-17",
+      "title": "Parole décisive, riposte divine",
+      "resume": "Le Coran, parole décisive et non un badinage ; à la ruse des mécréants, Allah répond par Sa propre riposte.",
+      "children": [
+        { "v": "11-17", "cat": "argumentation", "t": "Le Coran, parole décisive ; riposte divine à la ruse des mécréants" }
+      ]
+    }
+  ]
+}

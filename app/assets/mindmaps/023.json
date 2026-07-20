@@ -1,0 +1,72 @@
+{
+  "surah": 23,
+  "name_ar": "المؤمنون",
+  "name_latin": "Al-Mu'minun",
+  "ayat_count": 118,
+  "theme_central": "Cycle complet : ouverture sur les qualités des croyants qui réussissent, clôture sur l'invocation finale — un guide complet de ce qui mène au succès véritable.",
+  "sources_note": "Sections 1-11 et 12-14 précisément sourcées (al-islam.org, zamzamacademy.com). Reste reconstruit à partir de repères bien établis (Nuh 23-32, division en sectes 53).",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "Qualités des croyants qui réussissent",
+      "resume": "Prière humble, détachement du futile, zakât, chasteté, engagements tenus.",
+      "children": [
+        { "v": "1-11", "cat": "ethique", "t": "Prière humble, détachement du futile, chasteté, engagements tenus" }
+      ]
+    },
+    {
+      "range": "12-22",
+      "title": "Création de l'homme, bienfaits",
+      "resume": "Étapes de la création embryonnaire, les sept cieux, bienfaits du bétail et des palmiers.",
+      "children": [
+        { "v": "12-16", "cat": "signes", "t": "Étapes de la création de l'homme, puis résurrection" },
+        { "v": "17-22", "cat": "signes", "t": "Les sept cieux, bienfaits du bétail, des palmiers et des oliviers" }
+      ]
+    },
+    {
+      "range": "23-44",
+      "title": "Nuh et la succession de messagers",
+      "resume": "Nuh et le déluge, puis chaque communauté qui traite son messager de menteur.",
+      "children": [
+        { "v": "23-32", "cat": "recits", "t": "Nuh envoyé à son peuple, l'arche, le déluge" },
+        { "v": "33-44", "cat": "recits", "t": "Succession de messagers rejetés par leurs communautés" }
+      ]
+    },
+    {
+      "range": "45-56",
+      "title": "Moussa, Aïssa, division en sectes",
+      "resume": "Moussa et Harun envoyés à Pharaon, Aïssa signe pour l'humanité, division de la religion en sectes.",
+      "children": [
+        { "v": "45-49", "cat": "recits", "t": "Moussa et Harun envoyés à Pharaon, rejet" },
+        { "v": "50-56", "cat": "argumentation", "t": "Aïssa et sa mère, signe pour l'humanité ; division en sectes dénoncée" }
+      ]
+    },
+    {
+      "range": "57-77",
+      "title": "Vrais croyants, méditation du Coran",
+      "resume": "Ceux qui se hâtent vers le bien par crainte révérencielle ; n'ont-ils pas médité le Coran ?",
+      "children": [
+        { "v": "57-67", "cat": "ethique", "t": "Croyants craintifs empressés vers le bien ; nulle âme chargée au-delà de sa capacité" },
+        { "v": "68-77", "cat": "argumentation", "t": "N'ont-ils pas médité le Coran ? Aveuglement persistant même secourus" }
+      ]
+    },
+    {
+      "range": "78-100",
+      "title": "Allah créateur des sens, réfutation",
+      "resume": "Allah qui a créé l'ouïe, la vue et les cœurs ; réfutation d'un fils ou d'associés ; demande de retour au moment de la mort.",
+      "children": [
+        { "v": "78-92", "cat": "croyance", "t": "Allah créateur des sens ; argument rationnel contre l'idée d'un fils ou d'associés" },
+        { "v": "93-100", "cat": "eschatologie", "t": "Refuge contre les suggestions des démons ; demande de retour refusée à la mort" }
+      ]
+    },
+    {
+      "range": "101-118",
+      "title": "Jugement, clôture",
+      "resume": "Aucun lien de parenté ce Jour-là, sort des damnés, invocation finale.",
+      "children": [
+        { "v": "101-111", "cat": "eschatologie", "t": "Nul lien de parenté au Jugement, sort de ceux qui se moquaient des croyants" },
+        { "v": "112-118", "cat": "croyance", "t": "Question sur la durée du séjour terrestre, invocation finale : « pardonne et fais miséricorde »" }
+      ]
+    }
+  ]
+}

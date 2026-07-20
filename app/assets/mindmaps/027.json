@@ -1,0 +1,72 @@
+{
+  "surah": 27,
+  "name_ar": "النمل",
+  "name_latin": "An-Naml",
+  "ayat_count": 93,
+  "theme_central": "La science, la puissance et la justice d'Allah illustrées par des récits marquants — au cœur desquels Sulayman, qui comprend le langage des fourmis et convertit la reine de Saba par la sagesse plutôt que par la force.",
+  "sources_note": "Récit de Sulayman (15-44) précisément sourcé (al-islam.org, enlightening commentary). Reste reconstruit à partir de repères bien établis.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Ouverture",
+      "resume": "Le Coran, guidance et bonne nouvelle pour les croyants.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Le Coran, guidance et bonne nouvelle pour les croyants" }
+      ]
+    },
+    {
+      "range": "7-14",
+      "title": "Moussa au buisson",
+      "resume": "L'appel au buisson ardent, les neuf signes clairs envoyés à Pharaon.",
+      "children": [
+        { "v": "7-14", "cat": "recits", "t": "Moussa au buisson ardent, les neuf signes clairs à Pharaon" }
+      ]
+    },
+    {
+      "range": "15-44",
+      "title": "Sulayman, la fourmi, Bilqis",
+      "resume": "Le cœur de la sourate : la vallée des fourmis, la huppe et la reine de Saba, son trône transporté, sa soumission.",
+      "children": [
+        { "v": "15-19", "cat": "recits", "t": "Sulayman comprend le langage des fourmis, la vallée des fourmis" },
+        { "v": "20-28", "cat": "recits", "t": "La huppe et son rapport sur la reine de Saba" },
+        { "v": "29-31", "cat": "recits", "t": "Échange de lettres entre Sulayman et Bilqis" },
+        { "v": "32-40", "cat": "recits", "t": "Le trône de Bilqis miraculeusement transporté" },
+        { "v": "41-44", "cat": "recits", "t": "Bilqis reconnaît le trône, soumission au Seigneur des mondes" }
+      ]
+    },
+    {
+      "range": "45-58",
+      "title": "Salih et Lot",
+      "resume": "Salih envoyé au peuple de Thamud, division en deux clans ; Lot et son peuple, destruction.",
+      "children": [
+        { "v": "45-53", "cat": "recits", "t": "Salih envoyé au peuple de Thamud, division en deux clans, destruction" },
+        { "v": "54-58", "cat": "recits", "t": "Lot et son peuple, destruction sauf sa femme" }
+      ]
+    },
+    {
+      "range": "59-66",
+      "title": "Questions rhétoriques sur la création",
+      "resume": "« Qui a créé les cieux et la terre... est-il un dieu avec Allah ? » — série de questions célèbres.",
+      "children": [
+        { "v": "59-66", "cat": "argumentation", "t": "Série de questions rhétoriques : qui a créé, qui guide, qui répond à la détresse ?" }
+      ]
+    },
+    {
+      "range": "67-85",
+      "title": "Doute sur la résurrection, la Bête",
+      "resume": "Doute des mécréants réfuté, le Livre clarifie leurs divergences, la Bête annonçant la fin des temps.",
+      "children": [
+        { "v": "67-75", "cat": "eschatologie", "t": "Doute sur la résurrection réfuté, le Livre clarifie les divergences" },
+        { "v": "76-85", "cat": "eschatologie", "t": "La Bête qui sortira à la fin des temps, signe précédant le Jugement" }
+      ]
+    },
+    {
+      "range": "86-93",
+      "title": "Clôture",
+      "resume": "Terreur du Jour, montagnes comme nuages qui passent, ordre d'adorer le Seigneur de cette Cité.",
+      "children": [
+        { "v": "86-93", "cat": "adoration", "t": "Terreur du Jour, ordre d'adorer le Seigneur de la Cité sacrée" }
+      ]
+    }
+  ]
+}

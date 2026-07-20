@@ -1,0 +1,42 @@
+{
+  "surah": 84,
+  "name_ar": "الانشقاق",
+  "name_latin": "Al-Inshiqaq",
+  "ayat_count": 25,
+  "theme_central": "Ciel et terre obéissant à leur Seigneur comme il se doit — image de l'homme qui, lui aussi, peine vers son Seigneur et finira par Le rencontrer, livre en main droite ou derrière le dos.",
+  "sources_note": "Contenu largement enseigné et non contesté.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Ciel fendu, terre étendue",
+      "resume": "Ciel et terre obéissant pleinement à leur Seigneur, se vidant de ce qu'ils contiennent.",
+      "children": [
+        { "v": "1-5", "cat": "signes", "t": "Ciel fendu, terre étendue, obéissance totale à leur Seigneur" }
+      ]
+    },
+    {
+      "range": "6-15",
+      "title": "Le livre en main droite ou derrière le dos",
+      "resume": "L'homme peine vers son Seigneur et Le rencontrera ; jugement facile ou brasier selon la main qui reçoit le livre.",
+      "children": [
+        { "v": "6-15", "cat": "eschatologie", "t": "Livre reçu en main droite (jugement facile) ou derrière le dos (brasier)" }
+      ]
+    },
+    {
+      "range": "16-19",
+      "title": "Serment, transformation graduelle",
+      "resume": "Serment par le crépuscule et la nuit : vous passerez certainement d'un état à un autre.",
+      "children": [
+        { "v": "16-19", "cat": "croyance", "t": "Serment par le crépuscule ; l'homme passe d'un état à un autre" }
+      ]
+    },
+    {
+      "range": "20-25",
+      "title": "Refus de la prosternation, clôture",
+      "resume": "Pourquoi ne croient-ils pas, ne se prosternent-ils pas ? Récompense sans interruption pour les croyants bienfaisants.",
+      "children": [
+        { "v": "20-25", "cat": "argumentation", "t": "Refus de la prosternation dénoncé, récompense ininterrompue promise aux croyants" }
+      ]
+    }
+  ]
+}

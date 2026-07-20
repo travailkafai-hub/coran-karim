@@ -1,0 +1,39 @@
+{
+  "surah": 32,
+  "name_ar": "السجدة",
+  "name_latin": "As-Sajdah",
+  "ayat_count": 30,
+  "theme_central": "Dissiper les doutes sur trois réalités : le Tawhid, l'au-delà et la prophétie — de la création de l'homme à partir d'argile jusqu'à la récompense cachée des adorateurs nocturnes.",
+  "sources_note": "Structure en 3 sections précisément sourcée (thequran.love, Verse-by-Verse Commentary) : 1-11, 12-22, 23-30.",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "Authenticité du Coran, création",
+      "resume": "Origine divine incontestable du Coran, façonnement de l'homme à partir d'argile, déni de la résurrection réfuté.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Origine divine du Coran, aucun doute possible" },
+        { "v": "4-9", "cat": "signes", "t": "Création des cieux et de la terre, façonnement de l'homme, insufflation de l'esprit" },
+        { "v": "10-11", "cat": "eschatologie", "t": "Déni de la résurrection réfuté" }
+      ]
+    },
+    {
+      "range": "12-22",
+      "title": "Jour du Jugement, récompense cachée",
+      "resume": "Scène des coupables devant leur Seigneur, les adorateurs nocturnes et leur récompense cachée.",
+      "children": [
+        { "v": "12-14", "cat": "eschatologie", "t": "Scène des coupables devant leur Seigneur, verdict divin" },
+        { "v": "15-17", "cat": "adoration", "t": "Les adorateurs nocturnes, quittant leur couche, récompense cachée" },
+        { "v": "18-22", "cat": "eschatologie", "t": "Séparation croyants/pervers, châtiment moindre pour ramener avant le grand" }
+      ]
+    },
+    {
+      "range": "23-30",
+      "title": "Mission du Prophète, clôture",
+      "resume": "Le Livre donné à Moussa comme référence, générations détruites en exemple, patience finale.",
+      "children": [
+        { "v": "23-25", "cat": "croyance", "t": "Le Livre donné à Moussa comme référence, guides établis parmi les patients" },
+        { "v": "26-30", "cat": "argumentation", "t": "Générations détruites en exemple, patience du Prophète demandée" }
+      ]
+    }
+  ]
+}

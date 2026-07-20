@@ -1,0 +1,70 @@
+{
+  "surah": 10,
+  "name_ar": "يونس",
+  "name_latin": "Yunus",
+  "ayat_count": 109,
+  "theme_central": "La vérité de la révélation et la folie du matérialisme, démontrées par l'argument rationnel et l'histoire — avec l'exception du peuple de Yunus, seul peuple dont la foi de dernière minute fut acceptée.",
+  "sources_note": "Partie 1 (1-25, « la vraie thèse ») sourcée (karimabuzaid.com). Reste reconstruit à partir de repères bien établis : Moussa/Pharaon 74-93 (noyade 90-92, très connue), exception du peuple de Yunus v.98.",
+  "branches": [
+    {
+      "range": "1-20",
+      "title": "Ouverture, étonnement face à la révélation",
+      "resume": "Étonnement des mécréants qu'un homme reçoive la révélation, description du Jugement, mise en garde.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Le Livre sage, Allah établi sur le Trône, gouverne toute chose" },
+        { "v": "4-10", "cat": "eschatologie", "t": "Retour vers Allah, description du Paradis et de l'invocation des élus" },
+        { "v": "11-20", "cat": "argumentation", "t": "Si Allah hâtait le malheur comme Il hâte le bien ; le Coran inimitable" }
+      ]
+    },
+    {
+      "range": "21-40",
+      "title": "La vie éphémère, unicité rationnelle",
+      "resume": "L'homme oublie Allah dans l'aisance, argument rationnel de l'unicité, défi de produire une sourate semblable.",
+      "children": [
+        { "v": "21-30", "cat": "signes", "t": "Parabole de la vie comme végétation éphémère, scène du Jugement" },
+        { "v": "31-36", "cat": "argumentation", "t": "Qui pourvoit à la subsistance ? Argument rationnel pour l'unicité" },
+        { "v": "37-40", "cat": "argumentation", "t": "Le Coran ne peut être inventé, défi de produire une sourate semblable" }
+      ]
+    },
+    {
+      "range": "41-60",
+      "title": "Chaque peuple, son terme",
+      "resume": "Un messager et un délai fixé pour chaque communauté ; le Coran comme guérison et miséricorde.",
+      "children": [
+        { "v": "41-53", "cat": "eschatologie", "t": "Nul ne peut hâter ni retarder l'échéance fixée à chaque peuple" },
+        { "v": "54-60", "cat": "croyance", "t": "Aucune compensation acceptée au Jugement ; le Coran, guérison et miséricorde" }
+      ]
+    },
+    {
+      "range": "61-73",
+      "title": "Allah témoin de toute chose",
+      "resume": "Réfutation de l'idée qu'Allah aurait un enfant ; bref rappel du récit de Nuh.",
+      "children": [
+        { "v": "61-65", "cat": "croyance", "t": "Allah témoin de toute chose, la véritable réussite appartient à Ses alliés" },
+        { "v": "66-70", "cat": "argumentation", "t": "Réfutation de l'idée qu'Allah se serait attribué un enfant" },
+        { "v": "71-73", "cat": "recits", "t": "Bref rappel du récit de Nuh et du déluge" }
+      ]
+    },
+    {
+      "range": "74-93",
+      "title": "Moussa et Pharaon",
+      "resume": "Confrontation avec Pharaon, traversée de la mer, noyade et repentir tardif de Pharaon.",
+      "children": [
+        { "v": "74-82", "cat": "recits", "t": "Moussa envoyé à Pharaon et aux notables, défi des magiciens" },
+        { "v": "83-89", "cat": "recits", "t": "Foi timide du peuple de Moussa, invocation contre Pharaon" },
+        { "v": "90-93", "cat": "eschatologie", "t": "Noyade de Pharaon, sa foi tardive rejetée, son corps préservé comme signe" }
+      ]
+    },
+    {
+      "range": "94-109",
+      "title": "L'exception du peuple de Yunus",
+      "resume": "La foi doit précéder la vue du châtiment — sauf le peuple de Yunus ; instructions finales au Prophète.",
+      "children": [
+        { "v": "94-97", "cat": "argumentation", "t": "Confirmation par les Gens du Livre, la foi ne sert plus après avoir vu le châtiment" },
+        { "v": "98", "cat": "recits", "t": "Exception : le peuple de Yunus crut à temps et le châtiment fut levé" },
+        { "v": "99-103", "cat": "croyance", "t": "Nul ne croit sans la permission d'Allah, salut des croyants" },
+        { "v": "104-109", "cat": "ethique", "t": "Instructions finales au Prophète : suivre la révélation, patienter" }
+      ]
+    }
+  ]
+}

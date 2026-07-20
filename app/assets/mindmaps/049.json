@@ -1,0 +1,52 @@
+{
+  "surah": 49,
+  "name_ar": "الحجرات",
+  "name_latin": "Al-Hujurat",
+  "ayat_count": 18,
+  "theme_central": "Courte mais extrêmement dense : le code des bonnes manières (akhlâq) qui fonde une société harmonieuse — de la vérification d'une information à l'affirmation que seule la piété fait la noblesse.",
+  "sources_note": "Structure bien sourcée (alim.org, thelastdialogue.org) : 1-5, 6-9, puis éthique sociale et fraternité largement documentées.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Manières envers Allah et le Prophète",
+      "resume": "Ne pas devancer Allah et Son messager, baisser la voix ; d'où le nom de la sourate, ceux qui appellent de derrière les appartements (hujurât).",
+      "children": [
+        { "v": "1-3", "cat": "ethique", "t": "Ne pas devancer Allah et Son messager, baisser la voix en sa présence" },
+        { "v": "4-5", "cat": "ethique", "t": "Ceux qui appellent de derrière les appartements manquent de raison" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Vérifier une information",
+      "resume": "Si un pervers apporte une nouvelle, vérifier avant d'agir pour ne pas nuire à un peuple par ignorance.",
+      "children": [
+        { "v": "6-8", "cat": "ethique", "t": "Vérifier une information avant d'agir, ne pas nuire par ignorance" }
+      ]
+    },
+    {
+      "range": "9-10",
+      "title": "Réconciliation, fraternité",
+      "resume": "Réconcilier deux groupes de croyants en conflit ; les croyants sont frères.",
+      "children": [
+        { "v": "9-10", "cat": "legislation", "t": "Réconciliation entre croyants en conflit, fraternité de la foi" }
+      ]
+    },
+    {
+      "range": "11-13",
+      "title": "Moquerie, médisance, la vraie noblesse",
+      "resume": "Ne pas se moquer, ne pas médire ; l'humanité créée diverse pour se connaître ; seule la piété fait la noblesse.",
+      "children": [
+        { "v": "11-12", "cat": "ethique", "t": "Ne pas se moquer, ne pas s'injurier, éviter la suspicion et la médisance" },
+        { "v": "13", "cat": "croyance", "t": "Diversité des peuples pour se connaître ; seule la piété fait la noblesse" }
+      ]
+    },
+    {
+      "range": "14-18",
+      "title": "Foi véritable vs déclaration verbale",
+      "resume": "Les bédouins disent croire mais la foi n'est pas encore entrée dans leur cœur ; vrais croyants définis, clôture.",
+      "children": [
+        { "v": "14-18", "cat": "croyance", "t": "Foi véritable des vrais croyants, distincte de la simple déclaration verbale" }
+      ]
+    }
+  ]
+}

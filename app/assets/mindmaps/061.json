@@ -1,0 +1,58 @@
+{
+  "surah": 61,
+  "name_ar": "الصف",
+  "name_latin": "As-Saf",
+  "ayat_count": 14,
+  "theme_central": "Cohérence entre la parole et l'acte, combattre en rangs serrés « comme un édifice scellé » — avec la prophétie d'Aïssa annonçant la venue d'Ahmad (Muhammad).",
+  "sources_note": "Structure précisément sourcée (mudahamatan.home.blog, Tafsir Ibn Kathir) : 1-4, 5-6, 7, 8-9, 10-13, 14.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Dire et faire",
+      "resume": "Pourquoi dites-vous ce que vous ne faites pas ? Allah aime ceux qui combattent en rangs serrés.",
+      "children": [
+        { "v": "1-4", "cat": "ethique", "t": "Cohérence entre la parole et l'acte, combattre en rangs serrés" }
+      ]
+    },
+    {
+      "range": "5-6",
+      "title": "Moussa et la prophétie d'Aïssa",
+      "resume": "Moussa réprimande son peuple ; Aïssa annonce la venue d'un messager nommé Ahmad.",
+      "children": [
+        { "v": "5-6", "cat": "recits", "t": "Moussa réprimande son peuple ; Aïssa annonce Ahmad (Muhammad)" }
+      ]
+    },
+    {
+      "range": "7",
+      "title": "Qui invente un mensonge contre Allah ?",
+      "resume": "Question rhétorique sur l'injustice de mentir sur Allah tout en étant appelé à l'islam.",
+      "children": [
+        { "v": "7", "cat": "argumentation", "t": "Qui invente un mensonge contre Allah alors qu'appelé à l'islam ?" }
+      ]
+    },
+    {
+      "range": "8-9",
+      "title": "La lumière d'Allah prévaudra",
+      "resume": "Tentative d'éteindre la lumière d'Allah par la bouche, vouée à l'échec.",
+      "children": [
+        { "v": "8-9", "cat": "croyance", "t": "La lumière d'Allah prévaudra malgré les mécréants" }
+      ]
+    },
+    {
+      "range": "10-13",
+      "title": "Le commerce profitable",
+      "resume": "Foi, lutte et dépense : un commerce qui sauve du châtiment douloureux.",
+      "children": [
+        { "v": "10-13", "cat": "eschatologie", "t": "Foi, lutte et dépense comme commerce profitable" }
+      ]
+    },
+    {
+      "range": "14",
+      "title": "Clôture",
+      "resume": "Être les auxiliaires d'Allah, comme les disciples d'Aïssa.",
+      "children": [
+        { "v": "14", "cat": "ethique", "t": "Être les auxiliaires d'Allah, comme les disciples d'Aïssa" }
+      ]
+    }
+  ]
+}

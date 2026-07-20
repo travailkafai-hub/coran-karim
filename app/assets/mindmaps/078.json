@@ -1,0 +1,52 @@
+{
+  "surah": 78,
+  "name_ar": "النبأ",
+  "name_latin": "An-Naba",
+  "ayat_count": 40,
+  "theme_central": "« La grande nouvelle » sur laquelle ils divergent : de l'observation des signes de la création (les vingt premiers versets) à la certitude du Jugement (les vingt derniers).",
+  "sources_note": "Structure bipartite (20/20) précisément sourcée (grokipedia, Heavenly Order) : 1-5, 6-16, 17-40.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "La grande nouvelle",
+      "resume": "Sur quoi s'interrogent-ils ? Sur la grande nouvelle qui les divise ; bientôt ils sauront.",
+      "children": [
+        { "v": "1-5", "cat": "argumentation", "t": "La grande nouvelle (an-naba) sur laquelle ils divergent" }
+      ]
+    },
+    {
+      "range": "6-16",
+      "title": "Signes de la création",
+      "resume": "La terre comme berceau, montagnes comme piquets, création en couples, la nuit repos, sept cieux solides, eau abondante.",
+      "children": [
+        { "v": "6-11", "cat": "signes", "t": "Terre en berceau, montagnes en piquets, couples créés, nuit et sommeil" },
+        { "v": "12-16", "cat": "signes", "t": "Sept cieux solides, luminaire ardent, eau abondante, jardins et moissons" }
+      ]
+    },
+    {
+      "range": "17-20",
+      "title": "Le Jour du Discernement",
+      "resume": "La Trompette, cieux ouverts en portes, montagnes emportées comme un mirage.",
+      "children": [
+        { "v": "17-20", "cat": "eschatologie", "t": "Le Jour du Discernement fixé, la Trompette, montagnes emportées" }
+      ]
+    },
+    {
+      "range": "21-30",
+      "title": "L'Enfer",
+      "resume": "L'Enfer aux aguets, demeure des rebelles, ni fraîcheur ni breuvage sauf eau bouillante et pus.",
+      "children": [
+        { "v": "21-30", "cat": "eschatologie", "t": "L'Enfer aux aguets, demeure des rebelles, châtiment prolongé" }
+      ]
+    },
+    {
+      "range": "31-40",
+      "title": "Réussite des pieux, clôture",
+      "resume": "Jardins et coupe débordante pour les pieux ; ce Jour où l'Esprit et les anges se tiennent en rangs.",
+      "children": [
+        { "v": "31-36", "cat": "eschatologie", "t": "Réussite des pieux, jardins, coupe débordante, ni parole vaine ni mensonge" },
+        { "v": "37-40", "cat": "eschatologie", "t": "L'Esprit et les anges en rangs ; le mécréant souhaitera être poussière" }
+      ]
+    }
+  ]
+}

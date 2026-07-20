@@ -1,0 +1,52 @@
+{
+  "surah": 69,
+  "name_ar": "الحاقة",
+  "name_latin": "Al-Haqqah",
+  "ayat_count": 52,
+  "theme_central": "« La Réalité inévitable » : cinq destructions passées comme preuve à petite échelle, avant la scène cosmique du Jugement où chacun reçoit son registre en main droite ou en main gauche.",
+  "sources_note": "Structure en anneau précisément sourcée (ayahguide.com, Reflection & Tadabbur) : 1-3, 4-12, 13-18, 18-37, 38-52.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "La Réalité inévitable annoncée",
+      "resume": "Triple affirmation emphatique de la certitude d'al-Haqqah.",
+      "children": [
+        { "v": "1-3", "cat": "eschatologie", "t": "Triple affirmation de la certitude d'al-Haqqah, la Réalité inévitable" }
+      ]
+    },
+    {
+      "range": "4-12",
+      "title": "Destruction des peuples anciens",
+      "resume": "Cinq nations détruites en succession rapide : Thamud, 'Ad, Pharaon, Nuh — chacune preuve miniature d'al-Haqqah.",
+      "children": [
+        { "v": "4-8", "cat": "recits", "t": "Thamud détruit par le Cri, 'Ad par un vent hurlant sept nuits et huit jours" },
+        { "v": "9-12", "cat": "recits", "t": "Pharaon et les peuples avant lui, Nuh sauvé par l'arche" }
+      ]
+    },
+    {
+      "range": "13-18",
+      "title": "Déconstruction cosmique",
+      "resume": "La Trompette, la terre pulvérisée, le ciel déchiré, huit anges portant le Trône.",
+      "children": [
+        { "v": "13-18", "cat": "eschatologie", "t": "La Trompette, terre pulvérisée, ciel déchiré, huit anges portant le Trône" }
+      ]
+    },
+    {
+      "range": "19-37",
+      "title": "Jugement individuel",
+      "resume": "Bascule du cosmique vers le personnel : registre reçu en main droite ou en main gauche.",
+      "children": [
+        { "v": "19-24", "cat": "eschatologie", "t": "Registre reçu en main droite, joie radieuse au Paradis" },
+        { "v": "25-37", "cat": "eschatologie", "t": "Registre reçu en main gauche, regret amer, tourment en Enfer" }
+      ]
+    },
+    {
+      "range": "38-52",
+      "title": "Défense prophétique",
+      "resume": "Le Coran défendu : parole d'un noble messager, ni poète ni devin ; vérité venue du Seigneur des mondes.",
+      "children": [
+        { "v": "38-52", "cat": "croyance", "t": "Défense du Coran : ni poésie ni divination, vérité du Seigneur des mondes" }
+      ]
+    }
+  ]
+}

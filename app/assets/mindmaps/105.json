@@ -1,0 +1,26 @@
+{
+  "surah": 105,
+  "name_ar": "الفيل",
+  "name_latin": "Al-Fil",
+  "ayat_count": 5,
+  "theme_central": "Le rappel de l'armée de l'éléphant, anéantie par des volées d'oiseaux — preuve historique récente de la protection d'Allah sur la Maison sacrée.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Les gens de l'éléphant",
+      "resume": "Ton Seigneur a rendu vaine la ruse des gens de l'éléphant.",
+      "children": [
+        { "v": "1-2", "cat": "recits", "t": "Ruse des gens de l'éléphant rendue vaine par Allah" }
+      ]
+    },
+    {
+      "range": "3-5",
+      "title": "Châtiment par les oiseaux",
+      "resume": "Volées d'oiseaux (ababil) lançant des pierres d'argile durcie, armée réduite à une paille mâchée.",
+      "children": [
+        { "v": "3-5", "cat": "recits", "t": "Châtiment par les oiseaux ababil, armée anéantie" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "surah": 112,
+  "name_ar": "الإخلاص",
+  "name_latin": "Al-Ikhlas",
+  "ayat_count": 4,
+  "theme_central": "Le Tawhid dans sa formulation la plus condensée : Allah, Unique, l'Absolu dont tout dépend et qui ne dépend de rien, sans engendrer ni être engendré.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "L'Unicité absolue",
+      "resume": "Dis : Il est Allah, Unique, Le Seul à être imploré pour ce que nous désirons.",
+      "children": [
+        { "v": "1-2", "cat": "croyance", "t": "Unicité absolue d'Allah, l'Absolu imploré" }
+      ]
+    },
+    {
+      "range": "3-4",
+      "title": "Sans engendrer ni être engendré",
+      "resume": "Il n'a jamais engendré, n'a pas été engendré non plus, et nul n'est égal à Lui.",
+      "children": [
+        { "v": "3-4", "cat": "croyance", "t": "Sans engendrer ni être engendré, nul égal à Lui" }
+      ]
+    }
+  ]
+}

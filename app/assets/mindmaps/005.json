@@ -1,0 +1,54 @@
+{
+  "surah": 5,
+  "name_ar": "المائدة",
+  "name_latin": "Al-Ma'idah",
+  "ayat_count": 120,
+  "theme_central": "L'accomplissement des pactes (al-wafâ' bil-'uqûd) — envers Allah, entre les hommes — à travers l'histoire des pactes rompus par les Fils d'Israël et les chrétiens.",
+  "sources_note": "Structure en 4 parties d'après imamghazali.org (Thematic Explanation) ; dernière sourate révélée dans son intégralité (verset 3 = dernier verset révélé).",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "Fondements du pacte",
+      "resume": "Respect des contrats, nourriture licite, purification, rappel du pacte.",
+      "children": [
+        { "v": "1-5", "cat": "legislation", "t": "Respect des contrats, nourriture licite (halal), abattage rituel, complétude de la religion" },
+        { "v": "6", "cat": "adoration", "t": "Ablutions (wudû') et purification par la terre (tayammum)" },
+        { "v": "7-11", "cat": "ethique", "t": "Rappel du pacte, justice même envers un peuple ennemi" }
+      ]
+    },
+    {
+      "range": "12-86",
+      "title": "Pactes rompus, les Gens du Livre",
+      "resume": "Histoire des pactes rompus par les Fils d'Israël, puis critique du dogme trinitaire chrétien.",
+      "children": [
+        { "v": "12-26", "cat": "recits", "t": "Pacte rompu, Moussa et l'errance de 40 ans en Terre Sainte" },
+        { "v": "27-32", "cat": "recits", "t": "Récit des deux fils d'Adam (Caïn et Abel)" },
+        { "v": "33-40", "cat": "legislation", "t": "Lutte contre la corruption sur terre, peine pour le vol" },
+        { "v": "41-50", "cat": "argumentation", "t": "Mise en garde contre le jugement selon d'autres lois qu'Allah" },
+        { "v": "51-71", "cat": "ethique", "t": "Alliances à ne pas nouer contre la foi, mise en garde réciproque" },
+        { "v": "72-86", "cat": "argumentation", "t": "Réfutation du dogme trinitaire" }
+      ]
+    },
+    {
+      "range": "87-108",
+      "title": "Règles morales et sociales",
+      "resume": "Interdits alimentaires et rituels, sanctuaire de la Kaaba, règles de témoignage.",
+      "children": [
+        { "v": "87-89", "cat": "ethique", "t": "Ne pas s'interdire les bonnes choses licites, expiation du serment rompu" },
+        { "v": "90-93", "cat": "legislation", "t": "Interdiction du vin et des jeux de hasard" },
+        { "v": "94-100", "cat": "adoration", "t": "Interdits du pèlerinage (chasse), sacralité de la Kaaba" },
+        { "v": "101-108", "cat": "legislation", "t": "Ne pas poser de questions embarrassantes, règles de témoignage testamentaire" }
+      ]
+    },
+    {
+      "range": "109-120",
+      "title": "Responsabilité eschatologique",
+      "resume": "Allah interroge les messagers, la table servie demandée par les disciples de Aïssa, jugement final.",
+      "children": [
+        { "v": "109-111", "cat": "eschatologie", "t": "Allah interroge les messagers au Jour du Jugement" },
+        { "v": "112-115", "cat": "recits", "t": "La table servie (al-mâ'ida) demandée par les disciples de Aïssa" },
+        { "v": "116-120", "cat": "croyance", "t": "Aïssa se désolidarise de la divinité qu'on lui attribue" }
+      ]
+    }
+  ]
+}

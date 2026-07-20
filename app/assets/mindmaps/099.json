@@ -1,0 +1,34 @@
+{
+  "surah": 99,
+  "name_ar": "الزلزلة",
+  "name_latin": "Az-Zalzalah",
+  "ayat_count": 8,
+  "theme_central": "La terre elle-même témoignera, inspirée par son Seigneur — et chaque œuvre, même du poids d'un atome, sera vue.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Le tremblement de terre",
+      "resume": "La terre tremble, rejette ses fardeaux, l'homme s'interroge.",
+      "children": [
+        { "v": "1-3", "cat": "eschatologie", "t": "Tremblement de terre, fardeaux rejetés, étonnement de l'homme" }
+      ]
+    },
+    {
+      "range": "4-5",
+      "title": "La terre témoigne",
+      "resume": "Ce jour la terre contera son histoire, inspirée par son Seigneur.",
+      "children": [
+        { "v": "4-5", "cat": "eschatologie", "t": "La terre témoigne, inspirée par son Seigneur" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Chaque œuvre vue",
+      "resume": "Les hommes sortent en groupes divers ; quiconque fait un poids d'atome de bien ou de mal le verra.",
+      "children": [
+        { "v": "6-8", "cat": "ethique", "t": "Chaque œuvre, même du poids d'un atome, sera vue" }
+      ]
+    }
+  ]
+}

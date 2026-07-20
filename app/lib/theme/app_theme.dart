@@ -30,18 +30,26 @@ class AppColors {
   static const tajwidMadd     = Color(0xFFb85000);  // orange — elongation
   static const tajwidIkhfaa   = Color(0xFF8b0000);  // red — hidden
 
-  // Carte mentale (REFONTE_IHM.md §7) — 6 categories de branches.
-  // PLACEHOLDER (2026-07-19) : la palette definitive doit venir de
-  // l'utilisateur (palette manuscrite deja validee par lui, a recuperer --
-  // "ne pas inventer les hex"). Ces couleurs sont des variantes du theme
-  // existant, juste pour rendre le graphe lisible en attendant ; a
-  // remplacer des reception de la vraie palette, ne pas considerer figees.
+  // Carte mentale (REFONTE_IHM.md §7) — 8 categories REELLES, relevees sur
+  // les 114 fichiers fournis (921 passages) : recits, croyance, eschatologie,
+  // argumentation, ethique, legislation, signes, adoration.
+  // (Les 6 categories precedentes -- promesse/avertissement/louange... --
+  // etaient celles de ma maquette ; elles ne correspondaient PAS aux donnees
+  // reelles. Conservees nulle part ailleurs, ce commentaire est la trace.)
+  //
+  // PLACEHOLDER (2026-07-19, toujours valable) : la palette definitive doit
+  // venir de l'utilisateur -- ne pas considerer ces hex comme figes. Choisis
+  // ici pour rester dans l'univers vert/or/terre du theme et pour se
+  // distinguer entre eux une fois cote a cote sur le graphe.
+  static const mindmapRecits        = Color(0xFF0055aa);  // bleu profond
   static const mindmapCroyance      = Color(0xFF16604a);  // green700
-  static const mindmapRecit         = Color(0xFF0055aa);  // bleu (tajwidQalqala)
-  static const mindmapLoi           = Color(0xFFc8a23c);  // brass
-  static const mindmapPromesse      = Color(0xFF1a7a5e);  // green600
-  static const mindmapAvertissement = Color(0xFF8b0000);  // rouge (tajwidIkhfaa)
-  static const mindmapLouange       = Color(0xFFb85000);  // orange (tajwidMadd)
+  static const mindmapEschatologie  = Color(0xFF6b2d8b);  // violet
+  static const mindmapArgumentation = Color(0xFF1a7a5e);  // green600
+  static const mindmapEthique       = Color(0xFFb85000);  // orange terre
+  static const mindmapLegislation   = Color(0xFFc8a23c);  // brass
+  static const mindmapSignes        = Color(0xFF0d7d8f);  // teal
+  static const mindmapAdoration     = Color(0xFF8b0000);  // rouge profond
+  static const mindmapAutre         = Color(0xFF4a3f2f);  // inkLight
 }
 
 class AppTheme {

@@ -1,0 +1,28 @@
+{
+  "surah": 1,
+  "name_ar": "الفاتحة",
+  "name_latin": "Al-Fatiha",
+  "ayat_count": 7,
+  "theme_central": "L'Ouverture : louange à Allah puis demande de guidance — récitée à chaque unité de prière, elle résume en 7 versets l'ensemble du rapport entre le croyant et son Seigneur.",
+  "sources_note": "Contenu universellement connu, aucune divergence de structure possible.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Louange et attributs d'Allah",
+      "resume": "Louange à Allah, Seigneur des mondes, le Tout Miséricordieux, Maître du Jour de la Rétribution.",
+      "children": [
+        { "v": "1", "cat": "croyance", "t": "Basmala : au nom d'Allah, le Tout Miséricordieux" },
+        { "v": "2-4", "cat": "croyance", "t": "Louange à Allah, Seigneur des mondes, Maître du Jour de la Rétribution" }
+      ]
+    },
+    {
+      "range": "5-7",
+      "title": "Adoration et guidance",
+      "resume": "Le fidèle proclame n'adorer qu'Allah et implore Sa guidance sur le droit chemin.",
+      "children": [
+        { "v": "5", "cat": "adoration", "t": "« C'est Toi que nous adorons, Toi seul dont nous implorons secours »" },
+        { "v": "6-7", "cat": "croyance", "t": "Guidance sur le droit chemin, celui des bien-guidés" }
+      ]
+    }
+  ]
+}

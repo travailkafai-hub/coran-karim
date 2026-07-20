@@ -1,0 +1,71 @@
+{
+  "surah": 16,
+  "name_ar": "النحل",
+  "name_latin": "An-Nahl",
+  "ayat_count": 128,
+  "theme_central": "Les bienfaits d'Allah (ni'mah) comme preuve cumulative de Son unicité — dans le ciel, la terre, le bétail, les fruits et jusqu'à l'abeille, qui donne son nom à la sourate.",
+  "sources_note": "Parties 1-2 (1-25, 26-89) sourcées (grokipedia, catégories de bienfaits détaillées). Suite (90-128) reconstruite à partir de repères très connus : verset de la justice 16:90, verset final sur la patience 16:128.",
+  "branches": [
+    {
+      "range": "1-25",
+      "title": "Introduction : impatience vs bienfaits",
+      "resume": "Réponse à l'impatience des mécréants réclamant le châtiment, ouverture de la longue liste des bienfaits.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "Réponse à l'impatience réclamant le châtiment ; création des cieux, du bétail, des chemins" },
+        { "v": "10-18", "cat": "signes", "t": "L'eau, les plantations, le jour et la nuit, les montagnes comme signes" },
+        { "v": "19-25", "cat": "argumentation", "t": "Comparaison entre le Créateur et ce qui ne crée rien" }
+      ]
+    },
+    {
+      "range": "26-44",
+      "title": "Sort des comploteurs, messagers humains",
+      "resume": "Humiliation des comploteurs anciens, accueil des anges, confirmation que les messagers sont des hommes.",
+      "children": [
+        { "v": "26-32", "cat": "eschatologie", "t": "Sort des comploteurs anciens, accueil des anges pour pieux et mécréants" },
+        { "v": "33-40", "cat": "eschatologie", "t": "Attente du châtiment soudain, réaffirmation de la résurrection" },
+        { "v": "41-44", "cat": "croyance", "t": "Émigration récompensée, confirmation que les messagers sont des hommes" }
+      ]
+    },
+    {
+      "range": "45-65",
+      "title": "Mise en garde, infanticide dénoncé",
+      "resume": "Prosternation de toute chose devant Allah, mépris des filles dénoncé, l'eau qui fait revivre la terre.",
+      "children": [
+        { "v": "45-50", "cat": "eschatologie", "t": "Mise en garde contre le châtiment soudain, prosternation universelle" },
+        { "v": "51-60", "cat": "ethique", "t": "Ingratitude de l'homme, mépris des filles (infanticide) dénoncé" },
+        { "v": "61-65", "cat": "signes", "t": "Si Allah punissait immédiatement, rien ne resterait ; l'eau qui fait revivre la terre" }
+      ]
+    },
+    {
+      "range": "66-83",
+      "title": "Les bienfaits détaillés",
+      "resume": "Le lait du bétail, les fruits, le miel de l'abeille (nom de la sourate), les maisons et vêtements.",
+      "children": [
+        { "v": "66-69", "cat": "signes", "t": "Le lait du bétail, les fruits, le miel de l'abeille comme guérison" },
+        { "v": "70-76", "cat": "ethique", "t": "Le grand âge, subsistance inégale, parabole de l'esclave et de l'homme libre généreux" },
+        { "v": "77-83", "cat": "signes", "t": "Science du invisible, bienfaits des maisons, vêtements, ombres" }
+      ]
+    },
+    {
+      "range": "84-100",
+      "title": "Scène du Jugement, justice et engagements",
+      "resume": "Chaque nation avec son témoin ; le verset de la justice et de la bienfaisance ; tenir ses engagements.",
+      "children": [
+        { "v": "84-89", "cat": "eschatologie", "t": "Chaque nation avec son témoin, le Prophète témoin de sa communauté" },
+        { "v": "90", "cat": "ethique", "t": "« Allah ordonne la justice, la bienfaisance et l'assistance aux proches »" },
+        { "v": "91-100", "cat": "legislation", "t": "Tenir ses engagements, refuge auprès d'Allah contre Satan" }
+      ]
+    },
+    {
+      "range": "101-128",
+      "title": "Réfutation, Ibrahim modèle, clôture",
+      "resume": "Réfutation de l'accusation d'invention, parabole de la cité ingrate, Ibrahim comme modèle, appel à la sagesse.",
+      "children": [
+        { "v": "101-111", "cat": "argumentation", "t": "Réfutation de l'accusation d'invention, cas de l'apostasie sous contrainte" },
+        { "v": "112-119", "cat": "ethique", "t": "Parabole de la cité ingrate (sécurité puis famine), nourriture licite et illicite" },
+        { "v": "120-123", "cat": "recits", "t": "Ibrahim, modèle (umma) à lui seul, sa voie à suivre" },
+        { "v": "124-128", "cat": "ethique", "t": "Le Sabbat institué, appel à la sagesse et à la belle exhortation, patience finale" }
+      ]
+    }
+  ]
+}

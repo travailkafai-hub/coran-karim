@@ -467,6 +467,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           ayahNumber: verse.ayahNumber,
           wordIndex: local,
           expectedWord: words[wordIndex].display,
+          // Type d'erreur calculé à CHAUD (lettre / harakat / tajwid / sauté) :
+          // il faut l'entendu, qui n'est conservé que sur le mot courant --
+          // impossible à reconstruire après coup. Cf.
+          // RecitationNotifier.classifyError pour la méthode et ses limites.
+          kind: ref.read(recitationProvider.notifier).classifyError(wordIndex),
         );
       }
     }

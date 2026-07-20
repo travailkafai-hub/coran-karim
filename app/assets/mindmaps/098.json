@@ -1,0 +1,34 @@
+{
+  "surah": 98,
+  "name_ar": "البينة",
+  "name_latin": "Al-Bayyinah",
+  "ayat_count": 8,
+  "theme_central": "La Preuve évidente (al-bayyina) qui aurait dû réunir Gens du Livre et polythéistes autour d'un culte exclusif — au lieu de cela, elle sépare définitivement les meilleures des pires créatures.",
+  "sources_note": "Contenu largement enseigné et non contesté, court mais structuré en 3 mouvements clairs.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "La Preuve évidente",
+      "resume": "Mécréants et polythéistes n'allaient pas cesser jusqu'à la venue d'un Messager récitant des feuillets purifiés.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Un Messager envoyé avec des feuillets purifiés, la Preuve évidente" }
+      ]
+    },
+    {
+      "range": "4-5",
+      "title": "La religion de droiture",
+      "resume": "Division survenue après la Preuve reçue ; ordre unique : adorer Allah exclusivement, prier, acquitter la zakât.",
+      "children": [
+        { "v": "4-5", "cat": "adoration", "t": "Culte exclusif, prière et zakât : la religion de droiture" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Meilleures et pires créatures",
+      "resume": "Mécréants voués à l'Enfer, pires des créatures ; croyants bienfaisants, meilleures des créatures, jardins d'Éden.",
+      "children": [
+        { "v": "6-8", "cat": "eschatologie", "t": "Contraste final : pires et meilleures des créatures" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "surah": 65,
+  "name_ar": "الطلاق",
+  "name_latin": "At-Talaq",
+  "ayat_count": 12,
+  "theme_central": "Affiner les lois du divorce déjà posées dans Al-Baqara et An-Nisa — méthode précise, délai de viduité, entretien — entrelacées d'exhortations à la piété : qui craint Allah, Il lui donne une issue.",
+  "sources_note": "Structure en 2 sections précisément sourcée (alim.org) : lois du divorce, puis sort des mécréants et récompense des croyants.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Méthode du divorce",
+      "resume": "Divorcer pendant la période de pureté, compter la 'idda ; qui craint Allah, Il lui donne une issue.",
+      "children": [
+        { "v": "1-3", "cat": "legislation", "t": "Méthode du divorce, délai de viduité ; qui craint Allah trouve une issue" }
+      ]
+    },
+    {
+      "range": "4-7",
+      "title": "Cas particuliers, entretien",
+      "resume": "Délai pour femmes ménopausées, enceintes ; obligation de loger et d'entretenir durant la 'idda.",
+      "children": [
+        { "v": "4", "cat": "legislation", "t": "Délai de viduité pour femmes ménopausées, sans règles, ou enceintes" },
+        { "v": "5-7", "cat": "legislation", "t": "Obligation de loger et d'entretenir la femme durant la 'idda, selon ses moyens" }
+      ]
+    },
+    {
+      "range": "8-11",
+      "title": "Sort des cités rebelles",
+      "resume": "Cités ayant refusé l'ordre de leur Seigneur ; un Rappel et un Messager envoyés pour guider vers la lumière.",
+      "children": [
+        { "v": "8-11", "cat": "eschatologie", "t": "Sort des cités rebelles, Messager envoyé pour guider vers la lumière" }
+      ]
+    },
+    {
+      "range": "12",
+      "title": "Clôture",
+      "resume": "Sept cieux et sept terres, la science d'Allah embrasse toute chose.",
+      "children": [
+        { "v": "12", "cat": "croyance", "t": "Sept cieux et sept terres, science d'Allah embrassant toute chose" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "surah": 19,
+  "name_ar": "مريم",
+  "name_latin": "Maryam",
+  "ayat_count": 98,
+  "theme_central": "La miséricorde d'Allah (Ar-Rahmân, seize occurrences) à travers les naissances miraculeuses de Yahya et de Aïssa — puis, dans un basculement de ton, la sévérité envers qui Lui attribue un enfant.",
+  "sources_note": "Structure en 2 parties au ton contrasté (1-58 tendresse, 59-98 sévérité) sourcée (imamghazali.org). Sous-récits (Zakariya, Maryam, Ibrahim, galerie de prophètes) bien connus et confirmés par la même source.",
+  "branches": [
+    {
+      "range": "1-15",
+      "title": "Zakariya et Yahya",
+      "resume": "Invocation de Zakariya pour un fils malgré son grand âge, annonce et naissance de Yahya.",
+      "children": [
+        { "v": "1-6", "cat": "recits", "t": "Invocation secrète de Zakariya pour un fils malgré son grand âge" },
+        { "v": "7-15", "cat": "recits", "t": "Annonce et naissance de Yahya, sa droiture dès l'enfance" }
+      ]
+    },
+    {
+      "range": "16-40",
+      "title": "Maryam et Aïssa",
+      "resume": "Retrait de Maryam, annonce de l'ange, naissance miraculeuse de Aïssa, réfutation de la divinité qu'on lui attribue.",
+      "children": [
+        { "v": "16-26", "cat": "recits", "t": "Retrait de Maryam, annonce de l'ange, douleurs de l'enfantement" },
+        { "v": "27-33", "cat": "recits", "t": "Aïssa parle au berceau pour défendre sa mère" },
+        { "v": "34-40", "cat": "argumentation", "t": "Réfutation : Allah n'a pas de fils, Aïssa est une parole d'Allah" }
+      ]
+    },
+    {
+      "range": "41-58",
+      "title": "Ibrahim et la galerie des prophètes",
+      "resume": "Appel d'Ibrahim à son père, rupture, puis évocation de Moussa, Isma'il et Idris.",
+      "children": [
+        { "v": "41-50", "cat": "recits", "t": "Appel d'Ibrahim à son père contre l'idolâtrie, rupture, don d'Ishaq et Ya'qub" },
+        { "v": "51-57", "cat": "recits", "t": "Moussa messager pur, Isma'il véridique en promesses, Idris élevé en rang" },
+        { "v": "58", "cat": "croyance", "t": "Conclusion : ceux qu'Allah a comblés parmi les prophètes" }
+      ]
+    },
+    {
+      "range": "59-72",
+      "title": "Générations égarées, résurrection",
+      "resume": "Ceux qui ont abandonné la prière et suivi leurs passions ; tous traverseront l'Enfer avant le salut des pieux.",
+      "children": [
+        { "v": "59-65", "cat": "eschatologie", "t": "Générations ayant délaissé la prière, description du Paradis promis" },
+        { "v": "66-72", "cat": "eschatologie", "t": "Doute sur la résurrection réfuté ; tous traverseront, les pieux sauvés" }
+      ]
+    },
+    {
+      "range": "73-87",
+      "title": "Richesse et pauvreté, l'intercession",
+      "resume": "Contraste entre l'arrogance des riches mécréants et la pauvreté des croyants ; nulle intercession sans pacte avec Allah.",
+      "children": [
+        { "v": "73-80", "cat": "ethique", "t": "Arrogance des riches mécréants face aux croyants modestes" },
+        { "v": "81-87", "cat": "eschatologie", "t": "Nulle intercession possible sans un pacte accordé par Allah" }
+      ]
+    },
+    {
+      "range": "88-98",
+      "title": "Réfutation, clôture",
+      "resume": "Réfutation véhémente d'attribuer un fils à Allah ; le Coran facilité en langue arabe.",
+      "children": [
+        { "v": "88-93", "cat": "argumentation", "t": "Les cieux faillirent s'effondrer face à l'attribution d'un fils à Allah" },
+        { "v": "94-98", "cat": "croyance", "t": "Allah accordera l'amour aux pieux ; le Coran facilité en langue arabe" }
+      ]
+    }
+  ]
+}

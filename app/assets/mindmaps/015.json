@@ -1,0 +1,51 @@
+{
+  "surah": 15,
+  "name_ar": "الحجر",
+  "name_latin": "Al-Hijr",
+  "ayat_count": 99,
+  "theme_central": "Structure en anneau : le Livre préservé encadre la sourate (ouverture et clôture), avec au centre les preuves cosmologiques et historiques de sa véracité.",
+  "sources_note": "Structure en anneau à 3 sections + clôture, bien documentée (thequran.love / surah.pk) : 1-15, 16-44, 45-84 ; clôture 85-99 reconstruite à partir de repères connus (verset final « adore jusqu'à ce que te vienne la certitude », 15:99).",
+  "branches": [
+    {
+      "range": "1-15",
+      "title": "Le Livre face aux moqueurs",
+      "resume": "Regret futur des mécréants, chaque cité a un terme fixé, moquerie envers le Prophète.",
+      "children": [
+        { "v": "1-3", "cat": "eschatologie", "t": "Regret futur des mécréants de ne pas avoir été soumis" },
+        { "v": "4-5", "cat": "croyance", "t": "Chaque cité a un terme fixé et écrit" },
+        { "v": "6-15", "cat": "argumentation", "t": "Moquerie des mécréants ; même une porte ouverte au ciel ne les convaincrait pas" }
+      ]
+    },
+    {
+      "range": "16-44",
+      "title": "Création, Iblis",
+      "resume": "Les cieux et la terre créés avec mesure, création d'Adam, refus et délai accordé à Iblis.",
+      "children": [
+        { "v": "16-25", "cat": "signes", "t": "Les cieux, les constellations, la terre étendue, toute chose créée avec mesure" },
+        { "v": "26-40", "cat": "recits", "t": "Création d'Adam, refus d'Iblis de se prosterner, délai qui lui est accordé" },
+        { "v": "41-44", "cat": "eschatologie", "t": "Description de l'Enfer à sept portes" }
+      ]
+    },
+    {
+      "range": "45-84",
+      "title": "Leçons historiques",
+      "resume": "Le Paradis des pieux, puis les récits d'Ibrahim, Lot, les gens du Bois et d'al-Hijr (Thamud).",
+      "children": [
+        { "v": "45-50", "cat": "eschatologie", "t": "Description du Paradis promis aux pieux" },
+        { "v": "51-60", "cat": "recits", "t": "Les hôtes d'Ibrahim annoncent Ishaq et la destruction imminente du peuple de Lot" },
+        { "v": "61-77", "cat": "recits", "t": "Destruction du peuple de Lot, signe pour qui réfléchit" },
+        { "v": "78-84", "cat": "recits", "t": "Les gens du Bois et les gens d'al-Hijr (Thamud), rejet des signes" }
+      ]
+    },
+    {
+      "range": "85-99",
+      "title": "Clôture",
+      "resume": "Patience et pardon, proclamer ouvertement le message, adorer Allah jusqu'à la certitude.",
+      "children": [
+        { "v": "85-88", "cat": "ethique", "t": "Patience, beau pardon, ne pas envier ce qu'ont les mécréants" },
+        { "v": "89-93", "cat": "argumentation", "t": "Mise en garde envers ceux qui ont divisé le Coran en fragments" },
+        { "v": "94-99", "cat": "adoration", "t": "Proclamer ouvertement le message ; « adore jusqu'à ce que te vienne la certitude »" }
+      ]
+    }
+  ]
+}

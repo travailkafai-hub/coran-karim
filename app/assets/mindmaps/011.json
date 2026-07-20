@@ -1,0 +1,79 @@
+{
+  "surah": 11,
+  "name_ar": "هود",
+  "name_latin": "Hud",
+  "ayat_count": 123,
+  "theme_central": "Le caractère inévitable de la justice divine face à l'arrogance humaine — une série presque continue de peuples détruits pour avoir rejeté leur prophète.",
+  "sources_note": "Verset-clés confirmés par recoupement (grokipedia / al-islam.org) : Nuh 25-49, Hud 50-60, Salih 61-68. Reste (Ibrahim/Lot, Shu'ayb, Moussa, clôture) reconstruit à partir de repères bien établis, structure classique en récits répétés avec la formule « Ô mon peuple, adorez Allah, vous n'avez pas d'autre divinité que Lui ».",
+  "branches": [
+    {
+      "range": "1-24",
+      "title": "Ouverture",
+      "resume": "Le Livre confirmé, défi de produire dix sourates semblables, contraste entre ceux qui veulent ce bas monde et les croyants sincères.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Le Livre confirmé dans le détail, adorer Allah seul" },
+        { "v": "5-11", "cat": "ethique", "t": "Attitude de l'homme face à l'aisance et à l'épreuve" },
+        { "v": "12-14", "cat": "argumentation", "t": "Défi de produire dix sourates semblables au Coran" },
+        { "v": "15-24", "cat": "eschatologie", "t": "Contraste entre ceux qui veulent ce bas monde et les croyants sincères" }
+      ]
+    },
+    {
+      "range": "25-49",
+      "title": "Nuh",
+      "resume": "Appel de Nuh à son peuple, moqueries, construction de l'arche, le déluge, le fils qui refuse de monter.",
+      "children": [
+        { "v": "25-35", "cat": "recits", "t": "Appel de Nuh à son peuple, moqueries des notables" },
+        { "v": "36-44", "cat": "recits", "t": "Construction de l'arche, le déluge, le fils qui refuse de monter" },
+        { "v": "45-49", "cat": "recits", "t": "Invocation de Nuh pour son fils, réponse d'Allah, fin du récit" }
+      ]
+    },
+    {
+      "range": "50-60",
+      "title": "Hud",
+      "resume": "Appel du prophète Hud au peuple de 'Ad, rejet, destruction par un vent furieux.",
+      "children": [
+        { "v": "50-53", "cat": "recits", "t": "Appel de Hud au peuple de 'Ad" },
+        { "v": "54-60", "cat": "eschatologie", "t": "Rejet du message, destruction par le vent" }
+      ]
+    },
+    {
+      "range": "61-68",
+      "title": "Salih",
+      "resume": "Appel au peuple de Thamud, signe de la chamelle, destruction par le Cri.",
+      "children": [
+        { "v": "61-64", "cat": "recits", "t": "Appel de Salih, signe de la chamelle" },
+        { "v": "65-68", "cat": "eschatologie", "t": "Sacrifice de la chamelle, destruction par le Cri" }
+      ]
+    },
+    {
+      "range": "69-83",
+      "title": "Ibrahim et Lot",
+      "resume": "Les anges annoncent à Ibrahim la naissance d'Ishaq, puis se rendent chez Lot pour détruire Sodome.",
+      "children": [
+        { "v": "69-73", "cat": "recits", "t": "Les anges annoncent à Ibrahim la naissance d'Ishaq" },
+        { "v": "74-76", "cat": "ethique", "t": "Ibrahim intercède pour le peuple de Lot" },
+        { "v": "77-83", "cat": "recits", "t": "Les anges chez Lot, destruction de Sodome" }
+      ]
+    },
+    {
+      "range": "84-95",
+      "title": "Shu'ayb",
+      "resume": "Appel au peuple de Madyan contre la fraude dans les échanges, rejet, destruction.",
+      "children": [
+        { "v": "84-87", "cat": "legislation", "t": "Appel de Shu'ayb, dénonciation de la fraude dans les échanges" },
+        { "v": "88-95", "cat": "eschatologie", "t": "Rejet du message, destruction du peuple de Madyan" }
+      ]
+    },
+    {
+      "range": "96-123",
+      "title": "Moussa et clôture",
+      "resume": "Bref rappel de Moussa et Pharaon ; ces récits sont des leçons, exhortation finale à la droiture et à la patience.",
+      "children": [
+        { "v": "96-99", "cat": "recits", "t": "Moussa envoyé à Pharaon, rejet, destruction" },
+        { "v": "100-108", "cat": "eschatologie", "t": "Ces récits sont des leçons ; sort des damnés et des bienheureux" },
+        { "v": "109-115", "cat": "ethique", "t": "Rester droit comme ordonné ; la prière efface les mauvaises actions" },
+        { "v": "116-123", "cat": "croyance", "t": "Patience, s'en remettre entièrement à Allah" }
+      ]
+    }
+  ]
+}

@@ -18,6 +18,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../models/recitation_state.dart'
+    show RecitationErrorKind, recitationErrorKindLabel;
 import '../models/verse.dart';
 import '../providers/error_review_provider.dart';
 import '../providers/last_coach_verse_provider.dart';
@@ -286,7 +288,8 @@ class _ErrorsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const _SectionTitle(
-            'MES ERREURS', 'Regroupées par sourate, les plus fragiles en tête'),
+            'MES ERREURS', 'Par type, puis par sourate'),
+        const _ErrorKindBreakdown(),
         async.when(
           loading: () => const Padding(
             padding: EdgeInsets.all(24),
@@ -572,4 +575,116 @@ class _ActionRow extends StatelessWidget {
             const Icon(Icons.chevron_right, color: AppColors.inkLight),
         onTap: onTap,
       );
+}
+
+
+/// Répartition des erreurs par TYPE (demande utilisateur 2026-07-20 :
+/// « catégoriser par type : tajwid ou prononciation »).
+///
+/// Placée AVANT la liste par sourate : elle répond à une question différente
+/// et plus générale — « sur quoi je bute, des lettres, des voyelles, ou du
+/// tajwid ? » — alors que la liste par sourate répond à « où travailler ? ».
+class _ErrorKindBreakdown extends ConsumerWidget {
+  const _ErrorKindBreakdown();
+
+  static const _order = [
+    RecitationErrorKind.lettre,
+    RecitationErrorKind.harakat,
+    RecitationErrorKind.tajwid,
+    RecitationErrorKind.saute,
+    RecitationErrorKind.inconnu,
+  ];
+
+  Color _color(RecitationErrorKind k) => switch (k) {
+        RecitationErrorKind.lettre => AppColors.tajwidIkhfaa,
+        RecitationErrorKind.harakat => AppColors.mindmapEthique,
+        RecitationErrorKind.tajwid => AppColors.green700,
+        RecitationErrorKind.saute => AppColors.inkLight,
+        RecitationErrorKind.inconnu => AppColors.cream300,
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(errorKindBreakdownProvider);
+    return async.maybeWhen(
+      orElse: () => const SizedBox.shrink(),
+      data: (counts) {
+        final total = counts.values.fold(0, (a, b) => a + b);
+        if (total == 0) return const SizedBox.shrink();
+        final present = [
+          for (final k in _order)
+            if ((counts[k] ?? 0) > 0) k,
+        ];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Barre empilée : proportions d'un coup d'œil.
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: SizedBox(
+                      height: 8,
+                      child: Row(
+                        children: [
+                          for (final k in present)
+                            Expanded(
+                              flex: counts[k]!,
+                              child: ColoredBox(color: _color(k)),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 6,
+                    children: [
+                      for (final k in present)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 9,
+                              height: 9,
+                              decoration: BoxDecoration(
+                                  color: _color(k), shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              '${recitationErrorKindLabel(k)} · ${counts[k]}',
+                              style: GoogleFonts.manrope(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.ink),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Ne pas laisser croire que « Tajwid » est une preuve : c'est
+                  // une déduction par élimination (cf. classifyError).
+                  Text(
+                    'Lettre et Harakat = prononciation. « Tajwid » signifie '
+                    'que ni les lettres ni les voyelles n\'expliquent l\'écart '
+                    'sur un mot porteur d\'une règle — c\'est une déduction, '
+                    'pas une preuve que la règle a été ratée.',
+                    style: GoogleFonts.manrope(
+                        fontSize: 10.5,
+                        height: 1.35,
+                        color: AppColors.inkLight),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

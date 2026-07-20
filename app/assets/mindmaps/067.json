@@ -1,0 +1,66 @@
+{
+  "surah": 67,
+  "name_ar": "الملك",
+  "name_latin": "Al-Mulk",
+  "ayat_count": 30,
+  "theme_central": "La souveraineté absolue d'Allah sur toute chose (al-Mulk) : la vie et la mort créées pour éprouver qui agit le mieux — d'où sa réputation de protection contre le châtiment de la tombe.",
+  "sources_note": "Structure en 3-4 parties sourcée (historyofislam.com, grokipedia) : souveraineté/création (1-4), fragilité de la vie (5-21), argumentation finale (22-30).",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Souveraineté d'Allah, création parfaite",
+      "resume": "La vie et la mort créées pour éprouver qui agit le mieux ; sept cieux superposés sans la moindre faille.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Vie et mort créées pour éprouver, sept cieux sans faille" }
+      ]
+    },
+    {
+      "range": "5-11",
+      "title": "Étoiles, Enfer, dialogue des damnés",
+      "resume": "Étoiles comme projectiles contre les démons ; dialogue des gardiens de l'Enfer avec les damnés pleins de regret.",
+      "children": [
+        { "v": "5-11", "cat": "eschatologie", "t": "Dialogue des gardiens de l'Enfer avec les damnés, regret de ne pas avoir écouté" }
+      ]
+    },
+    {
+      "range": "12-14",
+      "title": "Crainte dans le secret",
+      "resume": "Récompense promise à qui craint Allah dans le secret ; Il connaît les secrets des cœurs.",
+      "children": [
+        { "v": "12-14", "cat": "croyance", "t": "Crainte dans le secret récompensée, Allah connaît les secrets des cœurs" }
+      ]
+    },
+    {
+      "range": "15-18",
+      "title": "Terre soumise, sécurité face au ciel",
+      "resume": "La terre soumise à l'homme pour y marcher et se nourrir ; sécurité face à un ciel qui pourrait s'effondrer.",
+      "children": [
+        { "v": "15-18", "cat": "signes", "t": "Terre soumise à l'homme, sécurité face au ciel, sort des peuples anciens" }
+      ]
+    },
+    {
+      "range": "19-21",
+      "title": "Les oiseaux, qui peut secourir",
+      "resume": "Les oiseaux qui déploient et replient leurs ailes ; qui d'autre qu'Allah pourrait secourir ?",
+      "children": [
+        { "v": "19-21", "cat": "signes", "t": "Les oiseaux en vol, nul secours possible hors Allah" }
+      ]
+    },
+    {
+      "range": "22-24",
+      "title": "Marche penchée ou droite",
+      "resume": "Comparaison entre celui qui marche le visage penché et celui qui marche droit sur le chemin.",
+      "children": [
+        { "v": "22-24", "cat": "argumentation", "t": "Comparaison marche penchée/droite ; ouïe, vue et cœurs créés par Allah" }
+      ]
+    },
+    {
+      "range": "25-30",
+      "title": "Clôture",
+      "resume": "Question moqueuse sur l'échéance ; qui vous apporterait une eau limpide si la vôtre disparaissait ?",
+      "children": [
+        { "v": "25-30", "cat": "eschatologie", "t": "Échéance de la promesse, l'eau limpide comme rappel final de la dépendance envers Allah" }
+      ]
+    }
+  ]
+}

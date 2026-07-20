@@ -1,0 +1,34 @@
+{
+  "surah": 100,
+  "name_ar": "العاديات",
+  "name_latin": "Al-'Adiyat",
+  "ayat_count": 11,
+  "theme_central": "Serment par les coursiers haletants pour dénoncer l'ingratitude de l'homme et son attachement passionné aux biens — alors que tout sera bouleversé et connu.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Serment par les coursiers",
+      "resume": "Coursiers haletants, étincelants, chargeant à l'aube dans un nuage de poussière.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Serment par les coursiers haletants chargeant à l'aube" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Ingratitude, attachement aux biens",
+      "resume": "L'homme est ingrat envers son Seigneur, passionnément attaché aux richesses.",
+      "children": [
+        { "v": "6-8", "cat": "ethique", "t": "Ingratitude de l'homme, attachement passionné aux richesses" }
+      ]
+    },
+    {
+      "range": "9-11",
+      "title": "Résurrection, clôture",
+      "resume": "Contenu des tombes bouleversé, secrets des poitrines mis à jour, Allah parfaitement informé.",
+      "children": [
+        { "v": "9-11", "cat": "eschatologie", "t": "Résurrection, secrets mis à jour, omniscience d'Allah" }
+      ]
+    }
+  ]
+}

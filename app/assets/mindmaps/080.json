@@ -1,0 +1,50 @@
+{
+  "surah": 80,
+  "name_ar": "عبس",
+  "name_latin": "'Abasa",
+  "ayat_count": 42,
+  "theme_central": "« Il s'est renfrogné » : correction directe du Prophète pour avoir privilégié un notable mecquois au détriment d'un aveugle sincèrement en quête de savoir — la vraie valeur d'un homme est sa sincérité, non son rang.",
+  "sources_note": "Récit d'ouverture (Abdullah ibn Umm Maktum) extrêmement bien documenté et non contesté ; reste de la structure reconstruit à partir de repères classiques largement enseignés.",
+  "branches": [
+    {
+      "range": "1-10",
+      "title": "Il s'est renfrogné",
+      "resume": "Le Prophète se détourne d'un aveugle sincère pour se consacrer à un notable ; correction divine immédiate.",
+      "children": [
+        { "v": "1-10", "cat": "ethique", "t": "Correction divine : privilégier un notable au détriment d'un aveugle sincère" }
+      ]
+    },
+    {
+      "range": "11-16",
+      "title": "Un Rappel sur des feuillets honorés",
+      "resume": "Ceci est un Rappel pour qui veut s'en souvenir, consigné sur des feuillets honorés et purifiés.",
+      "children": [
+        { "v": "11-16", "cat": "croyance", "t": "Le Coran, Rappel sur des feuillets honorés et purifiés" }
+      ]
+    },
+    {
+      "range": "17-23",
+      "title": "L'ingratitude de l'homme",
+      "resume": "Maudit soit l'homme, comme il est ingrat ! Créé d'une goutte, guidé, puis rappelé à la mort et à la résurrection.",
+      "children": [
+        { "v": "17-23", "cat": "argumentation", "t": "Ingratitude de l'homme malgré sa création facilitée par Allah" }
+      ]
+    },
+    {
+      "range": "24-32",
+      "title": "Que l'homme regarde sa nourriture",
+      "resume": "L'eau versée, la terre fendue, céréales, vignes, oliviers, palmiers, jardins — pour l'homme et son bétail.",
+      "children": [
+        { "v": "24-32", "cat": "signes", "t": "Cycle de la nourriture comme signe de la sollicitude divine" }
+      ]
+    },
+    {
+      "range": "33-42",
+      "title": "Le Jour du Cri assourdissant",
+      "resume": "L'homme fuira son propre frère, sa mère, son père ; visages radieux ou assombris selon les actes.",
+      "children": [
+        { "v": "33-42", "cat": "eschatologie", "t": "Fuite de chacun devant ses proches, visages radieux ou assombris ce Jour" }
+      ]
+    }
+  ]
+}

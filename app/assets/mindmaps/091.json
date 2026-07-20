@@ -1,0 +1,34 @@
+{
+  "surah": 91,
+  "name_ar": "الشمس",
+  "name_latin": "Ash-Shams",
+  "ayat_count": 15,
+  "theme_central": "Une cascade de serments cosmiques pour introduire l'âme elle-même : réussit qui la purifie, échoue qui la corrompt — illustré par Thamud qui tua la chamelle par excès.",
+  "sources_note": "Contenu largement enseigné et non contesté.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Serments cosmiques",
+      "resume": "Serments par le soleil, la lune, le jour, la nuit, le ciel et la terre.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Serments par le soleil, la lune, le ciel et la terre" }
+      ]
+    },
+    {
+      "range": "7-10",
+      "title": "L'âme, purification ou corruption",
+      "resume": "L'âme harmonieusement formée, inspirée d'immoralité et de piété ; réussite par la purification, échec par la corruption.",
+      "children": [
+        { "v": "7-10", "cat": "ethique", "t": "Réussite par la purification de l'âme, échec par sa corruption" }
+      ]
+    },
+    {
+      "range": "11-15",
+      "title": "Thamud, la chamelle",
+      "resume": "Thamud démentit par excès, tue la chamelle malgré l'avertissement du Messager ; destruction pour leur péché.",
+      "children": [
+        { "v": "11-15", "cat": "recits", "t": "Thamud tue la chamelle par excès, destruction pour ce péché" }
+      ]
+    }
+  ]
+}

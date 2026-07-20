@@ -1,0 +1,62 @@
+{
+  "surah": 40,
+  "name_ar": "غافر",
+  "name_latin": "Ghafir",
+  "ayat_count": 85,
+  "theme_central": "Un grand procès divin en trois actes — la scène céleste, le procès historique de Moussa contre Pharaon (porté par le croyant courageux de sa propre famille), puis le procès ultime de l'au-delà.",
+  "sources_note": "Structure en 3 parties précisément sourcée (grokipedia, « divine court case ») : 1-20, 21-55, 56-85.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Ouverture, scène céleste",
+      "resume": "Le Livre de la part d'Allah, les anges portant le Trône intercèdent pour les croyants.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "Le Livre de la part d'Allah, les anges intercèdent pour les croyants" }
+      ]
+    },
+    {
+      "range": "10-20",
+      "title": "Appel des mécréants au Feu",
+      "resume": "Rappel qu'ils avaient été avertis, scène du Jugement où Allah seul jugera en toute équité.",
+      "children": [
+        { "v": "10-20", "cat": "eschatologie", "t": "Appel des mécréants au Feu, jugement équitable d'Allah seul" }
+      ]
+    },
+    {
+      "range": "21-35",
+      "title": "Le croyant de la famille de Pharaon",
+      "resume": "Sort des peuples anciens plus puissants, plaidoyer courageux et unique du croyant au sein même de l'entourage de Pharaon.",
+      "children": [
+        { "v": "21-27", "cat": "argumentation", "t": "Sort des peuples anciens plus puissants, Pharaon ordonne de tuer les fils des croyants" },
+        { "v": "28-35", "cat": "recits", "t": "Le croyant de la famille de Pharaon plaide courageusement en faveur de Moussa" }
+      ]
+    },
+    {
+      "range": "36-55",
+      "title": "Pharaon et Haman, dispute en Enfer",
+      "resume": "Tentative de Pharaon d'« atteindre » le Dieu de Moussa, noyade, dispute des damnés.",
+      "children": [
+        { "v": "36-46", "cat": "recits", "t": "Pharaon ordonne à Haman de bâtir une tour, noyade, sort contrasté avec le croyant" },
+        { "v": "47-55", "cat": "eschatologie", "t": "Dispute entre les damnés en Enfer, patience demandée au Prophète" }
+      ]
+    },
+    {
+      "range": "56-68",
+      "title": "L'Heure certaine",
+      "resume": "Dispute sur les signes sans fondement, invocation exaucée, mise en garde contre l'orgueil.",
+      "children": [
+        { "v": "56-59", "cat": "argumentation", "t": "Dispute sur les signes d'Allah sans fondement, l'Heure certaine" },
+        { "v": "60-68", "cat": "croyance", "t": "Invocation exaucée, mise en garde contre l'orgueil, création par étapes" }
+      ]
+    },
+    {
+      "range": "69-85",
+      "title": "Messagers racontés et non racontés",
+      "resume": "Sort des générations anciennes, bienfaits du bétail, la foi tardive inutile une fois le châtiment vu.",
+      "children": [
+        { "v": "69-78", "cat": "argumentation", "t": "Messagers dont certains racontés et d'autres non, sort des générations anciennes" },
+        { "v": "79-85", "cat": "eschatologie", "t": "Bienfaits du bétail, la foi tardive ne sert à rien une fois le châtiment vu" }
+      ]
+    }
+  ]
+}

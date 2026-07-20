@@ -5,6 +5,7 @@ import '../models/verse.dart';
 import '../services/quran_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/quran_shazam_sheet.dart';
+import '../widgets/quran_pattern_background.dart';
 import 'mushaf_screen.dart';
 import 'prayer_follow_screen.dart';
 
@@ -96,28 +97,41 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
                     colors: [AppColors.green900, AppColors.green800],
                   ),
                 ),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text(
-                        'القرآن الكريم',
-                        style: GoogleFonts.scheherazadeNew(
-                          fontSize: 32, color: AppColors.cream,
-                          fontWeight: FontWeight.w600,
-                        ),
+                // Couverture : même filigrane que le défilement (cohérence
+                // visuelle), un peu plus visible ici car sur fond vert foncé
+                // uni (pas de texte à concurrencer) -- cf.
+                // widgets/quran_pattern_background.dart.
+                child: Stack(
+                  children: [
+                    const Positioned.fill(
+                      child: QuranPatternBackground(opacity: 0.10),
+                    ),
+                    SafeArea(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            'القرآن الكريم',
+                            style: GoogleFonts.scheherazadeNew(
+                              fontSize: 32, color: AppColors.cream,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const _TitleRule(),
+                          const SizedBox(height: 6),
+                          Text(
+                            'CORAN KARIM',
+                            style: GoogleFonts.fraunces(
+                              fontSize: 13, color: AppColors.brassLight,
+                              letterSpacing: 3,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'CORAN KARIM',
-                        style: GoogleFonts.fraunces(
-                          fontSize: 13, color: AppColors.brassLight,
-                          letterSpacing: 3,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -156,6 +170,37 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
       ),
     );
   }
+}
+
+// Filet titre : simple règle horizontale + petit losange central --
+// séparateur entre le titre arabe et le sous-titre latin sur la couverture.
+// Volontairement minimal (un trait, un losange) après le retour utilisateur
+// sur la V1 du bandeau de sourate ("catastrophique... trop chargée") :
+// pas de cadre, pas de motif répété, juste de quoi marquer la coupure.
+class _TitleRule extends StatelessWidget {
+  const _TitleRule();
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _line(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Transform.rotate(
+              angle: 0.785398, // 45°
+              child: Container(width: 6, height: 6, color: AppColors.brass),
+            ),
+          ),
+          _line(),
+        ],
+      );
+
+  Widget _line() => Container(
+        width: 36,
+        height: 1,
+        color: AppColors.brassLight.withValues(alpha: 0.6),
+      );
 }
 
 // "Suivre une prière" / "Identifier" en grandes cartes (§5 du plan) --

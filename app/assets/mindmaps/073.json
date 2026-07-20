@@ -1,0 +1,35 @@
+{
+  "surah": 73,
+  "name_ar": "المزمل",
+  "name_latin": "Al-Muzzammil",
+  "ayat_count": 20,
+  "theme_central": "Structure en deux actes : un « camp d'entraînement » spirituel exigeant (se lever, réciter, patienter) suivi d'un allégement final miséricordieux dans le tout dernier verset.",
+  "sources_note": "Structure en 2 actes précisément sourcée (analyse SRA via researchgate.net) : 1-19 (exigence), 20 (allégement, révélé plus tard).",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Ordre de la prière nocturne",
+      "resume": "Se lever la nuit, réciter le Coran lentement ; une parole lourde va être révélée ; se consacrer à Allah.",
+      "children": [
+        { "v": "1-9", "cat": "adoration", "t": "Prière nocturne, récitation lente, dévotion exclusive à Allah" }
+      ]
+    },
+    {
+      "range": "10-19",
+      "title": "Patience, avertissement",
+      "resume": "Patience face aux mécréants, s'écarter avec dignité ; avertissement semblable à celui envoyé à Pharaon.",
+      "children": [
+        { "v": "10-14", "cat": "ethique", "t": "Patience et dignité face aux mécréants, châtiment qui les attend" },
+        { "v": "15-19", "cat": "eschatologie", "t": "Avertissement comme celui envoyé à Pharaon ; ceci est un Rappel" }
+      ]
+    },
+    {
+      "range": "20",
+      "title": "Allégement final",
+      "resume": "Allah sait qu'on ne peut comptabiliser les heures de nuit ; prière allégée, priorité à la zakât et au combat licite.",
+      "children": [
+        { "v": "20", "cat": "legislation", "t": "Allégement de l'obligation nocturne, priorité à la zakât et à l'effort" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "surah": 38,
+  "name_ar": "ص",
+  "name_latin": "Sad",
+  "ayat_count": 88,
+  "theme_central": "Structure tripartite : rappel de la puissance d'Allah encadrant en son centre des exemples de prophètes ayant fait face à l'adversité — pour consoler et avertir le Prophète Muhammad.",
+  "sources_note": "Structure en 3 sections précisément sourcée (grokipedia, Ṣād surah) : 1-11, 12-64, 66-88.",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "Ouverture, mise en garde",
+      "resume": "Moquerie des mécréants face à l'unicité proclamée, étonnement qu'il n'y ait qu'un seul Dieu.",
+      "children": [
+        { "v": "1-11", "cat": "argumentation", "t": "Moquerie des mécréants : « a-t-il fait des dieux un Dieu unique ? »" }
+      ]
+    },
+    {
+      "range": "12-29",
+      "title": "Dawud, jugement et repentance",
+      "resume": "Sa force au service d'Allah, la parabole des deux plaideurs, sa repentance après un jugement hâtif.",
+      "children": [
+        { "v": "12-20", "cat": "recits", "t": "Force de Dawud, montagnes et oiseaux glorifiant avec lui, sagesse du jugement" },
+        { "v": "21-26", "cat": "recits", "t": "Parabole des deux plaideurs et des brebis, repentance de Dawud" },
+        { "v": "27-29", "cat": "croyance", "t": "Réfutation de la création vaine, le Livre béni pour méditer" }
+      ]
+    },
+    {
+      "range": "30-40",
+      "title": "Sulayman",
+      "resume": "Son amour des chevaux, son épreuve, le royaume incomparable qui lui est accordé.",
+      "children": [
+        { "v": "30-40", "cat": "recits", "t": "Sulayman : épreuve, vent et démons soumis, royaume incomparable" }
+      ]
+    },
+    {
+      "range": "41-49",
+      "title": "Ayyub, Ibrahim, Ishaq, Ya'qub",
+      "resume": "Épreuve et patience d'Ayyub, sa guérison ; hommes de force et de clairvoyance parmi les prophètes.",
+      "children": [
+        { "v": "41-44", "cat": "recits", "t": "Épreuve d'Ayyub, sa patience, guérison, le serment tenu avec un faisceau de brindilles" },
+        { "v": "45-49", "cat": "recits", "t": "Ibrahim, Ishaq, Ya'qub, Isma'il, al-Yasa, Dhul-Kifl : hommes d'élite" }
+      ]
+    },
+    {
+      "range": "50-64",
+      "title": "Paradis et sort des transgresseurs",
+      "resume": "Description du Paradis pour les pieux, contraste avec la dispute des gens du Feu.",
+      "children": [
+        { "v": "50-54", "cat": "eschatologie", "t": "Description du Paradis promis aux pieux" },
+        { "v": "55-64", "cat": "eschatologie", "t": "Sort des transgresseurs, dispute mutuelle en Enfer" }
+      ]
+    },
+    {
+      "range": "65-70",
+      "title": "Le Prophète, avertisseur",
+      "resume": "Le Prophète n'est qu'un avertisseur, nul autre dieu qu'Allah l'Unique et le Dominateur suprême.",
+      "children": [
+        { "v": "65-70", "cat": "croyance", "t": "Le Prophète avertisseur, unicité d'Allah réaffirmée" }
+      ]
+    },
+    {
+      "range": "71-88",
+      "title": "Adam, Iblis, clôture",
+      "resume": "Création d'Adam, refus d'Iblis de se prosterner, son délai accordé, clôture sur le Coran comme rappel universel.",
+      "children": [
+        { "v": "71-78", "cat": "recits", "t": "Création d'Adam, ordre de prosternation, refus orgueilleux d'Iblis" },
+        { "v": "79-85", "cat": "eschatologie", "t": "Délai accordé à Iblis, sa promesse d'égarer les hommes sauf les élus" },
+        { "v": "86-88", "cat": "croyance", "t": "Clôture : le Coran, rappel pour l'univers entier" }
+      ]
+    }
+  ]
+}

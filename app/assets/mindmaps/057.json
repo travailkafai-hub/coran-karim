@@ -1,0 +1,58 @@
+{
+  "surah": 57,
+  "name_ar": "الحديد",
+  "name_latin": "Al-Hadid",
+  "ayat_count": 29,
+  "theme_central": "Structure en miroir : la foi en Allah (ouverture) répond à la foi au Messager (clôture) ; entre les deux, l'appel à la dépense charitable encadre la lumière des croyants opposée aux ténèbres des hypocrites.",
+  "sources_note": "Structure en 5 passages en miroir précisément sourcée (islam21c.com, The Beauty of Iron) : 1-6, 7-11, 12-15, passage 4 miroir du 2, 25-29.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Magnificence d'Allah",
+      "resume": "Toute chose Le glorifie, science parfaite englobant tout ce qui entre en terre et ce qui en sort.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Magnificence d'Allah, science parfaite de toute chose" }
+      ]
+    },
+    {
+      "range": "7-11",
+      "title": "Foi et appel à dépenser",
+      "resume": "Croire en Allah et Son messager, dépenser de ce dont Il vous a fait dépositaires.",
+      "children": [
+        { "v": "7-11", "cat": "ethique", "t": "Appel à croire et à dépenser dans le sentier d'Allah" }
+      ]
+    },
+    {
+      "range": "12-15",
+      "title": "Lumière vs ténèbres",
+      "resume": "La lumière des croyants marchant devant eux, contrastée avec les ténèbres des hypocrites.",
+      "children": [
+        { "v": "12-15", "cat": "eschatologie", "t": "Lumière des croyants opposée aux ténèbres des hypocrites au Jugement" }
+      ]
+    },
+    {
+      "range": "16-19",
+      "title": "Le cœur qui s'endurcit",
+      "resume": "N'est-il pas temps que les cœurs s'humilient au rappel d'Allah ? Mise en garde contre la dureté du cœur.",
+      "children": [
+        { "v": "16-19", "cat": "argumentation", "t": "Mise en garde contre le cœur qui s'endurcit avec le temps" }
+      ]
+    },
+    {
+      "range": "20-24",
+      "title": "Parabole de la pluie, avarice",
+      "resume": "La vie d'ici-bas comparée à une pluie qui fait pousser puis dessèche ; condamnation de l'avarice.",
+      "children": [
+        { "v": "20-24", "cat": "signes", "t": "Vie d'ici-bas comparée à la pluie, condamnation de l'avarice" }
+      ]
+    },
+    {
+      "range": "25-29",
+      "title": "Le Livre, la Balance, le Fer",
+      "resume": "Messagers envoyés avec le Livre, la Balance et le Fer pour établir la justice ; clôture sur la foi au Messager.",
+      "children": [
+        { "v": "25-29", "cat": "legislation", "t": "Livre, Balance et Fer envoyés pour établir la justice universelle" }
+      ]
+    }
+  ]
+}

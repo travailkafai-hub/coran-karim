@@ -1,0 +1,34 @@
+{
+  "surah": 63,
+  "name_ar": "المنافقون",
+  "name_latin": "Al-Munafiqun",
+  "ayat_count": 11,
+  "theme_central": "Exposé psychologique et politique des hypocrites : leur maladie réelle est la convoitise des richesses de ce bas monde, masquée par une éloquence trompeuse.",
+  "sources_note": "Structure en 2 sections précisément sourcée (alim.org) : 1-8, 9-11.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Déclaration de foi mensongère",
+      "resume": "Les hypocrites déclarent croire mais mentent ; apparence impressionnante, cœurs vides.",
+      "children": [
+        { "v": "1-4", "cat": "argumentation", "t": "Foi déclarée mensongère, apparence trompeuse des hypocrites" }
+      ]
+    },
+    {
+      "range": "5-8",
+      "title": "Refus du pardon, menace contre le Prophète",
+      "resume": "Refus de demander pardon, menace d'expulser le Prophète, rappel qu'à Allah appartient toute la puissance.",
+      "children": [
+        { "v": "5-8", "cat": "argumentation", "t": "Refus du pardon, menace d'expulser le Prophète (Abdullah ibn Ubayy)" }
+      ]
+    },
+    {
+      "range": "9-11",
+      "title": "Mise en garde finale",
+      "resume": "Biens et enfants ne doivent pas détourner du rappel d'Allah ; dépenser avant que la mort ne survienne.",
+      "children": [
+        { "v": "9-11", "cat": "ethique", "t": "Ne pas se laisser détourner par les biens et enfants, dépenser avant la mort" }
+      ]
+    }
+  ]
+}

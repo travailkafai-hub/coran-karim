@@ -1,0 +1,26 @@
+{
+  "surah": 108,
+  "name_ar": "الكوثر",
+  "name_latin": "Al-Kawthar",
+  "ayat_count": 3,
+  "theme_central": "L'Abondance (al-Kawthar) accordée au Prophète, en réponse à ceux qui le disaient sans postérité — c'est en réalité son détracteur qui le sera.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1",
+      "title": "L'Abondance accordée",
+      "resume": "Allah a accordé au Prophète l'Abondance (al-Kawthar).",
+      "children": [
+        { "v": "1", "cat": "croyance", "t": "L'Abondance (al-Kawthar) accordée au Prophète" }
+      ]
+    },
+    {
+      "range": "2-3",
+      "title": "Prière, sacrifice, réponse aux ennemis",
+      "resume": "Accomplir la prière et le sacrifice ; c'est le détracteur du Prophète qui sera sans postérité.",
+      "children": [
+        { "v": "2-3", "cat": "adoration", "t": "Prière et sacrifice ; le détracteur sera sans postérité" }
+      ]
+    }
+  ]
+}

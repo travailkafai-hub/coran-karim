@@ -1,0 +1,26 @@
+{
+  "surah": 104,
+  "name_ar": "الهمزة",
+  "name_latin": "Al-Humazah",
+  "ayat_count": 9,
+  "theme_central": "Malheur au calomniateur qui amasse une fortune en croyant qu'elle le rendra éternel — la Hutamah l'attend, un feu qui monte jusqu'aux cœurs.",
+  "sources_note": "Contenu universellement connu, aucune divergence possible.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Le calomniateur, l'amasseur de fortune",
+      "resume": "Malheur au calomniateur diffamateur qui amasse et compte sa fortune, la croyant éternelle.",
+      "children": [
+        { "v": "1-3", "cat": "ethique", "t": "Calomniateur amassant fortune, illusion d'éternité" }
+      ]
+    },
+    {
+      "range": "4-9",
+      "title": "La Hutamah, clôture",
+      "resume": "Il sera jeté dans la Hutamah, feu d'Allah attisé qui monte jusqu'aux cœurs, se refermant en colonnes.",
+      "children": [
+        { "v": "4-9", "cat": "eschatologie", "t": "La Hutamah, feu attisé se refermant sur le calomniateur" }
+      ]
+    }
+  ]
+}

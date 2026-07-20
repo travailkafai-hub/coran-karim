@@ -69,6 +69,13 @@ class RecitedWord {
   // qu'une passe suivante (mot complet, plus de contexte) le reconnaissait
   // parfaitement -- verrouillé trop tôt, jamais corrigé.
   final bool locked;
+  // Ce qui a été RÉELLEMENT entendu sur ce mot (squelette normalisé), retenu
+  // au moment du jugement. Ajouté le 2026-07-20 pour pouvoir CLASSER une
+  // erreur (demande utilisateur : « les erreurs de récitation, les catégoriser
+  // par type : tajwid ou prononciation ») : sans garder l'entendu, une erreur
+  // journalisée ne dit que « ce mot a échoué », jamais POURQUOI. Vide tant que
+  // le mot n'a pas été jugé.
+  final String heard;
 
   const RecitedWord({
     required this.display,
@@ -79,9 +86,11 @@ class RecitedWord {
     this.expectedRules = const [],
     this.status = WordStatus.pending,
     this.locked = false,
+    this.heard = '',
   }) : alignTarget = alignTarget ?? training;
 
-  RecitedWord copyWith({WordStatus? status, bool? locked}) => RecitedWord(
+  RecitedWord copyWith({WordStatus? status, bool? locked, String? heard}) =>
+      RecitedWord(
         display: display,
         normalized: normalized,
         strict: strict,
@@ -90,8 +99,46 @@ class RecitedWord {
         expectedRules: expectedRules,
         status: status ?? this.status,
         locked: locked ?? this.locked,
+        heard: heard ?? this.heard,
       );
 }
+
+/// Nature d'une erreur de récitation (demande utilisateur 2026-07-20 :
+/// catégoriser « tajwid ou prononciation »).
+///
+/// Dérivée de la COMPARAISON entre l'attendu et l'entendu, pas d'une
+/// annotation manuelle :
+///  - squelette différent      -> lettre (ص/س, ط/ت...)      = prononciation
+///  - squelette égal, harakat différentes -> harakat         = prononciation
+///  - lettres ET harakat justes, mais le mot portait une règle tajwid
+///    attendue -> tajwid (la règle est le seul écart restant plausible)
+///  - rien d'entendu           -> mot sauté
+///
+/// HONNÊTETÉ SUR LA LIMITE : `tajwid` est une déduction PAR ÉLIMINATION, pas
+/// une détection directe de la règle ratée. Le modèle peut avoir échoué pour
+/// une autre raison subtile (durée, liaison). Tant que la mesure « détection
+/// de fautes délibérées » n'existe pas (cf. REFONTE_IHM.md §12), cette
+/// catégorie doit être lue comme « écart non expliqué par les lettres ni les
+/// harakat, sur un mot qui porte une règle » — pas comme une preuve.
+enum RecitationErrorKind { lettre, harakat, tajwid, saute, inconnu }
+
+String recitationErrorKindLabel(RecitationErrorKind k) => switch (k) {
+      RecitationErrorKind.lettre => 'Lettre',
+      RecitationErrorKind.harakat => 'Harakat',
+      RecitationErrorKind.tajwid => 'Tajwid',
+      RecitationErrorKind.saute => 'Mot sauté',
+      RecitationErrorKind.inconnu => 'Indéterminé',
+    };
+
+/// Famille de haut niveau demandée par l'utilisateur : tajwid vs prononciation.
+String recitationErrorFamilyLabel(RecitationErrorKind k) => switch (k) {
+      RecitationErrorKind.lettre ||
+      RecitationErrorKind.harakat =>
+        'Prononciation',
+      RecitationErrorKind.tajwid => 'Tajwid',
+      RecitationErrorKind.saute => 'Mot sauté',
+      RecitationErrorKind.inconnu => 'Indéterminé',
+    };
 
 class RecitationSessionState {
   final List<RecitedWord> words;

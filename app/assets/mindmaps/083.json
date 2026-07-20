@@ -1,0 +1,42 @@
+{
+  "surah": 83,
+  "name_ar": "المطففين",
+  "name_latin": "Al-Mutaffifin",
+  "ayat_count": 36,
+  "theme_central": "De la fraude sur la mesure et le poids — un manquement à la justice la plus concrète du quotidien — jusqu'au renversement final : ceux qui riaient des croyants seront eux-mêmes objets de rire.",
+  "sources_note": "Contenu largement enseigné et non contesté : Sijjîn (registre des libertins) et 'Illiyyîn (registre des vertueux) sont des repères classiques bien établis.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Malheur aux fraudeurs",
+      "resume": "Exiger la pleine mesure en achetant, réduire en vendant ou en pesant ; ne pensent-ils pas être ressuscités ?",
+      "children": [
+        { "v": "1-6", "cat": "legislation", "t": "Fraude sur la mesure et le poids, résurrection à venir" }
+      ]
+    },
+    {
+      "range": "7-17",
+      "title": "Registre des libertins (Sijjîn)",
+      "resume": "Registre scellé des libertins ; un voile les couvrira ce Jour de la vue de leur Seigneur.",
+      "children": [
+        { "v": "7-17", "cat": "eschatologie", "t": "Registre des libertins dans Sijjîn, voile les privant de voir leur Seigneur" }
+      ]
+    },
+    {
+      "range": "18-28",
+      "title": "Registre des vertueux ('Illiyyîn)",
+      "resume": "Registre des vertueux, témoin des rapprochés ; breuvage scellé de musc mélangé de Tasnîm.",
+      "children": [
+        { "v": "18-28", "cat": "eschatologie", "t": "Registre des vertueux dans 'Illiyyîn, breuvage de musc et de Tasnîm" }
+      ]
+    },
+    {
+      "range": "29-36",
+      "title": "Le renversement",
+      "resume": "Les criminels riaient des croyants dans ce bas monde ; ce Jour, les croyants riront à leur tour, depuis leurs divans.",
+      "children": [
+        { "v": "29-36", "cat": "eschatologie", "t": "Renversement : les croyants rient à leur tour des mécréants ce Jour" }
+      ]
+    }
+  ]
+}

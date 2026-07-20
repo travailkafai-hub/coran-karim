@@ -1,0 +1,34 @@
+{
+  "surah": 64,
+  "name_ar": "التغابن",
+  "name_latin": "At-Taghabun",
+  "ayat_count": 18,
+  "theme_central": "Le Jour de la spoliation mutuelle (yawm at-taghâbun) : Allah, Souverain absolu, s'adresse successivement à toute l'humanité, puis aux mécréants, puis aux croyants.",
+  "sources_note": "Structure en 3 adresses précisément sourcée (learnreadquran.com) : 1-4 (humanité), 5-10 (mécréants), 11-18 (croyants).",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Adresse à toute l'humanité",
+      "resume": "Toute chose glorifie Allah, Souverain absolu ; Il connaît le secret et le manifeste.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Souveraineté absolue d'Allah, connaissance du secret et du manifeste" }
+      ]
+    },
+    {
+      "range": "5-10",
+      "title": "Adresse aux mécréants",
+      "resume": "Sort des peuples anciens qui ont nié ; le Jour de la spoliation mutuelle, foi et mécréance récompensées.",
+      "children": [
+        { "v": "5-10", "cat": "eschatologie", "t": "Sort des peuples anciens, le Jour de la spoliation mutuelle" }
+      ]
+    },
+    {
+      "range": "11-18",
+      "title": "Adresse aux croyants",
+      "resume": "Rien n'arrive sans la permission d'Allah, prudence envers épouses et enfants, prêt beau à Allah multiplié.",
+      "children": [
+        { "v": "11-18", "cat": "ethique", "t": "Prudence envers épouses et enfants, la dépense comme prêt multiplié par Allah" }
+      ]
+    }
+  ]
+}

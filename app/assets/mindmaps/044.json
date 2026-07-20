@@ -1,0 +1,51 @@
+{
+  "surah": 44,
+  "name_ar": "الدخان",
+  "name_latin": "Ad-Dukhan",
+  "ayat_count": 59,
+  "theme_central": "Le Coran descendu lors d'une nuit bénie (la Nuit du Destin) ; entre la fumée annoncée comme châtiment et le sort de Pharaon, la même question : croire avant qu'il ne soit trop tard.",
+  "sources_note": "Structure en 3 sections précisément sourcée (thelastdialogue.org) : Pharaon noyé, certitude du Jugement, récompense des pieux.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Ouverture, la Nuit bénie",
+      "resume": "Le Coran descendu lors d'une nuit bénie ; mise en garde de ceux qui doutent.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "Le Coran descendu lors de la Nuit bénie (Laylat al-Qadr)" }
+      ]
+    },
+    {
+      "range": "10-16",
+      "title": "La fumée annoncée",
+      "resume": "D'où le nom de la sourate : une fumée visible annoncée comme châtiment, allègement temporaire promis.",
+      "children": [
+        { "v": "10-16", "cat": "eschatologie", "t": "La fumée (dukhân) annoncée comme châtiment, allègement temporaire" }
+      ]
+    },
+    {
+      "range": "17-33",
+      "title": "Moussa, Pharaon, exode",
+      "resume": "Moussa envoyé à Pharaon, exode, noyade, héritage transmis aux Fils d'Israël.",
+      "children": [
+        { "v": "17-33", "cat": "recits", "t": "Moussa envoyé à Pharaon, exode, noyade, héritage aux Fils d'Israël" }
+      ]
+    },
+    {
+      "range": "34-42",
+      "title": "Doute des Mecquois",
+      "resume": "Les mécréants de la Mecque doutent de la résurrection comme les anciens ; le Jour de la Séparation.",
+      "children": [
+        { "v": "34-42", "cat": "eschatologie", "t": "Doute des Mecquois sur la résurrection, le Jour de la Séparation" }
+      ]
+    },
+    {
+      "range": "43-59",
+      "title": "Zaqqoum, Enfer, Paradis",
+      "resume": "L'arbre de Zaqqoum, sort des criminels en Enfer, description du Paradis pour les pieux, clôture.",
+      "children": [
+        { "v": "43-50", "cat": "eschatologie", "t": "L'arbre de Zaqqoum, sort des criminels en Enfer" },
+        { "v": "51-59", "cat": "eschatologie", "t": "Description du Paradis pour les pieux, Coran facilité pour la réflexion" }
+      ]
+    }
+  ]
+}

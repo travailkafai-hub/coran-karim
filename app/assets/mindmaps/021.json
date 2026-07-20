@@ -1,0 +1,74 @@
+{
+  "surah": 21,
+  "name_ar": "الأنبياء",
+  "name_latin": "Al-Anbiya",
+  "ayat_count": 112,
+  "theme_central": "L'unité fondamentale de tous les prophètes : seize d'entre eux défilent dans cette sourate, tous porteurs d'un seul et même message — adorer Allah seul.",
+  "sources_note": "Découpage en 7 sections précisément sourcé (alim.org, 7 Rukus) : 1-10, 11-22, 23-29, 30-41, 42-50, 51-91, 92-112.",
+  "branches": [
+    {
+      "range": "1-10",
+      "title": "Proximité du Jugement",
+      "resume": "Avertissement sur l'approche du Jour, insouciance des hommes.",
+      "children": [
+        { "v": "1-10", "cat": "eschatologie", "t": "Approche du Jugement, insouciance des hommes, moquerie des mécréants" }
+      ]
+    },
+    {
+      "range": "11-22",
+      "title": "Soutien divin aux messagers rejetés",
+      "resume": "Destruction des nations injustes passées, la création n'est pas un jeu.",
+      "children": [
+        { "v": "11-15", "cat": "eschatologie", "t": "Destruction des nations injustes passées" },
+        { "v": "16-22", "cat": "argumentation", "t": "La création n'est pas un jeu, toute âme goûtera la mort" }
+      ]
+    },
+    {
+      "range": "23-29",
+      "title": "Monothéisme",
+      "resume": "Nul ne peut Lui demander compte ; les anges eux-mêmes ne se prosternent que devant Lui.",
+      "children": [
+        { "v": "23-29", "cat": "croyance", "t": "Allah ne rend compte à personne ; les anges Ses serviteurs soumis" }
+      ]
+    },
+    {
+      "range": "30-41",
+      "title": "Signes cosmiques",
+      "resume": "Cieux et terre autrefois soudés, chaque être vivant fait à partir de l'eau.",
+      "children": [
+        { "v": "30-41", "cat": "signes", "t": "Cieux et terre séparés, chaque être vivant tiré de l'eau" }
+      ]
+    },
+    {
+      "range": "42-50",
+      "title": "Hud et Salih",
+      "resume": "Bref rappel des peuples de 'Ad et Thamud.",
+      "children": [
+        { "v": "42-50", "cat": "recits", "t": "Bref rappel des peuples de 'Ad et de Thamud" }
+      ]
+    },
+    {
+      "range": "51-91",
+      "title": "La grande galerie des prophètes",
+      "resume": "Ibrahim, Lot, Nuh, Dawud et Sulayman, Ayyub, Isma'il, Idris, Dhul-Kifl, Yunus, Zakariya et Maryam.",
+      "children": [
+        { "v": "51-73", "cat": "recits", "t": "Ibrahim brise les idoles, jeté au feu qui devient frais et paisible" },
+        { "v": "74-77", "cat": "recits", "t": "Lot et Nuh sauvés de leurs peuples" },
+        { "v": "78-82", "cat": "recits", "t": "Dawud et Sulayman : jugement des champs, oiseaux et vent soumis" },
+        { "v": "83-86", "cat": "recits", "t": "Ayyub éprouvé puis guéri, Isma'il, Idris et Dhul-Kifl patients" },
+        { "v": "87-88", "cat": "recits", "t": "Yunus dans le ventre du poisson, son invocation exaucée" },
+        { "v": "89-91", "cat": "recits", "t": "Zakariya exaucé, Maryam et la naissance de Aïssa" }
+      ]
+    },
+    {
+      "range": "92-112",
+      "title": "Unité religieuse, clôture",
+      "resume": "Une seule communauté de foi malgré les divisions humaines, résurrection, souveraineté d'Allah.",
+      "children": [
+        { "v": "92-97", "cat": "croyance", "t": "Une seule communauté de foi, mise en garde sur Gog et Magog" },
+        { "v": "98-104", "cat": "eschatologie", "t": "Sort des idoles et de leurs adorateurs, sérénité des pieux" },
+        { "v": "105-112", "cat": "croyance", "t": "Héritage de la terre par les pieux, Muhammad envoyé comme miséricorde pour l'univers" }
+      ]
+    }
+  ]
+}
