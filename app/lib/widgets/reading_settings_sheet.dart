@@ -13,6 +13,12 @@ void showReadingSettingsSheet(BuildContext context, WidgetRef ref) {
   showModalBottomSheet(
     context: context,
     backgroundColor: AppColors.cream,
+    // isScrollControlled + hauteur bornée : depuis l'ajout des sections
+    // "vitesse de lecture (audio)" et "répétition / boucles" (2026-07-19), le
+    // contenu dépasse la hauteur par défaut d'un bottom sheet (constaté :
+    // "BOTTOM OVERFLOWED BY 284 PIXELS"). Le contenu défile désormais dans la
+    // limite de 85% de l'écran au lieu de déborder.
+    isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -34,14 +40,21 @@ class _ReadingSettingsSheet extends ConsumerWidget {
     const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'AFFICHAGE',
+      child: ConstrainedBox(
+        // Plafonne à 85% de l'écran ; au-delà, le contenu défile (cf.
+        // SingleChildScrollView) plutôt que de déborder.
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AFFICHAGE',
               style: GoogleFonts.manrope(
                 fontSize: 10.5,
                 letterSpacing: 1.2,
@@ -224,7 +237,9 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                   ),
               ],
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );

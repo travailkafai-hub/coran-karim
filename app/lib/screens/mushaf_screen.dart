@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart' show SystemChrome, SystemUiMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/verse.dart';
 import '../models/player_state_model.dart';
@@ -342,6 +343,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
               ? _ErrorView(onRetry: _load)
               : Stack(
                   children: [
+                    const _QuranPatternBackground(),
                     _buildVerses(playingVerseKey),
                     if (autoScroll != AutoScrollSpeed.off)
                       Positioned(
@@ -807,6 +809,58 @@ class _AutoScrollBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+// Filigrane de fond du défilement : tuile SVG générée par
+// design/gen_pattern.js (pavage octogones + carrés, construction
+// géométrique -- cf. commentaire du générateur), répétée comme une texture
+// de papier. Fixe (ne scrolle pas avec le texte), opacité très faible pour
+// ne jamais concurrencer le texte coranique -- même prudence que pour le
+// médaillon de sourate, après le retour utilisateur sur la V1 du bandeau
+// ("catastrophique... trop chargée").
+class _QuranPatternBackground extends StatelessWidget {
+  const _QuranPatternBackground();
+
+  // Doit rester en phase avec la taille de tuile écrite par gen_pattern.js
+  // (viewBox D×D, affiché dans son log "régénéré (tuile ...)").
+  static const double _tileSize = 82.08;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        child: Opacity(
+          opacity: 0.05,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final cols = (constraints.maxWidth / _tileSize).ceil() + 1;
+              final rows = (constraints.maxHeight / _tileSize).ceil() + 1;
+              return ClipRect(
+                child: OverflowBox(
+                  alignment: Alignment.topLeft,
+                  maxWidth: cols * _tileSize,
+                  maxHeight: rows * _tileSize,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(
+                      rows,
+                      (_) => Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(
+                          cols,
+                          (_) => SvgPicture.asset(
+                            'assets/illumination/quran_pattern_tile.svg',
+                            width: _tileSize,
+                            height: _tileSize,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
 }
 
 class _ErrorView extends StatelessWidget {
