@@ -123,5 +123,45 @@ class RuleReliability {
   final double? recall;
   const RuleReliability({required this.status, this.recall});
 
-  bool get selectable => status == RuleStatus.ready;
+  /// TOUTES les règles sont désormais activables (décision utilisateur
+  /// 2026-07-20). Avant, `status == ready` bloquait le toggle : `madda_necessary`
+  /// (le madd 6, une des règles LES PLUS fondamentales et les plus audibles)
+  /// était grisé, même en mode enfant. L'utilisateur a contesté, à raison.
+  ///
+  /// POURQUOI LE GARDE-FOU ÉTAIT MAL FONDÉ (3 raisons, mesurées) :
+  ///  1. La mesure évalue la MAUVAISE CHOSE : « quand le récitateur fait la
+  ///     règle CORRECTEMENT, le modèle émet-il le symbole ? ». Or pour
+  ///     enseigner, ce qui compte est l'inverse : « quand l'utilisateur RATE
+  ///     la règle, le modèle le voit-il ? ». Jamais mesuré (cf.
+  ///     PLAN_ENTRAINEMENT_HYBRIDE.md : « le set humain reste le juge de paix »).
+  ///  2. Échantillons minuscules : madda_necessary n=32 -> 72% avec un IC95%
+  ///     de [55%, 84%] ; idgham_mutaqaribayn n=3 -> « 100% » avec IC [44%,100%],
+  ///     autrement dit aucune information.
+  ///  3. La cause probable est la RARETÉ (143 occurrences de madda_necessary
+  ///     dans tout le Coran), pas une difficulté acoustique intrinsèque.
+  ///
+  /// Le garde-fou ne disparaît pas, il CHANGE DE NATURE : au lieu d'interdire,
+  /// on informe (badge de fiabilité) et on refuse le vert franc
+  /// (cf. [capsToUnclear]) -- afficher « correct » sur une faute réelle reste
+  /// le pire des comportements (biais canonique, combattu depuis le début).
+  bool get selectable => true;
+
+  /// Fiabilité insuffisante pour affirmer « c'est correct » : quand une telle
+  /// règle est active, son verdict est PLAFONNÉ à « incertain » (orange) au
+  /// lieu de passer au vert. L'utilisateur garde l'information (« il se passe
+  /// quelque chose ici ») sans que l'app ne certifie à tort.
+  ///
+  /// Seuil 0.90 : cohérent avec le groupe « prêtes » mesuré (92-100%) ;
+  /// en dessous, ou sans données, on ne certifie pas.
+  bool get capsToUnclear =>
+      status != RuleStatus.ready || (recall ?? 0) < 0.90;
+
+  /// Libellé court pour le badge de l'écran de règles.
+  String get badgeLabel => switch (status) {
+        RuleStatus.ready =>
+          recall == null ? 'fiable' : 'fiable · ${(recall! * 100).round()}%',
+        RuleStatus.notReady =>
+          recall == null ? 'peu fiable' : 'peu fiable · ${(recall! * 100).round()}%',
+        RuleStatus.insufficientData => 'non mesurée',
+      };
 }

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/reciter.dart';
 import '../providers/app_settings_provider.dart';
+import '../providers/player_provider.dart';
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'qibla_screen.dart';
+import 'reciter_select_screen.dart';
 import 'voice_calibration_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -26,20 +29,49 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // "Mode de vérification" retiré d'ici (2026-07-19, retour
-          // utilisateur : "alléger les paramètres globaux", chaque page a
-          // son propre paramétrage §2) -- déplacé dans le Coach
-          // (coach_screen.dart::_Header, icône à côté du titre), l'écran où
-          // la vérification a réellement lieu.
-          // SECTION « RÉCITATION » ENTIÈREMENT DÉPLACÉE dans le hub Coach
-          // le 2026-07-20 (demande utilisateur : « tous les paramètres de
-          // récitation globale doivent être accessibles pour modification »,
-          // + décision verrouillée REFONTE_IHM.md §11.6.3 : DÉPLACÉS, pas
-          // dupliqués). Vivaient ici : Réciteur, Correction automatique,
-          // Rigueur de la correction, Suivre sans bloquer, Répétitions de
-          // mémorisation. Ils sont désormais dans coach_hub_screen.dart,
-          // zone « Réciter », au contact de leur usage réel. Réglages global
-          // ne garde que le transverse (prière, voix, affichage, langue).
+          // Historique de cette section (ne pas re-déplacer sans relire) :
+          //  - 2026-07-19 : "Mode de vérification" retiré d'ici (« alléger les
+          //    paramètres globaux »).
+          //  - 2026-07-20 (matin) : toute la section « Récitation » déplacée
+          //    dans le hub Coach.
+          //  - 2026-07-20 (correction utilisateur) : partage plus juste, sur
+          //    le critère « à quoi sert ce réglage ? » plutôt que « où est
+          //    l'écran ? » :
+          //      * paramètres de VÉRIFICATION (mode tajwid, sensibilité,
+          //        rigueur, correction auto, suivre sans bloquer) -> sur
+          //        l'ÉCRAN DE RÉCITATION, derrière une icône : ils ne servent
+          //        que là, et souvent EN COURS de récitation ;
+          //      * RÉCITATEUR -> reste ici (ci-dessous) : transverse (écoute,
+          //        souffleur, corrections audio), pas propre à la récitation.
+          _SectionHeader('Audio'),
+          // Le RÉCITATEUR reste ici, dans les réglages généraux (précision
+          // utilisateur 2026-07-20 : « le récitateur c'est dans réglages
+          // générale »). C'est un choix TRANSVERSE : il sert à l'écoute d'une
+          // sourate, au souffleur, aux corrections audio -- pas seulement à la
+          // récitation. Les paramètres de VÉRIFICATION, eux, vivent sur
+          // l'écran de récitation (icône dédiée), cf. REFONTE_IHM.md §11.
+          _SettingsTile(
+            icon: Icons.record_voice_over,
+            title: 'Récitateur',
+            subtitle:
+                '${ref.watch(playerProvider).reciter.nameFr}  •  ${ref.watch(playerProvider).reciter.style}',
+            trailing: Text(ref.watch(playerProvider).reciter.nameAr,
+                textDirection: TextDirection.rtl,
+                style: GoogleFonts.scheherazadeNew(
+                    fontSize: 14, color: AppColors.green700)),
+            onTap: () async {
+              final picked = await Navigator.push<Reciter>(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => ReciterSelectScreen(
+                        currentId: ref.read(playerProvider).reciter.id)),
+              );
+              if (picked != null) {
+                ref.read(playerProvider.notifier).setReciter(picked);
+              }
+            },
+          ),
+
           const SizedBox(height: 12),
           _SectionHeader('Prière'),
           _SettingsTile(

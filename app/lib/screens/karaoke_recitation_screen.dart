@@ -18,6 +18,7 @@ import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tajweed_text.dart';
 import '../widgets/tajwid_help_sheet.dart';
+import 'tajwid_rules_screen.dart';
 
 /// Écran "karaoké" — récitation continue immersive.
 ///
@@ -883,15 +884,33 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// immédiatement (cf. ref.listen(correctionSensitivityProvider) dans
   /// build()), y compris en pleine récitation -- pas besoin de s'arrêter
   /// pour ajuster.
-  void _openSensitivitySheet(BuildContext context) {
+  /// TOUS les paramètres de vérification, accessibles ICI, sur l'écran de
+  /// récitation, derrière une icône (demande utilisateur 2026-07-20 : « tous
+  /// les paramètres de vérification seront sur la page de récitation moyennant
+  /// une icône »).
+  ///
+  /// POURQUOI ICI et pas dans un écran de réglages : ces réglages ne servent
+  /// QUE pendant la récitation, et souvent EN COURS de récitation (« je suis
+  /// jugé trop sévèrement, je desserre tout de suite »). Les enfermer dans un
+  /// écran distant obligerait à sortir de la session pour les toucher.
+  /// La sensibilité était déjà réglable en direct ici (2026-07-12) ; cette
+  /// feuille étend le principe à toute la famille « vérification ».
+  ///
+  /// Le RÉCITATEUR n'est PAS ici : c'est un choix transverse (écoute,
+  /// souffleur, corrections audio) qui vit dans les Réglages généraux.
+  void _openVerificationSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.green800,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetContext) => Consumer(
         builder: (context, ref, _) {
           final sensitivity = ref.watch(correctionSensitivityProvider);
+          final autoCorr = ref.watch(autoCorrectionEnabledProvider);
+          final strict = ref.watch(strictCorrectionProvider);
+          final followFree = ref.watch(followWithoutBlockingProvider);
           String label;
           if (sensitivity < 0.35) {
             label = 'Tolérant';
@@ -901,49 +920,114 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             label = 'Équilibré (par défaut)';
           }
           return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Sensibilité de la correction',
-                      style: GoogleFonts.fraunces(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.cream)),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Plus tolérant : accepte des harakat/prononciations '
-                    'imprécises en vert. Plus strict : exige une '
-                    'prononciation plus proche du modèle pour valider un mot.',
-                    style: TextStyle(color: AppColors.cream.withOpacity(0.75), fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.85),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Tolérant',
-                          style: TextStyle(color: Colors.white54, fontSize: 12)),
-                      Expanded(
-                        child: Slider(
-                          value: sensitivity,
-                          activeColor: AppColors.brassLight,
-                          inactiveColor: Colors.white24,
-                          onChanged: (v) =>
-                              ref.read(correctionSensitivityProvider.notifier).state = v,
-                        ),
+                      Text('Paramètres de vérification',
+                          style: GoogleFonts.fraunces(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.cream)),
+                      const SizedBox(height: 16),
+
+                      // ── Mode de vérification (presets + 17 règles) ────────
+                      _SheetRow(
+                        icon: Icons.auto_awesome,
+                        title: 'Mode de vérification',
+                        subtitle: 'Presets tajwid / adulte / enfant, 17 règles',
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const TajwidRulesScreen())),
                       ),
-                      const Text('Strict',
-                          style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      const Divider(color: Colors.white12, height: 20),
+
+                      // ── Sensibilité (réglable en direct) ──────────────────
+                      Text('Sensibilité de la correction',
+                          style: GoogleFonts.manrope(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.cream)),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Plus tolérant : accepte des harakat/prononciations '
+                        'imprécises en vert. Plus strict : exige une '
+                        'prononciation plus proche du modèle.',
+                        style: TextStyle(
+                            color: AppColors.cream.withValues(alpha: 0.75),
+                            fontSize: 12.5),
+                      ),
+                      Row(
+                        children: [
+                          const Text('Tolérant',
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 12)),
+                          Expanded(
+                            child: Slider(
+                              value: sensitivity,
+                              activeColor: AppColors.brassLight,
+                              inactiveColor: Colors.white24,
+                              onChanged: (v) => ref
+                                  .read(correctionSensitivityProvider.notifier)
+                                  .state = v,
+                            ),
+                          ),
+                          const Text('Strict',
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 12)),
+                        ],
+                      ),
+                      Center(
+                        child: Text(label,
+                            style: const TextStyle(
+                                color: AppColors.brassLight,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                      const Divider(color: Colors.white12, height: 20),
+
+                      // ── Comportement de correction ────────────────────────
+                      _SheetSwitch(
+                        icon: Icons.hearing_rounded,
+                        title: 'Correction automatique',
+                        subtitle:
+                            'Mot rouge → pause, le récitateur corrige, reprise auto',
+                        value: autoCorr,
+                        onChanged: (v) => ref
+                            .read(autoCorrectionEnabledProvider.notifier)
+                            .set(v),
+                      ),
+                      _SheetSwitch(
+                        icon: Icons.rule_rounded,
+                        title: 'Rigueur de la correction',
+                        subtitle: strict
+                            ? 'Strict — rouge ET orange (imprécis) sont repris'
+                            : 'Tolérant — seul le rouge (mot faux) est repris',
+                        value: strict,
+                        onChanged: (v) => ref
+                            .read(strictCorrectionProvider.notifier)
+                            .set(v),
+                      ),
+                      _SheetSwitch(
+                        icon: Icons.fast_forward_rounded,
+                        title: 'Suivre sans bloquer',
+                        subtitle: followFree
+                            ? 'Avance librement même sans reprise exacte'
+                            : 'Chaque échec force à reprendre le mot',
+                        value: followFree,
+                        onChanged: (v) => ref
+                            .read(followWithoutBlockingProvider.notifier)
+                            .set(v),
+                      ),
                     ],
                   ),
-                  Center(
-                    child: Text(label,
-                        style: const TextStyle(
-                            color: AppColors.brassLight,
-                            fontWeight: FontWeight.w600)),
-                  ),
-                ],
+                ),
               ),
             ),
           );
@@ -978,7 +1062,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
     // Sensibilité de jugement réglable EN DIRECT (demande utilisateur
     // 2026-07-12) -- répercute tout changement fait depuis la feuille de
-    // réglage (cf. _openSensitivitySheet) sur le moteur de jugement, sans
+    // réglage (cf. _openVerificationSheet) sur le moteur de jugement, sans
     // interrompre la récitation en cours.
     ref.listen(correctionSensitivityProvider, (prev, next) {
       ref.read(recitationProvider.notifier).setSensitivity(next);
@@ -1177,10 +1261,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             ),
           // Sensibilité du jugement (vert/orange/rouge) réglable EN DIRECT,
           // y compris pendant l'écoute (demande utilisateur 2026-07-12).
+          // Icône UNIQUE d'accès à TOUS les paramètres de vérification
+          // (demande utilisateur 2026-07-20). Disponible aussi PENDANT
+          // l'écoute : c'est souvent en récitant qu'on veut desserrer ou
+          // durcir le jugement.
           IconButton(
-            tooltip: 'Sensibilité de la correction',
-            icon: const Icon(Icons.speed_rounded, color: Colors.white70, size: 20),
-            onPressed: () => _openSensitivitySheet(context),
+            tooltip: 'Paramètres de vérification',
+            icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
+            onPressed: () => _openVerificationSheet(context),
           ),
           // Pendant l'écoute : bouton pause/reprise (demande utilisateur
           // 2026-07-10). Sinon, à l'arrêt : geste explicite pour refaire
@@ -1854,4 +1942,69 @@ class _FullTranscriptSheetState extends ConsumerState<_FullTranscriptSheet> {
       ),
     );
   }
+}
+
+
+// ── Briques de la feuille « Paramètres de vérification » ─────────────────────
+
+class _SheetRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _SheetRow(
+      {required this.icon,
+      required this.title,
+      required this.subtitle,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(icon, color: AppColors.brassLight, size: 22),
+        title: Text(title,
+            style: GoogleFonts.manrope(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.cream)),
+        subtitle: Text(subtitle,
+            style: GoogleFonts.manrope(
+                fontSize: 11.5, color: Colors.white60)),
+        trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+        onTap: onTap,
+      );
+}
+
+class _SheetSwitch extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _SheetSwitch(
+      {required this.icon,
+      required this.title,
+      required this.subtitle,
+      required this.value,
+      required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(icon, color: AppColors.brassLight, size: 22),
+        title: Text(title,
+            style: GoogleFonts.manrope(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.cream)),
+        subtitle: Text(subtitle,
+            style: GoogleFonts.manrope(
+                fontSize: 11.5, color: Colors.white60)),
+        trailing: Switch.adaptive(
+          value: value,
+          onChanged: onChanged,
+          activeThumbColor: AppColors.brassLight,
+        ),
+        onTap: () => onChanged(!value),
+      );
 }

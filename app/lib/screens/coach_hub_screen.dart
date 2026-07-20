@@ -18,13 +18,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../models/reciter.dart';
 import '../models/verse.dart';
-import '../providers/app_settings_provider.dart';
 import '../providers/error_review_provider.dart';
 import '../providers/last_coach_verse_provider.dart';
 import '../providers/mind_map_provider.dart';
-import '../providers/player_provider.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
 import '../theme/app_theme.dart';
@@ -32,9 +29,7 @@ import '../widgets/coach_explanation_sheet.dart';
 import 'coach_screen.dart';
 import 'karaoke_recitation_screen.dart';
 import 'mind_map_screen.dart';
-import 'reciter_select_screen.dart';
 import 'surah_picker_screen.dart';
-import 'tajwid_rules_screen.dart';
 
 class CoachHubScreen extends ConsumerWidget {
   const CoachHubScreen({super.key});
@@ -181,213 +176,99 @@ class _MemorizeSection extends StatelessWidget {
   }
 }
 
-// ── Zone C — Réciter + tous les réglages ─────────────────────────────────────
+// ── Zone C — Réciter : LE MOTEUR DE L'APP, mis en valeur ─────────────────────
 
-/// Récitation globale ET tous ses paramètres, modifiables ici (exigence
-/// explicite : « tous les paramètres de récitation globale doivent être
-/// accessibles pour une modification »). Ces réglages ont QUITTÉ l'écran
-/// Réglages global (décision verrouillée §11.6.3 : déplacés, pas dupliqués).
-class _ReciteSection extends ConsumerWidget {
+/// Récitation continue. Volontairement présentée comme une GRANDE CARTE
+/// D'ACTION et non comme une ligne de liste parmi d'autres (retour utilisateur
+/// 2026-07-20 : « réciter une sourate c'est le moteur de l'app, il n'est pas
+/// mis en valeur ») : c'est la fonction centrale du produit, elle doit se voir
+/// et s'atteindre en un geste.
+///
+/// Les PARAMÈTRES DE VÉRIFICATION ne sont plus ici : ils vivent sur l'écran de
+/// récitation lui-même, derrière une icône (karaoke_recitation_screen.dart,
+/// `_openVerificationSheet`) -- ils ne servent que là, et souvent EN COURS de
+/// récitation. Le RÉCITATEUR est retourné dans les Réglages généraux (choix
+/// transverse : écoute, souffleur, corrections audio).
+class _ReciteSection extends StatelessWidget {
   const _ReciteSection();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final strict = ref.watch(strictCorrectionProvider);
-    final autoCorr = ref.watch(autoCorrectionEnabledProvider);
-    final followFree = ref.watch(followWithoutBlockingProvider);
-    final drill = ref.watch(repeatDrillCountProvider);
-    final sensitivity = ref.watch(correctionSensitivityProvider);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionTitle(
-            'RÉCITER', 'Récitation continue et ses réglages'),
-        _Card(
-          child: Column(
-            children: [
-              _ActionRow(
-                icon: Icons.mic_rounded,
-                title: 'Réciter une sourate',
-                subtitle: 'Suivi mot à mot en continu',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SurahPickerScreen(
-                      title: 'Réciter',
-                      subtitle: 'Choisis la sourate à réciter',
-                      onPicked: (surah, verses) => Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) =>
-                                KaraokeRecitationScreen(verses: verses)),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const Divider(height: 1),
-              _ActionRow(
-                icon: Icons.auto_awesome,
-                title: 'Mode de vérification',
-                subtitle: 'Presets tajwid / adulte / enfant, 17 règles',
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const TajwidRulesScreen())),
-              ),
-              const Divider(height: 1),
-              _ActionRow(
-                icon: Icons.record_voice_over_rounded,
-                title: 'Récitateur',
-                subtitle: '${ref.watch(playerProvider).reciter.nameFr} · ${ref.watch(playerProvider).reciter.style}',
-                onTap: () async {
-                  final picked = await Navigator.push<Reciter>(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => ReciterSelectScreen(
-                            currentId: ref.read(playerProvider).reciter.id)),
-                  );
-                  if (picked != null) {
-                    ref.read(playerProvider.notifier).setReciter(picked);
-                  }
-                },
-              ),
-              const Divider(height: 1),
-              _ActionRow(
-                icon: Icons.repeat_rounded,
-                title: 'Répétitions de mémorisation',
-                subtitle: 'Répéter le verset × $drill avant de tester',
-                onTap: () => _pickDrillCount(context, ref, drill),
-              ),
-              const Divider(height: 1),
-              _SwitchRow(
-                icon: Icons.hearing_rounded,
-                title: 'Correction automatique',
-                subtitle: 'Mot rouge → pause, le récitateur corrige',
-                value: autoCorr,
-                onChanged: (v) =>
-                    ref.read(autoCorrectionEnabledProvider.notifier).set(v),
-              ),
-              const Divider(height: 1),
-              _SwitchRow(
-                icon: Icons.rule_rounded,
-                title: 'Rigueur de la correction',
-                subtitle: strict
-                    ? 'Strict — orange (imprécis) aussi repris'
-                    : 'Tolérant — seul le rouge (mot faux) est repris',
-                value: strict,
-                onChanged: (v) =>
-                    ref.read(strictCorrectionProvider.notifier).set(v),
-              ),
-              const Divider(height: 1),
-              _SwitchRow(
-                icon: Icons.fast_forward_rounded,
-                title: 'Suivre sans bloquer',
-                subtitle:
-                    'Avance même sans reprise exacte du mot corrigé',
-                value: followFree,
-                onChanged: (v) =>
-                    ref.read(followWithoutBlockingProvider.notifier).set(v),
-              ),
-              const Divider(height: 1),
-              _SensitivityRow(value: sensitivity, ref: ref),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _pickDrillCount(BuildContext context, WidgetRef ref, int current) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.green800,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Répétitions avant le test',
-                style: GoogleFonts.fraunces(
-                    fontSize: 16, color: AppColors.brassLight)),
-            const SizedBox(height: 16),
-            for (final n in const [1, 3, 5, 7, 10])
-              ListTile(
-                dense: true,
-                title: Text('Verset × $n',
-                    style: GoogleFonts.manrope(
-                        color: AppColors.cream,
-                        fontWeight:
-                            n == current ? FontWeight.w700 : FontWeight.normal)),
-                trailing: n == current
-                    ? const Icon(Icons.check_rounded, color: AppColors.brass)
-                    : null,
-                onTap: () {
-                  ref.read(repeatDrillCountProvider.notifier).set(n);
-                  Navigator.pop(context);
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Sensibilité du jugement. NON persistée entre sessions (chaque récitation
-/// repart de 0.5) -- décision antérieure conservée, cf. commentaire de
-/// `correctionSensitivityProvider`. Exposée ici pour rester modifiable.
-class _SensitivityRow extends StatelessWidget {
-  final double value;
-  final WidgetRef ref;
-  const _SensitivityRow({required this.value, required this.ref});
-
-  @override
   Widget build(BuildContext context) {
-    String label;
-    if (value < 0.34) {
-      label = 'Tolérant';
-    } else if (value < 0.67) {
-      label = 'Équilibré';
-    } else {
-      label = 'Strict';
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.tune_rounded,
-                  color: AppColors.green700, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text('Sensibilité du jugement — $label',
-                    style: GoogleFonts.manrope(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.ink)),
-              ),
-            ],
-          ),
-          Slider(
-            value: value,
-            activeColor: AppColors.green700,
-            onChanged: (v) =>
-                ref.read(correctionSensitivityProvider.notifier).state = v,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 32, bottom: 6),
-            child: Text(
-              'Repart à « Équilibré » à chaque nouvelle récitation.',
-              style: GoogleFonts.manrope(
-                  fontSize: 11, color: AppColors.inkLight),
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SurahPickerScreen(
+            title: 'Réciter',
+            subtitle: 'Choisis la sourate à réciter',
+            onPicked: (surah, verses) => Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => KaraokeRecitationScreen(verses: verses)),
             ),
           ),
-        ],
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.green800, AppColors.green900],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.brass, width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.green900.withValues(alpha: 0.35),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 62,
+              height: 62,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.brass,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.brass.withValues(alpha: 0.45),
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.mic_rounded,
+                  color: AppColors.green900, size: 32),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Réciter une sourate',
+                      style: GoogleFonts.fraunces(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.cream)),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Suivi mot à mot, correction en direct',
+                    style: GoogleFonts.manrope(
+                        fontSize: 12.5, color: AppColors.brassLight),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right,
+                color: AppColors.brassLight, size: 26),
+          ],
+        ),
       ),
     );
   }
@@ -690,47 +571,5 @@ class _ActionRow extends StatelessWidget {
         trailing:
             const Icon(Icons.chevron_right, color: AppColors.inkLight),
         onTap: onTap,
-      );
-}
-
-class _SwitchRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  const _SwitchRow(
-      {required this.icon,
-      required this.title,
-      required this.subtitle,
-      required this.value,
-      required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) => ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-        leading: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: AppColors.green50,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: AppColors.green700, size: 20),
-        ),
-        title: Text(title,
-            style: GoogleFonts.manrope(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.ink)),
-        subtitle: Text(subtitle,
-            style: GoogleFonts.manrope(
-                fontSize: 11.5, color: AppColors.inkLight)),
-        trailing: Switch.adaptive(
-          value: value,
-          onChanged: onChanged,
-          activeThumbColor: AppColors.green700,
-        ),
-        onTap: () => onChanged(!value),
       );
 }

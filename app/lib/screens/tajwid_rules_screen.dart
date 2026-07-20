@@ -151,13 +151,16 @@ class _RuleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final info = kTajwidRuleInfo[rule.key];
-    final selectable = reliability?.selectable ?? false;
     final label = info?.name ?? rule.key;
     final explanation = info?.explanation ?? '';
+    // Plus AUCUNE règle n'est bloquée (décision utilisateur 2026-07-20 : le
+    // madd 6 était grisé alors que c'est une règle fondamentale, cf.
+    // RuleReliability.selectable pour les 3 raisons mesurées). Le garde-fou
+    // devient informatif : badge de fiabilité + pas de vert franc en jugement.
+    final r = reliability;
+    final caps = r?.capsToUnclear ?? true;
 
-    return Opacity(
-      opacity: selectable ? 1.0 : 0.45,
-      child: ListTile(
+    return ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Container(
           width: 12,
@@ -168,18 +171,43 @@ class _RuleTile extends StatelessWidget {
             shape: BoxShape.circle,
           ),
         ),
-        title: Text(label,
-            style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w600)),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(label,
+                  style: GoogleFonts.manrope(
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(width: 8),
+            if (r != null)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: caps
+                      ? AppColors.brass.withValues(alpha: 0.18)
+                      : AppColors.green50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(r.badgeLabel,
+                    style: GoogleFonts.manrope(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        color: caps ? AppColors.brass : AppColors.green700)),
+              ),
+          ],
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(explanation,
                 style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight)),
-            if (!selectable)
+            if (caps)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Bientôt disponible — détection pas encore assez fiable',
+                  'Détection encore imprécise : cette règle peut signaler un '
+                  'doute, mais ne validera jamais un mot en vert à elle seule.',
                   style: GoogleFonts.manrope(
                       fontSize: 11,
                       fontStyle: FontStyle.italic,
@@ -189,11 +217,10 @@ class _RuleTile extends StatelessWidget {
           ],
         ),
         trailing: Switch(
-          value: selectable && active,
-          onChanged: selectable ? onChanged : null,
+          value: active,
+          onChanged: onChanged,
           activeTrackColor: AppColors.green700,
         ),
-      ),
     );
   }
 }

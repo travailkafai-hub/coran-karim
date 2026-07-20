@@ -132,6 +132,18 @@ final recitationProvider = StateNotifierProvider.autoDispose<
   ref.listen<JudgementOptions>(judgementOptionsProvider, (_, next) {
     notifier.applyJudgementOptions(next);
   });
+  // Fiabilité mesurée par règle (asset versionné avec le modèle) : sert à
+  // REFUSER LE VERT sur les règles dont la détection est trop imprécise, sans
+  // pour autant en interdire l'activation (décision 2026-07-20, cf.
+  // RecitationNotifier._capByRuleReliability). FutureProvider : on pousse dès
+  // que chargé, et à chaque rechargement.
+  final rel0 = ref.read(ruleReliabilityProvider).asData?.value;
+  if (rel0 != null) notifier.applyRuleReliability(rel0);
+  ref.listen<AsyncValue<Map<TajwidRule, RuleReliability>>>(
+      ruleReliabilityProvider, (_, next) {
+    final v = next.asData?.value;
+    if (v != null) notifier.applyRuleReliability(v);
+  });
   return notifier;
 });
 
@@ -191,6 +203,44 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _activeRules = opts.activeRules;
   }
 
+  /// Règles dont la détection est trop imprécise pour CERTIFIER un mot correct
+  /// (`RuleReliability.capsToUnclear`). Poussé par le provider en même temps
+  /// que les options, depuis `rule_reliability.json`.
+  Set<TajwidRule> _cappingRules = const {};
+
+  void applyRuleReliability(Map<TajwidRule, RuleReliability> reliability) {
+    _cappingRules = {
+      for (final e in reliability.entries)
+        if (e.value.capsToUnclear) e.key,
+    };
+  }
+
+  /// Plafonne le verdict à « incertain » quand le mot porte une règle ACTIVE
+  /// dont la détection n'est pas assez fiable pour affirmer « c'est correct ».
+  ///
+  /// POURQUOI (décision utilisateur 2026-07-20) : ces règles étaient
+  /// auparavant INTERDITES d'activation (toggle grisé), ce qui privait l'app
+  /// de règles fondamentales comme le madd 6. Elles sont désormais activables,
+  /// mais le garde-fou reste — il change juste de nature : au lieu
+  /// d'interdire, il refuse de CERTIFIER. Un vert franc affiché sur une faute
+  /// réelle est le pire comportement possible (biais canonique : l'utilisateur
+  /// croit avoir juste), bien pire que l'absence de retour. L'orange dit
+  /// honnêtement « il se passe quelque chose ici, je ne peux pas trancher ».
+  ///
+  /// Ne durcit rien d'autre : une erreur reste une erreur, et un mot sans
+  /// règle active concernée n'est pas touché.
+  WordStatus _capByRuleReliability(WordStatus judged, int wordIndex) {
+    if (judged != WordStatus.correct) return judged;
+    if (_activeRules.isEmpty || _cappingRules.isEmpty) return judged;
+    if (wordIndex < 0 || wordIndex >= state.words.length) return judged;
+    for (final r in state.words[wordIndex].expectedRules) {
+      if (_activeRules.contains(r) && _cappingRules.contains(r)) {
+        return WordStatus.unclear;
+      }
+    }
+    return judged;
+  }
+
   /// Règles tajwid à AFFICHER sur le mot d'index [wordIndex] : celles que le
   /// modèle attend sur ce mot (RecitedWord.expectedRules) ET que l'utilisateur
   /// a activées dans son preset ([_activeRules]). Ordre d'apparition dans le
@@ -198,6 +248,15 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// par règle (ready/notReady/insufficient) est appliquée en amont côté écran
   /// des règles (une règle non fiable n'est jamais sélectionnable), donc pas
   /// re-filtrée ici. L'UI karaoké lit ceci pour poser des badges de règle.
+  ///
+  /// ⚠️ NOTE 2026-07-20 : la phrase ci-dessus « une règle non fiable n'est
+  /// jamais sélectionnable » N'EST PLUS VRAIE. Toutes les règles sont
+  /// désormais activables (le grisage privait l'app du madd 6 ; cf.
+  /// `RuleReliability.selectable` pour les 3 raisons mesurées). Le garde-fou
+  /// vit maintenant dans [_capByRuleReliability], qui refuse le vert franc sur
+  /// une règle peu fiable au lieu d'en interdire l'activation. Ici, on affiche
+  /// donc bien TOUTES les règles actives, y compris les moins fiables — c'est
+  /// voulu : l'utilisateur doit voir ce qui est évalué.
   List<TajwidRule> shownRulesFor(int wordIndex) {
     if (_activeRules.isEmpty) return const [];
     if (wordIndex < 0 || wordIndex >= state.words.length) return const [];
@@ -2298,6 +2357,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // durcit jamais : un mot faux au-delà du pardon du preset reste rouge.
       if (hasSpeech && state.prayerPhase != PrayerPhase.fatiha) {
         judged = _relaxJudged(judged, expected, actualNorm);
+        judged = _capByRuleReliability(judged, r.index);
       }
       // Une erreur ne se verrouille QUE sur un segment figé (décision
       // utilisateur 2026-07-10, conservée) : un aperçu peut encore mal couvrir

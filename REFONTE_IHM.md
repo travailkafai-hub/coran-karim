@@ -476,7 +476,38 @@ Volumes réels de l'ordre de quelques centaines de lignes → coût négligeable
 et zéro risque de régression sur le schéma sqlite. À réévaluer seulement si
 le journal grossit beaucoup.
 
+### 11.4bis CORRECTION UTILISATEUR (2026-07-20, après première livraison)
+
+La §11.4 ci-dessous plaçait TOUS les réglages dans le hub Coach. L'utilisateur
+a corrigé sur trois points ; le critère de rangement devient **« à quoi sert ce
+réglage ? »** et non « dans quel écran suis-je ? » :
+
+1. **Récitateur → Réglages généraux** (« le récitateur c'est dans réglages
+   générale »). C'est un choix **transverse** : il sert à l'écoute d'une
+   sourate, au souffleur, aux corrections audio — pas seulement à la
+   récitation. Le mettre dans Coach le rendait introuvable pour ses autres
+   usages.
+2. **Paramètres de VÉRIFICATION → sur l'écran de récitation, derrière une
+   icône** (« tous les paramètres de vérification seront sur la page de
+   récitation moyennant une icône »). Concernés : mode de vérification
+   (presets + 17 règles), sensibilité, rigueur, correction automatique,
+   suivre sans bloquer. Raison : ils ne servent QUE là, et souvent **en cours**
+   de récitation (« je suis jugé trop sévèrement, je desserre tout de suite »).
+   Les enfermer dans un écran distant obligerait à sortir de la session.
+   Implémentation : `karaoke_recitation_screen.dart::_openVerificationSheet`,
+   icône `tune_rounded` de la barre du haut — élargit la feuille « sensibilité »
+   qui existait déjà là depuis le 2026-07-12 (même principe, portée étendue).
+3. **« Réciter une sourate » = le MOTEUR de l'app, à mettre en valeur** (« ce
+   n'est pas mis en valeur »). Il était une simple ligne de liste parmi les
+   réglages. Devient une **grande carte d'action** (dégradé, bordure laiton,
+   micro en pastille, ombre portée) : c'est la fonction centrale du produit,
+   elle doit se voir et s'atteindre en un geste.
+
+**Ce que le hub Coach garde donc** : Reprendre, Mémoriser, la grande carte
+Réciter, et Mes erreurs par sourate. Plus aucun réglage de vérification.
+
 ### 11.4 « Tous les paramètres de récitation accessibles » (exigence explicite)
+### — table d'origine, corrigée par §11.4bis ci-dessus
 
 Regroupés dans la zone C, modifiables sans quitter Coach :
 
@@ -554,6 +585,76 @@ vitesse/répétition → tiroir de lecture.
 **Reste à faire (non couvert par cette passe)** : sélection d'une PLAGE de
 versets (aujourd'hui la zone B lance la sourate entière) ; ancrage de la carte
 mentale sur le verset précis d'une erreur (aujourd'hui elle ouvre la sourate).
+
+---
+
+## 12. Fiabilité des règles : d'un blocage à un plafond (2026-07-20)
+
+**REVIREMENT d'une décision antérieure.** La §1 verrouillait : « règles non
+fiables jamais activables (grisées) ». L'utilisateur a contesté : « pourquoi
+il y a des toggles désactivés, exemple madd 6 et autres, même pour enfants ? ».
+Il a raison, et la vérification des chiffres le confirme.
+
+### Pourquoi le blocage était mal fondé (3 raisons mesurées)
+
+1. **La mesure évalue la mauvaise chose.** Protocole utilisé : *quand le
+   récitateur applique la règle CORRECTEMENT, le modèle émet-il le symbole ?*
+   C'est de la détection de règle **bien réalisée**. Or ce qui compte pour
+   enseigner est l'inverse : *quand l'utilisateur RATE la règle, le modèle le
+   voit-il ?* — jamais mesuré (cf. `PLAN_ENTRAINEMENT_HYBRIDE.md` : « le set
+   humain reste le juge de paix », toujours pas fait). Une règle a donc été
+   grisée sur la foi d'un proxy.
+
+2. **Échantillons minuscules, verdicts fragiles** (IC95% Wilson) :
+
+   | Règle | n | recall | IC 95% |
+   |---|---|---|---|
+   | `madda_necessary` (madd 6) | 32 | 72% | **[55% – 84%]** |
+   | `idgham_mutajanisayn` | 13 | 85% | [58% – 96%] |
+   | `idgham_mutaqaribayn` | **3** | «100%» | **[44% – 100%]** — aucune information |
+   | `qalaqah` (référence) | 50 | 96% | [87% – 99%] |
+
+3. **La cause probable est la rareté, pas la difficulté.** `madda_necessary`
+   n'a que **143 occurrences dans tout le Coran** : le modèle l'a très peu vue.
+   Et un madd est une **durée** — probablement ce qu'un système mesure le plus
+   facilement, pas l'inverse.
+
+**Coût pédagogique du blocage** : le madd 6 est une des règles les plus
+fondamentales et les plus audibles. La bloquer, même en mode enfant, privait
+l'app de ce qu'elle devrait enseigner en premier.
+
+### Ce qui remplace le blocage
+
+Le garde-fou ne disparaît pas, il **change de nature** : au lieu d'interdire,
+il **refuse de certifier**.
+
+- **Toutes les règles sont activables** (`RuleReliability.selectable == true`).
+- Chaque règle porte un **badge de fiabilité** dans l'écran des règles
+  (« fiable · 96% », « peu fiable · 72% », « non mesurée »).
+- Une règle active dont la fiabilité est insuffisante (`capsToUnclear` :
+  statut ≠ ready, ou recall < 0,90) **plafonne le verdict du mot à « incertain »
+  (orange)** au lieu de le laisser passer au vert
+  (`RecitationNotifier._capByRuleReliability`).
+
+**Le principe conservé** : afficher un **vert franc sur une faute réelle** est
+le pire comportement possible — c'est le biais canonique combattu depuis le
+début du projet (l'utilisateur croit avoir juste). L'orange dit honnêtement
+« il se passe quelque chose ici, je ne peux pas trancher », ce qui est
+strictement mieux que l'absence de retour ET que la fausse validation.
+
+### Reste ouvert
+
+- **La vraie mesure** (détection de fautes délibérées sur un set humain) n'est
+  toujours pas faite. Les seuils de `rule_reliability.json` restent donc des
+  proxys — à remplacer dès que ce set existera.
+- **Le madd est structurellement mal servi par le symbole ASR** : le alif
+  suscrit (ٰ) est remplacé par un alif normal dans les labels d'entraînement
+  ET dans la normalisation de l'app — la durée n'existe nulle part dans le
+  texte comparé (cf. `FONCTIONNALITES_FUTURES.md` §1, documenté depuis le
+  2026-07-06). La seule voie qui rend le madd vraiment vérifiable est une
+  **mesure de durée** (option A du §1 : exploiter les timings déjà produits
+  par le CTC, sans ré-entraînement). **Reporté** (décision utilisateur
+  2026-07-20 : « plus tard, on note et on avance »).
 
 ---
 
