@@ -15,6 +15,16 @@ Commits de la session, du plus ancien au plus récent :
 | `ae2362c` | **Fix export ONNX : `audio_signal` (mel) au lieu de `raw_audio`** |
 | `59dbae9` | Tiroir de lecture scrollable + filigrane mushaf |
 | `07579bc` | **Refonte du volet Coach** (hub mémorisation) |
+| `8f8c00a` | **Règles tajwid : blocage → plafond** (toutes activables, jamais de vert franc si peu fiable) |
+| `cc94417` | Cartes mentales 114 sourates + erreurs catégorisées par type ⚠️ commit à DEUX chantiers |
+
+⚠️ **`cc94417` contient DEUX chantiers** (146 fichiers) : le mien (cartes
+mentales + catégorisation des erreurs) ET celui de l'agent parallèle
+(Invocations/Rites). Conservé tel quel sur décision de l'utilisateur : les deux
+agents travaillaient en parallèle sur des fonctionnalités différentes, et
+l'état du disque au moment du commit contenait les deux — découper après coup
+aurait fabriqué des commits qui n'ont jamais existé. Le message du commit
+décrit les deux périmètres séparément.
 
 ---
 
@@ -224,6 +234,49 @@ Détail complet + tableau des IC : `REFONTE_IHM.md` §12.
   « catastrophique » par l'utilisateur → V2 avec l'asset SVG
   `assets/illumination/medallion.svg`, un seul élément ornemental. Vérifiée
   visuellement sur device.
+
+---
+
+## 4bis. Chantier graphique parallèle (filigrane + couverture + séparations)
+
+**Pas de cette session (Opus 4.8)** — mené par un autre agent en parallèle sur
+le même repo, capturé dans `59dbae9` (1ère moitié) puis `c0256fb` (reste,
+mélangé avec les cartes mentales de cette session-ci). Résumé complet ici pour
+que la suite ne le redécouvre pas à l'aveugle et surtout ne l'écrase pas.
+
+Principe posé (repris de `gen_medallion.js`) : construction géométrique pure
+via script Node dans `design/`, jamais de tracé/import d'une œuvre existante —
+un premier essai avec un motif téléchargé (planche Owen Jones 1856, domaine
+public) a été explicitement refusé par l'utilisateur en cours de route.
+
+- `design/gen_pattern.js` → `app/assets/illumination/quran_pattern_tile.svg` :
+  tuile de pavage octogones+carrés (4.8.8), formules exactes
+  (`R = a/(2 sin 22.5°)`, `D = a(1+√2)`), raccord vérifié numériquement
+  (sommets coïncidents, pas ajusté à l'œil). Taille de tuile `A=34` → `D≈82.08`
+  — garder les deux en phase si le script est relancé avec un autre `A`.
+- `app/lib/widgets/quran_pattern_background.dart` : widget partagé (grille de
+  `SvgPicture` répétant la tuile, `OverflowBox`+`ClipRect` pour couvrir
+  l'écran sans erreur de layout), opacité paramétrable.
+  - Filigrane **fixe** (ne scrolle pas avec le contenu) derrière
+    `mushaf_screen.dart` (opacité 0.05) et derrière le header de
+    `surah_list_screen.dart` — la « couverture » (opacité 0.10, fond vert uni
+    donc plus lisible).
+- Couverture (`surah_list_screen.dart`) : `_TitleRule` — un trait + un losange
+  entre le titre arabe et « CORAN KARIM », pas de cadre autour.
+- Séparations (`verse_tile.dart`) : le repère de fin de verset
+  (`_VerseNumberBadge`) passe de cercle plat à octogone (même formule que la
+  tuile) via `_OctagonBadgePainter` — pas de nouvel élément ajouté entre les
+  versets, juste le repère déjà existant rendu cohérent avec le reste.
+
+Vérifié sur device réel (`R3CY20XW7TD`) après chaque étape : build + install +
+navigation + scroll, aucune régression, `flutter analyze` propre sur tous les
+fichiers touchés.
+
+**Prudence délibérée** : après le retour utilisateur sur la V1 du bandeau de
+sourate ci-dessus (« catastrophique... trop chargée »), tout est resté
+minimal — opacité très faible, un seul filet+losange pour la couverture,
+réutilisation d'un motif existant plutôt qu'un nouveau à chaque endroit. Ne
+pas alourdir sans repasser par l'utilisateur.
 
 ---
 
