@@ -36,6 +36,31 @@ class ForcedAligner(
     private val blankId: Int,
 ) {
 
+    // Tokens contenant un SYMBOLE DE REGLE TAJWID (zone privee Unicode
+    // U+E000..U+F8FF) -- 41 pieces sur 1024 dans le vocabulaire du modele
+    // stage1b-260h.
+    //
+    // POURQUOI ILS SONT EXCLUS DU CALCUL DE `free` (correctif 2026-07-20) :
+    // `gop = forced - free`, ou `free` = max par frame sur TOUTES les classes.
+    // Le modele a appris a emettre ces symboles la ou il entend la regle. Sur
+    // une recitation PARFAITE, il veut donc les emettre : `free` empoche ce
+    // score eleve, alors que `forced` (contraint au texte NU, sans symboles)
+    // ne le peut pas. Resultat : gop plonge sans AUCUNE faute du recitant.
+    // Mesure hors device sur la recitation de l'utilisateur : forcer sa propre
+    // transcription SANS symboles coute -177,8 contre AVEC (-8,53 -> -186,36).
+    // L'ancien modele (mixed-e14) n'emettait aucun symbole -> cout 0, d'ou
+    // "l'ancien modele ne bloque pas" constate par l'utilisateur.
+    //
+    // En excluant ces classes de `free`, on compare ce qui est comparable :
+    // les deux chemins jouent sur le meme vocabulaire (lettres + harakat).
+    // Les symboles restent DISPONIBLES dans le decodage libre du texte
+    // (`greedyDecodeRange` -> `actual`), donc la verification du tajwid
+    // continue de fonctionner -- elle est juste SEPAREE du jugement de
+    // prononciation, comme demande.
+    private val ruleSymbolTokens: BooleanArray = BooleanArray(vocab.size) { i ->
+        vocab[i].any { c -> c.code in 0xE000..0xF8FF }
+    }
+
     companion object {
         private const val TAG = "ForcedAligner"
 
@@ -314,8 +339,15 @@ class ForcedAligner(
                 wordLastFrame[wIdx] = ti
                 val lp = logprobs[ti]
                 wordForcedSum[wIdx] += lp[flat[tokIdx]].toDouble()
-                var mx = lp[0]
-                for (c in 1 until lp.size) if (lp[c] > mx) mx = lp[c]
+                // Max par frame en IGNORANT les tokens de symboles de regles
+                // (cf. ruleSymbolTokens plus haut) : sans cette exclusion, une
+                // regle bien realisee fait monter `free` et donc CHUTER le gop
+                // d'un mot pourtant parfaitement recite.
+                var mx = Float.NEGATIVE_INFINITY
+                for (c in lp.indices) {
+                    if (c < ruleSymbolTokens.size && ruleSymbolTokens[c]) continue
+                    if (lp[c] > mx) mx = lp[c]
+                }
                 wordFreeSum[wIdx] += mx.toDouble()
                 wordFrames[wIdx]++
             }
