@@ -153,6 +153,63 @@ Le lien carte mentale est **masqué si le contenu n'existe pas** pour la sourate
 
 ---
 
+## 3bis. Corrections de fin de session (après premiers retours utilisateur)
+
+Deux passes de correction ont suivi la livraison de la refonte Coach. Elles
+comptent autant que la refonte elle-même : elles fixent **le critère de
+rangement des réglages** et **la doctrine du garde-fou tajwid**.
+
+### a) Rangement des réglages — critère « à quoi sert ce réglage ? »
+
+Commit à venir/`07579bc` corrigé ensuite. L'utilisateur a repris trois points :
+
+1. **Récitateur → Réglages généraux** (« le récitateur c'est dans réglages
+   générale »). C'est un choix **transverse** (écoute d'une sourate, souffleur,
+   corrections audio), pas propre à la récitation. Le mettre dans Coach le
+   rendait introuvable pour ses autres usages.
+2. **Paramètres de VÉRIFICATION → sur l'écran de récitation, derrière une
+   icône** (« tous les paramètres de vérification seront sur la page de
+   récitation moyennant une icône »). Mode de vérification, sensibilité,
+   rigueur, correction auto, suivre sans bloquer. Ils ne servent QUE là, et
+   souvent **en cours** de récitation. Implémentation :
+   `karaoke_recitation_screen.dart::_openVerificationSheet`, icône
+   `tune_rounded` de la barre du haut (élargit la feuille « sensibilité » qui
+   existait déjà là depuis le 2026-07-12).
+3. **« Réciter une sourate » = le MOTEUR de l'app** (« il n'est pas mis en
+   valeur »). Était une ligne de liste parmi des réglages → devient une
+   **grande carte d'action** (dégradé, bordure laiton, micro en pastille).
+
+→ **Règle à retenir** : ranger un réglage selon **à quoi il sert**, pas selon
+l'écran où on se trouve. Cf. `REFONTE_IHM.md` §11.4bis.
+
+### b) ⚠️ Règles tajwid : le garde-fou passe d'un BLOCAGE à un PLAFOND (`8f8c00a`)
+
+**Revirement d'une décision antérieure verrouillée** (§1 disait « règles non
+fiables jamais activables, grisées »). Déclencheur : « pourquoi il y a des
+toggles désactivés, exemple **madd 6** et autres, même pour enfants ? ».
+
+Vérification faite, le blocage était **mal fondé** :
+1. La mesure évaluait la **mauvaise chose** — « quand la règle est BIEN faite,
+   le modèle émet-il le symbole ? » — alors que pour enseigner il faut savoir
+   « quand l'utilisateur **RATE** la règle, le modèle le voit-il ? ». Jamais
+   mesuré. Une règle a été grisée sur un **proxy**.
+2. Échantillons minuscules : `madda_necessary` **n=32** → 72%, IC95%
+   **[55%–84%]** ; `idgham_mutaqaribayn` **n=3** → « 100% », IC **[44%–100%]**
+   (aucune information).
+3. Cause probable = **rareté** (143 occurrences de `madda_necessary` dans tout
+   le Coran), pas difficulté acoustique — un madd est une **durée**.
+
+**Ce qui remplace le blocage** : toutes les règles activables + **badge de
+fiabilité** + une règle active peu fiable **plafonne le verdict à « incertain »**
+(orange) au lieu du vert (`RecitationNotifier._capByRuleReliability`).
+
+**Principe conservé, à ne pas casser** : un **vert franc sur une faute réelle**
+est le pire comportement possible (biais canonique — l'utilisateur croit avoir
+juste). L'orange dit honnêtement « je ne peux pas trancher », ce qui est mieux
+que l'absence de retour ET que la fausse validation.
+
+Détail complet + tableau des IC : `REFONTE_IHM.md` §12.
+
 ## 4. Autres corrections de la session
 
 - **Overflow barre de navigation** (`b060070`) : « RIGHT OVERFLOWED BY 5.5
@@ -211,6 +268,20 @@ différente de l'ancien. Cette mesure n'a jamais pu être faite.
   d'une plage de versets ;
 - le lien carte mentale ouvre la sourate sans se **positionner sur le verset
   précis** de l'erreur.
+
+**Mesure de fiabilité des règles — la vraie, jamais faite** : `rule_reliability.json`
+contient aujourd'hui des **proxys** (détection d'une règle bien réalisée, sur
+n=3 à 50 selon les classes). La mesure qui compte est la **détection de fautes
+délibérées** sur un set humain — à constituer. Tant qu'elle n'existe pas, les
+seuils qui pilotent le plafonnement au vert restent provisoires.
+
+**Madd — piste reportée, pas abandonnée** : le madd est structurellement mal
+servi par le symbole ASR (le alif suscrit ٰ est remplacé par un alif normal
+dans les labels d'entraînement ET dans la normalisation de l'app → la durée
+n'existe nulle part dans le texte comparé). Seule voie sérieuse : **mesurer la
+durée** (option A de `FONCTIONNALITES_FUTURES.md` §1 — exploiter les timings
+déjà produits par le CTC, sans ré-entraînement). Reporté explicitement par
+l'utilisateur le 2026-07-20 (« plus tard, on note et on avance »).
 
 **Chantiers IHM plus anciens, toujours ouverts** :
 - extraction ARB **écran par écran** (seule la barre de nav est traduite ; les
