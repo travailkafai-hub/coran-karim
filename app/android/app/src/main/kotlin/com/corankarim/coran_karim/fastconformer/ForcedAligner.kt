@@ -275,58 +275,6 @@ class ForcedAligner(
         val actual: String,
         val rescoreMargin: Double? = null,
         val rescoreHeard: String? = null,
-        /** Regles de tajwid REELLEMENT detectees sur les frames de ce mot par la
-         *  tete 2 (modeles a deux tetes, 2026-07-22). Vide sur un modele a une
-         *  seule tete.
-         *
-         *  Pourquoi ici et pas dans le texte : avant la separation des tetes,
-         *  les regles arrivaient sous forme de symboles PUA inseres dans
-         *  `actual`, et cote Dart on les retrouvait en analysant la chaine.
-         *  C'etait doublement fragile -- ca melangeait deux natures
-         *  d'information dans un meme champ, et l'attribution au mot dependait
-         *  de la position dans le texte. Ici l'attribution est TEMPORELLE
-         *  (recouvrement avec la fenetre de frames du mot, la meme que celle
-         *  qui sert deja au gop), donc exacte, et la confiance est conservee. */
-        val detectedRules: List<DetectedRule> = emptyList(),
-
-        /** GOP TAJWID par classe de regle -- "2e palier" (2026-07-23, idee
-         *  utilisateur : « c'est la 1re tete qui fait l'alignement, la tete
-         *  tajwid juge le tajwid, donc on doit avoir deux GOP »).
-         *
-         *  POURQUOI : `detectedRules` ci-dessus vient d'un decodage GLOUTON
-         *  (argmax par frame). C'est du tout-ou-rien : si a la meilleure frame
-         *  la ghunnah est a 0,45 et le blanc a 0,50, l'argmax choisit le blanc
-         *  et la regle ressort "non detectee" alors qu'elle etait clairement
-         *  presente. Toute la nuance est jetee, et c'est ce qui produisait des
-         *  `emises=` vides sur des regles pourtant realisees.
-         *
-         *  MESURE : pour chaque classe r, la MEILLEURE marge sur les frames du
-         *  mot, soit max_f ( lp[f][r] - max_c lp[f][c] ). Toujours <= 0 :
-         *      0            -> la regle EST la classe gagnante a sa meilleure
-         *                      frame (equivalent de l'ancien "detectee")
-         *      -0,5 / -1,5  -> presente mais dominee (realisation partielle)
-         *      tres negatif -> absente
-         *  C'est exactement la forme d'un gop (`forced - free`) applique a la
-         *  tete 2 : `forced` = score de la regle attendue, `free` = score de
-         *  la meilleure classe, sur la meme frame. Indice = id de classe
-         *  (meme ordre que rules.json). Vide si le modele n'a pas de 2e tete. */
-        val tajwidGop: FloatArray = FloatArray(0),
-
-        /** Derniere frame attribuee a ce mot par l'alignement force. Sert au
-         *  RECOUVREMENT de segment (2026-07-23) : au gel, on garde les
-         *  dernieres secondes d'audio pour donner du contexte au segment
-         *  suivant, et il faut alors reculer l'ancre des mots contenus dans
-         *  ces secondes -- sinon la DP tenterait de placer le mot SUIVANT sur
-         *  de l'audio deja recite (desynchronisation). -1 si non calcule. */
-        val endFrame: Int = -1,
-
-        /** Premiere frame attribuee a ce mot. Avec [endFrame], permet de ne
-         *  garder en RECOUVREMENT que des mots ENTIERS : garder une duree fixe
-         *  (2s) coupait des mots en deux -- on reculait l'ancre d'un mot dont
-         *  seule la QUEUE restait dans le buffer, l'alignement suivant ne le
-         *  retrouvait pas et se bloquait (mesure device 2026-07-23 : ancre
-         *  bloquee a 10 sur وَوَالِدٍ, DESYNC, 0 mot aligne). -1 si non calcule. */
-        val startFrame: Int = -1,
     )
 
     /**
@@ -344,21 +292,6 @@ class ForcedAligner(
         val frontier: Int,
         val words: List<WordResult>,
         val deferredIndex: Int? = null,
-        /** Derniere frame du dernier mot COUVERT (entierement prononce), ou -1
-         *  si aucun. Sert a geler le segment sur une FRONTIERE DE MOT plutot
-         *  qu'a une position arbitraire du buffer (2026-07-23).
-         *
-         *  POURQUOI : le gel coupait jusqu'ici a `lastPreviewSize` (taille du
-         *  dernier apercu), donc potentiellement EN PLEIN MOT. Mesure sur
-         *  device : `entendu="عَلَيْ"` pour عَلَيْهِمْ, `"كَفَ"` pour كَفَرُوا۟,
-         *  `"تَ"` pour وَأَنتَ -- 6 des 7 "erreurs de lettre" d'une session
-         *  etaient de simples troncatures de buffer. Couper apres le dernier
-         *  mot entierement prononce supprime cette cause par construction.
-         *
-         *  L'appelant convertit en echantillons via le rapport reel
-         *  (taille du snapshot / nombre de frames), sans supposer de facteur
-         *  de sous-echantillonnage code en dur. */
-        val lastCoveredFrame: Int = -1,
     )
 
     /**
@@ -379,18 +312,6 @@ class ForcedAligner(
         // (les apercus sont re-analyses de toute facon, et c'est le verdict
         // final qu'on cherche a fiabiliser -- pas de cout DP inutile par passe).
         wordVariants: List<List<Pair<String, IntArray>>>? = null,
-        // Regles detectees par la TETE 2 sur TOUT le segment (cf.
-        // FastConformerCtc.decodeTajwid). Chacune porte sa frame -> on
-        // l'attribue au mot dont la fenetre de frames la contient. Vide/null
-        // sur un modele a une seule tete : `detectedRules` reste vide partout
-        // et rien d'autre ne change.
-        segmentRules: List<DetectedRule>? = null,
-        // Logprobs BRUTS de la tete 2 (T frames x 18 classes) -- necessaires
-        // pour le GOP tajwid gradue (cf. WordResult.tajwidGop), qui a besoin
-        // des scores continus et pas seulement du decodage glouton deja
-        // resume dans `segmentRules`. Null sur un modele a une seule tete :
-        // `tajwidGop` reste alors vide et rien d'autre ne change.
-        tajwidLogprobs: Array<FloatArray>? = null,
     ): Result? {
         val t = logprobs.size
         if (t == 0 || wordTokens.isEmpty()) return null
@@ -527,7 +448,6 @@ class ForcedAligner(
             val results = ArrayList<WordResult>(w)
             var deferredIndex: Int? = null
             var lastUsedFrame = -1
-            var lastCoveredFrame = -1
             for (wi in 0 until w) {
                 if (wordFrames[wi] == 0) {
                     // Bug corrige 2026-07-16 (revue de code, confirme par un
@@ -611,55 +531,11 @@ class ForcedAligner(
                         }
                     }
                 }
-                // Regles dont la frame tombe dans la fenetre de CE mot. Les
-                // memes bornes que celles utilisees pour le gop et pour
-                // `actual` : l'attribution reste coherente avec le reste du
-                // jugement, sans heuristique supplementaire.
-                val rulesHere = segmentRules?.filter {
-                    it.frame >= wordFirstFrame[wi] && it.frame <= wordLastFrame[wi]
-                } ?: emptyList()
-                // GOP TAJWID gradue (cf. WordResult.tajwidGop) : pour chaque
-                // classe, la MEILLEURE marge sur les frames de CE mot, entre
-                // le score de la classe et celui de la classe gagnante a la
-                // meme frame. Memes bornes que le gop des lettres et que
-                // `actual` -> une seule notion de "fenetre du mot" dans tout
-                // le jugement, aucune heuristique supplementaire.
-                val tajwidGop = if (tajwidLogprobs != null && tajwidLogprobs.isNotEmpty()) {
-                    val nCls = tajwidLogprobs[0].size
-                    val margins = FloatArray(nCls) { Float.NEGATIVE_INFINITY }
-                    val fFrom = maxOf(0, wordFirstFrame[wi])
-                    val fTo = minOf(tajwidLogprobs.size - 1, wordLastFrame[wi])
-                    for (f in fFrom..fTo) {
-                        val row = tajwidLogprobs[f]
-                        var best = Float.NEGATIVE_INFINITY
-                        for (c in row.indices) if (row[c] > best) best = row[c]
-                        for (c in row.indices) {
-                            val m = row[c] - best   // <= 0, 0 si c gagne cette frame
-                            if (m > margins[c]) margins[c] = m
-                        }
-                    }
-                    // Mot sans aucune frame exploitable -> marges neutralisees
-                    // a -inf remplacees par une valeur finie tres negative,
-                    // pour que le cote Dart n'ait pas a gerer l'infini.
-                    for (c in margins.indices) {
-                        if (!margins[c].isFinite()) margins[c] = -20f
-                    }
-                    margins
-                } else FloatArray(0)
                 results.add(WordResult(anchor + wi, forced - free, forced, covered, actual,
-                    rescoreMargin, rescoreHeard, rulesHere, tajwidGop,
-                    wordLastFrame[wi], wordFirstFrame[wi]))
+                    rescoreMargin, rescoreHeard))
                 lastUsedFrame = maxOf(lastUsedFrame, wordLastFrame[wi])
-                // Frontiere de gel : uniquement les mots ENTIEREMENT prononces
-                // (`covered`). Le mot a la frontiere est encore en cours -- y
-                // couper le buffer le trancherait, ce qu'on cherche justement
-                // a eviter (cf. Result.lastCoveredFrame).
-                if (covered) {
-                    lastCoveredFrame = maxOf(lastCoveredFrame, wordLastFrame[wi])
-                }
             }
-            return Result(anchor + frontierWordRel, results, deferredIndex,
-                lastCoveredFrame) to lastUsedFrame
+            return Result(anchor + frontierWordRel, results, deferredIndex) to lastUsedFrame
         }
 
         val (natural, naturalLastFrame) = buildFrom(bestEnd)

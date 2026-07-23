@@ -77,72 +77,8 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         private const val MIN_COMMIT_SECONDS = 2.5f   // pas de gel sur un segment trop court (stats de normalisation peu fiables)
         // 12s (et non 20s) : test reel du 2026-07-05 — la derive de normalisation
         // est deja nette a ~10s de buffer, un gel force a 20s fige du texte degrade.
-        //
-        // 12s -> 6s essaye le 2026-07-23 puis REMIS a 12s le meme jour : teste
-        // EN MEME TEMPS que le recouvrement, impossible de savoir lequel des
-        // deux causait quoi -- et la mesure a montre une degradation nette
-        // (segments de 2-5s, transcriptions fragmentaires, ancre qui patine).
-        // A retenter SEUL, apres validation du recouvrement. Raisonnement
-        // d'origine, qui reste valable :
-        // borne avait ete ECARTE plus tot dans la meme session : elle double
-        // les gels, donc les coupures a une position arbitraire, donc les mots
-        // TRANCHES -- defaut mesure (entendu="عَلَيْ" pour عَلَيْهِمْ, "كَفَ"
-        // pour كَفَرُوا۟ ; 6 des 7 "erreurs de lettre" d'une session).
-        // OVERLAP_SECONDS annule cette objection : un mot coupe a la borne se
-        // retrouve ENTIEREMENT dans les 2s conservees, donc traite normalement
-        // au segment suivant. Les deux changements ne valent QUE pris ensemble.
-        //
-        // Gains attendus, tous deux mesures comme problematiques avant :
-        //  - la derive de normalisation (nette des ~9-10s, cf. instrument
-        //    DERIVE) ne peut plus s'installer : le buffer reste sous 6s ;
-        //  - l'ancre avance toutes les ~4s d'audio neuf (6s - 2s de
-        //    recouvrement) au lieu de 12s : le vert arrive bien plus vite,
-        //    ce qui etait la plainte initiale sur une recitation fluide (3
-        //    gels sur 4 passaient par la borne dure faute de pause de 450ms).
-        // Cout : les 2s de recouvrement sont re-transcrites, soit ~33% de
-        // calcul redondant -- sans effet perceptible, l'inference tourne a
-        // 12x le temps reel (10s d'audio en 0,8s, mesure device).
         private const val MAX_SEGMENT_SECONDS = 12f   // borne dure : force le gel meme sans pause
-        // RECOUVREMENT de segment (2026-07-23, idee utilisateur : « flashback
-        // pour recuperer ce qui etait dit », duree fixee a 2s par lui — « 0,5
-        // c'est rien » : en recitation coranique un mot avec madd dure
-        // facilement 1 a 2s, 0,5s ne couvre meme pas un mot entier).
-        // Jusqu'ici le buffer etait VIDE au gel : le segment suivant demarrait
-        // avec ZERO contexte acoustique, ce qui penalise son premier mot et
-        // casse les regles de JONCTION a la frontiere (idgham/iqlab/ikhafa
-        // entre le dernier mot d'un segment et le premier du suivant).
-        //
-        // ⚠️ Le recouvrement audio ne se suffit PAS a lui-meme : si l'ancre
-        // avancait quand meme au mot suivant, la DP tenterait de placer CE mot
-        // sur de l'audio DEJA recite -> desynchronisation (exactement le bug
-        // constate le 2026-07-23 en ne reculant que l'un des deux). L'ancre
-        // recule donc du nombre de mots contenus dans ces 2s ; ces mots sont
-        // deja VERROUILLES cote Dart, les rejuger est sans effet
-        // (`if (words[i].locked) return`), mais la DP retrouve la bonne
-        // correspondance audio<->texte.
-        private const val OVERLAP_SECONDS = 2f
         private const val MIN_TRACKED_PAUSE_MS = 150  // pauses plus courtes = micro-respirations, ignorees du profil
-    }
-
-    /** Concatene `next` a `base` en supprimant le RECOUVREMENT : la plus
-     *  longue fin de `base` qui est aussi un debut de `next` (au niveau des
-     *  MOTS) n'est ecrite qu'une fois. Necessaire depuis OVERLAP_SECONDS : les
-     *  dernieres secondes d'un segment sont volontairement re-transcrites dans
-     *  le suivant (pour lui donner du contexte acoustique), leurs mots
-     *  apparaitraient donc en double dans le texte fige. */
-    private fun appendMergingOverlap(base: String, next: String): String {
-        if (base.isEmpty()) return next
-        if (next.isEmpty()) return base
-        val b = base.split(" ").filter { it.isNotEmpty() }
-        val n = next.split(" ").filter { it.isNotEmpty() }
-        val max = minOf(b.size, n.size, 12) // au-dela, ce n'est plus un recouvrement
-        for (k in max downTo 1) {
-            if (b.subList(b.size - k, b.size) == n.subList(0, k)) {
-                val rest = n.drop(k)
-                return if (rest.isEmpty()) base else base + " " + rest.joinToString(" ")
-            }
-        }
-        return base + " " + next
     }
 
     private val lock = Any()
@@ -228,15 +164,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     /** Calcule l'alignement force des mots restants sur les logprobs de la passe
      *  courante. [isFinal] : segment fige (l'audio ne sera plus reanalyse) —
      *  les jugements de cette passe sont definitifs et l'ancre native avance. */
-    private fun runAlignment(logprobs: Array<FloatArray>, isFinal: Boolean, clipPath: String? = null,
-                             segmentRules: List<DetectedRule> = emptyList(),
-                             // Logprobs bruts de la tete 2 -> GOP tajwid gradue
-                             // (cf. ForcedAligner.WordResult.tajwidGop).
-                             tajwidLogprobs: Array<FloatArray>? = null,
-                             // Nombre d'echantillons sur lesquels `logprobs` a
-                             // ete calcule -> conversion frame->echantillon
-                             // pour le gel sur frontiere de mot.
-                             sourceSamples: Int = 0) {
+    private fun runAlignment(logprobs: Array<FloatArray>, isFinal: Boolean, clipPath: String? = null) {
         val tokens = alignTokens ?: return
         val anchor = alignAnchor
         if (anchor >= tokens.size) return
@@ -250,59 +178,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             val variantsSlice = alignVariants?.let {
                 if (anchor < it.size) it.subList(anchor, minOf(it.size, end)) else null
             }
-            var res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal, variantsSlice,
-                                    segmentRules, tajwidLogprobs) ?: return
-            // ── Garde-fou : le GEL ne doit pas DEGRADER un bon apercu ───────
-            // Mesure device 2026-07-23 (recitation hesitante) :
-            //   18:02:20  apercu 5s -> "أَيَحْسَبُ أَندٌ"   (mot correct)
-            //   18:02:21  GEL    5s -> "أَيَحْسَ أَندٌ"     (tronque)
-            //   -> alignement du gel : 0 mot, ancre BLOQUEE a 27, le vert
-            //      s'arrete alors que le mot avait ete parfaitement entendu.
-            // Le chemin MAX_SEGMENT_SECONDS evite deja ce piege depuis le
-            // 2026-07-05 (« a 12s la re-transcription de gel etait degradee
-            // alors que le dernier apercu etait parfait -> on fige le dernier
-            // apercu tel quel »), mais le gel sur PAUSE, lui, re-transcrivait
-            // sans filet -- or c'est celui qui se declenche quand on hesite.
-            // Ici : si le gel n'aligne AUCUN mot alors que le dernier apercu
-            // a la MEME ancre en alignait, on retient l'apercu. On ne fige
-            // jamais un resultat vide qui bloquerait la progression.
-            // Contexte (frames, echantillons) auquel se rapportent les
-            // endFrame de `res` : celui du gel, ou celui de l'APERCU si on lui
-            // a substitue le resultat ci-dessous. Indispensable au calcul du
-            // recouvrement, qui convertit des frames en echantillons.
-            var resFrames = logprobs.size
-            var resSamples = sourceSamples
-            var usedPreview = false
-            if (isFinal && res.words.isEmpty()) {
-                val prev = lastGoodPreview
-                if (prev != null && lastGoodPreviewAnchor == anchor && prev.words.isNotEmpty()) {
-                    DiagnosticLog.log(TAG,
-                        "GEL DEGRADE ignore : la re-transcription du gel n'aligne " +
-                        "aucun mot, on retient l'apercu precedent " +
-                        "(${prev.words.size} mot(s), ancre=$anchor)")
-                    res = prev
-                    resFrames = lastGoodPreviewFrames
-                    resSamples = lastGoodPreviewSamples
-                    usedPreview = true
-                }
-            }
-            if (!isFinal && res.words.isNotEmpty()) {
-                lastGoodPreview = res
-                lastGoodPreviewAnchor = anchor
-                lastGoodPreviewFrames = logprobs.size
-                lastGoodPreviewSamples = sourceSamples
-            }
-            // Frontiere de gel = fin du dernier mot ENTIEREMENT prononce,
-            // convertie en echantillons via le rapport REEL du segment
-            // (aucun facteur de sous-echantillonnage code en dur : il depend
-            // du modele charge). Sert au gel sur borne dure, pour couper
-            // apres un mot complet au lieu d'une position arbitraire du
-            // buffer -- cf. ForcedAligner.Result.lastCoveredFrame.
-            if (res.lastCoveredFrame >= 0 && logprobs.isNotEmpty() && sourceSamples > 0) {
-                val perFrame = sourceSamples.toFloat() / logprobs.size
-                val cut = ((res.lastCoveredFrame + 1) * perFrame).toInt()
-                lastWordBoundarySamples = cut.coerceIn(0, sourceSamples)
-            }
+            val res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal, variantsSlice) ?: return
             val words = res.words.map {
                 mapOf(
                     "i" to it.index,
@@ -311,34 +187,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     "covered" to it.covered,
                     "actual" to it.actual,
                 ) + (it.rescoreMargin?.let { m -> mapOf("rescoreMargin" to m) } ?: emptyMap()) +
-                    (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap()) +
-                    // Regles REELLEMENT detectees sur les frames de ce mot
-                    // (tete 2). Cle absente si aucune -> le Dart distingue
-                    // "modele sans tete tajwid" de "regle non realisee".
-                    (if (it.detectedRules.isEmpty()) emptyMap() else mapOf(
-                        "rules" to it.detectedRules.map { r ->
-                            mapOf("id" to r.ruleId, "prob" to r.prob.toDouble())
-                        })) +
-                    // GOP tajwid gradue par classe (cf. tajwidGop) : permet a
-                    // Dart de juger une regle sur un SEUIL au lieu du binaire
-                    // "presente dans rules". Cle absente sur un modele a une
-                    // seule tete.
-                    (if (it.tajwidGop.isEmpty()) emptyMap() else mapOf(
-                        "tajwidGop" to it.tajwidGop.map { g -> g.toDouble() }))
-            }
-            // ── Instrument DESYNC ──────────────────────────────────────────
-            // Un segment qui contient de la parole mais dont l'alignement ne
-            // place AUCUN mot (ou n'avance pas la frontiere) signale que
-            // l'ancre ne pointe plus sur ce qui est recite : la DP ne
-            // retrouve pas le texte attendu dans l'audio. C'est ce qui
-            // precede systematiquement les cascades d'erreurs (mesure device
-            // 2026-07-23 : ancre=0 alors que l'audio disait deja le verset 1,
-            // puis "لَآ" juge rouge avec entendu="وَمَآِينَ").
-            if (isFinal && res.words.isEmpty() && sourceSamples > SAMPLE_RATE) {
-                DiagnosticLog.log(TAG,
-                    "DESYNC ancre=$anchor : segment FINAL de " +
-                    "${sourceSamples / SAMPLE_RATE}s, AUCUN mot aligne " +
-                    "(la DP ne retrouve pas le texte attendu dans l'audio)")
+                    (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap())
             }
             alignSeq++
             lastAlign = mapOf(
@@ -369,39 +218,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // "entendu"="كِ" alors que le decodage libre du meme segment montre
             // "مَالِكِ..." parfaitement correct).
             if (isFinal) {
-                // Mots dont l'audio tombe dans la zone de recouvrement : ils
-                // resteront dans le buffer du prochain segment, l'ancre doit
-                // donc reculer d'autant (cf. OVERLAP_SECONDS).
-                // Recouvrement sur des MOTS ENTIERS (correctif 2026-07-23).
-                // Version precedente : on gardait 2s pile et on reculait
-                // l'ancre des mots dont la FIN tombait dedans -- or un mot peut
-                // finir dans ces 2s tout en ayant COMMENCE avant : on ne
-                // gardait alors que sa queue, l'alignement suivant cherchait le
-                // mot entier, ne le trouvait pas, et se bloquait (mesure
-                // device : ancre figee a 10 sur وَوَالِدٍ, DESYNC, 0 mot aligne).
-                // Ici la coupe audio ET le recul d'ancre derivent du MEME
-                // debut de mot : les deux parlent forcement de la meme chose.
-                var keepSamples = 0
-                overlapWordCount = if (resSamples > 0 && resFrames > 0 && !usedPreview) {
-                    val perFrame = resSamples.toFloat() / resFrames
-                    val overlapStartFrame =
-                        resFrames - (SAMPLE_RATE * OVERLAP_SECONDS / perFrame).toInt()
-                    // Mots ENTIEREMENT contenus dans la zone (debut ET fin).
-                    val whole = res.words.filter {
-                        it.startFrame >= 0 && it.startFrame >= overlapStartFrame
-                    }
-                    // Jamais reculer de TOUT le segment : au moins un mot doit
-                    // rester acquis, sinon l'ancre n'avance jamais.
-                    val n = whole.size.coerceAtMost(maxOf(0, res.words.size - 1))
-                    if (n > 0) {
-                        val first = res.words[res.words.size - n]
-                        val cut = (first.startFrame * perFrame).toInt()
-                        keepSamples = (resSamples - cut).coerceIn(0, resSamples)
-                    }
-                    n
-                } else 0
-                overlapKeepSamples = keepSamples
-                alignAnchor = anchor + res.words.size - overlapWordCount
+                alignAnchor = anchor + res.words.size
                 // cf. deferredOnceIndex : ce FINAL a soit juge le mot qu'on
                 // forcait (forceIdx, alors deja inclus dans res.words -> on
                 // efface le garde-fou), soit differe un NOUVEAU mot (a
@@ -431,39 +248,6 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     // ne se declenche jamais (seule la borne dure tombait, trop tard).
     private var retainedSilenceSamples = 0
     private var pauseSamples = 0
-    // Position (en echantillons) de la fin du dernier mot ENTIEREMENT
-    // prononce du segment courant, d'apres le dernier alignement. Point de
-    // coupe privilegie du gel sur borne dure : couper la ne tranche aucun
-    // mot. 0 = inconnu (pas encore d'alignement exploitable).
-    @Volatile private var lastWordBoundarySamples = 0
-    // Instrumentation DERIVE (2026-07-23) : texte de l'apercu precedent, pour
-    // detecter qu'une re-transcription du MEME buffer (juste allonge) a PERDU
-    // du contenu deja transcrit -- signature de la derive de normalisation
-    // per_feature decrite dans l'en-tete. Constat device : a 7s le buffer
-    // donnait "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ", a 9s le MEME buffer
-    // donnait "لَآ أُقْسِمُ بِهَـٰذَا ٱلْبَلَدِ" -- la Basmala avait disparu, et
-    // l'ancre s'est desynchronisee de 4 mots. Mesure indispensable pour
-    // trancher sur PLUSIEURS tests au lieu d'un seul.
-    // Nombre de mots du dernier alignement FINAL dont l'audio tombe dans la
-    // zone de recouvrement -> de combien reculer l'ancre au gel.
-    @Volatile private var overlapWordCount = 0
-    // Echantillons du buffer courant qui proviennent du RECOUVREMENT du
-    // segment precedent (deja transcrits) -- exclus des seuils de gel.
-    @Volatile private var overlapCarriedSamples = 0
-    // Echantillons a CONSERVER au prochain gel : calcule sur un debut de mot
-    // (cf. overlapWordCount), pour que l'audio garde et le recul d'ancre
-    // portent exactement sur les memes mots entiers. 0 = pas de recouvrement.
-    @Volatile private var overlapKeepSamples = 0
-    // Dernier APERCU ayant reellement aligne des mots, conserve tel quel
-    // (objet, pas la map serialisee) avec le contexte necessaire au calcul du
-    // recouvrement. Sert de repli quand la re-transcription du GEL degrade un
-    // apercu qui etait bon -- cf. le garde-fou dans runAlignment.
-    @Volatile private var lastGoodPreview: ForcedAligner.Result? = null
-    @Volatile private var lastGoodPreviewAnchor = -1
-    @Volatile private var lastGoodPreviewFrames = 0
-    @Volatile private var lastGoodPreviewSamples = 0
-    @Volatile private var prevPreviewText = ""
-    @Volatile private var prevPreviewSamples = 0
     @Volatile private var pendingCommit = false
     @Volatile private var pendingForceCommit = false
     // Taille du buffer couverte par le dernier apercu (latestText) — permet au
@@ -508,10 +292,6 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         lastRunSize = 0
         retainedSilenceSamples = 0
         pauseSamples = 0
-        overlapCarriedSamples = 0
-        overlapWordCount = 0
-        prevPreviewText = ""
-        prevPreviewSamples = 0
         pendingCommit = false
         pendingForceCommit = false
         lastPreviewSize = 0
@@ -564,16 +344,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             size = samples.size
         }
 
-        // Seuils de gel mesures sur l'audio NEUF, recouvrement EXCLU
-        // (correctif 2026-07-23). Defaut constate a la mesure : le buffer
-        // demarre deja a OVERLAP_SECONDS d'audio DEJA transcrit ; en comptant
-        // le total, une pause 0,5s apres un gel declenchait un segment de
-        // 2,5s compose a 80% de re-ecoute, sans contenu neuf -- d'ou des
-        // segments de 2-3s, un modele sans contexte, des transcriptions
-        // fragmentaires ("ـٰرُونَ") et une ancre qui n'avance plus. Un seuil
-        // sur du contenu deja traite n'a aucun sens : seul l'audio neuf
-        // justifie un gel.
-        val sizeSeconds = (size - overlapCarriedSamples).toFloat() / SAMPLE_RATE
+        val sizeSeconds = size.toFloat() / SAMPLE_RATE
         // Le gel exige un segment assez long — verifie ICI (au moment de armer
         // le flag) ET au lancement (le flag peut survivre a un gel precedent :
         // course observee en test reel, micro-segment d'1s fige corrompu).
@@ -597,34 +368,6 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         if (pendingForceCommit && !busy.get()) {
             pendingForceCommit = false
             val previewText = latestText
-            // Point de coupe : fin du dernier mot ENTIEREMENT prononce si on
-            // la connait, sinon repli sur l'ancien comportement (taille de
-            // l'apercu). Correctif 2026-07-23 : couper a `lastPreviewSize`
-            // tombait a une position ARBITRAIRE du buffer, donc regulierement
-            // EN PLEIN MOT -- mesure device : "عَلَيْ" pour عَلَيْهِمْ, "كَفَ"
-            // pour كَفَرُوا۟, "تَ" pour وَأَنتَ ; 6 des 7 "erreurs de lettre"
-            // d'une session etaient ces troncatures. Couper apres un mot
-            // complet supprime cette cause par construction, et c'est
-            // d'autant plus important que ce chemin (borne dure) est celui
-            // qui se declenche sur une recitation FLUIDE : mesure sur le log
-            // du 2026-07-23, 3 gels sur 4 passaient par ici faute de pause
-            // de 450ms. Le lecteur regulier etait donc le plus penalise.
-            // ⚠️ NE PAS couper ici sur `lastWordBoundarySamples` : essaye le
-            // 2026-07-23, ANNULE le jour meme apres constat device. Couper
-            // l'audio sur une frontiere de mot SANS couper le TEXTE au meme
-            // endroit desynchronise les deux : `previewText` couvre tout
-            // l'apercu (~10s) alors qu'on ne retirait que l'audio du dernier
-            // mot complet (~2s). Le texte etait donc fige EN AVANCE sur
-            // l'audio, l'ancre sautait plusieurs mots, et les ~8s restantes
-            // etaient realignees contre le mauvais mot -> "لَآ" juge rouge
-            // avec entendu="وَمَآِينَ" puis "أَمْ" alors qu'il etait bien
-            // recite (log 17:29:24-32).
-            //
-            // Couper sur une frontiere de mot reste la bonne idee (elle
-            // supprime les mots tranches, cf. Result.lastCoveredFrame), mais
-            // elle exige de ne figer QUE le texte des mots situes avant la
-            // coupe -- le texte n'est pas encore decoupe par mot ici. A
-            // reprendre avec cette correspondance texte/audio, pas avant.
             val covered = lastPreviewSize
             if (previewText.isNotEmpty() && covered > 0) {
                 synchronized(lock) {
@@ -639,10 +382,6 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 committedText = committedText + sep + previewText
                 latestText = ""
                 lastPreviewSize = 0
-                lastWordBoundarySamples = 0 // porte sur le segment qu'on vient de consommer
-                overlapCarriedSamples = 0   // ce chemin ne conserve pas de recouvrement
-                lastGoodPreview = null; lastGoodPreviewAnchor = -1
-                prevPreviewText = ""; prevPreviewSamples = 0
                 // L'apercu reutilise devient definitif sans re-transcription :
                 // promouvoir de meme le dernier alignement (calcule sur ce meme
                 // apercu) en resultat FINAL et avancer l'ancre native.
@@ -673,7 +412,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     // la ligne 200 : efface (-1) si rien n'etait differe.
                     deferredOnceIndex = (la["deferredIndex"] as? Int) ?: -1
                 }
-                DiagnosticLog.log(TAG, "segment FIGE (borne ${MAX_SEGMENT_SECONDS}s, apercu reutilise, ${covered / SAMPLE_RATE}s couverts, coupe=taille apercu) : \"${previewText.take(80)}\"")
+                DiagnosticLog.log(TAG, "segment FIGE (borne ${MAX_SEGMENT_SECONDS}s, apercu reutilise, ${covered / SAMPLE_RATE}s couverts) : \"${previewText.take(80)}\"")
             } else {
                 // Pas d'apercu utilisable -> gel classique avec re-transcription.
                 pendingCommit = true
@@ -694,29 +433,28 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     val t0 = System.nanoTime()
                     // Une seule inference ONNX : les logprobs servent au texte
                     // (greedy) ET a l'alignement force GOP (cf. runAlignment).
-                    val outputs = engine.computeAll(snapshot)
-                    val logprobs = outputs.letters
-                    // Tete 2 : decodee UNE fois pour tout le segment, puis
-                    // repartie par mot dans l'aligneur (recouvrement de frames).
-                    val segmentRules = engine.decodeTajwid(outputs.tajwid)
+                    val logprobs = engine.computeLogProbs(snapshot)
                     val text = engine.greedyDecode(logprobs)
                     val ms = (System.nanoTime() - t0) / 1_000_000
                     if (committing) {
-                        // ⚠️ ORDRE CRITIQUE (correctif 2026-07-23) : l'ALIGNEMENT
-                        // d'abord, la coupe du buffer ENSUITE.
-                        //
-                        // C'est lui qui calcule, pour CE segment, combien de mots
-                        // entiers tiennent dans la zone de recouvrement
-                        // (overlapWordCount) et jusqu'ou couper l'audio
-                        // (overlapKeepSamples). Couper AVANT utilisait la valeur
-                        // du segment PRECEDENT -- l'ancre reculait alors des mots
-                        // du segment courant pendant que l'audio conservait ceux
-                        // de l'ancien. Mesure device 2026-07-23 : ancre reculee a
-                        // 28 (مَالًا لُّبَدًا) alors que ces mots n'etaient pas dans
-                        // l'audio garde -> DESYNC, 0 mot aligne, blocage sur le
-                        // 2e أَيَحْسَبُ. Meme famille d'erreur que les deux
-                        // precedentes : audio et ancre doivent TOUJOURS deriver du
-                        // meme calcul, sur le meme segment.
+                        // Segment fige : plus jamais reconsidere. On ne retire du
+                        // buffer QUE la portion transcrite ici -- de l'audio a pu
+                        // arriver pendant l'inference (feed() n'est pas bloquant).
+                        synchronized(lock) {
+                            samples = if (samples.size > snapshot.size) {
+                                samples.copyOfRange(snapshot.size, samples.size)
+                            } else {
+                                FloatArray(0)
+                            }
+                            lastRunSize = samples.size
+                        }
+                        val sep = if (committedText.isEmpty()) "" else " "
+                        committedText = committedText + sep + text
+                        latestText = ""
+                        lastPreviewSize = 0
+                        // Capture du clip (session de reference uniquement, cf.
+                        // setClipCapture) -- best-effort, un echec d'ecriture ne
+                        // doit jamais interrompre la recitation en cours.
                         var clipPath: String? = null
                         val dir = captureDir
                         if (dir != null) {
@@ -729,70 +467,12 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                             }
                         }
                         DiagnosticLog.log(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
-                        runAlignment(logprobs, isFinal = true, clipPath = clipPath,
-                                     segmentRules = segmentRules,
-                                     tajwidLogprobs = outputs.tajwid,
-                                     sourceSamples = snapshot.size)
-                        // Coupe du buffer AVEC les valeurs qui viennent d'etre
-                        // calculees sur CE segment : les dernieres
-                        // OVERLAP_SECONDS (arrondies a des mots ENTIERS) restent
-                        // pour donner du contexte au segment suivant, et l'ancre
-                        // a recule exactement de ces mots-la.
-                        val keep = minOf(overlapKeepSamples, snapshot.size)
-                        val drop = snapshot.size - keep
-                        overlapCarriedSamples = keep
-                        lastGoodPreview = null; lastGoodPreviewAnchor = -1
-                        synchronized(lock) {
-                            samples = if (samples.size > drop) {
-                                samples.copyOfRange(drop, samples.size)
-                            } else {
-                                FloatArray(0)
-                            }
-                            lastRunSize = samples.size
-                        }
-                        // Les mots du recouvrement seront re-transcrits dans le
-                        // segment suivant -> fusion pour ne pas les ecrire deux
-                        // fois dans le texte fige.
-                        committedText = appendMergingOverlap(committedText, text)
-                        latestText = ""
-                        lastPreviewSize = 0
+                        runAlignment(logprobs, isFinal = true, clipPath = clipPath)
                     } else {
-                        // ── Instrument DERIVE ──────────────────────────────
-                        // Le buffer ne fait que GRANDIR entre deux apercus :
-                        // le nouveau texte devrait donc CONTENIR l'ancien (a
-                        // la revision des derniers mots pres). S'il perd les
-                        // premiers mots, ce n'est pas la recitation qui a
-                        // change -- c'est la transcription du meme audio qui
-                        // s'effondre. On mesure la perte sur le DEBUT du texte
-                        // (5 premiers mots), la partie deja stabilisee.
-                        // Seuil : en dessous de ~4s le buffer ne contient
-                        // souvent qu'un fragment de mot, et sa transcription
-                        // varie normalement d'une passe a l'autre -- mesurer
-                        // la "derive" la n'a aucun sens. Premiere version de
-                        // cet instrument (2026-07-23) sans ce seuil : 19
-                        // declenchements, TOUS sur des buffers de 0 a 5s, donc
-                        // sur du bruit normal et non sur le phenomene vise.
-                        val prevHead = prevPreviewText.split(" ").take(5)
-                        if (prevHead.size >= 3 && prevPreviewText.isNotEmpty() &&
-                            snapshot.size > prevPreviewSamples &&
-                            prevPreviewSamples >= SAMPLE_RATE * 4) {
-                            val kept = prevHead.count { text.contains(it) }
-                            if (kept <= prevHead.size / 2) {
-                                DiagnosticLog.log(TAG,
-                                    "DERIVE buffer ${prevPreviewSamples / SAMPLE_RATE}s->" +
-                                    "${snapshot.size / SAMPLE_RATE}s : $kept/${prevHead.size} " +
-                                    "mots de tete conserves | avant=\"${prevPreviewText.take(60)}\" " +
-                                    "| apres=\"${text.take(60)}\"")
-                            }
-                        }
-                        prevPreviewText = text
-                        prevPreviewSamples = snapshot.size
                         latestText = text
                         lastPreviewSize = snapshot.size
                         DiagnosticLog.log(TAG, "retranscription ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
-                        runAlignment(logprobs, isFinal = false, segmentRules = segmentRules,
-                                     tajwidLogprobs = outputs.tajwid,
-                                     sourceSamples = snapshot.size)
+                        runAlignment(logprobs, isFinal = false)
                     }
                 } catch (e: Exception) {
                     DiagnosticLog.log(TAG, "echec retranscription: ${e.message}")
