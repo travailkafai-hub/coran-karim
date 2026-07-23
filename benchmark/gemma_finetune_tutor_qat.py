@@ -28,7 +28,7 @@ import truststore; truststore.inject_into_ssl()
 import sys, json, math, time, random, torch
 os.environ["HF_HUB_OFFLINE"] = "1"
 from transformers import AutoProcessor, AutoModelForMultimodalLM, BitsAndBytesConfig, get_cosine_schedule_with_warmup
-from peft import LoraConfig, get_peft_model, PeftModel, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model, PeftModel
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 M   = os.path.join(ROOT, "models", "gemma-4-E2B-it")
@@ -58,7 +58,20 @@ model = AutoModelForMultimodalLM.from_pretrained(
     M, quantization_config=bnb_config, device_map="auto", dtype=torch.float16,
 )
 model.config.use_cache = False
-model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
+
+# prepare_model_for_kbit_training() de peft upcast TOUS les params fp16/bf16
+# non quantifies vers fp32, y compris model.language_model.embed_tokens_per_layer
+# (262144 x 8960 = 4.7 Go) -> OOM garanti sur un GPU 16 Go (tente d'allouer 8.75
+# Go d'un coup, confirme 2026-07-13). On reproduit son comportement essentiel
+# (freeze + upcast stabilite numerique) mais limite l'upcast aux tenseurs 1-D
+# (LayerNorm/biais), convention QLoRA standard qui exclut deja normalement les
+# grosses tables d'embedding.
+for name, param in model.named_parameters():
+    param.requires_grad = False
+    if param.ndim <= 1 and param.dtype in (torch.float16, torch.bfloat16) and type(param).__name__ != "Params4bit":
+        param.data = param.data.to(torch.float32)
+model.gradient_checkpointing_enable()
+model.enable_input_require_grads()
 
 LORA_R = int(os.environ.get("GEMMA_LORA_R", 128))
 LORA_ALPHA = int(os.environ.get("GEMMA_LORA_ALPHA", 256))
