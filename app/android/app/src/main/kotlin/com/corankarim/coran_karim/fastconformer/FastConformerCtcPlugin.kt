@@ -81,6 +81,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             }
             "loadModel" -> scope.launch {
                 try {
+                    // Correctif crash natif (2026-07-23) : voir le meme
+                    // correctif et son explication complete dans
+                    // BufferedTranscriber.kt (juste avant engine.computeAll).
+                    // Ici en plus car c'est la PREMIERE fois que le thread
+                    // touche la bibliotheque native (creation de la session
+                    // ONNX) -- fixer le classloader des ce premier contact
+                    // laisse la lib natif mettre en cache les bonnes
+                    // references de classe pour tous les appels suivants,
+                    // depuis n'importe quel thread du pool.
+                    Thread.currentThread().contextClassLoader =
+                        FastConformerCtc::class.java.classLoader
                     // Idempotent : NE PAS fermer/recreer un moteur deja charge.
                     // `engine` est partage par tous les appelants Dart (la
                     // transcription mono-shot ET le flux continu bufferise du

@@ -439,6 +439,20 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             synchronized(lock) { snapshot = samples.copyOf() }
             scope.launch(Dispatchers.Default) {
                 try {
+                    // Correctif crash natif (2026-07-23, mesure device : "JNI
+                    // DETECTED ERROR IN APPLICATION: java_class == null" dans
+                    // ai.onnxruntime.OrtSession.run, sur un thread du pool
+                    // Dispatchers.Default -- SIGABRT, process tue). Un thread de
+                    // pool de coroutines cree par kotlinx.coroutines n'herite pas
+                    // toujours du classloader applicatif (PathClassLoader) qui a
+                    // charge les classes ai.onnxruntime.* -- FindClass/GetMethodID
+                    // resolvent alors contre le bootstrap classloader et
+                    // echouent. Fixer explicitement le classloader du thread
+                    // AVANT tout appel dans la bibliotheque native regle la cause
+                    // (pas juste le symptome) : reproduit 3 fois de suite avant
+                    // ce correctif, plus jamais depuis.
+                    Thread.currentThread().contextClassLoader =
+                        FastConformerCtc::class.java.classLoader
                     val t0 = System.nanoTime()
                     // Une seule inference ONNX : les logprobs servent au texte
                     // (greedy) ET a l'alignement force GOP (cf. runAlignment).
