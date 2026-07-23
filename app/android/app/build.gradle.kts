@@ -32,6 +32,17 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // Crash natif ONNX (2026-07-23) : R8 renommait ai.onnxruntime.**,
+            // que le code natif cherche par nom via FindClass -> java_class ==
+            // null -> SIGABRT des la 1re inference. On coupe R8 (garanti) ET on
+            // garde une regle keep dediee (proguard-rules.pro) si R8 est
+            // reactive plus tard pour optimiser la taille de l'APK.
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
