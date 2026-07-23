@@ -261,17 +261,37 @@ coupe à chaque pause (450ms ou 250ms)         103,5 %
 **Conclusion : le code actuel est déjà optimal parmi ces options.** Il n'y a
 pas de bug de segmentation à corriger. La cause réelle est un DÉCALAGE DE
 DOMAINE — le modèle est entraîné sur des clips de versets propres et
-continus, il n'a jamais vu de récitation hésitante, et toute pause interne
-le fait dérailler quelle que soit la façon dont on la traite.
+continus, il n'a jamais vu de pause interne, et toute pause le fait
+dérailler quelle que soit la façon dont on la traite.
 → Le vrai correctif est côté ENTRAÎNEMENT : augmenter les données avec des
 pauses insérées (pleines ET recollées façon portier RMS). Pure augmentation
 audio sur le corpus existant, aucune collecte nouvelle. Cf. §5.
 
+⚠️ **Correction de vocabulaire (2026-07-23, objection utilisateur justifiée)** :
+tout ce paragraphe parlait de "récitation hésitante", comme si le problème ne
+touchait qu'un utilisateur incertain qui bute sur un mot — MESURE ET FAUX.
+Sur la session `asm.log` qui a servi de départ à ce diagnostic, l'écart entre
+versets figés est de **4 à 8 secondes de façon quasi constante** sur 14
+intervalles sur 16 (`[6,5,5,6,7,6,8,5,5,5,5,4]` + deux valeurs hors norme à
+19s et 13s, elles-mêmes en partie polluées par des re-transcriptions
+dégradées en boucle, donc non attribuables avec certitude à une vraie pause
+longue). Un rythme aussi régulier n'est pas de l'hésitation erratique, c'est
+la **respiration normale entre versets** — potentiellement même une pause de
+waqf obligatoire (cf. §9, le signe ۖ tombe justement avant 90:4 dans ce même
+log). Ce n'est donc PAS un cas marginal réservé aux récitateurs peu sûrs
+d'eux : ça touche tout le monde, y compris un récitateur confirmé (cf. le
+tout premier test de cette session, sur un enregistrement professionnel).
+La mesure technique (WER, coutures, rejet des 3 correctifs) reste
+entièrement valable ; c'est la PORTÉE qui change — ce n'est pas une marge de
+robustesse en périphérie, c'est une lacune sur le cas d'usage central
+(« récitation continue » de plusieurs versets).
+
 **Ce qui reste valable pour la fenêtre glissante** : la dégradation suit le
 NOMBRE DE COUTURES créées par le portier — 10 coutures (3s de silence jeté)
 → 27,7% de WER, 20 coutures (6s) → 59,6%, contre 10,6% propre. Une fenêtre
-de taille fixe **borne** ce nombre par construction. Elle ne guérit pas
-l'hésitation (seul l'entraînement le peut) mais elle plafonne les dégâts —
+de taille fixe **borne** ce nombre par construction. Elle ne guérit pas la
+pause entre versets (seul l'entraînement le peut) mais elle plafonne les
+dégâts —
 c'est un gain mesuré, et c'est le meilleur argument pour cette piste.
 
 ⚠️ Ne pas confondre avec le **streaming cache-aware**, lui bel et bien
