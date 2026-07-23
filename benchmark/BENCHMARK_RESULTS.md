@@ -78,6 +78,65 @@ NB : le WER held-out du base (9,6 %) est supérieur au 5,2 % du 1er benchmark ca
 
 **Pour la vérification de récitation (le cœur de l'app), Whisper gagne sans appel.** Le fine-tuning n'a PAS rendu Gemma compétitif sur l'ASR. La vision « un seul modèle Gemma fait tout » ne tient pas empiriquement pour cette tâche (avec encodeur audio gelé + LoRA LLM).
 
+---
+
+# Benchmark FastConformer CTC — tajweed-augmented (epoch01 vs epoch06) vs modèle déployé (pcd)
+
+**Date** : 2026-07-16 · **Machine** : RTX 5080 16 GB · **Contexte** : le run `fastconformer-quran-tajweed-augmented` a produit deux checkpoints candidats (`epoch=01-val_wer_ctc=0.032`, `epoch=06-val_wer_ctc=0.055`) — l'utilisateur a demandé de vérifier la santé de cet entraînement et de comparer ces checkpoints entre eux, puis contre le modèle actuellement déployé dans l'app (run `fastconformer-quran-pcd`).
+
+## 1. Anomalie détectée dans les logs d'entraînement — checkpoint "3.22%" invalide
+
+Preuve dans les logs (`logs/finetune_gpu_augmented.log` fin de phase, `logs/finetune_gpu_augmented_phase2.log` début de phase suivante) :
+- Fin de la phase 1 : epoch 1, `global_step=14002`, val set complet (1362 batches) → **val_wer_ctc = 0.06625**.
+- Resume (phase 2), **même `global_step=14002`, mêmes poids, mêmes 1362 batches**, AVANT tout nouveau pas d'entraînement → **val_wer_ctc = 0.03226** (meilleur jamais atteint, checkpoint sauvegardé).
+- Validation suivante (quelques minutes plus tard, toujours même run) → retour à 0.06629, puis décroissance normale et continue jusqu'à 0.05460 (epoch 6).
+
+**Un décodage CTC greedy déterministe sur les mêmes poids et les mêmes données ne devrait jamais produire un tel écart.** Cause probable : bascule CUDA graphs visible dans les logs juste avant l'anomalie (`CUDA graphs enabled` → `disabled`). **Conclusion : le "3.22%" est un artefact de mesure au moment du resume, pas un vrai meilleur modèle.** Le "5.54%" (epoch 6) s'inscrit lui dans une tendance continue et cohérente sur 6 epochs.
+
+## 2. Benchmark réel : epoch01 (3.22%, suspect) vs epoch06 (5.54%, stable)
+
+**Méthode** : chargement via restore du `.nemo` de base (`stt_ar_fastconformer_hybrid_large_pcd_v1.0.nemo`, tokenizer valide) + injection du `state_dict` du checkpoint — le chargement direct `load_from_checkpoint()` échoue (chemins Windows non résolus). WER calculé après normalisation équivalente à `ArabicNormalizer` (app/lib/services/recitation_verifier.dart) — sans ça, les variantes orthographiques du script Uthmani (ٱ/ا, alif suscrit, etc.) comptent à tort comme erreurs.
+
+**Jeux de test** (aucun des deux absent des manifests d'entraînement, confirmé par grep) :
+- **YouTube** (`data/manifest_youtube_clean.jsonl`, 3371 clips filtrés WER<0.7 vs Whisper Small) — 300 clips échantillonnés.
+- **Warsh** (5 récitateurs — OmarKazabri, LaayounKouchi, MohamedChahboun, RachidBelalia, HassanSaleh — exclus du train Hafs via `build_hafs_only_manifest.py`, ~86k clips Warsh jamais utilisés en training) — 300 clips échantillonnés. Attention méthodologique : le label texte de ces clips est le texte **Hafs** standard (pas le vrai texte Warsh, `download_assajda.py::load_quran_text()` charge le même texte pour tous) — le WER absolu y est gonflé par de vraies divergences textuelles Warsh/Hafs, seule la comparaison RELATIVE entre les deux checkpoints est interprétable sur ce jeu.
+
+| Test | epoch01 (3.22% officiel) | epoch06 (5.54% officiel) | Gagnant |
+|---|---|---|---|
+| YouTube — WER brut | 74.19 % | 73.03 % | epoch06 |
+| YouTube — WER normalisé (strict, harakat conservées) | 45.09 % | 43.41 % | epoch06 |
+| YouTube — corrigé du bruit d'alignement (best-suffix trim) | 27.98 % | 27.66 % | epoch06 |
+| Warsh — WER squelette (harakat retirées) | 43.83 % | **43.21 %** | epoch06 |
+
+**epoch06 bat systématiquement epoch01, sur les 4 métriques/jeux testés.** Confirme que le "3.22%" n'a jamais été le meilleur modèle.
+
+**Signal d'alerte réel (plus important que le glitch)** : l'écart entre le WER interne annoncé (~3-6 %) et le WER réel mesuré (~28-44 % selon le test) est énorme — généralisation faible hors du studio d'entraînement (récitateurs professionnels Hafs). À travailler (diversité acoustique du train set) avant de faire confiance à `val_wer_ctc` comme métrique de qualité.
+
+## 3. epoch06 (tajweed-augmented) vs modèle déployé (pcd, run différent et antérieur)
+
+**Contexte additionnel** : comparaison entre DEUX runs différents (pas deux checkpoints du même run) — prudence supplémentaire. Vérifié : le train set du run `pcd` (`nemo_manifests/train_manifest.jsonl`, 39 récitateurs Hafs standard) ne contient aucune trace des 5 récitateurs Warsh testés — pas de fuite de données expliquant les résultats ci-dessous.
+
+Modèle déployé benchmarké via le snapshot `.nemo` figé au moment exact de l'export ONNX en prod (`models/fastconformer-quran-pcd/fastconformer-quran-pcd-snapshot.nemo`) — le `.ckpt` source (`periodic/last-v1.ckpt`, pointeur `save_last=True` recyclé par Lightning) a depuis été écrasé par l'entraînement continué, donc irreproductible tel quel ; le snapshot `.nemo`, lui, n'a jamais été touché.
+
+| Test | Déployé (pcd) | epoch06 (tajweed-augmented) | Gagnant |
+|---|---|---|---|
+| YouTube — WER squelette | 57.25 % | **39.95 %** | epoch06 |
+| Warsh — WER squelette | **28.09 %** | 43.21 % | Déployé |
+
+**Résultat mitigé, pas un remplacement évident** : epoch06 nettement meilleur sur du Hafs "dans le style" (YouTube), mais le modèle déployé généralise mieux à des voix/styles jamais vus du tout (Warsh). Hypothèse non vérifiée : différence de configuration d'augmentation entre les deux scripts d'entraînement (`finetune_fastconformer.py` pour pcd vs `finetune_fastconformer_augmented.py` pour tajweed-augmented) — à creuser si l'écart Warsh doit être comblé.
+
+## 4. Décision de déploiement (2026-07-16)
+
+**epoch06 déployé dans l'app** (`app/lib/services/fastconformer_verifier.dart`, `_kModelSubdir` → `models/fastconformer-ctc-tajweed-augmented-epoch06`) à la place de `pcd`, sur la base du gain net sur YouTube et de la confirmation multi-tests qu'il s'agit du meilleur checkpoint réel du run tajweed-augmented. L'écart Warsh non résolu est un compromis assumé, pas un aveuglement — à surveiller en usage réel.
+
+**Modèles préservés** (jamais écrasés) dans `benchmark/models_deployes/` :
+- `fastconformer-ctc-pcd_ACTUEL_v1/` — ancien modèle déployé (rollback : remettre `_kModelSubdir = 'models/fastconformer-ctc-pcd'`, fichiers jamais supprimés sur l'appareil).
+- `fastconformer-ctc-tajweed-augmented-epoch06_v1/` — nouveau modèle déployé (export validé : PyTorch == ONNX bit-exact sur clip réel).
+
+**Non couvert par ce training, hors-sujet pour un futur run (pas une "étape suivante" du même)** : qalqala et les autres règles fines de tajweed (ghunna, ikhfa, idgham...) ne sont vérifiées qu'à l'affichage (couleurs, API Quran.com), jamais par le modèle ASR. Contrairement au madd (marqué par le alif suscrit ٰ, préservable dans le texte d'entraînement — c'est justement ce que fait `tajweed-augmented`), qalqala n'a pas de diacritique dédié dans le script Uthmani : c'est une règle de prononciation implicite (lettre+sukun), pas un signe écrit. Une vérification acoustique de la qalqala nécessiterait une approche différente (DSP ou tête de classification dédiée), cf. `FONCTIONNALITES_FUTURES.md` §1 pour la discussion équivalente sur le madd.
+
+**Config d'entraînement à corriger pour les prochains runs** : le script utilisé pour le run `pcd` (`finetune_fastconformer.py`) combine `save_last=True` + `periodic_ckpt` sur un seul fichier recyclé — écrasé à chaque sauvegarde, empêchant de reproduire un état de training antérieur au dernier resume. Le script actuel (`finetune_fastconformer_augmented.py`) n'a PAS ce problème (`save_top_k=3`, noms de fichiers uniques par epoch/métrique, pas de `save_last`) — rien à corriger pour les runs récents, mais rester vigilant si un futur script réintroduit un pointeur "last" recyclé.
+
 **Caveats honnêtes pour Gemma** : (1) on a gelé l'encodeur audio — adapter l'encodeur/projecteur audio serait plus puissant mais bien plus lourd, non testé ; (2) le radotage pourrait se discipliner ; (3) la force de Gemma reste le **tuteur** (texte), pas l'ASR.
 
 ### Architecture recommandée (validée par l'expérience)

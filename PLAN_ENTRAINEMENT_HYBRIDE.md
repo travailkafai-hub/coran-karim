@@ -572,6 +572,201 @@ plus les capacites deja listees en 5bis (regles tajwid, RNNT). Ce checkpoint
 (`stage1b-260h/stage1b-final.nemo`) est desormais la meilleure version du
 run hybride a ce jour.
 
+## 5quater. GOP mal calibré sur device vs ancien modèle — diagnostic complet, cause racine PAS résolue (2026-07-20 soir)
+
+**Symptôme signalé par l'utilisateur** : en mode adulte (censé être tolérant,
+aucune règle tajwid active), le nouveau modèle (stage1b-260h) bloque
+beaucoup plus que l'ancien (mixed-e14) sur des mots bien prononcés,
+notamment "ٱللَّهِ"/"ٱلرَّحْمَـٰنِ"/"ٱلرَّحِيمِ"/"رَبِّ".
+
+**Pistes testées, dans l'ordre, chacune mesurée avant de passer à la suivante** :
+
+1. **Symboles de règles polluant `free`** (le max par frame incluait les 40
+   classes-symboles) — CONFIRMÉ et CORRIGÉ (`ForcedAligner.kt`, commit
+   `64215d0`). Coût mesuré avant fix : -177,83 sur la propre transcription.
+2. **Symboles polluant aussi `forced`** (pas seulement `free`) — CONFIRMÉ :
+   sur un mot SANS aucune règle ("يَوْمِ"), ancien modèle gop=-0,03 vs
+   nouveau -20,09 sur le MÊME audio. Masquage+renormalisation pré-softmax
+   appliqué à `forced` ET `free` (commit `a2d3054`). Gain mesuré : -20,09 →
+   -9,59 — réel mais incomplet.
+3. **Chadda tokenisé seul** (sans lettre ni voyelle, ex. "رَبِّ" →
+   [رَ, بِ, ّ]) — identifié comme cause plausible de gop catastrophique sur
+   les mots à lettre doublée y compris dans l'ANCIEN modèle. Exclu du calcul
+   du gop (même commit `a2d3054`). Effet sur device : marginal, le blocage
+   sur "ٱللَّهِ"/"رَبِّ" a persisté.
+4. **Fenêtre de contexte (buffer court en streaming)** — RÉFUTÉ par mesure
+   directe : à contexte tronqué IDENTIQUE (2,5s/3,0s/4,0s), l'ancien modèle
+   est déjà proche de 0,00 partout, le nouveau reste à -5 à -6 SANS
+   amélioration en donnant plus de contexte (jusqu'à 4s). Donc PAS un
+   problème de fenêtre glissante — abandonné avant d'investir dans la
+   refonte d'architecture proposée en §4 de `FONCTIONNALITES_FUTURES.md`.
+5. **Poids de la loss hybride** (`ctc_loss_weight`) — vérifié dans
+   `hparams.yaml` du run réel (pas le plan écrit à l'avance, qui divergeait) :
+   stage1b-260h entraîné avec `ctc_loss_weight=0,3` (loss = 0,7·RNNT +
+   0,3·CTC, RNNT dominant), contre l'ancien modèle entraîné CTC-only
+   (`ctc_loss_weight=1,0`, aucune concurrence RNNT). Hypothèse testée par
+   continuation : reprise depuis `stage1b-260h/stage1b-final.nemo`,
+   `--ctc_loss_weight 1.0`, 4 epochs complets, LR bas (5e-5, cf. script) —
+   dossier `stage1b-ctc-recovery/` (rien écrasé).
+
+   **RÉSULTAT : NÉGATIF.** gop sur "ٱللَّهِ" à 2,5/3,0/4,0s de contexte :
+   epoch0 = -5,89/-5,45/-5,58 ; epoch3 = -5,18/-5,21/-5,33 ; final (4
+   epochs) = -5,31/-5,33/-5,45. Aucune tendance vers 0 sur les 4 epochs —
+   essentiellement identique à avant (stage1b-260h original :
+   -5,71/-5,10/-5,31).
+
+**Ce que ce résultat négatif prouve, et ce qu'il NE prouve PAS** : rebasculer
+le poids et continuer l'entraînement depuis un checkpoint déjà façonné par
+8 epochs de loss RNNT-dominante, à LR bas (volontairement choisi pour ne
+PAS détruire l'acquis), ne suffit pas à corriger la calibration. Ça
+NE PROUVE PAS que le poids RNNT n'était pas la cause à l'origine — un LR
+plus élevé ou (surtout) un réentraînement complet CTC-only DEPUIS stage1a
+(pas une continuation) pourrait donner un résultat différent, mais c'est un
+chantier de plusieurs heures sans garantie, pas fait à ce jour. Piste
+alternative jamais testée directement : le vocabulaire élargi aux 40
+symboles tajwid dégraderait la calibration de façon intrinsèque,
+indépendamment du poids RNNT (cohérent avec la trouvaille #2 ci-dessus, qui
+montre déjà un effet mesurable des symboles sur des mots ordinaires).
+
+**Décision initiale (dépassée par la suite, gardée pour l'historique)** : ne
+pas relancer un entraînement de plusieurs heures sans garantie, architecture
+double-modèle (ancien pour le gop, nouveau seulement pour les symboles).
+Jamais implémentée — la suite de la même soirée a donné un résultat plus
+complet, voir ci-dessous.
+
+## 5quinquies. Piste 3 (mixed-e14 intact + tokenizer tajwid + VRAI CTC-only) — résultat final, et cause racine trouvée (2026-07-20 nuit)
+
+**Piste 3, méthodologie** : contrairement à ctc-recovery (continuation depuis
+un checkpoint déjà façonné par 8 epochs de loss hybride RNNT-dominante), on
+repart de `mixed-e14-snapshot.nemo` INTACT, `change_vocabulary` vers
+`tokenizers/tajweed_rules_bpe_v1`, puis le VRAI script CTC-only
+(`finetune_fastconformer.py`, celui qui a produit mixed-e14 à l'origine :
+`set_fuse_loss_wer(False)` + `_ZeroRNNTLoss`, pas juste `ctc_loss_weight=1.0`
+sur le script hybride). 4 epochs, `nemo_manifests_rules/` (260h + regles),
+sortie `models/fastconformer-quran-mixed-e14-rules-ctc/`.
+
+**Résultat benchmark standard (n=150, `eval_error_detection_rules_stripped.py`)** :
+
+| Métrique (n=150) | mixed-e14 | stage1b-260h | **piste 3 finale (4 epochs)** |
+|---|---|---|---|
+| Détection d'erreur (fidèle) | 65,3% | 64,7% | 64,7% |
+| Corrigé à tort (invisible) | 14,7% | 10,7% | 12,7% |
+| CER anti-oubli | 9,18% | 6,85% | 7,40% |
+| Fidélité harakat (fautes délibérées) | — | — | 55,7% |
+| Fidélité lettre (fautes délibérées) | — | — | 72,5% |
+| Détection règles tajwid (Mishary, Al-Baqarah) | — | 98% | **100%** (37/37) |
+
+Qualité de transcription solide, meilleure que mixed-e14, comparable à
+stage1b-260h. **Mais le gop reste catastrophique sur les mêmes mots**
+("ٱللَّهِ", "ٱلرَّحِيمِ"/"ٱلرَّحْمَـٰنِ") même sur ce checkpoint, la piste la
+plus propre méthodologiquement des 3 testées — confirmant que ce n'est PAS
+un problème de méthode d'entraînement (les 3 pistes, poids/checkpoint/script
+différents, échouent identiquement sur les mêmes mots).
+
+**CAUSE RACINE TROUVÉE (mesure sur le dataset, pas plus de conjecture
+entraînement)** : la Bismillah est récitée **~44% plus vite en médiane** que
+le reste du Coran dans `data/manifest_unified.jsonl` (407 149 clips) —
+plusieurs réciteurs à 3-4x le débit normal (AdelKalbani 4,00 mots/s vs
+médiane générale 0,86 ; HosseinBousseksso 3,51 ; KhalidAlJalil 3,22),
+traitée comme une formule rituelle rapide plutôt qu'un verset posé à réciter.
+Ça explique tout d'un coup :
+- Pourquoi ce sont TOUJOURS les mêmes mots (Bismillah) qui échouent, peu
+  importe la méthode d'entraînement — le facteur commun aux 3 pistes est le
+  MÊME corpus, avec ce même biais répété ~une fois par sourate × ~80 réciteurs.
+- Pourquoi l'ancien modèle (mixed-e14) s'en sort quand même : il n'a jamais
+  eu à trancher "lettre ou symbole de règle" à ces positions précises (pas de
+  vocabulaire de règles) — seul le nouveau modèle doit prendre cette décision
+  fine exactement là où les données sont le plus bâclées, les deux effets se
+  cumulent.
+
+**Vérification indépendante de la sensibilité harakat du gop** (raison
+d'être du gop, cf. §"Biais du modèle vers le texte canonique" dans
+FONCTIONNALITES_FUTURES.md) : sur 5 clips TTS à harakat délibérément fausse
+(`nemo_manifests_mixed/val_errors_annotated.jsonl`, `err_kind=="harakat"`),
+forcer le texte canonique attendu contre l'audio réellement différent donne
+un gop modeste mais réel (-0,16 à -0,90, contre ~0,00 pour un vrai match) --
+3 des 5 exemples resteraient "correct" à tort avec les seuils actuels
+(-0.45/-1.60). Le gop remplit donc SEULEMENT PARTIELLEMENT sa mission
+d'origine.
+
+**Décision produit finale (2026-07-20 nuit)** :
+1. **Ne pas abandonner le gop** (rouvrirait le biais canonique déjà documenté
+   que le gop a été construit pour combattre) mais rendre le diff textuel
+   (`_realignFromFullText`, déjà présent comme repli, jamais supprimé)
+   SÉLECTIONNABLE par l'utilisateur (`JudgementOptions.useGopScoring`,
+   toggle dans la feuille de réglages de vérification). Les deux moteurs
+   tournent TOUJOURS en parallèle et se journalisent (`[GOP]`/`[TEXTDIFF]`),
+   un seul pilote l'affichage — permet de comparer empiriquement sur de
+   vraies sessions plutôt que de trancher sur quelques clips hors-ligne.
+2. **Retirer le contrôle de prononciation sur les 4 mots de la Bismillah**
+   spécifiquement (`RecitedWord.isBasmala`, vrai pour tout segment
+   `surah=1/ayah=1` -- couvre Al-Fatiha 1:1 ET la Bismillah insérée devant
+   toute autre sourate, texte verbatim identique) : forcés `correct` dans les
+   DEUX moteurs de jugement (gop et texte), comme le fait déjà le mode
+   "cycle de prière" pour l'ensemble d'Al-Fatiha. Ce n'est pas une faute du
+   récitant, c'est un artefact du corpus d'entraînement.
+
+**Piste non tranchée, notée pour plus tard si le besoin revient** :
+construire un petit lot de Basmala bien articulées (réciteurs connus pour
+une Basmala posée, ou TTS à tempo contrôlé) et fine-tuner spécifiquement
+dessus -- viserait à corriger la CAUSE plutôt que de désactiver le contrôle,
+mais pas fait à ce jour (le contournement produit ci-dessus est jugé
+suffisant pour l'instant).
+
+## 5sexies. Calibration gop par mot (`gop_word_baseline.json`) — généralise le contournement Bismillah (2026-07-20 nuit)
+
+**Constat qui a motivé cette piste** : l'exemption Bismillah (§5quinquies) ne
+traite QUE 4 mots codés en dur. Or la mesure sur le dataset laissait
+présager que d'autres mots (tout ce qui porte un chadda/gémination) ont le
+même défaut structurel. Idée utilisateur : au lieu de repérer les mots
+difficiles un par un, calculer une VRAIE ligne de base par mot depuis des
+récitations connues comme correctes, et juger l'ÉCART à cette ligne de base
+plutôt que le gop brut contre un seuil global.
+
+**Méthode** (`benchmark/build_gop_word_baseline.py`) : modèle piste 3 final
+(`fastconformer-quran-mixed-e14-rules-ctc/fastconformer-quran-best.nemo`),
+corpus = UNIQUEMENT les clips Coran réels du manifest (`train_wav`/
+`train_wav_local`, exclut `tts_augmentation` et `asc` -- seulement des
+récitations professionnelles). Alignement forcé sur texte NU (symboles
+retirés, comme `alignTarget=training` côté app), mêmes correctifs que
+`ForcedAligner.kt` (masquage+renormalisation symboles, exclusion chadda nu).
+Regroupé par mot canonique NU (pas de fragmentation selon qu'une règle soit
+annotée à cette occurrence précise) ; garde une trace séparée avec/sans
+règle attendue pour vérifier si ça change quelque chose.
+
+**Résultat** : 42 927 clips traités sur 59 232 (72,5%, le reste ignoré pour
+durée hors bornes ou alignement infaisable), **12 702 mots distincts** avec
+assez de données (n≥3). Confirme et généralise largement la piste Bismillah
+-- les 20 mots au gop moyen le plus bas sont TOUS des mots à chadda/
+gémination ("مِّنَ" moyenne -7,58 sur n=1051, "مِّنْ" -5,62 sur n=557, "مِّن"
+-5,47 sur n=1590, "ذَٰلِكَ" -5,26 sur n=1286, "ٱللَّهِ" -3,96 sur n=2803...),
+avec des échantillons bien plus larges que ce qu'on avait mesuré à la main.
+Un seuil global aurait faussement signalé TOUS ces mots très fréquents en
+usage normal.
+
+**Intégration app** : `benchmark/data/gop_word_baseline.json` copié en asset
+(`app/assets/data/gop_word_baseline.json`, déclaré dans `pubspec.yaml`),
+chargé par `gop_baseline_provider.dart` (même pattern que
+`rule_reliability.json`). `RecitationNotifier._normalizedGop(word, rawGop)`
+recentre le gop sur la moyenne du mot (`rawGop - baseline.mean`) quand la
+ligne de base est assez fiable (n≥5, sinon repli sur le gop brut -- jamais de
+régression) ; les seuils existants (`_gopCorrect`/`_gopUnclear`, sensibilité
+utilisateur) s'appliquent ensuite SANS changement au gop recentré. Le gop
+brut ET le gop recentré sont journalisés (`[GOP] ... gop=X normGop=Y`) pour
+comparer facilement.
+
+**Portée de ce correctif** : ne remplace PAS l'exemption Bismillah stricte
+(`isBasmala`, garde-fou absolu peu importe la calibration) -- la calibration
+gère les cas INTERMÉDIAIRES (mots durs mais pas au point de mériter une
+exemption totale), l'exemption gère le cas EXTRÊME déjà identifié.
+Complémentaires, pas redondants.
+
+**Pas encore fait** : validation sur device (build compile, installé une
+fois, mais pas encore testé en conditions réelles faute de téléphone
+reconnecté au moment de l'écriture) ; pas de recalibration automatique si le
+modèle change (la table est liée au checkpoint piste 3 précis qui l'a
+produite -- à regénérer si le modèle déployé change).
+
 ## 6. Critères de succès / d'arrêt
 
 - **Succès tête stricte** : ≥ epoch14 sur détection lettre/harakat ET
