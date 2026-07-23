@@ -164,7 +164,8 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     /** Calcule l'alignement force des mots restants sur les logprobs de la passe
      *  courante. [isFinal] : segment fige (l'audio ne sera plus reanalyse) —
      *  les jugements de cette passe sont definitifs et l'ancre native avance. */
-    private fun runAlignment(logprobs: Array<FloatArray>, isFinal: Boolean, clipPath: String? = null) {
+    private fun runAlignment(logprobs: Array<FloatArray>, isFinal: Boolean, clipPath: String? = null,
+                             segmentRules: List<DetectedRule> = emptyList()) {
         val tokens = alignTokens ?: return
         val anchor = alignAnchor
         if (anchor >= tokens.size) return
@@ -178,7 +179,8 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             val variantsSlice = alignVariants?.let {
                 if (anchor < it.size) it.subList(anchor, minOf(it.size, end)) else null
             }
-            val res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal, variantsSlice) ?: return
+            val res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal, variantsSlice,
+                                    segmentRules) ?: return
             val words = res.words.map {
                 mapOf(
                     "i" to it.index,
@@ -187,7 +189,14 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     "covered" to it.covered,
                     "actual" to it.actual,
                 ) + (it.rescoreMargin?.let { m -> mapOf("rescoreMargin" to m) } ?: emptyMap()) +
-                    (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap())
+                    (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap()) +
+                    // Regles REELLEMENT detectees sur les frames de ce mot
+                    // (tete 2). Cle absente si aucune -> le Dart distingue
+                    // "modele sans tete tajwid" de "regle non realisee".
+                    (if (it.detectedRules.isEmpty()) emptyMap() else mapOf(
+                        "rules" to it.detectedRules.map { r ->
+                            mapOf("id" to r.ruleId, "prob" to r.prob.toDouble())
+                        }))
             }
             alignSeq++
             lastAlign = mapOf(
@@ -433,7 +442,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     val t0 = System.nanoTime()
                     // Une seule inference ONNX : les logprobs servent au texte
                     // (greedy) ET a l'alignement force GOP (cf. runAlignment).
-                    val logprobs = engine.computeLogProbs(snapshot)
+                    val outputs = engine.computeAll(snapshot)
+                    val logprobs = outputs.letters
+                    // Tete 2 : decodee UNE fois pour tout le segment, puis
+                    // repartie par mot dans l'aligneur (recouvrement de frames).
+                    val segmentRules = engine.decodeTajwid(outputs.tajwid)
                     val text = engine.greedyDecode(logprobs)
                     val ms = (System.nanoTime() - t0) / 1_000_000
                     if (committing) {
@@ -467,12 +480,13 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                             }
                         }
                         DiagnosticLog.log(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
-                        runAlignment(logprobs, isFinal = true, clipPath = clipPath)
+                        runAlignment(logprobs, isFinal = true, clipPath = clipPath,
+                                     segmentRules = segmentRules)
                     } else {
                         latestText = text
                         lastPreviewSize = snapshot.size
                         DiagnosticLog.log(TAG, "retranscription ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
-                        runAlignment(logprobs, isFinal = false)
+                        runAlignment(logprobs, isFinal = false, segmentRules = segmentRules)
                     }
                 } catch (e: Exception) {
                     DiagnosticLog.log(TAG, "echec retranscription: ${e.message}")

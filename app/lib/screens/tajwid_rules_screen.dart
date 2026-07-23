@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/judgement_options.dart';
 import '../providers/judgement_provider.dart';
 import '../theme/app_theme.dart';
@@ -150,9 +151,10 @@ class _RuleTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final info = kTajwidRuleInfo[rule.key];
-    final label = info?.name ?? rule.key;
-    final explanation = info?.explanation ?? '';
+    final label = info?.name(t) ?? rule.key;
+    final explanation = info?.explanation(t) ?? '';
     // Plus AUCUNE règle n'est bloquée (décision utilisateur 2026-07-20 : le
     // madd 6 était grisé alors que c'est une règle fondamentale, cf.
     // RuleReliability.selectable pour les 3 raisons mesurées). Le garde-fou
@@ -189,7 +191,7 @@ class _RuleTile extends StatelessWidget {
                       : AppColors.green50,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(r.badgeLabel,
+                child: Text(r.badgeLabel(t),
                     style: GoogleFonts.manrope(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w700,

@@ -275,6 +275,19 @@ class ForcedAligner(
         val actual: String,
         val rescoreMargin: Double? = null,
         val rescoreHeard: String? = null,
+        /** Regles de tajwid REELLEMENT detectees sur les frames de ce mot par la
+         *  tete 2 (modeles a deux tetes, 2026-07-22). Vide sur un modele a une
+         *  seule tete.
+         *
+         *  Pourquoi ici et pas dans le texte : avant la separation des tetes,
+         *  les regles arrivaient sous forme de symboles PUA inseres dans
+         *  `actual`, et cote Dart on les retrouvait en analysant la chaine.
+         *  C'etait doublement fragile -- ca melangeait deux natures
+         *  d'information dans un meme champ, et l'attribution au mot dependait
+         *  de la position dans le texte. Ici l'attribution est TEMPORELLE
+         *  (recouvrement avec la fenetre de frames du mot, la meme que celle
+         *  qui sert deja au gop), donc exacte, et la confiance est conservee. */
+        val detectedRules: List<DetectedRule> = emptyList(),
     )
 
     /**
@@ -312,6 +325,12 @@ class ForcedAligner(
         // (les apercus sont re-analyses de toute facon, et c'est le verdict
         // final qu'on cherche a fiabiliser -- pas de cout DP inutile par passe).
         wordVariants: List<List<Pair<String, IntArray>>>? = null,
+        // Regles detectees par la TETE 2 sur TOUT le segment (cf.
+        // FastConformerCtc.decodeTajwid). Chacune porte sa frame -> on
+        // l'attribue au mot dont la fenetre de frames la contient. Vide/null
+        // sur un modele a une seule tete : `detectedRules` reste vide partout
+        // et rien d'autre ne change.
+        segmentRules: List<DetectedRule>? = null,
     ): Result? {
         val t = logprobs.size
         if (t == 0 || wordTokens.isEmpty()) return null
@@ -531,8 +550,15 @@ class ForcedAligner(
                         }
                     }
                 }
+                // Regles dont la frame tombe dans la fenetre de CE mot. Les
+                // memes bornes que celles utilisees pour le gop et pour
+                // `actual` : l'attribution reste coherente avec le reste du
+                // jugement, sans heuristique supplementaire.
+                val rulesHere = segmentRules?.filter {
+                    it.frame >= wordFirstFrame[wi] && it.frame <= wordLastFrame[wi]
+                } ?: emptyList()
                 results.add(WordResult(anchor + wi, forced - free, forced, covered, actual,
-                    rescoreMargin, rescoreHeard))
+                    rescoreMargin, rescoreHeard, rulesHere))
                 lastUsedFrame = maxOf(lastUsedFrame, wordLastFrame[wi])
             }
             return Result(anchor + frontierWordRel, results, deferredIndex) to lastUsedFrame

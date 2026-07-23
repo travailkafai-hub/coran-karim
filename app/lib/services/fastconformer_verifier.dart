@@ -29,6 +29,20 @@ class AlignedWord {
   // pas encore calibré en conditions réelles device.
   final double? rescoreMargin;
   final String? rescoreHeard;
+  // Règles de tajwid RÉELLEMENT détectées sur les frames de ce mot par la
+  // TÊTE 2 du modèle (architecture à deux têtes, 2026-07-22).
+  //
+  // Avant cette architecture, les règles arrivaient sous forme de symboles PUA
+  // insérés dans [actual], et on les retrouvait en analysant cette chaîne. Ce
+  // n'est plus le cas : lettres et règles sont deux sorties distinctes du
+  // modèle, et l'attribution au mot se fait par recouvrement de FRAMES (la
+  // même fenêtre que celle qui sert au gop), donc sans dépendre de la position
+  // dans le texte. Chaque entrée porte aussi sa confiance, ce qu'un symbole
+  // dans une chaîne ne pouvait pas transporter.
+  //
+  // Vide si le modèle chargé n'a qu'une seule tête (anciens déploiements) —
+  // à ne PAS confondre avec « aucune règle réalisée », d'où [hasRuleHead].
+  final List<DetectedRule> detectedRules;
 
   const AlignedWord({
     required this.index,
@@ -38,7 +52,19 @@ class AlignedWord {
     required this.actual,
     this.rescoreMargin,
     this.rescoreHeard,
+    this.detectedRules = const [],
   });
+}
+
+/// Une règle de tajwid détectée par la tête 2, avec sa confiance.
+/// [id] indexe `rules.json` du modèle déployé (cf.
+/// export_dual_head_checkpoint.py) — c'est le même ordre que
+/// `RULE_CLASSES` côté Python et `TajwidRule.values` côté app.
+class DetectedRule {
+  final int id;
+  final double prob; // 0..1 — permet de distinguer réalisée / à peine esquissée
+
+  const DetectedRule(this.id, this.prob);
 }
 
 /// Une passe d'alignement complète. [isFinal] : segment figé — l'audio de ces
@@ -81,6 +107,12 @@ class AlignPayload {
           actual: w['actual'] as String? ?? '',
           rescoreMargin: (w['rescoreMargin'] as num?)?.toDouble(),
           rescoreHeard: w['rescoreHeard'] as String?,
+          detectedRules: [
+            for (final r in (w['rules'] as List? ?? const []))
+              if (r is Map)
+                DetectedRule((r['id'] as num).toInt(),
+                    (r['prob'] as num?)?.toDouble() ?? 0.0),
+          ],
         ));
       }
     }
@@ -148,7 +180,20 @@ class FastConformerVerifier {
   //   ci-dessous (toujours présent sur l'appareil, jamais écrasé) + revenir
   //   au commit précédent pour l'annotation cible. Les deux modèles coexistent
   //   dans files/models/ du device.
-  static const _kModelSubdir = 'models/fastconformer-ctc-rules-260h';
+  // Modèle À DEUX TÊTES (2026-07-22) : tête 1 lettres+harakat (poids
+  // mixed-e14 INCHANGÉS, val_wer_ctc 0,124), tête 2 regles tajwid
+  // (rappel 0,90 / précision 0,98, F1 0,936 sur les 17 classes).
+  // Mesuré en remplacement de rules-260h :
+  //   - le désaccord de tokenisation `ٱ+ل` disparaît (la correction ne rapporte
+  //     plus rien : +18,53 -> -0,67), car la tête lettres n'a jamais vu de
+  //     symbole de règle et retrouve donc SA tokenisation d'entraînement ;
+  //   - la discrimination juste/faux est réparée : les cas où une variante
+  //     FAUTIVE scorait mieux que le mot correct passent de 45 % à 16 %.
+  // Nécessite rules.json à côté du modèle (cf. _kRulesFile) — sans lui la
+  // vérification tajwid reste inactive au lieu de tout accuser à tort.
+  // Rollback : 'models/fastconformer-ctc-rules-260h' (toujours sur l'appareil),
+  // ou 'models/fastconformer-ctc-mixed-e02' (fichiers jamais supprimés du PC).
+  static const _kModelSubdir = 'models/fastconformer-ctc-dual-head';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // Dictionnaire mot -> IDs de tokens précalculé avec le VRAI tokenizer NeMo
@@ -157,8 +202,25 @@ class FastConformerVerifier {
   // forcé (celle-ci reste un repli pour les mots hors dictionnaire, ex. texte
   // hors-Coran). Optionnel : absent → CtcTokenizer.kt gère tout en greedy.
   static const _kWordTokensFile = 'word_tokens.json';
+  // Noms des classes de la TÊTE 2 (modèles à deux têtes, cf.
+  // benchmark/export_dual_head_checkpoint.py). Sa PRÉSENCE est ce qui
+  // distingue un modèle à deux têtes d'un ancien modèle : sans lui, la
+  // vérification tajwid doit rester inactive plutôt que de conclure
+  // « aucune règle réalisée » sur des détections qui n'existent pas.
+  static const _kRulesFile = 'rules.json';
 
   bool _loaded = false;
+  bool _hasRuleHead = false;
+
+  /// Le modèle déployé expose-t-il une TÊTE TAJWID (architecture à deux têtes) ?
+  /// Déterminé par la présence de `rules.json` à côté du modèle.
+  ///
+  /// ⚠️ À TESTER AVANT toute conclusion du type « cette règle n'a pas été
+  /// réalisée » : sur un modèle à une seule tête, aucune règle n'est jamais
+  /// détectée, et confondre « le modèle ne sait pas détecter » avec « le
+  /// récitant n'a pas réalisé la règle » ferait passer en orange TOUS les mots
+  /// porteurs d'une règle.
+  bool get hasRuleHead => _hasRuleHead;
 
   /// Résout les chemins modèle/vocab côté app-support (même convention que
   /// whisper-medium-ggml) et charge la session ONNX côté Kotlin. Idempotent :
@@ -174,6 +236,8 @@ class FastConformerVerifier {
       debugPrint('[FastConformer] Modèle/vocab absents (${modelFile.path}) — ignoré');
       return false;
     }
+    final rulesFile = File('${appDir.path}/$_kModelSubdir/$_kRulesFile');
+    _hasRuleHead = await rulesFile.exists();
     final hasWordTokens = await wordTokensFile.exists();
     if (!hasWordTokens) {
       debugPrint('[FastConformer] word_tokens.json absent — alignement forcé '
@@ -184,6 +248,7 @@ class FastConformerVerifier {
         'modelPath': modelFile.path,
         'vocabPath': vocabFile.path,
         'wordTokensPath': hasWordTokens ? wordTokensFile.path : null,
+        'rulesPath': _hasRuleHead ? rulesFile.path : null,
       });
       _loaded = ok ?? false;
       debugPrint('[FastConformer] Modèle chargé : $_loaded');
