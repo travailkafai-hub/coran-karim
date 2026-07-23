@@ -18,8 +18,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../l10n/app_localizations.dart';
-import '../models/judgement_options.dart' show TajwidRule;
 import '../models/recitation_state.dart'
     show RecitationErrorKind, recitationErrorKindLabel;
 import '../models/verse.dart';
@@ -30,11 +28,8 @@ import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/coach_explanation_sheet.dart';
-import '../widgets/tajwid_help_sheet.dart' show kTajwidRuleInfo;
 import 'coach_screen.dart';
 import 'karaoke_recitation_screen.dart';
-import 'memorization_ayah_picker_screen.dart';
-import 'memorization_game_screen.dart';
 import 'mind_map_screen.dart';
 import 'surah_picker_screen.dart';
 
@@ -50,7 +45,7 @@ class CoachHubScreen extends ConsumerWidget {
         foregroundColor: AppColors.cream,
         automaticallyImplyLeading: false,
         elevation: 0,
-        title: Text(AppLocalizations.of(context)!.coachHubTitle,
+        title: Text('مدرّبي',
             style: GoogleFonts.scheherazadeNew(
                 fontSize: 22, color: AppColors.brassLight)),
       ),
@@ -59,8 +54,6 @@ class CoachHubScreen extends ConsumerWidget {
         children: const [
           _ResumeSection(),
           _MemorizeSection(),
-          SizedBox(height: 22),
-          _GameSection(),
           SizedBox(height: 22),
           _ReciteSection(),
           SizedBox(height: 22),
@@ -81,8 +74,6 @@ class _ResumeSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = AppLocalizations.of(context)!;
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final last = ref.watch(lastCoachVerseProvider);
     return last.when(
       loading: () => const SizedBox.shrink(),
@@ -102,49 +93,25 @@ class _ResumeSection extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(t.coachHubResumeLabel,
+                      Text('Reprendre',
                           style: GoogleFonts.manrope(
                               fontSize: 11,
                               letterSpacing: 1.1,
                               fontWeight: FontWeight.w700,
                               color: AppColors.brassLight)),
                       const SizedBox(height: 2),
-                      // v.surahName vient de SharedPreferences, écrit lors
-                      // d'une session passée dans la langue d'alors : ne
-                      // jamais s'y fier pour l'affichage (bug corrigé
-                      // 2026-07-22, "Sourate 94" affiché en mode arabe).
-                      // On recalcule toujours depuis le numéro + la locale
-                      // actuelle, via la vraie liste des sourates (nom
-                      // complet, pas juste le repli générique "Sourate N").
-                      FutureBuilder<List<Surah>>(
-                        future: QuranApi.fetchSurahs(),
-                        builder: (context, snap) {
-                          final surahs = snap.data;
-                          final name = surahs == null
-                              ? t.coachSurahLabel(v.surahNumber)
-                              : (isArabic
-                                  ? surahs
-                                      .firstWhere((s) => s.number == v.surahNumber,
-                                          orElse: () => surahs.first)
-                                      .nameArabic
-                                  : surahs
-                                      .firstWhere((s) => s.number == v.surahNumber,
-                                          orElse: () => surahs.first)
-                                      .nameSimple);
-                          return Text(t.coachHubResumeVerse(name, v.ayahNumber),
-                              style: GoogleFonts.manrope(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.cream));
-                        },
-                      ),
+                      Text('${v.surahName} — verset ${v.ayahNumber}',
+                          style: GoogleFonts.manrope(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.cream)),
                     ],
                   ),
                 ),
                 TextButton(
                   onPressed: () => _openCoachForVerse(
                       context, v.surahNumber, v.ayahNumber),
-                  child: Text(t.coachHubContinue,
+                  child: Text('Continuer',
                       style: GoogleFonts.manrope(
                           fontWeight: FontWeight.w700,
                           color: AppColors.brassLight)),
@@ -177,24 +144,23 @@ class _MemorizeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SectionTitle(t.coachHubMemorizeSectionTitle, t.coachHubMemorizeSectionSubtitle),
+        const _SectionTitle('MÉMORISER', 'Verset par verset, avec le micro'),
         _Card(
           child: Column(
             children: [
               _ActionRow(
                 icon: Icons.school_rounded,
-                title: t.coachHubMemorizeSurahTitle,
-                subtitle: t.coachHubMemorizeSurahSubtitle,
+                title: 'Mémoriser une sourate',
+                subtitle: 'Lecture → Apprentissage → Contrôle',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => SurahPickerScreen(
-                      title: t.coachHubPickerMemorizeTitle,
-                      subtitle: t.coachHubPickerMemorizeSubtitle,
+                      title: 'Mémoriser',
+                      subtitle: 'Choisis la sourate à travailler',
                       onPicked: (surah, verses) => Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
@@ -205,76 +171,6 @@ class _MemorizeSection extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Zone B bis — Jeu de mémorisation (rappel progressif par palier) ─────────
-
-/// Mode ludique : révélation progressive mot par mot (paliers), en
-/// complément de `CoachScreen` (3 étapes classiques). Décision utilisateur
-/// 2026-07-22, mécanique détaillée dans
-/// `.claude/skills/jeux-memorisation/SKILL.md`.
-class _GameSection extends StatelessWidget {
-  const _GameSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionTitle(t.coachHubGameSectionTitle, t.coachHubGameSectionSubtitle),
-        _Card(
-          child: _ActionRow(
-            icon: Icons.videogame_asset_rounded,
-            title: t.coachHubGameActionTitle,
-            subtitle: t.coachHubGameActionSubtitle,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => SurahPickerScreen(
-                  title: t.coachHubPickerGameTitle,
-                  subtitle: t.coachHubPickerGameSubtitle,
-                  onPicked: (surah, verses) {
-                    // Sourate tenant sur une seule page du Mushaf : jeu direct
-                    // sur la sourate entière. Sourate étalée sur plusieurs
-                    // pages : demander l'aya de départ et se limiter à cette
-                    // page (décision utilisateur 2026-07-22 -- ne jamais
-                    // lancer une session de plusieurs centaines de versets
-                    // d'un coup, cf. bug d'overflow constaté sur Al-Baqarah).
-                    final pages = verses.map((v) => v.pageNumber).whereType<int>().toSet();
-                    if (pages.length <= 1) {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => MemorizationGameScreen(
-                                surah: surah, verses: verses)),
-                      );
-                    } else {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => MemorizationAyahPickerScreen(
-                            surah: surah,
-                            verses: verses,
-                            onPicked: (pageVerses) => Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => MemorizationGameScreen(
-                                      surah: surah, verses: pageVerses)),
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                ),
-              ),
-            ),
           ),
         ),
       ],
@@ -300,14 +196,13 @@ class _ReciteSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => SurahPickerScreen(
-            title: t.coachHubPickerReciteTitle,
-            subtitle: t.coachHubPickerReciteSubtitle,
+            title: 'Réciter',
+            subtitle: 'Choisis la sourate à réciter',
             onPicked: (surah, verses) => Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -358,14 +253,14 @@ class _ReciteSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(t.coachHubReciteSurahTitle,
+                  Text('Réciter une sourate',
                       style: GoogleFonts.fraunces(
                           fontSize: 20,
                           fontWeight: FontWeight.w600,
                           color: AppColors.cream)),
                   const SizedBox(height: 5),
                   Text(
-                    t.coachHubReciteSurahSubtitle,
+                    'Suivi mot à mot, correction en direct',
                     style: GoogleFonts.manrope(
                         fontSize: 12.5, color: AppColors.brassLight),
                   ),
@@ -388,31 +283,13 @@ class _ErrorsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = AppLocalizations.of(context)!;
     final async = ref.watch(surahErrorSummariesProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _SectionTitle(t.coachHubErrorsSectionTitle,
-                  t.coachHubErrorsSectionSubtitle),
-            ),
-            // Remise à zéro (demande utilisateur 2026-07-22) : IRRÉVERSIBLE
-            // (efface tout l'historique, toutes sourates confondues) ->
-            // toujours confirmer avant, jamais un simple tap direct.
-            IconButton(
-              icon: const Icon(Icons.delete_outline_rounded,
-                  size: 20, color: AppColors.inkLight),
-              tooltip: t.coachHubResetErrorsTooltip,
-              onPressed: () => _confirmAndResetErrors(context, ref, t),
-            ),
-          ],
-        ),
+        const _SectionTitle(
+            'MES ERREURS', 'Par type, puis par sourate'),
         const _ErrorKindBreakdown(),
-        const _TajwidRuleBreakdown(),
         async.when(
           loading: () => const Padding(
             padding: EdgeInsets.all(24),
@@ -422,7 +299,7 @@ class _ErrorsSection extends ConsumerWidget {
           error: (e, _) => _Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Text(t.coachHubLoadErrorLog('$e'),
+              child: Text('Impossible de charger le journal : $e',
                   style: GoogleFonts.manrope(
                       fontSize: 12, color: AppColors.inkLight)),
             ),
@@ -437,14 +314,15 @@ class _ErrorsSection extends ConsumerWidget {
                       const Icon(Icons.check_circle_outline_rounded,
                           size: 36, color: AppColors.green600),
                       const SizedBox(height: 10),
-                      Text(t.coachHubNoErrorsTitle,
+                      Text('Aucune erreur journalisée',
                           style: GoogleFonts.manrope(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                               color: AppColors.ink)),
                       const SizedBox(height: 4),
                       Text(
-                        t.coachHubNoErrorsBody,
+                        'Récite depuis « Réciter » ou « Mémoriser » : les mots '
+                        'repris apparaîtront ici, regroupés par sourate.',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.manrope(
                             fontSize: 12, color: AppColors.inkLight),
@@ -472,139 +350,12 @@ class _ErrorsSection extends ConsumerWidget {
   }
 }
 
-/// Boîte de dialogue de confirmation puis remise à zéro complète du journal
-/// (demande utilisateur 2026-07-22). Invalide les 3 providers qui en
-/// dépendent pour que l'UI reflète immédiatement le vide, sans attendre un
-/// prochain rebuild déclenché ailleurs.
-Future<void> _confirmAndResetErrors(
-    BuildContext context, WidgetRef ref, AppLocalizations t) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(t.coachHubResetErrorsDialogTitle),
-      content: Text(t.coachHubResetErrorsDialogBody),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: Text(t.coachHubResetErrorsDialogCancel),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          style: TextButton.styleFrom(foregroundColor: Colors.red),
-          child: Text(t.coachHubResetErrorsDialogConfirm),
-        ),
-      ],
-    ),
-  );
-  if (confirmed != true) return;
-  await RecitationErrorLogService.instance.resetAll();
-  ref.invalidate(errorKindBreakdownProvider);
-  ref.invalidate(surahErrorSummariesProvider);
-  ref.invalidate(tajwidRuleBreakdownProvider);
-  if (context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(t.coachHubResetErrorsDone)),
-    );
-  }
-}
-
-/// Répartition GLOBALE des erreurs tajwid PAR RÈGLE PRÉCISE (demande
-/// utilisateur 2026-07-22) — même présentation que [_ErrorKindBreakdown]
-/// (barre empilée + légende), mais un cran plus fin : à l'intérieur du seau
-/// "Tajwid", QUELLE règle revient le plus souvent. Couleurs réutilisées de
-/// `kTajwidRuleInfo` (tajwid_help_sheet.dart) -- source de vérité unique déjà
-/// utilisée pour colorer le texte coranique, pas une nouvelle palette.
-class _TajwidRuleBreakdown extends ConsumerWidget {
-  const _TajwidRuleBreakdown();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = AppLocalizations.of(context)!;
-    final async = ref.watch(tajwidRuleBreakdownProvider);
-    return async.maybeWhen(
-      orElse: () => const SizedBox.shrink(),
-      data: (counts) {
-        if (counts.isEmpty) return const SizedBox.shrink();
-        final present = [...counts.keys]
-          ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _Card(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(t.coachHubRuleBreakdownTitle,
-                      style: GoogleFonts.manrope(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.ink)),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: SizedBox(
-                      height: 8,
-                      child: Row(
-                        children: [
-                          for (final r in present)
-                            Expanded(
-                              flex: counts[r]!,
-                              child: ColoredBox(
-                                  color: kTajwidRuleInfo[r.key]?.color ??
-                                      AppColors.inkLight),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 14,
-                    runSpacing: 6,
-                    children: [
-                      for (final r in present)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 9,
-                              height: 9,
-                              decoration: BoxDecoration(
-                                  color: kTajwidRuleInfo[r.key]?.color ??
-                                      AppColors.inkLight,
-                                  shape: BoxShape.circle),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              '${kTajwidRuleInfo[r.key]?.name(t) ?? r.key} · ${counts[r]}',
-                              style: GoogleFonts.manrope(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.ink),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
 class _SurahErrorTile extends ConsumerWidget {
   final SurahErrorSummary summary;
   const _SurahErrorTile({required this.summary});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = AppLocalizations.of(context)!;
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final s = summary.surah;
     // Le bouton « carte mentale » n'apparaît que si le contenu existe pour
     // cette sourate (12 sourates rédigées à ce jour) -- jamais un bouton mort.
@@ -629,20 +380,17 @@ class _SurahErrorTile extends ConsumerWidget {
                   fontWeight: FontWeight.w800,
                   color: AppColors.green800)),
         ),
-        title: Text(
-            isArabic ? '${s.number}. ${s.nameArabic}' : '${s.number}. ${s.nameSimple}',
-            textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
-            style: isArabic
-                ? GoogleFonts.scheherazadeNew(fontSize: 16, color: AppColors.ink)
-                : GoogleFonts.manrope(
-                    fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink)),
+        title: Text('${s.number}. ${s.nameSimple}',
+            style: GoogleFonts.manrope(
+                fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink)),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4, bottom: 2),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                t.coachHubVersesTouched(summary.versesTouched, s.versesCount),
+                '${summary.versesTouched} verset'
+                '${summary.versesTouched > 1 ? 's' : ''} sur ${s.versesCount}',
                 style: GoogleFonts.manrope(
                     fontSize: 11.5, color: AppColors.inkLight),
               ),
@@ -660,12 +408,10 @@ class _SurahErrorTile extends ConsumerWidget {
             ],
           ),
         ),
-        trailing: isArabic
-            ? null
-            : Text(s.nameArabic,
-                textDirection: TextDirection.rtl,
-                style: GoogleFonts.scheherazadeNew(
-                    fontSize: 18, color: AppColors.green800)),
+        trailing: Text(s.nameArabic,
+            textDirection: TextDirection.rtl,
+            style: GoogleFonts.scheherazadeNew(
+                fontSize: 18, color: AppColors.green800)),
         children: [
           if (hasMindMap)
             Padding(
@@ -674,7 +420,7 @@ class _SurahErrorTile extends ConsumerWidget {
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   icon: const Icon(Icons.hub_outlined, size: 18),
-                  label: Text(t.coachHubGoToMindMap),
+                  label: const Text('Situer dans la carte mentale'),
                   style: TextButton.styleFrom(
                       foregroundColor: AppColors.green700),
                   onPressed: () => Navigator.push(
@@ -684,7 +430,6 @@ class _SurahErrorTile extends ConsumerWidget {
                 ),
               ),
             ),
-          _SurahTajwidRuleChips(surahNumber: s.number),
           for (final a in summary.ayahs)
             _AyahErrorRow(surah: s, count: a),
           const SizedBox(height: 6),
@@ -694,77 +439,13 @@ class _SurahErrorTile extends ConsumerWidget {
   }
 }
 
-/// Puces compactes "règle · nombre" pour LES erreurs tajwid de CETTE sourate
-/// précisément (demande utilisateur 2026-07-22 : stats par sourate ET par
-/// règle, pas seulement l'une ou l'autre séparément). Masqué si la sourate
-/// n'a aucune erreur de type tajwid -- ne pas afficher une rangée vide.
-class _SurahTajwidRuleChips extends ConsumerWidget {
-  final int surahNumber;
-  const _SurahTajwidRuleChips({required this.surahNumber});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = AppLocalizations.of(context)!;
-    final async = ref.watch(surahTajwidRuleBreakdownProvider(surahNumber));
-    return async.maybeWhen(
-      orElse: () => const SizedBox.shrink(),
-      data: (counts) {
-        if (counts.isEmpty) return const SizedBox.shrink();
-        final present = [...counts.keys]
-          ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final r in present)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: (kTajwidRuleInfo[r.key]?.color ?? AppColors.inkLight)
-                        .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${kTajwidRuleInfo[r.key]?.name(t) ?? r.key} · ${counts[r]}',
-                    style: GoogleFonts.manrope(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.ink),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AyahErrorRow extends StatefulWidget {
+class _AyahErrorRow extends StatelessWidget {
   final Surah surah;
   final AyahErrorCount count;
   const _AyahErrorRow({required this.surah, required this.count});
 
   @override
-  State<_AyahErrorRow> createState() => _AyahErrorRowState();
-}
-
-class _AyahErrorRowState extends State<_AyahErrorRow> {
-  // Détail mot par mot replié par défaut (demande utilisateur 2026-07-22 :
-  // « en détaille le mot ou il ya erreur et type d'erreur ») -- un tap sur la
-  // ligne déplie/replie, pour ne pas alourdir la liste par sourate qui peut
-  // déjà compter des dizaines de versets.
-  bool _expanded = false;
-
-  @override
   Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
-    final surah = widget.surah;
-    final count = widget.count;
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 2, 14, 2),
       child: Container(
@@ -773,146 +454,39 @@ class _AyahErrorRowState extends State<_AyahErrorRow> {
           borderRadius: BorderRadius.circular(10),
         ),
         padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _expanded = !_expanded),
-                    child: Row(
-                      children: [
-                        Icon(
-                            _expanded
-                                ? Icons.expand_less
-                                : Icons.expand_more,
-                            size: 18, color: AppColors.inkLight),
-                        const SizedBox(width: 2),
-                        Expanded(
-                          child: Text(
-                              t.coachHubAyahErrorCount(
-                                  count.ayahNumber, count.count),
-                              style: GoogleFonts.manrope(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.ink)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: t.coachHubExplanationTooltip,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.psychology_alt_outlined,
-                      size: 19, color: AppColors.green700),
-                  onPressed: () => showCoachExplanation(
-                    context,
-                    surahNumber: surah.number,
-                    ayahNumber: count.ayahNumber,
-                    title: isArabic
-                        ? '${surah.nameArabic} — ${count.ayahNumber}'
-                        : '${surah.nameSimple} — verset ${count.ayahNumber}',
-                  ),
-                ),
-                IconButton(
-                  tooltip: t.coachHubReviewVerseTooltip,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.school_outlined,
-                      size: 19, color: AppColors.green700),
-                  onPressed: () => _openCoachForVerse(
-                      context, surah.number, count.ayahNumber),
-                ),
-              ],
+            Expanded(
+              child: Text('Verset ${count.ayahNumber}  ·  ${count.count} erreur'
+                  '${count.count > 1 ? 's' : ''}',
+                  style: GoogleFonts.manrope(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.ink)),
             ),
-            if (_expanded)
-              _AyahErrorDetails(surahNumber: surah.number, ayahNumber: count.ayahNumber),
+            IconButton(
+              tooltip: 'Explication',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.psychology_alt_outlined,
+                  size: 19, color: AppColors.green700),
+              onPressed: () => showCoachExplanation(
+                context,
+                surahNumber: surah.number,
+                ayahNumber: count.ayahNumber,
+                title: '${surah.nameSimple} — verset ${count.ayahNumber}',
+              ),
+            ),
+            IconButton(
+              tooltip: 'Revoir ce verset',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.school_outlined,
+                  size: 19, color: AppColors.green700),
+              onPressed: () => _openCoachForVerse(
+                  context, surah.number, count.ayahNumber),
+            ),
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Liste mot par mot des erreurs d'un verset, avec le type et -- pour les
-/// règles "frontière" (ikhafa/iqlab/idgham à cheval sur deux mots) -- la
-/// PAIRE de mots plutôt qu'un seul mot isolé (demande utilisateur 2026-07-22).
-class _AyahErrorDetails extends ConsumerWidget {
-  final int surahNumber;
-  final int ayahNumber;
-  const _AyahErrorDetails({required this.surahNumber, required this.ayahNumber});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = AppLocalizations.of(context)!;
-    final async = ref.watch(ayahErrorDetailsProvider(
-        (surahNumber: surahNumber, ayahNumber: ayahNumber)));
-    return async.maybeWhen(
-      orElse: () => const SizedBox.shrink(),
-      data: (entries) {
-        if (entries.isEmpty) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.only(top: 6, left: 24, right: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final e in entries)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          e.pairWord != null
-                              ? '${e.expectedWord}  ${e.pairWord}'
-                              : e.expectedWord,
-                          style: GoogleFonts.amiri(
-                              fontSize: 16, color: AppColors.ink),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Wrap(
-                          alignment: WrapAlignment.end,
-                          spacing: 4,
-                          runSpacing: 2,
-                          children: [
-                            if (e.rules.isEmpty)
-                              Text(recitationErrorKindLabel(t, e.kind),
-                                  style: GoogleFonts.manrope(
-                                      fontSize: 10.5,
-                                      color: AppColors.inkLight))
-                            else
-                              for (final r in e.rules)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: (kTajwidRuleInfo[r.key]?.color ??
-                                            AppColors.inkLight)
-                                        .withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    kTajwidRuleInfo[r.key]?.name(t) ?? r.key,
-                                    style: GoogleFonts.manrope(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.ink),
-                                  ),
-                                ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
@@ -1031,7 +605,6 @@ class _ErrorKindBreakdown extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = AppLocalizations.of(context)!;
     final async = ref.watch(errorKindBreakdownProvider);
     return async.maybeWhen(
       orElse: () => const SizedBox.shrink(),
@@ -1083,7 +656,7 @@ class _ErrorKindBreakdown extends ConsumerWidget {
                             ),
                             const SizedBox(width: 5),
                             Text(
-                              '${recitationErrorKindLabel(t, k)} · ${counts[k]}',
+                              '${recitationErrorKindLabel(k)} · ${counts[k]}',
                               style: GoogleFonts.manrope(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
@@ -1097,7 +670,10 @@ class _ErrorKindBreakdown extends ConsumerWidget {
                   // Ne pas laisser croire que « Tajwid » est une preuve : c'est
                   // une déduction par élimination (cf. classifyError).
                   Text(
-                    t.coachHubErrorNoteExplainer,
+                    'Lettre et Harakat = prononciation. « Tajwid » signifie '
+                    'que ni les lettres ni les voyelles n\'expliquent l\'écart '
+                    'sur un mot porteur d\'une règle — c\'est une déduction, '
+                    'pas une preuve que la règle a été ratée.',
                     style: GoogleFonts.manrope(
                         fontSize: 10.5,
                         height: 1.35,

@@ -75,16 +75,12 @@ flutter:
   uses-material-design: true
   generate: true
   assets:
-    - assets/mindmaps/fr/
-    - assets/mindmaps/en/
-    - assets/mindmaps/ar/
+    - assets/mindmaps/
     - assets/illumination/
     - assets/data/quran_search_index.json
     - assets/data/quran_chapters.json
     - assets/data/quran_verses.json
     - assets/data/rule_reliability.json
-    - assets/data/gop_word_baseline.json
     - assets/data/quran_rules_annotated.json
-    - assets/data/quran_rules_boundary.json
     - assets/illumination/medallion.svg
     - assets/illumination/quran_pattern_tile.svg

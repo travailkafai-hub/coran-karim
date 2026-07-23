@@ -252,14 +252,6 @@ abstract class RecitationVerifier {
   /// textuel historique.
   bool get alignmentActive;
 
-  /// Vrai si le modèle chargé expose une TÊTE TAJWID (architecture à deux
-  /// têtes, 2026-07-22 — cf. FastConformerVerifier.hasRuleHead).
-  ///
-  /// ⚠️ Sur un modèle à une seule tête, aucune règle n'est jamais détectée :
-  /// conclure « règle non réalisée » dans ce cas ferait passer orange TOUS les
-  /// mots porteurs d'une règle. Toujours tester ceci avant de juger le tajwid.
-  bool get hasRuleHead;
-
   /// Repositionne l'ancre d'alignement natif (correction/recul) — la prochaine
   /// passe compare l'audio au mot [index], pas à la suite du texte.
   Future<void> setAlignmentAnchor(int index);
@@ -401,8 +393,6 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   Stream<AlignPayload> get alignedWords => _alignCtrl.stream;
   @override
   bool get alignmentActive => _alignmentActive;
-  @override
-  bool get hasRuleHead => _fastConformer.hasRuleHead;
   @override
   String? get lastAudioPath => _lastAudioPath;
 
@@ -860,10 +850,6 @@ class MockRecitationVerifier implements RecitationVerifier {
   Stream<AlignPayload> get alignedWords => const Stream.empty();
   @override
   bool get alignmentActive => false;
-  @override
-  // Mock : pas de modèle, donc pas de tête tajwid -- la vérification tajwid
-  // reste inactive, ce qui est le comportement sûr (cf. unrealizedRulesFor).
-  bool get hasRuleHead => false;
   @override
   Future<void> setAlignmentAnchor(int index) async {}
   @override

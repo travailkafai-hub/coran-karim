@@ -1,23 +1,23 @@
 {
-  "model": "fastconformer-dual-head-v1/stageb-convhead-v1 (ConvTajwidHead)",
-  "measured": "2026-07-23",
+  "model": "hybrid-rules-v1-stage1b-final",
+  "measured": "2026-07-19",
   "rules": {
-    "madda_necessary": {"status": "ready", "recall": 1.00},
+    "madda_necessary": {"status": "not_ready", "recall": 0.72},
     "madda_obligatory": {"status": "ready", "recall": 0.96},
-    "madda_permissible": {"status": "ready", "recall": 0.99},
-    "madda_normal": {"status": "ready", "recall": 0.95},
-    "ghunnah": {"status": "ready", "recall": 0.95},
-    "ikhafa": {"status": "ready", "recall": 0.96},
-    "ikhafa_shafawi": {"status": "ready", "recall": 0.97},
-    "idgham_ghunnah": {"status": "ready", "recall": 0.97},
-    "idgham_shafawi": {"status": "ready", "recall": 0.94},
+    "madda_permissible": {"status": "ready", "recall": 0.98},
+    "madda_normal": {"status": "ready", "recall": 0.96},
+    "ghunnah": {"status": "ready", "recall": 0.98},
+    "ikhafa": {"status": "ready", "recall": 0.94},
+    "ikhafa_shafawi": {"status": "ready", "recall": 0.96},
+    "idgham_ghunnah": {"status": "ready", "recall": 1.0},
+    "idgham_shafawi": {"status": "ready", "recall": 0.92},
     "iqlab": {"status": "ready", "recall": 0.96},
-    "idgham_wo_ghunnah": {"status": "ready", "recall": 0.95},
+    "idgham_wo_ghunnah": {"status": "ready", "recall": 0.94},
     "idgham_mutajanisayn": {"status": "insufficient_data"},
     "idgham_mutaqaribayn": {"status": "insufficient_data"},
-    "laam_shamsiyah": {"status": "ready", "recall": 0.96},
-    "ham_wasl": {"status": "ready", "recall": 0.96},
-    "slnt": {"status": "ready", "recall": 0.95},
-    "qalaqah": {"status": "ready", "recall": 0.97}
+    "laam_shamsiyah": {"status": "ready", "recall": 1.0},
+    "ham_wasl": {"status": "ready", "recall": 0.94},
+    "slnt": {"status": "ready", "recall": 0.90},
+    "qalaqah": {"status": "ready", "recall": 0.96}
   }
 }
