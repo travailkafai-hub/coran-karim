@@ -74,10 +74,22 @@ def mel_filterbank_slaney(sr=16000, n_fft=512, n_mels=80, fmin=0.0, fmax=8000.0)
 
 def compute_mel_features(audio: np.ndarray, sr=16000, n_fft=512, win_length=400,
                           hop_length=160, n_mels=80, preemph=0.97,
-                          log_zero_guard=2.0 ** -24, norm_eps=1e-5) -> np.ndarray:
+                          log_zero_guard=2.0 ** -24, norm_eps=1e-5,
+                          normalize="per_feature") -> np.ndarray:
     """Reproduit AudioToMelSpectrogramPreprocessor(pcd).forward() en eval mode
     (dither desactive car self.training=False dans NeMo).
-    Retourne (n_mels, T) deja log + normalise par-feature (mean/std, ddof=1)."""
+    Retourne (n_mels, T) deja log + normalise par-feature (mean/std, ddof=1).
+
+    `normalize` (ajout 2026-07-23, le defaut "per_feature" ne change RIEN au
+    comportement historique valide bit-exact contre NeMo) :
+      "per_feature"   mean/std recalcules sur CE buffer (comportement NeMo/Kotlin)
+      None            log-mel BRUT, non normalise (sert a calculer des stats fixes)
+      (mean, std)     stats FIXES imposees, shape (n_mels,1) ou (n_mels,)
+    Motivation : la normalisation per_feature derive quand le buffer grossit ou
+    se remplit de silence -- cause mesuree de l'effondrement des transcriptions
+    sur device (cf. BufferedTranscriber header v2/v3 et le test
+    test_norm_fixed_vs_perfeature.py). Ce parametre permet de MESURER
+    l'alternative "stats fixes" sans toucher au chemin par defaut."""
     audio = audio.astype(np.float64)
 
     # 1) Preemphasis
@@ -115,6 +127,13 @@ def compute_mel_features(audio: np.ndarray, sr=16000, n_fft=512, win_length=400,
     log_mel = np.log(mel + log_zero_guard)
 
     # 7) Normalisation per_feature (par bin mel, ddof=1) + epsilon
+    if normalize is None:
+        return log_mel.astype(np.float32)  # brut, pour calculer des stats fixes
+    if normalize != "per_feature":
+        mean, std = normalize
+        mean = np.asarray(mean, dtype=np.float64).reshape(n_mels, 1)
+        std = np.asarray(std, dtype=np.float64).reshape(n_mels, 1) + norm_eps
+        return ((log_mel - mean) / std).astype(np.float32)
     mean = log_mel.mean(axis=1, keepdims=True)
     std = log_mel.std(axis=1, ddof=1, keepdims=True)
     std = std + norm_eps
