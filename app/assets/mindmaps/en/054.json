@@ -1,0 +1,59 @@
+{
+  "surah": 54,
+  "name_ar": "القمر",
+  "name_latin": "Al-Qamar",
+  "ayat_count": 55,
+  "theme_central": "The Qur'an made easy for remembrance — a refrain repeated after every account of destruction (Nuh, 'Ad, Thamud, Lot, Pharaoh), as if to ask: who then will remember?",
+  "sources_note": "Five peoples confirmed (grokipedia, Wikipedia Al-Qamar) and refrain repeated at verses 17, 22, 32, 40 precisely sourced.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "The moon split asunder",
+      "resume": "The Hour draws near, the moon has split — a sign rejected by the disbelievers as \"continuous magic\".",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "The moon split asunder, sign rejected, mockery of the disbelievers" }
+      ]
+    },
+    {
+      "range": "9-17",
+      "title": "Nuh, the flood",
+      "resume": "Rejection of Nuh by his people, the flood, rescue in the ark.",
+      "children": [
+        { "v": "9-17", "cat": "recits", "t": "Nuh rejected, the flood, \"the Qur'an made easy for remembrance\"" }
+      ]
+    },
+    {
+      "range": "18-22",
+      "title": "'Ad",
+      "resume": "Destruction of the people of 'Ad by a howling, freezing wind.",
+      "children": [
+        { "v": "18-22", "cat": "recits", "t": "'Ad destroyed by a howling wind" }
+      ]
+    },
+    {
+      "range": "23-32",
+      "title": "Thamud, the she-camel",
+      "resume": "Rejection of Salih and the sign of the she-camel, destruction by a single Cry.",
+      "children": [
+        { "v": "23-32", "cat": "recits", "t": "Thamud, the she-camel, destruction by a single Cry" }
+      ]
+    },
+    {
+      "range": "33-46",
+      "title": "Lot, Pharaoh",
+      "resume": "Lot's people destroyed by a rain of stones; Pharaoh and his people punished.",
+      "children": [
+        { "v": "33-40", "cat": "recits", "t": "Lot's people destroyed by a rain of stones, except his believing family" },
+        { "v": "41-46", "cat": "recits", "t": "Pharaoh and his people punished for rejecting the signs" }
+      ]
+    },
+    {
+      "range": "47-55",
+      "title": "Closing",
+      "resume": "The criminals in delusion, everything recorded in a Book; the pious in gardens with an Omnipotent Sovereign.",
+      "children": [
+        { "v": "47-55", "cat": "eschatologie", "t": "Everything recorded in a Book; the pious in Paradise with the Omnipotent Sovereign" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "surah": 16,
+  "name_ar": "النحل",
+  "name_latin": "An-Nahl",
+  "ayat_count": 128,
+  "theme_central": "Allah's blessings (ni'mah) as a cumulative proof of His Oneness — in the sky, the earth, livestock, fruits, and down to the bee, which gives the surah its name.",
+  "sources_note": "Parts 1-2 (1-25, 26-89) sourced (grokipedia, detailed categories of blessings). The rest (90-128) reconstructed from very well-known landmarks: the verse of justice 16:90, the final verse on patience 16:128.",
+  "branches": [
+    {
+      "range": "1-25",
+      "title": "Introduction: impatience vs blessings",
+      "resume": "Response to the disbelievers' impatience demanding punishment, opening of the long list of blessings.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "Response to impatience demanding punishment; creation of the heavens, livestock, roads" },
+        { "v": "10-18", "cat": "signes", "t": "Water, plants, day and night, mountains as signs" },
+        { "v": "19-25", "cat": "argumentation", "t": "Comparison between the Creator and that which creates nothing" }
+      ]
+    },
+    {
+      "range": "26-44",
+      "title": "The fate of the plotters, human messengers",
+      "resume": "Humiliation of ancient plotters, the angels' reception, confirmation that the messengers are men.",
+      "children": [
+        { "v": "26-32", "cat": "eschatologie", "t": "Fate of ancient plotters, the angels' reception of the pious and the disbelievers" },
+        { "v": "33-40", "cat": "eschatologie", "t": "Awaiting sudden punishment, reaffirmation of the resurrection" },
+        { "v": "41-44", "cat": "croyance", "t": "Emigration rewarded, confirmation that the messengers are men" }
+      ]
+    },
+    {
+      "range": "45-65",
+      "title": "Warning, infanticide denounced",
+      "resume": "Everything bowing down before Allah, the contempt for daughters denounced, the water that revives the earth.",
+      "children": [
+        { "v": "45-50", "cat": "eschatologie", "t": "Warning against sudden punishment, universal prostration" },
+        { "v": "51-60", "cat": "ethique", "t": "Man's ingratitude, the contempt for daughters (infanticide) denounced" },
+        { "v": "61-65", "cat": "signes", "t": "If Allah punished immediately, nothing would remain; the water that revives the earth" }
+      ]
+    },
+    {
+      "range": "66-83",
+      "title": "The blessings in detail",
+      "resume": "Milk from livestock, fruits, the honey of the bee (the surah's namesake), houses and clothing.",
+      "children": [
+        { "v": "66-69", "cat": "signes", "t": "Milk from livestock, fruits, the honey of the bee as healing" },
+        { "v": "70-76", "cat": "ethique", "t": "Old age, unequal provision, the parable of the slave and the generous free man" },
+        { "v": "77-83", "cat": "signes", "t": "Knowledge of the unseen, the blessings of houses, clothing, shade" }
+      ]
+    },
+    {
+      "range": "84-100",
+      "title": "Scene of Judgment, justice and commitments",
+      "resume": "Every nation with its witness; the verse of justice and kindness; honouring one's commitments.",
+      "children": [
+        { "v": "84-89", "cat": "eschatologie", "t": "Every nation with its witness, the Prophet a witness for his community" },
+        { "v": "90", "cat": "ethique", "t": "\"Allah commands justice, kindness, and giving to relatives\"" },
+        { "v": "91-100", "cat": "legislation", "t": "Honouring one's commitments, refuge in Allah against Satan" }
+      ]
+    },
+    {
+      "range": "101-128",
+      "title": "Refutation, Ibrahim as model, closing",
+      "resume": "Refutation of the accusation of fabrication, the parable of the ungrateful city, Ibrahim as a model, a call to wisdom.",
+      "children": [
+        { "v": "101-111", "cat": "argumentation", "t": "Refutation of the accusation of fabrication, the case of forced apostasy" },
+        { "v": "112-119", "cat": "ethique", "t": "The parable of the ungrateful city (security then famine), lawful and unlawful food" },
+        { "v": "120-123", "cat": "recits", "t": "Ibrahim, a model community (umma) in himself, his path to follow" },
+        { "v": "124-128", "cat": "ethique", "t": "The Sabbath instituted, a call to wisdom and fine exhortation, final patience" }
+      ]
+    }
+  ]
+}

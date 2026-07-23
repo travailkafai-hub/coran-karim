@@ -1,0 +1,56 @@
+{
+  "surah": 8,
+  "name_ar": "الأنفال",
+  "name_latin": "Al-Anfal",
+  "ayat_count": 75,
+  "theme_central": "A divine debriefing of the battle of Badr: the spoils and the victory belong to Allah; true strength comes from faith and obedience, not numbers.",
+  "sources_note": "Well-sourced 4-part structure (azlyrahman substack / grokipedia, Ramadan Reading #8): 1-4, 5-18, 19-71, 72-75.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "The spoils, the true qualities of the believer",
+      "resume": "A dispute over the sharing of the spoils, immediately reframed: the true prize of victory is the quality of one's faith.",
+      "children": [
+        { "v": "1", "cat": "legislation", "t": "The spoils belong to Allah and His messenger" },
+        { "v": "2-4", "cat": "croyance", "t": "Qualities of the true believer: a trembling heart, tawakkul, prayer, charity" }
+      ]
+    },
+    {
+      "range": "5-18",
+      "title": "The divine account of Badr",
+      "resume": "Initial reluctance of the believers, Allah's promise, direct interventions: sleep, rain, angels.",
+      "children": [
+        { "v": "5-8", "cat": "recits", "t": "Reluctance of the believers before setting out, discussion on how to proceed" },
+        { "v": "9-14", "cat": "croyance", "t": "Promise of reinforcement by 1,000 angels, the purifying rain" },
+        { "v": "15-18", "cat": "eschatologie", "t": "\"It was not you who killed them, but Allah\" — theological climax" }
+      ]
+    },
+    {
+      "range": "19-40",
+      "title": "Obedience, the plot of the disbelievers",
+      "resume": "Call to obey Allah and His messenger, the Furqan, the Meccans' plot and their promised defeat.",
+      "children": [
+        { "v": "19-29", "cat": "ethique", "t": "Obedience to Allah and the messenger, not betraying trust, the Furqan (discernment)" },
+        { "v": "30-40", "cat": "argumentation", "t": "The disbelievers' plot against the Prophet, their announced defeat" }
+      ]
+    },
+    {
+      "range": "41-71",
+      "title": "Laws of the spoils, firmness, prisoners",
+      "resume": "Distribution of the spoils (khums), firmness in battle, broken treaties, the status of prisoners of war.",
+      "children": [
+        { "v": "41-52", "cat": "legislation", "t": "Distribution of the spoils (khums), firmness required in battle" },
+        { "v": "53-64", "cat": "legislation", "t": "Treaties broken by the enemy, deterrent military preparation" },
+        { "v": "65-71", "cat": "legislation", "t": "Encouragement to fight, status and ransom of prisoners of war" }
+      ]
+    },
+    {
+      "range": "72-75",
+      "title": "Closing: principles of the community",
+      "resume": "Mutual support between emigrants and helpers, timeless principles beyond the event of Badr.",
+      "children": [
+        { "v": "72-75", "cat": "ethique", "t": "Alliance and mutual support between emigrants (muhajirun) and helpers (ansar)" }
+      ]
+    }
+  ]
+}

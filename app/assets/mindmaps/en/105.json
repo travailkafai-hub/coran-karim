@@ -1,0 +1,26 @@
+{
+  "surah": 105,
+  "name_ar": "الفيل",
+  "name_latin": "Al-Fil",
+  "ayat_count": 5,
+  "theme_central": "The reminder of the army of the elephant, annihilated by flocks of birds — recent historical proof of Allah's protection over the sacred House.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "The people of the elephant",
+      "resume": "Your Lord rendered vain the scheme of the people of the elephant.",
+      "children": [
+        { "v": "1-2", "cat": "recits", "t": "Scheme of the people of the elephant rendered vain by Allah" }
+      ]
+    },
+    {
+      "range": "3-5",
+      "title": "Punishment by the birds",
+      "resume": "Flocks of birds (ababil) hurling stones of hardened clay, the army reduced to chewed-up straw.",
+      "children": [
+        { "v": "3-5", "cat": "recits", "t": "Punishment by the ababil birds, army annihilated" }
+      ]
+    }
+  ]
+}

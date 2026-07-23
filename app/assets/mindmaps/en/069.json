@@ -1,0 +1,52 @@
+{
+  "surah": 69,
+  "name_ar": "الحاقة",
+  "name_latin": "Al-Haqqah",
+  "ayat_count": 52,
+  "theme_central": "\"The Inevitable Reality\": five past destructions as small-scale proof, before the cosmic scene of the Judgment where everyone receives their record in the right hand or the left.",
+  "sources_note": "Ring structure precisely sourced (ayahguide.com, Reflection & Tadabbur): 1-3, 4-12, 13-18, 18-37, 38-52.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "The Inevitable Reality announced",
+      "resume": "Threefold emphatic affirmation of the certainty of al-Haqqah.",
+      "children": [
+        { "v": "1-3", "cat": "eschatologie", "t": "Threefold affirmation of the certainty of al-Haqqah, the Inevitable Reality" }
+      ]
+    },
+    {
+      "range": "4-12",
+      "title": "Destruction of the ancient peoples",
+      "resume": "Five nations destroyed in rapid succession: Thamud, 'Ad, Pharaoh, Nuh — each a miniature proof of al-Haqqah.",
+      "children": [
+        { "v": "4-8", "cat": "recits", "t": "Thamud destroyed by the Cry, 'Ad by a howling wind for seven nights and eight days" },
+        { "v": "9-12", "cat": "recits", "t": "Pharaoh and the peoples before him, Nuh saved by the ark" }
+      ]
+    },
+    {
+      "range": "13-18",
+      "title": "Cosmic dissolution",
+      "resume": "The Trumpet, the earth crushed to dust, the sky torn apart, eight angels bearing the Throne.",
+      "children": [
+        { "v": "13-18", "cat": "eschatologie", "t": "The Trumpet, earth crushed to dust, sky torn apart, eight angels bearing the Throne" }
+      ]
+    },
+    {
+      "range": "19-37",
+      "title": "Individual judgment",
+      "resume": "Shift from the cosmic to the personal: record received in the right hand or the left.",
+      "children": [
+        { "v": "19-24", "cat": "eschatologie", "t": "Record received in the right hand, radiant joy in Paradise" },
+        { "v": "25-37", "cat": "eschatologie", "t": "Record received in the left hand, bitter regret, torment in Hell" }
+      ]
+    },
+    {
+      "range": "38-52",
+      "title": "Prophetic defense",
+      "resume": "The Qur'an defended: the word of a noble messenger, neither poet nor soothsayer; truth from the Lord of the worlds.",
+      "children": [
+        { "v": "38-52", "cat": "croyance", "t": "Defense of the Qur'an: neither poetry nor divination, truth from the Lord of the worlds" }
+      ]
+    }
+  ]
+}

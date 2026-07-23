@@ -1,0 +1,62 @@
+{
+  "surah": 40,
+  "name_ar": "غافر",
+  "name_latin": "Ghafir",
+  "ayat_count": 85,
+  "theme_central": "A great divine trial in three acts — the heavenly scene, the historical trial of Musa against Pharaoh (carried by the brave believer from his own family), then the ultimate trial of the hereafter.",
+  "sources_note": "3-part structure precisely sourced (grokipedia, \"divine court case\"): 1-20, 21-55, 56-85.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Opening, heavenly scene",
+      "resume": "The Book from Allah, the angels bearing the Throne intercede for the believers.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "The Book from Allah, the angels intercede for the believers" }
+      ]
+    },
+    {
+      "range": "10-20",
+      "title": "The disbelievers' call to the Fire",
+      "resume": "Reminder that they had been warned, scene of the Judgment where Allah alone will judge with full equity.",
+      "children": [
+        { "v": "10-20", "cat": "eschatologie", "t": "The disbelievers' call to the Fire, Allah's sole and equitable judgment" }
+      ]
+    },
+    {
+      "range": "21-35",
+      "title": "The believer from Pharaoh's family",
+      "resume": "Fate of the ancient, mightier peoples, courageous and unique plea of the believer from within Pharaoh's own circle.",
+      "children": [
+        { "v": "21-27", "cat": "argumentation", "t": "Fate of the ancient, mightier peoples, Pharaoh orders the killing of the believers' sons" },
+        { "v": "28-35", "cat": "recits", "t": "The believer from Pharaoh's family courageously pleads on behalf of Musa" }
+      ]
+    },
+    {
+      "range": "36-55",
+      "title": "Pharaoh and Haman, dispute in Hell",
+      "resume": "Pharaoh's attempt to \"reach\" Musa's God, drowning, dispute of the damned.",
+      "children": [
+        { "v": "36-46", "cat": "recits", "t": "Pharaoh orders Haman to build a tower, drowning, fate contrasted with the believer" },
+        { "v": "47-55", "cat": "eschatologie", "t": "Dispute between the damned in Hell, patience asked of the Prophet" }
+      ]
+    },
+    {
+      "range": "56-68",
+      "title": "The certain Hour",
+      "resume": "Baseless dispute over the signs, supplication answered, warning against arrogance.",
+      "children": [
+        { "v": "56-59", "cat": "argumentation", "t": "Baseless dispute over Allah's signs, the certain Hour" },
+        { "v": "60-68", "cat": "croyance", "t": "Supplication answered, warning against arrogance, creation in stages" }
+      ]
+    },
+    {
+      "range": "69-85",
+      "title": "Messengers told and untold",
+      "resume": "Fate of the ancient generations, blessings of livestock, belated faith useless once the punishment is seen.",
+      "children": [
+        { "v": "69-78", "cat": "argumentation", "t": "Messengers, some told and some not, fate of the ancient generations" },
+        { "v": "79-85", "cat": "eschatologie", "t": "Blessings of livestock, belated faith useless once the punishment is seen" }
+      ]
+    }
+  ]
+}

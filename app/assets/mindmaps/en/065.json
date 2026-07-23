@@ -1,0 +1,43 @@
+{
+  "surah": 65,
+  "name_ar": "الطلاق",
+  "name_latin": "At-Talaq",
+  "ayat_count": 12,
+  "theme_central": "Refining the divorce laws already laid down in Al-Baqarah and An-Nisa — precise method, waiting period, maintenance — interwoven with exhortations to piety: whoever fears Allah, He grants him a way out.",
+  "sources_note": "2-section structure precisely sourced (alim.org): divorce laws, then fate of the disbelievers and reward of the believers.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Method of divorce",
+      "resume": "Divorcing during the period of purity, counting the 'idda; whoever fears Allah, He grants him a way out.",
+      "children": [
+        { "v": "1-3", "cat": "legislation", "t": "Method of divorce, waiting period; whoever fears Allah finds a way out" }
+      ]
+    },
+    {
+      "range": "4-7",
+      "title": "Special cases, maintenance",
+      "resume": "Waiting period for menopausal or pregnant women; obligation to house and maintain during the 'idda.",
+      "children": [
+        { "v": "4", "cat": "legislation", "t": "Waiting period for menopausal, non-menstruating, or pregnant women" },
+        { "v": "5-7", "cat": "legislation", "t": "Obligation to house and maintain the woman during the 'idda, according to one's means" }
+      ]
+    },
+    {
+      "range": "8-11",
+      "title": "Fate of the rebellious cities",
+      "resume": "Cities that refused the command of their Lord; a Reminder and a Messenger sent to guide toward the light.",
+      "children": [
+        { "v": "8-11", "cat": "eschatologie", "t": "Fate of the rebellious cities, Messenger sent to guide toward the light" }
+      ]
+    },
+    {
+      "range": "12",
+      "title": "Closing",
+      "resume": "Seven heavens and seven earths, Allah's knowledge encompasses everything.",
+      "children": [
+        { "v": "12", "cat": "croyance", "t": "Seven heavens and seven earths, Allah's knowledge encompassing everything" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "surah": 85,
+  "name_ar": "البروج",
+  "name_latin": "Al-Buruj",
+  "ayat_count": 22,
+  "theme_central": "The account of the People of the Ditch, burned alive for their faith in Allah alone — the most extreme persecution only reveals the Lord's ultimate rigor and mercy.",
+  "sources_note": "Narrative of Ashab al-Ukhdud (People of the Ditch) widely taught and undisputed; classical 5-movement structure.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Cosmic oath",
+      "resume": "Oath by the sky with its constellations, the promised Day, witness and witnessed.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Oath by the sky with its constellations, the promised Day" }
+      ]
+    },
+    {
+      "range": "4-9",
+      "title": "The People of the Ditch",
+      "resume": "Cursed be the people of the fueled ditch, sitting to watch the torment of the believers for their faith alone.",
+      "children": [
+        { "v": "4-9", "cat": "recits", "t": "The People of the Ditch burn believers for their faith in Allah alone" }
+      ]
+    },
+    {
+      "range": "10-11",
+      "title": "Contrasting fate",
+      "resume": "Punishment of Gehenna for the unrepentant persecutors; Paradise for those who believed and did good.",
+      "children": [
+        { "v": "10-11", "cat": "eschatologie", "t": "Gehenna for the persecutors, Paradise for the believers" }
+      ]
+    },
+    {
+      "range": "12-16",
+      "title": "Allah's rigor and love",
+      "resume": "The rigor of your Lord who creates and recreates; the Forgiving, the Loving, Master of the glorious Throne.",
+      "children": [
+        { "v": "12-16", "cat": "croyance", "t": "Allah's rigor and mercy, Master of the glorious Throne" }
+      ]
+    },
+    {
+      "range": "17-22",
+      "title": "Closing",
+      "resume": "Account of the armies of Pharaoh and Thamud; glorious Qur'an on a Preserved Tablet.",
+      "children": [
+        { "v": "17-22", "cat": "croyance", "t": "Account of Pharaoh and Thamud, the Qur'an preserved on the Guarded Tablet" }
+      ]
+    }
+  ]
+}

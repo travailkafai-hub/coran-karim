@@ -1,0 +1,26 @@
+{
+  "surah": 111,
+  "name_ar": "المسد",
+  "name_latin": "Al-Masad",
+  "ayat_count": 5,
+  "theme_central": "Curse upon Abu Lahab, fierce opponent of the Prophet: neither his fortune nor his rank will save him from the Fire, nor will his complicit wife.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Curse upon Abu Lahab",
+      "resume": "May the two hands of Abu Lahab perish; his fortune will be of no use to him.",
+      "children": [
+        { "v": "1-2", "cat": "argumentation", "t": "Curse upon Abu Lahab, his fortune useless" }
+      ]
+    },
+    {
+      "range": "3-5",
+      "title": "Punishment, his complicit wife",
+      "resume": "He will burn in a flaming Fire, as will his wife, the carrier of firewood.",
+      "children": [
+        { "v": "3-5", "cat": "eschatologie", "t": "Punishment of the Fire for Abu Lahab and his complicit wife" }
+      ]
+    }
+  ]
+}

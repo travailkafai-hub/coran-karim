@@ -1,0 +1,50 @@
+{
+  "surah": 92,
+  "name_ar": "الليل",
+  "name_latin": "Al-Layl",
+  "ayat_count": 21,
+  "theme_central": "Two paths, two facilitations: for whoever gives and fears Allah, the path of ease is made easy; for whoever is stingy and self-sufficient, the path of hardship.",
+  "sources_note": "Content widely taught and undisputed: classical 5-movement structure around the two opposing paths.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Oaths, divergent efforts",
+      "resume": "Oath by the night and the day, the creation of male and female; your efforts are diverse.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Oaths by the night and the day, diverse human efforts" }
+      ]
+    },
+    {
+      "range": "5-7",
+      "title": "The path of ease",
+      "resume": "Whoever gives and fears Allah, and testifies to the best reward: the path of ease is made easy.",
+      "children": [
+        { "v": "5-7", "cat": "ethique", "t": "Generosity and fear of Allah, the path of ease made easy" }
+      ]
+    },
+    {
+      "range": "8-11",
+      "title": "The path of hardship",
+      "resume": "Whoever is stingy and self-sufficient, and denies the best reward: the path of hardship made easy.",
+      "children": [
+        { "v": "8-11", "cat": "ethique", "t": "Stinginess and denial, path of hardship; wealth will be of no use" }
+      ]
+    },
+    {
+      "range": "12-16",
+      "title": "Guidance, warning",
+      "resume": "Guidance belongs to Allah, as do the hereafter and this life; warning of a Fire for the most wretched.",
+      "children": [
+        { "v": "12-16", "cat": "eschatologie", "t": "Guidance belonging to Allah, Fire reserved for the most wretched" }
+      ]
+    },
+    {
+      "range": "17-21",
+      "title": "The most pious",
+      "resume": "Kept away from the Fire is whoever gives to purify himself, expecting nothing in return but the Face of his Lord.",
+      "children": [
+        { "v": "17-21", "cat": "ethique", "t": "The most pious gives expecting nothing, seeking Allah's Face alone" }
+      ]
+    }
+  ]
+}

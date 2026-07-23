@@ -1,0 +1,51 @@
+{
+  "surah": 44,
+  "name_ar": "الدخان",
+  "name_latin": "Ad-Dukhan",
+  "ayat_count": 59,
+  "theme_central": "The Qur'an sent down during a blessed night (the Night of Decree); between the smoke announced as punishment and Pharaoh's fate, the same question: believe before it is too late.",
+  "sources_note": "3-section structure precisely sourced (thelastdialogue.org): Pharaoh drowned, certainty of the Judgment, reward of the pious.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Opening, the blessed Night",
+      "resume": "The Qur'an sent down during a blessed night; warning to those who doubt.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "The Qur'an sent down during the blessed Night (Laylat al-Qadr)" }
+      ]
+    },
+    {
+      "range": "10-16",
+      "title": "The announced smoke",
+      "resume": "Source of the surah's name: a visible smoke announced as punishment, temporary relief promised.",
+      "children": [
+        { "v": "10-16", "cat": "eschatologie", "t": "The smoke (dukhan) announced as punishment, temporary relief" }
+      ]
+    },
+    {
+      "range": "17-33",
+      "title": "Musa, Pharaoh, exodus",
+      "resume": "Musa sent to Pharaoh, exodus, drowning, legacy transmitted to the Children of Israel.",
+      "children": [
+        { "v": "17-33", "cat": "recits", "t": "Musa sent to Pharaoh, exodus, drowning, legacy to the Children of Israel" }
+      ]
+    },
+    {
+      "range": "34-42",
+      "title": "Doubt of the Meccans",
+      "resume": "The disbelievers of Mecca doubt the resurrection like the ancients; the Day of Separation.",
+      "children": [
+        { "v": "34-42", "cat": "eschatologie", "t": "Doubt of the Meccans about the resurrection, the Day of Separation" }
+      ]
+    },
+    {
+      "range": "43-59",
+      "title": "Zaqqum, Hell, Paradise",
+      "resume": "The tree of Zaqqum, fate of the criminals in Hell, description of Paradise for the pious, closing.",
+      "children": [
+        { "v": "43-50", "cat": "eschatologie", "t": "The tree of Zaqqum, fate of the criminals in Hell" },
+        { "v": "51-59", "cat": "eschatologie", "t": "Description of Paradise for the pious, the Qur'an made easy for reflection" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "surah": 47,
+  "name_ar": "محمد",
+  "name_latin": "Muhammad",
+  "ayat_count": 38,
+  "theme_central": "A sharp contrast between faith and disbelief: the deeds of some rendered void, the condition of others set right by Allah.",
+  "sources_note": "Precisely sourced division (grokipedia, detailed verse breakdown): 1-6, 7-10, 11-15, 16-19, 20-26, 27-32, 33-38.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Fundamental contrast",
+      "resume": "The disbelievers see their deeds rendered void, the believers see their condition set right.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Deeds of the disbelievers void, condition of the believers set right" }
+      ]
+    },
+    {
+      "range": "7-10",
+      "title": "Allah's help, destroyed cities",
+      "resume": "If you help Allah, He will help you; fate of the destroyed cities mightier than them.",
+      "children": [
+        { "v": "7-10", "cat": "ethique", "t": "Helping Allah's cause to be helped, fate of the destroyed cities" }
+      ]
+    },
+    {
+      "range": "11-19",
+      "title": "Rivers of Paradise, hypocritical criticism",
+      "resume": "Rivers of water, milk, wine and honey in Paradise; criticism of the hypocritical reading of the Qur'an.",
+      "children": [
+        { "v": "11-15", "cat": "eschatologie", "t": "Rivers of Paradise contrasted with the fate of the disbelievers" },
+        { "v": "16-19", "cat": "argumentation", "t": "Criticism of the hypocritical interpretation, truthfulness of the Prophet affirmed" }
+      ]
+    },
+    {
+      "range": "20-26",
+      "title": "The hypocrites' aversion to fighting",
+      "resume": "Preference for worldly life, false oaths, aversion to jihad.",
+      "children": [
+        { "v": "20-26", "cat": "argumentation", "t": "Hypocrites' aversion to jihad, false oaths sworn" }
+      ]
+    },
+    {
+      "range": "27-32",
+      "title": "Regret of the hypocrites",
+      "resume": "Bitter regret of the hypocrites on the Day of Judgment, contrasted with the joy of the believers.",
+      "children": [
+        { "v": "27-32", "cat": "eschatologie", "t": "Regret of the hypocrites at the Judgment, joy of the believers" }
+      ]
+    },
+    {
+      "range": "33-38",
+      "title": "Obedience, closing",
+      "resume": "Not invalidating one's deeds through disbelief, warning against greed, Allah's self-sufficiency.",
+      "children": [
+        { "v": "33-38", "cat": "legislation", "t": "Obedience to Allah and the Messenger, warning against greed" }
+      ]
+    }
+  ]
+}

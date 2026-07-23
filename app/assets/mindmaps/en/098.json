@@ -1,0 +1,34 @@
+{
+  "surah": 98,
+  "name_ar": "البينة",
+  "name_latin": "Al-Bayyinah",
+  "ayat_count": 8,
+  "theme_central": "The clear Proof (al-bayyina) that should have united the People of the Book and the polytheists around exclusive worship — instead, it definitively separates the best from the worst of creatures.",
+  "sources_note": "Content widely taught and undisputed, short but structured in 3 clear movements.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "The clear Proof",
+      "resume": "Disbelievers and polytheists were not going to cease until the coming of a Messenger reciting purified scrolls.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "A Messenger sent with purified scrolls, the clear Proof" }
+      ]
+    },
+    {
+      "range": "4-5",
+      "title": "The religion of uprightness",
+      "resume": "Division arose after the Proof was received; a single command: worship Allah exclusively, pray, pay zakat.",
+      "children": [
+        { "v": "4-5", "cat": "adoration", "t": "Exclusive worship, prayer and zakat: the religion of uprightness" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Best and worst of creatures",
+      "resume": "Disbelievers destined for Hell, worst of creatures; believing doers of good, best of creatures, gardens of Eden.",
+      "children": [
+        { "v": "6-8", "cat": "eschatologie", "t": "Final contrast: worst and best of creatures" }
+      ]
+    }
+  ]
+}

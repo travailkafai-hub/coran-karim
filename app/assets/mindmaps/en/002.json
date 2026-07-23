@@ -1,0 +1,101 @@
+{
+  "surah": 2,
+  "name_ar": "البقرة",
+  "name_latin": "Al-Baqarah",
+  "ayat_count": 286,
+  "theme_central": "The covenant (mithaq) between Allah and His creatures: believing the message, drawing lessons from the history of the Children of Israel, and living by the Law that flows from it.",
+  "sources_note": "Ring (chiastic) structure of 9 sections, corroborated by an English-language structural analysis (academia.edu, Structural Analysis) and a French-language source (la-recherche-du-savoir.fr): the sections mirror each other (1↔9, 2↔8, 3↔7, 4↔6) around the central pivot (142-152, the change of Qibla). The fine detail of the legislative block 178-253 still needs verse-by-verse verification before production use.",
+  "branches": [
+    {
+      "range": "1-20",
+      "title": "Faith and disbelief",
+      "resume": "Introduction mirroring the conclusion (285-286): believers, disbelievers, hypocrites.",
+      "children": [
+        { "v": "1-7", "cat": "croyance", "t": "The Book, guidance for the God-conscious; description of believers and disbelievers" },
+        { "v": "8-20", "cat": "argumentation", "t": "The hypocrites, parables of fire and rain" }
+      ]
+    },
+    {
+      "range": "21-39",
+      "title": "Creation, Adam",
+      "resume": "The Oneness of the Creator, the challenge of the Qur'an, Adam and stewardship on earth.",
+      "children": [
+        { "v": "21-29", "cat": "signes", "t": "Oneness of the Creator, challenge to produce a similar surah" },
+        { "v": "30-39", "cat": "recits", "t": "Adam, stewardship on earth, the fall" }
+      ]
+    },
+    {
+      "range": "40-103",
+      "title": "The Children of Israel",
+      "resume": "Recalling the favours granted to the Children of Israel and their repeated rebellions.",
+      "children": [
+        { "v": "40-74", "cat": "recits", "t": "Favours recalled, the golden calf, the sacrificed cow" },
+        { "v": "75-103", "cat": "argumentation", "t": "Hardening of the heart, rejection of messengers, the magic at Babel" }
+      ]
+    },
+    {
+      "range": "104-141",
+      "title": "Ibrahim, the Kaaba",
+      "resume": "Warning against hostile People of the Book; Ibrahim and Isma'il build the Kaaba.",
+      "children": [
+        { "v": "104-123", "cat": "argumentation", "t": "Warning against the People of the Book, exclusive merit claimed by each group" },
+        { "v": "124-141", "cat": "recits", "t": "Ibrahim and Isma'il build the Kaaba, the Milla of Ibrahim" }
+      ]
+    },
+    {
+      "range": "142-152",
+      "title": "The change of Qibla (central pivot)",
+      "resume": "The direction of prayer changes toward the Kaaba; unity of the community.",
+      "children": [
+        { "v": "142-145", "cat": "legislation", "t": "New direction of prayer" },
+        { "v": "146-152", "cat": "croyance", "t": "The Kaaba as the unity of the community, remembrance of Allah" }
+      ]
+    },
+    {
+      "range": "153-177",
+      "title": "Trials, true piety",
+      "resume": "Patience in trial; al-birr, true piety, as opposed to mere formalism.",
+      "children": [
+        { "v": "153-157", "cat": "ethique", "t": "Patience and prayer as help in times of trial" },
+        { "v": "158-177", "cat": "ethique", "t": "Al-birr (true piety) defined, beyond formal ritual" }
+      ]
+    },
+    {
+      "range": "178-253",
+      "title": "Laws of the community",
+      "resume": "A dense legislative block: retaliation, wills, fasting, fighting, pilgrimage, marriage, divorce.",
+      "children": [
+        { "v": "178-179", "cat": "legislation", "t": "The law of retaliation (qisas)" },
+        { "v": "180-182", "cat": "legislation", "t": "The will (wasiyya)" },
+        { "v": "183-187", "cat": "adoration", "t": "The fast of the month of Ramadan" },
+        { "v": "188", "cat": "ethique", "t": "Not to unlawfully appropriate the property of others" },
+        { "v": "190-195", "cat": "legislation", "t": "Defensive fighting (qital)" },
+        { "v": "196-203", "cat": "adoration", "t": "The pilgrimage (hajj and umra)" },
+        { "v": "204-220", "cat": "ethique", "t": "Contrast between good and evil, prohibition of wine and games of chance" },
+        { "v": "221-242", "cat": "legislation", "t": "Marriage, divorce, breastfeeding, waiting periods" },
+        { "v": "243-253", "cat": "recits", "t": "Fighting for the cause of Allah, the account of Talut, Jalut and Dawud" }
+      ]
+    },
+    {
+      "range": "254-284",
+      "title": "Spending, charity",
+      "resume": "Charity, Ayat al-Kursi, spending in the path of Allah, the prohibition of riba, debt contracts.",
+      "children": [
+        { "v": "254-260", "cat": "croyance", "t": "Charity, Ayat al-Kursi, the resurrection shown to Ibrahim" },
+        { "v": "261-274", "cat": "ethique", "t": "Spending in the path of Allah (infaq)" },
+        { "v": "275-281", "cat": "legislation", "t": "Prohibition of riba (usurious interest)" },
+        { "v": "282-283", "cat": "legislation", "t": "Written debt contracts, the role of witnesses (the longest verse in the Qur'an)" },
+        { "v": "284", "cat": "croyance", "t": "Everything in the heavens and the earth belongs to Allah" }
+      ]
+    },
+    {
+      "range": "285-286",
+      "title": "Conclusion",
+      "resume": "Collective profession of faith and final supplication, echoing the opening.",
+      "children": [
+        { "v": "285", "cat": "croyance", "t": "The Messenger and the believers believe in Allah, His angels, His books, His messengers" },
+        { "v": "286", "cat": "croyance", "t": "Final supplication: \"Our Lord, do not burden us beyond what we can bear\"" }
+      ]
+    }
+  ]
+}

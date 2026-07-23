@@ -1,0 +1,34 @@
+{
+  "surah": 97,
+  "name_ar": "القدر",
+  "name_latin": "Al-Qadr",
+  "ayat_count": 5,
+  "theme_central": "The Night of Decree, worth more than a thousand months — the angels and the Spirit descend during it, and it is peace until the appearance of dawn.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1",
+      "title": "Revelation during the Night of Decree",
+      "resume": "The Qur'an sent down during the Night of Decree (Laylat al-Qadr).",
+      "children": [
+        { "v": "1", "cat": "croyance", "t": "Revelation of the Qur'an during the Night of Decree" }
+      ]
+    },
+    {
+      "range": "2-3",
+      "title": "Value of the Night",
+      "resume": "It is worth more than a thousand months.",
+      "children": [
+        { "v": "2-3", "cat": "croyance", "t": "The Night of Decree is worth more than a thousand months" }
+      ]
+    },
+    {
+      "range": "4-5",
+      "title": "Descent of the angels, peace",
+      "resume": "The angels and the Spirit descend during it with Allah's permission; it is peace until dawn.",
+      "children": [
+        { "v": "4-5", "cat": "adoration", "t": "Descent of the angels and the Spirit, peace until dawn" }
+      ]
+    }
+  ]
+}

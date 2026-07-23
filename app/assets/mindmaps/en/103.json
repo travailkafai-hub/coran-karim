@@ -1,0 +1,26 @@
+{
+  "surah": 103,
+  "name_ar": "العصر",
+  "name_latin": "Al-Asr",
+  "ayat_count": 3,
+  "theme_central": "Oath by Time: humanity is in loss, except those who unite faith, good deeds, and mutual exhortation to truth and endurance.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Time, the loss",
+      "resume": "Oath by Time: humanity is certainly in loss.",
+      "children": [
+        { "v": "1-2", "cat": "croyance", "t": "Oath by Time, humanity in loss" }
+      ]
+    },
+    {
+      "range": "3",
+      "title": "The four conditions of salvation",
+      "resume": "Spared are those who believe, do good, exhort one another to truth and to endurance.",
+      "children": [
+        { "v": "3", "cat": "ethique", "t": "Faith, good deeds, exhortation to truth and endurance" }
+      ]
+    }
+  ]
+}

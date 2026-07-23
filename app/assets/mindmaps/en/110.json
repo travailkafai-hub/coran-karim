@@ -1,0 +1,26 @@
+{
+  "surah": 110,
+  "name_ar": "النصر",
+  "name_latin": "An-Nasr",
+  "ayat_count": 3,
+  "theme_central": "When Allah's help and victory come, the response is not celebration but praise and asking for forgiveness.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Help and victory",
+      "resume": "Allah's help and victory; people entering Allah's religion in multitudes.",
+      "children": [
+        { "v": "1-2", "cat": "croyance", "t": "Allah's help, victory, people entering the religion in multitudes" }
+      ]
+    },
+    {
+      "range": "3",
+      "title": "Praise and forgiveness",
+      "resume": "Glorifying the praise of one's Lord and asking His forgiveness, the Ever-Relenting.",
+      "children": [
+        { "v": "3", "cat": "adoration", "t": "Praise and asking for forgiveness in the face of victory" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "surah": 3,
+  "name_ar": "آل عمران",
+  "name_latin": "Ali 'Imran",
+  "ayat_count": 200,
+  "theme_central": "Steadfastness (thabat) in faith facing both intellectual trials (the People of the Book) and material trials (the battle of Uhud).",
+  "sources_note": "4-section structure cross-checked on alsalam.ac.uk (Thematic Overview: Surah Al 'Imran) and islamophile.org — corroborated.",
+  "branches": [
+    {
+      "range": "1-32",
+      "title": "Fundamental truths",
+      "resume": "Revealed shortly after Badr: the Book, clear and ambiguous verses, the religion accepted by Allah.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "The Book, unequivocal verses (muhkam) and multi-layered ones (mutashabih), sound vs deviant hearts" },
+        { "v": "10-17", "cat": "eschatologie", "t": "Fate of the disbelievers on the Day of Judgment, deep longing of the believers" },
+        { "v": "18-20", "cat": "croyance", "t": "Allah's testimony to His Oneness, the religion accepted by Him is Islam" },
+        { "v": "21-32", "cat": "argumentation", "t": "Warning against rejecting the signs, call to follow the Messenger" }
+      ]
+    },
+    {
+      "range": "33-63",
+      "title": "The family of Imran, dialogue with the Christians",
+      "resume": "Birth of Maryam and Yahya, annunciation and miracles of Aissa, debate with the delegation of Najran (9 AH).",
+      "children": [
+        { "v": "33-37", "cat": "recits", "t": "Election of the family of Imran, vow and birth of Maryam" },
+        { "v": "38-41", "cat": "recits", "t": "Zakariyya and the announcement of the birth of Yahya" },
+        { "v": "42-51", "cat": "recits", "t": "Annunciation to Maryam, birth and miracles of Aissa (Jesus)" },
+        { "v": "52-63", "cat": "argumentation", "t": "The disciples, debate with the Christians of Najran, the Mubahala" }
+      ]
+    },
+    {
+      "range": "64-120",
+      "title": "Call to unity, warning against the People of the Book",
+      "resume": "Common word with the People of the Book, warning against their schemes, the Kaaba, cohesion of the community.",
+      "children": [
+        { "v": "64-80", "cat": "argumentation", "t": "Call to a common word, exposing the manipulations of the People of the Book" },
+        { "v": "81-95", "cat": "croyance", "t": "Covenant of the prophets, the true religion, authentic piety" },
+        { "v": "96-97", "cat": "adoration", "t": "The Kaaba, the first place of worship established, obligation of pilgrimage" },
+        { "v": "98-120", "cat": "ethique", "t": "Warning against internal discord, alliances not to be formed" }
+      ]
+    },
+    {
+      "range": "121-200",
+      "title": "The battle of Uhud, endurance",
+      "resume": "A review of the battle of Uhud: the trial, the hypocrites, consolation, final exhortation to patience.",
+      "children": [
+        { "v": "121-129", "cat": "recits", "t": "Preparations before the battle of Uhud" },
+        { "v": "130-138", "cat": "legislation", "t": "Reminder of the prohibition of riba, exhortation to piety" },
+        { "v": "139-155", "cat": "recits", "t": "Course of the trial, the withdrawal of the hypocrites" },
+        { "v": "156-175", "cat": "eschatologie", "t": "The martyrs are alive with Allah, consolation in the face of the enemy's plot" },
+        { "v": "176-189", "cat": "ethique", "t": "Not to be grieved by the respite granted to the disbelievers" },
+        { "v": "190-200", "cat": "signes", "t": "Reflection of \"those of understanding\" (ulul albab), final supplication, exhortation to patience" }
+      ]
+    }
+  ]
+}

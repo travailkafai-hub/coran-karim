@@ -1,0 +1,76 @@
+{
+  "surah": 12,
+  "name_ar": "يوسف",
+  "name_latin": "Yusuf",
+  "ayat_count": 111,
+  "theme_central": "\"The best of narratives\" (ahsan al-qasas): patience in the face of trial, trust in Allah's plan even in adversity, and final forgiveness.",
+  "sources_note": "A single continuous narrative, a very widely known and uncontested storyline — no need to cross-check structural sources beyond a direct reading of the text.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Opening, the dream",
+      "resume": "\"The best of narratives\"; Yusuf's prophetic dream, his father's warning.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Introduction of the Qur'an, \"the best of narratives\"" },
+        { "v": "4-6", "cat": "recits", "t": "Yusuf's dream (eleven stars, the sun and the moon bowing down), Ya'qub's warning" }
+      ]
+    },
+    {
+      "range": "7-20",
+      "title": "The brothers' plot",
+      "resume": "The brothers' jealousy, Yusuf thrown into the well, sold as a slave in Egypt.",
+      "children": [
+        { "v": "7-15", "cat": "recits", "t": "The brothers' jealousy, Yusuf thrown into the well" },
+        { "v": "16-18", "cat": "recits", "t": "False blood on the shirt, Ya'qub's patience" },
+        { "v": "19-20", "cat": "recits", "t": "Found by a caravan, sold in Egypt" }
+      ]
+    },
+    {
+      "range": "21-34",
+      "title": "The attempted seduction",
+      "resume": "At the great chamberlain's house, his wife's attempted seduction, Yusuf chooses prison over sin.",
+      "children": [
+        { "v": "21-29", "cat": "recits", "t": "Al-Aziz's wife attempts to seduce Yusuf, the torn shirt as evidence" },
+        { "v": "30-34", "cat": "ethique", "t": "The women of the city, Yusuf prefers prison to sin" }
+      ]
+    },
+    {
+      "range": "35-49",
+      "title": "In prison, interpreting dreams",
+      "resume": "Interpretation of the two fellow prisoners' dreams, then the king's dream.",
+      "children": [
+        { "v": "35-42", "cat": "recits", "t": "In prison, interpreting two fellow prisoners' dreams, a discreet call to Oneness" },
+        { "v": "43-49", "cat": "croyance", "t": "The king's dream (seven fat and lean cows), interpreted by Yusuf" }
+      ]
+    },
+    {
+      "range": "50-68",
+      "title": "Release, in charge of the granaries",
+      "resume": "Yusuf publicly cleared, appointed in charge of Egypt's granaries; his brothers come to buy grain.",
+      "children": [
+        { "v": "50-57", "cat": "recits", "t": "Release, publicly cleared, appointed in charge of Egypt's granaries" },
+        { "v": "58-68", "cat": "recits", "t": "The brothers come to buy grain, do not recognize him" }
+      ]
+    },
+    {
+      "range": "69-93",
+      "title": "The ruse of the cup",
+      "resume": "A scheme to keep Benjamin, the brothers' distress, Ya'qub loses his sight from grief, Yusuf finally reveals himself.",
+      "children": [
+        { "v": "69-79", "cat": "recits", "t": "The ruse of the hidden cup to keep Benjamin with him" },
+        { "v": "80-88", "cat": "recits", "t": "The brothers' distress, Ya'qub's grief-stricken loss of sight" },
+        { "v": "89-93", "cat": "recits", "t": "Yusuf finally reveals himself to his brothers, forgiveness granted" }
+      ]
+    },
+    {
+      "range": "94-111",
+      "title": "Reunion, conclusion",
+      "resume": "Ya'qub regains his sight, the family reunited in Egypt, fulfilment of the initial dream, lessons drawn.",
+      "children": [
+        { "v": "94-98", "cat": "recits", "t": "Ya'qub regains his sight thanks to Yusuf's shirt, forgiveness sought" },
+        { "v": "99-100", "cat": "recits", "t": "Reunion in Egypt, the parents and brothers bow down — fulfilment of the initial dream" },
+        { "v": "101-111", "cat": "argumentation", "t": "Yusuf's supplication, lessons drawn from the story for Prophet Muhammad" }
+      ]
+    }
+  ]
+}

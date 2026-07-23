@@ -1,0 +1,52 @@
+{
+  "surah": 78,
+  "name_ar": "النبأ",
+  "name_latin": "An-Naba",
+  "ayat_count": 40,
+  "theme_central": "\"The great tiding\" over which they differ: from observing the signs of creation (the first twenty verses) to the certainty of the Judgment (the last twenty).",
+  "sources_note": "Two-part (20/20) structure precisely sourced (grokipedia, Heavenly Order): 1-5, 6-16, 17-40.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "The great tiding",
+      "resume": "About what do they question one another? About the great tiding over which they differ; soon they will know.",
+      "children": [
+        { "v": "1-5", "cat": "argumentation", "t": "The great tiding (an-naba) over which they differ" }
+      ]
+    },
+    {
+      "range": "6-16",
+      "title": "Signs of creation",
+      "resume": "The earth as a cradle, mountains as pegs, creation in pairs, night as rest, seven solid heavens, abundant water.",
+      "children": [
+        { "v": "6-11", "cat": "signes", "t": "Earth as a cradle, mountains as pegs, pairs created, night and sleep" },
+        { "v": "12-16", "cat": "signes", "t": "Seven solid heavens, a blazing lamp, abundant water, gardens and crops" }
+      ]
+    },
+    {
+      "range": "17-20",
+      "title": "The Day of Distinction",
+      "resume": "The Trumpet, heavens opened as gates, mountains carried off like a mirage.",
+      "children": [
+        { "v": "17-20", "cat": "eschatologie", "t": "The Day of Distinction appointed, the Trumpet, mountains carried off" }
+      ]
+    },
+    {
+      "range": "21-30",
+      "title": "Hell",
+      "resume": "Hell lying in wait, dwelling of the rebellious, neither coolness nor drink except boiling water and pus.",
+      "children": [
+        { "v": "21-30", "cat": "eschatologie", "t": "Hell lying in wait, dwelling of the rebellious, prolonged punishment" }
+      ]
+    },
+    {
+      "range": "31-40",
+      "title": "Success of the pious, closing",
+      "resume": "Gardens and overflowing cup for the pious; that Day when the Spirit and the angels stand in rows.",
+      "children": [
+        { "v": "31-36", "cat": "eschatologie", "t": "Success of the pious, gardens, overflowing cup, no vain speech nor lying" },
+        { "v": "37-40", "cat": "eschatologie", "t": "The Spirit and the angels in rows; the disbeliever will wish he were dust" }
+      ]
+    }
+  ]
+}

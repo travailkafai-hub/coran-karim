@@ -1,0 +1,52 @@
+{
+  "surah": 49,
+  "name_ar": "الحجرات",
+  "name_latin": "Al-Hujurat",
+  "ayat_count": 18,
+  "theme_central": "Short but extremely dense: the code of good manners (akhlaq) that founds a harmonious society — from verifying information to the affirmation that only piety confers nobility.",
+  "sources_note": "Well-sourced structure (alim.org, thelastdialogue.org): 1-5, 6-9, then social ethics and brotherhood widely documented.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Manners toward Allah and the Prophet",
+      "resume": "Not to precede Allah and His messenger, to lower one's voice; hence the surah's name, those who call out from behind the private chambers (hujurat).",
+      "children": [
+        { "v": "1-3", "cat": "ethique", "t": "Not to precede Allah and His messenger, lowering one's voice in his presence" },
+        { "v": "4-5", "cat": "ethique", "t": "Those who call out from behind the private chambers lack reason" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Verifying information",
+      "resume": "If a corrupt person brings news, verify before acting so as not to harm a people out of ignorance.",
+      "children": [
+        { "v": "6-8", "cat": "ethique", "t": "Verifying information before acting, not harming out of ignorance" }
+      ]
+    },
+    {
+      "range": "9-10",
+      "title": "Reconciliation, brotherhood",
+      "resume": "Reconciling two groups of believers in conflict; the believers are brothers.",
+      "children": [
+        { "v": "9-10", "cat": "legislation", "t": "Reconciliation between believers in conflict, brotherhood of faith" }
+      ]
+    },
+    {
+      "range": "11-13",
+      "title": "Mockery, slander, true nobility",
+      "resume": "Not to mock, not to slander; mankind created diverse in order to know one another; only piety confers nobility.",
+      "children": [
+        { "v": "11-12", "cat": "ethique", "t": "Not to mock, not to insult one another, avoiding suspicion and backbiting" },
+        { "v": "13", "cat": "croyance", "t": "Diversity of peoples in order to know one another; only piety confers nobility" }
+      ]
+    },
+    {
+      "range": "14-18",
+      "title": "True faith vs verbal declaration",
+      "resume": "The desert Arabs say they believe but faith has not yet entered their hearts; true believers defined, closing.",
+      "children": [
+        { "v": "14-18", "cat": "croyance", "t": "True faith of the true believers, distinct from mere verbal declaration" }
+      ]
+    }
+  ]
+}

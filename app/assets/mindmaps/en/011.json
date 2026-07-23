@@ -1,0 +1,79 @@
+{
+  "surah": 11,
+  "name_ar": "هود",
+  "name_latin": "Hud",
+  "ayat_count": 123,
+  "theme_central": "The inevitability of divine justice in the face of human arrogance — an almost continuous series of peoples destroyed for rejecting their prophet.",
+  "sources_note": "Key verses confirmed by cross-checking (grokipedia / al-islam.org): Nuh 25-49, Hud 50-60, Salih 61-68. The rest (Ibrahim/Lot, Shu'ayb, Musa, closing) reconstructed from well-established landmarks, the classic pattern of repeated accounts with the formula \"O my people, worship Allah, you have no other god but Him.\"",
+  "branches": [
+    {
+      "range": "1-24",
+      "title": "Opening",
+      "resume": "The Book confirmed, the challenge to produce ten similar surahs, contrast between those who want this world and sincere believers.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "The Book confirmed in detail, worship Allah alone" },
+        { "v": "5-11", "cat": "ethique", "t": "Man's attitude in the face of ease and trial" },
+        { "v": "12-14", "cat": "argumentation", "t": "The challenge to produce ten surahs like the Qur'an" },
+        { "v": "15-24", "cat": "eschatologie", "t": "Contrast between those who want this world and sincere believers" }
+      ]
+    },
+    {
+      "range": "25-49",
+      "title": "Nuh",
+      "resume": "Nuh's call to his people, mockery, building the ark, the flood, the son who refuses to board.",
+      "children": [
+        { "v": "25-35", "cat": "recits", "t": "Nuh's call to his people, mockery from the notables" },
+        { "v": "36-44", "cat": "recits", "t": "Building the ark, the flood, the son who refuses to board" },
+        { "v": "45-49", "cat": "recits", "t": "Nuh's supplication for his son, Allah's answer, end of the account" }
+      ]
+    },
+    {
+      "range": "50-60",
+      "title": "Hud",
+      "resume": "The prophet Hud's call to the people of 'Ad, rejection, destruction by a furious wind.",
+      "children": [
+        { "v": "50-53", "cat": "recits", "t": "Hud's call to the people of 'Ad" },
+        { "v": "54-60", "cat": "eschatologie", "t": "Rejection of the message, destruction by the wind" }
+      ]
+    },
+    {
+      "range": "61-68",
+      "title": "Salih",
+      "resume": "Call to the people of Thamud, the sign of the she-camel, destruction by the Cry.",
+      "children": [
+        { "v": "61-64", "cat": "recits", "t": "Salih's call, the sign of the she-camel" },
+        { "v": "65-68", "cat": "eschatologie", "t": "The slaughter of the she-camel, destruction by the Cry" }
+      ]
+    },
+    {
+      "range": "69-83",
+      "title": "Ibrahim and Lot",
+      "resume": "The angels announce to Ibrahim the birth of Ishaq, then go to Lot to destroy Sodom.",
+      "children": [
+        { "v": "69-73", "cat": "recits", "t": "The angels announce to Ibrahim the birth of Ishaq" },
+        { "v": "74-76", "cat": "ethique", "t": "Ibrahim intercedes for the people of Lot" },
+        { "v": "77-83", "cat": "recits", "t": "The angels at Lot's house, the destruction of Sodom" }
+      ]
+    },
+    {
+      "range": "84-95",
+      "title": "Shu'ayb",
+      "resume": "Call to the people of Madyan against fraud in trade, rejection, destruction.",
+      "children": [
+        { "v": "84-87", "cat": "legislation", "t": "Shu'ayb's call, denouncing fraud in trade" },
+        { "v": "88-95", "cat": "eschatologie", "t": "Rejection of the message, destruction of the people of Madyan" }
+      ]
+    },
+    {
+      "range": "96-123",
+      "title": "Musa and closing",
+      "resume": "Brief reminder of Musa and Pharaoh; these accounts are lessons, final exhortation to uprightness and patience.",
+      "children": [
+        { "v": "96-99", "cat": "recits", "t": "Musa sent to Pharaoh, rejection, destruction" },
+        { "v": "100-108", "cat": "eschatologie", "t": "These accounts are lessons; the fate of the damned and the blessed" },
+        { "v": "109-115", "cat": "ethique", "t": "Remaining upright as commanded; prayer erases bad deeds" },
+        { "v": "116-123", "cat": "croyance", "t": "Patience, relying entirely on Allah" }
+      ]
+    }
+  ]
+}

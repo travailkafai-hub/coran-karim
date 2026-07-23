@@ -1,0 +1,34 @@
+{
+  "surah": 100,
+  "name_ar": "العاديات",
+  "name_latin": "Al-'Adiyat",
+  "ayat_count": 11,
+  "theme_central": "Oath by the panting warhorses to denounce man's ingratitude and his passionate attachment to wealth — while everything will be overturned and made known.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Oath by the warhorses",
+      "resume": "Panting warhorses, striking sparks, charging at dawn in a cloud of dust.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Oath by the panting warhorses charging at dawn" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Ingratitude, attachment to wealth",
+      "resume": "Man is ungrateful toward his Lord, passionately attached to riches.",
+      "children": [
+        { "v": "6-8", "cat": "ethique", "t": "Man's ingratitude, passionate attachment to riches" }
+      ]
+    },
+    {
+      "range": "9-11",
+      "title": "Resurrection, closing",
+      "resume": "Contents of the graves overturned, secrets of hearts brought to light, Allah perfectly informed.",
+      "children": [
+        { "v": "9-11", "cat": "eschatologie", "t": "Resurrection, secrets brought to light, Allah's omniscience" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "surah": 5,
+  "name_ar": "المائدة",
+  "name_latin": "Al-Ma'idah",
+  "ayat_count": 120,
+  "theme_central": "Fulfilling covenants (al-wafa' bil-'uqud) — toward Allah, between people — through the history of covenants broken by the Children of Israel and the Christians.",
+  "sources_note": "4-part structure following imamghazali.org (Thematic Explanation); the last surah revealed in its entirety (verse 3 = the last verse revealed).",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "Foundations of the covenant",
+      "resume": "Respecting contracts, lawful food, purification, reminder of the covenant.",
+      "children": [
+        { "v": "1-5", "cat": "legislation", "t": "Respecting contracts, lawful food (halal), ritual slaughter, completion of the religion" },
+        { "v": "6", "cat": "adoration", "t": "Ablution (wudu) and purification with earth (tayammum)" },
+        { "v": "7-11", "cat": "ethique", "t": "Reminder of the covenant, justice even toward an enemy people" }
+      ]
+    },
+    {
+      "range": "12-86",
+      "title": "Broken covenants, the People of the Book",
+      "resume": "History of the covenants broken by the Children of Israel, then critique of the Christian trinitarian dogma.",
+      "children": [
+        { "v": "12-26", "cat": "recits", "t": "Broken covenant, Musa and the 40 years of wandering in the Holy Land" },
+        { "v": "27-32", "cat": "recits", "t": "The account of Adam's two sons (Cain and Abel)" },
+        { "v": "33-40", "cat": "legislation", "t": "Fighting corruption on earth, punishment for theft" },
+        { "v": "41-50", "cat": "argumentation", "t": "Warning against judging by laws other than Allah's" },
+        { "v": "51-71", "cat": "ethique", "t": "Alliances not to be formed against the faith, reciprocal warning" },
+        { "v": "72-86", "cat": "argumentation", "t": "Refutation of the trinitarian dogma" }
+      ]
+    },
+    {
+      "range": "87-108",
+      "title": "Moral and social rules",
+      "resume": "Dietary and ritual prohibitions, the sanctuary of the Kaaba, rules of witnessing.",
+      "children": [
+        { "v": "87-89", "cat": "ethique", "t": "Not forbidding good lawful things, expiation for a broken oath" },
+        { "v": "90-93", "cat": "legislation", "t": "Prohibition of wine and games of chance" },
+        { "v": "94-100", "cat": "adoration", "t": "Prohibitions of the pilgrimage (hunting), sanctity of the Kaaba" },
+        { "v": "101-108", "cat": "legislation", "t": "Not asking embarrassing questions, rules of testamentary witnessing" }
+      ]
+    },
+    {
+      "range": "109-120",
+      "title": "Eschatological accountability",
+      "resume": "Allah questions the messengers, the table spread requested by the disciples of Aissa, final judgment.",
+      "children": [
+        { "v": "109-111", "cat": "eschatologie", "t": "Allah questions the messengers on the Day of Judgment" },
+        { "v": "112-115", "cat": "recits", "t": "The table spread (al-ma'ida) requested by the disciples of Aissa" },
+        { "v": "116-120", "cat": "croyance", "t": "Aissa disavows the divinity attributed to him" }
+      ]
+    }
+  ]
+}

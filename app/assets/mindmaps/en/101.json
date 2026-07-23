@@ -1,0 +1,34 @@
+{
+  "surah": 101,
+  "name_ar": "القارعة",
+  "name_latin": "Al-Qari'ah",
+  "ayat_count": 11,
+  "theme_central": "\"The Calamity\": men like scattered moths, mountains like carded wool — everything then hinges on the weight of the scale of deeds.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "The Calamity",
+      "resume": "What is the Calamity? A question repeated to underline its gravity.",
+      "children": [
+        { "v": "1-3", "cat": "eschatologie", "t": "The Calamity announced, question repeated about its gravity" }
+      ]
+    },
+    {
+      "range": "4-5",
+      "title": "Men and mountains overturned",
+      "resume": "Men like scattered moths, mountains like carded wool.",
+      "children": [
+        { "v": "4-5", "cat": "eschatologie", "t": "Men like scattered moths, mountains like carded wool" }
+      ]
+    },
+    {
+      "range": "6-11",
+      "title": "The scale of deeds",
+      "resume": "Heavy scale: pleasant life; light scale: welcomed by a blazing Fire.",
+      "children": [
+        { "v": "6-11", "cat": "eschatologie", "t": "Heavy or light scale, fate determined, blazing fire" }
+      ]
+    }
+  ]
+}

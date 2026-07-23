@@ -1,0 +1,26 @@
+{
+  "surah": 104,
+  "name_ar": "الهمزة",
+  "name_latin": "Al-Humazah",
+  "ayat_count": 9,
+  "theme_central": "Woe to the slanderer who amasses a fortune believing it will make him eternal — the Hutamah awaits him, a fire that rises to the hearts.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "The slanderer, the fortune hoarder",
+      "resume": "Woe to every slandering backbiter who amasses and counts his fortune, believing it eternal.",
+      "children": [
+        { "v": "1-3", "cat": "ethique", "t": "Slanderer hoarding fortune, illusion of eternity" }
+      ]
+    },
+    {
+      "range": "4-9",
+      "title": "The Hutamah, closing",
+      "resume": "He will be cast into the Hutamah, Allah's kindled fire that rises to the hearts, closing in on them in columns.",
+      "children": [
+        { "v": "4-9", "cat": "eschatologie", "t": "The Hutamah, kindled fire closing in on the slanderer" }
+      ]
+    }
+  ]
+}

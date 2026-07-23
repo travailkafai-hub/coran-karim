@@ -1,0 +1,42 @@
+{
+  "surah": 83,
+  "name_ar": "المطففين",
+  "name_latin": "Al-Mutaffifin",
+  "ayat_count": 36,
+  "theme_central": "From cheating in measure and weight — a failure of the most concrete everyday justice — to the final reversal: those who laughed at the believers will themselves become objects of laughter.",
+  "sources_note": "Content widely taught and undisputed: Sijjin (register of the wicked) and 'Illiyyin (register of the righteous) are well-established classical landmarks.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Woe to the cheaters",
+      "resume": "Demanding full measure when buying, giving less when selling or weighing; do they not think they will be resurrected?",
+      "children": [
+        { "v": "1-6", "cat": "legislation", "t": "Cheating in measure and weight, the coming resurrection" }
+      ]
+    },
+    {
+      "range": "7-17",
+      "title": "Register of the wicked (Sijjin)",
+      "resume": "Sealed register of the wicked; a veil will cover them that Day from the sight of their Lord.",
+      "children": [
+        { "v": "7-17", "cat": "eschatologie", "t": "Register of the wicked in Sijjin, veil preventing them from seeing their Lord" }
+      ]
+    },
+    {
+      "range": "18-28",
+      "title": "Register of the righteous ('Illiyyin)",
+      "resume": "Register of the righteous, witnessed by those brought near; a sealed drink of musk mixed with Tasnim.",
+      "children": [
+        { "v": "18-28", "cat": "eschatologie", "t": "Register of the righteous in 'Illiyyin, drink of musk and Tasnim" }
+      ]
+    },
+    {
+      "range": "29-36",
+      "title": "The reversal",
+      "resume": "The criminals used to laugh at the believers in this world; that Day, the believers will laugh in turn, from their couches.",
+      "children": [
+        { "v": "29-36", "cat": "eschatologie", "t": "Reversal: the believers laugh in turn at the disbelievers that Day" }
+      ]
+    }
+  ]
+}

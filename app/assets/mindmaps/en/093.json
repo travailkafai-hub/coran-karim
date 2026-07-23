@@ -1,0 +1,34 @@
+{
+  "surah": 93,
+  "name_ar": "الضحى",
+  "name_latin": "Ad-Duha",
+  "ayat_count": 11,
+  "theme_central": "Intimate comfort to the Prophet after a pause in revelation: your Lord has neither forsaken you nor been displeased — and remember what He has already done for you.",
+  "sources_note": "Content widely taught and undisputed; twin surah of Ash-Sharh.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Oath, comfort",
+      "resume": "Oath by the rising morning and the night; your Lord has neither forsaken you nor been displeased.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Oath, comfort: Allah has neither forsaken nor been displeased with the Prophet" }
+      ]
+    },
+    {
+      "range": "4-8",
+      "title": "Past blessings recalled",
+      "resume": "The hereafter better than present life; orphan sheltered, one astray guided, poor one enriched.",
+      "children": [
+        { "v": "4-8", "cat": "croyance", "t": "Past blessings recalled: orphan sheltered, one astray guided, poor one enriched" }
+      ]
+    },
+    {
+      "range": "9-11",
+      "title": "Ethical implications",
+      "resume": "Not to oppress the orphan, not to repel the beggar, to proclaim the blessing of one's Lord.",
+      "children": [
+        { "v": "9-11", "cat": "ethique", "t": "Not oppressing the orphan, not repelling the beggar, proclaiming the blessing received" }
+      ]
+    }
+  ]
+}

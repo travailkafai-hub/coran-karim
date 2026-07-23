@@ -1,0 +1,34 @@
+{
+  "surah": 62,
+  "name_ar": "الجمعة",
+  "name_latin": "Al-Jumu'ah",
+  "ayat_count": 11,
+  "theme_central": "The Messenger sent among an unlettered people to purify hearts and teach wisdom — hence the institution of the Friday prayer, which gives the surah its name.",
+  "sources_note": "3-section structure precisely sourced (ruhanilm.com, thelastdialogue.org): 1-4, 5-8, 9-11.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "The Messenger sent among the unlettered",
+      "resume": "Everything glorifies Allah; Messenger sent to purify hearts and teach the Book.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Messenger sent among the unlettered to purify hearts" }
+      ]
+    },
+    {
+      "range": "5-8",
+      "title": "The Torah left unapplied",
+      "resume": "Parable of the donkey carrying books; challenge issued to those who claim to be Allah's chosen people.",
+      "children": [
+        { "v": "5-8", "cat": "argumentation", "t": "Parable of the donkey carrying books, challenge over the claim of chosen people" }
+      ]
+    },
+    {
+      "range": "9-11",
+      "title": "The Friday prayer",
+      "resume": "Leaving trade at the call to prayer, dispersing afterward to seek Allah's favor.",
+      "children": [
+        { "v": "9-11", "cat": "adoration", "t": "Leaving trade for the Friday prayer, dispersing afterward" }
+      ]
+    }
+  ]
+}

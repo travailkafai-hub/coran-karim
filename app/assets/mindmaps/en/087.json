@@ -1,0 +1,42 @@
+{
+  "surah": 87,
+  "name_ar": "الأعلى",
+  "name_latin": "Al-A'la",
+  "ayat_count": 19,
+  "theme_central": "Glorifying the Most High who creates, proportions and guides — revelation made easy for whoever wishes to remember, rooted in the ancient scrolls of Ibrahim and Musa.",
+  "sources_note": "Content widely taught and undisputed.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Glorifying the Most High",
+      "resume": "Allah creates, proportions harmoniously, determines and guides, brings forth pasture then withers it.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Glorification of the Most High, perfectly proportioned creation" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Revelation made easy",
+      "resume": "The Prophet will recite without forgetting except by Allah's will; the easiest way is made easy for him.",
+      "children": [
+        { "v": "6-8", "cat": "croyance", "t": "Recitation made easy, the easiest way assured" }
+      ]
+    },
+    {
+      "range": "9-13",
+      "title": "The useful reminder",
+      "resume": "Remind if the reminder benefits; the one who fears will remember, the most wretched will turn away.",
+      "children": [
+        { "v": "9-13", "cat": "eschatologie", "t": "The reminder benefits the one who fears; fate of the most wretched in Hell" }
+      ]
+    },
+    {
+      "range": "14-19",
+      "title": "Success through purification",
+      "resume": "He succeeds who purifies himself and prays; the hereafter is better, found in the ancient scrolls of Ibrahim and Musa.",
+      "children": [
+        { "v": "14-19", "cat": "ethique", "t": "Success through purification and prayer, wisdom of the ancient scrolls" }
+      ]
+    }
+  ]
+}

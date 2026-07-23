@@ -1,0 +1,72 @@
+{
+  "surah": 23,
+  "name_ar": "المؤمنون",
+  "name_latin": "Al-Mu'minun",
+  "ayat_count": 118,
+  "theme_central": "A complete cycle: opening on the qualities of the successful believers, closing on the final supplication — a complete guide to what leads to true success.",
+  "sources_note": "Sections 1-11 and 12-14 precisely sourced (al-islam.org, zamzamacademy.com). Rest reconstructed from well-established landmarks (Nuh 23-32, division into sects 53).",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "Qualities of the successful believers",
+      "resume": "Humble prayer, detachment from the futile, zakat, chastity, promises kept.",
+      "children": [
+        { "v": "1-11", "cat": "ethique", "t": "Humble prayer, detachment from the futile, chastity, promises kept" }
+      ]
+    },
+    {
+      "range": "12-22",
+      "title": "Creation of man, blessings",
+      "resume": "Stages of embryonic creation, the seven heavens, blessings of livestock and palm trees.",
+      "children": [
+        { "v": "12-16", "cat": "signes", "t": "Stages of man's creation, then resurrection" },
+        { "v": "17-22", "cat": "signes", "t": "The seven heavens, blessings of livestock, palm trees and olive trees" }
+      ]
+    },
+    {
+      "range": "23-44",
+      "title": "Nuh and the succession of messengers",
+      "resume": "Nuh and the flood, then every community that calls its messenger a liar.",
+      "children": [
+        { "v": "23-32", "cat": "recits", "t": "Nuh sent to his people, the ark, the flood" },
+        { "v": "33-44", "cat": "recits", "t": "Succession of messengers rejected by their communities" }
+      ]
+    },
+    {
+      "range": "45-56",
+      "title": "Musa, Aissa, division into sects",
+      "resume": "Musa and Harun sent to Pharaoh, Aissa a sign for mankind, division of religion into sects.",
+      "children": [
+        { "v": "45-49", "cat": "recits", "t": "Musa and Harun sent to Pharaoh, rejection" },
+        { "v": "50-56", "cat": "argumentation", "t": "Aissa and his mother, a sign for mankind; division into sects condemned" }
+      ]
+    },
+    {
+      "range": "57-77",
+      "title": "True believers, reflecting on the Qur'an",
+      "resume": "Those who hasten toward good out of reverent fear; have they not reflected on the Qur'an?",
+      "children": [
+        { "v": "57-67", "cat": "ethique", "t": "Fearful believers hastening toward good; no soul burdened beyond its capacity" },
+        { "v": "68-77", "cat": "argumentation", "t": "Have they not reflected on the Qur'an? Persistent blindness even when helped" }
+      ]
+    },
+    {
+      "range": "78-100",
+      "title": "Allah, creator of the senses, refutation",
+      "resume": "Allah who created hearing, sight and hearts; refutation of a son or partners; request to return at the moment of death.",
+      "children": [
+        { "v": "78-92", "cat": "croyance", "t": "Allah, creator of the senses; rational argument against a son or partners" },
+        { "v": "93-100", "cat": "eschatologie", "t": "Refuge from the whisperings of devils; request to return refused at death" }
+      ]
+    },
+    {
+      "range": "101-118",
+      "title": "Judgment, closing",
+      "resume": "No kinship ties that Day, fate of the damned, final supplication.",
+      "children": [
+        { "v": "101-111", "cat": "eschatologie", "t": "No kinship ties at the Judgment, fate of those who mocked the believers" },
+        { "v": "112-118", "cat": "croyance", "t": "Question about the duration of earthly life, final supplication: \"forgive and have mercy\"" }
+      ]
+    }
+  ]
+}

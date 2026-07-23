@@ -1,0 +1,37 @@
+{
+  "surah": 58,
+  "name_ar": "المجادلة",
+  "name_latin": "Al-Mujadila",
+  "ayat_count": 22,
+  "theme_central": "From the complaint of a woman (Khawla) heard by Allah Himself, to the definition of the \"allies of Allah\" versus the \"allies of Satan\" — the word \"Allah\" appears in each of the 22 verses.",
+  "sources_note": "3-section structure precisely sourced (Wikipedia Al-Mujadila): 1-6 (zihar), 7-13 (secret conferences), 14-21 (believers vs disbelievers).",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Zihar",
+      "resume": "Khawla's complaint heard by Allah; zihar declared unlawful as a method of divorce, expiation prescribed.",
+      "children": [
+        { "v": "1-4", "cat": "legislation", "t": "Khawla's complaint, zihar declared unlawful as a method of divorce" },
+        { "v": "5-6", "cat": "legislation", "t": "Expiation: freeing a slave, fasting two months, or feeding sixty poor people" }
+      ]
+    },
+    {
+      "range": "7-13",
+      "title": "Secret conferences, courtesy",
+      "resume": "Allah witness to every secret conference; warning against conferences of iniquity; courtesy in assemblies.",
+      "children": [
+        { "v": "7-10", "cat": "croyance", "t": "Allah witness to every secret conference, warning against iniquity" },
+        { "v": "11-13", "cat": "ethique", "t": "Courtesy in assemblies, making room for others" }
+      ]
+    },
+    {
+      "range": "14-22",
+      "title": "Allies of Allah, allies of Satan",
+      "resume": "The allies of Satan forget Allah's reminder; the allies of Allah will triumph, even against their own relatives.",
+      "children": [
+        { "v": "14-19", "cat": "argumentation", "t": "The allies of Satan forget Allah's reminder, their fate at the Judgment" },
+        { "v": "20-22", "cat": "ethique", "t": "The allies of Allah will triumph, not taking as friends those who oppose Allah" }
+      ]
+    }
+  ]
+}

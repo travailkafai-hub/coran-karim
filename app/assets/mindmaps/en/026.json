@@ -1,0 +1,88 @@
+{
+  "surah": 26,
+  "name_ar": "الشعراء",
+  "name_latin": "Ash-Shu'ara",
+  "ayat_count": 227,
+  "theme_central": "The longest Meccan surah: seven prophetic narratives (Musa, Ibrahim, Nuh, Hud, Salih, Lot, Shu'ayb) following the same pattern, sealed by the same refrain — \"in that is a sign, and your Lord is the Mighty, the Merciful\".",
+  "sources_note": "Precise and complete division sourced (medium.com/@soltlane, Deeper Exploration of Surah Ash-Shu'ara) — verse by verse for the seven narratives.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Opening",
+      "resume": "The Prophet torments himself over their rejection; if He wished, a sign would make them yield, but the trial of free choice remains.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "The Prophet's torment at their rejection, revelation comes from the Mighty, the Merciful" }
+      ]
+    },
+    {
+      "range": "10-68",
+      "title": "Musa",
+      "resume": "Sent to Pharaoh despite his fear, the sorcerers' challenge, the exodus and crossing of the sea.",
+      "children": [
+        { "v": "10-28", "cat": "recits", "t": "Musa sent to Pharaoh, dialogue, call to free the Children of Israel" },
+        { "v": "29-51", "cat": "recits", "t": "The sorcerers' challenge, their instant conversion at the sight of the sign" },
+        { "v": "52-68", "cat": "recits", "t": "Exodus, crossing of the sea, Pharaoh's drowning" }
+      ]
+    },
+    {
+      "range": "69-104",
+      "title": "Ibrahim",
+      "resume": "Debate with his father and his people against idolatry, supplication for himself and for his father.",
+      "children": [
+        { "v": "69-86", "cat": "recits", "t": "Ibrahim facing his father, arguments against the idols" },
+        { "v": "90-104", "cat": "eschatologie", "t": "Ibrahim's supplication, Paradise and Hell brought near on the Last Day" }
+      ]
+    },
+    {
+      "range": "105-122",
+      "title": "Nuh",
+      "resume": "Call to his people, rejection, destruction by the flood.",
+      "children": [
+        { "v": "105-122", "cat": "recits", "t": "Nuh's call, dialogue with his people, rejection, destruction" }
+      ]
+    },
+    {
+      "range": "123-140",
+      "title": "Hud",
+      "resume": "Call to the people of 'Ad, rejection, destruction.",
+      "children": [
+        { "v": "123-140", "cat": "recits", "t": "Hud's call to the people of 'Ad, rejection, destruction" }
+      ]
+    },
+    {
+      "range": "141-159",
+      "title": "Salih",
+      "resume": "Call to the people of Thamud, the she-camel as a sign, rejection, destruction.",
+      "children": [
+        { "v": "141-159", "cat": "recits", "t": "Salih's call, the sign of the she-camel, rejection, destruction" }
+      ]
+    },
+    {
+      "range": "160-175",
+      "title": "Lot",
+      "resume": "Call to his people, rejection, destruction by a rain of stones.",
+      "children": [
+        { "v": "160-175", "cat": "recits", "t": "Lot's call, rejection, destruction by a rain of stones" }
+      ]
+    },
+    {
+      "range": "176-191",
+      "title": "Shu'ayb",
+      "resume": "Call to the people of the Wood, denunciation of fraud, rejection, destruction by the punishment of the day of the shadow.",
+      "children": [
+        { "v": "176-191", "cat": "recits", "t": "Shu'ayb's call to the people of the Wood, rejection, destruction" }
+      ]
+    },
+    {
+      "range": "192-227",
+      "title": "Closing",
+      "resume": "Revealed by the trustworthy Spirit in clear Arabic, refutation of the accusation of poetry, fate of the misguided poets.",
+      "children": [
+        { "v": "192-203", "cat": "croyance", "t": "Revealed by the trustworthy Spirit (Jibril) in clear Arabic, foretold in earlier scriptures" },
+        { "v": "204-212", "cat": "argumentation", "t": "Warning not rushed, this is not the work of devils" },
+        { "v": "213-220", "cat": "ethique", "t": "Warning one's close relatives, relying on Allah the Mighty, the Merciful" },
+        { "v": "221-227", "cat": "argumentation", "t": "Fate of the misguided poets, distinction of the believers who do good" }
+      ]
+    }
+  ]
+}

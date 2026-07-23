@@ -1,0 +1,83 @@
+{
+  "surah": 36,
+  "name_ar": "يس",
+  "name_latin": "Yasin",
+  "ayat_count": 83,
+  "theme_central": "\"The Heart of the Qur'an\": establishing with the utmost eloquence the truth of prophethood, the oneness of Allah and the certainty of the resurrection.",
+  "sources_note": "The narrative of the Man of the City (13-29) precisely sourced (surahsofquran.com, Main Themes of Surah Yaseen). Rest built on very widely known landmarks (the single Cry, the testimony of hands and feet, the final seal \"Be, and it is\").",
+  "branches": [
+    {
+      "range": "1-12",
+      "title": "Opening, warning",
+      "resume": "Oath by the wise Qur'an, confirmation of prophethood, shackles around the necks of the disbelievers.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Oath by the wise Qur'an, confirmation of Muhammad's prophethood" },
+        { "v": "7-12", "cat": "eschatologie", "t": "Shackles around the necks of the disbelievers, resurrection with recorded deeds" }
+      ]
+    },
+    {
+      "range": "13-29",
+      "title": "The Man of the City",
+      "resume": "Three envoys rejected by a city, a man intervenes on their behalf, martyred, immediate entry into Paradise.",
+      "children": [
+        { "v": "13-19", "cat": "recits", "t": "Three envoys rejected by the inhabitants of the city" },
+        { "v": "20-27", "cat": "recits", "t": "A man runs to defend the envoys, killed, immediately enters Paradise" },
+        { "v": "28-29", "cat": "eschatologie", "t": "A single Cry sufficient to annihilate his people" }
+      ]
+    },
+    {
+      "range": "30-35",
+      "title": "Regret over the servants, signs",
+      "resume": "Divine regret over the servants who mocked every messenger; the dead land brought back to life.",
+      "children": [
+        { "v": "30-32", "cat": "argumentation", "t": "Regret over the servants, every messenger mocked in his time" },
+        { "v": "33-35", "cat": "signes", "t": "The dead land brought back to life, gardens of palm trees and vines, springs" }
+      ]
+    },
+    {
+      "range": "36-44",
+      "title": "The pairs in creation, the ark",
+      "resume": "Allah created everything in pairs; the sun and the moon on their precise orbit; Nuh's ark.",
+      "children": [
+        { "v": "36-40", "cat": "signes", "t": "Pairs created in everything, the night stripped from the day, precise orbits of the sun and moon" },
+        { "v": "41-44", "cat": "recits", "t": "Nuh's ark, sign of transport by divine grace" }
+      ]
+    },
+    {
+      "range": "45-54",
+      "title": "Mockery of the punishment, the single Cry",
+      "resume": "Reminder ignored, mockery of charity, mocking question about the timing, a single Cry will suffice.",
+      "children": [
+        { "v": "45-47", "cat": "argumentation", "t": "Reminder ignored, mockery of spending in charity" },
+        { "v": "48-54", "cat": "eschatologie", "t": "Mocking question about the timing; a single Cry will suffice for instant resurrection" }
+      ]
+    },
+    {
+      "range": "55-68",
+      "title": "The people of Paradise, testimony of the limbs",
+      "resume": "Happy occupation of the people of Paradise, separation of the criminals, hands and feet witnessing their deeds.",
+      "children": [
+        { "v": "55-58", "cat": "eschatologie", "t": "Happy occupation of the people of Paradise, greeting of peace" },
+        { "v": "59-64", "cat": "eschatologie", "t": "Separation of the criminals, Satan their declared enemy" },
+        { "v": "65-68", "cat": "eschatologie", "t": "Mouths sealed, hands and feet testifying to their deeds" }
+      ]
+    },
+    {
+      "range": "69-76",
+      "title": "This is not poetry",
+      "resume": "The Prophet is not a poet; this is a clear reminder; livestock among Allah's blessings.",
+      "children": [
+        { "v": "69-70", "cat": "croyance", "t": "The Prophet is not a poet, this is a reminder and a clear Qur'an" },
+        { "v": "71-76", "cat": "signes", "t": "Livestock created for man; seeking help from false gods, in vain" }
+      ]
+    },
+    {
+      "range": "77-83",
+      "title": "Closing",
+      "resume": "Man disputes the resurrection while forgetting his own creation; \"Be, and it is\".",
+      "children": [
+        { "v": "77-83", "cat": "eschatologie", "t": "Man disputes the resurrection; closing: \"When He wills a thing, He says Be, and it is\"" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "surah": 42,
+  "name_ar": "الشورى",
+  "name_latin": "Ash-Shura",
+  "ayat_count": 53,
+  "theme_central": "The unity and universality of divine revelation, the sole foundation of a just human community — one of whose concrete expressions is mutual consultation (shura), which gives the surah its name.",
+  "sources_note": "Structure in 5 major parts sourced (iqna.ir), refined with known landmarks (shura at verse 38, the three modes of revelation in the closing 51-53).",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Opening, universal revelation",
+      "resume": "Revelation to Muhammad as to the previous prophets; the angels ask forgiveness for the inhabitants of the earth.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Universal revelation, the angels ask forgiveness for the inhabitants of the earth" }
+      ]
+    },
+    {
+      "range": "7-19",
+      "title": "Arabic Qur'an, one single religion",
+      "resume": "Warning the Mother of Cities; the prescribed religion is one since Nuh; division arose out of jealousy.",
+      "children": [
+        { "v": "7-13", "cat": "croyance", "t": "Arabic Qur'an to warn; one single religion prescribed since Nuh" },
+        { "v": "14-19", "cat": "argumentation", "t": "Division arose out of jealousy among people despite the clarity of the message" }
+      ]
+    },
+    {
+      "range": "20-29",
+      "title": "Tilling for this world or the hereafter",
+      "resume": "Choice between the two harvests; promised reward; rain sent after despair.",
+      "children": [
+        { "v": "20-22", "cat": "eschatologie", "t": "Choice between tilling for this world or for the hereafter" },
+        { "v": "23-29", "cat": "ethique", "t": "The Prophet asks only for affection toward his relatives; rain sent after despair" }
+      ]
+    },
+    {
+      "range": "30-35",
+      "title": "Misfortunes and deeds, signs of the ships",
+      "resume": "Misfortunes are a consequence of people's deeds; ships at sea as signs.",
+      "children": [
+        { "v": "30-35", "cat": "signes", "t": "Misfortunes a consequence of deeds, ships at sea as signs" }
+      ]
+    },
+    {
+      "range": "36-43",
+      "title": "The believers and mutual consultation (shura)",
+      "resume": "Heart of the surah: avoiding grave sins, forgiveness, mutual consultation, fair self-defense.",
+      "children": [
+        { "v": "36-39", "cat": "ethique", "t": "Avoiding grave sins, forgiveness, mutual consultation (shura)" },
+        { "v": "40-43", "cat": "ethique", "t": "Fair defense against injustice, patience and forgiveness preferable" }
+      ]
+    },
+    {
+      "range": "44-53",
+      "title": "Closing",
+      "resume": "No protector for whoever Allah leads astray, gifts of children according to divine will, three modes of revelation.",
+      "children": [
+        { "v": "44-50", "cat": "croyance", "t": "No protector for the misguided; gifts of children according to divine will" },
+        { "v": "51-53", "cat": "croyance", "t": "Three modes of revelation; the Qur'an, a light guiding to the straight path" }
+      ]
+    }
+  ]
+}

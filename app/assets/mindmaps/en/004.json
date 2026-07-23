@@ -1,0 +1,44 @@
+{
+  "surah": 4,
+  "name_ar": "النساء",
+  "name_latin": "An-Nisa",
+  "ayat_count": 176,
+  "theme_central": "Building a just society: from the family (orphans, women, inheritance) to the community (obedience, hypocrisy) and on to the whole of humanity.",
+  "sources_note": "3-part structure following Amin Ahsan Islahi's coherence-based approach, taken up by imamghazali.org (Thematic Explanation); corroborated by islamophile.org for the detail of 1-43.",
+  "branches": [
+    {
+      "range": "1-43",
+      "title": "Foundations of a just society",
+      "resume": "From the common origin of humanity to the family: orphans, inheritance, marriage, kindness.",
+      "children": [
+        { "v": "1", "cat": "croyance", "t": "Common origin of humanity (Adam and Hawwa)" },
+        { "v": "2-14", "cat": "legislation", "t": "Rights of orphans, laws of inheritance" },
+        { "v": "15-35", "cat": "legislation", "t": "Marriage laws, the dowry, resolving marital conflicts" },
+        { "v": "36-43", "cat": "ethique", "t": "Call to kindness toward parents, neighbours and the poor" }
+      ]
+    },
+    {
+      "range": "44-126",
+      "title": "Challenges to a just society",
+      "resume": "Deviations of the People of the Book, obedience to legitimate authority, rules of combat, warning against hypocrites.",
+      "children": [
+        { "v": "44-57", "cat": "argumentation", "t": "Deviations of the People of the Book" },
+        { "v": "58-70", "cat": "legislation", "t": "Obedience to those in authority, justice in judgment" },
+        { "v": "71-104", "cat": "legislation", "t": "Defensive fighting, the prayer of fear (salat al-khawf)" },
+        { "v": "105-126", "cat": "argumentation", "t": "Extensive warning against the hypocrites" }
+      ]
+    },
+    {
+      "range": "127-176",
+      "title": "Fulfilment of a just society",
+      "resume": "Return to justice toward women and orphans, call to be upholders of justice, final clarifications.",
+      "children": [
+        { "v": "127-130", "cat": "legislation", "t": "Return to justice toward women and orphans" },
+        { "v": "131-152", "cat": "ethique", "t": "Call to be upholders of justice, warning against hypocrisy" },
+        { "v": "153-162", "cat": "argumentation", "t": "Theological clarifications addressed to the People of the Book" },
+        { "v": "163-175", "cat": "croyance", "t": "The chain of prophets, the true status of Aissa (Jesus)" },
+        { "v": "176", "cat": "legislation", "t": "Final verse on inheritance (the kalala)" }
+      ]
+    }
+  ]
+}

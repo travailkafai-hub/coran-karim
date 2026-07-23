@@ -1,0 +1,66 @@
+{
+  "surah": 67,
+  "name_ar": "الملك",
+  "name_latin": "Al-Mulk",
+  "ayat_count": 30,
+  "theme_central": "Allah's absolute sovereignty over everything (al-Mulk): life and death created to test who acts best — hence its reputation as protection against the punishment of the grave.",
+  "sources_note": "3-4 part structure sourced (historyofislam.com, grokipedia): sovereignty/creation (1-4), fragility of life (5-21), final argumentation (22-30).",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Allah's sovereignty, perfect creation",
+      "resume": "Life and death created to test who acts best; seven heavens stacked without the slightest flaw.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Life and death created to test, seven flawless heavens" }
+      ]
+    },
+    {
+      "range": "5-11",
+      "title": "Stars, Hell, dialogue of the damned",
+      "resume": "Stars as missiles against the demons; dialogue of Hell's keepers with the damned full of regret.",
+      "children": [
+        { "v": "5-11", "cat": "eschatologie", "t": "Dialogue of Hell's keepers with the damned, regret at not having listened" }
+      ]
+    },
+    {
+      "range": "12-14",
+      "title": "Fearing Allah in secret",
+      "resume": "Reward promised to whoever fears Allah in secret; He knows the secrets of hearts.",
+      "children": [
+        { "v": "12-14", "cat": "croyance", "t": "Fearing Allah in secret rewarded, Allah knows the secrets of hearts" }
+      ]
+    },
+    {
+      "range": "15-18",
+      "title": "Earth subdued, security before the sky",
+      "resume": "The earth subdued for man to walk and eat from; security before a sky that could collapse.",
+      "children": [
+        { "v": "15-18", "cat": "signes", "t": "Earth subdued for man, security before the sky, fate of the ancient peoples" }
+      ]
+    },
+    {
+      "range": "19-21",
+      "title": "The birds, who can help",
+      "resume": "Birds that spread and fold their wings; who but Allah could come to the rescue?",
+      "children": [
+        { "v": "19-21", "cat": "signes", "t": "Birds in flight, no help possible but from Allah" }
+      ]
+    },
+    {
+      "range": "22-24",
+      "title": "Walking stooped or upright",
+      "resume": "Comparison between one who walks with face bowed and one who walks upright on the path.",
+      "children": [
+        { "v": "22-24", "cat": "argumentation", "t": "Comparison of stooped/upright walking; hearing, sight and hearts created by Allah" }
+      ]
+    },
+    {
+      "range": "25-30",
+      "title": "Closing",
+      "resume": "Mocking question about the timing; who would bring you clear water if yours were to vanish?",
+      "children": [
+        { "v": "25-30", "cat": "eschatologie", "t": "Timing of the promise, clear water as a final reminder of dependence on Allah" }
+      ]
+    }
+  ]
+}

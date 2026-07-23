@@ -1,0 +1,62 @@
+{
+  "surah": 28,
+  "name_ar": "القصص",
+  "name_latin": "Al-Qasas",
+  "ayat_count": 88,
+  "theme_central": "Allah's cosmic law: humbling the arrogant (Pharaoh, Qarun) and ultimately raising up the oppressed — consolation for the Prophet and the persecuted believers.",
+  "sources_note": "Precisely sourced division (zamzamacademy.com, grokipedia): 1-43, 43-75, 76-82, 83-88.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Opening, Pharaoh the oppressor",
+      "resume": "Pharaoh oppresses the Children of Israel; Allah wants to favor the oppressed and make them leaders.",
+      "children": [
+        { "v": "1-6", "cat": "recits", "t": "Pharaoh oppresses the Children of Israel, Allah wants to favor the oppressed" }
+      ]
+    },
+    {
+      "range": "7-28",
+      "title": "Musa as a child, exile, Madyan",
+      "resume": "Saved from the waters and returned to his mother, kills a man by accident and flees, arrives at Madyan.",
+      "children": [
+        { "v": "7-14", "cat": "recits", "t": "Baby Musa saved from the waters, returned to his mother through a stratagem" },
+        { "v": "15-21", "cat": "recits", "t": "Musa kills a man by accident, flees the city" },
+        { "v": "22-28", "cat": "recits", "t": "Arrival at Madyan, help given to the two women, marriage, years as a shepherd" }
+      ]
+    },
+    {
+      "range": "29-46",
+      "title": "The burning bush, the mission",
+      "resume": "Call at Mount Sinai, mission entrusted along with Harun, revelation compared to that of Musa.",
+      "children": [
+        { "v": "29-35", "cat": "recits", "t": "The burning bush, the mission, asking for Harun's help" },
+        { "v": "36-46", "cat": "croyance", "t": "Confrontation with Pharaoh summarized, revelation addressed to the Prophet as to Musa" }
+      ]
+    },
+    {
+      "range": "47-75",
+      "title": "Confrontation with the Quraysh",
+      "resume": "Contradictions of the Quraysh exposed, guidance belongs to Allah alone.",
+      "children": [
+        { "v": "47-55", "cat": "argumentation", "t": "Contradictions of the Quraysh exposed, People of the Book who believe in the Qur'an" },
+        { "v": "56-75", "cat": "croyance", "t": "Guidance belongs to Allah alone, fate of whoever follows his own desires" }
+      ]
+    },
+    {
+      "range": "76-82",
+      "title": "Qarun",
+      "resume": "Qarun's wealth and arrogance, swallowed up by the earth as punishment.",
+      "children": [
+        { "v": "76-82", "cat": "ethique", "t": "Qarun's arrogance over his wealth, swallowed up by the earth" }
+      ]
+    },
+    {
+      "range": "83-88",
+      "title": "Closing",
+      "resume": "The final abode reserved for whoever seeks neither pride nor corruption on earth.",
+      "children": [
+        { "v": "83-88", "cat": "ethique", "t": "The final abode for whoever seeks neither pride nor corruption" }
+      ]
+    }
+  ]
+}

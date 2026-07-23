@@ -1,0 +1,61 @@
+{
+  "surah": 25,
+  "name_ar": "الفرقان",
+  "name_latin": "Al-Furqan",
+  "ayat_count": 77,
+  "theme_central": "Defense of the Qur'an as the divine Criterion (Furqan) and of the Messenger's authenticity, culminating in the portrait of the \"servants of the Most Merciful\".",
+  "sources_note": "Sections 21-40, 41-50 and 63-75 precisely sourced (grokipedia, tafhim al-Qur'an). Rest reconstructed from known landmarks.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "The Qur'an as Furqan",
+      "resume": "Objections of the disbelievers refuted: the Prophet eats, walks in the markets like any man.",
+      "children": [
+        { "v": "1-9", "cat": "argumentation", "t": "Objections refuted: the Prophet eats and walks in the markets like any man" }
+      ]
+    },
+    {
+      "range": "10-20",
+      "title": "Better than their gardens",
+      "resume": "Promise of gardens better than those demanded, questioning of the idols worshipped at the Judgment.",
+      "children": [
+        { "v": "10-20", "cat": "eschatologie", "t": "Promise of better gardens; questioning of the idols worshipped at the Judgment" }
+      ]
+    },
+    {
+      "range": "21-40",
+      "title": "Parallel prophetic missions",
+      "resume": "Musa and Pharaoh, Nuh, 'Ad, Thamud, the people of Rass: the same pattern of repeated rejection.",
+      "children": [
+        { "v": "21-40", "cat": "recits", "t": "Musa/Pharaoh, Nuh, 'Ad, Thamud, the people of Rass: repeated rejection of the messengers" }
+      ]
+    },
+    {
+      "range": "41-50",
+      "title": "Contrast between the heedless and the righteous",
+      "resume": "Mockery of the disbelievers toward the Prophet, cosmological signs: the shadow, the wind, the rain.",
+      "children": [
+        { "v": "41-50", "cat": "signes", "t": "Mockery of the disbelievers, cosmological signs: shadow, wind, rain" }
+      ]
+    },
+    {
+      "range": "51-62",
+      "title": "Sent as a warner, the two seas",
+      "resume": "The mingling of the two seas (fresh and salt), creation of man from water, the constellations.",
+      "children": [
+        { "v": "51-58", "cat": "croyance", "t": "Sent as a warner to all mankind; the mingling of the two seas" },
+        { "v": "59-62", "cat": "signes", "t": "Creation from water, the constellations, alternation of day and night" }
+      ]
+    },
+    {
+      "range": "63-77",
+      "title": "The servants of the Most Merciful",
+      "resume": "Famous portrait of the ibad ar-Rahman: humility, night worship, avoidance of major sins, repentance.",
+      "children": [
+        { "v": "63-67", "cat": "ethique", "t": "Humility, night worship, moderation in spending" },
+        { "v": "68-71", "cat": "legislation", "t": "Not associating partners, not killing, not fornicating; sincere repentance accepted" },
+        { "v": "72-77", "cat": "ethique", "t": "Avoiding the futile, receptive to reminders, supplication for their offspring" }
+      ]
+    }
+  ]
+}

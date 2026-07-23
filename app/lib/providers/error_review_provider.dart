@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/judgement_options.dart' show TajwidRule;
 import '../models/recitation_state.dart' show RecitationErrorKind;
 import '../models/verse.dart';
 import '../services/quran_api.dart';
@@ -41,6 +42,34 @@ class SurahErrorSummary {
 final errorKindBreakdownProvider =
     FutureProvider.autoDispose<Map<RecitationErrorKind, int>>((ref) async {
   return RecitationErrorLogService.instance.errorCountsByKind();
+});
+
+/// Répartition GLOBALE des erreurs de type tajwid PAR RÈGLE PRÉCISE (demande
+/// utilisateur 2026-07-22) — répond à « quelle règle je rate le plus ? »,
+/// un cran plus fin que le compteur "Tajwid" unique de [errorKindBreakdownProvider].
+final tajwidRuleBreakdownProvider =
+    FutureProvider.autoDispose<Map<TajwidRule, int>>((ref) async {
+  return RecitationErrorLogService.instance.errorCountsByRule();
+});
+
+/// Même chose, restreinte à UNE sourate (utilisé dans le détail par sourate
+/// du volet erreurs) -- `family` car chaque tuile de sourate a besoin de sa
+/// propre requête, indépendamment des autres.
+final surahTajwidRuleBreakdownProvider = FutureProvider.autoDispose
+    .family<Map<TajwidRule, int>, int>((ref, surahNumber) async {
+  return RecitationErrorLogService.instance
+      .errorCountsByRule(surahNumber: surahNumber);
+});
+
+/// Détail mot par mot des erreurs d'UN verset (demande utilisateur
+/// 2026-07-22 : « je veux en détaille le mot ou il ya erreur et type
+/// d'erreur ») -- chaque entrée porte son mot, son type, et ses règles de
+/// tajwid précises le cas échéant (cf. RecitationErrorEntry.rules/pairWord).
+final ayahErrorDetailsProvider = FutureProvider.autoDispose
+    .family<List<RecitationErrorEntry>, ({int surahNumber, int ayahNumber})>(
+        (ref, key) async {
+  return RecitationErrorLogService.instance
+      .errorsForAyah(key.surahNumber, key.ayahNumber);
 });
 
 /// Journal d'erreurs regroupé par sourate, trié par nombre d'erreurs

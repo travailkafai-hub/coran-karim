@@ -1,7 +1,10 @@
+import 'package:flutter/widgets.dart' show BuildContext;
+import '../l10n/app_localizations.dart';
+
 // Modèle de données pour la carte mentale des sourates (REFONTE_IHM.md §7).
 //
-// SCHÉMA RÉEL (assets/mindmaps/{NNN}.json, 114 sourates fournies par
-// l'utilisateur le 2026-07-20). Il diffère de la maquette que j'avais écrite
+// SCHÉMA RÉEL (assets/mindmaps/{locale}/{NNN}.json, 114 sourates par langue).
+// Il diffère de la maquette que j'avais écrite
 // au départ dans `fr/` (12 sourates, supprimées) sur trois points, ne pas les
 // re-inverser :
 //   - `cat` est porté par l'ENFANT (le passage), pas par la branche ;
@@ -44,17 +47,24 @@ MindMapCategory categoryFromString(String? s) => switch (s) {
       _ => MindMapCategory.autre,
     };
 
-String categoryLabel(MindMapCategory c) => switch (c) {
-      MindMapCategory.recits => 'Récits',
-      MindMapCategory.croyance => 'Croyance',
-      MindMapCategory.eschatologie => 'Au-delà',
-      MindMapCategory.argumentation => 'Argumentation',
-      MindMapCategory.ethique => 'Éthique',
-      MindMapCategory.legislation => 'Législation',
-      MindMapCategory.signes => 'Signes',
-      MindMapCategory.adoration => 'Adoration',
-      MindMapCategory.autre => 'Autre',
-    };
+/// Libellé localisé (fr/en/ar, cf. lib/l10n/app_*.arb) -- indépendant de la
+/// langue du CONTENU (`assets/mindmaps/{locale}/...`) : les deux suivent la
+/// langue de l'app, mais par des mécanismes différents (l10n générée ici,
+/// fichiers JSON par dossier là-bas), donc pas de lien de code entre eux.
+String categoryLabel(BuildContext context, MindMapCategory c) {
+  final l10n = AppLocalizations.of(context)!;
+  return switch (c) {
+    MindMapCategory.recits => l10n.mindMapCatRecits,
+    MindMapCategory.croyance => l10n.mindMapCatCroyance,
+    MindMapCategory.eschatologie => l10n.mindMapCatEschatologie,
+    MindMapCategory.argumentation => l10n.mindMapCatArgumentation,
+    MindMapCategory.ethique => l10n.mindMapCatEthique,
+    MindMapCategory.legislation => l10n.mindMapCatLegislation,
+    MindMapCategory.signes => l10n.mindMapCatSignes,
+    MindMapCategory.adoration => l10n.mindMapCatAdoration,
+    MindMapCategory.autre => l10n.mindMapCatAutre,
+  };
+}
 
 /// Un passage : plage de versets + catégorie + description.
 class MindMapLeaf {

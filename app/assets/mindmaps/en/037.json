@@ -1,0 +1,67 @@
+{
+  "surah": 37,
+  "name_ar": "الصافات",
+  "name_latin": "As-Saffat",
+  "ayat_count": 182,
+  "theme_central": "Establishing pure Tawhid through a gallery of prophets united by the same refrain of peace — culminating in the sacrifice of Isma'il, Ibrahim's most intense trial.",
+  "sources_note": "Precisely sourced division (thequran.love, Abraham's Dream and Ishmael's Sacrifice): 1-11, 12-70, 75-148, with the Ibrahim/Isma'il narrative detailed in 83-113.",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "Opening, oath of the angels",
+      "resume": "Triple rhythmic oath by the angels ranged in rows, who drive forth, who recite.",
+      "children": [
+        { "v": "1-11", "cat": "croyance", "t": "Oath by the angels ranged in rows; oneness of Allah, Lord of the heavens, the earth and the East" }
+      ]
+    },
+    {
+      "range": "12-70",
+      "title": "Scene of the Judgment",
+      "resume": "Terrible fate and mutual reproaches of the polytheists, bliss of the believers in Paradise.",
+      "children": [
+        { "v": "12-38", "cat": "eschatologie", "t": "Mockery of the disbelievers toward the resurrection, terrible fate awaiting them" },
+        { "v": "39-61", "cat": "eschatologie", "t": "Bliss of the believers in Paradise, dialogue with a disbelieving companion" },
+        { "v": "62-70", "cat": "eschatologie", "t": "The tree of Zaqqum, food of the damned in Hell" }
+      ]
+    },
+    {
+      "range": "71-82",
+      "title": "Nuh",
+      "resume": "His long struggle, his supplication answered, salvation of his believing family.",
+      "children": [
+        { "v": "71-82", "cat": "recits", "t": "Nuh's supplication answered, salvation of the ark, \"Peace upon Nuh among the worlds\"" }
+      ]
+    },
+    {
+      "range": "83-113",
+      "title": "Ibrahim and the sacrifice of Isma'il",
+      "resume": "The longest prophetic narrative in the surah: confrontation with idolatry, then the sacrifice ordered in a dream.",
+      "children": [
+        { "v": "83-98", "cat": "recits", "t": "Ibrahim breaks the idols, thrown into a fire that becomes cool and safe" },
+        { "v": "99-107", "cat": "recits", "t": "The dream of sacrifice, the son's submission, ransom by the ram sent from heaven" },
+        { "v": "108-113", "cat": "croyance", "t": "\"Peace upon Ibrahim\", announcement of Ishaq as a prophet" }
+      ]
+    },
+    {
+      "range": "114-148",
+      "title": "Musa, Ilyas, Yunus",
+      "resume": "Musa and Harun saved, Ilyas against the worship of Ba'l, Yunus swallowed then cast out by the fish.",
+      "children": [
+        { "v": "114-122", "cat": "recits", "t": "Musa and Harun, \"Peace upon Musa and Harun\"" },
+        { "v": "123-132", "cat": "recits", "t": "Ilyas calls his people to abandon the worship of Ba'l" },
+        { "v": "133-138", "cat": "recits", "t": "Lot saved, his city destroyed" },
+        { "v": "139-148", "cat": "recits", "t": "Yunus swallowed by the fish, his repentance, restored to his mission" }
+      ]
+    },
+    {
+      "range": "149-182",
+      "title": "Refutation, closing",
+      "resume": "Refutation of attributing daughters to Allah, promise of victory to the messengers, final praise.",
+      "children": [
+        { "v": "149-166", "cat": "argumentation", "t": "Refutation of attributing daughters to Allah and jinn as partners" },
+        { "v": "167-179", "cat": "argumentation", "t": "Promise of final victory granted to the messengers" },
+        { "v": "180-182", "cat": "croyance", "t": "Closing: glory to the Lord of might, peace upon the messengers, praise to Allah" }
+      ]
+    }
+  ]
+}

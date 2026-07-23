@@ -1,0 +1,43 @@
+{
+  "surah": 60,
+  "name_ar": "الممتحنة",
+  "name_latin": "Al-Mumtahanah",
+  "ayat_count": 13,
+  "theme_central": "A founding text on the socio-political boundaries of the nascent community: loyalty and disavowal (al-wala' wal-bara'), with Ibrahim as a model, and the examination (imtihan) of migrating women that gives the surah its name.",
+  "sources_note": "4-section structure precisely sourced (thequran.love, Comprehensive Commentary): 1-6, 7-9, 10-11, 12-13.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Loyalty and disavowal, Ibrahim's example",
+      "resume": "Warning against allying with Allah's declared enemies; Ibrahim a model of breaking with his people.",
+      "children": [
+        { "v": "1-3", "cat": "ethique", "t": "Warning against allying with declared enemies" },
+        { "v": "4-6", "cat": "recits", "t": "Ibrahim, a model of breaking with his idolatrous people" }
+      ]
+    },
+    {
+      "range": "7-9",
+      "title": "Relations with the non-belligerent",
+      "resume": "Possibility of better relations if the former enemy ceases persecution; justice toward those who do not fight.",
+      "children": [
+        { "v": "7-9", "cat": "legislation", "t": "Justice and kindness toward the non-belligerent" }
+      ]
+    },
+    {
+      "range": "10-11",
+      "title": "Examination of migrating women",
+      "resume": "Source of the surah's name: examining the faith of women who emigrate and declare themselves Muslim.",
+      "children": [
+        { "v": "10-11", "cat": "legislation", "t": "Examination (imtihan) of the faith of migrating women" }
+      ]
+    },
+    {
+      "range": "12-13",
+      "title": "The pact of the women",
+      "resume": "Women's oath to abstain from major sins; closing on breaking with a people Allah has covered in wrath.",
+      "children": [
+        { "v": "12-13", "cat": "legislation", "t": "Pact of the women, commitment to abstain from major sins" }
+      ]
+    }
+  ]
+}

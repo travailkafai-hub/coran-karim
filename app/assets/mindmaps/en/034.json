@@ -1,0 +1,63 @@
+{
+  "surah": 34,
+  "name_ar": "سبأ",
+  "name_latin": "Saba",
+  "ayat_count": 54,
+  "theme_central": "Comparison between grateful kings (Dawud, Sulayman) and the ungrateful kingdom of Sheba, destroyed despite its opulence — true power comes from gratitude, not possession.",
+  "sources_note": "Well-sourced structure (grokipedia): the kingdom of Sheba (15-21) strategically placed between the narrative of the grateful kings and the warnings addressed to the Meccans.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Opening",
+      "resume": "Praise to Allah, owner of everything, knowing even the weight of an atom; refutation of doubt about the Hour.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "Praise to Allah, absolute omniscience, refutation of doubt about the Hour" }
+      ]
+    },
+    {
+      "range": "10-14",
+      "title": "Dawud and Sulayman, grateful kings",
+      "resume": "Mountains and birds glorifying with Dawud, wind and jinn subdued to Sulayman.",
+      "children": [
+        { "v": "10-11", "cat": "recits", "t": "Dawud: mountains and birds glorifying with him, iron made soft" },
+        { "v": "12-14", "cat": "recits", "t": "Sulayman: wind and jinn subdued, his death discovered by a worm eating through his staff" }
+      ]
+    },
+    {
+      "range": "15-21",
+      "title": "The kingdom of Sheba",
+      "resume": "Source of the surah's name: the two gardens, the broken dam, dispersal of the ungrateful people.",
+      "children": [
+        { "v": "15-17", "cat": "recits", "t": "The two gardens of Sheba, dam broken because of ingratitude" },
+        { "v": "18-21", "cat": "eschatologie", "t": "Dispersal of the people, trial of free choice confirmed" }
+      ]
+    },
+    {
+      "range": "22-30",
+      "title": "Refutation of the idols, universal mission",
+      "resume": "The idols own nothing, share nothing with Allah; Muhammad sent to all mankind.",
+      "children": [
+        { "v": "22-27", "cat": "argumentation", "t": "Refutation of the idols, unable to own anything at all" },
+        { "v": "28-30", "cat": "croyance", "t": "Muhammad sent to all mankind, question about the timing of the Hour" }
+      ]
+    },
+    {
+      "range": "31-42",
+      "title": "Debate weak/arrogant, sustenance",
+      "resume": "Mutual rejection of responsibility in Hell, sustenance broadened or restricted according to divine wisdom.",
+      "children": [
+        { "v": "31-33", "cat": "eschatologie", "t": "Debate between the weak and the arrogant in Hell, mutual rejection of responsibility" },
+        { "v": "34-42", "cat": "ethique", "t": "The wealthy the first to reject the messengers; sustenance according to divine wisdom" }
+      ]
+    },
+    {
+      "range": "43-54",
+      "title": "Refutation, call to reflect",
+      "resume": "Accusation of sorcery refuted, previous mightier generations destroyed, too late in the face of punishment.",
+      "children": [
+        { "v": "43-45", "cat": "argumentation", "t": "Accusation of sorcery refuted, previous mightier generations destroyed" },
+        { "v": "46-54", "cat": "eschatologie", "t": "Call to reflect calmly, too late to believe at the moment of punishment" }
+      ]
+    }
+  ]
+}

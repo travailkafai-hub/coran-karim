@@ -1,0 +1,60 @@
+{
+  "surah": 39,
+  "name_ar": "الزمر",
+  "name_latin": "Az-Zumar",
+  "ayat_count": 75,
+  "theme_central": "Exclusive devotion to Allah (ikhlas) as the remedy for arrogance — culminating in the most hope-filled verse of the Qur'an: never despair of Allah's mercy.",
+  "sources_note": "Precisely sourced division (grokipedia, thelastdialogue.org): 1-8, 9-20, 21-31, 32-47. Continuation (48-75) reconstructed from the well-known key verse 39:53 and the final scene of the \"zumar\" (groups) that gives the surah its name.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Monotheism and prophethood",
+      "resume": "Pure and sincere religion belongs to Allah; creation of man in stages in the mother's womb.",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "Pure religion belongs to Allah, creation of man in stages" }
+      ]
+    },
+    {
+      "range": "9-20",
+      "title": "Consolation, steadfastness",
+      "resume": "He who worships with devotion at night is not equal to the heedless; command to remain steadfast and sincere.",
+      "children": [
+        { "v": "9-20", "cat": "ethique", "t": "The night worshipper is not equal to the heedless; sincerity required" }
+      ]
+    },
+    {
+      "range": "21-31",
+      "title": "Contrast: sincere believers / the heedless",
+      "resume": "Water irrigating the earth as a parable, contrast between a breast opened to Islam and a hardened heart.",
+      "children": [
+        { "v": "21-31", "cat": "argumentation", "t": "Parable of water irrigating the earth, breast opened to Islam vs hardened heart" }
+      ]
+    },
+    {
+      "range": "32-47",
+      "title": "Refutation of shirk",
+      "resume": "Who is more unjust than the one who lies about Allah? Allah suffices for His servant.",
+      "children": [
+        { "v": "32-47", "cat": "argumentation", "t": "Refutation of shirk, Allah suffices for His servant" }
+      ]
+    },
+    {
+      "range": "48-59",
+      "title": "The verse of hope",
+      "resume": "Fate at the Judgment, then the most hope-filled verse in the Qur'an: never despair of mercy.",
+      "children": [
+        { "v": "48-52", "cat": "eschatologie", "t": "Fate of the transgressors, expansion or restriction of sustenance" },
+        { "v": "53-59", "cat": "croyance", "t": "\"Do not despair of Allah's mercy\" — He forgives all sins" }
+      ]
+    },
+    {
+      "range": "60-75",
+      "title": "Closing: the groups (zumar)",
+      "resume": "Source of the surah's name: disbelievers and believers led in groups toward Hell and Paradise.",
+      "children": [
+        { "v": "60-66", "cat": "eschatologie", "t": "Blackened faces of the liars, exclusive call to worship Allah" },
+        { "v": "67-75", "cat": "eschatologie", "t": "The groups (zumar) led toward Hell and Paradise, the Throne surrounded by angels" }
+      ]
+    }
+  ]
+}

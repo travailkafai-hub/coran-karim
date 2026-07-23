@@ -1,0 +1,50 @@
+{
+  "surah": 90,
+  "name_ar": "البلد",
+  "name_latin": "Al-Balad",
+  "ayat_count": 20,
+  "theme_central": "Man, created in hardship (kabad), refuses to commit to the steep path — freeing, feeding, believing, and enjoining patience and compassion.",
+  "sources_note": "Content widely taught and undisputed: the \"steep path\" (al-'aqaba) and the People of the Right/Left are classical landmarks.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Oath, man in hardship",
+      "resume": "Oath by this City (Mecca) and by the Prophet who is free there; man created in hardship.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Oath by the sacred City, man created in hardship" }
+      ]
+    },
+    {
+      "range": "5-7",
+      "title": "The illusion of impunity",
+      "resume": "Man boasts of having squandered wealth, thinking no one saw him.",
+      "children": [
+        { "v": "5-7", "cat": "ethique", "t": "Illusion of impunity, boasting about squandered wealth" }
+      ]
+    },
+    {
+      "range": "8-10",
+      "title": "The two paths shown",
+      "resume": "Two eyes, a tongue, two lips; the two paths of good and evil shown to man.",
+      "children": [
+        { "v": "8-10", "cat": "signes", "t": "Organs given to man, the two paths of good and evil shown" }
+      ]
+    },
+    {
+      "range": "11-16",
+      "title": "The steep path",
+      "resume": "Freeing a slave, feeding on a day of famine an orphaned relative or a poor person in destitution.",
+      "children": [
+        { "v": "11-16", "cat": "ethique", "t": "The steep path: freeing, feeding the orphan and the poor" }
+      ]
+    },
+    {
+      "range": "17-20",
+      "title": "People of the Right, people of the Left",
+      "resume": "Believing and enjoining patience and compassion; contrasting fate according to the side chosen.",
+      "children": [
+        { "v": "17-20", "cat": "eschatologie", "t": "Faith, patience and compassion; People of the Right vs People of the Left" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "surah": 82,
+  "name_ar": "الانفطار",
+  "name_latin": "Al-Infitar",
+  "ayat_count": 19,
+  "theme_central": "When the sky splits open, every soul will know what it has done and left undone — despite recording keepers who, day after day, had already recorded everything.",
+  "sources_note": "Content widely taught and undisputed.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Cosmic upheaval",
+      "resume": "Sky split open, stars scattered, seas made to burst forth, graves overturned.",
+      "children": [
+        { "v": "1-5", "cat": "eschatologie", "t": "Cosmic upheaval, every soul knows what it has done and left undone" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Man's ingratitude",
+      "resume": "What deceived you about your Generous Lord who created you in due proportion?",
+      "children": [
+        { "v": "6-8", "cat": "argumentation", "t": "Man's ingratitude toward his Generous Creator" }
+      ]
+    },
+    {
+      "range": "9-19",
+      "title": "Recording keepers, final requital",
+      "resume": "Noble scribes watching over each person; contrasting fate of the righteous and the wicked on the Day of Requital.",
+      "children": [
+        { "v": "9-12", "cat": "croyance", "t": "Noble scribes, guardians recording every deed" },
+        { "v": "13-19", "cat": "eschatologie", "t": "Contrasting fate of the righteous and the wicked on the Day of Requital" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "surah": 33,
+  "name_ar": "الأحزاب",
+  "name_latin": "Al-Ahzab",
+  "ayat_count": 73,
+  "theme_central": "A divine case study of a community in crisis: the Battle of the Trench at the center, framed by the social reforms that address its deep causes and consequences.",
+  "sources_note": "Detailed and precisely sourced division (tafsirzilal.wordpress.com, Prologue Surah 33): 1-3, 4-5, 9-27, 28-34, 35, 36-40, 41-48.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Opening instructions",
+      "resume": "Obey the revelation, rely on Allah; believers closer to one another than by blood ties.",
+      "children": [
+        { "v": "1-3", "cat": "ethique", "t": "Obey the revelation, rely on Allah rather than the hypocrites" },
+        { "v": "6-8", "cat": "ethique", "t": "Believers closer to one another; the covenant of the prophets" }
+      ]
+    },
+    {
+      "range": "4-5",
+      "title": "Social reform: abolition of adoption",
+      "resume": "Zihar repudiated, calling adopted children by the name of their true father.",
+      "children": [
+        { "v": "4-5", "cat": "legislation", "t": "Abolition of pre-Islamic adoption, truth of lineage confirmed" }
+      ]
+    },
+    {
+      "range": "9-27",
+      "title": "The Battle of the Trench",
+      "resume": "Siege of Medina, reactions of the believers and the hypocrites, miraculous victory by the wind.",
+      "children": [
+        { "v": "9-20", "cat": "recits", "t": "Siege of Medina, fear of the wavering, cynicism of the hypocrites" },
+        { "v": "21-27", "cat": "recits", "t": "The Prophet, an excellent example; victory through the wind and unseen armies" }
+      ]
+    },
+    {
+      "range": "28-35",
+      "title": "The Prophet's wives",
+      "resume": "Choice offered between worldly life and Allah, status of the Mothers of the believers, spiritual equality in the ten qualities.",
+      "children": [
+        { "v": "28-34", "cat": "legislation", "t": "Choice offered to the Prophet's wives, status as Mothers of the believers" },
+        { "v": "35", "cat": "ethique", "t": "The ten qualities leading to forgiveness, equal for men and women" }
+      ]
+    },
+    {
+      "range": "36-40",
+      "title": "Marriage with Zaynab",
+      "resume": "Breaking of a social taboo, confirmation that Muhammad is not the father of any grown man among them.",
+      "children": [
+        { "v": "36-40", "cat": "legislation", "t": "Marriage with Zaynab, taboo of adoption definitively abolished" }
+      ]
+    },
+    {
+      "range": "41-52",
+      "title": "Mission of the Prophet",
+      "resume": "Witness, warner, light; specific rules concerning the Prophet's wives.",
+      "children": [
+        { "v": "41-48", "cat": "croyance", "t": "The Prophet: witness, announcer, warner, radiant light" },
+        { "v": "49-52", "cat": "legislation", "t": "Rule of divorce before consummation, categories lawful specifically for the Prophet" }
+      ]
+    },
+    {
+      "range": "53-73",
+      "title": "The hijab, due respect, closing",
+      "resume": "Verse of the hijab, not to offend the Prophet, the veil of the believing women, the trust assumed by man.",
+      "children": [
+        { "v": "53-57", "cat": "legislation", "t": "Verse of the hijab, etiquette at the Prophet's home, respect due to Allah and His messenger" },
+        { "v": "58-62", "cat": "legislation", "t": "Not to slander the believers, command of the veil (jilbab) for believing women" },
+        { "v": "63-71", "cat": "eschatologie", "t": "Question about the Hour, regret of those who wrongly followed their leaders" },
+        { "v": "72-73", "cat": "croyance", "t": "The trust (al-amana) offered to the heavens and the earth, assumed by man" }
+      ]
+    }
+  ]
+}

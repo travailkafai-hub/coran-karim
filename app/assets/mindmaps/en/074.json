@@ -1,0 +1,51 @@
+{
+  "surah": 74,
+  "name_ar": "المدثر",
+  "name_latin": "Al-Muddaththir",
+  "ayat_count": 56,
+  "theme_central": "\"Arise and warn!\" — the heart of the surah is this command that moves the Prophet from personal spirituality to public responsibility.",
+  "sources_note": "Precisely sourced structure (grokipedia): 1-7, 8-26, 26-30 (Saqar, the 19 keepers), 49-56.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "Arise and warn",
+      "resume": "Direct command: rise, warn, purify yourself, be patient — preparation before the continuation of the revelation.",
+      "children": [
+        { "v": "1-7", "cat": "croyance", "t": "\"Arise and warn!\", purification and patience requested" }
+      ]
+    },
+    {
+      "range": "8-25",
+      "title": "The wealthy opponent",
+      "resume": "Portrait of a Meccan notable (Al-Walid ibn al-Mughira) who deliberately rejects the truth despite all his advantages.",
+      "children": [
+        { "v": "8-25", "cat": "recits", "t": "The wealthy opponent deliberately rejects the truth despite his advantages" }
+      ]
+    },
+    {
+      "range": "26-31",
+      "title": "Saqar, the nineteen keepers",
+      "resume": "Hell (Saqar) described as a blaze; nineteen stern keepers, a trial for disbelievers and a confirmation for believers.",
+      "children": [
+        { "v": "26-31", "cat": "eschatologie", "t": "Saqar, nineteen stern keepers, a trial for hearts" }
+      ]
+    },
+    {
+      "range": "32-48",
+      "title": "Oaths, dialogue in Hell",
+      "resume": "Oaths by the moon, the night, the dawn; dialogue with the criminals about what led them to Hell.",
+      "children": [
+        { "v": "32-34", "cat": "croyance", "t": "Oaths by the moon, the retreating night, the whitening dawn" },
+        { "v": "35-48", "cat": "eschatologie", "t": "Dialogue with the criminals: did not pray, did not feed the poor" }
+      ]
+    },
+    {
+      "range": "49-56",
+      "title": "Closing",
+      "resume": "Why do they turn away like frightened donkeys? No one is reminded unless Allah wills it.",
+      "children": [
+        { "v": "49-56", "cat": "argumentation", "t": "Fleeing like frightened donkeys; no reminder without Allah's will" }
+      ]
+    }
+  ]
+}

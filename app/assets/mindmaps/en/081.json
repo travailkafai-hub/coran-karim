@@ -1,0 +1,35 @@
+{
+  "surah": 81,
+  "name_ar": "التكوير",
+  "name_latin": "At-Takwir",
+  "ayat_count": 29,
+  "theme_central": "Twelve cosmic signs announce the Hour — then an oath by the stars and the night to authenticate the word of a noble, trustworthy messenger.",
+  "sources_note": "List of the twelve signs widely taught and undisputed; 3-movement structure well established.",
+  "branches": [
+    {
+      "range": "1-14",
+      "title": "Twelve signs of the Hour",
+      "resume": "Sun darkened, stars falling, mountains set in motion, seas made to boil over, records laid open.",
+      "children": [
+        { "v": "1-9", "cat": "eschatologie", "t": "Sun darkened, stars falling, seas boiling over, the buried infant girl questioned" },
+        { "v": "10-14", "cat": "eschatologie", "t": "Records laid open, sky stripped away, Hell set ablaze, Paradise brought near; every soul will know what it has brought" }
+      ]
+    },
+    {
+      "range": "15-21",
+      "title": "Oath by the stars",
+      "resume": "Oath by the stars that recede, the night, the dawn — authenticating a noble, trustworthy messenger.",
+      "children": [
+        { "v": "15-21", "cat": "croyance", "t": "Oath by the stars and the dawn; a noble, trustworthy messenger" }
+      ]
+    },
+    {
+      "range": "22-29",
+      "title": "Closing",
+      "resume": "This is not the word of a devil; this is a reminder for whoever wishes to walk the straight path.",
+      "children": [
+        { "v": "22-29", "cat": "argumentation", "t": "Refutation of demonic inspiration, a reminder for whoever wishes to walk straight" }
+      ]
+    }
+  ]
+}

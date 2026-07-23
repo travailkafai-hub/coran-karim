@@ -1,0 +1,51 @@
+{
+  "surah": 77,
+  "name_ar": "المرسلات",
+  "name_latin": "Al-Mursalat",
+  "ayat_count": 50,
+  "theme_central": "A rhythmic hammering: \"Woe that Day to the deniers!\" — repeated ten times, more than any other refrain in the Qur'an, after every proof of Allah's power and justice.",
+  "sources_note": "Precisely sourced structure (ayahguide.com, Reflection & Tadabbur): 1-7, 12-15, 16-28, 45-50; refrain confirmed repeated ten times.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "Cosmic oaths",
+      "resume": "Oaths by the successive envoys, building rising tension toward the promised event.",
+      "children": [
+        { "v": "1-7", "cat": "croyance", "t": "Oaths by the successive envoys, the promised event under way" }
+      ]
+    },
+    {
+      "range": "8-15",
+      "title": "The Day of Sorting",
+      "resume": "Stars erased, sky split, mountains crushed to powder; first refrain: \"Woe that Day to the deniers!\"",
+      "children": [
+        { "v": "8-15", "cat": "eschatologie", "t": "The Day of Sorting appointed, first refrain against the deniers" }
+      ]
+    },
+    {
+      "range": "16-28",
+      "title": "The proofs",
+      "resume": "Destruction of the ancient deniers, creation from a lowly fluid, stable earth, sweet water.",
+      "children": [
+        { "v": "16-28", "cat": "signes", "t": "Destruction of the ancients, human creation, stable earth, sweet water — repeated proofs" }
+      ]
+    },
+    {
+      "range": "29-40",
+      "title": "Hell and Paradise contrasted",
+      "resume": "A shadow with three branches offering no protection, sparks like castles; gardens and springs for the pious.",
+      "children": [
+        { "v": "29-34", "cat": "eschatologie", "t": "Shadow with three branches, sparks like castles for the deniers" },
+        { "v": "35-40", "cat": "eschatologie", "t": "Gardens and springs for the pious, a day when none speaks without permission" }
+      ]
+    },
+    {
+      "range": "41-50",
+      "title": "Closing",
+      "resume": "Invitation to the pious to eat and drink pleasantly; final refrains addressed directly to the deniers.",
+      "children": [
+        { "v": "41-50", "cat": "eschatologie", "t": "Reward of the pious, final refrains addressed to the deniers" }
+      ]
+    }
+  ]
+}

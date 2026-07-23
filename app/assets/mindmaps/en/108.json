@@ -1,0 +1,26 @@
+{
+  "surah": 108,
+  "name_ar": "الكوثر",
+  "name_latin": "Al-Kawthar",
+  "ayat_count": 3,
+  "theme_central": "Abundance (al-Kawthar) granted to the Prophet, in answer to those who called him cut off from posterity — it is in fact his detractor who will be so.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1",
+      "title": "Abundance granted",
+      "resume": "Allah has granted the Prophet Abundance (al-Kawthar).",
+      "children": [
+        { "v": "1", "cat": "croyance", "t": "Abundance (al-Kawthar) granted to the Prophet" }
+      ]
+    },
+    {
+      "range": "2-3",
+      "title": "Prayer, sacrifice, answer to enemies",
+      "resume": "Perform the prayer and the sacrifice; it is the Prophet's detractor who will be cut off from posterity.",
+      "children": [
+        { "v": "2-3", "cat": "adoration", "t": "Prayer and sacrifice; the detractor will be cut off from posterity" }
+      ]
+    }
+  ]
+}

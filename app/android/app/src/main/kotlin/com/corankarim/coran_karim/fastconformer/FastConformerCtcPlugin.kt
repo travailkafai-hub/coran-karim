@@ -17,6 +17,8 @@ import kotlinx.coroutines.withContext
  * Cote Dart : voir lib/services/fastconformer_verifier.dart.
  */
 class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
+    private companion object { const val TAG = "FastConformerCtcPlugin" }
+
     private lateinit var channel: MethodChannel
     private var engine: FastConformerCtc? = null
     private var streaming: FastConformerStreamingSession? = null
@@ -97,7 +99,15 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     }
                     val modelPath = call.argument<String>("modelPath")!!
                     val vocabPath = call.argument<String>("vocabPath")!!
-                    engine = FastConformerCtc(modelPath, vocabPath)
+                    // rules.json : noms des classes de la TETE 2 (modeles a deux
+                    // tetes, cf. export_dual_head_checkpoint.py). Optionnel --
+                    // absent sur les anciens modeles, la detection tajwid reste
+                    // alors simplement inactive.
+                    val rulesPath = call.argument<String>("rulesPath")
+                    engine = FastConformerCtc(modelPath, vocabPath, rulesPath)
+                    DiagnosticLog.log(TAG, "modele charge — tete tajwid : " +
+                        if (engine!!.hasTajwid) "OUI (${engine!!.ruleNames.size} classes)"
+                        else "non (modele a une seule tete)")
                     // Dictionnaire mot->tokens precalcule (optionnel, cf.
                     // build_word_token_lookup.py) -- source primaire du
                     // tokenizer de l'alignement force, null si absent
@@ -289,13 +299,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         return@launch
                     }
                     val pcm = WavReader.readMono16kFloat(wavPath)
-                    val logprobs = current.computeLogProbs(pcm)
+                    val outputs = current.computeAll(pcm)
+                    val logprobs = outputs.letters
+                    val segmentRules = current.decodeTajwid(outputs.tajwid)
                     val aligner = ForcedAligner(current.vocabPieces, current.blank)
                     val slice = tokens.subList(anchor, tokens.size)
                     val variantsSlice = alignVariants?.let {
                         if (anchor < it.size) it.subList(anchor, it.size) else null
                     }
-                    var res = aligner.align(logprobs, slice, anchor, isFinal = true, wordVariants = variantsSlice)
+                    var res = aligner.align(logprobs, slice, anchor, isFinal = true,
+                                            wordVariants = variantsSlice, segmentRules = segmentRules,
+                                            tajwidLogprobs = outputs.tajwid)
                     if (res == null) {
                         withContext(Dispatchers.Main) { result.success(null) }
                         return@launch
@@ -315,7 +329,8 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     if (deferred != null) {
                         val retried = aligner.align(
                             logprobs, slice, anchor, forceJudgeIndex = deferred, isFinal = true,
-                            wordVariants = variantsSlice)
+                            wordVariants = variantsSlice, segmentRules = segmentRules,
+                            tajwidLogprobs = outputs.tajwid)
                         if (retried != null) res = retried
                     }
                     val payload = mapOf(
@@ -331,7 +346,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                                 "covered" to it.covered,
                                 "actual" to it.actual,
                             ) + (it.rescoreMargin?.let { m -> mapOf("rescoreMargin" to m) } ?: emptyMap()) +
-                                (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap())
+                                (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap()) +
+                                (if (it.detectedRules.isEmpty()) emptyMap() else mapOf(
+                                    "rules" to it.detectedRules.map { r ->
+                                        mapOf("id" to r.ruleId, "prob" to r.prob.toDouble())
+                                    })) +
+                                (if (it.tajwidGop.isEmpty()) emptyMap() else mapOf(
+                                    "tajwidGop" to it.tajwidGop.map { g -> g.toDouble() }))
                         },
                     )
                     withContext(Dispatchers.Main) { result.success(payload) }

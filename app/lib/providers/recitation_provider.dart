@@ -5,9 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/judgement_options.dart';
 import '../models/recitation_state.dart';
 import '../models/verse.dart' show Verse;
+import '../providers/gop_baseline_provider.dart';
 import '../providers/judgement_provider.dart';
 import '../services/diagnostic_log.dart';
-import '../services/fastconformer_verifier.dart' show AlignPayload;
+import '../services/fastconformer_verifier.dart' show AlignPayload, AlignedWord;
 import '../services/quran_api.dart';
 import '../services/quran_verse_locator_service.dart';
 import '../services/recitation_verifier.dart';
@@ -24,6 +25,20 @@ const double _kSimThreshold = 0.6;
 // mais sans correspondance stricte est jugé "unclear" (orange : bon mot,
 // articulation imprécise) plutôt que "error" (rouge : mot faux).
 const double _kUnclearSimThreshold = 0.85;
+
+// Seuil du GOP TAJWID (« 2ᵉ palier », 2026-07-23) : marge minimale, à la
+// meilleure frame du mot, entre le score de la règle attendue et celui de la
+// classe gagnante (cf. AlignedWord.tajwidGop -- valeur ≤ 0, 0 = la règle
+// gagne). Une règle au-dessus du seuil compte comme RÉALISÉE.
+//
+// -1.2 en log ≈ un rapport de 0,30 avec la classe gagnante : une ghunnah à
+// 0,45 battue par un blanc à 0,50 (marge -0,11) passe largement, alors qu'une
+// règle réellement absente (typiquement plusieurs unités de log sous le
+// blanc) reste signalée. Volontairement TOLÉRANT : un faux « tu as raté cette
+// règle » sur une récitation correcte est bien plus coûteux pédagogiquement
+// qu'une règle limite laissée passer -- et c'est exactement ce que produisait
+// l'ancien critère binaire (décodage glouton), qui jetait toute la nuance.
+const double _kTajwidGopRealized = -1.2;
 const int _kLookahead = 3;
 const int _kAlignLookahead = 6; // tolérance mots sautés/bruit dans le texte reconnu (realign complet)
 
@@ -144,6 +159,17 @@ final recitationProvider = StateNotifierProvider.autoDispose<
     final v = next.asData?.value;
     if (v != null) notifier.applyRuleReliability(v);
   });
+  // Ligne de base gop par mot (cf. gop_baseline_provider.dart) : mesurée sur
+  // 42 927 clips coraniques réels, sert à recentrer le gop des mots
+  // structurellement durs (chadda, Bismillah...) avant de le comparer aux
+  // seuils habituels -- même pattern de poussée que ci-dessus.
+  final gopBase0 = ref.read(gopWordBaselineProvider).asData?.value;
+  if (gopBase0 != null) notifier.applyGopWordBaseline(gopBase0);
+  ref.listen<AsyncValue<Map<String, GopWordBaseline>>>(
+      gopWordBaselineProvider, (_, next) {
+    final v = next.asData?.value;
+    if (v != null) notifier.applyGopWordBaseline(v);
+  });
   return notifier;
 });
 
@@ -192,6 +218,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   bool _strictHarakat = true;
   bool _tolerateConfusables = false;
   Set<TajwidRule> _activeRules = const {};
+  // Moteur de jugement (2026-07-20) : gop (défaut, `_onAligned`) ou diff
+  // textuel flou (`_realignFromFullText`, historique, jamais supprimé) --
+  // cf. JudgementOptions.useGopScoring pour le pourquoi.
+  bool _useGopScoring = true;
 
   /// Poussé par le provider quand l'utilisateur change de preset / de règles.
   /// Ne touche PAS aux seuils GOP (gérés par setSensitivity, curseur en
@@ -217,6 +247,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _strictHarakat = opts.strictHarakat;
     _tolerateConfusables = opts.tolerateConfusables;
     _activeRules = opts.activeRules;
+    _useGopScoring = opts.useGopScoring;
     _judgementLogged = true;
     final rules = _activeRules.isEmpty
         ? 'aucune'
@@ -255,6 +286,29 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       for (final e in reliability.entries)
         if (e.value.capsToUnclear) e.key,
     };
+  }
+
+  /// Ligne de base gop par mot (cf. gop_baseline_provider.dart), mesurée sur
+  /// 42 927 clips coraniques réels -- moyenne observée quand le mot est bien
+  /// récité. Poussée par le provider dès que l'asset est chargé.
+  Map<String, GopWordBaseline> _gopWordBaseline = const {};
+
+  void applyGopWordBaseline(Map<String, GopWordBaseline> baseline) {
+    _gopWordBaseline = baseline;
+  }
+
+  /// Recentre [rawGop] sur la moyenne observée pour [word] quand la ligne de
+  /// base est assez fiable (n>=5, cf. GopWordBaseline.reliable) -- sinon
+  /// renvoie [rawGop] tel quel (comportement historique, sûr). Un mot
+  /// structurellement dur (chadda, Bismillah : moyenne ~-5 à -7 même bien
+  /// récité, cf. PLAN_ENTRAINEMENT_HYBRIDE.md §5quinquies) n'est plus jugé
+  /// sur sa valeur brute mais sur son ÉCART à ce qui est normal POUR CE MOT --
+  /// les seuils (_gopCorrect/_gopUnclear) restent inchangés, calibrés pour un
+  /// écart proche de 0 = mot bien récité.
+  double _normalizedGop(String word, double rawGop) {
+    final baseline = _gopWordBaseline[word];
+    if (baseline == null || !baseline.reliable) return rawGop;
+    return rawGop - baseline.mean;
   }
 
   /// Plafonne le verdict à « incertain » quand le mot porte une règle ACTIVE
@@ -306,17 +360,195 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// pourquoi le mode tajwid n'active d'office que les règles fiables
   /// (cf. JudgementOptionsNotifier.applyPreset) et pourquoi ce contrôle ne
   /// produit JAMAIS de rouge : au pire un orange nommé (cf. appel).
-  List<TajwidRule> unrealizedRulesFor(int wordIndex, String heardRaw) {
+  /// [emitted] : règles RÉELLEMENT détectées sur les frames de ce mot par la
+  /// tête 2 du modèle (cf. AlignedWord.detectedRules). Depuis l'architecture à
+  /// deux têtes (2026-07-22), elles ne se lisent plus dans le texte : le
+  /// modèle ne mélange plus lettres et symboles de règles dans une même sortie
+  /// — c'était précisément la cause mesurée de la dégradation du gop
+  /// (dilution de ~20 % de la masse de probabilité + fusion BPE `ٱ+ل` cassée).
+  ///
+  /// ⚠️ GARDE-FOU : sur un modèle à UNE seule tête, aucune règle n'est jamais
+  /// détectée. Sans le test `hasRuleHead`, on conclurait « aucune règle
+  /// réalisée » et TOUS les mots porteurs d'une règle passeraient orange —
+  /// régression silencieuse. Dans ce cas on ne juge simplement pas le tajwid.
+  /// Règles de JONCTION : elles se jouent ENTRE deux mots (le déclencheur est à
+  /// la frontière -- tanwin/noun sur le mot précédent pour idgham/iqlab/ikhafa,
+  /// hamzat al-wasl ٱ sur le mot suivant). L'alignement forcé attribue leur
+  /// frame à l'un OU l'autre des deux mots selon le micro-timing : mesuré sur
+  /// l'alignement forcé de production (test_forced_align_attribution.py, 5
+  /// récitateurs, sourate 90), delta=0 domine mais delta=±1 arrive (ham_wasl
+  /// 19× delta=0, 4× delta=-1). Une règle de jonction attendue sur un mot est
+  /// donc considérée réalisée si le modèle l'a détectée sur CE mot OU sur son
+  /// voisin de frontière (demande utilisateur 2026-07-23 : « la règle se joue
+  /// sur deux mots, il faut vérifier les deux »). Robuste au jitter
+  /// d'attribution SANS masquer une vraie omission : si l'utilisateur ne
+  /// réalise pas la règle, le modèle ne la détecte NI sur le mot NI sur son
+  /// voisin, donc elle reste signalée.
+  static const _junctionRules = {
+    TajwidRule.hamWasl,
+    TajwidRule.iqlab,
+    TajwidRule.idghamGhunnah,
+    TajwidRule.idghamWoGhunnah,
+    TajwidRule.ikhafa,
+    TajwidRule.ikhafaShafawi,
+    TajwidRule.idghamShafawi,
+    TajwidRule.idghamMutajanisayn,
+    TajwidRule.idghamMutaqaribayn,
+  };
+
+  /// Règles d'ASSIMILATION / ÉLISION : appliquées correctement, elles font
+  /// DISPARAÎTRE acoustiquement la lettre écrite (2026-07-23, observation
+  /// utilisateur : « si j'applique l'idgham, le son de la lettre ne sera
+  /// peut-être pas reconnu »).
+  ///
+  /// Mesuré trois fois sur device, sur trois règles différentes :
+  ///   وَوَالِدٍ + idgham  -> entendu "وَوَالِدِ" (tanwin absorbé)
+  ///   لَّن يَقْدِرَ + idgham -> entendu "لَّمْ"    (ن fondu dans le ي, nasale ambiguë)
+  ///   ٱل- + ham_wasl     -> ٱ élidé, jamais détecté en flux continu
+  /// À chaque fois l'alignement forcé, qui exige la forme ÉCRITE, a compté
+  /// une faute de prononciation alors que la règle était bien réalisée.
+  static const _assimilationRules = {
+    TajwidRule.idghamGhunnah,
+    TajwidRule.idghamWoGhunnah,
+    TajwidRule.idghamShafawi,
+    TajwidRule.idghamMutajanisayn,
+    TajwidRule.idghamMutaqaribayn,
+    TajwidRule.iqlab,
+    TajwidRule.laamShamsiyah,
+    TajwidRule.hamWasl,
+    TajwidRule.slnt,
+  };
+
+  /// La tête TAJWID explique-t-elle le désaccord de la tête LETTRES sur ce mot ?
+  ///
+  /// Les deux têtes observent le MÊME événement sous deux angles : quand une
+  /// assimilation est correctement réalisée, la tête lettres constate que la
+  /// lettre écrite n'est pas prononcée (désaccord) pendant que la tête tajwid
+  /// constate que la règle est là (détection positive). Le désaccord est alors
+  /// la PREUVE de la bonne prononciation, pas une faute.
+  ///
+  /// Jusqu'ici cette information n'était jamais exploitée : la tête tajwid
+  /// n'était consultée QUE sur un mot déjà jugé correct par les lettres (elle
+  /// pouvait dégrader un vert, jamais sauver un rouge). Sur لَّن jugé rouge,
+  /// on n'a donc jamais su que l'idgham avait été bien fait.
+  ///
+  /// Garde-fou : on n'excuse QUE si le modèle a POSITIVEMENT détecté la règle
+  /// (gop tajwid au-dessus du seuil). Un mot réellement faux ne déclenche pas
+  /// la règle attendue, donc n'est pas excusé.
+  bool _tajwidExplainsMismatch(int wordIndex, List<double> gop) {
+    if (!_verifier.hasRuleHead || gop.isEmpty) return false;
+    if (wordIndex < 0 || wordIndex >= state.words.length) return false;
+    for (final r in state.words[wordIndex].expectedRules) {
+      if (!_assimilationRules.contains(r)) continue;
+      final i = r.index;
+      if (i < gop.length && gop[i] >= _kTajwidGopRealized) return true;
+    }
+    return false;
+  }
+
+  /// Union des règles détectées sur les mots voisins immédiats de [wordIndex]
+  /// (frontières gauche et droite). Lu depuis `state.words` -- valable en
+  /// usage POST-HOC (classifyError, après que le jugement a écrit `state`).
+  /// Pendant `_onAligned` (avant l'écriture de `state`), l'appelant fournit
+  /// `neighborEmitted` calculé depuis le segment courant, car `state` n'est
+  /// pas encore à jour.
+  Set<TajwidRule> _neighborDetectedFromState(int wordIndex) {
+    final out = <TajwidRule>{};
+    if (wordIndex - 1 >= 0) out.addAll(state.words[wordIndex - 1].detectedRules);
+    if (wordIndex + 1 < state.words.length) {
+      out.addAll(state.words[wordIndex + 1].detectedRules);
+    }
+    return out;
+  }
+
+  List<TajwidRule> unrealizedRulesFor(int wordIndex, Set<TajwidRule> emitted,
+      {Set<TajwidRule>? neighborEmitted,
+      List<double>? tajwidGop,
+      List<double>? neighborTajwidGop,
+      // Le mot SUIVANT est-il lui aussi entierement couvert par l'audio de
+      // cette passe ? (2026-07-23, observation utilisateur : « la tete tajwid
+      // est en avance quand elle doit juger »).
+      //
+      // Une regle de JONCTION se realise a cheval sur la fin du mot courant ET
+      // le debut du suivant (idgham de وَوَالِدٍ dans le وَ de وَمَا). Juger des
+      // que le mot COURANT est couvert revient a trancher alors que la moitie
+      // de la preuve acoustique n'est pas encore dans le segment : la tete ne
+      // peut que conclure « non detectee », faute de matiere. On differe donc
+      // ces regles tant que le mot suivant n'est pas la -- elles seront jugees
+      // a une passe ulterieure, quand l'audio sera complet. Null = information
+      // indisponible (appel post-hoc) -> on ne differe pas.
+      bool? nextWordCovered}) {
     if (_activeRules.isEmpty) return const [];
+    if (!_verifier.hasRuleHead) return const [];
     if (wordIndex < 0 || wordIndex >= state.words.length) return const [];
-    final expected = state.words[wordIndex].expectedRules;
+    final w = state.words[wordIndex];
+    final expected = w.expectedRules;
     if (expected.isEmpty) return const [];
-    final emitted = RuleSymbols.rulesIn(heardRaw).toSet();
+    final neigh = neighborEmitted ?? _neighborDetectedFromState(wordIndex);
+    final gop = tajwidGop ?? w.tajwidGop;
+    final neighGop = neighborTajwidGop ?? _neighborTajwidGopFromState(wordIndex);
+
+    // Une règle est considérée RÉALISÉE si :
+    //   (a) le décodage glouton l'a émise sur ce mot (`emitted`) -- critère
+    //       historique, équivalent à un gop tajwid de 0 ; OU
+    //   (b) son GOP TAJWID atteint le seuil (2ᵉ palier, 2026-07-23) : la
+    //       règle était présente dans le signal même si une autre classe
+    //       gagnait l'argmax à cette frame. C'est ce qui évite de déclarer
+    //       « non détectée » une ghunnah à 0,45 battue par un blanc à 0,50 ;
+    //   (c) pour une règle de JONCTION, l'un ou l'autre sur le mot voisin
+    //       de frontière (le jitter d'attribution ±1 est mesuré).
+    bool realized(TajwidRule r) {
+      if (emitted.contains(r)) return true;
+      final i = r.index;
+      if (i < gop.length && gop[i] >= _kTajwidGopRealized) return true;
+      if (_junctionRules.contains(r)) {
+        if (neigh.contains(r)) return true;
+        if (i < neighGop.length && neighGop[i] >= _kTajwidGopRealized) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     return [
       for (final r in expected)
-        if (_activeRules.contains(r) && !emitted.contains(r)) r,
+        if (_activeRules.contains(r) &&
+            !realized(r) &&
+            // Regle de jonction sans le mot suivant : preuve acoustique
+            // incomplete, on ne conclut pas (cf. nextWordCovered).
+            !(_junctionRules.contains(r) && nextWordCovered == false))
+          r,
     ];
   }
+
+  /// Meilleur GOP tajwid par classe sur les voisins immédiats de [wordIndex]
+  /// (union par le max : la règle compte comme réalisée si l'un des deux la
+  /// porte). Usage POST-HOC, cf. [_neighborDetectedFromState].
+  List<double> _neighborTajwidGopFromState(int wordIndex) {
+    final out = <double>[];
+    void merge(List<double> g) {
+      for (var i = 0; i < g.length; i++) {
+        if (i >= out.length) {
+          out.add(g[i]);
+        } else if (g[i] > out[i]) {
+          out[i] = g[i];
+        }
+      }
+    }
+
+    if (wordIndex - 1 >= 0) merge(state.words[wordIndex - 1].tajwidGop);
+    if (wordIndex + 1 < state.words.length) {
+      merge(state.words[wordIndex + 1].tajwidGop);
+    }
+    return out;
+  }
+
+  /// Règles détectées portées par [w], converties depuis les ids du modèle.
+  static Set<TajwidRule> _rulesOf(AlignedWord w) => {
+        for (final d in w.detectedRules)
+          if (d.id >= 0 && d.id < TajwidRule.values.length)
+            TajwidRule.values[d.id],
+      };
 
   /// Classe une erreur de récitation (demande utilisateur 2026-07-20 :
   /// « catégoriser par type : tajwid ou prononciation »).
@@ -347,14 +579,41 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       return RecitationErrorKind.saute;
     }
     final heardSkeleton = ArabicNormalizer.normalize(w.heard);
-    if (heardSkeleton != w.normalized) return RecitationErrorKind.lettre;
+    if (heardSkeleton != w.normalized) {
+      // TRONCATURE DE SEGMENT, pas une faute de lettre (correctif 2026-07-23,
+      // mesuré sur device -- session Al-Balad d'un réciteur confirmé).
+      //
+      // Le buffer streaming coupe régulièrement un mot en plein milieu : le
+      // squelette entendu diffère alors FORCÉMENT de l'attendu, et cette
+      // comparaison concluait « erreur de LETTRE » sur des mots parfaitement
+      // récités. Cas réels du log : "عَلَيْ" pour عَلَيْهِمْ, "كَفَ" pour
+      // كَفَرُوا۟, "تَ" pour وَأَنتَ, "طَعَامٌ" pour إِطْعَـٰمٌ -- 6 des 7
+      // erreurs classées `lettre` de la session étaient de simples
+      // troncatures, toutes jugées `correct` par le moteur quelques secondes
+      // plus tard. Le moteur de jugement, lui, SAIT déjà les reconnaître
+      // (flag `fragment`, cf. isFragment dans _onAligned) ; classifyError
+      // était le seul endroit à l'ignorer, ce qui polluait les statistiques
+      // par type avec de fausses fautes de lettres.
+      //
+      // On ne renvoie donc `lettre` que si l'entendu n'est PAS un simple
+      // morceau de l'attendu. Sinon `inconnu` : l'écart est réel (le mot a
+      // échoué) mais on ne sait pas l'attribuer -- plus honnête que de
+      // l'imputer aux lettres.
+      final isTruncation = heardSkeleton.isNotEmpty &&
+          (w.normalized.startsWith(heardSkeleton) ||
+              w.normalized.endsWith(heardSkeleton) ||
+              _isSubsequenceInOrder(heardSkeleton, w.normalized));
+      return isTruncation
+          ? RecitationErrorKind.inconnu
+          : RecitationErrorKind.lettre;
+    }
     final heardStrict = ArabicNormalizer.normalizeStrict(w.heard);
     if (heardStrict != w.strict) return RecitationErrorKind.harakat;
     // Règle attendue, ACTIVE, et symbole non émis par le modèle : c'est un
     // CONSTAT (on a comparé attendu et réalisé), pas la déduction par
     // élimination décrite plus bas. Depuis 2026-07-20, `w.heard` conserve les
     // symboles, donc cette comparaison est possible ici aussi.
-    if (unrealizedRulesFor(wordIndex, w.heard).isNotEmpty) {
+    if (unrealizedRulesFor(wordIndex, w.detectedRules).isNotEmpty) {
       return RecitationErrorKind.tajwid;
     }
     if (w.expectedRules.isNotEmpty) return RecitationErrorKind.tajwid;
@@ -1508,6 +1767,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           annotated = null;
         }
       }
+      // Bismillah = TOUJOURS le verset 1:1 verbatim, qu'elle soit Al-Fatiha
+      // elle-même ou insérée devant une autre sourate (cf. QuranApi.fetchBismillah,
+      // karaoke_recitation_screen._buildChunk : `segments.add((surah: 1, ayah: 1, ...))`
+      // dans les deux cas) -- ce tag suffit à identifier les 4 mots sans dépendre
+      // du contexte d'appel.
+      final isBasmalaSeg = seg.surah == 1 && seg.ayah == 1;
       for (var i = 0; i < canonWords.length; i++) {
         final w = canonWords[i];
         final aw = annotated?[i];
@@ -1516,6 +1781,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           normalized: ArabicNormalizer.normalize(w),
           strict: ArabicNormalizer.normalizeStrict(w),
           training: ArabicNormalizer.normalizeTraining(w),
+          isBasmala: isBasmalaSeg,
           // Cible d'alignement = texte NU (lettres + harakat), PAS la forme
           // annotée : voir la note « INVALIDÉ PAR LA MESURE » sur
           // RecitedWord.alignTarget. Aligner sur les symboles de règles
@@ -1693,11 +1959,20 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// déjà le texte COMPLET décodé jusqu'ici ; en mode segment unique (Coach),
   /// il n'y a qu'un seul segment par session donc remplacer == accumuler.
   void _onRawSegment(String txt) {
-    state = state.copyWith(rawTranscript: txt);
-    // Diff textuel SEULEMENT en repli : quand l'alignement forcé GOP est actif
-    // (modèle déployé), _onAligned est l'unique source de jugement — juger ici
-    // en plus écraserait ses verdicts avec la méthode moins fiable.
-    if (!_verifier.alignmentActive) _realignFromFullText(txt);
+    // RuleSymbols.strip : "entendu" est un sous-titre pour l'utilisateur, pas
+    // un outil de diagnostic -- les symboles de regles (zone privee Unicode)
+    // n'ont pas de glyphe dans la police de l'app et s'affichaient en carres
+    // vides (tofu). Le jugement tajwid lit RecitedWord.heard (brut, ailleurs),
+    // pas ce transcript -- rien ne depend de garder les symboles ici.
+    final stripped = RuleSymbols.strip(txt);
+    state = state.copyWith(rawTranscript: stripped);
+    // Diff textuel : TOUJOURS calculé + journalisé ([TEXTDIFF]) pour pouvoir
+    // comparer les deux méthodes sur la même session (demande utilisateur
+    // 2026-07-20) -- mais ne PILOTE l'affichage (`apply`) qu'en repli (modèle
+    // natif indisponible) ou si l'utilisateur a choisi ce moteur
+    // explicitement ; sinon _onAligned (gop) reste l'unique source affichée.
+    _realignFromFullText(stripped,
+        apply: !_useGopScoring || !_verifier.alignmentActive);
     // Phrase de clôture traditionnelle "Sadaqa Allahu al-'Adhim" (صدق الله
     // العظيم) dite en fin de récitation — la détecter arrête l'écoute
     // automatiquement, en complément du bouton dédié (demande utilisateur
@@ -1827,13 +2102,15 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   static const int _kBackToleranceWindow = 5;
 
   void _judge(List<RecitedWord> words, int i, WordStatus judged,
-      {required bool lock, List<int>? newErrors, String? heard}) {
+      {required bool lock, List<int>? newErrors, String? heard,
+      Set<TajwidRule>? detectedRules, List<double>? tajwidGop}) {
     if (words[i].locked) return;
     // `heard` : ce qui a été réellement entendu, conservé sur le mot pour
     // pouvoir CLASSER l'erreur ensuite (lettre / harakat / tajwid) --
     // cf. RecitationErrorKind. Passage unique par _judge, donc un seul
     // endroit à alimenter.
-    words[i] = words[i].copyWith(status: judged, locked: lock, heard: heard);
+    words[i] = words[i].copyWith(status: judged, locked: lock, heard: heard,
+        detectedRules: detectedRules, tajwidGop: tajwidGop);
     // Rouge (faux), orange (imprécis) ET gris (sauté) déclenchent la
     // correction — demande utilisateur 2026-07-05 (rouge/orange) puis
     // 2026-07-06 (sauté) : "pour moi c'est une erreur aussi" — sauter un mot
@@ -2033,7 +2310,15 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       final display = [parts.committed, parts.preview]
           .where((t) => t.isNotEmpty)
           .join(' ');
-      state = state.copyWith(rawTranscript: display);
+      // RuleSymbols.strip : cf. _onRawSegment -- "entendu" est un sous-titre,
+      // pas un outil de diagnostic, les symboles de regles s'y affichaient en
+      // carres vides (tofu).
+      state = state.copyWith(rawTranscript: RuleSymbols.strip(display));
+      // Diff textuel TOUJOURS calculé + journalisé ([TEXTDIFF]), en parallèle
+      // du gop, pour comparaison (cf. _onRawSegment) -- ne pilote l'affichage
+      // que si l'utilisateur a choisi ce moteur. La détection takbir/prière
+      // ci-dessous reste active dans les deux cas, indépendante du moteur.
+      _realignFromFullText(RuleSymbols.strip(display), apply: !_useGopScoring);
       // BUG corrigé 2026-07-18 : la détection du takbir vivait dans
       // _onRawSegment, qui n'est abonnée qu'en mode segment unique (Coach,
       // cf. start()) -- jamais en mode continu (karaoké, startContinuous()
@@ -2298,9 +2583,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       }
     }
 
-    final display = [parts.committed, parts.preview]
+    final display = RuleSymbols.strip([parts.committed, parts.preview]
         .where((t) => t.isNotEmpty)
-        .join(' ');
+        .join(' '));
     final done = pointer >= words.length;
     state = state.copyWith(
       words: words,
@@ -2332,6 +2617,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// de chaque mot est déterminée acoustiquement par la DP, plus par une
   /// correspondance de chaînes.
   void _onAligned(AlignPayload p) {
+    // Tourne TOUJOURS (calcule + logue [GOP]), même si useGopScoring=false --
+    // demande utilisateur 2026-07-20 : comparer les deux méthodes en
+    // parallèle sur la même session, pas juste basculer l'une ou l'autre à
+    // l'aveugle. Seul l'AFFICHAGE (state.words/pointer) est piloté par
+    // _useGopScoring ; cf. les 3 `state = state.copyWith` plus bas, gardés
+    // par `if (_useGopScoring)`.
     // En standby (attend Al-Fatiha) OU detectingTarget (Al-Fatiha finie,
     // sourate suivante pas encore identifiée) : aucune cible valable à juger
     // (cf. PrayerPhase) -- le natif continue de calculer des passes (cible
@@ -2360,6 +2651,20 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // retard sur des mots déjà colorés, donnant l'impression que l'app "ne
     // suit pas" alors que le jugement progressait bien.
     var maxJudgedIndex = -1;
+
+    // Règles détectées par index de mot sur CE segment -- construit AVANT la
+    // boucle de jugement pour que la tolérance de jonction (cf.
+    // unrealizedRulesFor / _junctionRules) puisse lire les voisins de
+    // frontière sans dépendre de `state` (pas encore écrit à ce stade).
+    final detectedByIndex = <int, Set<TajwidRule>>{
+      for (final r in p.words) r.index: _rulesOf(r),
+    };
+    // Idem pour le GOP tajwid gradué (2ᵉ palier) : nécessaire à la tolérance
+    // de frontière des règles de jonction, qui doit pouvoir lire le score du
+    // mot voisin AVANT que `state` soit écrit.
+    final gopByIndex = <int, List<double>>{
+      for (final r in p.words) r.index: r.tajwidGop,
+    };
 
     for (final r in p.words) {
       if (r.index < 0 || r.index >= words.length) continue;
@@ -2450,10 +2755,21 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           (expected.strict.endsWith(actualStrict) ||
               expected.strict.startsWith(actualStrict) ||
               isOrderedSubsequence);
-      final spellsDifferentWord = hasSpeech && !textMatches && !isFragment;
+      // Le desaccord lettres est-il EXPLIQUE par une assimilation bien
+      // realisee (cf. _tajwidExplainsMismatch) ? Si oui, ce n'est pas un
+      // "autre mot" : c'est la forme assimilee du mot attendu.
+      final tajwidExplains = _tajwidExplainsMismatch(r.index, r.tajwidGop);
+      final spellsDifferentWord =
+          hasSpeech && !textMatches && !isFragment && !tajwidExplains;
+
+      // Recentré sur la ligne de base du mot (cf. _normalizedGop) : sur un
+      // mot structurellement dur (moyenne connue négative), r.gop brut serait
+      // jugé faux même parfaitement récité -- normGop mesure l'ÉCART à ce qui
+      // est normal pour CE mot, comparé aux mêmes seuils que d'habitude.
+      final normGop = _normalizedGop(expected.training, r.gop);
 
       WordStatus judged;
-      if (state.prayerPhase == PrayerPhase.fatiha) {
+      if (state.prayerPhase == PrayerPhase.fatiha || expected.isBasmala) {
         // Demande utilisateur 2026-07-19 : "je ne veux pas de correction
         // dans la récitation de Al-Hamdo [Al-Fatiha], elle est très connue
         // et rare, les erreurs dans cette sourate c'est juste du bruit" --
@@ -2464,6 +2780,16 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         // jamais négativement pendant cette phase -- seule la POSITION
         // (avancement de l'ancre/du pointeur, cf. plus bas, nécessaire pour
         // la bascule de phase) continue d'être suivie normalement.
+        //
+        // `expected.isBasmala` (2026-07-20, demande utilisateur) : étend ce
+        // même laisser-passer aux 4 mots de "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ
+        // ٱلرَّحِيمِ" QUELLE QUE SOIT la sourate (pas seulement en cycle de
+        // prière Al-Fatiha) -- mesuré sur le dataset d'entraînement : la
+        // Bismillah y est récitée ~44% plus vite en médiane que le reste du
+        // Coran (certains réciteurs 3-4x plus vite), et le modèle est
+        // structurellement mal calibré dessus quelle que soit la méthode
+        // d'entraînement (3 pistes testées le même soir, même échec). Ce
+        // n'est pas une faute du récitant, ne pas la lui reprocher.
         judged = WordStatus.correct;
       } else if (!hasSpeech) {
         // Bug corrigé 2026-07-16 (revue de code, Finding #9) : `hasSpeech` ne
@@ -2477,9 +2803,25 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         // regarder gop/similarité.
         judged = WordStatus.error;
       } else if (!spellsDifferentWord &&
-          (r.gop >= _gopCorrect || (textMatches && r.gop >= _gopUnclear))) {
+          // TEST 2026-07-23 : plancher `normGop >= _gopUnclear` RETIRE sur la
+          // rescousse textMatches. Un mot dont le modele a ecrit EXACTEMENT la
+          // forme attendue (entendu strict == attendu strict, cf. textMatches)
+          // est juge correct QUEL QUE SOIT le forced/gop -- on fait confiance
+          // au MODELE (decodage libre) plutot qu'au forced token-level, qui se
+          // fait piéger par un desaccord de decoupage BPE sur un mot pourtant
+          // parfaitement prononce (ex. لَآ forced=-12.97 free=-0.08 entendu="لَآ",
+          // إِيَّاكَ pareil -- premiers mots qui bloquaient toute la recitation).
+          // Le cas piege س/ص reste exclu : la, entendu != attendu (squelette
+          // different) donc textMatches=false. Si ce test est concluant sans
+          // faux positifs, le rendre definitif ; sinon le remplacer par le fix
+          // de fond (GOP invariant au decoupage / alignement squelette).
+          (normGop >= _gopCorrect || textMatches ||
+              // Assimilation correctement realisee : la lettre ecrite ne
+              // DOIT pas s'entendre, le gop des lettres s'effondre donc
+              // legitimement. Les deux tetes concordent, on valide.
+              tajwidExplains)) {
         judged = WordStatus.correct;
-      } else if (r.gop >= _gopUnclear ||
+      } else if (normGop >= _gopUnclear ||
           ArabicNormalizer.similarity(actualNorm, expected.normalized) >=
               _kUnclearSimThreshold) {
         // Bon mot mais rendu imprécis : hésitation acoustique modérée, ou
@@ -2491,7 +2833,16 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // Relâche selon le preset (tajwid/adulte/enfant) -- uniquement quand il y
       // a eu de la parole (pas en phase Fatiha, déjà forcée à correct). Ne
       // durcit jamais : un mot faux au-delà du pardon du preset reste rouge.
-      if (hasSpeech && state.prayerPhase != PrayerPhase.fatiha) {
+      //
+      // `!expected.isBasmala` (bug corrigé 2026-07-20, constaté sur device) :
+      // sans cette exclusion, le laisser-passer Basmala ci-dessus (`judged =
+      // WordStatus.correct`) était ensuite DÉGRADÉ par `_capByRuleReliability`
+      // dès qu'une règle portée par ces mots (ex. ham_wasl sur "ٱللَّهِ") est
+      // active en mode tajwid -- le mot repassait en orange malgré le
+      // laisser-passer, exactement le comportement qu'on voulait supprimer.
+      if (hasSpeech &&
+          state.prayerPhase != PrayerPhase.fatiha &&
+          !expected.isBasmala) {
         judged = _relaxJudged(judged, expected, actualNorm);
         judged = _capByRuleReliability(judged, r.index);
       }
@@ -2506,15 +2857,102 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // N'aggrave JAMAIS au-delà de l'orange, et ne touche pas un mot déjà
       // rouge (la prononciation prime : inutile de reprocher une ghunnah sur
       // un mot qui n'est pas le bon).
-      final unrealized = unrealizedRulesFor(r.index, r.actual);
+      // `!expected.isBasmala` : même raison que le garde-fou ci-dessus -- la
+      // Bismillah n'est pas fiablement annotée en tajwid dans le corpus
+      // d'entraînement (récitée vite, formule rituelle), on ne peut pas non
+      // plus se fier à ce qu'elle "devrait" réaliser ici.
+      final detected = _rulesOf(r);
+      // Voisins de frontière du segment courant (union gauche+droite), pour la
+      // tolérance des règles de jonction -- lu depuis `detectedByIndex` (ce
+      // segment) et non `state` (pas encore à jour dans cette boucle).
+      final neighborDetected = <TajwidRule>{
+        ...?detectedByIndex[r.index - 1],
+        ...?detectedByIndex[r.index + 1],
+      };
+      // TAJWID jugé uniquement quand le mot est ENTIÈREMENT COUVERT par
+      // l'audio (`r.covered`) -- correctif 2026-07-23 en DEUX temps :
+      //
+      // 1er constat (session Al-Balad, réciteur confirmé) : la tête tajwid
+      // tournait sur des buffers partiels (1s/3s/4s glissants) qui coupent le
+      // mot en bord de segment. Or ConvTajwidHead a un noyau temporel de 5
+      // frames : sans le contexte voisin, elle ne déclenche pas. Mesuré :
+      // `emises=` VIDE sur des idgham/qalqala pourtant bien réalisés, et le
+      // MÊME mot donnait `emises=` puis `emises=madda_normal` selon le
+      // découpage du buffer (mot=33 يَرَهُۥٓ) -- c'était le segment, pas la
+      // récitation.
+      //
+      // 1re tentative de correctif : conditionner à `p.isFinal`. ERREUR --
+      // mesurée sur la session suivante : seuls 3 jugements sur 16 tombent
+      // sur un segment figé. Un mot jugé `correct` en aperçu est VERROUILLÉ
+      // immédiatement (cf. `lock` plus bas) et n'est jamais rejugé sur la
+      // passe finale : son tajwid n'était donc contrôlé NULLE PART. Ce
+      // garde-fou désactivait en pratique 80 % de la vérification tajwid,
+      // c'est-à-dire la raison d'être du coach.
+      //
+      // Bon critère : `r.covered` (le mot est derrière la frontière = son
+      // audio est complet ET il a du contexte des deux côtés), indépendamment
+      // de la finalité du segment. C'est exactement la condition dont la tête
+      // a besoin, et elle est vraie sur la grande majorité des aperçus.
+      // Meilleur GOP tajwid des voisins de frontière (union par le max), pour
+      // la tolérance des règles de jonction -- même raison que
+      // `neighborDetected` : lu depuis le segment courant, pas depuis `state`.
+      final neighborGop = <double>[];
+      for (final g in [gopByIndex[r.index - 1], gopByIndex[r.index + 1]]) {
+        if (g == null) continue;
+        for (var i = 0; i < g.length; i++) {
+          if (i >= neighborGop.length) {
+            neighborGop.add(g[i]);
+          } else if (g[i] > neighborGop[i]) {
+            neighborGop[i] = g[i];
+          }
+        }
+      }
+      final unrealized = (expected.isBasmala || !r.covered)
+          ? const <TajwidRule>[]
+          : unrealizedRulesFor(r.index, detected,
+              neighborEmitted: neighborDetected,
+              tajwidGop: r.tajwidGop,
+              neighborTajwidGop: neighborGop,
+              // Le mot suivant est-il couvert DANS CETTE PASSE ? Sert a
+              // differer les regles de jonction dont la preuve acoustique
+              // est encore a moitie absente.
+              nextWordCovered:
+                  p.words.any((w) => w.index == r.index + 1 && w.covered));
       if (unrealized.isNotEmpty && judged == WordStatus.correct) {
         judged = WordStatus.unclear;
+        // Libellé « NON DETECTEE » et non « non réalisée » (correctif
+        // 2026-07-23, demande utilisateur) : ce que la ligne constate est
+        // `attendues` MOINS `emises`, c'est-à-dire « l'asset attendait cette
+        // règle ici et la tête tajwid ne l'a pas détectée ». Ça n'est PAS une
+        // preuve que le récitant ne l'a pas faite -- le modèle peut
+        // simplement l'avoir ratée. Preuve mesurée sur device : le MÊME mot
+        // (mot=33 يَرَهُۥٓ, même audio) sortait `emises=` vide sur une passe
+        // puis `emises=madda_normal` sur la suivante, selon le découpage du
+        // buffer. L'ancien libellé accusait le récitant d'une faute que le
+        // système ne peut pas établir ; cf. la même mise en garde déjà
+        // présente dans classifyError.
+        // gopTajwid des règles ATTENDUES : c'est ce qui permet de trancher
+        // a posteriori entre « le récitant ne l'a pas faite » (marge très
+        // négative) et « le modèle l'a vue mais dominée » (marge proche de 0,
+        // sous le seuil de peu) -- impossible à distinguer avec l'ancien log
+        // binaire. Affiché même quand la règle est jugée non détectée, pour
+        // pouvoir recalibrer _kTajwidGopRealized sur des cas réels.
+        final gopInfo = expected.expectedRules
+            .map((x) {
+              final g = r.tajwidGop;
+              final i = x.index;
+              return i < g.length
+                  ? '${x.key}=${g[i].toStringAsFixed(2)}'
+                  : '${x.key}=n/a';
+            })
+            .join(",");
         DiagnosticLog.log(
             'TAJWID',
-            'mot=${r.index} "${expected.display}" regle(s) NON REALISEE(S) : '
+            'mot=${r.index} "${expected.display}" regle(s) NON DETECTEE(S) : '
                 '${unrealized.map((x) => x.key).join(",")}'
                 ' | attendues=${expected.expectedRules.map((x) => x.key).join(",")}'
-                ' emises=${RuleSymbols.rulesIn(r.actual).map((x) => x.key).join(",")}');
+                ' emises=${detected.map((x) => x.key).join(",")}'
+                ' gopTajwid[$gopInfo] seuil=$_kTajwidGopRealized');
       }
       // Une erreur ne se verrouille QUE sur un segment figé (décision
       // utilisateur 2026-07-10, conservée) : un aperçu peut encore mal couvrir
@@ -2533,12 +2971,15 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
               '${r.rescoreHeard != null ? "(${r.rescoreHeard})" : ""}'
           : '';
       DiagnosticLog.log('GOP', 'mot=${r.index} "${expected.display}" '
-          'gop=${r.gop.toStringAsFixed(2)} forced=${r.forced.toStringAsFixed(2)} '
+          'gop=${r.gop.toStringAsFixed(2)} '
+          '${normGop != r.gop ? "normGop=${normGop.toStringAsFixed(2)} " : ""}'
+          'forced=${r.forced.toStringAsFixed(2)} '
           'free=${(r.forced - r.gop).toStringAsFixed(2)}'
           '$rescoreInfo '
           'entendu="${r.actual}"'
           '${spellsDifferentWord ? " autreMot=OUI" : ""}'
           '${isFragment ? " fragment" : ""}'
+          '${tajwidExplains ? " assimilationOK" : ""}'
           ' -> $judged (lock=$lock, final=${p.isFinal})'
           ' | $_modeTag');
       // `heard` = transcription BRUTE (symboles de règles conservés) et non
@@ -2546,7 +2987,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // effacerait justement les symboles dont la vérification tajwid a besoin.
       // Les normalisations sont réappliquées à la lecture (classifyError).
       _judge(words, r.index, judged,
-          lock: lock, newErrors: newErrors, heard: r.actual);
+          lock: lock, newErrors: newErrors, heard: r.actual,
+          detectedRules: detected, tajwidGop: r.tajwidGop);
     }
 
     // Capture de clip (mini-LoRA personnalisation vocale) : ne retenir ce
@@ -2631,6 +3073,32 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // suivie N'ARRÊTE PAS la session -- elle enchaîne sur le temps suivant de
     // la salât (cf. PrayerPhase). Seul le mode normal (aucun cycle en cours)
     // termine réellement la session sur `done`.
+    // Comparaison en parallèle (cf. commentaire début _onAligned) : quand le
+    // texte-diff pilote l'affichage, le gop continue de tourner et de se
+    // journaliser (boucle ci-dessus) mais ne doit PLUS toucher `state` ni
+    // déclencher ses effets de bord (transitions de phase, fin de session) --
+    // ceux-ci restent la responsabilité exclusive du moteur actif.
+    if (!_useGopScoring) {
+      // Bug corrigé 2026-07-22 (audit demandé par l'utilisateur) :
+      // `_realignFromFullText` (texte-diff) ne sait PAS calculer les règles
+      // tajwid -- seul le bloc ci-dessus (GOP, tourne TOUJOURS, cf. début de
+      // fonction) le fait. Sans cette fusion, `detectedRules` restait
+      // calculé sur la liste locale `words` puis jeté (jamais persisté dans
+      // `state`), et `_realignFromFullText` copiait `state.words[i]` tel
+      // quel (`copyWith(status: ...)` sans passer `detectedRules`, qui
+      // restait donc vide) : la tête tajwid tournait pour rien dès que
+      // useGopScoring=false (défaut de JudgementOptions()). On ne touche
+      // QUE `detectedRules` ici, jamais `status`/`pointer` (propriété
+      // exclusive du texte-diff quand il pilote l'affichage, cf. commentaire
+      // plus haut) -- pour les mots non traités cette passe, `words[i]` est
+      // une simple copie de `state.words[i]` (ligne 2442), donc sans effet.
+      final withRules = [
+        for (var i = 0; i < words.length; i++)
+          state.words[i].copyWith(detectedRules: words[i].detectedRules),
+      ];
+      state = state.copyWith(words: withRules);
+      return;
+    }
     if (done && state.prayerPhase == PrayerPhase.fatiha) {
       state = state.copyWith(
         words: words, pointer: pointer, correctCount: correct,
@@ -2685,7 +3153,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// donc une simple accumulation mot-par-mot afficherait des correspondances
   /// fausses dès qu'une révision survient. Recalculer à chaque fois est plus
   /// coûteux mais toujours cohérent avec la meilleure compréhension actuelle.
-  void _realignFromFullText(String fullText) {
+  /// [apply] : quand false, calcule et journalise ([TEXTDIFF]) le verdict de
+  /// CETTE méthode sans toucher `state` -- permet de faire tourner gop et
+  /// diff textuel en parallèle sur la même session pour les comparer
+  /// (demande utilisateur 2026-07-20), sans que les deux se disputent
+  /// l'affichage. Défaut true : comportement historique (repli quand le
+  /// modèle natif est indisponible).
+  void _realignFromFullText(String fullText, {bool apply = true}) {
     if (state.words.isEmpty) return;
     final s = state.status;
     if (s == RecitationStatus.finished || s == RecitationStatus.idle) return;
@@ -2731,7 +3205,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         final isExact =
             ArabicNormalizer.matchesTolerant(recStrict[bestRec], words[expIdx].strict);
         final WordStatus judged;
-        if (isExact) {
+        if (words[expIdx].isBasmala) {
+          // Cf. le même laisser-passer côté gop (_onAligned) : Bismillah
+          // récitée ~44% plus vite en médiane dans le dataset d'entraînement,
+          // modèle mal calibré dessus quelle que soit la méthode -- pas une
+          // faute du récitant.
+          judged = WordStatus.correct;
+          correct++;
+        } else if (isExact) {
           judged = WordStatus.correct;
           correct++;
         } else if (bestSim >= _kUnclearSimThreshold) {
@@ -2742,6 +3223,18 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           errors++;
         }
         words[expIdx] = words[expIdx].copyWith(status: judged);
+        // entenduStrict/isExact ajoutés le 2026-07-20 nuit (demande utilisateur) :
+        // le squelette seul (entendu=recNorm, sans harakat) ne permettait pas de
+        // vérifier si un CHANGEMENT DE HARAKAT délibéré était bien vu par la
+        // comparaison stricte (matchesTolerant, sur recStrict) -- indispensable
+        // pour distinguer "la comparaison a raté le changement" de "le modèle a
+        // \"corrigé\" la harakat vers le canonique avant même la comparaison"
+        // (même biais que la substitution س/ص constatée la même nuit).
+        DiagnosticLog.log('TEXTDIFF',
+            'mot=$expIdx "${words[expIdx].display}" (strict="${words[expIdx].strict}") '
+            'entendu="${recNorm[bestRec]}" entenduStrict="${recStrict[bestRec]}" '
+            'sim=${bestSim.toStringAsFixed(2)} isExact=$isExact -> $judged'
+            '${apply ? "" : " (comparaison, gop pilote l'affichage)"}');
         recIdx = bestRec + 1;
         expIdx++;
       } else {
@@ -2756,6 +3249,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // partir de zéro. On n'affiche jamais un recul — un nouveau calcul qui
     // couvre MOINS de mots que la meilleure position déjà atteinte est ignoré
     // (on garde l'affichage précédent, en attendant une meilleure lecture).
+    if (!apply) return; // comparaison seule : rien à figer, déjà journalisé.
     if (expIdx < state.pointer) return;
 
     if (expIdx < words.length) {

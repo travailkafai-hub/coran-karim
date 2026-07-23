@@ -1,0 +1,50 @@
+{
+  "surah": 80,
+  "name_ar": "عبس",
+  "name_latin": "'Abasa",
+  "ayat_count": 42,
+  "theme_central": "\"He frowned\": direct correction of the Prophet for having favored a Meccan notable over a blind man sincerely seeking knowledge — a man's true worth is his sincerity, not his rank.",
+  "sources_note": "Opening narrative (Abdullah ibn Umm Maktum) extremely well documented and undisputed; rest of the structure reconstructed from classical, widely taught landmarks.",
+  "branches": [
+    {
+      "range": "1-10",
+      "title": "He frowned",
+      "resume": "The Prophet turns away from a sincere blind man to attend to a notable; immediate divine correction.",
+      "children": [
+        { "v": "1-10", "cat": "ethique", "t": "Divine correction: favoring a notable over a sincere blind man" }
+      ]
+    },
+    {
+      "range": "11-16",
+      "title": "A Reminder on honored sheets",
+      "resume": "This is a Reminder for whoever wishes to remember, recorded on honored, purified sheets.",
+      "children": [
+        { "v": "11-16", "cat": "croyance", "t": "The Qur'an, a Reminder on honored, purified sheets" }
+      ]
+    },
+    {
+      "range": "17-23",
+      "title": "Man's ingratitude",
+      "resume": "Cursed be man, how ungrateful he is! Created from a drop, guided, then called back to death and resurrection.",
+      "children": [
+        { "v": "17-23", "cat": "argumentation", "t": "Man's ingratitude despite his creation made easy by Allah" }
+      ]
+    },
+    {
+      "range": "24-32",
+      "title": "Let man look at his food",
+      "resume": "Water poured down, earth split open, grain, vines, olives, palm trees, gardens — for man and his livestock.",
+      "children": [
+        { "v": "24-32", "cat": "signes", "t": "The cycle of food as a sign of divine care" }
+      ]
+    },
+    {
+      "range": "33-42",
+      "title": "The Day of the Deafening Cry",
+      "resume": "Man will flee from his own brother, mother, father; radiant or darkened faces according to deeds.",
+      "children": [
+        { "v": "33-42", "cat": "eschatologie", "t": "Everyone fleeing from their relatives, radiant or darkened faces that Day" }
+      ]
+    }
+  ]
+}

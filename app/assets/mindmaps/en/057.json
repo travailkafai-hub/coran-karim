@@ -1,0 +1,58 @@
+{
+  "surah": 57,
+  "name_ar": "الحديد",
+  "name_latin": "Al-Hadid",
+  "ayat_count": 29,
+  "theme_central": "Mirror structure: faith in Allah (opening) answers faith in the Messenger (closing); between the two, the call to charitable spending frames the light of the believers contrasted with the darkness of the hypocrites.",
+  "sources_note": "5-passage mirror structure precisely sourced (islam21c.com, The Beauty of Iron): 1-6, 7-11, 12-15, passage 4 mirroring passage 2, 25-29.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Allah's magnificence",
+      "resume": "Everything glorifies Him, perfect knowledge encompassing all that enters the earth and all that comes out of it.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Allah's magnificence, perfect knowledge of everything" }
+      ]
+    },
+    {
+      "range": "7-11",
+      "title": "Faith and the call to spend",
+      "resume": "Believing in Allah and His messenger, spending from what He has entrusted to you.",
+      "children": [
+        { "v": "7-11", "cat": "ethique", "t": "Call to believe and to spend in Allah's path" }
+      ]
+    },
+    {
+      "range": "12-15",
+      "title": "Light vs darkness",
+      "resume": "The light of the believers moving ahead of them, contrasted with the darkness of the hypocrites.",
+      "children": [
+        { "v": "12-15", "cat": "eschatologie", "t": "Light of the believers opposed to the darkness of the hypocrites at the Judgment" }
+      ]
+    },
+    {
+      "range": "16-19",
+      "title": "The hardening heart",
+      "resume": "Is it not time for hearts to humble themselves at Allah's reminder? Warning against hardness of heart.",
+      "children": [
+        { "v": "16-19", "cat": "argumentation", "t": "Warning against the heart hardening over time" }
+      ]
+    },
+    {
+      "range": "20-24",
+      "title": "Parable of the rain, greed",
+      "resume": "This worldly life compared to rain that makes things grow then dries up; condemnation of greed.",
+      "children": [
+        { "v": "20-24", "cat": "signes", "t": "Worldly life compared to rain, condemnation of greed" }
+      ]
+    },
+    {
+      "range": "25-29",
+      "title": "The Book, the Balance, Iron",
+      "resume": "Messengers sent with the Book, the Balance and Iron to establish justice; closing on faith in the Messenger.",
+      "children": [
+        { "v": "25-29", "cat": "legislation", "t": "Book, Balance and Iron sent to establish universal justice" }
+      ]
+    }
+  ]
+}

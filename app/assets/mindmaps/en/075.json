@@ -1,0 +1,52 @@
+{
+  "surah": 75,
+  "name_ar": "القيامة",
+  "name_latin": "Al-Qiyamah",
+  "ayat_count": 40,
+  "theme_central": "The certainty of the resurrection, down to the detail of fingerprints — the real cause of disbelief is love of this fleeting world.",
+  "sources_note": "2-ruku structure precisely sourced (grokipedia): 1-15, 16-40, with fine landmarks (1-4, 6-9, 16-19, 20-30, 31-40).",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Oath, resurrection in detail",
+      "resume": "Oath by the Day of resurrection; even fingerprints reconstituted; eclipses at the Judgment.",
+      "children": [
+        { "v": "1-5", "cat": "eschatologie", "t": "Oath by the Day, resurrection reconstituted down to the fingerprints" },
+        { "v": "6-9", "cat": "eschatologie", "t": "Mocking question about the timing, dazzled sight, eclipse of the sun and moon" }
+      ]
+    },
+    {
+      "range": "10-15",
+      "title": "No refuge that Day",
+      "resume": "No possible escape; man himself a witness against himself despite his excuses.",
+      "children": [
+        { "v": "10-15", "cat": "eschatologie", "t": "No refuge that Day, man a witness against himself" }
+      ]
+    },
+    {
+      "range": "16-19",
+      "title": "Preservation of the Qur'an",
+      "resume": "Intimate reassurance to the Prophet: not to rush his tongue, Allah takes charge of its preservation and explanation.",
+      "children": [
+        { "v": "16-19", "cat": "croyance", "t": "Preservation and explanation of the Qur'an ensured by Allah" }
+      ]
+    },
+    {
+      "range": "20-30",
+      "title": "Vision of the pious, the agony",
+      "resume": "The pious will see their Lord; description of the agony of death, the shin that intertwines with the other.",
+      "children": [
+        { "v": "20-25", "cat": "eschatologie", "t": "Love of this world, the pious will see their Lord" },
+        { "v": "26-30", "cat": "eschatologie", "t": "Description of the agony of death" }
+      ]
+    },
+    {
+      "range": "31-40",
+      "title": "The denier, closing",
+      "resume": "Portrait of the denier who turns away; does man think he will be left without account? Allah's ability to recreate.",
+      "children": [
+        { "v": "31-40", "cat": "argumentation", "t": "The denier who turns away; Allah's ability to recreate man" }
+      ]
+    }
+  ]
+}

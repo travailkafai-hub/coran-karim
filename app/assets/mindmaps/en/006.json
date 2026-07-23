@@ -1,0 +1,63 @@
+{
+  "surah": 6,
+  "name_ar": "الأنعام",
+  "name_latin": "Al-An'am",
+  "ayat_count": 165,
+  "theme_central": "Establishing Tawhid in absolute terms and refuting polytheism from every angle — theological, rational, cosmological, historical (Ibrahim) and legislative.",
+  "sources_note": "General themes confirmed (islamicstudies.info via alim.org: refutation of shirk, the afterlife, refutation of superstitions, moral principles, response to objections). The precise verse boundaries could NOT be cross-checked with a dedicated online source — reconstructed from widely taught landmarks (Ibrahim v.74-83, the \"10 precepts\" v.151-153). To be verified verse by verse before production use.",
+  "branches": [
+    {
+      "range": "1-73",
+      "title": "Tawhid, revelation, first refutations",
+      "resume": "Allah the Creator and All-Knowing, mockery of the signs, warning to the disbelievers.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Praise; Allah, Creator of the heavens and the earth, knows the hidden and the manifest" },
+        { "v": "4-11", "cat": "argumentation", "t": "Mockery of the signs by the disbelievers, the fate of ancient peoples" },
+        { "v": "12-30", "cat": "eschatologie", "t": "Allah's omniscience, an anticipated scene of the Day of Judgment" },
+        { "v": "31-49", "cat": "argumentation", "t": "The messengers mocked just like their predecessors" },
+        { "v": "50-73", "cat": "ethique", "t": "Not turning away the poor believers, the parable of the blind and the seeing" }
+      ]
+    },
+    {
+      "range": "74-90",
+      "title": "Ibrahim and the line of prophets",
+      "resume": "Ibrahim contemplates the heavenly bodies and breaks with his people's polytheism.",
+      "children": [
+        { "v": "74-79", "cat": "recits", "t": "Ibrahim contemplates the heavenly bodies: \"I do not love things that set\"" },
+        { "v": "80-83", "cat": "argumentation", "t": "Ibrahim's debate with his people about shirk" },
+        { "v": "84-90", "cat": "recits", "t": "A list of 18 prophets, guidance passed down from generation to generation" }
+      ]
+    },
+    {
+      "range": "91-121",
+      "title": "Signs of creation, refutation of shirk",
+      "resume": "Cosmological proofs of Oneness, refutation of the partners attributed to Allah.",
+      "children": [
+        { "v": "91-94", "cat": "argumentation", "t": "The polytheists' devaluation of revelation" },
+        { "v": "95-99", "cat": "signes", "t": "Signs in creation: the seed, the dawn, the stars, the rain" },
+        { "v": "100-107", "cat": "argumentation", "t": "Refutation of the partners attributed to Allah" },
+        { "v": "108-113", "cat": "ethique", "t": "Not insulting their idols; signs are not enough without the will to believe" },
+        { "v": "114-121", "cat": "legislation", "t": "The Qur'an set out in detail, lawful and unlawful food" }
+      ]
+    },
+    {
+      "range": "122-150",
+      "title": "The superstitions about livestock",
+      "resume": "The source of the surah's name: refutation of the prohibitions invented by the Arabs about livestock.",
+      "children": [
+        { "v": "122-140", "cat": "argumentation", "t": "Contrast between guidance and misguidance, superstitions about livestock, sacrifices to idols" },
+        { "v": "141-150", "cat": "legislation", "t": "Crops and livestock: what Allah has truly made lawful or unlawful" }
+      ]
+    },
+    {
+      "range": "151-165",
+      "title": "Fundamental precepts, closing",
+      "resume": "The ten moral precepts, the Torah, the straight path of Ibrahim, man as responsible steward.",
+      "children": [
+        { "v": "151-153", "cat": "ethique", "t": "The fundamental moral precepts (\"Say: come, I will recite...\")" },
+        { "v": "154-157", "cat": "croyance", "t": "The Torah given to Musa, the Qur'an removing any excuse" },
+        { "v": "158-165", "cat": "eschatologie", "t": "Awaiting the Judgment, the straight path of Ibrahim, man as responsible steward" }
+      ]
+    }
+  ]
+}

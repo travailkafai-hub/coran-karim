@@ -1,0 +1,60 @@
+{
+  "surah": 53,
+  "name_ar": "النجم",
+  "name_latin": "An-Najm",
+  "ayat_count": 62,
+  "theme_central": "The absolute divine origin of the revelation and the unshakable integrity of the Messenger — eyewitness to the greatest signs of his Lord during the Night Journey.",
+  "sources_note": "Precisely sourced division (sunnahmuakada.wordpress.com, thelastdialogue.org): 1-18, 19-23, 24-32, 33-42.",
+  "branches": [
+    {
+      "range": "1-18",
+      "title": "The Prophet's revelatory experience",
+      "resume": "Description of the Night Journey, vision of the angel Jibril in his real form, the greatest signs of the Lord.",
+      "children": [
+        { "v": "1-18", "cat": "croyance", "t": "Night Journey, vision of Jibril, the greatest signs of the Lord" }
+      ]
+    },
+    {
+      "range": "19-23",
+      "title": "Refutation of the pagan goddesses",
+      "resume": "Al-Lat, al-'Uzza and Manat are but names invented by men.",
+      "children": [
+        { "v": "19-23", "cat": "argumentation", "t": "Refutation of the pagan goddesses, mere human inventions" }
+      ]
+    },
+    {
+      "range": "24-32",
+      "title": "Divine authority, intercession of the angels",
+      "resume": "No intercession by the angels without Allah's permission; creation testing whoever does good.",
+      "children": [
+        { "v": "24-32", "cat": "croyance", "t": "No intercession without Allah's permission, creation to test mankind" }
+      ]
+    },
+    {
+      "range": "33-42",
+      "title": "Divine justice, individual responsibility",
+      "resume": "No one will bear another's burden; man obtains only the fruit of his own effort.",
+      "children": [
+        { "v": "33-42", "cat": "ethique", "t": "No one bears another's burden, man reaps the fruit of his own effort" }
+      ]
+    },
+    {
+      "range": "43-54",
+      "title": "Divine blessings, ancient peoples",
+      "resume": "Allah makes laugh and weep, gives death and life; destruction of 'Ad, Thamud, Nuh, and the overturned cities.",
+      "children": [
+        { "v": "43-48", "cat": "signes", "t": "Allah makes laugh and weep, gives death and life, creates the pairs" },
+        { "v": "49-54", "cat": "recits", "t": "Destruction of 'Ad, Thamud, the people of Nuh, the overturned cities" }
+      ]
+    },
+    {
+      "range": "55-62",
+      "title": "The Hour approaches, closing",
+      "resume": "Which of the blessings do you doubt? Astonishment at laughing rather than weeping; final command to prostrate.",
+      "children": [
+        { "v": "55-58", "cat": "eschatologie", "t": "The approaching Hour (al-azifa), none but Allah can unveil it" },
+        { "v": "59-62", "cat": "adoration", "t": "Astonishment at laughing rather than weeping upon hearing the Qur'an, final prostration" }
+      ]
+    }
+  ]
+}

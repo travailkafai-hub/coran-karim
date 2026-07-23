@@ -1,0 +1,66 @@
+{
+  "surah": 19,
+  "name_ar": "مريم",
+  "name_latin": "Maryam",
+  "ayat_count": 98,
+  "theme_central": "Allah's mercy (Ar-Rahman, sixteen occurrences) through the miraculous births of Yahya and Aissa — then, in a shift of tone, severity toward those who attribute a child to Him.",
+  "sources_note": "2-part structure with contrasting tones (1-58 tenderness, 59-98 severity) sourced (imamghazali.org). Sub-narratives (Zakariyya, Maryam, Ibrahim, gallery of prophets) well known and confirmed by the same source.",
+  "branches": [
+    {
+      "range": "1-15",
+      "title": "Zakariyya and Yahya",
+      "resume": "Zakariyya's supplication for a son despite his old age, the announcement and birth of Yahya.",
+      "children": [
+        { "v": "1-6", "cat": "recits", "t": "Zakariyya's secret supplication for a son despite his old age" },
+        { "v": "7-15", "cat": "recits", "t": "Announcement and birth of Yahya, his righteousness from childhood" }
+      ]
+    },
+    {
+      "range": "16-40",
+      "title": "Maryam and Aissa",
+      "resume": "Maryam's withdrawal, the angel's announcement, the miraculous birth of Aissa, refutation of the divinity attributed to him.",
+      "children": [
+        { "v": "16-26", "cat": "recits", "t": "Maryam's withdrawal, the angel's announcement, the pains of childbirth" },
+        { "v": "27-33", "cat": "recits", "t": "Aissa speaks from the cradle to defend his mother" },
+        { "v": "34-40", "cat": "argumentation", "t": "Refutation: Allah has no son, Aissa is a word from Allah" }
+      ]
+    },
+    {
+      "range": "41-58",
+      "title": "Ibrahim and the gallery of prophets",
+      "resume": "Ibrahim's call to his father, the break, then the mention of Musa, Isma'il and Idris.",
+      "children": [
+        { "v": "41-50", "cat": "recits", "t": "Ibrahim's call to his father against idolatry, the break, the gift of Ishaq and Ya'qub" },
+        { "v": "51-57", "cat": "recits", "t": "Musa, a pure messenger, Isma'il, truthful to his promises, Idris, raised in rank" },
+        { "v": "58", "cat": "croyance", "t": "Conclusion: those whom Allah favoured among the prophets" }
+      ]
+    },
+    {
+      "range": "59-72",
+      "title": "Lost generations, resurrection",
+      "resume": "Those who abandoned prayer and followed their desires; all will cross over Hell before the pious are saved.",
+      "children": [
+        { "v": "59-65", "cat": "eschatologie", "t": "Generations who abandoned prayer, description of the promised Paradise" },
+        { "v": "66-72", "cat": "eschatologie", "t": "Doubt about the resurrection refuted; all will cross over, the pious saved" }
+      ]
+    },
+    {
+      "range": "73-87",
+      "title": "Wealth and poverty, intercession",
+      "resume": "Contrast between the arrogance of the wealthy disbelievers and the poverty of the believers; no intercession without a covenant with Allah.",
+      "children": [
+        { "v": "73-80", "cat": "ethique", "t": "Arrogance of the wealthy disbelievers toward the modest believers" },
+        { "v": "81-87", "cat": "eschatologie", "t": "No intercession possible without a covenant granted by Allah" }
+      ]
+    },
+    {
+      "range": "88-98",
+      "title": "Refutation, closing",
+      "resume": "Vehement refutation of attributing a son to Allah; the Qur'an made easy in the Arabic tongue.",
+      "children": [
+        { "v": "88-93", "cat": "argumentation", "t": "The heavens almost collapsed at the attribution of a son to Allah" },
+        { "v": "94-98", "cat": "croyance", "t": "Allah will grant love to the pious; the Qur'an made easy in the Arabic tongue" }
+      ]
+    }
+  ]
+}

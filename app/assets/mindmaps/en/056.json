@@ -1,0 +1,67 @@
+{
+  "surah": 56,
+  "name_ar": "الواقعة",
+  "name_latin": "Al-Waqi'ah",
+  "ayat_count": 96,
+  "theme_central": "The absolute certainty of the resurrection and the final sorting of mankind into three groups: the Foremost, the People of the Right, the People of the Left.",
+  "sources_note": "Precisely sourced division (ayahguide.com, Deep Reflection & Architecture): 1-6, 7-12, 13-26, 27-40, 41-56, 57-74, 75-82, 83-96.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "The Event",
+      "resume": "When the Event (al-waqi'a) occurs, the earth will be shaken, the mountains crushed to powder.",
+      "children": [
+        { "v": "1-6", "cat": "eschatologie", "t": "The Event, the earth shaken, the mountains crushed to powder" }
+      ]
+    },
+    {
+      "range": "7-12",
+      "title": "Threefold division",
+      "resume": "Introduction of the three groups: the Foremost, the People of the Right, the People of the Left.",
+      "children": [
+        { "v": "7-12", "cat": "eschatologie", "t": "Introduction of the three groups: the Foremost, the right, the left" }
+      ]
+    },
+    {
+      "range": "13-26",
+      "title": "The Foremost",
+      "resume": "The elite closest to Allah, description of their bliss in Paradise.",
+      "children": [
+        { "v": "13-26", "cat": "eschatologie", "t": "The Foremost (as-sabiqun), bliss in Paradise" }
+      ]
+    },
+    {
+      "range": "27-40",
+      "title": "The People of the Right",
+      "resume": "The pious majority, description of their reward in Paradise.",
+      "children": [
+        { "v": "27-40", "cat": "eschatologie", "t": "The People of the Right, reward in Paradise" }
+      ]
+    },
+    {
+      "range": "41-56",
+      "title": "The People of the Left",
+      "resume": "The deniers, description of their torment in Hell.",
+      "children": [
+        { "v": "41-56", "cat": "eschatologie", "t": "The People of the Left, torment in Hell" }
+      ]
+    },
+    {
+      "range": "57-74",
+      "title": "Four challenges about creation",
+      "resume": "Agriculture, reproduction, water, fire: four arguments from the visible to the unseen.",
+      "children": [
+        { "v": "57-74", "cat": "argumentation", "t": "Four challenges: who truly creates the seed, the water, the fire, the harvest?" }
+      ]
+    },
+    {
+      "range": "75-96",
+      "title": "Oath, agony, final sorting",
+      "resume": "Oath by the positions of the stars, scene of the agony, return to the three groups in reverse order.",
+      "children": [
+        { "v": "75-82", "cat": "croyance", "t": "Oath by the positions of the stars, authority of the Qur'an" },
+        { "v": "83-96", "cat": "eschatologie", "t": "Scene of the agony, final sorting according to the three groups" }
+      ]
+    }
+  ]
+}

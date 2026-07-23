@@ -1,0 +1,40 @@
+{
+  "surah": 31,
+  "name_ar": "لقمان",
+  "name_latin": "Luqman",
+  "ayat_count": 34,
+  "theme_central": "True wisdom (hikma) begins with Tawhid, expresses itself in relationships (parents), practice (prayer) and character (humility) — conveyed through a father's advice to his son.",
+  "sources_note": "3-section ring structure precisely sourced (thequran.love, Exhaustive Exegetical and Thematic Analysis): 1-11, 12-19, 20-34.",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "The Qur'an, wisdom and divine signs",
+      "resume": "The Book of wisdom, warning against futile speech, signs of creation.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "The Book of wisdom, guidance and mercy for the doers of good" },
+        { "v": "6-7", "cat": "argumentation", "t": "Warning against futile speech that turns people away from Allah's path" },
+        { "v": "8-11", "cat": "signes", "t": "Paradise promised to the doers of good; the heavens without visible pillars" }
+      ]
+    },
+    {
+      "range": "12-19",
+      "title": "Luqman's advice to his son",
+      "resume": "The heart of the surah: Tawhid, kindness to parents, prayer, patience, humility.",
+      "children": [
+        { "v": "12-13", "cat": "croyance", "t": "Wisdom given to Luqman: \"O my son, do not associate partners with Allah\"" },
+        { "v": "14-15", "cat": "ethique", "t": "Kindness to parents, within its limits" },
+        { "v": "16-19", "cat": "ethique", "t": "The mustard seed seen by Allah, prayer, patience, humility in walking and speech" }
+      ]
+    },
+    {
+      "range": "20-34",
+      "title": "Divine omniscience and sovereignty",
+      "resume": "Futility of idolatry, signs of day and night, closing on the five keys of the unseen.",
+      "children": [
+        { "v": "20-28", "cat": "argumentation", "t": "Futility of idolatry in the face of the immensity of creation" },
+        { "v": "29-32", "cat": "signes", "t": "Alternation of day and night, ships at sea by Allah's grace" },
+        { "v": "33-34", "cat": "croyance", "t": "Closing: the five keys of the unseen known to Allah alone" }
+      ]
+    }
+  ]
+}

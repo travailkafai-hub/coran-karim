@@ -1,0 +1,51 @@
+{
+  "surah": 15,
+  "name_ar": "الحجر",
+  "name_latin": "Al-Hijr",
+  "ayat_count": 99,
+  "theme_central": "A ring structure: the preserved Book frames the surah (opening and closing), with the cosmological and historical proofs of its truth at the centre.",
+  "sources_note": "Ring structure of 3 sections + closing, well documented (thequran.love / surah.pk): 1-15, 16-44, 45-84; closing 85-99 reconstructed from known landmarks (the final verse \"worship until certainty comes to you,\" 15:99).",
+  "branches": [
+    {
+      "range": "1-15",
+      "title": "The Book facing the mockers",
+      "resume": "Future regret of the disbelievers, every city has a fixed term, mockery toward the Prophet.",
+      "children": [
+        { "v": "1-3", "cat": "eschatologie", "t": "Future regret of the disbelievers for not having submitted" },
+        { "v": "4-5", "cat": "croyance", "t": "Every city has a fixed and written term" },
+        { "v": "6-15", "cat": "argumentation", "t": "Mockery of the disbelievers; even an open door to heaven would not convince them" }
+      ]
+    },
+    {
+      "range": "16-44",
+      "title": "Creation, Iblis",
+      "resume": "The heavens and the earth created with precise measure, the creation of Adam, Iblis's refusal and the respite granted to him.",
+      "children": [
+        { "v": "16-25", "cat": "signes", "t": "The heavens, the constellations, the earth spread out, everything created with measure" },
+        { "v": "26-40", "cat": "recits", "t": "Creation of Adam, Iblis's refusal to bow down, the respite granted to him" },
+        { "v": "41-44", "cat": "eschatologie", "t": "Description of Hell with seven gates" }
+      ]
+    },
+    {
+      "range": "45-84",
+      "title": "Historical lessons",
+      "resume": "The Paradise of the pious, then the accounts of Ibrahim, Lot, the people of the Wood and of al-Hijr (Thamud).",
+      "children": [
+        { "v": "45-50", "cat": "eschatologie", "t": "Description of the Paradise promised to the pious" },
+        { "v": "51-60", "cat": "recits", "t": "Ibrahim's guests announce Ishaq and the imminent destruction of the people of Lot" },
+        { "v": "61-77", "cat": "recits", "t": "Destruction of the people of Lot, a sign for those who reflect" },
+        { "v": "78-84", "cat": "recits", "t": "The people of the Wood and the people of al-Hijr (Thamud), rejecting the signs" }
+      ]
+    },
+    {
+      "range": "85-99",
+      "title": "Closing",
+      "resume": "Patience and forgiveness, proclaiming the message openly, worshipping Allah until certainty.",
+      "children": [
+        { "v": "85-88", "cat": "ethique", "t": "Patience, gracious forgiveness, not envying what the disbelievers have" },
+        { "v": "89-93", "cat": "argumentation", "t": "Warning against those who divided the Qur'an into fragments" },
+        { "v": "94-99", "cat": "adoration", "t": "Proclaiming the message openly; \"worship until certainty comes to you\"" }
+      ]
+    }
+  ]
+}

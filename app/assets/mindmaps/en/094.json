@@ -1,0 +1,34 @@
+{
+  "surah": 94,
+  "name_ar": "الشرح",
+  "name_latin": "Ash-Sharh",
+  "ayat_count": 8,
+  "theme_central": "\"With hardship comes ease indeed\" — repeated twice, the most condensed promise in the Qur'an, followed by a call to perseverance.",
+  "sources_note": "Content widely taught and undisputed; twin surah of Ad-Duha.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Chest opened, burden lifted",
+      "resume": "Chest opened, burden lifted, reputation raised.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Chest opened, burden lifted, the Prophet's reputation raised" }
+      ]
+    },
+    {
+      "range": "5-6",
+      "title": "Ease after hardship",
+      "resume": "\"With hardship comes ease indeed\" — affirmed twice.",
+      "children": [
+        { "v": "5-6", "cat": "croyance", "t": "\"With hardship comes ease indeed\"" }
+      ]
+    },
+    {
+      "range": "7-8",
+      "title": "Perseverance, closing",
+      "resume": "When you have finished, strive on still; direct your longing toward your Lord alone.",
+      "children": [
+        { "v": "7-8", "cat": "ethique", "t": "Perseverance in effort, longing directed exclusively to Allah" }
+      ]
+    }
+  ]
+}

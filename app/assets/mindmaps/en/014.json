@@ -1,0 +1,70 @@
+{
+  "surah": 14,
+  "name_ar": "إبراهيم",
+  "name_latin": "Ibrahim",
+  "ayat_count": 52,
+  "theme_central": "Gratitude (shukr) attracts blessings, ingratitude (kufr) attracts punishment — illustrated by the account of Musa and Ibrahim's prayer for Mecca.",
+  "sources_note": "Division into 7 sections precisely sourced (iqra-quran.com / bayan-ul-quran.com), small boundary adjustments (16-18, 27, 31) to cover the full 52 verses without gaps.",
+  "branches": [
+    {
+      "range": "1-3",
+      "title": "Opening",
+      "resume": "The Book revealed to bring humanity out of darkness into light.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "The Book to bring people out of darkness into light" }
+      ]
+    },
+    {
+      "range": "4-8",
+      "title": "Consolation of the Prophet, the example of Musa",
+      "resume": "Every messenger sent in the language of his people; gratitude (shukr) and ingratitude (kufr).",
+      "children": [
+        { "v": "4-8", "cat": "recits", "t": "Every messenger speaks his people's language; Musa reminds his people to be grateful" }
+      ]
+    },
+    {
+      "range": "9-18",
+      "title": "Allah's Oneness and power",
+      "resume": "Rejection of the messengers by ancient peoples, warning, the failure of those who oppose Allah.",
+      "children": [
+        { "v": "9-15", "cat": "argumentation", "t": "Rejection of the messengers by Nuh, 'Ad and the following peoples" },
+        { "v": "16-18", "cat": "eschatologie", "t": "The fate of those who oppose Allah, their deeds reduced to ashes" }
+      ]
+    },
+    {
+      "range": "19-27",
+      "title": "Day of Judgment, the good word",
+      "resume": "Dispute between followers and leaders, Satan disowns them, parable of the good and the bad word.",
+      "children": [
+        { "v": "19-23", "cat": "eschatologie", "t": "Dispute between followers and leaders, Satan disowns them" },
+        { "v": "24-27", "cat": "argumentation", "t": "Parable of the good word (a firm tree) and the bad word (an uprooted tree)" }
+      ]
+    },
+    {
+      "range": "28-31",
+      "title": "Allah's blessings",
+      "resume": "Call to worship and gratitude, those who exchange Allah's blessing for disbelief.",
+      "children": [
+        { "v": "28-31", "cat": "croyance", "t": "Allah's blessings, those who exchange them for disbelief" }
+      ]
+    },
+    {
+      "range": "32-41",
+      "title": "Ibrahim's prayer for Mecca",
+      "resume": "Ibrahim settles his descendants near the Kaaba and prays for the safety and piety of the place.",
+      "children": [
+        { "v": "32-37", "cat": "signes", "t": "Blessings enumerated (heavenly bodies, rivers, day and night); Ibrahim settles his descendants in Mecca" },
+        { "v": "38-41", "cat": "adoration", "t": "Ibrahim's supplication for the piety of his descendants and his parents" }
+      ]
+    },
+    {
+      "range": "42-52",
+      "title": "Closing: justice delayed, not forgotten",
+      "resume": "Do not think Allah unaware of injustice; this Qur'an is a reminder addressed to all of humanity.",
+      "children": [
+        { "v": "42-47", "cat": "eschatologie", "t": "Allah is never unaware of injustice, even when delayed" },
+        { "v": "48-52", "cat": "croyance", "t": "Closing: this Qur'an is a reminder addressed to all of humanity" }
+      ]
+    }
+  ]
+}

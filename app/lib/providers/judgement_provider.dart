@@ -16,7 +16,26 @@ import '../models/judgement_options.dart';
 // dire. Effet de bord assumé et signalé : la sélection de règles personnalisée
 // repart à vide (elles ne faisaient de toute façon que plafonner des verts en
 // orange, sans rien vérifier -- cf. audit du même jour).
-const _kPrefJudgement = 'judgement_options_v2';
+//
+// Repassée en _v3 le 2026-07-20 nuit : même raison, cette fois pour
+// useGopScoring (défaut true -> false, cf. judgement_options.dart) -- une
+// session de test précédente avait déjà persisté useGopScoring=true (gop
+// actif) avant ce changement ; sans le bump de clé, ce réglage enregistré
+// aurait masqué le nouveau défaut (texte pilote, gop en log seul).
+//
+// Repassée en _v4 le 2026-07-22 : même raison une 3e fois, useGopScoring
+// revenu à false -> true (cf. judgement_options.dart) -- constat device
+// (session 21:19, mode adulte) que le texte-diff restait bloqué sur les 2
+// premiers mots pendant toute une récitation alors que le gop suivait
+// correctement en parallèle. Sans ce bump, un réglage adulte déjà persisté
+// avec useGopScoring=false aurait masqué le nouveau défaut et le bug aurait
+// semblé toujours présent après la mise à jour.
+// Repassée en _v5 le 2026-07-23 : le preset tajwid ne contrôle plus ham_wasl
+// d'office (cf. _contextDependentRules -- élision positionnelle non détectable
+// en récitation continue, flashait à tort chaque mot en ٱل-). Un réglage
+// tajwid déjà persisté contenait ham_wasl dans activeRules ; sans ce bump il
+// aurait continué à le vérifier malgré le changement.
+const _kPrefJudgement = 'judgement_options_v5';
 
 final judgementOptionsProvider =
     StateNotifierProvider<JudgementOptionsNotifier, JudgementOptions>((ref) {
@@ -83,6 +102,24 @@ class JudgementOptionsNotifier extends StateNotifier<JudgementOptions> {
     await _persist();
   }
 
+  /// Règles CONTEXTUELLES exclues de la vérification d'office, quelle que soit
+  /// leur fiabilité mesurée (2026-07-23, constat device Al-Fatiha).
+  ///
+  /// `ham_wasl` (hamzat al-wasl) N'est PAS une qualité acoustique graduée mais
+  /// une ÉLISION positionnelle : le ٱ n'est prononcé qu'en DÉBUT de souffle,
+  /// et ÉLIDÉ (silencieux) dès qu'il est connecté au mot précédent -- ce qui
+  /// est le cas quasi partout en récitation continue ("رَبِّ ٱلْعَـٰلَمِينَ"
+  /// -> "rabbil-'aalameen", ٱ muet). La tête tajwid ne détecte donc RIEN sur
+  /// ces mots (correctement : il n'y a rien à entendre), et les vérifier
+  /// comme "doit être réalisé" flashe à tort CHAQUE mot en ٱل- alors que la
+  /// récitation est juste. Sa fiabilité 0.96 dans rule_reliability.json est
+  /// mesurée sur des clips ISOLÉS (le ٱ y est en début de clip, donc
+  /// prononcé) -- trompeuse pour le flux continu. Relève du treillis
+  /// d'alignement forcé (cf. plan PARTIE 2, "branche optionnelle"), pas d'un
+  /// classifieur entraîné. Reste sélectionnable À LA MAIN pour qui veut
+  /// vérifier une hamzat al-wasl en début de récitation.
+  static const _contextDependentRules = {TajwidRule.hamWasl};
+
   /// Règles jugées assez fiables pour être contrôlées d'office en mode tajwid.
   /// Alimenté depuis `rule_reliability.json` (asset versionné avec le modèle)
   /// par le provider ci-dessous -- pas codé en dur : quand un nouveau modèle
@@ -92,7 +129,8 @@ class JudgementOptionsNotifier extends StateNotifier<JudgementOptions> {
   void setReliability(Map<TajwidRule, RuleReliability> reliability) {
     _reliableRules = {
       for (final e in reliability.entries)
-        if (!e.value.capsToUnclear) e.key,
+        if (!e.value.capsToUnclear && !_contextDependentRules.contains(e.key))
+          e.key,
     };
   }
 
@@ -122,6 +160,14 @@ class JudgementOptionsNotifier extends StateNotifier<JudgementOptions> {
   Future<void> setTolerateConfusables(bool value) async {
     state = state.copyWith(
         tolerateConfusables: value, preset: JudgementPreset.custom);
+    await _persist();
+  }
+
+  /// Moteur de jugement (gop vs diff textuel, cf. JudgementOptions) : ne
+  /// touche PAS `preset` -- c'est un choix de méthode de mesure, pas une
+  /// gradation de tolérance tajwid/adulte/enfant.
+  Future<void> setUseGopScoring(bool value) async {
+    state = state.copyWith(useGopScoring: value);
     await _persist();
   }
 }

@@ -1,0 +1,43 @@
+{
+  "surah": 59,
+  "name_ar": "الحشر",
+  "name_latin": "Al-Hashr",
+  "ayat_count": 24,
+  "theme_central": "The expulsion of the Banu Nadir as concrete proof of Allah's power — opening and closing on His glorification, of which seventeen attributes are listed in the final three verses.",
+  "sources_note": "3-section structure precisely sourced (slideshare.net, alim.org): 1-5, 6-10, 11-17. Closing (18-24, the most beautiful names) widely documented.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Expulsion of the Banu Nadir",
+      "resume": "The Jewish tribe of Banu Nadir expelled from Medina for betraying the covenant.",
+      "children": [
+        { "v": "1-5", "cat": "recits", "t": "Expulsion of the Banu Nadir for betraying the covenant with the Muslims" }
+      ]
+    },
+    {
+      "range": "6-10",
+      "title": "Distribution of goods, qualities of the believers",
+      "resume": "Distribution of the Banu Nadir's goods, qualities of the emigrants and the helpers.",
+      "children": [
+        { "v": "6-10", "cat": "legislation", "t": "Distribution of goods; qualities of the emigrants (muhajirun) and helpers (ansar)" }
+      ]
+    },
+    {
+      "range": "11-17",
+      "title": "Betrayal of the hypocrites",
+      "resume": "Promises of support from the hypocrites toward the Banu Nadir, then flight at the decisive moment.",
+      "children": [
+        { "v": "11-17", "cat": "argumentation", "t": "Hypocrites promising their support then fleeing at the decisive moment" }
+      ]
+    },
+    {
+      "range": "18-24",
+      "title": "Closing: the most beautiful names",
+      "resume": "Exhortation to prepare for the hereafter, closing on seventeen divine attributes.",
+      "children": [
+        { "v": "18-20", "cat": "ethique", "t": "Looking at what one has prepared for tomorrow, fearing Allah" },
+        { "v": "21-24", "cat": "croyance", "t": "Closing: seventeen divine attributes listed (al-asma al-husna)" }
+      ]
+    }
+  ]
+}

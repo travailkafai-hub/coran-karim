@@ -1,0 +1,42 @@
+{
+  "surah": 88,
+  "name_ar": "الغاشية",
+  "name_latin": "Al-Ghashiyah",
+  "ayat_count": 26,
+  "theme_central": "\"The Overwhelming Event\": humbled faces in a blazing fire contrasted with joyful faces in an elevated garden — then a return to signs visible to all: camels, sky, mountains, earth.",
+  "sources_note": "Content widely taught and undisputed.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "Humbled faces",
+      "resume": "Humbled faces, toiling in vain effort, burning in a blazing Fire, food that does not satisfy hunger.",
+      "children": [
+        { "v": "1-7", "cat": "eschatologie", "t": "Humbled faces, punishment and thorny food" }
+      ]
+    },
+    {
+      "range": "8-16",
+      "title": "Joyful faces",
+      "resume": "Joyful faces in an elevated garden, springs, couches, cups and cushions.",
+      "children": [
+        { "v": "8-16", "cat": "eschatologie", "t": "Joyful faces in Paradise, elevated garden and comfort" }
+      ]
+    },
+    {
+      "range": "17-20",
+      "title": "Signs of creation",
+      "resume": "The camels, the sky, the mountains, the earth — an invitation to observe how they were created.",
+      "children": [
+        { "v": "17-20", "cat": "signes", "t": "Camels, sky, mountains, earth as signs to observe" }
+      ]
+    },
+    {
+      "range": "21-26",
+      "title": "The Prophet's mission, closing",
+      "resume": "The Prophet is only a reminder-bearer without coercive authority; the final return is to Allah.",
+      "children": [
+        { "v": "21-26", "cat": "croyance", "t": "The Prophet's mission to remind, final return to Allah" }
+      ]
+    }
+  ]
+}

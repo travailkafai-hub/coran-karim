@@ -1,0 +1,61 @@
+{
+  "surah": 46,
+  "name_ar": "الأحقاف",
+  "name_latin": "Al-Ahqaf",
+  "ayat_count": 35,
+  "theme_central": "Nothing was created in vain, and nothing is hidden from Allah: from duty toward parents to the destruction of the people of 'Ad, down to the jinn themselves recognizing the truth of the Qur'an.",
+  "sources_note": "Precisely sourced division (slideshare.net, Al Quran Chapter 46): 1-3, 4-8, 9-14, 15, 21-26, 29-30, 32-35.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Creation with truth, powerlessness of the idols",
+      "resume": "Everything created with truth for a fixed term; what they invoke besides Allah has no power at all.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "Everything created with truth, for a fixed term" },
+        { "v": "4-8", "cat": "argumentation", "t": "Total powerlessness of what they invoke besides Allah" }
+      ]
+    },
+    {
+      "range": "9-14",
+      "title": "The Prophet, ancient message confirmed",
+      "resume": "Muhammad is not a messenger of a new kind; the Qur'an in agreement with the Torah given to Musa.",
+      "children": [
+        { "v": "9-14", "cat": "croyance", "t": "Ancient message confirmed, agreement with the Torah, knowledge of the unseen reserved for Allah" }
+      ]
+    },
+    {
+      "range": "15-20",
+      "title": "Kindness to parents",
+      "resume": "Pregnancy and weaning, gratitude toward parents; ranks according to deeds, fleeting enjoyment of this world reproached.",
+      "children": [
+        { "v": "15", "cat": "ethique", "t": "Kindness to parents, pregnancy and weaning over 30 months" },
+        { "v": "16-20", "cat": "eschatologie", "t": "Ranks according to deeds, fleeting enjoyment of this world reproached" }
+      ]
+    },
+    {
+      "range": "21-28",
+      "title": "'Ad, the region of al-Ahqaf",
+      "resume": "Source of the surah's name: the people of 'Ad warned by Hud, rejection, destruction by the wind.",
+      "children": [
+        { "v": "21-26", "cat": "recits", "t": "The people of 'Ad in the region of al-Ahqaf, warned by Hud, destroyed by the wind" },
+        { "v": "27-28", "cat": "argumentation", "t": "Ancient cities destroyed, their false deities powerless to help them" }
+      ]
+    },
+    {
+      "range": "29-32",
+      "title": "The jinn and the Qur'an",
+      "resume": "A group of jinn listen to the Qur'an, believe in it, and return to preach among their people.",
+      "children": [
+        { "v": "29-32", "cat": "recits", "t": "Jinn listen to the Qur'an, believe, become preachers among their own" }
+      ]
+    },
+    {
+      "range": "33-35",
+      "title": "Closing",
+      "resume": "Allah able to resurrect the dead; final patience asked of the Prophet.",
+      "children": [
+        { "v": "33-35", "cat": "eschatologie", "t": "Allah able to resurrect the dead, final patience requested" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "surah": 66,
+  "name_ar": "التحريم",
+  "name_latin": "At-Tahrim",
+  "ayat_count": 12,
+  "theme_central": "A lesson in domestic ethics: from a private conversation with the Prophet to a general call to repentance, culminating in four archetypal women — two warnings, two models of piety.",
+  "sources_note": "Precisely sourced structure (grokipedia, Comprehensive Exegetical Study): 1-5, 6, 7-8, 10-12.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Correction of the Prophet, warning to the wives",
+      "resume": "The Prophet corrected for having forbidden what Allah made lawful; warning against division among wives.",
+      "children": [
+        { "v": "1-5", "cat": "legislation", "t": "Correction of the Prophet, warning against division among his wives" }
+      ]
+    },
+    {
+      "range": "6",
+      "title": "Protecting one's family from the Fire",
+      "resume": "\"Protect yourselves and your families from a Fire whose fuel is men and stones.\"",
+      "children": [
+        { "v": "6", "cat": "ethique", "t": "Protecting one's family from the Fire through education and example" }
+      ]
+    },
+    {
+      "range": "7-9",
+      "title": "Call to repentance, struggle",
+      "resume": "Sincere repentance asked of the believers; command to struggle against disbelievers and hypocrites.",
+      "children": [
+        { "v": "7-9", "cat": "ethique", "t": "Sincere repentance, struggle against disbelievers and hypocrites" }
+      ]
+    },
+    {
+      "range": "10-12",
+      "title": "Four archetypal women",
+      "resume": "The wives of Nuh and Lot, disbelieving despite their closeness; Asiya and Maryam, models of piety.",
+      "children": [
+        { "v": "10", "cat": "recits", "t": "The wives of Nuh and Lot, disbelieving despite their closeness to prophets" },
+        { "v": "11-12", "cat": "recits", "t": "Asiya, Pharaoh's wife, and Maryam: models of piety and purity" }
+      ]
+    }
+  ]
+}

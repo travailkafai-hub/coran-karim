@@ -1,0 +1,61 @@
+{
+  "surah": 41,
+  "name_ar": "فصلت",
+  "name_latin": "Fussilat",
+  "ayat_count": 54,
+  "theme_central": "\"Explained in detail\": the nature of divine revelation and the human response to it — from the testimony of the skin of the damned to the recommendation to answer evil with good.",
+  "sources_note": "Division into 6 rukus precisely sourced (normalbeaconite.blogspot.com), boundaries at verses 8, 18, 25, 32, 44, 54.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Divine origin of the Qur'an",
+      "resume": "Revelation in clear Arabic, detailed, to warn and to announce good news.",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "The Qur'an, a revelation detailed in clear Arabic" }
+      ]
+    },
+    {
+      "range": "9-18",
+      "title": "Stages of creation, 'Ad and Thamud",
+      "resume": "Earth and heavens created in six days by stages; brief reminder of 'Ad and Thamud destroyed.",
+      "children": [
+        { "v": "9-12", "cat": "signes", "t": "Earth and heavens created in six stages, stars as adornment and protection" },
+        { "v": "13-18", "cat": "recits", "t": "Brief reminder of 'Ad and Thamud, destroyed for rejecting the message" }
+      ]
+    },
+    {
+      "range": "19-25",
+      "title": "Scene of the Judgment",
+      "resume": "Skin, hearing and sight testifying against the disbelievers on the Day of Judgment.",
+      "children": [
+        { "v": "19-25", "cat": "eschatologie", "t": "Skin testifying against the disbelievers, evil companions who misled them" }
+      ]
+    },
+    {
+      "range": "26-32",
+      "title": "Warning, comfort of the steadfast",
+      "resume": "Those who make noise to drown out the recitation; the angels reassure the steadfast believers.",
+      "children": [
+        { "v": "26-32", "cat": "argumentation", "t": "Noise to drown out the recitation; angels reassuring the steadfast believers" }
+      ]
+    },
+    {
+      "range": "33-44",
+      "title": "Answering evil with good",
+      "resume": "Repelling evil with what is better turns the enemy into a close friend; the Qur'an a healing for the believers.",
+      "children": [
+        { "v": "33-36", "cat": "ethique", "t": "Repelling evil with good, the enemy becomes a close friend" },
+        { "v": "37-44", "cat": "croyance", "t": "Signs of night and day, the Qur'an a healing for the believers" }
+      ]
+    },
+    {
+      "range": "45-54",
+      "title": "Closing",
+      "resume": "Ancient disagreements over the Book, signs on the horizon and within oneself until the truth becomes evident.",
+      "children": [
+        { "v": "45-49", "cat": "argumentation", "t": "Ancient disagreements over the Book given to Musa" },
+        { "v": "50-54", "cat": "signes", "t": "Signs shown on the horizon and within oneself until the truth becomes evident" }
+      ]
+    }
+  ]
+}

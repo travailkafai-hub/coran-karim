@@ -1,0 +1,72 @@
+{
+  "surah": 27,
+  "name_ar": "النمل",
+  "name_latin": "An-Naml",
+  "ayat_count": 93,
+  "theme_central": "Allah's knowledge, power and justice illustrated through striking narratives — at the heart of which Sulayman, who understands the speech of ants and converts the Queen of Sheba through wisdom rather than force.",
+  "sources_note": "Narrative of Sulayman (15-44) precisely sourced (al-islam.org, enlightening commentary). Rest reconstructed from well-established landmarks.",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Opening",
+      "resume": "The Qur'an, guidance and good news for the believers.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "The Qur'an, guidance and good news for the believers" }
+      ]
+    },
+    {
+      "range": "7-14",
+      "title": "Musa at the burning bush",
+      "resume": "The call at the burning bush, the nine clear signs sent to Pharaoh.",
+      "children": [
+        { "v": "7-14", "cat": "recits", "t": "Musa at the burning bush, the nine clear signs to Pharaoh" }
+      ]
+    },
+    {
+      "range": "15-44",
+      "title": "Sulayman, the ant, Bilqis",
+      "resume": "The heart of the surah: the valley of the ants, the hoopoe and the Queen of Sheba, her throne transported, her submission.",
+      "children": [
+        { "v": "15-19", "cat": "recits", "t": "Sulayman understands the speech of the ants, the valley of the ants" },
+        { "v": "20-28", "cat": "recits", "t": "The hoopoe and its report on the Queen of Sheba" },
+        { "v": "29-31", "cat": "recits", "t": "Exchange of letters between Sulayman and Bilqis" },
+        { "v": "32-40", "cat": "recits", "t": "Bilqis's throne miraculously transported" },
+        { "v": "41-44", "cat": "recits", "t": "Bilqis recognizes her throne, submission to the Lord of the worlds" }
+      ]
+    },
+    {
+      "range": "45-58",
+      "title": "Salih and Lot",
+      "resume": "Salih sent to the people of Thamud, split into two clans; Lot and his people, destruction.",
+      "children": [
+        { "v": "45-53", "cat": "recits", "t": "Salih sent to the people of Thamud, split into two clans, destruction" },
+        { "v": "54-58", "cat": "recits", "t": "Lot and his people, destruction except his wife" }
+      ]
+    },
+    {
+      "range": "59-66",
+      "title": "Rhetorical questions on creation",
+      "resume": "\"Who created the heavens and the earth... is there a god with Allah?\" — a famous series of questions.",
+      "children": [
+        { "v": "59-66", "cat": "argumentation", "t": "Series of rhetorical questions: who created, who guides, who answers distress?" }
+      ]
+    },
+    {
+      "range": "67-85",
+      "title": "Doubt about the resurrection, the Beast",
+      "resume": "Doubt of the disbelievers refuted, the Book clarifies their differences, the Beast announcing the end of times.",
+      "children": [
+        { "v": "67-75", "cat": "eschatologie", "t": "Doubt about the resurrection refuted, the Book clarifies the differences" },
+        { "v": "76-85", "cat": "eschatologie", "t": "The Beast that will come forth at the end of times, sign preceding the Judgment" }
+      ]
+    },
+    {
+      "range": "86-93",
+      "title": "Closing",
+      "resume": "Terror of the Day, mountains like passing clouds, command to worship the Lord of this City.",
+      "children": [
+        { "v": "86-93", "cat": "adoration", "t": "Terror of the Day, command to worship the Lord of the sacred City" }
+      ]
+    }
+  ]
+}

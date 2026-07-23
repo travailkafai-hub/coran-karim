@@ -1,0 +1,50 @@
+{
+  "surah": 9,
+  "name_ar": "التوبة",
+  "name_latin": "At-Tawbah",
+  "ayat_count": 129,
+  "theme_central": "Final consolidation of the community: from the declaration of the breaking of broken treaties (bara'a) to a detailed exposure of hypocrisy, up to the proof of faith through action.",
+  "sources_note": "2-part structure sourced (imamghazali.org, Thematic Explanation: 1-37 then 38-110); closing 111-129 reconstructed from well-established landmarks (the verse of the bay'a 111, Ka'b ibn Malik 117-118, final verses 128-129).",
+  "branches": [
+    {
+      "range": "1-37",
+      "title": "Declaration of the breaking of ties (Bara'a)",
+      "resume": "Ultimatum to the polytheists who broke their treaties, status of hostile People of the Book, the sacred months.",
+      "children": [
+        { "v": "1-6", "cat": "legislation", "t": "Declaration of the breaking of ties, a 4-month grace period, exception for those who honour the pact" },
+        { "v": "7-16", "cat": "argumentation", "t": "Why break with polytheists who betray their oaths" },
+        { "v": "17-22", "cat": "legislation", "t": "The polytheists may not maintain Allah's mosques" },
+        { "v": "23-24", "cat": "ethique", "t": "Not taking as close allies those who prefer disbelief" },
+        { "v": "25-27", "cat": "recits", "t": "The battle of Hunayn, victory comes from Allah alone" },
+        { "v": "28-35", "cat": "legislation", "t": "Prohibition for polytheists to approach the Sacred Mosque, denunciation of corrupt clergy" },
+        { "v": "36-37", "cat": "legislation", "t": "The four sacred months, condemnation of postponing the months (nasi')" }
+      ]
+    },
+    {
+      "range": "38-110",
+      "title": "The anatomy of the hypocrites",
+      "resume": "Long central exposition: the call to mobilize for Tabuk, the excuses of the hypocrites, up to the Mosque of Harm.",
+      "children": [
+        { "v": "38-42", "cat": "argumentation", "t": "Call to mobilize for Tabuk, reproach for reluctance to set out" },
+        { "v": "43-59", "cat": "argumentation", "t": "Excuses and stinginess of the hypocrites" },
+        { "v": "60", "cat": "legislation", "t": "Distribution of charity (zakat) among the eight categories of recipients" },
+        { "v": "61-72", "cat": "argumentation", "t": "The hypocrites' mockery of the Prophet, their characteristic traits" },
+        { "v": "73-80", "cat": "legislation", "t": "Order to strive against hypocrisy and disbelief, some refusing to set out for Tabuk" },
+        { "v": "81-99", "cat": "argumentation", "t": "The psychology of those who stayed behind, the hypocritical bedouins" },
+        { "v": "100-110", "cat": "ethique", "t": "The model Emigrants and Helpers, the episode of the Mosque of Harm (Masjid al-Dirar)" }
+      ]
+    },
+    {
+      "range": "111-129",
+      "title": "Proof of faith through action",
+      "resume": "Allah's covenant with the believers, the episode of the three who stayed behind, closing on the Prophet's compassion.",
+      "children": [
+        { "v": "111-112", "cat": "croyance", "t": "Allah buys from the believers their persons and their wealth in exchange for Paradise (bay'a)" },
+        { "v": "113-118", "cat": "recits", "t": "Not praying for the polytheists; the three who stayed behind (Ka'b ibn Malik)" },
+        { "v": "119-122", "cat": "ethique", "t": "Truthfulness, striving to learn religion (the jihad of knowledge)" },
+        { "v": "123-127", "cat": "legislation", "t": "Fighting the nearby enemies, the hypocrites' reaction to every new surah" },
+        { "v": "128-129", "cat": "croyance", "t": "Closing: the Prophet's compassion for the believers, \"Allah is sufficient for me\"" }
+      ]
+    }
+  ]
+}

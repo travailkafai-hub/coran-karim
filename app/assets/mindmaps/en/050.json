@@ -1,0 +1,70 @@
+{
+  "surah": 50,
+  "name_ar": "ق",
+  "name_latin": "Qaf",
+  "ayat_count": 45,
+  "theme_central": "The reality of the resurrection: Allah, closer to man than his jugular vein, records every word through two recording angels — nothing that has been will be lost.",
+  "sources_note": "Precisely sourced division (medium.com/@louismorris, grokipedia): 1-4, 5-11, 12-14/15, 15-25 (jugular vein v.16), 30-31, 38, 39-40, 41-44.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Astonishment, doubt about the resurrection",
+      "resume": "Astonishment of the disbelievers at a warner from among themselves, denial of such a return.",
+      "children": [
+        { "v": "1-4", "cat": "argumentation", "t": "Astonishment of the disbelievers, denial of the resurrection deemed impossible" }
+      ]
+    },
+    {
+      "range": "5-11",
+      "title": "Blessings, signs of creation",
+      "resume": "The sky without flaw, the earth spread out, the palm trees with their stacked clusters.",
+      "children": [
+        { "v": "5-11", "cat": "signes", "t": "The flawless sky, the spread-out earth, palm trees and vegetation" }
+      ]
+    },
+    {
+      "range": "12-15",
+      "title": "Ancient peoples who denied",
+      "resume": "The people of Nuh, Thamud, 'Ad, Pharaoh, the brothers of Lot, the people of the Wood, the people of Tubba'.",
+      "children": [
+        { "v": "12-15", "cat": "recits", "t": "Ancient peoples who denied their messengers, wearied by the first creation?" }
+      ]
+    },
+    {
+      "range": "16-26",
+      "title": "Allah's closeness, the recording angels",
+      "resume": "Allah closer to man than his jugular vein; two angels record every word.",
+      "children": [
+        { "v": "16-18", "cat": "croyance", "t": "Allah closer than the jugular vein, two recording angels note every word" },
+        { "v": "19-26", "cat": "eschatologie", "t": "The agony of death, removal of the veil, the angel who drives and who testifies" }
+      ]
+    },
+    {
+      "range": "27-31",
+      "title": "Dispute, Hell and Paradise",
+      "resume": "Dispute of the demon companion with the damned, Hell and Paradise brought near.",
+      "children": [
+        { "v": "27-29", "cat": "eschatologie", "t": "Dispute of the demon companion with the damned before Allah" },
+        { "v": "30-31", "cat": "eschatologie", "t": "Hell filling up, Paradise brought near to the pious" }
+      ]
+    },
+    {
+      "range": "32-40",
+      "title": "Promise to the pious, creation, prayer",
+      "resume": "Promise to the attentive heart, creation of the heavens and the earth in six days, patience and prayer.",
+      "children": [
+        { "v": "32-37", "cat": "croyance", "t": "Promise to the pious, a reminder for whoever has an attentive heart" },
+        { "v": "38-40", "cat": "adoration", "t": "Creation in six days without fatigue, patience and glorification at the hours of prayer" }
+      ]
+    },
+    {
+      "range": "41-45",
+      "title": "The Day of emerging from the graves",
+      "resume": "The Cry, the earth splitting open, swift emergence from the graves; closing, the Prophet is not a compeller.",
+      "children": [
+        { "v": "41-44", "cat": "eschatologie", "t": "The Cry announcing the emergence from the graves, the splitting earth" },
+        { "v": "45", "cat": "croyance", "t": "Closing: the Prophet is not a compeller, remind through the Qur'an" }
+      ]
+    }
+  ]
+}

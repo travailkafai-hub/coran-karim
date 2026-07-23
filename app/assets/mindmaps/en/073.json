@@ -1,0 +1,35 @@
+{
+  "surah": 73,
+  "name_ar": "المزمل",
+  "name_latin": "Al-Muzzammil",
+  "ayat_count": 20,
+  "theme_central": "Two-act structure: a demanding spiritual \"training camp\" (rising, reciting, enduring) followed by a merciful final relief in the very last verse.",
+  "sources_note": "2-act structure precisely sourced (SRA analysis via researchgate.net): 1-19 (demand), 20 (relief, revealed later).",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Command of the night prayer",
+      "resume": "Rising at night, reciting the Qur'an slowly; a weighty word is about to be revealed; devoting oneself to Allah.",
+      "children": [
+        { "v": "1-9", "cat": "adoration", "t": "Night prayer, slow recitation, exclusive devotion to Allah" }
+      ]
+    },
+    {
+      "range": "10-19",
+      "title": "Patience, warning",
+      "resume": "Patience toward the disbelievers, withdrawing with dignity; a warning similar to the one sent to Pharaoh.",
+      "children": [
+        { "v": "10-14", "cat": "ethique", "t": "Patience and dignity toward the disbelievers, the punishment awaiting them" },
+        { "v": "15-19", "cat": "eschatologie", "t": "A warning like the one sent to Pharaoh; this is a Reminder" }
+      ]
+    },
+    {
+      "range": "20",
+      "title": "Final relief",
+      "resume": "Allah knows one cannot keep count of the hours of the night; prayer lightened, priority to zakat and lawful struggle.",
+      "children": [
+        { "v": "20", "cat": "legislation", "t": "Relief of the night obligation, priority to zakat and effort" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "surah": 89,
+  "name_ar": "الفجر",
+  "name_latin": "Al-Fajr",
+  "ayat_count": 30,
+  "theme_central": "Ease or hardship do not measure a person's real honor in Allah's eyes — what counts is how he treats the orphan and the poor; closing on the tranquil soul invited to enter Paradise.",
+  "sources_note": "Content widely taught and undisputed: the three destroyed peoples ('Ad, Thamud, Pharaoh) and the final verse of the tranquil soul are classical landmarks.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Oaths",
+      "resume": "Oath by the dawn, the ten nights, the even and the odd, the night as it passes.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Oaths by the dawn, the ten nights, the even and the odd" }
+      ]
+    },
+    {
+      "range": "6-14",
+      "title": "The destroyed peoples",
+      "resume": "'Ad of Iram with its pillars, Thamud who carved the rock, Pharaoh of the stakes: all committed excess.",
+      "children": [
+        { "v": "6-14", "cat": "recits", "t": "'Ad, Thamud, Pharaoh destroyed for their excess" }
+      ]
+    },
+    {
+      "range": "15-16",
+      "title": "Ease and hardship",
+      "resume": "Man confuses divine honor with material ease, and disgrace with hardship — wrongly.",
+      "children": [
+        { "v": "15-16", "cat": "argumentation", "t": "Ease or hardship do not measure real honor before Allah" }
+      ]
+    },
+    {
+      "range": "17-20",
+      "title": "The orphan and the poor",
+      "resume": "Failure toward the orphan, indifference toward the poor, greed for inheritance and wealth.",
+      "children": [
+        { "v": "17-20", "cat": "ethique", "t": "Failure toward the orphan and the poor, material greed" }
+      ]
+    },
+    {
+      "range": "21-30",
+      "title": "The tranquil soul",
+      "resume": "Earth crushed to powder, regret at not having done good; closing: \"O tranquil soul, enter My Paradise\".",
+      "children": [
+        { "v": "21-26", "cat": "eschatologie", "t": "Earth crushed to powder, regret at not having done good in life" },
+        { "v": "27-30", "cat": "eschatologie", "t": "\"O tranquil soul, return well pleased and pleasing, enter My Paradise\"" }
+      ]
+    }
+  ]
+}

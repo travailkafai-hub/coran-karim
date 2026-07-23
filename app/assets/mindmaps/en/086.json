@@ -1,0 +1,34 @@
+{
+  "surah": 86,
+  "name_ar": "الطارق",
+  "name_latin": "At-Tariq",
+  "ayat_count": 17,
+  "theme_central": "The night star piercing the darkness, just as the Qur'an is a decisive word piercing falsehood — Allah Himself will counter the disbelievers' scheming.",
+  "sources_note": "Content widely taught and undisputed.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Oath, the night star",
+      "resume": "Oath by the sky and the piercing star; no soul without a keeper watching over it.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Oath by the night star, a keeper watching over every soul" }
+      ]
+    },
+    {
+      "range": "5-10",
+      "title": "Man's creation, ability to resurrect him",
+      "resume": "Man created from a gushing fluid; Allah able to bring him back to life, a day when secrets are disclosed.",
+      "children": [
+        { "v": "5-10", "cat": "signes", "t": "Creation from a gushing fluid, divine ability to resurrect" }
+      ]
+    },
+    {
+      "range": "11-17",
+      "title": "Decisive word, divine counter-scheme",
+      "resume": "The Qur'an, a decisive word and not a jest; to the disbelievers' scheming, Allah answers with His own counter-scheme.",
+      "children": [
+        { "v": "11-17", "cat": "argumentation", "t": "The Qur'an, a decisive word; divine counter-scheme to the disbelievers' plotting" }
+      ]
+    }
+  ]
+}

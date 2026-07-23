@@ -1,0 +1,26 @@
+{
+  "surah": 106,
+  "name_ar": "قريش",
+  "name_latin": "Quraysh",
+  "ayat_count": 4,
+  "theme_central": "Quraysh's trading pact (winter and summer journeys) as a blessing that makes the exclusive worship of the Lord of the House all the more legitimate.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "The pact of Quraysh",
+      "resume": "The pact of Quraysh for the winter and summer trading journeys, secured by Mecca's divine protection.",
+      "children": [
+        { "v": "1-2", "cat": "signes", "t": "Quraysh's secured trading pact, blessing recalled" }
+      ]
+    },
+    {
+      "range": "3-4",
+      "title": "Call to worship",
+      "resume": "Let them worship the Lord of this House, who fed them and secured them from fear.",
+      "children": [
+        { "v": "3-4", "cat": "adoration", "t": "Call to worship the Lord of the House, provider and protector" }
+      ]
+    }
+  ]
+}

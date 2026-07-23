@@ -1,0 +1,34 @@
+{
+  "surah": 102,
+  "name_ar": "التكاثر",
+  "name_latin": "At-Takathur",
+  "ayat_count": 8,
+  "theme_central": "The race to accumulate wealth distracts man until the grave — then comes the questioning about the delights he enjoyed.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "The race for wealth",
+      "resume": "The race to accumulate distracts man until he visits the graves.",
+      "children": [
+        { "v": "1-2", "cat": "ethique", "t": "Race to accumulate wealth until the grave" }
+      ]
+    },
+    {
+      "range": "3-4",
+      "title": "Repeated warning",
+      "resume": "No! You will soon know! Repeated a second time for emphasis.",
+      "children": [
+        { "v": "3-4", "cat": "argumentation", "t": "Warning repeated twice: \"you will soon know\"" }
+      ]
+    },
+    {
+      "range": "5-8",
+      "title": "Vision of the Blazing Fire, closing",
+      "resume": "Certain vision of the Blazing Fire, then questioning about the delights each person enjoyed.",
+      "children": [
+        { "v": "5-8", "cat": "eschatologie", "t": "Vision of the Blazing Fire, final questioning about delights" }
+      ]
+    }
+  ]
+}

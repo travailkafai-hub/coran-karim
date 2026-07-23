@@ -1,0 +1,51 @@
+{
+  "surah": 72,
+  "name_ar": "الجن",
+  "name_latin": "Al-Jinn",
+  "ayat_count": 28,
+  "theme_central": "The universality of the Qur'anic message: a group of jinn, having heard the Prophet's recitation, testify to its truth — Islam addresses every being endowed with reason, visible or invisible.",
+  "sources_note": "6-ruku structure sourced (al-islam.org, Commentary of Suratul Jinn): testimony of the jinn, oneness and resurrection, knowledge of the unseen in closing.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "The jinn testify",
+      "resume": "A group of jinn heard a wondrous recitation and recognized the oneness of Allah.",
+      "children": [
+        { "v": "1-7", "cat": "recits", "t": "The jinn testify to having heard a wondrous, guiding recitation" }
+      ]
+    },
+    {
+      "range": "8-15",
+      "title": "The guarded sky, diverse paths",
+      "resume": "The jinn recount finding the sky guarded by missiles; among them are the righteous and others astray.",
+      "children": [
+        { "v": "8-10", "cat": "recits", "t": "The sky guarded by missiles since the revelation of the Qur'an" },
+        { "v": "11-15", "cat": "croyance", "t": "Among the jinn, righteous ones and others astray, diverse paths" }
+      ]
+    },
+    {
+      "range": "16-19",
+      "title": "Trial by water, the mosques",
+      "resume": "Had they remained upright, Allah would have tested them with abundant water; the mosques belong to Allah alone.",
+      "children": [
+        { "v": "16-19", "cat": "croyance", "t": "Trial of abundant water, the mosques belong to Allah alone" }
+      ]
+    },
+    {
+      "range": "20-25",
+      "title": "The Prophet's mission",
+      "resume": "The Prophet invokes only his Lord, possesses neither harm nor benefit for himself; a promise yet to come.",
+      "children": [
+        { "v": "20-25", "cat": "croyance", "t": "The Prophet only conveys the message, promise of the coming Judgment" }
+      ]
+    },
+    {
+      "range": "26-28",
+      "title": "Knowledge of the unseen",
+      "resume": "Knowledge of the unseen reserved for Allah, except for whoever He approves among His messengers.",
+      "children": [
+        { "v": "26-28", "cat": "croyance", "t": "Knowledge of the unseen reserved for Allah, guard of angels around the messengers" }
+      ]
+    }
+  ]
+}

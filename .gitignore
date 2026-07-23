@@ -14,6 +14,12 @@ benchmark/results/
 benchmark/slr61/
 benchmark/.hf/
 benchmark/__pycache__/
+benchmark/hf-cache/
+benchmark/tts-cache/
+benchmark/models_deployes/
+benchmark/nemo_manifests_dual/
+benchmark/nemo_manifests_rules/
+benchmark/nemo_manifests_rules_grouped/
 .venv*/
 **/.venv*/
 venv/
@@ -35,6 +41,7 @@ patches/**/.cxx/
 
 # ── Flutter / Android (app/ a déjà son propre .gitignore, ceci est un filet) ─
 app/build/
+app/android/build/
 app/.dart_tool/
 app/android/.gradle/
 patches/**/build/

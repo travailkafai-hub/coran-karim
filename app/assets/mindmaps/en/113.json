@@ -1,0 +1,26 @@
+{
+  "surah": 113,
+  "name_ar": "الفلق",
+  "name_latin": "Al-Falaq",
+  "ayat_count": 5,
+  "theme_central": "Refuge with the Lord of the rising dawn against four specific evils: harmful creatures, darkness, sorcery, envy.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Refuge with the Lord of the dawn",
+      "resume": "Seeking protection with the Lord of the rising dawn, from the evil of created things.",
+      "children": [
+        { "v": "1-2", "cat": "adoration", "t": "Refuge with the Lord of the dawn, from the evil of created things" }
+      ]
+    },
+    {
+      "range": "3-5",
+      "title": "Against specific evils",
+      "resume": "Against the darkness as it deepens, against sorcery (those who blow on knots), against the envier.",
+      "children": [
+        { "v": "3-5", "cat": "adoration", "t": "Protection against darkness, sorcery and envy" }
+      ]
+    }
+  ]
+}

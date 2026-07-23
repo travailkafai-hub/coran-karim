@@ -1,0 +1,67 @@
+{
+  "surah": 13,
+  "name_ar": "الرعد",
+  "name_latin": "Ar-Ra'd",
+  "ayat_count": 43,
+  "theme_central": "What is true is recognized by its solidity, what is false by its fragility — shown through the signs of creation and the parables of water and molten metal.",
+  "sources_note": "Division into 7 sections precisely sourced (alim.org / quran-wiki.com, Overview Surah 13).",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Truth of revelation, signs of creation",
+      "resume": "The heavens raised without pillars, the earth spread out, fruits in pairs.",
+      "children": [
+        { "v": "1-4", "cat": "signes", "t": "The heavens without pillars, the sun and moon on their orbits, the earth spread out" }
+      ]
+    },
+    {
+      "range": "5-7",
+      "title": "Disbelief, arrogance",
+      "resume": "Astonishment at doubting the resurrection, a hasty demand for punishment.",
+      "children": [
+        { "v": "5-7", "cat": "argumentation", "t": "Astonishment at doubting the resurrection, hastily demanding a sign" }
+      ]
+    },
+    {
+      "range": "8-13",
+      "title": "Allah's knowledge, power and mastery",
+      "resume": "Allah knows every pregnancy, every hidden thought; the thunder glorifies Him.",
+      "children": [
+        { "v": "8-13", "cat": "croyance", "t": "Allah's omniscience, the thunder and the angels glorify Him" }
+      ]
+    },
+    {
+      "range": "14-17",
+      "title": "Truth versus falsehood",
+      "resume": "Parables of the water that carries foam and of molten metal: only what is useful remains.",
+      "children": [
+        { "v": "14-17", "cat": "argumentation", "t": "Parables of water and molten metal: what is useful remains, the rest evaporates" }
+      ]
+    },
+    {
+      "range": "18-29",
+      "title": "Believers and disbelievers: traits and fate",
+      "resume": "Those who honour their commitments to Allah versus those who break them; tranquillity through the remembrance of Allah.",
+      "children": [
+        { "v": "18-24", "cat": "ethique", "t": "Traits of those of understanding: honouring commitments, patience, prayer" },
+        { "v": "25-29", "cat": "eschatologie", "t": "The fate of those who break the covenant; tranquillity through the remembrance of Allah" }
+      ]
+    },
+    {
+      "range": "30-38",
+      "title": "The Prophet's mission",
+      "resume": "The people's reactions to the Qur'an, comparison with previous nations.",
+      "children": [
+        { "v": "30-38", "cat": "argumentation", "t": "Reactions to the message, comparison with the rejection of previous nations" }
+      ]
+    },
+    {
+      "range": "39-43",
+      "title": "Allah's absolute authority",
+      "resume": "Allah erases and confirms what He wills; closing on Allah as a sufficient witness.",
+      "children": [
+        { "v": "39-43", "cat": "croyance", "t": "Allah erases and confirms what He wills; Allah suffices as a witness" }
+      ]
+    }
+  ]
+}

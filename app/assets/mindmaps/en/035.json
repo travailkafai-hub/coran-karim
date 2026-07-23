@@ -1,0 +1,54 @@
+{
+  "surah": 35,
+  "name_ar": "فاطر",
+  "name_latin": "Fatir",
+  "ayat_count": 45,
+  "theme_central": "Allah, the Originator of the heavens and the earth: His real power contrasted with the total powerlessness of false deities, and man's fundamental poverty, needing Him at every instant.",
+  "sources_note": "Division into 5 rukus precisely sourced (grokipedia, studocu): 1-8, 9-14, 15-21, 22-28, 29-45.",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Creation and angel messengers",
+      "resume": "Allah, Originator of the heavens and the earth, the angel messengers endowed with wings.",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "Allah the Originator, the angel messengers; Satan is a declared enemy" }
+      ]
+    },
+    {
+      "range": "9-14",
+      "title": "Mercy and resurrection",
+      "resume": "The wind, the clouds, the dead land brought back to life as an image of the resurrection.",
+      "children": [
+        { "v": "9-14", "cat": "eschatologie", "t": "The dead land brought back to life by rain, image of the resurrection" }
+      ]
+    },
+    {
+      "range": "15-21",
+      "title": "Human dependence on Allah",
+      "resume": "Men are poor, Allah alone is self-sufficient; comparison of the blind and the seeing, the living and the dead.",
+      "children": [
+        { "v": "15-18", "cat": "croyance", "t": "Man's fundamental poverty, no one will bear another's burden" },
+        { "v": "19-21", "cat": "argumentation", "t": "Comparison between the blind and the seeing, the shade and the scorching heat" }
+      ]
+    },
+    {
+      "range": "22-28",
+      "title": "Messengers and signs",
+      "resume": "Every community had its warner; diversity of colors as a sign; only the learned truly fear Allah.",
+      "children": [
+        { "v": "22-25", "cat": "argumentation", "t": "Every community had its warner before this one" },
+        { "v": "26-28", "cat": "signes", "t": "Diversity of colors in creation; only the learned truly fear Allah" }
+      ]
+    },
+    {
+      "range": "29-45",
+      "title": "Warning of the Judgment, closing",
+      "resume": "Those who recite the Book hope for an imperishable trade; three categories of the Book's heirs; Allah holds the heavens and the earth.",
+      "children": [
+        { "v": "29-32", "cat": "adoration", "t": "Those who recite the Book hope for a trade that will never perish" },
+        { "v": "33-37", "cat": "eschatologie", "t": "Three categories of the Book's heirs; contrast of Paradise and Hell" },
+        { "v": "38-45", "cat": "croyance", "t": "Allah holds the heavens and the earth; request to return refused to the disbelievers" }
+      ]
+    }
+  ]
+}

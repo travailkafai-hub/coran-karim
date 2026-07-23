@@ -1,0 +1,71 @@
+{
+  "surah": 43,
+  "name_ar": "الزخرف",
+  "name_latin": "Az-Zukhruf",
+  "ayat_count": 89,
+  "theme_central": "The golden ornaments of this world (zukhruf) measure nothing of one's worth before Allah — true wealth is divine mercy, not gold.",
+  "sources_note": "Structure in 7 rukus / 9 thematic paragraphs sourced (dorar.net, thelastdialogue.org). Detail of boundaries reconstructed from known landmarks (Ibrahim 26-35, Musa/Pharaoh 46-56, Aissa as a sign of the Hour 57-65).",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Opening",
+      "resume": "Revelation in clear Arabic, the Mother of the Book with Allah.",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "Revelation in clear Arabic, exalted in the Mother of the Book" }
+      ]
+    },
+    {
+      "range": "9-14",
+      "title": "Contradictory recognition",
+      "resume": "They recognize Allah as creator yet associate deities with Him; blessings of transport, on land and sea.",
+      "children": [
+        { "v": "9-14", "cat": "argumentation", "t": "Contradictory recognition of Allah as creator; blessings of transport" }
+      ]
+    },
+    {
+      "range": "15-25",
+      "title": "Daughters attributed to Allah, blind conformism",
+      "resume": "Refutation of attributing daughters to Allah; criticism of \"we found our fathers upon a religion\".",
+      "children": [
+        { "v": "15-19", "cat": "argumentation", "t": "Refutation of attributing daughters to Allah (the angels)" },
+        { "v": "20-25", "cat": "argumentation", "t": "Criticism of blind conformism to the ancestors" }
+      ]
+    },
+    {
+      "range": "26-35",
+      "title": "Ibrahim, wealth and worth",
+      "resume": "Ibrahim rejects his father's religion; material wealth does not make a man's worth.",
+      "children": [
+        { "v": "26-29", "cat": "recits", "t": "Ibrahim rejects his father's religion, a word that remains among his descendants" },
+        { "v": "30-35", "cat": "ethique", "t": "Material wealth does not measure worth before Allah" }
+      ]
+    },
+    {
+      "range": "36-45",
+      "title": "The demon companion, regret",
+      "resume": "Whoever turns a blind eye to the Reminder is assigned a demon companion; bitter regret on the Day of Judgment.",
+      "children": [
+        { "v": "36-45", "cat": "eschatologie", "t": "Demon companion assigned to those blind to the Reminder, regret at the Judgment" }
+      ]
+    },
+    {
+      "range": "46-65",
+      "title": "Musa/Pharaoh, Aissa a sign of the Hour",
+      "resume": "Musa sent to Pharaoh with clear signs, drowning; Aissa given as an example, a sign heralding the Hour.",
+      "children": [
+        { "v": "46-56", "cat": "recits", "t": "Musa sent to Pharaoh, mockery, drowning" },
+        { "v": "57-65", "cat": "argumentation", "t": "Aissa given as an example, sign heralding the Hour, divergence of the sects" }
+      ]
+    },
+    {
+      "range": "66-89",
+      "title": "Paradise, Hell, closing",
+      "resume": "Friends turned enemies except the pious, fate of the criminals, final refutation of a son attributed to Allah.",
+      "children": [
+        { "v": "66-73", "cat": "eschatologie", "t": "Friends turned enemies that Day except the pious, description of Paradise" },
+        { "v": "74-80", "cat": "eschatologie", "t": "Fate of the criminals in Hell, calling out to the guardian Malik" },
+        { "v": "81-89", "cat": "argumentation", "t": "Final refutation of a son attributed to Allah, the Prophet's patience" }
+      ]
+    }
+  ]
+}

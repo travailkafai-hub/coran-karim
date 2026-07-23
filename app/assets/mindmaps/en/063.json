@@ -1,0 +1,34 @@
+{
+  "surah": 63,
+  "name_ar": "المنافقون",
+  "name_latin": "Al-Munafiqun",
+  "ayat_count": 11,
+  "theme_central": "A psychological and political exposé of the hypocrites: their real disease is craving the riches of this world, masked by deceptive eloquence.",
+  "sources_note": "2-section structure precisely sourced (alim.org): 1-8, 9-11.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "False declaration of faith",
+      "resume": "The hypocrites declare belief but lie; impressive appearance, empty hearts.",
+      "children": [
+        { "v": "1-4", "cat": "argumentation", "t": "False declared faith, deceptive appearance of the hypocrites" }
+      ]
+    },
+    {
+      "range": "5-8",
+      "title": "Refusal of forgiveness, threat against the Prophet",
+      "resume": "Refusing to ask forgiveness, threatening to expel the Prophet, reminder that all power belongs to Allah.",
+      "children": [
+        { "v": "5-8", "cat": "argumentation", "t": "Refusal of forgiveness, threat to expel the Prophet (Abdullah ibn Ubayy)" }
+      ]
+    },
+    {
+      "range": "9-11",
+      "title": "Final warning",
+      "resume": "Wealth and children must not distract from Allah's remembrance; spend before death arrives.",
+      "children": [
+        { "v": "9-11", "cat": "ethique", "t": "Not being distracted by wealth and children, spending before death" }
+      ]
+    }
+  ]
+}

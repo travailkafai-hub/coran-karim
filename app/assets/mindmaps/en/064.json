@@ -1,0 +1,34 @@
+{
+  "surah": 64,
+  "name_ar": "التغابن",
+  "name_latin": "At-Taghabun",
+  "ayat_count": 18,
+  "theme_central": "The Day of mutual dispossession (yawm at-taghabun): Allah, absolute Sovereign, addresses in turn all of mankind, then the disbelievers, then the believers.",
+  "sources_note": "3-address structure precisely sourced (learnreadquran.com): 1-4 (mankind), 5-10 (disbelievers), 11-18 (believers).",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Address to all mankind",
+      "resume": "Everything glorifies Allah, absolute Sovereign; He knows the secret and the manifest.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Allah's absolute sovereignty, knowledge of the secret and the manifest" }
+      ]
+    },
+    {
+      "range": "5-10",
+      "title": "Address to the disbelievers",
+      "resume": "Fate of the ancient peoples who denied; the Day of mutual dispossession, faith and disbelief rewarded.",
+      "children": [
+        { "v": "5-10", "cat": "eschatologie", "t": "Fate of the ancient peoples, the Day of mutual dispossession" }
+      ]
+    },
+    {
+      "range": "11-18",
+      "title": "Address to the believers",
+      "resume": "Nothing happens without Allah's permission, caution toward spouses and children, a good loan to Allah multiplied.",
+      "children": [
+        { "v": "11-18", "cat": "ethique", "t": "Caution toward spouses and children, spending as a loan multiplied by Allah" }
+      ]
+    }
+  ]
+}

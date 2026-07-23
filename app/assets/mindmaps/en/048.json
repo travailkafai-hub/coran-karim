@@ -1,0 +1,51 @@
+{
+  "surah": 48,
+  "name_ar": "الفتح",
+  "name_latin": "Al-Fath",
+  "ayat_count": 29,
+  "theme_central": "Divine redefinition of \"victory\": the treaty of Hudaybiyya, perceived as a setback by some companions, is proclaimed a \"clear victory\".",
+  "sources_note": "Precisely sourced division (grokipedia, thequran.love): 1-4/1-5, 11-18, 19-26.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Clear victory",
+      "resume": "The treaty of Hudaybiyya proclaimed a clear victory, forgiveness of the Prophet's past and future faults.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Clear victory proclaimed, forgiveness granted to the Prophet" }
+      ]
+    },
+    {
+      "range": "6-10",
+      "title": "The Sakinah, allegiance to the Prophet",
+      "resume": "Punishment of the hypocrites and idolaters, inner peace (sakinah) sent down upon the believers.",
+      "children": [
+        { "v": "6-10", "cat": "croyance", "t": "Punishment of the hypocrites, the sakinah, allegiance to the Prophet equal to allegiance to Allah" }
+      ]
+    },
+    {
+      "range": "11-18",
+      "title": "Excuses of the desert Arabs",
+      "resume": "Cowardice and bad faith of the desert Arabs who stayed behind, their doubt about the Prophet's truthfulness.",
+      "children": [
+        { "v": "11-18", "cat": "argumentation", "t": "Excuses of the desert Arabs who stayed behind, their bad faith exposed" }
+      ]
+    },
+    {
+      "range": "19-27",
+      "title": "Future victories, vision confirmed",
+      "resume": "Promise of spoils, future victories (Khaybar), pact under the tree, the Prophet's vision confirmed.",
+      "children": [
+        { "v": "19-26", "cat": "eschatologie", "t": "Promise of spoils and future victories, pact under the tree (bay'at ar-ridwan)" },
+        { "v": "27", "cat": "croyance", "t": "Vision confirmed: entry into the Sacred Mosque" }
+      ]
+    },
+    {
+      "range": "28-29",
+      "title": "Closing",
+      "resume": "Description of the Prophet's companions in the Torah and the Gospel.",
+      "children": [
+        { "v": "28-29", "cat": "ethique", "t": "Description of the Prophet's companions, firm toward the disbelievers, merciful among themselves" }
+      ]
+    }
+  ]
+}

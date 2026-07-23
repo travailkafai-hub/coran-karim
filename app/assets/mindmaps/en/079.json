@@ -1,0 +1,59 @@
+{
+  "surah": 79,
+  "name_ar": "النازعات",
+  "name_latin": "An-Nazi'at",
+  "ayat_count": 46,
+  "theme_central": "Affirmation of the resurrection, illustrated by Pharaoh who dared say \"I am your lord, the Most High\" and was exemplarily punished.",
+  "sources_note": "6-section structure precisely sourced (grokipedia, medium.com/@islamisthesolution): 1-5, 10-14, 15-26, 27-33, 34-41, 42-46.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Oaths by the angels",
+      "resume": "Oaths by the angels who wrest out souls, violently or gently, who race ahead and administer affairs.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Oaths by the angels who wrest out souls and administer affairs" }
+      ]
+    },
+    {
+      "range": "10-14",
+      "title": "Skepticism about the resurrection",
+      "resume": "\"Will we be returned to our former state after becoming decayed bones?\" A single Cry will suffice.",
+      "children": [
+        { "v": "10-14", "cat": "argumentation", "t": "Skepticism about the resurrection, a single Cry will suffice" }
+      ]
+    },
+    {
+      "range": "15-26",
+      "title": "Musa and Pharaoh",
+      "resume": "Musa sent to Pharaoh, call to purification; Pharaoh proclaims \"I am your lord\", exemplary punishment.",
+      "children": [
+        { "v": "15-19", "cat": "recits", "t": "Musa sent to Pharaoh, call to purification and reverent fear" },
+        { "v": "20-26", "cat": "recits", "t": "Pharaoh denies despite the great sign, exemplary punishment" }
+      ]
+    },
+    {
+      "range": "27-33",
+      "title": "Allah's creation",
+      "resume": "Are you harder to create than the sky? The earth spread out, water and pastures, mountains firmly set.",
+      "children": [
+        { "v": "27-33", "cat": "signes", "t": "Creation of the sky, the earth, water and the mountains" }
+      ]
+    },
+    {
+      "range": "34-41",
+      "title": "The Day of Judgment",
+      "resume": "The great catastrophe, man remembers his efforts, Hell and Paradise for whoever feared his Lord.",
+      "children": [
+        { "v": "34-41", "cat": "eschatologie", "t": "The great catastrophe, Hell and Paradise according to fear of Allah" }
+      ]
+    },
+    {
+      "range": "42-46",
+      "title": "Closing",
+      "resume": "Question about the timing of the Hour, knowledge reserved for Allah, perceived brevity of earthly life.",
+      "children": [
+        { "v": "42-46", "cat": "eschatologie", "t": "Timing of the Hour reserved for Allah, brevity of earthly life" }
+      ]
+    }
+  ]
+}

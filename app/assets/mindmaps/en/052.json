@@ -1,0 +1,58 @@
+{
+  "surah": 52,
+  "name_ar": "الطور",
+  "name_latin": "At-Tur",
+  "ayat_count": 49,
+  "theme_central": "Oaths by Mount Sinai and other cosmic realities to establish the inevitability of the Judgment, then a methodical refutation of the accusations brought against the Prophet.",
+  "sources_note": "2-section structure precisely sourced (quranoasis.com, thelastdialogue.org): 1-28 (the Hereafter), 29-49 (refutation of the accusations).",
+  "branches": [
+    {
+      "range": "1-6",
+      "title": "Oaths",
+      "resume": "Oaths by the Mount, the inscribed Book, the frequented House, the raised roof, the raging sea.",
+      "children": [
+        { "v": "1-6", "cat": "croyance", "t": "Oaths by Mount Sinai, the inscribed Book, the raging sea" }
+      ]
+    },
+    {
+      "range": "7-16",
+      "title": "Inevitable punishment",
+      "resume": "Nothing can prevent the punishment of those who doubted the Judgment.",
+      "children": [
+        { "v": "7-16", "cat": "eschatologie", "t": "Inevitable punishment of those who doubted the Judgment" }
+      ]
+    },
+    {
+      "range": "17-28",
+      "title": "Reward of the believers",
+      "resume": "Description of Paradise for the believers and their offspring who join them in faith.",
+      "children": [
+        { "v": "17-28", "cat": "eschatologie", "t": "Paradise of the believers, reunited with their believing offspring" }
+      ]
+    },
+    {
+      "range": "29-34",
+      "title": "Refutation of the accusations",
+      "resume": "The Prophet is neither a soothsayer, nor a madman, nor a poet; challenge to produce a similar discourse.",
+      "children": [
+        { "v": "29-34", "cat": "argumentation", "t": "Refutation of the accusations, challenge to produce a similar discourse" }
+      ]
+    },
+    {
+      "range": "35-43",
+      "title": "Rational argument of creation",
+      "resume": "Created from nothing, or self-creators? Do they possess the treasures of Allah?",
+      "children": [
+        { "v": "35-43", "cat": "argumentation", "t": "Created from nothing or self-creators? Allah's treasures beyond their reach" }
+      ]
+    },
+    {
+      "range": "44-49",
+      "title": "Persistent blindness, final patience",
+      "resume": "Even seeing a piece of the sky fall, they would not believe; patience and glorification asked of the Prophet.",
+      "children": [
+        { "v": "44-49", "cat": "argumentation", "t": "Persistent blindness even before a clear sign; the Prophet's final patience" }
+      ]
+    }
+  ]
+}

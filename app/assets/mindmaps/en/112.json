@@ -1,0 +1,26 @@
+{
+  "surah": 112,
+  "name_ar": "الإخلاص",
+  "name_latin": "Al-Ikhlas",
+  "ayat_count": 4,
+  "theme_central": "Tawhid in its most condensed formulation: Allah, One, the Absolute upon whom everything depends and who depends on nothing, neither begetting nor begotten.",
+  "sources_note": "Universally known content, no possible divergence.",
+  "branches": [
+    {
+      "range": "1-2",
+      "title": "Absolute oneness",
+      "resume": "Say: He is Allah, One, the Only One sought for all needs.",
+      "children": [
+        { "v": "1-2", "cat": "croyance", "t": "Absolute oneness of Allah, the Absolute sought by all" }
+      ]
+    },
+    {
+      "range": "3-4",
+      "title": "Neither begetting nor begotten",
+      "resume": "He has never begotten, nor was He begotten, and none is equal to Him.",
+      "children": [
+        { "v": "3-4", "cat": "croyance", "t": "Neither begetting nor begotten, none equal to Him" }
+      ]
+    }
+  ]
+}

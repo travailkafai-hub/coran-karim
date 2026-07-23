@@ -1,0 +1,42 @@
+{
+  "surah": 84,
+  "name_ar": "الانشقاق",
+  "name_latin": "Al-Inshiqaq",
+  "ayat_count": 25,
+  "theme_central": "Sky and earth obeying their Lord as they should — an image of man, who likewise toils toward his Lord and will end up meeting Him, book in his right hand or behind his back.",
+  "sources_note": "Content widely taught and undisputed.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "Sky split, earth spread out",
+      "resume": "Sky and earth fully obeying their Lord, emptying themselves of what they contain.",
+      "children": [
+        { "v": "1-5", "cat": "signes", "t": "Sky split, earth spread out, total obedience to their Lord" }
+      ]
+    },
+    {
+      "range": "6-15",
+      "title": "The book in the right hand or behind the back",
+      "resume": "Man toils toward his Lord and will meet Him; easy judgment or blazing fire depending on the hand receiving the book.",
+      "children": [
+        { "v": "6-15", "cat": "eschatologie", "t": "Book received in the right hand (easy judgment) or behind the back (blazing fire)" }
+      ]
+    },
+    {
+      "range": "16-19",
+      "title": "Oath, gradual transformation",
+      "resume": "Oath by twilight and the night: you will certainly pass from state to state.",
+      "children": [
+        { "v": "16-19", "cat": "croyance", "t": "Oath by twilight; man passes from state to state" }
+      ]
+    },
+    {
+      "range": "20-25",
+      "title": "Refusal to prostrate, closing",
+      "resume": "Why do they not believe, why do they not prostrate? Uninterrupted reward for the believing doers of good.",
+      "children": [
+        { "v": "20-25", "cat": "argumentation", "t": "Refusal to prostrate condemned, uninterrupted reward promised to the believers" }
+      ]
+    }
+  ]
+}

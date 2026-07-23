@@ -1,0 +1,42 @@
+{
+  "surah": 96,
+  "name_ar": "العلق",
+  "name_latin": "Al-Alaq",
+  "ayat_count": 19,
+  "theme_central": "The first five verses are the very first revelation of the Qur'an — \"Read, in the name of your Lord who created\" — followed by a warning against whoever prevents a servant from praying.",
+  "sources_note": "Status of verses 1-5 as the first historical revelation extremely well established and undisputed; traditional identification of the opponent (Abu Jahl preventing the Prophet from praying) widely taught.",
+  "branches": [
+    {
+      "range": "1-5",
+      "title": "The first revelation",
+      "resume": "\"Read, in the name of your Lord who created\" — man created from a clinging clot, taught by the pen.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "First revelation: \"Read\", man's creation, teaching by the pen" }
+      ]
+    },
+    {
+      "range": "6-8",
+      "title": "Rebellion in ease",
+      "resume": "Man becomes rebellious as soon as he sees himself self-sufficient; the return is to Allah.",
+      "children": [
+        { "v": "6-8", "cat": "ethique", "t": "Man's rebellion in ease, inevitable return to Allah" }
+      ]
+    },
+    {
+      "range": "9-14",
+      "title": "The one who prevents prayer",
+      "resume": "Warning against whoever prevents a servant from praying, while Allah sees everything.",
+      "children": [
+        { "v": "9-14", "cat": "argumentation", "t": "Warning against whoever prevents prayer" }
+      ]
+    },
+    {
+      "range": "15-19",
+      "title": "Closing",
+      "resume": "Threat to seize the opponent by his lying forelock; final command to prostrate and draw near.",
+      "children": [
+        { "v": "15-19", "cat": "eschatologie", "t": "Threat against the opponent, final call to prostration" }
+      ]
+    }
+  ]
+}

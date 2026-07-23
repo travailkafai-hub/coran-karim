@@ -1,0 +1,70 @@
+{
+  "surah": 10,
+  "name_ar": "يونس",
+  "name_latin": "Yunus",
+  "ayat_count": 109,
+  "theme_central": "The truth of revelation and the folly of materialism, demonstrated by rational argument and history — with the exception of the people of Yunus, the only people whose last-minute faith was accepted.",
+  "sources_note": "Part 1 (1-25, \"the true thesis\") sourced (karimabuzaid.com). The rest reconstructed from well-established landmarks: Musa/Pharaoh 74-93 (the drowning 90-92, very well known), the exception of the people of Yunus v.98.",
+  "branches": [
+    {
+      "range": "1-20",
+      "title": "Opening, astonishment at revelation",
+      "resume": "The disbelievers' astonishment that a man should receive revelation, description of the Judgment, warning.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "The wise Book, Allah established on the Throne, governs all things" },
+        { "v": "4-10", "cat": "eschatologie", "t": "Return to Allah, description of Paradise and the supplication of the chosen ones" },
+        { "v": "11-20", "cat": "argumentation", "t": "If Allah hastened harm as He hastens good; the inimitable Qur'an" }
+      ]
+    },
+    {
+      "range": "21-40",
+      "title": "The fleeting life, rational Oneness",
+      "resume": "Man forgets Allah in times of ease, a rational argument for Oneness, the challenge to produce a similar surah.",
+      "children": [
+        { "v": "21-30", "cat": "signes", "t": "Parable of life as fleeting vegetation, the scene of Judgment" },
+        { "v": "31-36", "cat": "argumentation", "t": "Who provides sustenance? A rational argument for Oneness" },
+        { "v": "37-40", "cat": "argumentation", "t": "The Qur'an cannot be invented, the challenge to produce a similar surah" }
+      ]
+    },
+    {
+      "range": "41-60",
+      "title": "Each people, its own term",
+      "resume": "A messenger and a fixed term for every community; the Qur'an as healing and mercy.",
+      "children": [
+        { "v": "41-53", "cat": "eschatologie", "t": "No one can hasten or delay the term fixed for each people" },
+        { "v": "54-60", "cat": "croyance", "t": "No compensation accepted at the Judgment; the Qur'an, healing and mercy" }
+      ]
+    },
+    {
+      "range": "61-73",
+      "title": "Allah, witness to all things",
+      "resume": "Refutation of the idea that Allah would have a child; a brief reminder of the account of Nuh.",
+      "children": [
+        { "v": "61-65", "cat": "croyance", "t": "Allah, witness to all things; true success belongs to His allies" },
+        { "v": "66-70", "cat": "argumentation", "t": "Refutation of the idea that Allah would have taken a child" },
+        { "v": "71-73", "cat": "recits", "t": "Brief reminder of the account of Nuh and the flood" }
+      ]
+    },
+    {
+      "range": "74-93",
+      "title": "Musa and Pharaoh",
+      "resume": "Confrontation with Pharaoh, the crossing of the sea, Pharaoh's drowning and belated repentance.",
+      "children": [
+        { "v": "74-82", "cat": "recits", "t": "Musa sent to Pharaoh and the notables, the sorcerers' challenge" },
+        { "v": "83-89", "cat": "recits", "t": "The timid faith of Musa's people, supplication against Pharaoh" },
+        { "v": "90-93", "cat": "eschatologie", "t": "Pharaoh's drowning, his belated faith rejected, his body preserved as a sign" }
+      ]
+    },
+    {
+      "range": "94-109",
+      "title": "The exception of the people of Yunus",
+      "resume": "Faith must precede the sight of punishment — except for the people of Yunus; final instructions to the Prophet.",
+      "children": [
+        { "v": "94-97", "cat": "argumentation", "t": "Confirmation by the People of the Book, faith no longer helps once punishment is seen" },
+        { "v": "98", "cat": "recits", "t": "Exception: the people of Yunus believed in time and the punishment was lifted" },
+        { "v": "99-103", "cat": "croyance", "t": "No one believes without Allah's permission, salvation of the believers" },
+        { "v": "104-109", "cat": "ethique", "t": "Final instructions to the Prophet: follow the revelation, be patient" }
+      ]
+    }
+  ]
+}

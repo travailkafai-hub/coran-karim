@@ -1,0 +1,84 @@
+{
+  "surah": 7,
+  "name_ar": "الأعراف",
+  "name_latin": "Al-A'raf",
+  "ayat_count": 206,
+  "theme_central": "Arrogance (kibr/istikbar) as the central spiritual disease — that of Iblis, of Pharaoh, of the proud leaders of every people who reject their prophet.",
+  "sources_note": "Structure cross-checked on two sources (grokipedia/azlyrahman in English, islamreligion.com + nabulsi.com in French), with confirmed key verses (Adam/Iblis 11-27, Nuh 59-64, Hud 65-72, Salih 73-79, Lot 80-84, Shu'ayb 85-92, Musa 103-171, covenant 172-174).",
+  "branches": [
+    {
+      "range": "1-10",
+      "title": "Opening",
+      "resume": "The Book sent to warn; the fate of destroyed cities, the weighing of deeds.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "The Book to warn, follow only this revelation" },
+        { "v": "4-10", "cat": "eschatologie", "t": "Fate of the destroyed cities, the weighing of deeds" }
+      ]
+    },
+    {
+      "range": "11-58",
+      "title": "Adam, Iblis, the fall — the source of \"Al-A'raf\"",
+      "resume": "Creation of Adam, Iblis's refusal, the expulsion from Paradise, then the scene of Judgment where \"the people of al-A'raf\" appear, between Paradise and Hell.",
+      "children": [
+        { "v": "11-18", "cat": "recits", "t": "Creation of Adam, Iblis's refusal to bow, his oath to tempt" },
+        { "v": "19-27", "cat": "recits", "t": "Adam and Hawwa in Paradise, the forbidden fruit, the expulsion" },
+        { "v": "28-37", "cat": "argumentation", "t": "Denouncing invented prohibitions, Allah's true prohibitions" },
+        { "v": "38-53", "cat": "eschatologie", "t": "The scene of Judgment: the people of the Fire, of Paradise, and the people of al-A'raf in between" },
+        { "v": "54-58", "cat": "signes", "t": "Allah, Creator of the heavens and the earth, signs in rain and vegetation" }
+      ]
+    },
+    {
+      "range": "59-102",
+      "title": "The rejected prophets",
+      "resume": "Nuh, Hud, Salih, Lot, Shu'ayb: the same pattern repeated, a people rejecting its prophet out of pride.",
+      "children": [
+        { "v": "59-64", "cat": "recits", "t": "Nuh and the flood" },
+        { "v": "65-72", "cat": "recits", "t": "Hud and the people of 'Ad" },
+        { "v": "73-79", "cat": "recits", "t": "Salih, the people of Thamud and the she-camel" },
+        { "v": "80-84", "cat": "recits", "t": "Lot and his people" },
+        { "v": "85-93", "cat": "recits", "t": "Shu'ayb and the people of Madyan, fraud in trade" },
+        { "v": "94-102", "cat": "argumentation", "t": "General lesson: why these cities did not believe despite the trials" }
+      ]
+    },
+    {
+      "range": "103-171",
+      "title": "Musa and Pharaoh",
+      "resume": "The longest narrative development in the surah: the sorcerers' challenge, the plagues of Egypt, the golden calf, the Tablets of the Law.",
+      "children": [
+        { "v": "103-126", "cat": "recits", "t": "Musa facing Pharaoh, the sorcerers' challenge" },
+        { "v": "127-141", "cat": "recits", "t": "The plagues of Egypt, the crossing of the sea" },
+        { "v": "142-156", "cat": "recits", "t": "The Tablets of the Law, the golden calf, Musa's anger" },
+        { "v": "157-158", "cat": "croyance", "t": "Announcement of Prophet Muhammad awaited in the Torah and the Gospel" },
+        { "v": "159-171", "cat": "recits", "t": "The 12 tribes, the people who transgressed the Sabbath" }
+      ]
+    },
+    {
+      "range": "172-178",
+      "title": "The primordial covenant",
+      "resume": "\"Am I not your Lord?\" — the innate testimony of every soul, and the parable of those who reject it.",
+      "children": [
+        { "v": "172-174", "cat": "croyance", "t": "The primordial covenant (alastu bi-rabbikum)" },
+        { "v": "175-178", "cat": "argumentation", "t": "Parable of the one who rejects the signs, compared to a panting dog" }
+      ]
+    },
+    {
+      "range": "179-198",
+      "title": "The most beautiful names, the Hour",
+      "resume": "Those whose hearts do not understand, the most beautiful names of Allah, the inability of idols to help even themselves.",
+      "children": [
+        { "v": "179-181", "cat": "eschatologie", "t": "Those created for Hell, the most beautiful names of Allah (al-asma al-husna)" },
+        { "v": "182-186", "cat": "argumentation", "t": "Respite granted to the disbelievers, reflecting on the dominion of the heavens" },
+        { "v": "187-198", "cat": "argumentation", "t": "Question about the Hour, the inability of idols to help even themselves" }
+      ]
+    },
+    {
+      "range": "199-206",
+      "title": "Final instructions",
+      "resume": "Forgiveness, keeping away from the ignorant, refuge against Satan, final prostration.",
+      "children": [
+        { "v": "199-202", "cat": "ethique", "t": "Forgiving, keeping away from the ignorant, seeking refuge against Satan's suggestions" },
+        { "v": "203-206", "cat": "adoration", "t": "Listening to the Qur'an in silence, the verse of prostration (sajda)" }
+      ]
+    }
+  ]
+}

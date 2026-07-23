@@ -1,0 +1,72 @@
+{
+  "surah": 38,
+  "name_ar": "ص",
+  "name_latin": "Sad",
+  "ayat_count": 88,
+  "theme_central": "Tripartite structure: reminder of Allah's power framing, at its center, examples of prophets who faced adversity — to console and warn the Prophet Muhammad.",
+  "sources_note": "3-section structure precisely sourced (grokipedia, Sad surah): 1-11, 12-64, 66-88.",
+  "branches": [
+    {
+      "range": "1-11",
+      "title": "Opening, warning",
+      "resume": "Mockery of the disbelievers at the oneness proclaimed, astonishment that there is only one God.",
+      "children": [
+        { "v": "1-11", "cat": "argumentation", "t": "Mockery of the disbelievers: \"has he made the gods into one God?\"" }
+      ]
+    },
+    {
+      "range": "12-29",
+      "title": "Dawud, judgment and repentance",
+      "resume": "His strength in Allah's service, the parable of the two litigants, his repentance after a hasty judgment.",
+      "children": [
+        { "v": "12-20", "cat": "recits", "t": "Dawud's strength, mountains and birds glorifying with him, wisdom of judgment" },
+        { "v": "21-26", "cat": "recits", "t": "Parable of the two litigants and the ewes, Dawud's repentance" },
+        { "v": "27-29", "cat": "croyance", "t": "Refutation of creation in vain, the blessed Book for reflection" }
+      ]
+    },
+    {
+      "range": "30-40",
+      "title": "Sulayman",
+      "resume": "His love of horses, his trial, the incomparable kingdom granted to him.",
+      "children": [
+        { "v": "30-40", "cat": "recits", "t": "Sulayman: trial, wind and demons subdued, incomparable kingdom" }
+      ]
+    },
+    {
+      "range": "41-49",
+      "title": "Ayyub, Ibrahim, Ishaq, Ya'qub",
+      "resume": "Ayyub's trial and patience, his healing; men of strength and vision among the prophets.",
+      "children": [
+        { "v": "41-44", "cat": "recits", "t": "Ayyub's trial, his patience, healing, the oath kept with a bundle of twigs" },
+        { "v": "45-49", "cat": "recits", "t": "Ibrahim, Ishaq, Ya'qub, Isma'il, al-Yasa, Dhul-Kifl: men of excellence" }
+      ]
+    },
+    {
+      "range": "50-64",
+      "title": "Paradise and the fate of the transgressors",
+      "resume": "Description of Paradise for the pious, contrasted with the dispute of the people of the Fire.",
+      "children": [
+        { "v": "50-54", "cat": "eschatologie", "t": "Description of the Paradise promised to the pious" },
+        { "v": "55-64", "cat": "eschatologie", "t": "Fate of the transgressors, mutual dispute in Hell" }
+      ]
+    },
+    {
+      "range": "65-70",
+      "title": "The Prophet, a warner",
+      "resume": "The Prophet is only a warner, no god but Allah the One, the Supreme Dominator.",
+      "children": [
+        { "v": "65-70", "cat": "croyance", "t": "The Prophet a warner, oneness of Allah reaffirmed" }
+      ]
+    },
+    {
+      "range": "71-88",
+      "title": "Adam, Iblis, closing",
+      "resume": "Creation of Adam, Iblis's refusal to prostrate, his respite granted, closing on the Qur'an as a universal reminder.",
+      "children": [
+        { "v": "71-78", "cat": "recits", "t": "Creation of Adam, command to prostrate, Iblis's arrogant refusal" },
+        { "v": "79-85", "cat": "eschatologie", "t": "Respite granted to Iblis, his promise to mislead men except the chosen ones" },
+        { "v": "86-88", "cat": "croyance", "t": "Closing: the Qur'an, a reminder for the whole universe" }
+      ]
+    }
+  ]
+}

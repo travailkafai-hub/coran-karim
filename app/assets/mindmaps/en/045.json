@@ -1,0 +1,44 @@
+{
+  "surah": 45,
+  "name_ar": "الجاثية",
+  "name_latin": "Al-Jathiyah",
+  "ayat_count": 37,
+  "theme_central": "The signs of creation, offered for reflection, culminate in the scene of the Day when every nation will be seen kneeling (jathiya), called to answer for its record of deeds.",
+  "sources_note": "4-ruku structure precisely sourced (slideshare.net / grokipedia): signs 2-15, divergence after receiving knowledge, desire taken as a deity, Day of kneeling 27-37.",
+  "branches": [
+    {
+      "range": "1-15",
+      "title": "Opening, signs in creation",
+      "resume": "Revelation of the Book, signs in the heavens, the earth, the night, the day and the sea subdued for man.",
+      "children": [
+        { "v": "1-5", "cat": "croyance", "t": "Revelation of the Book, signs for those who have certainty" },
+        { "v": "6-15", "cat": "signes", "t": "Alternation of day/night, winds, rain, the sea subdued for man's service" }
+      ]
+    },
+    {
+      "range": "16-22",
+      "title": "Legacy of the Children of Israel, divergence",
+      "resume": "Book, wisdom and prophethood given to the Children of Israel; divergence appeared after receiving knowledge.",
+      "children": [
+        { "v": "16-22", "cat": "recits", "t": "Legacy given to the Children of Israel, divergence appeared after receiving knowledge" }
+      ]
+    },
+    {
+      "range": "23-26",
+      "title": "Whoever takes his desire as a deity",
+      "resume": "Warning against whoever follows his own desire as if worshipping it; doubt about the resurrection.",
+      "children": [
+        { "v": "23-26", "cat": "argumentation", "t": "Whoever takes his own desire as a deity, doubt about the resurrection" }
+      ]
+    },
+    {
+      "range": "27-37",
+      "title": "The Day of kneeling",
+      "resume": "Source of the surah's name: every nation kneeling, called to its record of deeds; closing on Allah's greatness.",
+      "children": [
+        { "v": "27-32", "cat": "eschatologie", "t": "Every nation kneeling, called to answer for its record" },
+        { "v": "33-37", "cat": "croyance", "t": "Closing: Allah's greatness in the heavens and on the earth" }
+      ]
+    }
+  ]
+}

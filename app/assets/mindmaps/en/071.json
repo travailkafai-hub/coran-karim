@@ -1,0 +1,44 @@
+{
+  "surah": 71,
+  "name_ar": "نوح",
+  "name_latin": "Nuh",
+  "ayat_count": 28,
+  "theme_central": "Nuh's detailed report to Allah on his mission: nine hundred fifty years of calling, day and night, in public and in private, until the final flood.",
+  "sources_note": "4-part structure precisely sourced (alsalam.ac.uk, myislam.org): 1-4, 5-20, 21-26, 27-28.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "The mission entrusted to Nuh",
+      "resume": "Warning his people before a painful punishment.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Mission entrusted to Nuh: warning his people before the punishment" }
+      ]
+    },
+    {
+      "range": "5-12",
+      "title": "The call day and night, seeking forgiveness",
+      "resume": "Tireless public and private calling; blessings of seeking forgiveness: rain, wealth, children.",
+      "children": [
+        { "v": "5-9", "cat": "ethique", "t": "Tireless calling day and night, in public and in private" },
+        { "v": "10-12", "cat": "adoration", "t": "Blessings of seeking forgiveness: rain, wealth, children, gardens, rivers" }
+      ]
+    },
+    {
+      "range": "13-20",
+      "title": "Signs of creation",
+      "resume": "Seven heavens stacked, the moon and the sun, the earth like a spread-out carpet.",
+      "children": [
+        { "v": "13-20", "cat": "signes", "t": "Seven heavens, moon and sun, earth spread out like a carpet" }
+      ]
+    },
+    {
+      "range": "21-28",
+      "title": "Plot, destruction, final supplication",
+      "resume": "The people plot against Nuh, destruction by the flood, final supplication for the believers and his parents.",
+      "children": [
+        { "v": "21-26", "cat": "recits", "t": "Plot of the people, destruction by the flood" },
+        { "v": "27-28", "cat": "adoration", "t": "Nuh's final supplication for the believers and his parents" }
+      ]
+    }
+  ]
+}

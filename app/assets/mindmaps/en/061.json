@@ -1,0 +1,58 @@
+{
+  "surah": 61,
+  "name_ar": "الصف",
+  "name_latin": "As-Saf",
+  "ayat_count": 14,
+  "theme_central": "Consistency between word and deed, fighting in ranks \"as if a solid structure\" — with Aissa's prophecy announcing the coming of Ahmad (Muhammad).",
+  "sources_note": "Precisely sourced structure (mudahamatan.home.blog, Tafsir Ibn Kathir): 1-4, 5-6, 7, 8-9, 10-13, 14.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Saying and doing",
+      "resume": "Why do you say what you do not do? Allah loves those who fight in solid ranks.",
+      "children": [
+        { "v": "1-4", "cat": "ethique", "t": "Consistency between word and deed, fighting in solid ranks" }
+      ]
+    },
+    {
+      "range": "5-6",
+      "title": "Musa and Aissa's prophecy",
+      "resume": "Musa rebukes his people; Aissa announces the coming of a messenger named Ahmad.",
+      "children": [
+        { "v": "5-6", "cat": "recits", "t": "Musa rebukes his people; Aissa announces Ahmad (Muhammad)" }
+      ]
+    },
+    {
+      "range": "7",
+      "title": "Who invents a lie against Allah?",
+      "resume": "Rhetorical question about the injustice of lying about Allah while being called to Islam.",
+      "children": [
+        { "v": "7", "cat": "argumentation", "t": "Who invents a lie against Allah while being called to Islam?" }
+      ]
+    },
+    {
+      "range": "8-9",
+      "title": "Allah's light will prevail",
+      "resume": "Attempt to extinguish Allah's light with the mouth, doomed to fail.",
+      "children": [
+        { "v": "8-9", "cat": "croyance", "t": "Allah's light will prevail despite the disbelievers" }
+      ]
+    },
+    {
+      "range": "10-13",
+      "title": "The profitable trade",
+      "resume": "Faith, struggle and spending: a trade that saves from painful punishment.",
+      "children": [
+        { "v": "10-13", "cat": "eschatologie", "t": "Faith, struggle and spending as profitable trade" }
+      ]
+    },
+    {
+      "range": "14",
+      "title": "Closing",
+      "resume": "Being helpers of Allah, like the disciples of Aissa.",
+      "children": [
+        { "v": "14", "cat": "ethique", "t": "Being helpers of Allah, like the disciples of Aissa" }
+      ]
+    }
+  ]
+}

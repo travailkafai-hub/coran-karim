@@ -1,0 +1,50 @@
+{
+  "surah": 68,
+  "name_ar": "القلم",
+  "name_latin": "Al-Qalam",
+  "ayat_count": 52,
+  "theme_central": "Oath by the pen and what is written: truth is permanent and recorded, and whoever carries it is of sound character — the entire thesis of the surah lies in its opening.",
+  "sources_note": "2-ruku structure precisely sourced (grokipedia): 1-9, parable of the garden owners 17-33.",
+  "branches": [
+    {
+      "range": "1-9",
+      "title": "Oath by the pen",
+      "resume": "Oath by the pen and what is written, defense of the Prophet's integrity and sanity.",
+      "children": [
+        { "v": "1-9", "cat": "croyance", "t": "Oath by the pen, defense of the Prophet's integrity" }
+      ]
+    },
+    {
+      "range": "10-16",
+      "title": "The contemptible man",
+      "resume": "Description of a contemptible man, habitual swearer, slanderer.",
+      "children": [
+        { "v": "10-16", "cat": "argumentation", "t": "Description of a contemptible man, habitual swearer and slanderer" }
+      ]
+    },
+    {
+      "range": "17-33",
+      "title": "The parable of the garden",
+      "resume": "Garden owners turned ungrateful after being blessed, plan to harvest at dawn without the poor, total destruction.",
+      "children": [
+        { "v": "17-33", "cat": "recits", "t": "Ungrateful garden owners, total destruction as punishment" }
+      ]
+    },
+    {
+      "range": "34-47",
+      "title": "Contrast: the pious / the criminals",
+      "resume": "The criminals cannot be treated like those submitted to Allah; what covenant would they have with Him?",
+      "children": [
+        { "v": "34-47", "cat": "ethique", "t": "Contrast between the pious and the criminals, no real covenant with Allah" }
+      ]
+    },
+    {
+      "range": "48-52",
+      "title": "Yunus's patience, closing",
+      "resume": "Not to be like Yunus (Dhun-Nun) in his distress; the Qur'an, a Reminder for the entire universe.",
+      "children": [
+        { "v": "48-52", "cat": "recits", "t": "Patience recommended like that of Yunus; closing, a Reminder for the universe" }
+      ]
+    }
+  ]
+}

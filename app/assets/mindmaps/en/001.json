@@ -1,0 +1,28 @@
+{
+  "surah": 1,
+  "name_ar": "الفاتحة",
+  "name_latin": "Al-Fatiha",
+  "ayat_count": 7,
+  "theme_central": "The Opening: praise of Allah followed by a request for guidance — recited in every unit of prayer, it sums up in 7 verses the entire relationship between the believer and their Lord.",
+  "sources_note": "Universally known content, no possible divergence in structure.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Praise and attributes of Allah",
+      "resume": "Praise of Allah, Lord of the worlds, the Most Merciful, Master of the Day of Recompense.",
+      "children": [
+        { "v": "1", "cat": "croyance", "t": "Basmala: in the name of Allah, the Most Merciful" },
+        { "v": "2-4", "cat": "croyance", "t": "Praise of Allah, Lord of the worlds, Master of the Day of Recompense" }
+      ]
+    },
+    {
+      "range": "5-7",
+      "title": "Worship and guidance",
+      "resume": "The believer proclaims that Allah alone is worshipped and asks for His guidance on the straight path.",
+      "children": [
+        { "v": "5", "cat": "adoration", "t": "\"It is You we worship, and You alone we ask for help\"" },
+        { "v": "6-7", "cat": "croyance", "t": "Guidance to the straight path, that of those who have been blessed" }
+      ]
+    }
+  ]
+}

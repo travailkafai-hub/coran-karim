@@ -1,0 +1,61 @@
+{
+  "surah": 55,
+  "name_ar": "الرحمن",
+  "name_latin": "Ar-Rahman",
+  "ayat_count": 78,
+  "theme_central": "\"The Bride of the Qur'an\": a rhythmic hymn of Ar-Rahman's blessings, punctuated by the refrain repeated 31 times — \"Then which of your Lord's blessings will you deny?\"",
+  "sources_note": "3-unit structure precisely sourced (medium.com/@soltlane, Wikipedia Ar-Rahman): 1-30, 31-45, 46-78. Refrain confirmed repeated 31 times.",
+  "branches": [
+    {
+      "range": "1-4",
+      "title": "Ar-Rahman taught the Qur'an",
+      "resume": "He taught the Qur'an, created man, taught him clear expression.",
+      "children": [
+        { "v": "1-4", "cat": "croyance", "t": "Ar-Rahman teaches the Qur'an, creates man, teaches him clear expression" }
+      ]
+    },
+    {
+      "range": "5-16",
+      "title": "Signs of creation, balance",
+      "resume": "Sun and moon by precise calculation, the fair balance, man from clay and jinn from fire.",
+      "children": [
+        { "v": "5-13", "cat": "signes", "t": "Sun and moon precisely set, stars and trees prostrating, the fair balance" },
+        { "v": "14-16", "cat": "signes", "t": "Creation of man from ringing clay and jinn from pure fire" }
+      ]
+    },
+    {
+      "range": "17-30",
+      "title": "The two seas, all perishes but Allah",
+      "resume": "The two seas that meet without mixing; everything perishes except the Face of your Lord.",
+      "children": [
+        { "v": "17-25", "cat": "signes", "t": "The two seas meeting without mixing, pearls and coral" },
+        { "v": "26-30", "cat": "croyance", "t": "Everything perishes except Allah's Face; every day He is upon some task" }
+      ]
+    },
+    {
+      "range": "31-36",
+      "title": "Summons to men and jinn",
+      "resume": "Challenge issued to men and jinn to cross the regions of the heavens without authority.",
+      "children": [
+        { "v": "31-36", "cat": "eschatologie", "t": "Summons to men and jinn, cosmic challenge to cross the heavens" }
+      ]
+    },
+    {
+      "range": "37-45",
+      "title": "Scene of the Judgment",
+      "resume": "The sky split open, flames and smoke, criminals recognized by their marks, seized and cast into Hell.",
+      "children": [
+        { "v": "37-45", "cat": "eschatologie", "t": "The sky split open, criminals recognized by their marks, seized for Hell" }
+      ]
+    },
+    {
+      "range": "46-78",
+      "title": "The gardens of Paradise",
+      "resume": "For whoever fears standing before his Lord: two gardens, then two more — springs, fruits, houris, closing on Allah's munificence.",
+      "children": [
+        { "v": "46-61", "cat": "eschatologie", "t": "First two gardens: gushing springs, fruits in pairs, chaste houris" },
+        { "v": "62-78", "cat": "eschatologie", "t": "Two additional gardens; closing on Allah's greatness and munificence" }
+      ]
+    }
+  ]
+}

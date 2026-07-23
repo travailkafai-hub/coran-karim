@@ -1,0 +1,62 @@
+{
+  "surah": 30,
+  "name_ar": "الروم",
+  "name_latin": "Ar-Rum",
+  "ayat_count": 60,
+  "theme_central": "A verifiable geopolitical prophecy (the Romans' victory) opens the surah to establish the message's credibility, before a long meditation on the signs of creation.",
+  "sources_note": "3-part structure sourced (grokipedia): 1-5/1-7, 8-45, 46-60.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "Prophecy of the Romans",
+      "resume": "The defeated Romans will triumph within a few years — Allah's promise, verifiable.",
+      "children": [
+        { "v": "1-7", "cat": "eschatologie", "t": "Prophecy of the Romans' victory over the Persians within a few years" }
+      ]
+    },
+    {
+      "range": "8-19",
+      "title": "Reflection, resurrection, glorification",
+      "resume": "Injustice of denying the resurrection, division between believers and disbelievers, glorifying Allah morning and evening.",
+      "children": [
+        { "v": "8-16", "cat": "croyance", "t": "Reflecting on oneself, injustice of denying the resurrection" },
+        { "v": "17-19", "cat": "adoration", "t": "Glorifying Allah morning and evening, bringing the living out of the dead" }
+      ]
+    },
+    {
+      "range": "20-32",
+      "title": "Signs of marriage, diversity",
+      "resume": "Tenderness and compassion between spouses, diversity of languages and colors, warning against sects.",
+      "children": [
+        { "v": "20-27", "cat": "signes", "t": "Signs of marriage, diversity of languages and colors, sleep" },
+        { "v": "28-32", "cat": "argumentation", "t": "Parable of slaves compared to the partners attributed to Allah; not to divide religion into sects" }
+      ]
+    },
+    {
+      "range": "33-45",
+      "title": "Ingratitude, rights of relatives, riba",
+      "resume": "Man's ingratitude in times of ease, rights of relatives and the poor, prohibition of riba, corruption on earth.",
+      "children": [
+        { "v": "33-37", "cat": "ethique", "t": "Man's ingratitude in ease after distress" },
+        { "v": "38-40", "cat": "legislation", "t": "Rights of relatives and the poor, riba brings no increase with Allah" },
+        { "v": "41-45", "cat": "ethique", "t": "Corruption appeared on land and sea because of what people's hands have earned" }
+      ]
+    },
+    {
+      "range": "46-53",
+      "title": "The winds, the resurrection",
+      "resume": "Winds bearing good news, raising the dead just as the earth comes back to life after rain.",
+      "children": [
+        { "v": "46-53", "cat": "signes", "t": "Winds bearing rain, resurrection compared to the earth coming back to life" }
+      ]
+    },
+    {
+      "range": "54-60",
+      "title": "Stages of life, closing",
+      "resume": "Weakness, strength, then weakness again; final patience asked of the Prophet.",
+      "children": [
+        { "v": "54-60", "cat": "eschatologie", "t": "Stages of human life, fate of the unjust, final patience asked" }
+      ]
+    }
+  ]
+}

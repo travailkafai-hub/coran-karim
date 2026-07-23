@@ -3,6 +3,7 @@
 // Le principe : l'utilisateur récite en continu, et chaque mot du verset
 // passe de pending → current → correct (vert) ou error (rouge),
 // sans aucune interaction manuelle pendant la récitation.
+import '../l10n/app_localizations.dart';
 import 'judgement_options.dart';
 
 enum WordStatus {
@@ -101,6 +102,34 @@ class RecitedWord {
   // journalisée ne dit que « ce mot a échoué », jamais POURQUOI. Vide tant que
   // le mot n'a pas été jugé.
   final String heard;
+  // Règles de tajwid RÉELLEMENT détectées sur ce mot par la tête 2 du modèle
+  // (architecture à deux têtes, 2026-07-22), conservées au moment du jugement
+  // pour que la CLASSIFICATION d'erreur (classifyError, appelée plus tard sur
+  // un mot déjà jugé) puisse s'y référer sans réanalyser l'audio — même
+  // motivation que `heard` juste au-dessus. Vide tant que le mot n'est pas
+  // jugé, ou si le modèle chargé n'a qu'une seule tête.
+  final Set<TajwidRule> detectedRules;
+  // GOP TAJWID gradué par classe de règle (index = id, même ordre que
+  // TajwidRule.values) -- « 2ᵉ palier », cf. AlignedWord.tajwidGop. Conservé
+  // au moment du jugement pour la même raison que `detectedRules` : la
+  // classification d'erreur et la journalisation ont lieu APRÈS, sur un mot
+  // déjà jugé, sans possibilité de réanalyser l'audio. Vide si le modèle n'a
+  // qu'une seule tête -> on retombe alors sur la détection binaire.
+  final List<double> tajwidGop;
+  // Un des 4 mots de la formule d'ouverture "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ
+  // ٱلرَّحِيمِ" -- vrai aussi bien pour Al-Fatiha 1:1 (texte verbatim
+  // identique) que pour la Bismillah insérée devant une autre sourate (même
+  // texte, même segment surah=1/ayah=1, cf. QuranApi.fetchBismillah).
+  // Ajouté le 2026-07-20 : mesure sur le dataset d'entraînement (407k clips)
+  // -- la Bismillah y est récitée ~44% plus vite en médiane que le reste du
+  // Coran (plusieurs réciteurs à 3-4x le débit normal), traitée comme une
+  // formule rituelle rapide plutôt qu'un verset posé. Conséquence mesurée sur
+  // device, reproduite sur 3 pistes d'entraînement différentes le même soir :
+  // le modèle est structurellement mal calibré (gop) sur CES mots précis,
+  // quelle que soit la méthode d'entraînement -- pas un défaut de prononciation
+  // du récitant. Décision utilisateur : ne plus juger ces 4 mots (ni gop ni
+  // texte), plutôt que de continuer à chasser un correctif d'entraînement.
+  final bool isBasmala;
 
   const RecitedWord({
     required this.display,
@@ -112,9 +141,13 @@ class RecitedWord {
     this.status = WordStatus.pending,
     this.locked = false,
     this.heard = '',
+    this.detectedRules = const {},
+    this.tajwidGop = const [],
+    this.isBasmala = false,
   }) : alignTarget = alignTarget ?? training;
 
-  RecitedWord copyWith({WordStatus? status, bool? locked, String? heard}) =>
+  RecitedWord copyWith({WordStatus? status, bool? locked, String? heard,
+          Set<TajwidRule>? detectedRules, List<double>? tajwidGop}) =>
       RecitedWord(
         display: display,
         normalized: normalized,
@@ -125,6 +158,9 @@ class RecitedWord {
         status: status ?? this.status,
         locked: locked ?? this.locked,
         heard: heard ?? this.heard,
+        detectedRules: detectedRules ?? this.detectedRules,
+        tajwidGop: tajwidGop ?? this.tajwidGop,
+        isBasmala: isBasmala,
       );
 }
 
@@ -147,12 +183,13 @@ class RecitedWord {
 /// harakat, sur un mot qui porte une règle » — pas comme une preuve.
 enum RecitationErrorKind { lettre, harakat, tajwid, saute, inconnu }
 
-String recitationErrorKindLabel(RecitationErrorKind k) => switch (k) {
-      RecitationErrorKind.lettre => 'Lettre',
-      RecitationErrorKind.harakat => 'Harakat',
-      RecitationErrorKind.tajwid => 'Tajwid',
-      RecitationErrorKind.saute => 'Mot sauté',
-      RecitationErrorKind.inconnu => 'Indéterminé',
+String recitationErrorKindLabel(AppLocalizations t, RecitationErrorKind k) =>
+    switch (k) {
+      RecitationErrorKind.lettre => t.errorKindLettre,
+      RecitationErrorKind.harakat => t.errorKindHarakat,
+      RecitationErrorKind.tajwid => t.errorKindTajwid,
+      RecitationErrorKind.saute => t.errorKindSkippedWord,
+      RecitationErrorKind.inconnu => t.errorKindUnknown,
     };
 
 /// Famille de haut niveau demandée par l'utilisateur : tajwid vs prononciation.

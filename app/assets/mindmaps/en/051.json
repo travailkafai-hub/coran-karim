@@ -1,0 +1,62 @@
+{
+  "surah": 51,
+  "name_ar": "الذاريات",
+  "name_latin": "Adh-Dhariyat",
+  "ayat_count": 60,
+  "theme_central": "Oaths by the winds and cosmic phenomena to establish the certainty of the Judgment, illustrated by the fate of the ancient peoples who rejected their messengers.",
+  "sources_note": "3-part structure precisely sourced (literary analysis by Angelika Neuwirth via grokipedia): 1-23, 24-46, 47-60. Narrative of Ibrahim's guests detailed (24-30).",
+  "branches": [
+    {
+      "range": "1-14",
+      "title": "Oaths, promise of the Judgment",
+      "resume": "Oaths by the scattering winds, certain and inescapable promise of the Judgment.",
+      "children": [
+        { "v": "1-14", "cat": "croyance", "t": "Oaths by the winds, certain promise of the Judgment" }
+      ]
+    },
+    {
+      "range": "15-23",
+      "title": "Paradise of the pious, signs",
+      "resume": "Description of Paradise for the pious, signs in creation and within man himself.",
+      "children": [
+        { "v": "15-19", "cat": "eschatologie", "t": "Description of Paradise for the pious, sleeping little at night, seeking forgiveness at dawn" },
+        { "v": "20-23", "cat": "signes", "t": "Signs on earth and within man himself" }
+      ]
+    },
+    {
+      "range": "24-37",
+      "title": "Ibrahim's guests, destruction of Lot's people",
+      "resume": "The angels visiting Ibrahim, announcement of Ishaq; destruction of Lot's people.",
+      "children": [
+        { "v": "24-30", "cat": "recits", "t": "Ibrahim's guests (the angels), announcement of Ishaq's birth" },
+        { "v": "31-37", "cat": "recits", "t": "Destruction of Lot's people, except the believers" }
+      ]
+    },
+    {
+      "range": "38-46",
+      "title": "Musa, 'Ad, Thamud, Nuh",
+      "resume": "Brief reminder of Musa/Pharaoh, 'Ad destroyed by the wind, Thamud by the Cry, the people of Nuh.",
+      "children": [
+        { "v": "38-40", "cat": "recits", "t": "Musa and Pharaoh, drowning" },
+        { "v": "41-46", "cat": "recits", "t": "'Ad destroyed by the wind, Thamud by the Cry, the people of Nuh" }
+      ]
+    },
+    {
+      "range": "47-51",
+      "title": "Signs of creation",
+      "resume": "The sky expanded, the earth spread out, everything created in pairs; fleeing toward Allah.",
+      "children": [
+        { "v": "47-51", "cat": "signes", "t": "The expanded sky, everything created in pairs, fleeing toward Allah" }
+      ]
+    },
+    {
+      "range": "52-60",
+      "title": "Messengers called liars",
+      "resume": "Every messenger called a sorcerer or a madman; jinn and men created only to worship Allah alone.",
+      "children": [
+        { "v": "52-55", "cat": "argumentation", "t": "Every messenger called a sorcerer or a madman by his people" },
+        { "v": "56-60", "cat": "croyance", "t": "Jinn and men created only to worship Allah alone; He is the Provider" }
+      ]
+    }
+  ]
+}

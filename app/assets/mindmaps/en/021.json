@@ -1,0 +1,74 @@
+{
+  "surah": 21,
+  "name_ar": "الأنبياء",
+  "name_latin": "Al-Anbiya",
+  "ayat_count": 112,
+  "theme_central": "The fundamental unity of all prophets: sixteen of them parade through this surah, all carrying one and the same message — worship Allah alone.",
+  "sources_note": "Division into 7 sections precisely sourced (alim.org, 7 Rukus): 1-10, 11-22, 23-29, 30-41, 42-50, 51-91, 92-112.",
+  "branches": [
+    {
+      "range": "1-10",
+      "title": "Nearness of the Judgment",
+      "resume": "Warning about the approach of the Day, mankind's heedlessness.",
+      "children": [
+        { "v": "1-10", "cat": "eschatologie", "t": "Approach of the Judgment, mankind's heedlessness, mockery of the disbelievers" }
+      ]
+    },
+    {
+      "range": "11-22",
+      "title": "Divine support for the rejected messengers",
+      "resume": "Destruction of past unjust nations, creation is not a game.",
+      "children": [
+        { "v": "11-15", "cat": "eschatologie", "t": "Destruction of past unjust nations" },
+        { "v": "16-22", "cat": "argumentation", "t": "Creation is not a game, every soul will taste death" }
+      ]
+    },
+    {
+      "range": "23-29",
+      "title": "Monotheism",
+      "resume": "None can question Him; even the angels prostrate to Him alone.",
+      "children": [
+        { "v": "23-29", "cat": "croyance", "t": "Allah answers to no one; the angels His submissive servants" }
+      ]
+    },
+    {
+      "range": "30-41",
+      "title": "Cosmic signs",
+      "resume": "Heavens and earth once joined together, every living being made from water.",
+      "children": [
+        { "v": "30-41", "cat": "signes", "t": "Heavens and earth separated, every living being drawn from water" }
+      ]
+    },
+    {
+      "range": "42-50",
+      "title": "Hud and Salih",
+      "resume": "Brief reminder of the peoples of 'Ad and Thamud.",
+      "children": [
+        { "v": "42-50", "cat": "recits", "t": "Brief reminder of the peoples of 'Ad and Thamud" }
+      ]
+    },
+    {
+      "range": "51-91",
+      "title": "The great gallery of prophets",
+      "resume": "Ibrahim, Lot, Nuh, Dawud and Sulayman, Ayyub, Isma'il, Idris, Dhul-Kifl, Yunus, Zakariyya and Maryam.",
+      "children": [
+        { "v": "51-73", "cat": "recits", "t": "Ibrahim breaks the idols, thrown into fire that becomes cool and safe" },
+        { "v": "74-77", "cat": "recits", "t": "Lot and Nuh saved from their peoples" },
+        { "v": "78-82", "cat": "recits", "t": "Dawud and Sulayman: judgment of the fields, birds and wind subdued" },
+        { "v": "83-86", "cat": "recits", "t": "Ayyub tested then healed, Isma'il, Idris and Dhul-Kifl patient" },
+        { "v": "87-88", "cat": "recits", "t": "Yunus in the belly of the fish, his supplication answered" },
+        { "v": "89-91", "cat": "recits", "t": "Zakariyya answered, Maryam and the birth of Aissa" }
+      ]
+    },
+    {
+      "range": "92-112",
+      "title": "Religious unity, closing",
+      "resume": "One single community of faith despite human divisions, resurrection, Allah's sovereignty.",
+      "children": [
+        { "v": "92-97", "cat": "croyance", "t": "One single community of faith, warning about Gog and Magog" },
+        { "v": "98-104", "cat": "eschatologie", "t": "Fate of the idols and their worshippers, serenity of the pious" },
+        { "v": "105-112", "cat": "croyance", "t": "Inheritance of the earth by the pious, Muhammad sent as a mercy to the worlds" }
+      ]
+    }
+  ]
+}

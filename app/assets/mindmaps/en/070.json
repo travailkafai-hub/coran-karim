@@ -1,0 +1,42 @@
+{
+  "surah": 70,
+  "name_ar": "المعارج",
+  "name_latin": "Al-Ma'arij",
+  "ayat_count": 44,
+  "theme_central": "A questioner defiantly demands the punishment already under way — answered by the cosmic scale of the Lord of the ways of ascent, then the portrait of the believers whose hearts are already turned toward that Day.",
+  "sources_note": "3-section structure precisely sourced (excelinhr.wordpress.com, Structural Analysis): 1-18, 19-35, 36-44.",
+  "branches": [
+    {
+      "range": "1-7",
+      "title": "The questioner, cosmic scale",
+      "resume": "A disbeliever defiantly demands the punishment; a Day equal to 50,000 years, patience recommended.",
+      "children": [
+        { "v": "1-7", "cat": "eschatologie", "t": "The questioner's defiance, a Day equal to 50,000 years" }
+      ]
+    },
+    {
+      "range": "8-18",
+      "title": "Cosmic dissolution",
+      "resume": "The sky like molten metal, the mountains like carded wool, social bonds completely severed.",
+      "children": [
+        { "v": "8-18", "cat": "eschatologie", "t": "Sky melted, mountains scattered, social bonds severed, ransom refused" }
+      ]
+    },
+    {
+      "range": "19-35",
+      "title": "Traits of the believers",
+      "resume": "Man is anxious and stingy by nature, except the constant worshippers: chastity, promises kept, prayer preserved.",
+      "children": [
+        { "v": "19-35", "cat": "ethique", "t": "Traits of true believers: chastity, trust kept, constant prayer" }
+      ]
+    },
+    {
+      "range": "36-44",
+      "title": "Futile excuses, consolation",
+      "resume": "Futile excuses of the disbelievers on the Day of reckoning, final consolation addressed to the Prophet.",
+      "children": [
+        { "v": "36-44", "cat": "eschatologie", "t": "Futile excuses of the disbelievers, final consolation of the Prophet" }
+      ]
+    }
+  ]
+}

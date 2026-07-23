@@ -72,6 +72,7 @@ class RuleAnnotationService {
   static final instance = RuleAnnotationService._();
 
   Map<String, List<String>>? _byVerse;
+  Map<String, Set<int>>? _boundaryByVerse;
   bool _loading = false;
 
   Future<void> ensureLoaded() async {
@@ -87,6 +88,20 @@ class RuleAnnotationService {
     } catch (e) {
       debugPrint('[Rules] échec chargement annotations : $e');
       _byVerse = const {}; // asset absent -> repli silencieux (aligne sur canonique)
+    }
+    // Mots "frontiere" (2026-07-22, demande utilisateur : afficher la paire
+    // de mots pour les regles a cheval sur deux mots -- ikhafa/iqlab/idgham
+    // dont le declencheur est la fin d'un mot + le debut du suivant).
+    // Genere par build_app_rules_assets.py depuis boundary_words.jsonl.
+    try {
+      final raw = await rootBundle
+          .loadString('assets/data/quran_rules_boundary.json');
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      _boundaryByVerse = data.map((k, v) =>
+          MapEntry(k, (v as List).map((e) => e as int).toSet()));
+    } catch (e) {
+      debugPrint('[Rules] échec chargement frontieres : $e');
+      _boundaryByVerse = const {};
     } finally {
       _loading = false;
     }
@@ -99,4 +114,12 @@ class RuleAnnotationService {
   /// alors sur la forme canonique (comportement de l'ancien modèle, sûr).
   List<String>? annotatedWords(int surah, int ayah) =>
       _byVerse?['$surah:$ayah'];
+
+  /// Vrai si le mot [wordIndex] (0-based dans le verset) porte un symbole de
+  /// règle dont le déclencheur acoustique est partagé avec le mot SUIVANT
+  /// (wordIndex+1) -- ex. iqlab/ikhafa/idgham à cheval sur deux mots. Sert à
+  /// décider si l'affichage d'une erreur doit montrer la paire de mots plutôt
+  /// qu'un seul mot isolé.
+  bool isBoundaryWord(int surah, int ayah, int wordIndex) =>
+      _boundaryByVerse?['$surah:$ayah']?.contains(wordIndex) ?? false;
 }

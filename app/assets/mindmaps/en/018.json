@@ -1,0 +1,69 @@
+{
+  "surah": 18,
+  "name_ar": "الكهف",
+  "name_latin": "Al-Kahf",
+  "ayat_count": 110,
+  "theme_central": "Protecting oneself from life's great trials (fitan) through faith, divine knowledge, and reliance on Allah — hence its recommended recitation every Friday (protection against the Dajjal).",
+  "sources_note": "The \"4 trials\" structure: a broad, well-documented consensus (surahsofquran.com, jfln.org, onepathnetwork.com, backtojannah.com).",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "Opening",
+      "resume": "Praise of Allah for a Book \"without crookedness\" — its mission: to warn and to give good news.",
+      "children": [
+        { "v": "1-2", "cat": "croyance", "t": "The Book revealed without deviation, to warn of a severe punishment" },
+        { "v": "3-6", "cat": "eschatologie", "t": "Good news for the believers, warning against excessive grief" },
+        { "v": "7-8", "cat": "signes", "t": "This world is a fleeting ornament, a means of testing" }
+      ]
+    },
+    {
+      "range": "9-26",
+      "title": "The Trial of Faith — The People of the Cave",
+      "resume": "Young believers flee persecution, a miraculous sleep of ~300 years.",
+      "children": [
+        { "v": "9-12", "cat": "recits", "t": "Young believers flee a hostile society" },
+        { "v": "13-20", "cat": "recits", "t": "The sleep in the cave, divine protection" },
+        { "v": "21-26", "cat": "argumentation", "t": "The awakening, a debate over their number and the exact duration" }
+      ]
+    },
+    {
+      "range": "32-44",
+      "title": "The Trial of Wealth — The Two Gardens",
+      "resume": "A rich, arrogant man looks down on his more modest believing neighbour.",
+      "children": [
+        { "v": "32-36", "cat": "recits", "t": "The pride of the owner of the two gardens" },
+        { "v": "37-41", "cat": "ethique", "t": "The warning of his believing companion" },
+        { "v": "42-44", "cat": "eschatologie", "t": "Ruin of the garden — wealth is fleeting" }
+      ]
+    },
+    {
+      "range": "60-82",
+      "title": "The Trial of Knowledge — Musa and Khidr",
+      "resume": "Musa seeks a servant who holds hidden divine knowledge; accepting the limits of one's own knowledge.",
+      "children": [
+        { "v": "60-65", "cat": "recits", "t": "Musa sets out in search of the knowledgeable servant" },
+        { "v": "66-78", "cat": "recits", "t": "Three incomprehensible acts by Khidr, the condition of patience broken" },
+        { "v": "79-82", "cat": "croyance", "t": "Explanation: the hidden meaning behind each act" }
+      ]
+    },
+    {
+      "range": "83-98",
+      "title": "The Trial of Power — Dhul-Qarnayn",
+      "resume": "A just and powerful king; he builds the barrier against Gog and Magog.",
+      "children": [
+        { "v": "83-88", "cat": "ethique", "t": "Journey to the west and the east, justice toward the peoples" },
+        { "v": "89-98", "cat": "legislation", "t": "Building the barrier — power in the service of justice" }
+      ]
+    },
+    {
+      "range": "99-110",
+      "title": "Closing",
+      "resume": "Reminder of the Last Judgment — Allah's word is infinite.",
+      "children": [
+        { "v": "99-101", "cat": "eschatologie", "t": "Destruction of the barrier, a sign of the end times" },
+        { "v": "102-106", "cat": "eschatologie", "t": "The vain deeds of those who doubted meeting Allah" },
+        { "v": "107-110", "cat": "croyance", "t": "The ink of the sea would not be enough to write Allah's words" }
+      ]
+    }
+  ]
+}

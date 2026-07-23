@@ -1,0 +1,76 @@
+{
+  "surah": 20,
+  "name_ar": "طه",
+  "name_latin": "Ta-Ha",
+  "ayat_count": 135,
+  "theme_central": "A ring structure around two narratives (Musa, then Adam), each framed by instructions to the Prophet and followed by an evocation of the Day of Judgment.",
+  "sources_note": "Ring structure confirmed (Wikipedia Ta-Ha, in English) with precise landmarks: Musa's calling v.10, the exodus/Red Sea v.77, the golden calf v.88, Adam's fall v.120.",
+  "branches": [
+    {
+      "range": "1-16",
+      "title": "Opening, the call at the bush",
+      "resume": "The Qur'an not sent down to cause distress; Musa sees the fire and receives the divine call.",
+      "children": [
+        { "v": "1-8", "cat": "croyance", "t": "The Qur'an not sent down to cause distress, Allah knows the secret and what is even more hidden" },
+        { "v": "9-16", "cat": "recits", "t": "Musa sees the fire, the divine call: \"I am Allah, there is no god but Me\"" }
+      ]
+    },
+    {
+      "range": "17-56",
+      "title": "The signs, the mission to Pharaoh",
+      "resume": "The staff and the shining hand, the mission extended to Harun, sent to Pharaoh.",
+      "children": [
+        { "v": "17-36", "cat": "recits", "t": "The staff and the shining hand, Musa asks for Harun's help" },
+        { "v": "37-40", "cat": "recits", "t": "Reminder of Musa's childhood, the basket on the river" },
+        { "v": "41-56", "cat": "recits", "t": "Sent to Pharaoh with gentle words, the debate: \"Who is your Lord?\"" }
+      ]
+    },
+    {
+      "range": "57-79",
+      "title": "The sorcerers' challenge, the exodus",
+      "resume": "Confrontation with the sorcerers, their conversion, then the exodus and Pharaoh's drowning.",
+      "children": [
+        { "v": "57-70", "cat": "recits", "t": "Challenge issued to the sorcerers, confrontation" },
+        { "v": "71-76", "cat": "recits", "t": "The sorcerers' conversion despite Pharaoh's threat" },
+        { "v": "77-79", "cat": "eschatologie", "t": "The exodus, the crossing of the sea, Pharaoh's drowning" }
+      ]
+    },
+    {
+      "range": "80-98",
+      "title": "The golden calf, the Samiri",
+      "resume": "Blessings recalled, Musa's anger at the golden calf made by the Samiri.",
+      "children": [
+        { "v": "80-82", "cat": "recits", "t": "Blessings recalled, the manna and the quails" },
+        { "v": "83-89", "cat": "recits", "t": "Musa's anger, the golden calf made by the Samiri" },
+        { "v": "90-98", "cat": "recits", "t": "Harun's warning ignored, confrontation with the Samiri" }
+      ]
+    },
+    {
+      "range": "99-114",
+      "title": "Eschatological reminder",
+      "resume": "The Qur'an as a reminder, the Trumpet, everything submitting to Ar-Rahman.",
+      "children": [
+        { "v": "99-104", "cat": "eschatologie", "t": "This Qur'an as a reminder, the fate of those who turn away from it" },
+        { "v": "105-112", "cat": "eschatologie", "t": "Question about the mountains, the Trumpet, submission to Ar-Rahman" },
+        { "v": "113-114", "cat": "croyance", "t": "The Qur'an in Arabic, not to hasten in its recitation" }
+      ]
+    },
+    {
+      "range": "115-127",
+      "title": "The account of Adam, the fall",
+      "resume": "The forgotten covenant, Iblis's temptation, the fall and the promise of guidance.",
+      "children": [
+        { "v": "115-124", "cat": "recits", "t": "Covenant forgotten by Adam, Iblis's temptation, the fall, the promise of guidance" },
+        { "v": "125-127", "cat": "eschatologie", "t": "A narrow life for those who turn away from the reminder" }
+      ]
+    },
+    {
+      "range": "128-135",
+      "title": "Closing",
+      "resume": "Lesson of the destroyed generations, patience and prayer as support for the Prophet.",
+      "children": [
+        { "v": "128-135", "cat": "ethique", "t": "Lesson of the destroyed generations, patience, prayer as support" }
+      ]
+    }
+  ]
+}

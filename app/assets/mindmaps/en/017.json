@@ -1,0 +1,77 @@
+{
+  "surah": 17,
+  "name_ar": "الإسراء",
+  "name_latin": "Al-Isra",
+  "ayat_count": 111,
+  "theme_central": "From the Night Journey to the fundamental ethical commandments: the surah links the Prophet's highest spiritual experience to the most concrete moral demands of everyday life.",
+  "sources_note": "The block of ethical commandments (22-39) precisely sourced (islampak.com / zamzamacademy.com). The rest reconstructed from well-established landmarks (Night Journey v.1, the question about the spirit v.85, the challenge of the Qur'an v.88-89).",
+  "branches": [
+    {
+      "range": "1-8",
+      "title": "The Night Journey, the Children of Israel",
+      "resume": "The Night Journey (Isra) to al-Aqsa Mosque; the prophecy of the two corruptions of the Children of Israel.",
+      "children": [
+        { "v": "1", "cat": "croyance", "t": "The Night Journey from the Sacred Mosque to al-Aqsa Mosque" },
+        { "v": "2-8", "cat": "recits", "t": "The Book given to Musa, the prophecy of the two corruptions of the Children of Israel" }
+      ]
+    },
+    {
+      "range": "9-21",
+      "title": "The Qur'an as guide, the hasty man",
+      "resume": "The Qur'an guides to what is most upright; each acts according to his own disposition; contrast between this world and the next.",
+      "children": [
+        { "v": "9-15", "cat": "croyance", "t": "The Qur'an guides to what is most upright, each person bears the weight of their own deeds" },
+        { "v": "16-21", "cat": "eschatologie", "t": "Fate of destroyed cities, contrast between those who want this world and those who want the next" }
+      ]
+    },
+    {
+      "range": "22-39",
+      "title": "The ethical commandments",
+      "resume": "A famous block: exclusive worship, kindness to parents, the rights of relatives, against waste, infanticide, adultery, injustice, the orphan, fair measure, arrogance.",
+      "children": [
+        { "v": "22-24", "cat": "ethique", "t": "Worshipping Allah alone, kindness to parents" },
+        { "v": "25-30", "cat": "ethique", "t": "Rights of relatives and the needy, prohibition of waste" },
+        { "v": "31-33", "cat": "legislation", "t": "Prohibition of killing children, adultery, unjust killing" },
+        { "v": "34-39", "cat": "legislation", "t": "The orphan's property, fair measure and weight, not walking the earth arrogantly" }
+      ]
+    },
+    {
+      "range": "40-65",
+      "title": "Refutation, Iblis, supplication",
+      "resume": "Refutation of attributing daughters to Allah, the account of Iblis refusing to bow before Adam.",
+      "children": [
+        { "v": "40-52", "cat": "argumentation", "t": "Refutation of attributing daughters to Allah, the resurrection reaffirmed" },
+        { "v": "53-60", "cat": "ethique", "t": "Saying what is best, the Qur'an as a warning" },
+        { "v": "61-65", "cat": "recits", "t": "Iblis refuses to bow before Adam, his limited power over the sincere" }
+      ]
+    },
+    {
+      "range": "66-84",
+      "title": "Blessings, Judgment, prayer",
+      "resume": "Blessings of land and sea transport, the scene of Judgment, the establishment of prayer.",
+      "children": [
+        { "v": "66-72", "cat": "signes", "t": "Blessings of transport; every group called with its book at the Judgment" },
+        { "v": "73-77", "cat": "argumentation", "t": "Attempt to divert the Prophet from the revelation" },
+        { "v": "78-84", "cat": "adoration", "t": "Establishment of prayer, the supererogatory night prayer, the Qur'an as healing" }
+      ]
+    },
+    {
+      "range": "85-104",
+      "title": "The spirit, the challenge of the Qur'an",
+      "resume": "The question about the spirit (ruh), the challenge to produce a similar book, a brief reminder of Musa and Pharaoh.",
+      "children": [
+        { "v": "85-89", "cat": "croyance", "t": "The question about the spirit; challenge: men and jinn could not produce a similar Qur'an" },
+        { "v": "90-100", "cat": "argumentation", "t": "Unreasonable demands of the disbelievers, what prevents people from believing" },
+        { "v": "101-104", "cat": "recits", "t": "Musa and Pharaoh, the nine clear signs" }
+      ]
+    },
+    {
+      "range": "105-111",
+      "title": "Closing",
+      "resume": "The Qur'an revealed in truth, those who weep upon hearing it, final praise.",
+      "children": [
+        { "v": "105-111", "cat": "croyance", "t": "The Qur'an revealed in truth, final praise to Allah, Great above any associate" }
+      ]
+    }
+  ]
+}

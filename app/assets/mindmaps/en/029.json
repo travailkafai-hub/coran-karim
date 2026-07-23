@@ -1,0 +1,70 @@
+{
+  "surah": 29,
+  "name_ar": "العنكبوت",
+  "name_latin": "Al-Ankabut",
+  "ayat_count": 69,
+  "theme_central": "Trial is inseparable from faith; relying on anything other than Allah is as fragile as a spider's web — the divine commentary on the destroyed tyrants (Pharaoh, Qarun) mentioned just before in Al-Qasas.",
+  "sources_note": "Well-sourced structure (abrahamicstudyhall.org), explicitly linked with the previous surah (Al-Qasas): the parallel is confirmed by the source itself.",
+  "branches": [
+    {
+      "range": "1-13",
+      "title": "Opening: trial inseparable from faith",
+      "resume": "No one says \"I believe\" without being tested; kindness to parents except in disobedience to Allah.",
+      "children": [
+        { "v": "1-3", "cat": "croyance", "t": "No one says \"I believe\" without being put to the test" },
+        { "v": "4-13", "cat": "ethique", "t": "Warning against wrongdoing, kindness to parents within limits" }
+      ]
+    },
+    {
+      "range": "14-27",
+      "title": "Nuh and Ibrahim",
+      "resume": "Nuh's long patient struggle, Ibrahim's debate with his people, saved from the fire.",
+      "children": [
+        { "v": "14-15", "cat": "recits", "t": "Nuh, 950 years of patient struggle with his people" },
+        { "v": "16-27", "cat": "recits", "t": "Ibrahim debates with his people, miraculously saved from the fire" }
+      ]
+    },
+    {
+      "range": "28-40",
+      "title": "Lot, and reminder of the destroyed tyrants",
+      "resume": "Lot and his people, then a brief reminder of Hud, Salih, Shu'ayb, Musa facing Pharaoh and Qarun.",
+      "children": [
+        { "v": "28-35", "cat": "recits", "t": "Lot and his people, destruction of the corrupt city" },
+        { "v": "36-40", "cat": "recits", "t": "Brief reminder of Hud, Salih, Shu'ayb, Musa facing Pharaoh and Qarun" }
+      ]
+    },
+    {
+      "range": "41",
+      "title": "The parable of the spider's web",
+      "resume": "Relying on protectors other than Allah is as fragile as a spider's web — the weakest of houses.",
+      "children": [
+        { "v": "41", "cat": "argumentation", "t": "The spider's web, the weakest of houses — parable of the false protectors" }
+      ]
+    },
+    {
+      "range": "42-51",
+      "title": "Prayer, debating the People of the Book",
+      "resume": "Prayer keeps away from indecency; debating the People of the Book in the best manner.",
+      "children": [
+        { "v": "42-46", "cat": "adoration", "t": "Prayer keeps away from indecency; debating in the best manner" },
+        { "v": "47-51", "cat": "croyance", "t": "Those who received the Book recognize this revelation" }
+      ]
+    },
+    {
+      "range": "52-59",
+      "title": "Steadfastness, Allah's vast earth",
+      "resume": "Steadfastness asked of the persecuted, invitation to emigrate on Allah's vast earth.",
+      "children": [
+        { "v": "52-59", "cat": "ethique", "t": "Steadfastness in the face of persecution, Allah's earth is vast" }
+      ]
+    },
+    {
+      "range": "60-69",
+      "title": "Trust in sustenance",
+      "resume": "How many creatures do not provide for their own sustenance; those who strive will be guided.",
+      "children": [
+        { "v": "60-69", "cat": "croyance", "t": "Trust in Allah's provision, guidance promised to whoever strives sincerely" }
+      ]
+    }
+  ]
+}

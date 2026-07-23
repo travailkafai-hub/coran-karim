@@ -2,28 +2,36 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/mind_map_data.dart';
+import 'app_settings_provider.dart';
 
-/// Charge la carte mentale d'une sourate depuis assets/mindmaps/{NNN}.json.
+/// Charge la carte mentale d'une sourate depuis
+/// assets/mindmaps/{locale}/{NNN}.json.
 ///
-/// CHEMIN CORRIGÉ le 2026-07-20 : lisait auparavant `mindmaps/fr/{NNN}.json`
-/// (12 sourates que j'avais rédigées en maquette). L'utilisateur a fourni le
-/// jeu COMPLET — 114 sourates — à la racine `assets/mindmaps/`. Les fichiers
-/// de `fr/` ont été supprimés : ils étaient une ébauche au schéma différent
-/// (cf. mind_map_data.dart), et les garder aurait fait cohabiter deux formats.
-/// Pas de sous-dossier de langue pour l'instant : le contenu fourni est en
-/// français ; si l'anglais/arabe arrive un jour, réintroduire un préfixe de
-/// langue ICI (et pas en dupliquant le provider).
+/// PRÉFIXE DE LANGUE ajouté le 2026-07-20 (contenu EN/AR fourni) : le dossier
+/// `fr/` contient désormais les 114 sourates françaises (déplacées depuis la
+/// racine `assets/mindmaps/`, où elles vivaient seules jusqu'ici), `en/` et
+/// `ar/` leurs pendants. La locale vient de `appLocaleProvider` (Réglages ->
+/// Langue de l'application) : ce provider en dépend explicitement via
+/// `ref.watch`, donc la carte se recharge automatiquement si l'utilisateur
+/// change de langue en cours de route.
 ///
-/// Retourne null si le fichier est absent ou illisible -> l'écran affiche son
-/// état « bientôt disponible » plutôt que de planter.
+/// Repli sur `fr` si le fichier de la locale demandée est absent ou
+/// illisible (contenu incomplet plutôt qu'écran cassé), puis seulement
+/// `null` si même le français échoue -> l'écran affiche son état « bientôt
+/// disponible ».
 final mindMapProvider =
     FutureProvider.family<MindMapData?, int>((ref, surahNumber) async {
-  final path =
-      'assets/mindmaps/${surahNumber.toString().padLeft(3, '0')}.json';
-  try {
-    final raw = await rootBundle.loadString(path);
-    return MindMapData.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-  } catch (_) {
-    return null;
+  final locale = ref.watch(appLocaleProvider);
+  final number = surahNumber.toString().padLeft(3, '0');
+
+  Future<MindMapData?> load(String lang) async {
+    try {
+      final raw = await rootBundle.loadString('assets/mindmaps/$lang/$number.json');
+      return MindMapData.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
   }
+
+  return await load(locale) ?? (locale == 'fr' ? null : await load('fr'));
 });
