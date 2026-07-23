@@ -3,15 +3,20 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
+import '../models/judgement_options.dart' show TajwidRule;
 import '../models/recitation_state.dart';
 import '../providers/app_settings_provider.dart';
+import '../providers/judgement_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
 import '../services/diagnostic_log.dart';
 import '../services/pause_profile_service.dart';
 import '../services/quran_api.dart';
+import '../providers/error_review_provider.dart';
 import '../services/recitation_error_log_service.dart';
+import '../services/rule_annotation_service.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../services/voice_lora_clip_service.dart';
 import '../services/word_correction_audio.dart';
@@ -416,9 +421,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // ce récitateur/verset ne doit jamais casser la session en cours.
         DiagnosticLog.log('Souffleur', 'échec lecture : $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            duration: Duration(seconds: 2),
-            content: Text('Audio indisponible pour ce mot'),
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            duration: const Duration(seconds: 2),
+            content: Text(AppLocalizations.of(context)!.karaokeAudioUnavailable),
           ));
         }
       }
@@ -462,6 +467,45 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       final local = _localIndexInVerse(wordIndex);
       final words = ref.read(recitationProvider).words;
       if (verse != null && local != null && wordIndex < words.length) {
+        final notifier = ref.read(recitationProvider.notifier);
+        final kind = notifier.classifyError(wordIndex);
+        // Détail par règle précise (demande utilisateur 2026-07-22 : stats
+        // par règle de tajwid, pas seulement un compteur "tajwid" global) --
+        // ne recalculer que si le classement l'a déjà retenu comme tel, même
+        // méthode que classifyError en interne (unrealizedRulesFor).
+        final rules = kind == RecitationErrorKind.tajwid
+            ? notifier.unrealizedRulesFor(wordIndex, words[wordIndex].detectedRules)
+            : const <TajwidRule>[];
+        // Mot "frontière" (2026-07-22, demande utilisateur) : ikhafa/iqlab/
+        // idgham... sont à cheval sur deux mots -- si c'est le cas ici, on
+        // garde le texte du mot SUIVANT pour que l'affichage montre la paire
+        // plutôt qu'un seul mot isolé (cf. RuleAnnotationService.isBoundaryWord,
+        // rempli depuis boundary_words.jsonl/quran_rules_boundary.json).
+        final isBoundary = rules.isNotEmpty &&
+            RuleAnnotationService.instance
+                .isBoundaryWord(verse.surahNumber, verse.ayahNumber, local);
+        final pairWord = isBoundary && wordIndex + 1 < words.length
+            ? words[wordIndex + 1].display
+            : null;
+        // Les écarts TAJWID SONT enregistrés (décision utilisateur
+        // 2026-07-23) : détecter et nommer les fautes de tajwid EST la
+        // raison d'être du coach -- un coach qui contrôle le tajwid sans
+        // savoir restituer les erreurs n'a aucune valeur. J'avais un moment
+        // retiré cet enregistrement au motif qu'on ne sait pas distinguer
+        // « le récitant ne l'a pas faite » de « le modèle ne l'a pas vue » ;
+        // c'était supprimer la fonctionnalité au lieu de fiabiliser la
+        // mesure. La bonne réponse est de ne juger le tajwid QUE dans des
+        // conditions où la détection est fiable, ce qui est désormais le cas :
+        //   - jugement sur segment FIGÉ uniquement (audio complet, contexte
+        //     plein pour ConvTajwidHead) -- c'était la cause des `emises=`
+        //     vides sur des règles pourtant réalisées ;
+        //   - tolérance de frontière pour les règles de jonction (une règle
+        //     détectée sur le mot voisin compte comme réalisée) ;
+        //   - filtrage par fiabilité mesurée par règle (rule_reliability.json
+        //     + _capByRuleReliability) : une classe non fiable n'est jamais
+        //     contrôlée d'office.
+        // Mesuré sur clips complets : rappel 0,96 (ikhafa) à 0,97
+        // (idgham_ghunnah), F1 global 0,975 -- assez fiable pour être restitué.
         RecitationErrorLogService.instance.logError(
           surahNumber: verse.surahNumber,
           ayahNumber: verse.ayahNumber,
@@ -471,7 +515,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           // il faut l'entendu, qui n'est conservé que sur le mot courant --
           // impossible à reconstruire après coup. Cf.
           // RecitationNotifier.classifyError pour la méthode et ses limites.
-          kind: ref.read(recitationProvider.notifier).classifyError(wordIndex),
+          kind: kind,
+          rules: rules,
+          pairWord: pairWord,
         );
       }
     }
@@ -595,9 +641,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           DateTime.now().add(const Duration(seconds: 4));
       if (mounted) {
         setState(() => _resumeHintIndex = wordIndex);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          duration: Duration(seconds: 3),
-          content: Text('Répète le mot indiqué ↓'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(seconds: 3),
+          content: Text(AppLocalizations.of(context)!.karaokeRepeatIndicated),
         ));
       }
     }
@@ -774,6 +820,26 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         _activeCaptureDir = await _voiceLoraClips.newTempCaptureDir();
         await ref.read(recitationVerifierProvider).setClipCapture(_activeCaptureDir);
       }
+      // Remise à zéro des stats d'erreur des sourates récitées (demande
+      // utilisateur 2026-07-23 : « si je veux réciter une sourate, elle met à
+      // zéro les stats par rapport à cette sourate »). Les compteurs
+      // reflètent ainsi la TENTATIVE EN COURS, pas un cumul de toutes les
+      // récitations passées -- sinon ils ne font que croître et on ne voit
+      // jamais si on progresse sur la sourate. Les autres sourates ne sont
+      // pas touchées. Jamais pendant une session de RÉFÉRENCE : elle ne
+      // journalise aucune erreur (cf. _onWordFailed), donc effacer serait une
+      // perte sèche des stats de la dernière vraie récitation.
+      if (!_isReferenceSession) {
+        for (final s in _verses.map((v) => v.surahNumber).toSet()) {
+          await RecitationErrorLogService.instance.clearSurah(s);
+        }
+        // Les vues de stats (hub Coach) lisent via ces providers : les
+        // invalider force le rafraîchissement, sinon elles afficheraient
+        // encore les compteurs de la récitation précédente.
+        ref.invalidate(surahErrorSummariesProvider);
+        ref.invalidate(errorKindBreakdownProvider);
+        ref.invalidate(tajwidRuleBreakdownProvider);
+      }
       await n.startContinuous();
     }
   }
@@ -784,23 +850,20 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// profil de pause encore établi pour ce passage). Retourne `null` si
   /// l'utilisateur annule (aucune récitation ne démarre alors).
   Future<bool?> _askReferenceChoice() {
+    final t = AppLocalizations.of(context)!;
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Première récitation de ce passage'),
-        content: const Text(
-          'Veux-tu que cette récitation serve de référence pour ton rythme '
-          'naturel (pauses mesurées, sans correction automatique), ou '
-          'réciter normalement dès maintenant (avec correction automatique) ?',
-        ),
+        title: Text(t.karaokeFirstRecitationTitle),
+        content: Text(t.karaokeFirstRecitationBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Réciter normalement'),
+            child: Text(t.karaokeReciteNormally),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Faire une référence'),
+            child: Text(t.karaokeMakeReference),
           ),
         ],
       ),
@@ -834,17 +897,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     if (_profileSaved || !_isReferenceSession) return;
     final rst = ref.read(recitationProvider);
     if (rst.total == 0) return;
+    final t = AppLocalizations.of(context)!;
     if (rst.accuracy < 60) {
       // Expliquer POURQUOI (demande utilisateur 2026-07-05) : le refus vient
       // du score de reconnaissance, avec les chiffres et quoi faire.
       final missed = rst.total - rst.correctCount - rst.unclearCount;
-      setState(() => _sessionNotice =
-          'Référence non enregistrée : seulement ${rst.accuracy.round()}% des mots '
-          'ont été bien reconnus (${rst.correctCount}/${rst.total} corrects'
-          '${rst.unclearCount > 0 ? ', ${rst.unclearCount} imprécis' : ''}'
-          '${missed > 0 ? ', $missed non reconnus' : ''}). '
-          'Une référence doit refléter une récitation fiable — rapproche-toi du '
-          'micro, réduis le bruit ambiant, et réessaie à ton rythme naturel.');
+      final extra =
+          '${rst.unclearCount > 0 ? t.karaokeUnclearSuffix(rst.unclearCount) : ''}'
+          '${missed > 0 ? t.karaokeMissedSuffix(missed) : ''}';
+      setState(() => _sessionNotice = t.karaokeReferenceNotSaved(
+          rst.accuracy.round(), rst.correctCount, rst.total, extra));
       // Récitation pas fiable -> aucun clip de CETTE session n'est une bonne
       // référence pour la personnalisation vocale non plus (même contrat que
       // le profil de pauses ci-dessus, cf. _maybeCommitVoiceClips).
@@ -858,9 +920,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     if (mounted) {
       setState(() {
         _hasProfile = true;
-        _sessionNotice = 'Ta manière de réciter ce passage est mémorisée ✓ '
-            '(${rst.accuracy.round()}% de reconnaissance, '
-            '${pauses.length} pauses apprises)';
+        _sessionNotice = t.karaokeReferenceSaved(
+            rst.accuracy.round(), pauses.length);
       });
     }
   }
@@ -912,17 +973,19 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetContext) => Consumer(
         builder: (context, ref, _) {
+          final t = AppLocalizations.of(context)!;
           final sensitivity = ref.watch(correctionSensitivityProvider);
           final autoCorr = ref.watch(autoCorrectionEnabledProvider);
           final strict = ref.watch(strictCorrectionProvider);
           final followFree = ref.watch(followWithoutBlockingProvider);
+          final useGop = ref.watch(judgementOptionsProvider).useGopScoring;
           String label;
           if (sensitivity < 0.35) {
-            label = 'Tolérant';
+            label = t.prayerFollowSensitivityTolerant;
           } else if (sensitivity > 0.65) {
-            label = 'Strict';
+            label = t.prayerFollowSensitivityStrict;
           } else {
-            label = 'Équilibré (par défaut)';
+            label = t.prayerFollowSensitivityBalanced;
           }
           return SafeArea(
             child: ConstrainedBox(
@@ -935,7 +998,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Paramètres de vérification',
+                      Text(t.karaokeVerificationSettingsTitle,
                           style: GoogleFonts.fraunces(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
@@ -945,8 +1008,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       // ── Mode de vérification (presets + 17 règles) ────────
                       _SheetRow(
                         icon: Icons.auto_awesome,
-                        title: 'Mode de vérification',
-                        subtitle: 'Presets tajwid / adulte / enfant, 17 règles',
+                        title: t.karaokeVerificationModeTitle,
+                        subtitle: t.karaokeVerificationModeSubtitle,
                         onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -955,24 +1018,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       const Divider(color: Colors.white12, height: 20),
 
                       // ── Sensibilité (réglable en direct) ──────────────────
-                      Text('Sensibilité de la correction',
+                      Text(t.karaokeSensitivityTitle,
                           style: GoogleFonts.manrope(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                               color: AppColors.cream)),
                       const SizedBox(height: 4),
                       Text(
-                        'Plus tolérant : accepte des harakat/prononciations '
-                        'imprécises en vert. Plus strict : exige une '
-                        'prononciation plus proche du modèle.',
+                        t.karaokeSensitivityDescription,
                         style: TextStyle(
                             color: AppColors.cream.withValues(alpha: 0.75),
                             fontSize: 12.5),
                       ),
                       Row(
                         children: [
-                          const Text('Tolérant',
-                              style: TextStyle(
+                          Text(t.prayerFollowSensitivityTolerant,
+                              style: const TextStyle(
                                   color: Colors.white54, fontSize: 12)),
                           Expanded(
                             child: Slider(
@@ -984,8 +1045,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                                   .state = v,
                             ),
                           ),
-                          const Text('Strict',
-                              style: TextStyle(
+                          Text(t.prayerFollowSensitivityStrict,
+                              style: const TextStyle(
                                   color: Colors.white54, fontSize: 12)),
                         ],
                       ),
@@ -997,12 +1058,32 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       ),
                       const Divider(color: Colors.white12, height: 20),
 
+                      // ── Moteur de jugement (2026-07-20) ───────────────────
+                      // gop (défaut) : alignement forcé, sensible aux nuances
+                      // de harakat mais sur-pénalise certains mots (chadda,
+                      // hamzat wasl) même bien récités. texte : ancienne
+                      // comparaison textuelle floue, moins fine sur les
+                      // harakat mais sans ce défaut -- gardée, jamais
+                      // supprimée, pour comparer les deux en conditions
+                      // réelles avant de trancher.
+                      _SheetSwitch(
+                        icon: Icons.compare_arrows_rounded,
+                        title: t.karaokeEngineTitle,
+                        subtitle: useGop
+                            ? t.karaokeEngineActiveSubtitle
+                            : t.karaokeEngineInactiveSubtitle,
+                        value: useGop,
+                        onChanged: (v) => ref
+                            .read(judgementOptionsProvider.notifier)
+                            .setUseGopScoring(v),
+                      ),
+                      const Divider(color: Colors.white12, height: 20),
+
                       // ── Comportement de correction ────────────────────────
                       _SheetSwitch(
                         icon: Icons.hearing_rounded,
-                        title: 'Correction automatique',
-                        subtitle:
-                            'Mot rouge → pause, le récitateur corrige, reprise auto',
+                        title: t.karaokeAutoCorrectionTitle,
+                        subtitle: t.karaokeAutoCorrectionSubtitle,
                         value: autoCorr,
                         onChanged: (v) => ref
                             .read(autoCorrectionEnabledProvider.notifier)
@@ -1010,10 +1091,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       ),
                       _SheetSwitch(
                         icon: Icons.rule_rounded,
-                        title: 'Rigueur de la correction',
+                        title: t.karaokeStrictnessTitle,
                         subtitle: strict
-                            ? 'Strict — rouge ET orange (imprécis) sont repris'
-                            : 'Tolérant — seul le rouge (mot faux) est repris',
+                            ? t.karaokeStrictnessStrictSubtitle
+                            : t.karaokeStrictnessTolerantSubtitle,
                         value: strict,
                         onChanged: (v) => ref
                             .read(strictCorrectionProvider.notifier)
@@ -1021,10 +1102,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       ),
                       _SheetSwitch(
                         icon: Icons.fast_forward_rounded,
-                        title: 'Suivre sans bloquer',
+                        title: t.karaokeFollowFreeTitle,
                         subtitle: followFree
-                            ? 'Avance librement même sans reprise exacte'
-                            : 'Chaque échec force à reprendre le mot',
+                            ? t.karaokeFollowFreeOnSubtitle
+                            : t.karaokeFollowFreeOffSubtitle,
                         value: followFree,
                         onChanged: (v) => ref
                             .read(followWithoutBlockingProvider.notifier)
@@ -1047,8 +1128,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _hasProfile = false;
       _sessionNotice = null;
     });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('La prochaine récitation redéfinira ta référence pour ce passage.'),
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(AppLocalizations.of(context)!.karaokeNewReferenceSnackbar),
     ));
   }
 
@@ -1134,9 +1215,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
     final notifier = ref.read(recitationProvider.notifier);
     final listening = st.status == RecitationStatus.listening;
+    final t = AppLocalizations.of(context)!;
     final ref0 = _verses.first;
     final subtitle = _verses.length == 1
-        ? 'Verset ${ref0.key}'
+        ? t.recitationVerseTitle(ref0.key)
         : '${ref0.key} → ${_verses.last.key}';
 
     return Scaffold(
@@ -1252,7 +1334,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           // et pendant sa propre lecture.
           if (st.status == RecitationStatus.listening)
             IconButton(
-              tooltip: 'Entendre le mot attendu',
+              tooltip: AppLocalizations.of(context)!.karaokeHearExpectedWordTooltip,
               icon: Icon(
                 Icons.volume_up_rounded,
                 color: (_autoCorrecting || _promptingWord)
@@ -1271,7 +1353,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           // l'écoute : c'est souvent en récitant qu'on veut desserrer ou
           // durcir le jugement.
           IconButton(
-            tooltip: 'Paramètres de vérification',
+            tooltip: AppLocalizations.of(context)!.karaokeVerificationSettingsTitle,
             icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
             onPressed: () => _openVerificationSheet(context),
           ),
@@ -1280,7 +1362,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           // volontairement la référence.
           if (st.status == RecitationStatus.listening)
             IconButton(
-              tooltip: _manuallyPaused ? 'Reprendre' : 'Mettre en pause',
+              tooltip: _manuallyPaused
+                  ? AppLocalizations.of(context)!.karaokeResumeTooltip
+                  : AppLocalizations.of(context)!.karaokePauseTooltip,
               icon: Icon(
                 _manuallyPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
                 color: AppColors.brassLight,
@@ -1289,7 +1373,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             )
           else if (_hasProfile == true)
             IconButton(
-              tooltip: 'Refaire ma récitation de référence',
+              tooltip: AppLocalizations.of(context)!.karaokeRedoReferenceTooltip,
               icon: const Icon(Icons.tune_rounded, color: Colors.white54, size: 20),
               onPressed: _requestNewReference,
             )
@@ -1306,17 +1390,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final listening = st.status == RecitationStatus.listening;
     String? title;
     String? body;
+    final t = AppLocalizations.of(context)!;
     if (_sessionNotice != null && !listening) {
       title = null;
       body = _sessionNotice;
     } else if (_willBeReferenceSession && !listening) {
-      title = 'Récitation de référence';
-      body = 'Première récitation de ce passage : récite à ton rythme naturel — '
-          'ta manière de réciter (pauses, tempo) sera mémorisée et respectée '
-          'pour toutes tes prochaines récitations.';
+      title = t.karaokeReferenceRecordingTitle;
+      body = t.karaokeReferenceRecordingBody;
     } else if (_isReferenceSession && listening) {
-      title = 'Référence en cours d\'enregistrement';
-      body = 'Récite naturellement, à ton rythme.';
+      title = t.karaokeReferenceInProgressTitle;
+      body = t.karaokeReferenceInProgressBody;
     }
     if (body == null) return const SizedBox(height: 8);
     return Padding(
@@ -1608,7 +1691,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'entendu',
+                          AppLocalizations.of(context)!.karaokeHeardLabel,
                           style: GoogleFonts.manrope(
                             fontSize: 9,
                             letterSpacing: 1.4,
@@ -1656,21 +1739,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   Widget _bottomHint(RecitationSessionState st) {
+    final t = AppLocalizations.of(context)!;
     final listening = st.status == RecitationStatus.listening;
     final finalizing = st.status == RecitationStatus.processing;
     String label;
     if (finalizing) {
-      label = 'Finalisation…';
+      label = t.karaokeFinalizing;
     } else if (listening && _manuallyPaused) {
-      label = 'En pause — touche ⏸ pour reprendre';
+      label = t.karaokePausedHint;
     } else if (listening) {
-      label = 'À l\'écoute — touche le cercle pour t\'arrêter';
+      label = t.karaokeListeningHint;
     } else if (st.status == RecitationStatus.finished) {
-      label = 'Touche l\'écran pour recommencer';
+      label = t.karaokeFinishedHint;
     } else if (_willBeReferenceSession) {
-      label = 'Touche l\'écran pour enregistrer ta récitation de référence';
+      label = t.karaokeReferenceStartHint;
     } else {
-      label = 'Touche l\'écran pour commencer';
+      label = t.karaokeTapToStartHint;
     }
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -1713,6 +1797,8 @@ class _SurahTransitionBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 30),
       child: Column(
@@ -1740,7 +1826,8 @@ class _SurahTransitionBanner extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${surah.number} · ${surah.nameSimple} · ${surah.versesCount} versets',
+            t.karaokeSurahTransitionMeta(surah.number,
+                isArabic ? surah.nameArabic : surah.nameSimple, surah.versesCount),
             style: GoogleFonts.manrope(
               fontSize: 11,
               letterSpacing: 0.6,
@@ -1902,7 +1989,7 @@ class _FullTranscriptSheetState extends ConsumerState<_FullTranscriptSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'TRANSCRIPT COMPLET',
+                  AppLocalizations.of(context)!.karaokeTranscriptFullTitle,
                   style: GoogleFonts.manrope(
                     fontSize: 11,
                     letterSpacing: 1.4,
@@ -1922,7 +2009,7 @@ class _FullTranscriptSheetState extends ConsumerState<_FullTranscriptSheet> {
             child: text.isEmpty
                 ? Center(
                     child: Text(
-                      'Rien entendu pour l\'instant.',
+                      AppLocalizations.of(context)!.karaokeNothingHeardYet,
                       style: GoogleFonts.manrope(color: Colors.white38, fontSize: 13),
                     ),
                   )

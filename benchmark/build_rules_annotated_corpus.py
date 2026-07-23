@@ -103,6 +103,14 @@ def align_offsets(src: str, dst: str):
     return mapping, prev[m]
 
 
+def word_index_at(text: str, offset: int) -> int:
+    """Index (0-based) du mot canonique contenant le caractere en `offset`.
+    Meme convention que words() dans build_app_rules_assets.py (۞ compte
+    comme un espace, split() sur les espaces multiples)."""
+    prefix = text[:offset + 1].replace("۞", " ")
+    return len(prefix.split()) - 1
+
+
 def main():
     canon = {}
     for l in open(DIR / "uthmani.jsonl", encoding="utf-8"):
@@ -110,6 +118,13 @@ def main():
         canon[r["verse_key"]] = r["text"]
 
     out_rows = []
+    # Mots "frontiere" (2026-07-22, demande utilisateur : afficher la paire
+    # de mots pour les regles a cheval sur deux mots, ex. ikhafa/iqlab/idgham
+    # -- le son declencheur est la fin du mot precedent + le debut du
+    # suivant, pas un seul mot isole). Ancre = le mot qui porte le symbole
+    # (cf. correctif ci-dessous) ; la paire a afficher cote app est donc
+    # (word_index, word_index+1).
+    boundary_rows = {}
     stats = {c: 0 for c in CLASSES}
     unknown_classes = {}
     perfect, shifted = 0, 0
@@ -136,8 +151,56 @@ def main():
             if cls not in RULES_MAP:
                 unknown_classes[cls] = unknown_classes.get(cls, 0) + 1
                 continue
-            inserts.append((mapping[end], RULES_MAP[cls]))
+            # Correctif 2026-07-22 : si le span traverse une frontiere de mot
+            # (tag couvrant la fin d'un mot + le debut du suivant, ex. tanwin
+            # + lettre suivante pour iqlab/idgham/ikhafa), l'ancien code
+            # inserait TOUJOURS a `end`, donc apres l'espace -> le symbole
+            # atterrissait dans le mot SUIVANT. Mesure sur le modele 2 tetes
+            # (test_dual_head_full_surah.py, 3 recitateurs professionnels,
+            # sourate 90) : l'evenement est detecte de facon reproductible
+            # dans la fenetre de frames du mot PRECEDENT (le son du
+            # tanwin/nun qui declenche la regle est physiquement a la fin de
+            # ce mot). Consequence avant ce correctif : l'app comparait
+            # "detecte sur le mot precedent" a "attendu sur le mot suivant"
+            # et signalait a tort la regle comme non realisee (ex. iqlab sur
+            # بِهَـٰذَا en 90:2, jamais realisee en pratique). On ancre donc le
+            # symbole juste avant le premier espace du span quand il y en a
+            # un (fin du mot precedent), sinon comportement inchange (fin du
+            # span, cas intra-mot : madda, ghunnah, qalaqah...).
+            content = flat[start:end]
+            ws = content.find(" ")
+            # Ancrage = DEBUT du span (mot qui porte le caractere taggue).
+            #
+            # Correctif 2026-07-22 (iqlab/idgham/ikhafa -- tags a cheval sur 2
+            # mots) : l'ancien code inserait a `end`, donc APRES l'espace ->
+            # le symbole atterrissait dans le mot SUIVANT alors que le trigger
+            # (tanwin/noun) est sur le mot PRECEDENT. Insérer avant le premier
+            # espace (`start + ws`) le remet sur le mot du trigger.
+            #
+            # Correctif 2026-07-23 (ham_wasl) ANNULE le meme jour apres MESURE
+            # sur l'alignement force de PRODUCTION (test_forced_align_
+            # attribution.py, 5 recitateurs, sourate 90) : contrairement a
+            # l'intuition tiree du decodage greedy libre, l'alignement force
+            # (ForcedAligner.kt, ce que l'app utilise REELLEMENT) attribue
+            # CHAQUE regle au mot qui PORTE le caractere taggue dans le texte
+            # -- mesure delta=0 dominant pour TOUTES les classes (ham_wasl 19x
+            # delta=0 vs 4x delta=-1 ; iqlab 5/5 ; idgham 10/10 ; ikhafa
+            # 11/11). Pour ham_wasl le ٱ appartient au mot SUIVANT, donc le
+            # symbole doit y rester (pas sur le precedent). Le cas special
+            # "ham_wasl -> mot precedent" faisait flasher a tort chaque mot
+            # avant un ٱل- (ex. رَبِّ ٱلْعَـٰلَمِينَ : رَبِّ marque ham_wasl non
+            # realisee) -> unclear -> correction -> pauseCapture -> cascade
+            # d'erreurs (constate device 2026-07-23, session Al-Fatiha).
+            # Regle universelle : ancrer au premier espace du span s'il y en a
+            # un (fin du mot precedent = mot du trigger tanwin), sinon a la fin
+            # du span (cas intra-mot : ham_wasl sur son ٱ, madda, ghunnah...).
+            anchor = start + ws if ws != -1 else end
+            canon_off = mapping[anchor]
+            inserts.append((canon_off, RULES_MAP[cls]))
             stats[cls] += 1
+            if ws != -1:
+                wi = word_index_at(dst, canon_off)
+                boundary_rows.setdefault(key, set()).add(wi)
         text = dst
         for off, sym in sorted(inserts, key=lambda x: -x[0]):
             text = text[:off] + sym + text[off:]
@@ -146,6 +209,11 @@ def main():
     with open(DIR / "annotated.jsonl", "w", encoding="utf-8") as f:
         for r in out_rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    with open(DIR / "boundary_words.jsonl", "w", encoding="utf-8") as f:
+        for key, indices in boundary_rows.items():
+            f.write(json.dumps(
+                {"verse_key": key, "word_indices": sorted(indices)},
+                ensure_ascii=False) + "\n")
     with open(DIR / "rules_map.json", "w", encoding="utf-8") as f:
         json.dump(RULES_MAP, f, ensure_ascii=False, indent=2)
     with open(DIR / "corpus_rules.txt", "w", encoding="utf-8") as f:

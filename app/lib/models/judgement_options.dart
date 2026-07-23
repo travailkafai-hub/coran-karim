@@ -4,6 +4,8 @@
 // modèle, une sortie fidèle à ce qui est prononcé -- ces options décident
 // seulement de ce qu'on choisit de sanctionner.
 
+import '../l10n/app_localizations.dart';
+
 /// Les 17 règles de tajwid détectées par le modèle -- valeurs EXACTEMENT
 /// celles de benchmark/data/quran_tajweed_rules/rules_map.json (jointure
 /// avec les symboles produits par le modèle). Ne jamais renommer une valeur
@@ -47,12 +49,42 @@ class JudgementOptions {
   final Set<TajwidRule> activeRules;
   final bool strictHarakat;
   final bool tolerateConfusables;
+  // Moteur de jugement (2026-07-20, demande utilisateur) : le gop (alignement
+  // forcé) reste la méthode par défaut, mais l'ancien diff textuel flou
+  // (_realignFromFullText, jamais supprimé -- servait déjà de repli quand le
+  // modèle natif n'est pas déployé) reste désactivable/réactivable pour
+  // comparer les deux SANS perdre l'un ou l'autre. Cf. mesure du soir même :
+  // le gop sur-pénalise certains mots (chadda, hamzat wasl) même sur une
+  // récitation parfaite/professionnelle, et la sensibilité du gop aux fautes
+  // de harakat elles-mêmes s'est révélée faible (-0.16 à -0.90 sur des fautes
+  // délibérées, souvent sous le seuil d'erreur).
+  final bool useGopScoring;
 
   const JudgementOptions({
     required this.preset,
     required this.activeRules,
     required this.strictHarakat,
     required this.tolerateConfusables,
+    // Défaut basculé à false le 2026-07-20 nuit (demande utilisateur) : le
+    // diff textuel pilote maintenant l'affichage par défaut, le gop tourne en
+    // PARALLÈLE et se journalise (`[GOP]` dans le log) sans agir sur l'écran
+    // -- permet d'observer son vrai comportement (calibration par mot
+    // incluse) sans qu'il bloque l'usage réel pendant qu'on continue de le
+    // fiabiliser. Reste réactivable d'un tap (feuille de réglages).
+    //
+    // REVENU à true le 2026-07-22 (constat device, session 21:19 mode
+    // adulte, decision utilisateur) : avec ce defaut a false, le texte-diff
+    // est reste bloque sur "بِسْمِ ٱللَّهِ" (mots 0-1) pendant TOUTE la
+    // session (~80s d'audio recu, log [ASR] bloc PCM jusqu'a #980) alors que
+    // l'alignement force GOP progressait normalement en parallele (ancre
+    // 0->10, cf. logs [BufferedTranscriber] alignement seq=9..22) -- le flux
+    // natif committed/preview qui alimente _realignFromFullText ne grandissait
+    // plus du tout. Cause racine (blocage cote natif du flux structure) pas
+    // encore investiguee ; en attendant, on ne peut pas se fier au
+    // texte-diff comme moteur par defaut puisqu'il ne suit pas la
+    // recitation. Le gop, lui, a demontre qu'il suivait correctement cette
+    // meme session -- redevient le defaut.
+    this.useGopScoring = true,
   });
 
   static const tajwidDefault = JudgementOptions(
@@ -99,12 +131,14 @@ class JudgementOptions {
     Set<TajwidRule>? activeRules,
     bool? strictHarakat,
     bool? tolerateConfusables,
+    bool? useGopScoring,
   }) =>
       JudgementOptions(
         preset: preset ?? this.preset,
         activeRules: activeRules ?? this.activeRules,
         strictHarakat: strictHarakat ?? this.strictHarakat,
         tolerateConfusables: tolerateConfusables ?? this.tolerateConfusables,
+        useGopScoring: useGopScoring ?? this.useGopScoring,
       );
 
   Map<String, dynamic> toJson() => {
@@ -112,6 +146,7 @@ class JudgementOptions {
         'activeRules': activeRules.map((r) => r.key).toList(),
         'strictHarakat': strictHarakat,
         'tolerateConfusables': tolerateConfusables,
+        'useGopScoring': useGopScoring,
       };
 
   factory JudgementOptions.fromJson(Map<String, dynamic> json) {
@@ -126,6 +161,7 @@ class JudgementOptions {
           .toSet(),
       strictHarakat: json['strictHarakat'] as bool? ?? true,
       tolerateConfusables: json['tolerateConfusables'] as bool? ?? false,
+      useGopScoring: json['useGopScoring'] as bool? ?? true,
     );
   }
 }
@@ -175,11 +211,13 @@ class RuleReliability {
       status != RuleStatus.ready || (recall ?? 0) < 0.90;
 
   /// Libellé court pour le badge de l'écran de règles.
-  String get badgeLabel => switch (status) {
-        RuleStatus.ready =>
-          recall == null ? 'fiable' : 'fiable · ${(recall! * 100).round()}%',
-        RuleStatus.notReady =>
-          recall == null ? 'peu fiable' : 'peu fiable · ${(recall! * 100).round()}%',
-        RuleStatus.insufficientData => 'non mesurée',
+  String badgeLabel(AppLocalizations t) => switch (status) {
+        RuleStatus.ready => recall == null
+            ? t.ruleReliableLabel
+            : t.ruleReliableLabelWithPct((recall! * 100).round()),
+        RuleStatus.notReady => recall == null
+            ? t.ruleUnreliableLabel
+            : t.ruleUnreliableLabelWithPct((recall! * 100).round()),
+        RuleStatus.insufficientData => t.ruleNotMeasuredLabel,
       };
 }

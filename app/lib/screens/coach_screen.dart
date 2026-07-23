@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/coach_session.dart';
 import '../models/recitation_state.dart';
 import '../models/verse.dart';
@@ -38,16 +39,23 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(coachProvider.notifier).setup(widget.verses);
+      // Mémorise le verset travaillé pour la carte « Reprendre » du hub Coach
+      // (REFONTE_IHM.md §11.2 zone A). Silencieux : un échec d'écriture ne doit
+      // jamais empêcher la session de démarrer.
+      //
+      // ⚠️ DANS le post-frame, pas directement dans initState : lire
+      // AppLocalizations (donc `context`) pendant initState lève
+      // « dependOnInheritedWidgetOfExactType<_LocalizationsScope>() was called
+      // before _CoachScreenState.initState() completed » et l'écran entier
+      // s'affiche en rouge d'erreur (constaté sur device 2026-07-22). Le
+      // contexte n'est utilisable qu'une fois le premier frame construit.
+      final v = widget.verses.first;
+      unawaited(recordLastCoachVerse(
+        surahNumber: v.surahNumber,
+        ayahNumber: v.ayahNumber,
+        surahName: AppLocalizations.of(context)!.coachSurahLabel(v.surahNumber),
+      ));
     });
-    // Mémorise le verset travaillé pour la carte « Reprendre » du hub Coach
-    // (REFONTE_IHM.md §11.2 zone A). Silencieux : un échec d'écriture ne doit
-    // jamais empêcher la session de démarrer.
-    final v = widget.verses.first;
-    unawaited(recordLastCoachVerse(
-      surahNumber: v.surahNumber,
-      ayahNumber: v.ayahNumber,
-      surahName: 'Sourate ${v.surahNumber}',
-    ));
   }
 
   @override
@@ -106,6 +114,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 8, 16, 12),
       decoration: const BoxDecoration(
@@ -125,7 +134,7 @@ class _Header extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'COACH MÉMORISATION',
+                t.coachHeaderLabel,
                 style: GoogleFonts.manrope(
                   color: AppColors.brassLight,
                   fontSize: 10,
@@ -146,7 +155,7 @@ class _Header extends StatelessWidget {
           // verification de recitation) plutot que dans Reglages global.
           IconButton(
             icon: const Icon(Icons.auto_awesome, color: AppColors.brassLight),
-            tooltip: 'Mode de vérification',
+            tooltip: t.coachVerificationModeTooltip,
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const TajwidRulesScreen())),
           ),
@@ -167,13 +176,14 @@ class _StepBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     return Container(
       color: AppColors.green900,
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
       child: Row(
         children: [
           _StepChip(
-            label: 'Lecture',
+            label: t.coachStepLecture,
             icon: Icons.auto_stories_outlined,
             active: session.mode == CoachMode.lecture,
             done: session.mode1Done,
@@ -181,7 +191,7 @@ class _StepBar extends StatelessWidget {
           ),
           _StepLine(done: session.mode1Done),
           _StepChip(
-            label: 'Entraîne',
+            label: t.coachStepTrain,
             icon: Icons.headphones_outlined,
             active: session.mode == CoachMode.apprentissage,
             done: false,
@@ -189,7 +199,7 @@ class _StepBar extends StatelessWidget {
           ),
           _StepLine(done: session.mode3Done),
           _StepChip(
-            label: 'Contrôle',
+            label: t.coachStepControl,
             icon: Icons.visibility_off_outlined,
             active: session.mode == CoachMode.controle,
             done: session.mode3Done,
@@ -321,6 +331,7 @@ class _LectureModeState extends ConsumerState<_LectureMode>
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final rst = ref.watch(recitationProvider);
     final coach = ref.watch(coachProvider);
     final listening = rst.status == RecitationStatus.listening;
@@ -357,8 +368,7 @@ class _LectureModeState extends ConsumerState<_LectureMode>
         children: [
           _InfoBanner(
             icon: Icons.auto_stories_outlined,
-            text:
-                'Lis ce verset à voix haute — l\'app détecte les mots difficiles et mémorise ta voix.',
+            text: t.coachReadAloudInstruction,
           ),
           const SizedBox(height: 20),
           _VerseDisplay(words: rst.words, verses: widget.verses),
@@ -369,10 +379,10 @@ class _LectureModeState extends ConsumerState<_LectureMode>
             finished: finished,
             pulse: _pulse,
             statusText: listening
-                ? 'Je note les mots difficiles…'
+                ? t.coachListeningLecture
                 : finished
-                    ? 'Lecture analysée'
-                    : 'Appuie et lis le verset',
+                    ? t.coachDoneLecture
+                    : t.coachTapToRead,
             onTap: () {
               final n = ref.read(recitationProvider.notifier);
               if (listening) {
@@ -409,7 +419,7 @@ class _LectureModeState extends ConsumerState<_LectureMode>
               children: [
                 Expanded(
                   child: _ActionButton(
-                    label: 'Je sais déjà',
+                    label: t.coachAlreadyKnow,
                     icon: Icons.fast_forward_rounded,
                     primary: false,
                     onTap: () => ref
@@ -421,7 +431,7 @@ class _LectureModeState extends ConsumerState<_LectureMode>
                 Expanded(
                   flex: 2,
                   child: _ActionButton(
-                    label: 'S\'entraîner',
+                    label: t.coachTrainButton,
                     icon: Icons.arrow_forward_rounded,
                     primary: true,
                     onTap: () => ref
@@ -442,7 +452,8 @@ class _LectureModeState extends ConsumerState<_LectureMode>
 // MODE 2 — Apprentissage (3 sous-étapes)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const _kAppStepLabels = ['Écoute', 'Imite', 'Répète'];
+List<String> _appStepLabels(AppLocalizations t) =>
+    [t.coachSubStepListen, t.coachSubStepImitate, t.coachSubStepRepeat];
 
 class _ApprentissageMode extends ConsumerStatefulWidget {
   final List<Verse> verses;
@@ -482,6 +493,7 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final session = ref.watch(coachProvider);
     final step = session.appStep;
     final player = ref.watch(playerProvider);
@@ -524,8 +536,7 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
                 if (step == 0) ...[
                   _InfoBanner(
                     icon: Icons.headphones_outlined,
-                    text:
-                        'Écoute le récitateur. Suis chaque mot avec les yeux.',
+                    text: t.coachListenInstruction,
                   ),
                   const SizedBox(height: 16),
                   _VerseDisplay(words: const [], verses: widget.verses),
@@ -549,15 +560,15 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
                   const SizedBox(height: 8),
                   Text(
                     player.isPlaying
-                        ? 'Écoute en cours…'
-                        : 'Appuie pour écouter',
+                        ? t.coachListeningAudio
+                        : t.coachTapToListen,
                     style: GoogleFonts.manrope(
                         fontSize: 12, color: AppColors.inkLight),
                   ),
                   if (_audioStarted) ...[
                     const SizedBox(height: 28),
                     _ActionButton(
-                      label: 'Passons à l\'imitation',
+                      label: t.coachMoveToImitation,
                       icon: Icons.arrow_forward_rounded,
                       primary: true,
                       onTap: () {
@@ -572,8 +583,7 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
                 if (step == 1) ...[
                   _InfoBanner(
                     icon: Icons.record_voice_over_outlined,
-                    text:
-                        'Lance l\'audio et parle en même temps. Copie le rythme, les pauses, l\'intonation.',
+                    text: t.coachImitateInstruction,
                   ),
                   const SizedBox(height: 16),
                   _VerseDisplay(words: const [], verses: widget.verses),
@@ -634,14 +644,14 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
                   const SizedBox(height: 8),
                   Text(
                     player.isPlaying
-                        ? 'Parle en même temps que l\'audio'
-                        : 'Lance l\'audio et imite',
+                        ? t.coachSpeakAlong
+                        : t.coachLaunchAndImitate,
                     style: GoogleFonts.manrope(
                         fontSize: 12, color: AppColors.inkLight),
                   ),
                   const SizedBox(height: 28),
                   _ActionButton(
-                    label: 'J\'ai imité — Répéter seul',
+                    label: t.coachImitatedNext,
                     icon: Icons.arrow_forward_rounded,
                     primary: true,
                     onTap: () {
@@ -656,8 +666,7 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
                 if (step == 2) ...[
                   _InfoBanner(
                     icon: Icons.mic_outlined,
-                    text:
-                        'Répète seul, sans l\'audio. Le texte reste visible pour t\'aider.',
+                    text: t.coachRepeatAloneInstruction,
                   ),
                   const SizedBox(height: 14),
                   _RepeatProgressBar(
@@ -671,10 +680,10 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
                     finished: repDone,
                     pulse: _pulse,
                     statusText: rst.status == RecitationStatus.listening
-                        ? 'Répète le verset…'
+                        ? t.coachListeningRepeat
                         : repDone
-                            ? 'Récitation analysée !'
-                            : 'Appuie et répète le verset',
+                            ? t.coachRepeatAnalyzed
+                            : t.coachTapToRepeat,
                     onTap: () {
                       final n = ref.read(recitationProvider.notifier);
                       if (rst.status == RecitationStatus.listening) {
@@ -708,7 +717,7 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
                       children: [
                         Expanded(
                           child: _ActionButton(
-                            label: 'Recommencer',
+                            label: t.coachRestart,
                             icon: Icons.replay_rounded,
                             primary: false,
                             onTap: () => _setupRepete(),
@@ -718,7 +727,7 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
                         Expanded(
                           flex: 2,
                           child: _ActionButton(
-                            label: 'Tester ma mémoire',
+                            label: t.coachTestMemory,
                             icon: Icons.visibility_off_rounded,
                             primary: true,
                             onTap: () => ref
@@ -783,12 +792,13 @@ class _AppSubStepBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final labels = _appStepLabels(AppLocalizations.of(context)!);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       color: AppColors.green50,
       child: Row(
         children: [
-          for (int i = 0; i < _kAppStepLabels.length; i++) ...[
+          for (int i = 0; i < labels.length; i++) ...[
             if (i > 0)
               Expanded(
                 child: Container(
@@ -803,7 +813,7 @@ class _AppSubStepBar extends StatelessWidget {
               onTap: () => onTap(i),
               child: _SubStepDot(
                 index: i,
-                label: _kAppStepLabels[i],
+                label: labels[i],
                 currentStep: currentStep,
               ),
             ),
@@ -934,6 +944,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final rst = ref.watch(recitationProvider);
     final session = ref.watch(coachProvider);
     final listening = rst.status == RecitationStatus.listening;
@@ -964,7 +975,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
         children: [
           _InfoBanner(
             icon: Icons.visibility_off_outlined,
-            text: 'Récite de mémoire — le texte est masqué.',
+            text: t.coachRecallInstruction,
             dark: true,
           ),
           const SizedBox(height: 20),
@@ -983,10 +994,10 @@ class _ControleModeState extends ConsumerState<_ControleMode>
             finished: finished,
             pulse: _pulse,
             statusText: listening
-                ? 'Récite de mémoire…'
+                ? t.coachListeningControl
                 : finished
-                    ? 'Récitation terminée'
-                    : 'Appuie et récite de mémoire',
+                    ? t.coachControlDone
+                    : t.coachTapToRecall,
             onTap: () {
               final n = ref.read(recitationProvider.notifier);
               if (listening) {
@@ -1043,7 +1054,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
               children: [
                 Expanded(
                   child: _ActionButton(
-                    label: 'Réessayer',
+                    label: t.commonRetry,
                     icon: Icons.replay_rounded,
                     primary: false,
                     onTap: () {
@@ -1056,7 +1067,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
                 Expanded(
                   flex: 2,
                   child: _ActionButton(
-                    label: 'Retour entraînement',
+                    label: t.coachBackToTraining,
                     icon: Icons.headphones_outlined,
                     primary: true,
                     onTap: () => ref
@@ -1098,7 +1109,7 @@ class _RawTranscriptBox extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'TRANSCRIPT MODÈLE',
+              AppLocalizations.of(context)!.coachTranscriptLabel,
               style: GoogleFonts.manrope(
                   fontSize: 10,
                   letterSpacing: 1.2,
@@ -1372,7 +1383,7 @@ class _BlurredVerse extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      'Récite de mémoire',
+                      AppLocalizations.of(context)!.coachRecallBadge,
                       style: GoogleFonts.manrope(
                           color: Colors.white,
                           fontSize: 12,
@@ -1444,7 +1455,7 @@ class _MicSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Analyse Whisper en cours…',
+            AppLocalizations.of(context)!.coachAnalyzingAudio,
             style: GoogleFonts.manrope(
                 fontSize: 12,
                 color: AppColors.brass,
@@ -1630,7 +1641,7 @@ class _ScoreRow extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '$pct% de précision',
+                AppLocalizations.of(context)!.coachAccuracyPercent(pct),
                 style: GoogleFonts.manrope(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -1676,7 +1687,7 @@ class _FingerprintBadge extends StatelessWidget {
               Icon(Icons.graphic_eq_rounded, color: color, size: 16),
               const SizedBox(width: 6),
               Text(
-                'Empreinte vocale : $pct%',
+                AppLocalizations.of(context)!.coachFingerprintScore(pct),
                 style: GoogleFonts.manrope(
                     fontSize: 12, fontWeight: FontWeight.w600, color: color),
               ),
@@ -1695,6 +1706,7 @@ class _GapCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final gap = control - baseline;
     final memorized = gap >= 5;
     final color = memorized ? AppColors.green700 : AppColors.brass;
@@ -1723,15 +1735,16 @@ class _GapCard extends StatelessWidget {
               children: [
                 Text(
                   memorized
-                      ? 'Mémorisation confirmée !'
-                      : 'Continue à t\'entraîner',
+                      ? t.coachMemorizedConfirmed
+                      : t.coachKeepTraining,
                   style: GoogleFonts.manrope(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: color),
                 ),
                 Text(
-                  '1ère lecture: ${baseline.round()}%  →  De mémoire: ${control.round()}%  ($sign${gap.round()}%)',
+                  t.coachGapSummary(
+                      baseline.round(), control.round(), '$sign${gap.round()}'),
                   style: GoogleFonts.manrope(
                       fontSize: 11, color: AppColors.inkLight),
                 ),
@@ -1756,40 +1769,40 @@ class _CoachBubble extends StatelessWidget {
     required this.baseline,
   });
 
-  String _message() {
+  String _message(AppLocalizations t) {
     final pct = accuracy.round();
     switch (mode) {
       case CoachMode.lecture:
         if (pct >= 90) {
-          return 'Excellente lecture ! Tu maîtrises bien la prononciation de ce verset.';
+          return t.coachMsgLectureExcellent;
         }
         if (difficultWords.isNotEmpty) {
           final preview = difficultWords.take(3).join('  ');
-          return 'Ces mots t\'ont posé problème : $preview\n\nConcentre-toi dessus lors de l\'entraînement.';
+          return t.coachMsgLectureDifficultWords(preview);
         }
-        return 'Quelques hésitations détectées. L\'entraînement va t\'aider à les corriger.';
+        return t.coachMsgLectureHesitant;
 
       case CoachMode.apprentissage:
         if (pct >= 85) {
-          return 'Très bien ! Tu répètes correctement. Tu peux maintenant tester ta mémorisation sans le texte.';
+          return t.coachMsgTrainGreat;
         }
         if (pct >= 65) {
-          return 'C\'est un bon début. Recommence encore une fois pour ancrer les mots hésitants.';
+          return t.coachMsgTrainGoodStart;
         }
-        return 'Reprends l\'écoute et l\'imitation, puis réessaie la répétition.';
+        return t.coachMsgTrainRestart;
 
       case CoachMode.controle:
         final b = baseline;
         if (b != null && accuracy > b + 5) {
-          return 'Ma cha Allah ! Tu récites mieux de mémoire que lors de ta première lecture — le verset est mémorisé !';
+          return t.coachMsgControlMashallah;
         }
         if (pct >= 85) {
-          return 'Très bonne récitation ! Continue à réviser régulièrement pour consolider.';
+          return t.coachMsgControlVeryGood;
         }
         if (pct >= 65) {
-          return 'Tu es sur la bonne voie. Encore quelques répétitions et le verset sera ancré.';
+          return t.coachMsgControlGoodPath;
         }
-        return 'Continue à t\'entraîner. Reviens à la phase lecture pour cibler les points faibles.';
+        return t.coachMsgControlKeepTraining;
     }
   }
 
@@ -1814,7 +1827,7 @@ class _CoachBubble extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                _message(),
+                _message(AppLocalizations.of(context)!),
                 style: GoogleFonts.manrope(
                     fontSize: 13, color: AppColors.cream, height: 1.5),
               ),

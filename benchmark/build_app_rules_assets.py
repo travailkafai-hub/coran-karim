@@ -26,6 +26,11 @@ from pathlib import Path
 BASE = Path(__file__).parent
 RULES_DIR = BASE / "data" / "quran_tajweed_rules"
 OUT = BASE.parent / "app" / "assets" / "data" / "quran_rules_annotated.json"
+# Mots "frontiere" (2026-07-22) : le mot d'index N porte un symbole dont le
+# declencheur acoustique est PARTAGE avec le mot N+1 (ex. iqlab/ikhafa/idgham
+# a cheval sur deux mots) -- cote app, afficher la PAIRE (mot N, mot N+1)
+# plutot qu'un seul mot isole quand on montre une erreur sur cette regle.
+BOUNDARY_OUT = BASE.parent / "app" / "assets" / "data" / "quran_rules_boundary.json"
 
 
 def words(t: str) -> list[str]:
@@ -64,6 +69,17 @@ def main():
     print(f"{OUT} : {len(out)} versets, {total_words} mots "
           f"({n_sym_words} portant au moins un symbole, "
           f"{OUT.stat().st_size/1e6:.1f} Mo)")
+
+    boundary = {}
+    bpath = RULES_DIR / "boundary_words.jsonl"
+    if bpath.exists():
+        for l in open(bpath, encoding="utf-8"):
+            r = json.loads(l)
+            boundary[r["verse_key"]] = r["word_indices"]
+    with open(BOUNDARY_OUT, "w", encoding="utf-8") as f:
+        json.dump(boundary, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"{BOUNDARY_OUT} : {len(boundary)} versets avec au moins un mot "
+          f"frontiere ({BOUNDARY_OUT.stat().st_size/1e3:.1f} Ko)")
 
 
 if __name__ == "__main__":
