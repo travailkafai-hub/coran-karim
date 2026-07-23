@@ -109,6 +109,13 @@ class RecitedWord {
   // motivation que `heard` juste au-dessus. Vide tant que le mot n'est pas
   // jugé, ou si le modèle chargé n'a qu'une seule tête.
   final Set<TajwidRule> detectedRules;
+  // GOP TAJWID gradué par classe de règle (index = id, même ordre que
+  // TajwidRule.values) -- « 2ᵉ palier », cf. AlignedWord.tajwidGop. Conservé
+  // au moment du jugement pour la même raison que `detectedRules` : la
+  // classification d'erreur et la journalisation ont lieu APRÈS, sur un mot
+  // déjà jugé, sans possibilité de réanalyser l'audio. Vide si le modèle n'a
+  // qu'une seule tête -> on retombe alors sur la détection binaire.
+  final List<double> tajwidGop;
   // Un des 4 mots de la formule d'ouverture "بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ
   // ٱلرَّحِيمِ" -- vrai aussi bien pour Al-Fatiha 1:1 (texte verbatim
   // identique) que pour la Bismillah insérée devant une autre sourate (même
@@ -135,11 +142,12 @@ class RecitedWord {
     this.locked = false,
     this.heard = '',
     this.detectedRules = const {},
+    this.tajwidGop = const [],
     this.isBasmala = false,
   }) : alignTarget = alignTarget ?? training;
 
   RecitedWord copyWith({WordStatus? status, bool? locked, String? heard,
-          Set<TajwidRule>? detectedRules}) =>
+          Set<TajwidRule>? detectedRules, List<double>? tajwidGop}) =>
       RecitedWord(
         display: display,
         normalized: normalized,
@@ -151,6 +159,7 @@ class RecitedWord {
         locked: locked ?? this.locked,
         heard: heard ?? this.heard,
         detectedRules: detectedRules ?? this.detectedRules,
+        tajwidGop: tajwidGop ?? this.tajwidGop,
         isBasmala: isBasmala,
       );
 }
