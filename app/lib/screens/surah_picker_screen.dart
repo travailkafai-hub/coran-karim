@@ -12,6 +12,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../services/quran_api.dart';
 import '../theme/app_theme.dart';
@@ -65,13 +66,15 @@ class _SurahPickerScreenState extends State<SurahPickerScreen> {
       if (!mounted) return;
       setState(() => _loadingSurah = null);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Chargement impossible : $e')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.surahPickerLoadVersesError('$e'))),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     return Scaffold(
       backgroundColor: AppColors.cream,
       appBar: AppBar(
@@ -95,7 +98,7 @@ class _SurahPickerScreenState extends State<SurahPickerScreen> {
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('Impossible de charger les sourates : $_error',
+                child: Text(t.surahPickerLoadListError(_error!),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.manrope(
                         fontSize: 13, color: AppColors.inkLight)),
@@ -130,12 +133,16 @@ class _SurahPickerScreenState extends State<SurahPickerScreen> {
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.brass)),
                       ),
-                      title: Text(s.nameSimple,
-                          style: GoogleFonts.manrope(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.ink)),
-                      subtitle: Text('${s.versesCount} versets',
+                      title: Text(isArabic ? s.nameArabic : s.nameSimple,
+                          textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                          style: isArabic
+                              ? GoogleFonts.scheherazadeNew(
+                                  fontSize: 18, color: AppColors.ink)
+                              : GoogleFonts.manrope(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.ink)),
+                      subtitle: Text(t.surahPickerVerseCount(s.versesCount),
                           style: GoogleFonts.manrope(
                               fontSize: 11, color: AppColors.inkLight)),
                       trailing: loading
@@ -144,10 +151,12 @@ class _SurahPickerScreenState extends State<SurahPickerScreen> {
                               height: 18,
                               child: CircularProgressIndicator(
                                   strokeWidth: 2, color: AppColors.green700))
-                          : Text(s.nameArabic,
-                              textDirection: TextDirection.rtl,
-                              style: GoogleFonts.scheherazadeNew(
-                                  fontSize: 20, color: AppColors.green800)),
+                          : isArabic
+                              ? null
+                              : Text(s.nameArabic,
+                                  textDirection: TextDirection.rtl,
+                                  style: GoogleFonts.scheherazadeNew(
+                                      fontSize: 20, color: AppColors.green800)),
                       onTap: () => _pick(s),
                     );
                   },

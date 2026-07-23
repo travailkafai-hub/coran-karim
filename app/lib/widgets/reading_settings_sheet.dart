@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/player_state_model.dart' show RepeatMode;
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
@@ -31,6 +32,7 @@ class _ReadingSettingsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final scale = ref.watch(textScaleProvider);
     final speed = ref.watch(autoScrollSpeedProvider);
     final playerState = ref.watch(playerProvider);
@@ -54,7 +56,7 @@ class _ReadingSettingsSheet extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'AFFICHAGE',
+                  t.readingSettingsDisplaySection,
               style: GoogleFonts.manrope(
                 fontSize: 10.5,
                 letterSpacing: 1.2,
@@ -105,7 +107,7 @@ class _ReadingSettingsSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'DÉFILEMENT AUTOMATIQUE',
+              t.readingSettingsAutoScrollSection,
               style: GoogleFonts.manrope(
                 fontSize: 10.5,
                 letterSpacing: 1.2,
@@ -115,8 +117,7 @@ class _ReadingSettingsSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Le texte défile tout seul à la vitesse choisie — pratique pour '
-              'lire sans les mains. Un glissement manuel l\'arrête.',
+              t.readingSettingsAutoScrollDescription,
               style: GoogleFonts.manrope(
                 fontSize: 12,
                 height: 1.4,
@@ -130,7 +131,7 @@ class _ReadingSettingsSheet extends ConsumerWidget {
               children: [
                 for (final s in AutoScrollSpeed.values)
                   ChoiceChip(
-                    label: Text(_speedLabel(s)),
+                    label: Text(_speedLabel(t, s)),
                     selected: speed == s,
                     selectedColor: AppColors.green700,
                     labelStyle: GoogleFonts.manrope(
@@ -153,7 +154,7 @@ class _ReadingSettingsSheet extends ConsumerWidget {
             // vitesse de l'AUDIO du reciteur).
             const SizedBox(height: 20),
             Text(
-              'VITESSE DE LECTURE (AUDIO)',
+              t.readingSettingsPlaybackSpeedSection,
               style: GoogleFonts.manrope(
                 fontSize: 10.5,
                 letterSpacing: 1.2,
@@ -188,7 +189,7 @@ class _ReadingSettingsSheet extends ConsumerWidget {
             // loin de la lecture en cours.
             const SizedBox(height: 20),
             Text(
-              'RÉPÉTITION / BOUCLES',
+              t.readingSettingsRepeatSection,
               style: GoogleFonts.manrope(
                 fontSize: 10.5,
                 letterSpacing: 1.2,
@@ -198,8 +199,7 @@ class _ReadingSettingsSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Répète chaque verset (ou toute la sourate) en boucle avant '
-              'de passer au suivant.',
+              t.readingSettingsRepeatDescription,
               style: GoogleFonts.manrope(
                 fontSize: 12,
                 height: 1.4,
@@ -211,13 +211,13 @@ class _ReadingSettingsSheet extends ConsumerWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final (mode, count, label) in const [
-                  (RepeatMode.off, 0, 'Désactivé'),
-                  (RepeatMode.verse, 3, 'Verset × 3'),
-                  (RepeatMode.verse, 5, 'Verset × 5'),
-                  (RepeatMode.verse, 10, 'Verset × 10'),
-                  (RepeatMode.verse, 0, 'Verset × ∞'),
-                  (RepeatMode.surah, 0, 'Sourate entière'),
+                for (final (mode, count, label) in [
+                  (RepeatMode.off, 0, t.readingSettingsRepeatOff),
+                  (RepeatMode.verse, 3, t.readingSettingsRepeatVerseCount(3)),
+                  (RepeatMode.verse, 5, t.readingSettingsRepeatVerseCount(5)),
+                  (RepeatMode.verse, 10, t.readingSettingsRepeatVerseCount(10)),
+                  (RepeatMode.verse, 0, t.readingSettingsRepeatVerseInfinite),
+                  (RepeatMode.surah, 0, t.readingSettingsRepeatSurah),
                 ])
                   ChoiceChip(
                     label: Text(label),
@@ -245,10 +245,10 @@ class _ReadingSettingsSheet extends ConsumerWidget {
     );
   }
 
-  String _speedLabel(AutoScrollSpeed s) => switch (s) {
-        AutoScrollSpeed.off => 'Arrêté',
-        AutoScrollSpeed.slow => 'Lent',
-        AutoScrollSpeed.normal => 'Normal',
-        AutoScrollSpeed.fast => 'Rapide',
+  String _speedLabel(AppLocalizations t, AutoScrollSpeed s) => switch (s) {
+        AutoScrollSpeed.off => t.readingSettingsSpeedOff,
+        AutoScrollSpeed.slow => t.readingSettingsSpeedSlow,
+        AutoScrollSpeed.normal => t.readingSettingsSpeedNormal,
+        AutoScrollSpeed.fast => t.readingSettingsSpeedFast,
       };
 }

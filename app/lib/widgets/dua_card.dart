@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/dua.dart';
 import '../providers/dua_prefs_provider.dart';
 import '../providers/player_provider.dart';
@@ -51,6 +52,8 @@ class _DuaCardState extends ConsumerState<DuaCard> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final dua = widget.dua;
     final isFav = ref.watch(favoriteDuasProvider).contains(dua.id);
 
@@ -94,20 +97,22 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          dua.titleFr,
-                          style: GoogleFonts.fraunces(
-                            fontSize: 14,
-                            color: AppColors.ink,
-                            fontWeight: FontWeight.w600,
+                        if (!isArabic)
+                          Text(
+                            dua.titleFr,
+                            style: GoogleFonts.fraunces(
+                              fontSize: 14,
+                              color: AppColors.ink,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
                         Text(
                           dua.titleAr,
                           textDirection: TextDirection.rtl,
                           style: GoogleFonts.scheherazadeNew(
-                            fontSize: 14,
-                            color: AppColors.green700,
+                            fontSize: isArabic ? 16 : 14,
+                            color: isArabic ? AppColors.ink : AppColors.green700,
+                            fontWeight: isArabic ? FontWeight.w600 : FontWeight.normal,
                           ),
                         ),
                       ],
@@ -142,7 +147,7 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                       size: 20,
                       color: isFav ? AppColors.brass : AppColors.inkLight,
                     ),
-                    tooltip: isFav ? 'Retirer des favoris' : 'Mettre en favori',
+                    tooltip: isFav ? t.duaRemoveFavorite : t.duaAddFavorite,
                   ),
                   Icon(
                     _expanded
@@ -173,7 +178,9 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                       lineHeight: 2.0,
                     ),
                   ),
-                  if (dua.translit != null) ...[
+                  // Translittération en script latin -- masquée en arabe
+                  // (règle verrouillée REFONTE_IHM.md §7bis : aucun mot latin).
+                  if (dua.translit != null && !isArabic) ...[
                     const SizedBox(height: 10),
                     Text(
                       dua.translit!,
@@ -193,6 +200,13 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                     const SizedBox(height: 10),
                     _ListenButton(loading: _audioLoading, onTap: _playAudio),
                   ],
+                  // Traduction, source et mérite -- texte français uniquement
+                  // dans les données actuelles, donc masqués en arabe (même
+                  // règle que le texte coranique : en arabe, pas de traduction
+                  // affichée à côté, cf. REFONTE_IHM.md §7bis). Mieux vaut
+                  // omettre que fabriquer une traduction non relue d'un texte
+                  // à caractère religieux.
+                  if (!isArabic) ...[
                   const SizedBox(height: 12),
                   Text(
                     dua.translationFr,
@@ -242,7 +256,7 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            _showVirtue ? 'Masquer le mérite' : 'Pourquoi la dire',
+                            _showVirtue ? t.duaHideVirtue : t.duaShowVirtue,
                             style: GoogleFonts.manrope(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -273,6 +287,7 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                         ),
                       ),
                     ],
+                  ], // fin du bloc masqué en arabe (traduction/source/mérite)
                   ],
                   if (dua.repeat > 1) ...[
                     const SizedBox(height: 14),
@@ -307,7 +322,7 @@ class _DuaCardState extends ConsumerState<DuaCard> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lecture impossible : $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.duaPlaybackError('$e'))),
         );
       }
     } finally {
@@ -346,7 +361,7 @@ class _ListenButton extends StatelessWidget {
                     size: 16, color: AppColors.brass),
               const SizedBox(width: 6),
               Text(
-                'Écouter',
+                AppLocalizations.of(context)!.coachExplanationListen,
                 style: GoogleFonts.manrope(
                   fontSize: 12,
                   color: AppColors.brass,
@@ -379,6 +394,7 @@ class _RepeatCounter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final complete = done >= target;
     return Row(
       children: [
@@ -411,7 +427,7 @@ class _RepeatCounter extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        complete ? 'Terminé — $target/$target' : '$done / $target',
+                        complete ? t.duaRepeatComplete(target) : '$done / $target',
                         style: GoogleFonts.manrope(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -444,7 +460,7 @@ class _RepeatCounter extends StatelessWidget {
             onPressed: onReset,
             icon: const Icon(Icons.refresh_rounded,
                 size: 18, color: AppColors.inkLight),
-            tooltip: 'Recommencer le compte',
+            tooltip: t.duaResetCount,
           ),
         ],
       ],

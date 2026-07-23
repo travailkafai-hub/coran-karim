@@ -37,19 +37,49 @@ class AppColors {
   // etaient celles de ma maquette ; elles ne correspondaient PAS aux donnees
   // reelles. Conservees nulle part ailleurs, ce commentaire est la trace.)
   //
-  // PLACEHOLDER (2026-07-19, toujours valable) : la palette definitive doit
-  // venir de l'utilisateur -- ne pas considerer ces hex comme figes. Choisis
-  // ici pour rester dans l'univers vert/or/terre du theme et pour se
-  // distinguer entre eux une fois cote a cote sur le graphe.
-  static const mindmapRecits        = Color(0xFF0055aa);  // bleu profond
-  static const mindmapCroyance      = Color(0xFF16604a);  // green700
-  static const mindmapEschatologie  = Color(0xFF6b2d8b);  // violet
-  static const mindmapArgumentation = Color(0xFF1a7a5e);  // green600
-  static const mindmapEthique       = Color(0xFFb85000);  // orange terre
-  static const mindmapLegislation   = Color(0xFFc8a23c);  // brass
-  static const mindmapSignes        = Color(0xFF0d7d8f);  // teal
-  static const mindmapAdoration     = Color(0xFF8b0000);  // rouge profond
-  static const mindmapAutre         = Color(0xFF4a3f2f);  // inkLight
+  // Palette manuscrite définitive (2026-07-20), inspirée des enluminures de
+  // Coran anciens (lapis-lazuli, malachite, safran, turquoise, aubergine) --
+  // validée par le script de sécurité daltonien du skill dataviz (6 checks :
+  // bande de luminosité, plancher de chroma, séparation CVD, plancher vision
+  // normale, contraste) sur le fond crème de l'app (#fbf7ee), ordre figé.
+  // Choisie aussi pour NE PAS entrer en collision avec les couleurs tajwid
+  // ci-dessus : l'ancien placeholder reprenait par erreur les mêmes hex que
+  // tajwidQalqala/tajwidMadd/tajwidIkhfaa, ce qui aurait pu laisser croire à
+  // un lien entre les deux systèmes de couleur alors qu'ils sont indépendants.
+  static const mindmapCroyance      = Color(0xFF2B4C9B);  // lapis-lazuli
+  static const mindmapSignes        = Color(0xFF0E9C63);  // malachite
+  static const mindmapRecits        = Color(0xFFB5651D);  // terracotta
+  static const mindmapEschatologie  = Color(0xFF7A3A6E);  // aubergine
+  static const mindmapAdoration     = Color(0xFF0AA79E);  // turquoise persan
+  static const mindmapLegislation   = Color(0xFFB8860B);  // safran
+  static const mindmapEthique       = Color(0xFFC05A82);  // rose poudré
+  static const mindmapArgumentation = Color(0xFF4A4A9C);  // indigo
+  static const mindmapAutre         = Color(0xFF4a3f2f);  // inkLight (neutre)
+
+  // Jeu de mémorisation (`memorization_game_screen.dart`) — décision
+  // utilisateur 2026-07-22 : cet écran vise un public enfant et doit
+  // trancher visuellement avec le reste de l'app (sobre, crème/vert/laiton
+  // façon manuscrit ancien) via une palette "appli de jeu" saturée et
+  // ludique. Volontairement AUCUN hex partagé avec les palettes tajwid/
+  // mindmap ci-dessus (même règle que pour éviter la collision mindmap ⟷
+  // tajwid) : ces couleurs ne doivent laisser croire à aucun lien avec les
+  // autres systèmes de couleur de l'app.
+  static const gameBgTop    = Color(0xFFE8F4FF); // ciel très clair
+  static const gameBgBottom = Color(0xFFFFF3E0); // pêche très clair
+  static const gameCorrect  = Color(0xFF4CAF50); // vert pomme (feedback bon mot)
+  static const gameWrong    = Color(0xFFFF5252); // rouge corail (feedback mauvais mot)
+  static const gameStar     = Color(0xFFFFC107); // or (étoiles de progression/fin)
+  // Rotation de "bonbons" pour les puces de choix de mots -- assez de
+  // contraste entre elles pour rester ludique sans dépendre de la couleur
+  // seule (les puces restent lisibles par leur texte, jamais par la teinte).
+  static const List<Color> gameChipColors = [
+    Color(0xFFFF6FA6), // rose bubblegum
+    Color(0xFF4FC3F7), // bleu ciel
+    Color(0xFFFFD54F), // jaune soleil
+    Color(0xFF7CB342), // vert prairie
+    Color(0xFFFF8A65), // corail
+    Color(0xFFBA68C8), // violet
+  ];
 }
 
 class AppTheme {

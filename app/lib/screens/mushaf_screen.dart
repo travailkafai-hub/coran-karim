@@ -4,6 +4,7 @@ import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart' show SystemChrome, SystemUiMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../models/player_state_model.dart';
 import '../providers/app_settings_provider.dart';
@@ -280,11 +281,13 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
     if (_verses.isEmpty) return;
     final verse = _verses[_activeVerse];
     final surah = _surahForNumber(verse.surahNumber);
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     showCoachExplanation(
       context,
       surahNumber: verse.surahNumber,
       ayahNumber: verse.ayahNumber,
-      title: '${surah.nameSimple} — verset ${verse.ayahNumber}',
+      title: AppLocalizations.of(context)!.mushafExplanationTitleSurahVerse(
+          isArabic ? surah.nameArabic : surah.nameSimple, verse.ayahNumber),
       useErrorLog: false,
     );
   }
@@ -303,11 +306,14 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
         .toList();
     if (wordIdx < 0 || wordIdx >= words.length) return;
     final surah = _surahForNumber(verse.surahNumber);
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     showCoachExplanation(
       context,
       surahNumber: verse.surahNumber,
       ayahNumber: verse.ayahNumber,
-      title: '${surah.nameSimple} ${verse.ayahNumber} — ${words[wordIdx]}',
+      title: AppLocalizations.of(context)!.mushafExplanationTitleSurahVerseWord(
+          isArabic ? surah.nameArabic : surah.nameSimple, verse.ayahNumber,
+          words[wordIdx]),
       focusWord: words[wordIdx],
       focusWordIndex: wordIdx,
       useErrorLog: false,
@@ -671,7 +677,12 @@ class _BottomBar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    // Pas de traduction disponible en mode 100% arabe (REFONTE_IHM.md §7bis)
+    // -- bouton retiré plutôt que laissé inactif.
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    return Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         decoration: BoxDecoration(
           color: AppColors.green800,
@@ -694,11 +705,11 @@ class _BottomBar extends StatelessWidget {
                   icon: isPlaying
                       ? Icons.pause_rounded
                       : Icons.play_arrow_rounded,
-                  label: isPlaying ? 'Pause' : 'Lire',
+                  label: isPlaying ? t.mushafPause : t.mushafPlay,
                   color: AppColors.brass,
                   onTap: onPlayTap ?? () {},
                 ),
-                _BarButton(icon: Icons.star_border_rounded, label: 'Favoris',
+                _BarButton(icon: Icons.star_border_rounded, label: t.mushafFavorites,
                     onTap: () {}),
                 // GROS MICRO DE RÉCITATION RETIRÉ le 2026-07-20 (demande
                 // utilisateur : « le micro de récitation mémorisation doit
@@ -714,19 +725,20 @@ class _BottomBar extends StatelessWidget {
                 // vit dans Coach, la lecture ne fait qu'y renvoyer).
                 _BarButton(
                   icon: Icons.school_rounded,
-                  label: 'Mémoriser',
+                  label: t.mushafMemorize,
                   onTap: onMicTap ?? () {},
                 ),
-                _BarButton(
-                  icon: showTranslation
-                      ? Icons.translate : Icons.translate_outlined,
-                  label: 'Trad.',
-                  color: showTranslation ? AppColors.brass : null,
-                  onTap: onTranslationTap ?? () {},
-                ),
+                if (!isArabic)
+                  _BarButton(
+                    icon: showTranslation
+                        ? Icons.translate : Icons.translate_outlined,
+                    label: t.mushafTranslation,
+                    color: showTranslation ? AppColors.brass : null,
+                    onTap: onTranslationTap ?? () {},
+                  ),
                 _BarButton(
                   icon: Icons.psychology_alt_rounded,
-                  label: 'Coach IA',
+                  label: t.mushafCoachAi,
                   onTap: onCoachTap ?? () {},
                 ),
                 // "Identifier" retire d'ici (2026-07-19) -- remonte sur la
@@ -734,13 +746,14 @@ class _BottomBar extends StatelessWidget {
                 // bar, cf. surah_list_screen.dart), plus l'entree naturelle
                 // pour une fonction "mains-libres" qu'un onglet d'ecran de
                 // lecture precis.
-                _BarButton(icon: Icons.more_horiz_rounded, label: 'Plus',
+                _BarButton(icon: Icons.more_horiz_rounded, label: t.mushafMore,
                     onTap: onMoreTap ?? () {}),
               ],
             ),
           ),
         ),
       );
+  }
 }
 
 class _BarButton extends StatelessWidget {
@@ -798,7 +811,7 @@ class _AutoScrollBadge extends StatelessWidget {
               const Icon(Icons.pause_rounded, color: AppColors.brassLight, size: 18),
               const SizedBox(width: 6),
               Text(
-                'Défilement auto',
+                AppLocalizations.of(context)!.mushafAutoScroll,
                 style: GoogleFonts.manrope(
                     fontSize: 12, color: AppColors.cream, fontWeight: FontWeight.w600),
               ),
@@ -821,11 +834,12 @@ class _ErrorView extends StatelessWidget {
           children: [
             const Icon(Icons.wifi_off, size: 48, color: AppColors.green700),
             const SizedBox(height: 12),
-            Text('Connexion requise',
+            Text(AppLocalizations.of(context)!.commonConnectionRequired,
                 style: GoogleFonts.manrope(
                     color: AppColors.inkLight, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            TextButton(onPressed: onRetry, child: const Text('Réessayer')),
+            TextButton(onPressed: onRetry,
+                child: Text(AppLocalizations.of(context)!.commonRetry)),
           ],
         ),
       );

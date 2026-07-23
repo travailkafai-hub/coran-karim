@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/recitation_state.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
@@ -128,15 +129,16 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetContext) => Consumer(
         builder: (context, ref, _) {
+          final t = AppLocalizations.of(context)!;
           final sensitivity = ref.watch(prayerSensitivityProvider);
           final souffleurEnabled = ref.watch(prayerSouffleurEnabledProvider);
           String label;
           if (sensitivity < 0.35) {
-            label = 'Tolérant';
+            label = t.prayerFollowSensitivityTolerant;
           } else if (sensitivity > 0.65) {
-            label = 'Strict';
+            label = t.prayerFollowSensitivityStrict;
           } else {
-            label = 'Équilibré (par défaut)';
+            label = t.prayerFollowSensitivityBalanced;
           }
           return SafeArea(
             child: Padding(
@@ -145,24 +147,22 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Sensibilité (suivi de prière)',
+                  Text(t.prayerFollowSensitivityTitle,
                       style: GoogleFonts.fraunces(
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
                           color: AppColors.cream)),
                   const SizedBox(height: 6),
                   Text(
-                    'Réglage indépendant de celui de la récitation classique -- '
-                    'plus tolérant accepte des prononciations imprécises en vert, '
-                    'plus strict exige davantage de précision.',
+                    t.prayerFollowSensitivityDescription,
                     style: TextStyle(
                         color: AppColors.cream.withOpacity(0.75), fontSize: 13),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Text('Tolérant',
-                          style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      Text(t.prayerFollowSensitivityTolerant,
+                          style: const TextStyle(color: Colors.white54, fontSize: 12)),
                       Expanded(
                         child: Slider(
                           value: sensitivity,
@@ -172,8 +172,8 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
                               ref.read(prayerSensitivityProvider.notifier).state = v,
                         ),
                       ),
-                      const Text('Strict',
-                          style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      Text(t.prayerFollowSensitivityStrict,
+                          style: const TextStyle(color: Colors.white54, fontSize: 12)),
                     ],
                   ),
                   Center(
@@ -191,12 +191,11 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
                     value: souffleurEnabled,
                     onChanged: (v) =>
                         ref.read(prayerSouffleurEnabledProvider.notifier).state = v,
-                    title: Text('Souffleur automatique',
+                    title: Text(t.prayerFollowSouffleurTitle,
                         style: GoogleFonts.manrope(
                             color: AppColors.cream, fontWeight: FontWeight.w600)),
                     subtitle: Text(
-                      'Joue le mot attendu après ${_kSilenceHintDelay.inSeconds}s '
-                      'de silence -- jamais de blocage dans ce mode.',
+                      t.prayerFollowSouffleurSubtitle(_kSilenceHintDelay.inSeconds),
                       style: TextStyle(
                           color: AppColors.cream.withOpacity(0.75), fontSize: 12),
                     ),
@@ -212,6 +211,7 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final st = ref.watch(recitationProvider);
     final notifier = ref.read(recitationProvider.notifier);
 
@@ -262,13 +262,13 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.cream),
-        title: Text('Suivre une prière',
+        title: Text(t.prayerFollowTitle,
             style: GoogleFonts.manrope(
                 color: AppColors.cream, fontWeight: FontWeight.w600)),
         actions: [
           IconButton(
             icon: const Icon(Icons.tune_rounded, color: AppColors.cream),
-            tooltip: 'Réglages',
+            tooltip: t.prayerFollowSettingsTooltip,
             onPressed: _openSettingsSheet,
           ),
         ],
@@ -309,18 +309,18 @@ class _WordsArea extends StatelessWidget {
     required this.wordKeys,
   });
 
-  String get _emptyLabel {
+  String _emptyLabel(AppLocalizations t) {
     switch (state.prayerPhase) {
       case PrayerPhase.standby:
-        return 'En attente du début d\'Al-Fatiha…';
+        return t.prayerFollowWaitingFatiha;
       case PrayerPhase.detectingTarget:
-        return 'Al-Fatiha terminée -- identification de la sourate suivante…';
+        return t.prayerFollowIdentifying;
       case PrayerPhase.fatiha:
       case PrayerPhase.target:
       case PrayerPhase.none:
         return state.isActive
-            ? 'En écoute…'
-            : 'Appuyez sur le micro pour commencer à suivre la prière.';
+            ? t.prayerFollowListening
+            : t.prayerFollowTapToStart;
     }
   }
 
@@ -331,7 +331,7 @@ class _WordsArea extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Text(
-            _emptyLabel,
+            _emptyLabel(AppLocalizations.of(context)!),
             textAlign: TextAlign.center,
             style: GoogleFonts.manrope(
                 color: AppColors.cream.withAlpha(190), fontSize: 15),
@@ -464,23 +464,24 @@ class _PhaseBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final String label;
     final IconData icon;
     switch (phase) {
       case PrayerPhase.standby:
-        label = 'En attente (rukū\'/sujūd)';
+        label = t.prayerPhaseStandby;
         icon = Icons.pause_circle_outline_rounded;
       case PrayerPhase.fatiha:
-        label = 'Al-Fatiha';
+        label = t.prayerPhaseFatiha;
         icon = Icons.menu_book_rounded;
       case PrayerPhase.detectingTarget:
-        label = 'Identification…';
+        label = t.prayerPhaseDetecting;
         icon = Icons.search_rounded;
       case PrayerPhase.target:
-        label = 'Sourate suivie';
+        label = t.prayerPhaseTarget;
         icon = Icons.record_voice_over_rounded;
       case PrayerPhase.none:
-        label = active ? 'En écoute' : 'Arrêté';
+        label = active ? t.prayerPhaseListening : t.prayerPhaseStopped;
         icon = Icons.mic_none_rounded;
     }
     return Container(

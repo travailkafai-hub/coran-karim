@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../theme/app_theme.dart';
 
@@ -59,14 +60,14 @@ class _PrayerTimeBanner extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            'Dhuhr dans 2h 14m',
+            AppLocalizations.of(context)!.mushafPrayerNextIn,
             style: GoogleFonts.manrope(
               fontSize: 11, color: AppColors.brassLight,
               fontWeight: FontWeight.w500,
             ),
           ),
           Text(
-            'Dhuhr 13:30',
+            AppLocalizations.of(context)!.mushafPrayerTimeLabel,
             style: GoogleFonts.manrope(
               fontSize: 11, color: AppColors.brassLight,
               fontWeight: FontWeight.w500,
@@ -97,20 +98,24 @@ class _SurahNavRow extends StatelessWidget {
             padding: EdgeInsets.zero,
           ),
           const SizedBox(width: 4),
-          _NavChip(label: 'JUZ ${_juzOf(surah.number)}'),
+          _NavChip(label: AppLocalizations.of(context)!.mushafJuzChip(_juzOf(surah.number))),
           const SizedBox(width: 6),
           _NavChip(label: surah.nameArabic, isArabic: true),
           const SizedBox(width: 6),
           Expanded(
             child: _NavChip(
-              label: '${surah.number}. ${surah.nameSimple}',
+              // En arabe, le chip arabe ci-dessus suffit déjà -- pas de nom
+              // romanisé en plus (règle verrouillée REFONTE_IHM.md §7bis).
+              label: Localizations.localeOf(context).languageCode == 'ar'
+                  ? '${surah.number}'
+                  : '${surah.number}. ${surah.nameSimple}',
               flex: true,
             ),
           ),
           if (onMindMap != null)
             IconButton(
               icon: const Icon(Icons.hub_outlined, color: AppColors.cream, size: 22),
-              tooltip: 'Carte mentale',
+              tooltip: AppLocalizations.of(context)!.mushafMindMapTooltip,
               onPressed: onMindMap,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 36, minHeight: 36),

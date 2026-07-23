@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../providers/player_provider.dart';
 import '../models/player_state_model.dart';
 import '../theme/app_theme.dart';
@@ -174,10 +175,11 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar> {
   }
 
   String _repeatLabel(PlayerStateModel s) {
+    final t = AppLocalizations.of(context)!;
     switch (s.repeatMode) {
-      case RepeatMode.off: return 'Répéter';
-      case RepeatMode.verse: return '×${s.repeatCount} verset';
-      case RepeatMode.surah: return 'Sourate ∞';
+      case RepeatMode.off: return t.miniPlayerRepeatOff;
+      case RepeatMode.verse: return t.miniPlayerRepeatVerse(s.repeatCount);
+      case RepeatMode.surah: return t.miniPlayerRepeatSurah;
     }
   }
 

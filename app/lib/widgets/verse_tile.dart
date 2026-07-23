@@ -68,8 +68,12 @@ class VerseTile extends StatelessWidget {
                   ),
                 ],
               ),
-              // French translation (optional)
-              if (showTranslation && verse.translationFr != null)
+              // French translation (optional) -- jamais en mode arabe : la
+              // règle du duo (REFONTE_IHM.md §7bis) interdit toute traduction
+              // affichée à côté du Coran quand l'app est en arabe.
+              if (showTranslation &&
+                  verse.translationFr != null &&
+                  Localizations.localeOf(context).languageCode != 'ar')
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(

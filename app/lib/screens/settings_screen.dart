@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/reciter.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
@@ -15,12 +16,25 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final locale = ref.watch(appLocaleProvider);
+    final reciter = ref.watch(playerProvider).reciter;
+    // En arabe, aucun mot latin à l'écran (règle verrouillée REFONTE_IHM.md
+    // §7bis) : le nom du récitateur et son style passent en arabe ; en fr/en,
+    // le nom romanisé + le style (termes techniques déjà transparents dans
+    // les deux langues) restent, avec le nom arabe en flourish à droite.
+    final reciterStyleLabel = reciter.style == 'Mujawwad'
+        ? t.settingsStyleMujawwad
+        : t.settingsStyleMurattal;
+    final reciterSubtitle = locale == 'ar'
+        ? '${reciter.nameAr} • $reciterStyleLabel'
+        : '${reciter.nameFr}  •  ${reciter.style}';
     return Scaffold(
       backgroundColor: AppColors.cream,
       appBar: AppBar(
         backgroundColor: AppColors.green900,
         foregroundColor: AppColors.cream,
-        title: Text('الإعدادات',
+        title: Text(t.settingsTitle,
             style: GoogleFonts.scheherazadeNew(
                 fontSize: 22, color: AppColors.brassLight)),
         automaticallyImplyLeading: false,
@@ -43,7 +57,7 @@ class SettingsScreen extends ConsumerWidget {
           //        que là, et souvent EN COURS de récitation ;
           //      * RÉCITATEUR -> reste ici (ci-dessous) : transverse (écoute,
           //        souffleur, corrections audio), pas propre à la récitation.
-          _SectionHeader('Audio'),
+          _SectionHeader(t.settingsSectionAudio),
           // Le RÉCITATEUR reste ici, dans les réglages généraux (précision
           // utilisateur 2026-07-20 : « le récitateur c'est dans réglages
           // générale »). C'est un choix TRANSVERSE : il sert à l'écoute d'une
@@ -52,13 +66,16 @@ class SettingsScreen extends ConsumerWidget {
           // l'écran de récitation (icône dédiée), cf. REFONTE_IHM.md §11.
           _SettingsTile(
             icon: Icons.record_voice_over,
-            title: 'Récitateur',
-            subtitle:
-                '${ref.watch(playerProvider).reciter.nameFr}  •  ${ref.watch(playerProvider).reciter.style}',
-            trailing: Text(ref.watch(playerProvider).reciter.nameAr,
-                textDirection: TextDirection.rtl,
-                style: GoogleFonts.scheherazadeNew(
-                    fontSize: 14, color: AppColors.green700)),
+            title: t.settingsReciterTitle,
+            subtitle: reciterSubtitle,
+            // Flourish calligraphique -- uniquement en fr/en (en arabe, le
+            // nom arabe est déjà le sous-titre principal, pas de doublon).
+            trailing: locale == 'ar'
+                ? null
+                : Text(reciter.nameAr,
+                    textDirection: TextDirection.rtl,
+                    style: GoogleFonts.scheherazadeNew(
+                        fontSize: 14, color: AppColors.green700)),
             onTap: () async {
               final picked = await Navigator.push<Reciter>(
                 context,
@@ -73,32 +90,32 @@ class SettingsScreen extends ConsumerWidget {
           ),
 
           const SizedBox(height: 12),
-          _SectionHeader('Prière'),
+          _SectionHeader(t.settingsSectionPrayer),
           _SettingsTile(
             icon: Icons.explore_rounded,
-            title: 'Direction de la Qibla',
-            subtitle: 'Boussole vers la Mecque depuis ta position',
+            title: t.settingsQiblaTitle,
+            subtitle: t.settingsQiblaSubtitle,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const QiblaScreen())),
           ),
 
           const SizedBox(height: 12),
-          _SectionHeader('Personnalisation vocale'),
+          _SectionHeader(t.settingsSectionVoicePersonalization),
           _SettingsTile(
             icon: Icons.tune_rounded,
-            title: 'Calibration voix (lettres confusables)',
-            subtitle: 'Enregistre ~14 mots exprès bien/mal prononcés (ص/س, ط/ت...) pour affiner ta sensibilité',
+            title: t.settingsVoiceCalibTitle,
+            subtitle: t.settingsVoiceCalibSubtitle,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const VoiceCalibrationScreen())),
           ),
           const _VoiceLoraClipsTile(),
 
           const SizedBox(height: 12),
-          _SectionHeader('Affichage'),
+          _SectionHeader(t.settingsSectionDisplay),
           _SettingsTile(
             icon: Icons.color_lens_rounded,
-            title: 'Couleurs Tajweed',
-            subtitle: 'Coloration selon les règles de récitation',
+            title: t.settingsTajweedColorsTitle,
+            subtitle: t.settingsTajweedColorsSubtitle,
             trailing: Switch.adaptive(
               value: true, // TODO: persist
               onChanged: (_) {},
@@ -107,17 +124,17 @@ class SettingsScreen extends ConsumerWidget {
           ),
 
           const SizedBox(height: 12),
-          _SectionHeader('Application'),
+          _SectionHeader(t.settingsSectionApp),
           _SettingsTile(
             icon: Icons.language_rounded,
-            title: 'Langue de l\'application',
-            subtitle: _localeLabel(ref.watch(appLocaleProvider)),
+            title: t.settingsLocaleTitle,
+            subtitle: _localeLabel(locale),
             onTap: () => _pickLocale(context, ref),
           ),
           _SettingsTile(
             icon: Icons.info_outline_rounded,
-            title: 'Coran Karim',
-            subtitle: 'Version 1.0.0  •  Propulsé par Gemma 4 + Whisper',
+            title: t.appTitle,
+            subtitle: t.settingsAboutSubtitle,
           ),
         ],
       ),
@@ -245,24 +262,24 @@ class _VoiceLoraClipsTileState extends State<_VoiceLoraClipsTile> {
     final ok = await _service.exportViaShare();
     if (!mounted) return;
     setState(() => _exporting = false);
+    final t = AppLocalizations.of(context)!;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok
-          ? 'Export lancé — choisis où envoyer le fichier.'
-          : 'Export annulé ou aucun clip disponible.'),
+      content: Text(ok ? t.settingsExportStarted : t.settingsExportCancelled),
     ));
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final count = _count;
     return _SettingsTile(
       icon: Icons.mic_external_on_rounded,
-      title: 'Mes clips vérifiés',
+      title: t.settingsMyClipsTitle,
       subtitle: count == null
-          ? 'Chargement…'
+          ? t.settingsMyClipsLoading
           : count == 0
-              ? 'Aucun clip pour l\'instant — enregistrés lors de tes récitations de référence'
-              : '$count clip${count > 1 ? "s" : ""} vérifié${count > 1 ? "s" : ""} — exporter pour personnaliser le modèle à ta voix',
+              ? t.settingsMyClipsEmpty
+              : t.settingsMyClipsCount(count),
       trailing: _exporting
           ? const SizedBox(
               width: 20,
@@ -286,14 +303,12 @@ class _LocaleSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Langue de l\'application',
+            Text(AppLocalizations.of(context)!.settingsLocaleTitle,
                 style: GoogleFonts.fraunces(
                     fontSize: 16, color: AppColors.brassLight)),
             const SizedBox(height: 4),
             Text(
-              'En arabe, tout le contenu (menus et Coran) reste en arabe, sans '
-              'traduction. En français/anglais, le Coran reste toujours en '
-              'arabe ; seuls les menus et les explications changent de langue.',
+              AppLocalizations.of(context)!.settingsLocaleSheetDescription,
               style: GoogleFonts.manrope(fontSize: 11.5, color: AppColors.cream.withAlpha(200)),
             ),
             const SizedBox(height: 16),
@@ -338,12 +353,13 @@ class _RepeatDrillCountSheetState extends State<_RepeatDrillCountSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Répétitions de mémorisation',
+            Text(AppLocalizations.of(context)!.settingsRepeatDrillTitle,
                 style: GoogleFonts.fraunces(
                     fontSize: 16, color: AppColors.brassLight)),
             const SizedBox(height: 4),
             Text(
-              'Nombre de fois à répéter le verset avant de tester ta mémoire (1 à $kRepeatDrillCountMax).',
+              AppLocalizations.of(context)!
+                  .settingsRepeatDrillDescription(kRepeatDrillCountMax),
               style: GoogleFonts.manrope(
                   fontSize: 12, color: AppColors.cream.withAlpha(180)),
             ),
@@ -392,7 +408,7 @@ class _RepeatDrillCountSheetState extends State<_RepeatDrillCountSheet> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24)),
                 ),
-                child: Text('Valider',
+                child: Text(AppLocalizations.of(context)!.settingsValidate,
                     style: GoogleFonts.manrope(fontWeight: FontWeight.w700)),
               ),
             ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../data/rite_hajj.dart';
 import '../data/rite_umra.dart';
 import '../models/rite.dart';
@@ -67,6 +68,7 @@ class _RiteScreenState extends ConsumerState<RiteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final rite = _rite;
 
     // La progression est relue depuis SharedPreferences de façon ASYNCHRONE :
@@ -118,12 +120,12 @@ class _RiteScreenState extends ConsumerState<RiteScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'À savoir avant de commencer',
+            tooltip: t.riteBeforeStartTooltip,
             icon: const Icon(Icons.info_outline_rounded, size: 20),
             onPressed: () => _showEssentials(context, rite),
           ),
           IconButton(
-            tooltip: 'Recommencer le rite',
+            tooltip: t.riteRestartTooltip,
             icon: const Icon(Icons.restart_alt_rounded, size: 20),
             onPressed: () => _confirmReset(context, notifier),
           ),
@@ -173,7 +175,7 @@ class _RiteScreenState extends ConsumerState<RiteScreen> {
                 if (step.duaIds.isNotEmpty) ...[
                   const SizedBox(height: 22),
                   Text(
-                    'CE QUE L\'ON DIT ICI',
+                    t.riteWhatWeSayLabel,
                     style: GoogleFonts.manrope(
                       fontSize: 10,
                       letterSpacing: 1.4,
@@ -216,6 +218,7 @@ class _RiteScreenState extends ConsumerState<RiteScreen> {
   }
 
   void _showEssentials(BuildContext context, Rite rite) {
+    final t = AppLocalizations.of(context)!;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.cream,
@@ -243,7 +246,7 @@ class _RiteScreenState extends ConsumerState<RiteScreen> {
             ),
             const SizedBox(height: 18),
             Text(
-              'Avant de commencer',
+              t.riteBeforeStartTitle,
               style: GoogleFonts.fraunces(
                 fontSize: 19,
                 fontWeight: FontWeight.w600,
@@ -293,10 +296,7 @@ class _RiteScreenState extends ConsumerState<RiteScreen> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
-                "Ce guide est un aide-mémoire, pas une fatwa. Les écoles "
-                "juridiques divergent sur plusieurs détails secondaires : en "
-                "cas de doute sur place, demandez à un guide qualifié ou à "
-                "l'encadrement de votre groupe.",
+                t.riteDisclaimer,
                 style: GoogleFonts.manrope(
                   fontSize: 11.5,
                   color: AppColors.inkLight,
@@ -312,27 +312,28 @@ class _RiteScreenState extends ConsumerState<RiteScreen> {
   }
 
   void _confirmReset(BuildContext context, RiteProgressNotifier notifier) {
+    final t = AppLocalizations.of(context)!;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.cream,
-        title: Text('Recommencer ?',
+        title: Text(t.riteResetConfirmTitle,
             style: GoogleFonts.fraunces(fontSize: 17, color: AppColors.ink)),
         content: Text(
-          'Les étapes validées et tous les compteurs seront remis à zéro.',
+          t.riteResetConfirmBody,
           style: GoogleFonts.manrope(fontSize: 13, color: AppColors.inkLight),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Annuler'),
+            child: Text(t.commonCancel),
           ),
           TextButton(
             onPressed: () {
               notifier.resetAll();
               Navigator.of(ctx).pop();
             },
-            child: const Text('Recommencer'),
+            child: Text(t.riteResetConfirmAction),
           ),
         ],
       ),
@@ -519,7 +520,7 @@ class _StepHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'ÉTAPE ${index + 1} SUR $total',
+                  AppLocalizations.of(context)!.riteStepOfTotal(index + 1, total),
                   style: GoogleFonts.manrope(
                     fontSize: 9,
                     letterSpacing: 1.3,
@@ -615,7 +616,7 @@ class _ActionsList extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'CE QUE L\'ON FAIT',
+            AppLocalizations.of(context)!.riteWhatWeDoLabel,
             style: GoogleFonts.manrope(
               fontSize: 10,
               letterSpacing: 1.4,
@@ -893,7 +894,7 @@ class _StepNav extends StatelessWidget {
                   onPressed: onPrevious,
                   icon: const Icon(Icons.arrow_back_rounded),
                   color: AppColors.green900,
-                  tooltip: 'Étape précédente',
+                  tooltip: AppLocalizations.of(context)!.ritePreviousStepTooltip,
                 ),
                 Expanded(
                   child: InkWell(
@@ -925,7 +926,9 @@ class _StepNav extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            isDone ? 'Étape faite' : 'Marquer comme faite',
+                            isDone
+                                ? AppLocalizations.of(context)!.riteStepDone
+                                : AppLocalizations.of(context)!.riteMarkAsDone,
                             style: GoogleFonts.manrope(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -948,7 +951,7 @@ class _StepNav extends StatelessWidget {
                     foregroundColor: AppColors.cream,
                     disabledBackgroundColor: AppColors.cream300,
                   ),
-                  tooltip: 'Étape suivante',
+                  tooltip: AppLocalizations.of(context)!.riteNextStepTooltip,
                 ),
               ],
             ),

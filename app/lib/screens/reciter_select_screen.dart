@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/reciter.dart';
 import '../theme/app_theme.dart';
 
@@ -9,12 +10,14 @@ class ReciterSelectScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     return Scaffold(
       backgroundColor: AppColors.cream,
       appBar: AppBar(
         backgroundColor: AppColors.green900,
         foregroundColor: AppColors.cream,
-        title: Text('Choisir un réciteur',
+        title: Text(t.reciterSelectTitle,
             style: GoogleFonts.fraunces(
                 fontSize: 18, color: AppColors.cream)),
         elevation: 0,
@@ -37,8 +40,7 @@ class ReciterSelectScreen extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Réciteurs intégrés — disponibles en streaming. '
-                    'Téléchargement hors-ligne disponible prochainement.',
+                    t.reciterSelectStreamingNote,
                     style: GoogleFonts.manrope(
                         fontSize: 11, color: AppColors.inkLight),
                   ),
@@ -81,7 +83,9 @@ class ReciterSelectScreen extends StatelessWidget {
                               ? FontWeight.w700
                               : FontWeight.normal)),
                   subtitle: Text(
-                    '${r.nameFr}  •  ${r.style}',
+                    isArabic
+                        ? (r.style == 'Mujawwad' ? t.settingsStyleMujawwad : t.settingsStyleMurattal)
+                        : '${r.nameFr}  •  ${r.style}',
                     style: GoogleFonts.manrope(
                         fontSize: 11, color: AppColors.inkLight),
                   ),
@@ -111,13 +115,13 @@ class ReciterSelectScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Téléchargement hors-ligne',
+                      Text(t.reciterSelectOfflineTitle,
                           style: GoogleFonts.manrope(
                               fontSize: 13,
                               color: AppColors.brassLight,
                               fontWeight: FontWeight.w700)),
                       Text(
-                        'Disponible dans une prochaine mise à jour.',
+                        t.reciterSelectOfflineSubtitle,
                         style: GoogleFonts.manrope(
                             fontSize: 11,
                             color: AppColors.cream.withAlpha(160)),

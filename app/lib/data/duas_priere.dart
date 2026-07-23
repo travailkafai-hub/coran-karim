@@ -353,6 +353,18 @@ const kDuasPriere = <Dua>[
     tags: ['witr', 'nuit'],
   ),
   Dua(
+    id: 'qunut_ramadan',
+    titleFr: 'Qunūt de Ramadan (Tarāwīḥ)',
+    titleAr: 'دعاء القنوت الثاني — رمضان',
+    textAr:
+        'اللَّهُمَّ إِيَّاكَ نَعْبُدُ، وَلَكَ نُصَلِّي وَنَسْجُدُ، وَإِلَيْكَ نَسْعَى وَنَحْفِدُ، نَرْجُو رَحْمَتَكَ وَنَخْشَى عَذَابَكَ، إِنَّ عَذَابَكَ الْجِدَّ بِالْكُفَّارِ مُلْحِقٌ',
+    translationFr:
+        "Ô Allah, c'est Toi seul que nous adorons, c'est pour Toi que nous prions et nous prosternons, c'est vers Toi que nous nous hâtons et nous empressons. Nous espérons Ta miséricorde et redoutons Ton châtiment, car Ton châtiment sérieux atteint assurément les mécréants.",
+    source:
+        "Tradition rapportée de ʿOmar ibn Al-Khaṭṭāb (Al-Bayhaqī) — traditionnellement récité à la suite du Qunūt d'Al-Ḥasan ci-dessus pour former le Qunūt complet, notamment durant les Tarāwīḥ de Ramadan (en particulier la seconde quinzaine)",
+    tags: ['witr', 'nuit'],
+  ),
+  Dua(
     id: 'apres_witr',
     titleFr: 'Après le Witr',
     titleAr: 'الذكر بعد الوتر',

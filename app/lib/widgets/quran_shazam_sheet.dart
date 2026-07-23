@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../providers/recitation_provider.dart';
 import '../services/quran_verse_locator_service.dart';
 import '../theme/app_theme.dart';
@@ -74,6 +75,7 @@ class _ShazamSheetState extends ConsumerState<_ShazamSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     return SafeArea(
       child: Container(
         margin: const EdgeInsets.all(16),
@@ -88,7 +90,7 @@ class _ShazamSheetState extends ConsumerState<_ShazamSheet> {
             _icon(),
             const SizedBox(height: 18),
             Text(
-              _label(),
+              _label(t),
               textAlign: TextAlign.center,
               style: GoogleFonts.manrope(
                 fontSize: 16,
@@ -99,13 +101,13 @@ class _ShazamSheetState extends ConsumerState<_ShazamSheet> {
             if (_state == _ShazamState.found && _match != null) ...[
               const SizedBox(height: 8),
               Text(
-                'Sourate ${_match!.surahNumber}, verset ${_match!.ayahNumber}',
+                t.shazamMatchLabel(_match!.surahNumber, _match!.ayahNumber),
                 style: GoogleFonts.manrope(
                     fontSize: 14, color: AppColors.inkLight),
               ),
             ],
             const SizedBox(height: 22),
-            _actions(),
+            _actions(t),
           ],
         ),
       ),
@@ -126,27 +128,27 @@ class _ShazamSheetState extends ConsumerState<_ShazamSheet> {
     return Icon(icon, size: 48, color: color);
   }
 
-  String _label() {
+  String _label(AppLocalizations t) {
     switch (_state) {
       case _ShazamState.listening:
-        return 'Écoute en cours...\nApproche le téléphone du son.';
+        return t.shazamListening;
       case _ShazamState.searching:
-        return 'Recherche dans le Coran...';
+        return t.shazamSearching;
       case _ShazamState.found:
-        return 'Passage identifié !';
+        return t.shazamFound;
       case _ShazamState.notFound:
-        return 'Passage non identifié.\nRapproche-toi du son et réessaie.';
+        return t.shazamNotFound;
       case _ShazamState.error:
-        return 'Erreur pendant l\'écoute.';
+        return t.shazamError;
     }
   }
 
-  Widget _actions() {
+  Widget _actions(AppLocalizations t) {
     if (_state == _ShazamState.found) {
       return FilledButton(
         onPressed: () => Navigator.of(context).pop(_match),
         style: FilledButton.styleFrom(backgroundColor: AppColors.green800),
-        child: const Text('Y aller'),
+        child: Text(t.shazamGoThere),
       );
     }
     if (_state == _ShazamState.notFound || _state == _ShazamState.error) {
@@ -155,20 +157,20 @@ class _ShazamSheetState extends ConsumerState<_ShazamSheet> {
         children: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Fermer'),
+            child: Text(t.commonClose),
           ),
           const SizedBox(width: 12),
           FilledButton(
             onPressed: _run,
             style: FilledButton.styleFrom(backgroundColor: AppColors.green800),
-            child: const Text('Réessayer'),
+            child: Text(t.commonRetry),
           ),
         ],
       );
     }
     return TextButton(
       onPressed: () => Navigator.of(context).pop(),
-      child: const Text('Annuler'),
+      child: Text(t.commonCancel),
     );
   }
 }

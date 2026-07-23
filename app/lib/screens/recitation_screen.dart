@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../models/recitation_state.dart';
 import '../providers/recitation_provider.dart';
@@ -49,12 +50,14 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final st = ref.watch(recitationProvider);
     final notifier = ref.read(recitationProvider.notifier);
     final ref0 = widget.verses.first;
     final title = widget.verses.length == 1
-        ? 'Verset ${ref0.key}'
-        : '${ref0.key} → ${widget.verses.last.key} (${widget.verses.length} versets)';
+        ? t.recitationVerseTitle(ref0.key)
+        : t.recitationRangeTitle(
+            ref0.key, widget.verses.last.key, widget.verses.length);
 
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -94,7 +97,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Mode mémorisation',
+                Text(AppLocalizations.of(context)!.recitationModeLabel,
                     style: GoogleFonts.inter(
                         color: AppColors.brassLight,
                         fontSize: 12,
@@ -179,9 +182,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
           ),
           const SizedBox(width: 8),
           Text(
-            st.pendingSegments == 1
-                ? '1 segment en cours d\'analyse…'
-                : '${st.pendingSegments} segments en attente d\'analyse…',
+            AppLocalizations.of(context)!.recitationSegmentAnalyzing(st.pendingSegments),
             style: GoogleFonts.inter(
                 fontSize: 12, color: AppColors.brass, fontWeight: FontWeight.w600),
           ),
@@ -204,7 +205,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Transcript modèle',
+          Text(AppLocalizations.of(context)!.recitationTranscriptLabel,
               style: GoogleFonts.inter(
                   fontSize: 10,
                   letterSpacing: 1.0,
@@ -224,6 +225,7 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
 
   // ── Barre de score live ──────────────────────────────────────────────────
   Widget _scoreBar(RecitationSessionState st) {
+    final t = AppLocalizations.of(context)!;
     final progress = st.total == 0 ? 0.0 : st.pointer / st.total;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
@@ -242,9 +244,9 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _stat('Corrects', '${st.correctCount}', AppColors.green600),
-              _stat('Erreurs', '${st.errorCount}', const Color(0xFFb00020)),
-              _stat('Précision', '${st.accuracy.toStringAsFixed(0)}%',
+              _stat(t.recitationStatCorrect, '${st.correctCount}', AppColors.green600),
+              _stat(t.recitationStatErrors, '${st.errorCount}', const Color(0xFFb00020)),
+              _stat(t.recitationStatAccuracy, '${st.accuracy.toStringAsFixed(0)}%',
                   AppColors.brass),
             ],
           ),
@@ -289,12 +291,12 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
           const SizedBox(height: 12),
           Text(
             listening
-                ? 'Récite en continu… pause naturelle = verset suivant'
+                ? AppLocalizations.of(context)!.recitationListeningContinuous
                 : finalizing
-                    ? 'Finalisation de l\'analyse…'
+                    ? AppLocalizations.of(context)!.recitationFinalizing
                     : finished
-                        ? 'Terminé — appuie pour recommencer'
-                        : 'Appuie et récite (plusieurs versets d\'affilée)',
+                        ? AppLocalizations.of(context)!.recitationFinishedRestart
+                        : AppLocalizations.of(context)!.recitationTapToStart,
             style: GoogleFonts.inter(
                 fontSize: 13, color: AppColors.inkLight),
           ),
@@ -323,8 +325,10 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
           const SizedBox(width: 10),
           Text(
             good
-                ? 'Ma cha Allah ! ${st.accuracy.toStringAsFixed(0)}% de précision'
-                : 'Continue — ${st.accuracy.toStringAsFixed(0)}% de précision',
+                ? AppLocalizations.of(context)!
+                    .recitationMashallahAccuracy(st.accuracy.toStringAsFixed(0))
+                : AppLocalizations.of(context)!
+                    .recitationContinueAccuracy(st.accuracy.toStringAsFixed(0)),
             style: GoogleFonts.inter(
                 fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.ink),
           ),

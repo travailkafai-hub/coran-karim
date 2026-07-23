@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../models/verse.dart';
 
@@ -26,7 +27,9 @@ class SurahOrnamentHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final isMeccan = surah.revelationPlace.toLowerCase().startsWith('makk');
+    final place = isMeccan ? t.surahMeccan : t.surahMedinan;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
       child: Row(
@@ -69,8 +72,10 @@ class SurahOrnamentHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${isMeccan ? 'مكية' : 'مدنية'} · ${surah.versesCount} آية',
-                  textDirection: TextDirection.rtl,
+                  t.surahOrnamentMeta(place, surah.versesCount),
+                  textDirection: Localizations.localeOf(context).languageCode == 'ar'
+                      ? TextDirection.rtl
+                      : TextDirection.ltr,
                   style: GoogleFonts.amiri(
                     fontSize: 13,
                     color: AppColors.inkLight,

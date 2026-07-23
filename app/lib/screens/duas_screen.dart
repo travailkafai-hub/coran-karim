@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/duas_data.dart';
+import '../l10n/app_localizations.dart';
 import '../models/dua.dart';
 import '../providers/dua_prefs_provider.dart';
 import '../theme/app_theme.dart';
@@ -41,6 +42,7 @@ class _DuasScreenState extends ConsumerState<DuasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final favorites = ref.watch(favoriteDuasProvider);
     final searching = _query.trim().isNotEmpty;
     final results = searching ? searchDuas(_query) : const <Dua>[];
@@ -54,8 +56,7 @@ class _DuasScreenState extends ConsumerState<DuasScreen> {
             backgroundColor: AppColors.green900,
             foregroundColor: AppColors.cream,
             title: Text(
-              'الأذكار والأدعية',
-              textDirection: TextDirection.rtl,
+              t.duasScreenTitle,
               style: GoogleFonts.scheherazadeNew(
                 fontSize: 22,
                 color: AppColors.brassLight,
@@ -65,6 +66,7 @@ class _DuasScreenState extends ConsumerState<DuasScreen> {
               preferredSize: const Size.fromHeight(58),
               child: _SearchField(
                 controller: _searchCtrl,
+                hintText: t.duasSearchHint,
                 onChanged: (v) => setState(() => _query = v),
               ),
             ),
@@ -75,7 +77,7 @@ class _DuasScreenState extends ConsumerState<DuasScreen> {
             SliverToBoxAdapter(child: _MomentCard(moment: currentDuaMoment())),
             if (favorites.isNotEmpty)
               SliverToBoxAdapter(child: _FavoritesRow(ids: favorites)),
-            const SliverToBoxAdapter(child: _SectionLabel('Explorer')),
+            SliverToBoxAdapter(child: _SectionLabel(t.duasExplore)),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               sliver: SliverList.builder(
@@ -92,9 +94,10 @@ class _DuasScreenState extends ConsumerState<DuasScreen> {
 
 class _SearchField extends StatelessWidget {
   final TextEditingController controller;
+  final String hintText;
   final ValueChanged<String> onChanged;
 
-  const _SearchField({required this.controller, required this.onChanged});
+  const _SearchField({required this.controller, required this.hintText, required this.onChanged});
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -109,7 +112,7 @@ class _SearchField extends StatelessWidget {
               isDense: true,
               filled: true,
               fillColor: AppColors.cream,
-              hintText: 'Chercher une invocation, un mot, une source…',
+              hintText: hintText,
               hintStyle: GoogleFonts.manrope(
                   fontSize: 12, color: AppColors.inkLight),
               prefixIcon:
@@ -142,6 +145,8 @@ class _MomentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final collection = kCollectionsById[moment.collectionId];
     final univers = kUniversByCollectionId[moment.collectionId];
     if (collection == null || univers == null) return const SizedBox.shrink();
@@ -174,7 +179,7 @@ class _MomentCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'MAINTENANT',
+                      t.duasNow,
                       style: GoogleFonts.manrope(
                         fontSize: 9,
                         letterSpacing: 1.4,
@@ -184,22 +189,35 @@ class _MomentCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      moment.titleFr,
-                      style: GoogleFonts.fraunces(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.cream,
-                      ),
+                      isArabic ? collection.labelAr : moment.titleFr,
+                      textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                      style: isArabic
+                          ? GoogleFonts.scheherazadeNew(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.cream,
+                            )
+                          : GoogleFonts.fraunces(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.cream,
+                            ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      moment.subtitle,
-                      style: GoogleFonts.manrope(
-                        fontSize: 11,
-                        color: AppColors.cream.withAlpha(200),
-                        height: 1.4,
+                    // Pas de sous-titre descriptif en arabe : moment.subtitle
+                    // n'existe qu'en français dans les données actuelles --
+                    // mieux vaut l'omettre que de fabriquer une traduction
+                    // non relue d'un texte à caractère religieux.
+                    if (!isArabic) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        moment.subtitle,
+                        style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          color: AppColors.cream.withAlpha(200),
+                          height: 1.4,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -219,13 +237,15 @@ class _FavoritesRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final duas = ids.map((id) => kDuasById[id]).whereType<Dua>().toList();
     if (duas.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionLabel('Mes favoris'),
+        _SectionLabel(t.duasMyFavorites),
         SizedBox(
           height: 78,
           child: ListView.separated(
@@ -261,15 +281,19 @@ class _FavoritesRow extends ConsumerWidget {
                           size: 14, color: AppColors.brass),
                       const SizedBox(height: 4),
                       Text(
-                        dua.titleFr,
+                        isArabic ? dua.titleAr : dua.titleFr,
+                        textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.manrope(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.ink,
-                          height: 1.3,
-                        ),
+                        style: isArabic
+                            ? GoogleFonts.scheherazadeNew(
+                                fontSize: 13, color: AppColors.ink, height: 1.3)
+                            : GoogleFonts.manrope(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.ink,
+                                height: 1.3,
+                              ),
                       ),
                     ],
                   ),
@@ -289,6 +313,8 @@ class _UniversCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     // Les collections de rite (`rite:umra`) ne comptent pas d'invocations :
     // afficher « 0 invocation » à côté de « Hajj » serait absurde, on compte
     // donc les étapes pour elles.
@@ -323,27 +349,37 @@ class _UniversCard extends StatelessWidget {
             child: Text(univers.emoji, style: const TextStyle(fontSize: 22)),
           ),
           title: Text(
-            univers.labelFr,
-            style: GoogleFonts.fraunces(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.ink,
-            ),
+            isArabic ? univers.labelAr : univers.labelFr,
+            textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+            style: isArabic
+                ? GoogleFonts.scheherazadeNew(
+                    fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.ink)
+                : GoogleFonts.fraunces(
+                    fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.ink),
           ),
-          subtitle: Text(
-            total > 0
-                ? '${univers.tagline} · $total invocations'
-                : univers.tagline,
-            style: GoogleFonts.manrope(fontSize: 11, color: AppColors.inkLight),
-          ),
-          trailing: Text(
-            univers.labelAr,
-            textDirection: TextDirection.rtl,
-            style: GoogleFonts.scheherazadeNew(
-              fontSize: 16,
-              color: univers.color,
-            ),
-          ),
+          // Le tagline n'existe qu'en français dans les données actuelles --
+          // en arabe on affiche seulement le compte (donnée numérique, pas de
+          // traduction à fabriquer), plutôt que de laisser du français.
+          subtitle: isArabic
+              ? (total > 0 ? Text(t.duasInvocationCount(total),
+                  style: GoogleFonts.manrope(fontSize: 11, color: AppColors.inkLight))
+                  : null)
+              : Text(
+                  total > 0
+                      ? '${univers.tagline} · ${t.duasInvocationCount(total)}'
+                      : univers.tagline,
+                  style: GoogleFonts.manrope(fontSize: 11, color: AppColors.inkLight),
+                ),
+          trailing: isArabic
+              ? null
+              : Text(
+                  univers.labelAr,
+                  textDirection: TextDirection.rtl,
+                  style: GoogleFonts.scheherazadeNew(
+                    fontSize: 16,
+                    color: univers.color,
+                  ),
+                ),
           children: [
             for (final c in univers.collections)
               _CollectionRow(collection: c, accent: univers.color),
@@ -361,6 +397,8 @@ class _CollectionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final isRite = collection.id.startsWith('rite:');
     final count = isRite ? 0 : duasForCollection(collection.id).length;
 
@@ -393,12 +431,16 @@ class _CollectionRow extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          collection.labelFr,
-                          style: GoogleFonts.manrope(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.ink,
-                          ),
+                          isArabic ? collection.labelAr : collection.labelFr,
+                          textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                          style: isArabic
+                              ? GoogleFonts.scheherazadeNew(
+                                  fontSize: 15, color: AppColors.ink)
+                              : GoogleFonts.manrope(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink,
+                                ),
                         ),
                       ),
                       if (isRite) ...[
@@ -411,7 +453,7 @@ class _CollectionRow extends StatelessWidget {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            'GUIDE',
+                            t.duasGuideBadge,
                             style: GoogleFonts.manrope(
                               fontSize: 8,
                               letterSpacing: 0.8,
@@ -423,15 +465,19 @@ class _CollectionRow extends StatelessWidget {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    collection.hint,
-                    style: GoogleFonts.manrope(
-                      fontSize: 10.5,
-                      color: AppColors.inkLight,
-                      height: 1.4,
+                  // collection.hint n'existe qu'en français -- omis en arabe
+                  // pour la même raison que le tagline plus haut.
+                  if (!isArabic) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      collection.hint,
+                      style: GoogleFonts.manrope(
+                        fontSize: 10.5,
+                        color: AppColors.inkLight,
+                        height: 1.4,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -461,14 +507,14 @@ class _SearchResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (results.isEmpty) {
-      return const SliverFillRemaining(
+      return SliverFillRemaining(
         hasScrollBody: false,
         child: Padding(
-          padding: EdgeInsets.all(40),
+          padding: const EdgeInsets.all(40),
           child: Center(
             child: Text(
-              'Aucune invocation ne correspond.',
-              style: TextStyle(color: AppColors.inkLight),
+              AppLocalizations.of(context)!.duasNoneFound,
+              style: const TextStyle(color: AppColors.inkLight),
             ),
           ),
         ),

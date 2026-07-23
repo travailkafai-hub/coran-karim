@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../services/quran_api.dart';
 import '../theme/app_theme.dart';
@@ -61,6 +62,8 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: CustomScrollView(
@@ -78,12 +81,12 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.hearing_rounded, color: AppColors.cream),
-                tooltip: 'Identifier une récitation',
+                tooltip: t.homeIdentifyTooltip,
                 onPressed: _openShazamFromHome,
               ),
               IconButton(
                 icon: const Icon(Icons.mosque_rounded, color: AppColors.cream),
-                tooltip: 'Suivre une prière',
+                tooltip: t.homeFollowPrayerTooltip,
                 onPressed: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const PrayerFollowScreen())),
               ),
@@ -119,14 +122,20 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
                           ),
                           const SizedBox(height: 6),
                           const _TitleRule(),
-                          const SizedBox(height: 6),
-                          Text(
-                            'CORAN KARIM',
-                            style: GoogleFonts.fraunces(
-                              fontSize: 13, color: AppColors.brassLight,
-                              letterSpacing: 3,
+                          // "CORAN KARIM" est une graphie latine du titre --
+                          // masquée en mode arabe (règle verrouillée
+                          // REFONTE_IHM.md §7bis, bug corrigé 2026-07-22 :
+                          // seul texte latin restant sur la page de couverture).
+                          if (!isArabic) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'CORAN KARIM',
+                              style: GoogleFonts.fraunces(
+                                fontSize: 13, color: AppColors.brassLight,
+                                letterSpacing: 3,
+                              ),
                             ),
-                          ),
+                          ],
                           const SizedBox(height: 16),
                         ],
                       ),
@@ -148,10 +157,10 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
                   children: [
                     const Icon(Icons.wifi_off, size: 48, color: AppColors.green700),
                     const SizedBox(height: 12),
-                    Text('Connexion requise', style: GoogleFonts.manrope(
+                    Text(t.commonConnectionRequired, style: GoogleFonts.manrope(
                       color: AppColors.inkLight, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
-                    TextButton(onPressed: _load, child: const Text('Réessayer')),
+                    TextButton(onPressed: _load, child: Text(t.commonRetry)),
                   ],
                 ),
               ),
@@ -217,6 +226,10 @@ class _SurahTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final place = surah.revelationPlace == 'makkah' ? t.surahMeccan : t.surahMedinan;
+    final metaLine = t.surahMetaLine(surah.versesCount, place);
     return InkWell(
       onTap: () => Navigator.push(context,
         MaterialPageRoute(builder: (_) => MushafScreen(surah: surah))),
@@ -248,32 +261,43 @@ class _SurahTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-            // Name + metadata
+            // Nom + métadonnées -- en arabe, le nom arabe DEVIENT le titre
+            // principal (pas de romanisation à côté, règle verrouillée
+            // REFONTE_IHM.md §7bis) ; en fr/en, le nom romanisé reste le
+            // titre et le nom arabe garde son flourish à droite (ci-dessous).
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(surah.nameSimple,
-                    style: GoogleFonts.manrope(
-                      fontSize: 15, fontWeight: FontWeight.w600,
-                      color: AppColors.ink,
-                    )),
+                  Text(isArabic ? surah.nameArabic : surah.nameSimple,
+                    textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+                    style: isArabic
+                        ? GoogleFonts.scheherazadeNew(
+                            fontSize: 19, fontWeight: FontWeight.w600,
+                            color: AppColors.ink,
+                          )
+                        : GoogleFonts.manrope(
+                            fontSize: 15, fontWeight: FontWeight.w600,
+                            color: AppColors.ink,
+                          )),
                   const SizedBox(height: 2),
                   Text(
-                    '${surah.versesCount} versets • ${surah.revelationPlace == "makkah" ? "Mecquoise" : "Médinoise"}',
+                    metaLine,
                     style: GoogleFonts.manrope(fontSize: 11, color: AppColors.inkLight),
                   ),
                 ],
               ),
             ),
-            // Arabic name
-            Text(
-              surah.nameArabic,
-              textDirection: TextDirection.rtl,
-              style: GoogleFonts.scheherazadeNew(
-                fontSize: 20, color: AppColors.green800,
+            // Nom arabe en flourish -- seulement en fr/en (en arabe, c'est
+            // déjà le titre principal ci-dessus, pas de doublon).
+            if (!isArabic)
+              Text(
+                surah.nameArabic,
+                textDirection: TextDirection.rtl,
+                style: GoogleFonts.scheherazadeNew(
+                  fontSize: 20, color: AppColors.green800,
+                ),
               ),
-            ),
             // Icône « carte mentale » par sourate RETIRÉE le 2026-07-20
             // (demande utilisateur : « la carte mentale, je veux que tu
             // l'enlèves de la première page »). La page principale redevient

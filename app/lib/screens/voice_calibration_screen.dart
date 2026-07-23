@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:record/record.dart';
+import '../l10n/app_localizations.dart';
 import '../data/voice_calibration_words.dart';
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
@@ -92,8 +93,7 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen> {
     if (!mounted) return;
     setState(() => _saving = false);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(
-          '$saved clip${saved > 1 ? "s" : ""} de calibration enregistré${saved > 1 ? "s" : ""} — exporte-les depuis Réglages pour personnaliser le modèle.'),
+      content: Text(AppLocalizations.of(context)!.voiceCalibSavedSnackbar(saved)),
     ));
     if (mounted) Navigator.of(context).pop();
   }
@@ -111,7 +111,7 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.cream,
         elevation: 0,
-        title: Text('Calibration voix',
+        title: Text(AppLocalizations.of(context)!.voiceCalibTitle,
             style: GoogleFonts.manrope(
                 fontWeight: FontWeight.w700, color: AppColors.ink)),
         leading: IconButton(
@@ -126,6 +126,7 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen> {
   }
 
   Widget _buildDone() {
+    final t = AppLocalizations.of(context)!;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -135,7 +136,7 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen> {
             const Icon(Icons.check_circle_rounded,
                 color: AppColors.green700, size: 64),
             const SizedBox(height: 16),
-            Text('Calibration terminée !',
+            Text(t.voiceCalibDoneTitle,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.manrope(
                     fontSize: 18,
@@ -143,7 +144,7 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen> {
                     color: AppColors.ink)),
             const SizedBox(height: 8),
             Text(
-                '${_captured.length} clips enregistrés. Ils rejoignent tes clips vérifiés — exporte-les depuis Réglages pour lancer la personnalisation.',
+                t.voiceCalibDoneBody(_captured.length),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.manrope(
                     fontSize: 13, color: AppColors.inkLight)),
@@ -164,7 +165,7 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen> {
                       height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
-                  : const Text('Enregistrer'),
+                  : Text(t.voiceCalibSave),
             ),
           ],
         ),
@@ -173,6 +174,7 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen> {
   }
 
   Widget _buildStep() {
+    final t = AppLocalizations.of(context)!;
     final pair = _pair;
     final isWrong = _step == _Step.introWrong;
     final word = isWrong ? pair.wrong : pair.correct;
@@ -191,7 +193,8 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-              'Mot ${_pairIndex + 1}/${kVoiceCalibrationPairs.length} — ${pair.reference}',
+              t.voiceCalibWordProgress(_pairIndex + 1,
+                  kVoiceCalibrationPairs.length, pair.reference),
               style: GoogleFonts.manrope(
                   fontSize: 12, color: AppColors.inkLight)),
           const Spacer(),
@@ -213,8 +216,8 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen> {
           const SizedBox(height: 20),
           Text(
             isWrong
-                ? 'Dis ce mot en remplaçant EXPRÈS le "${pair.targetLetter}" par un "${pair.confusedLetter}" — une faute volontaire, pas une vraie récitation.'
-                : 'Dis ce mot correctement, comme d\'habitude.',
+                ? t.voiceCalibWrongInstruction(pair.targetLetter, pair.confusedLetter)
+                : t.voiceCalibCorrectInstruction,
             textAlign: TextAlign.center,
             style: GoogleFonts.manrope(
                 fontSize: 15,
@@ -248,7 +251,7 @@ class _VoiceCalibrationScreenState extends State<VoiceCalibrationScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Text(_recording ? 'Enregistrement… touche pour arrêter' : 'Touche pour enregistrer',
+          Text(_recording ? t.voiceCalibRecording : t.voiceCalibTapToRecord,
               style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight)),
           const SizedBox(height: 24),
         ],

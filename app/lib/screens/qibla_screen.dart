@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../services/qibla_service.dart';
 import '../theme/app_theme.dart';
 
@@ -124,7 +125,7 @@ class _QiblaScreenState extends State<QiblaScreen> {
                   ),
                 ),
                 Text(
-                  'Direction de la Mecque',
+                  AppLocalizations.of(context)!.qiblaSubtitle,
                   style: GoogleFonts.manrope(
                     fontSize: 10.5,
                     letterSpacing: 1.1,
@@ -141,6 +142,7 @@ class _QiblaScreenState extends State<QiblaScreen> {
   }
 
   Widget _body() {
+    final t = AppLocalizations.of(context)!;
     switch (_state) {
       case _QiblaLoadState.loading:
         return const Center(
@@ -149,9 +151,8 @@ class _QiblaScreenState extends State<QiblaScreen> {
       case _QiblaLoadState.serviceDisabled:
         return _guidance(
           icon: Icons.location_disabled_rounded,
-          message: 'Active la localisation pour trouver la Qibla depuis '
-              'ton emplacement actuel.',
-          actionLabel: 'Activer la localisation',
+          message: t.qiblaEnableLocationMessage,
+          actionLabel: t.qiblaEnableLocationAction,
           onAction: () async {
             await Geolocator.openLocationSettings();
             _resolvePosition();
@@ -160,9 +161,8 @@ class _QiblaScreenState extends State<QiblaScreen> {
       case _QiblaLoadState.permissionDenied:
         return _guidance(
           icon: Icons.pin_drop_outlined,
-          message: 'La localisation est refusée pour Coran Karim. '
-              'Autorise-la dans les réglages du téléphone pour voir la Qibla.',
-          actionLabel: 'Ouvrir les réglages',
+          message: t.qiblaPermissionDeniedMessage,
+          actionLabel: t.qiblaOpenSettingsAction,
           onAction: () async {
             await Geolocator.openAppSettings();
             _resolvePosition();
@@ -171,8 +171,8 @@ class _QiblaScreenState extends State<QiblaScreen> {
       case _QiblaLoadState.error:
         return _guidance(
           icon: Icons.error_outline_rounded,
-          message: 'Impossible de déterminer ta position : $_errorMessage',
-          actionLabel: 'Réessayer',
+          message: t.qiblaPositionError('$_errorMessage'),
+          actionLabel: t.commonRetry,
           onAction: _resolvePosition,
         );
       case _QiblaLoadState.ready:
@@ -228,11 +228,11 @@ class _QiblaScreenState extends State<QiblaScreen> {
       builder: (context, snapshot) {
         final heading = snapshot.data?.heading;
         if (FlutterCompass.events == null || heading == null) {
+          final t = AppLocalizations.of(context)!;
           return _guidance(
             icon: Icons.explore_off_rounded,
-            message: 'Cet appareil ne possède pas de boussole. '
-                'La distance jusqu\'à la Mecque reste disponible ci-dessous.',
-            actionLabel: 'Réessayer',
+            message: t.qiblaNoCompassMessage,
+            actionLabel: t.commonRetry,
             onAction: _resolvePosition,
           );
         }
@@ -275,7 +275,7 @@ class _QiblaScreenState extends State<QiblaScreen> {
           ),
         ),
         Text(
-          'KM JUSQU\'À LA MECQUE',
+          AppLocalizations.of(context)!.qiblaKmToMecca,
           style: GoogleFonts.manrope(
             fontSize: 10,
             letterSpacing: 2,
@@ -288,11 +288,12 @@ class _QiblaScreenState extends State<QiblaScreen> {
   }
 
   Widget _hint(bool facingQibla) {
+    final t = AppLocalizations.of(context)!;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       child: facingQibla
           ? Text(
-              'Tu fais face à la Qibla ✓',
+              t.qiblaFacingQibla,
               key: const ValueKey('aligned'),
               style: GoogleFonts.manrope(
                 fontSize: 13,
@@ -308,7 +309,7 @@ class _QiblaScreenState extends State<QiblaScreen> {
                     size: 14, color: AppColors.cream.withOpacity(0.5)),
                 const SizedBox(width: 6),
                 Text(
-                  'Tourne ton téléphone jusqu\'à ce que l\'aiguille pointe en haut',
+                  t.qiblaTurnPhoneHint,
                   style: GoogleFonts.manrope(
                     fontSize: 12,
                     color: AppColors.cream.withOpacity(0.5),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../models/cascade_explanation.dart';
 import '../models/verse.dart';
 import '../providers/app_settings_provider.dart';
@@ -211,7 +212,7 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
       if (!mounted) return;
       setState(() {
         _gemmaExplanation = explanation ??
-            "Aucune explication disponible pour ce passage sur cet appareil.";
+            AppLocalizations.of(context)!.coachExplanationNoneAvailable;
         _loading = false;
       });
     } catch (e) {
@@ -231,6 +232,7 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final lang = ref.watch(explanationLanguageProvider);
     return SafeArea(
       child: ConstrainedBox(
@@ -258,7 +260,7 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
                   if (!_loading && _error == null &&
                       (_cascade != null || _gemmaExplanation != null))
                     IconButton(
-                      tooltip: _tts.isSpeaking ? 'Arrêter' : 'Écouter',
+                      tooltip: _tts.isSpeaking ? t.coachExplanationStop : t.coachExplanationListen,
                       onPressed: _toggleSpeak,
                       icon: Icon(
                         _tts.isSpeaking
@@ -267,12 +269,12 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
                         color: AppColors.green700,
                       ),
                     ),
-                  _languageSelector(lang),
+                  _languageSelector(t, lang),
                 ],
               ),
               const SizedBox(height: 16),
               if (_error != null)
-                Text('Erreur : $_error',
+                Text(t.coachExplanationError(_error!),
                     style: const TextStyle(color: AppColors.green700))
               else if (_loading)
                 const Padding(
@@ -282,7 +284,7 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
                           CircularProgressIndicator(color: AppColors.green700)),
                 )
               else if (_cascade != null)
-                _cascadeView(_cascade!)
+                _cascadeView(t, _cascade!)
               else
                 Text(_gemmaExplanation ?? '',
                     style:
@@ -295,9 +297,9 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
     );
   }
 
-  Widget _languageSelector(String current) {
+  Widget _languageSelector(AppLocalizations t, String current) {
     return PopupMenuButton<String>(
-      tooltip: 'Langue',
+      tooltip: t.coachExplanationLanguageTooltip,
       initialValue: current,
       onSelected: _changeLanguage,
       itemBuilder: (_) => _kLangLabels.entries
@@ -322,25 +324,25 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
   /// Cascade synthétique -> érudit : palier 1 toujours visible, un bouton
   /// "approfondir" dévoile le palier suivant (jamais tout d'un coup, cf. le
   /// plan). Source toujours citée, y compris au palier 1.
-  Widget _cascadeView(CascadeExplanation cascade) {
+  Widget _cascadeView(AppLocalizations t, CascadeExplanation cascade) {
     final visibleTiers = [
-      for (var t = 1; t <= _expandedTier; t++)
-        if (cascade.tier(t) != null) t
+      for (var tier = 1; tier <= _expandedTier; tier++)
+        if (cascade.tier(tier) != null) tier
     ];
     final hasMore = _expandedTier < cascade.maxTier;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (cascade.root != null) ...[
-          Text('Racine : ${cascade.root}',
+          Text(t.coachExplanationRoot(cascade.root!),
               style: const TextStyle(
                   color: AppColors.brass,
                   fontWeight: FontWeight.w600,
                   fontSize: 13)),
           const SizedBox(height: 10),
         ],
-        for (final t in visibleTiers) ...[
-          for (final src in cascade.tier(t)!) ...[
+        for (final tier in visibleTiers) ...[
+          for (final src in cascade.tier(tier)!) ...[
             Text(src.source,
                 style: const TextStyle(
                     color: AppColors.brass,
@@ -357,8 +359,8 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
           TextButton.icon(
             onPressed: () => setState(() => _expandedTier++),
             icon: const Icon(Icons.expand_more, color: AppColors.green700),
-            label: const Text('Approfondir',
-                style: TextStyle(color: AppColors.green700)),
+            label: Text(t.coachExplanationExpand,
+                style: const TextStyle(color: AppColors.green700)),
           ),
       ],
     );
