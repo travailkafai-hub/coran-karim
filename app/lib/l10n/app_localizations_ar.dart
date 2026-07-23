@@ -904,8 +904,21 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String memorizationAyahPickerSubtitle(String surah) {
-    return 'سورة $surah طويلة: اختر الآية التي تريد بدء اللعب منها';
+    return 'سورة $surah طويلة: اختر أولًا الصفحة التي تريد البدء منها';
   }
+
+  @override
+  String memorizationAyahPickerPageLabel(int page) {
+    return 'الصفحة $page';
+  }
+
+  @override
+  String memorizationAyahPickerAyahSubtitle(int page) {
+    return 'الصفحة $page: اختر الآية التي تريد بدء اللعب منها';
+  }
+
+  @override
+  String get memorizationAyahPickerBackToPages => 'تغيير الصفحة';
 
   @override
   String get qiblaSubtitle => 'اتجاه القبلة نحو مكة';

@@ -948,8 +948,21 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String memorizationAyahPickerSubtitle(String surah) {
-    return '$surah est longue : choisis le verset où tu veux commencer à jouer';
+    return '$surah est longue : choisis d\'abord la page où tu veux commencer';
   }
+
+  @override
+  String memorizationAyahPickerPageLabel(int page) {
+    return 'Page $page';
+  }
+
+  @override
+  String memorizationAyahPickerAyahSubtitle(int page) {
+    return 'Page $page : choisis le verset où tu veux commencer à jouer';
+  }
+
+  @override
+  String get memorizationAyahPickerBackToPages => 'Changer de page';
 
   @override
   String get qiblaSubtitle => 'Direction de la Mecque';

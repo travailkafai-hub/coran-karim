@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
-import '../models/recitation_state.dart';
+import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
@@ -14,13 +14,15 @@ import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
 import 'tajweed_text.dart';
 
-/// Règles tajwid affichables : classe quran.com -> (couleur, nom, explication).
-/// Les couleurs répliquent celles de tajweed_text.dart (source de vérité
-/// visuelle : le texte coloré au-dessus de la légende).
+/// Règles tajwid affichables : classe quran.com -> (couleur, nom/explication
+/// localisés via ARB). Les couleurs répliquent celles de tajweed_text.dart
+/// (source de vérité visuelle : le texte coloré au-dessus de la légende).
+/// [name]/[explanation] prennent `AppLocalizations` -- pas de texte en dur,
+/// les 3 langues (dont l'arabe, cf. REFONTE_IHM.md §7bis) sont dans les ARB.
 class TajwidRuleInfo {
   final Color color;
-  final String name;
-  final String explanation;
+  final String Function(AppLocalizations) name;
+  final String Function(AppLocalizations) explanation;
   const TajwidRuleInfo(this.color, this.name, this.explanation);
 }
 
@@ -30,42 +32,88 @@ class TajwidRuleInfo {
 // vives). Gris de référence défini une seule fois pour le tri ci-dessous.
 const _kGray = Color(0xFF77766C);
 
-const kTajwidRuleInfo = <String, TajwidRuleInfo>{
-  'madda_necessary': TajwidRuleInfo(Color(0xFFA13420), 'Madd — 6 temps (obligatoire)',
-      'Allongement obligatoire de 6 temps (madd lâzim).'),
-  'madda_obligatory': TajwidRuleInfo(Color(0xFFE8391F), 'Madd — 4 ou 5 temps (obligatoire)',
-      'Allongement obligatoire de 4 à 5 temps.'),
-  'madda_permissible': TajwidRuleInfo(Color(0xFFEB7A1E), 'Madd — 2, 4 ou 6 temps (permis)',
-      'Allongement de 2, 4 ou 6 temps selon l\'école de lecture.'),
-  'madda_normal': TajwidRuleInfo(Color(0xFFEB7A1E), 'Madd — 2, 4 ou 6 temps (permis)',
-      'Allongement de 2, 4 ou 6 temps selon l\'école de lecture.'),
-  'ghunnah': TajwidRuleInfo(Color(0xFF2E9E4F), 'Ghunna / Ikhfâ\'',
-      'Son nasal tenu environ 2 temps (noûn/mîm doublé), ou dissimulation avec nasalisation.'),
-  'ikhafa': TajwidRuleInfo(Color(0xFF2E9E4F), 'Ikhfâ\' (dissimulation)',
-      'Le noûn sâkin/tanwîn se prononce "caché", entre le noûn et la lettre suivante, avec nasalisation.'),
-  'ikhafa_shafawi': TajwidRuleInfo(Color(0xFF2E9E4F), 'Ikhfâ\' shafawî',
-      'Le mîm sâkin devant bâ\' se prononce légèrement dissimulé, avec nasalisation.'),
-  'idgham_ghunnah': TajwidRuleInfo(Color(0xFF2E9E4F), 'Idghâm avec ghunna',
-      'Le noûn sâkin/tanwîn s\'assimile à la lettre suivante (ي ن م و) avec nasalisation.'),
-  'idgham_shafawi': TajwidRuleInfo(Color(0xFF2E9E4F), 'Idghâm shafawî',
-      'Le mîm sâkin s\'assimile au mîm suivant, avec nasalisation.'),
-  'iqlab': TajwidRuleInfo(Color(0xFF2E9E4F), 'Iqlâb (conversion)',
-      'Le noûn sâkin/tanwîn devient mîm devant la lettre bâ\', avec nasalisation.'),
-  'idgham_wo_ghunnah': TajwidRuleInfo(_kGray, 'Idghâm sans ghunna',
-      'Le noûn sâkin/tanwîn s\'assimile complètement à la lettre suivante (ل ر), sans nasalisation.'),
-  'idgham_mutajanisayn': TajwidRuleInfo(_kGray, 'Idghâm mutajânisayn',
-      'Deux lettres de même point d\'articulation : la première s\'assimile à la seconde.'),
-  'idgham_mutaqaribayn': TajwidRuleInfo(_kGray, 'Idghâm mutaqâribayn',
-      'Deux lettres proches : la première s\'assimile à la seconde.'),
-  'qalaqah': TajwidRuleInfo(Color(0xFF0091EA), 'Qalqala (rebond)',
-      'Rebond sonore sur ق ط ب ج د quand elles portent un soukoûn.'),
-  'ham_wasl': TajwidRuleInfo(_kGray, 'Hamzat al-wasl',
-      'Ne se prononce qu\'en début de lecture — s\'élide quand on enchaîne depuis le mot précédent.'),
-  'laam_shamsiyah': TajwidRuleInfo(_kGray, 'Lâm solaire',
-      'Le lâm de "ال" ne se prononce pas : la lettre suivante est doublée à la place.'),
-  'slnt': TajwidRuleInfo(_kGray, 'Lettre muette',
-      'S\'écrit mais ne se prononce pas.'),
+final kTajwidRuleInfo = <String, TajwidRuleInfo>{
+  'madda_necessary': TajwidRuleInfo(Color(0xFFA13420),
+      _n(TajwidRuleName.maddaNecessary), _e(TajwidRuleName.maddaNecessary)),
+  'madda_obligatory': TajwidRuleInfo(Color(0xFFE8391F),
+      _n(TajwidRuleName.maddaObligatory), _e(TajwidRuleName.maddaObligatory)),
+  'madda_permissible': TajwidRuleInfo(Color(0xFFEB7A1E),
+      _n(TajwidRuleName.maddaPermissible), _e(TajwidRuleName.maddaPermissible)),
+  'madda_normal': TajwidRuleInfo(Color(0xFFEB7A1E),
+      _n(TajwidRuleName.maddaPermissible), _e(TajwidRuleName.maddaPermissible)),
+  'ghunnah': TajwidRuleInfo(Color(0xFF2E9E4F),
+      _n(TajwidRuleName.ghunnah), _e(TajwidRuleName.ghunnah)),
+  'ikhafa': TajwidRuleInfo(Color(0xFF2E9E4F),
+      _n(TajwidRuleName.ikhafa), _e(TajwidRuleName.ikhafa)),
+  'ikhafa_shafawi': TajwidRuleInfo(Color(0xFF2E9E4F),
+      _n(TajwidRuleName.ikhafaShafawi), _e(TajwidRuleName.ikhafaShafawi)),
+  'idgham_ghunnah': TajwidRuleInfo(Color(0xFF2E9E4F),
+      _n(TajwidRuleName.idghamGhunnah), _e(TajwidRuleName.idghamGhunnah)),
+  'idgham_shafawi': TajwidRuleInfo(Color(0xFF2E9E4F),
+      _n(TajwidRuleName.idghamShafawi), _e(TajwidRuleName.idghamShafawi)),
+  'iqlab': TajwidRuleInfo(Color(0xFF2E9E4F),
+      _n(TajwidRuleName.iqlab), _e(TajwidRuleName.iqlab)),
+  'idgham_wo_ghunnah': TajwidRuleInfo(_kGray,
+      _n(TajwidRuleName.idghamWoGhunnah), _e(TajwidRuleName.idghamWoGhunnah)),
+  'idgham_mutajanisayn': TajwidRuleInfo(_kGray,
+      _n(TajwidRuleName.idghamMutajanisayn), _e(TajwidRuleName.idghamMutajanisayn)),
+  'idgham_mutaqaribayn': TajwidRuleInfo(_kGray,
+      _n(TajwidRuleName.idghamMutaqaribayn), _e(TajwidRuleName.idghamMutaqaribayn)),
+  'qalaqah': TajwidRuleInfo(Color(0xFF0091EA),
+      _n(TajwidRuleName.qalaqah), _e(TajwidRuleName.qalaqah)),
+  'ham_wasl': TajwidRuleInfo(_kGray,
+      _n(TajwidRuleName.hamWasl), _e(TajwidRuleName.hamWasl)),
+  'laam_shamsiyah': TajwidRuleInfo(_kGray,
+      _n(TajwidRuleName.laamShamsiyah), _e(TajwidRuleName.laamShamsiyah)),
+  'slnt': TajwidRuleInfo(_kGray,
+      _n(TajwidRuleName.slnt), _e(TajwidRuleName.slnt)),
 };
+
+/// Une entrée par règle tajwid -- évite un switch dupliqué (nom + explication)
+/// et une string libre qui pourrait diverger des clés ARB réelles.
+enum TajwidRuleName {
+  maddaNecessary, maddaObligatory, maddaPermissible, ghunnah, ikhafa,
+  ikhafaShafawi, idghamGhunnah, idghamShafawi, iqlab, idghamWoGhunnah,
+  idghamMutajanisayn, idghamMutaqaribayn, qalaqah, hamWasl, laamShamsiyah, slnt,
+}
+
+String Function(AppLocalizations) _n(TajwidRuleName r) => (t) => switch (r) {
+      TajwidRuleName.maddaNecessary => t.tajwidRuleMaddaNecessaryName,
+      TajwidRuleName.maddaObligatory => t.tajwidRuleMaddaObligatoryName,
+      TajwidRuleName.maddaPermissible => t.tajwidRuleMaddaPermissibleName,
+      TajwidRuleName.ghunnah => t.tajwidRuleGhunnahName,
+      TajwidRuleName.ikhafa => t.tajwidRuleIkhafaName,
+      TajwidRuleName.ikhafaShafawi => t.tajwidRuleIkhafaShafawiName,
+      TajwidRuleName.idghamGhunnah => t.tajwidRuleIdghamGhunnahName,
+      TajwidRuleName.idghamShafawi => t.tajwidRuleIdghamShafawiName,
+      TajwidRuleName.iqlab => t.tajwidRuleIqlabName,
+      TajwidRuleName.idghamWoGhunnah => t.tajwidRuleIdghamWoGhunnahName,
+      TajwidRuleName.idghamMutajanisayn => t.tajwidRuleIdghamMutajanisaynName,
+      TajwidRuleName.idghamMutaqaribayn => t.tajwidRuleIdghamMutaqaribaynName,
+      TajwidRuleName.qalaqah => t.tajwidRuleQalaqahName,
+      TajwidRuleName.hamWasl => t.tajwidRuleHamWaslName,
+      TajwidRuleName.laamShamsiyah => t.tajwidRuleLaamShamsiyahName,
+      TajwidRuleName.slnt => t.tajwidRuleSlntName,
+    };
+
+String Function(AppLocalizations) _e(TajwidRuleName r) => (t) => switch (r) {
+      TajwidRuleName.maddaNecessary => t.tajwidRuleMaddaNecessaryExplanation,
+      TajwidRuleName.maddaObligatory => t.tajwidRuleMaddaObligatoryExplanation,
+      TajwidRuleName.maddaPermissible => t.tajwidRuleMaddaPermissibleExplanation,
+      TajwidRuleName.ghunnah => t.tajwidRuleGhunnahExplanation,
+      TajwidRuleName.ikhafa => t.tajwidRuleIkhafaExplanation,
+      TajwidRuleName.ikhafaShafawi => t.tajwidRuleIkhafaShafawiExplanation,
+      TajwidRuleName.idghamGhunnah => t.tajwidRuleIdghamGhunnahExplanation,
+      TajwidRuleName.idghamShafawi => t.tajwidRuleIdghamShafawiExplanation,
+      TajwidRuleName.iqlab => t.tajwidRuleIqlabExplanation,
+      TajwidRuleName.idghamWoGhunnah => t.tajwidRuleIdghamWoGhunnahExplanation,
+      TajwidRuleName.idghamMutajanisayn => t.tajwidRuleIdghamMutajanisaynExplanation,
+      TajwidRuleName.idghamMutaqaribayn => t.tajwidRuleIdghamMutaqaribaynExplanation,
+      TajwidRuleName.qalaqah => t.tajwidRuleQalaqahExplanation,
+      TajwidRuleName.hamWasl => t.tajwidRuleHamWaslExplanation,
+      TajwidRuleName.laamShamsiyah => t.tajwidRuleLaamShamsiyahExplanation,
+      TajwidRuleName.slnt => t.tajwidRuleSlntExplanation,
+    };
 
 /// Fiche d'aide affichée au tap sur un mot orange/rouge (Contrôle ou Karaoké) :
 /// le verset complet coloré selon les règles de tajwid, la légende des règles
@@ -106,7 +154,9 @@ void showTajwidHelpSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (ctx) => SafeArea(
+    builder: (ctx) {
+      final t = AppLocalizations.of(ctx)!;
+      return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
         child: Column(
@@ -116,7 +166,7 @@ void showTajwidHelpSheet(
             Row(
               children: [
                 Text(
-                  'Verset ${verse.key}',
+                  t.tajwidHelpVerseLabel(verse.key),
                   style: GoogleFonts.manrope(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -158,7 +208,7 @@ void showTajwidHelpSheet(
                     if (rules.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       Text(
-                        'RÈGLES DANS CE VERSET',
+                        t.tajwidHelpRulesInVerse,
                         style: GoogleFonts.manrope(
                             fontSize: 10,
                             letterSpacing: 1.2,
@@ -191,11 +241,11 @@ void showTajwidHelpSheet(
                                         color: AppColors.ink),
                                     children: [
                                       TextSpan(
-                                        text: '${r.name} — ',
+                                        text: '${r.name(t)} — ',
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w700),
                                       ),
-                                      TextSpan(text: r.explanation),
+                                      TextSpan(text: r.explanation(t)),
                                     ],
                                   ),
                                 ),
@@ -222,6 +272,7 @@ void showTajwidHelpSheet(
             const SizedBox(height: 12),
             Consumer(builder: (ctx2, ref2, _) {
               final reciter = ref2.watch(playerProvider).reciter;
+              final isArabic = Localizations.localeOf(ctx2).languageCode == 'ar';
               return SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
@@ -236,7 +287,8 @@ void showTajwidHelpSheet(
                   },
                   icon: const Icon(Icons.play_arrow_rounded),
                   label: Text(
-                    'Écouter — ${reciter.nameFr}',
+                    t.tajwidHelpListenWithReciter(
+                        isArabic ? reciter.nameAr : reciter.nameFr),
                     style: GoogleFonts.manrope(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -245,7 +297,8 @@ void showTajwidHelpSheet(
           ],
         ),
       ),
-    ),
+      );
+    },
   );
 }
 
@@ -295,6 +348,7 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -307,7 +361,7 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'ÉCOUTER LA PRONONCIATION',
+            t.tajwidHelpListenPronunciation,
             style: GoogleFonts.manrope(
               fontSize: 10,
               letterSpacing: 1.2,
@@ -321,17 +375,17 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
             runSpacing: 8,
             children: [
               ChoiceChip(
-                label: const Text('Ce mot'),
+                label: Text(t.tajwidHelpThisWord),
                 selected: _range == _Range.wordOnly,
                 onSelected: (_) => setState(() => _range = _Range.wordOnly),
               ),
               ChoiceChip(
-                label: const Text('+ mot précédent'),
+                label: Text(t.tajwidHelpPlusPrevious),
                 selected: _range == _Range.withPrevious,
                 onSelected: (_) => setState(() => _range = _Range.withPrevious),
               ),
               ChoiceChip(
-                label: const Text('+ précédent et suivant'),
+                label: Text(t.tajwidHelpPlusBoth),
                 selected: _range == _Range.withBoth,
                 onSelected: (_) => setState(() => _range = _Range.withBoth),
               ),
@@ -352,7 +406,7 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
                 color: AppColors.green700,
               ),
               label: Text(
-                _playing ? 'Lecture…' : 'Écouter',
+                _playing ? t.tajwidHelpPlaying : t.coachExplanationListen,
                 style: GoogleFonts.manrope(
                     fontWeight: FontWeight.w700, color: AppColors.green700),
               ),
@@ -426,7 +480,9 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
         ArabicNormalizer.similarity(heardNorm, expected.normalized) >= 0.75;
 
     setState(() {
-      _heardText = (text == null || text.trim().isEmpty) ? '(rien entendu)' : text.trim();
+      _heardText = (text == null || text.trim().isEmpty)
+          ? AppLocalizations.of(context)!.tajwidHelpNothingHeard
+          : text.trim();
       _state = matches ? _LoopState.success : _LoopState.retry;
     });
 
@@ -437,6 +493,7 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -449,7 +506,7 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'RÉESSAYER CE MOT',
+            t.tajwidHelpRetryThisWord,
             style: GoogleFonts.manrope(
               fontSize: 10,
               letterSpacing: 1.2,
@@ -464,7 +521,7 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
                 const Icon(Icons.check_circle_rounded, color: AppColors.green700, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('Corrigé — entendu : "$_heardText"',
+                  child: Text(t.tajwidHelpCorrectedHeard(_heardText ?? ''),
                       style: GoogleFonts.manrope(fontSize: 13, color: AppColors.green700)),
                 ),
               ],
@@ -474,7 +531,7 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
-                  'Pas encore — entendu : "$_heardText". Réessaie, à ton rythme.',
+                  t.tajwidHelpNotYetHeard(_heardText ?? ''),
                   style: GoogleFonts.manrope(fontSize: 12.5, color: const Color(0xFFb00020)),
                 ),
               ),
@@ -498,10 +555,10 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
                 ),
                 label: Text(
                   _state == _LoopState.analyzing
-                      ? 'Analyse en cours…'
+                      ? t.tajwidHelpAnalyzing
                       : (_state == _LoopState.recording
-                          ? 'Terminer l\'enregistrement'
-                          : 'S\'enregistrer sur ce mot'),
+                          ? t.tajwidHelpFinishRecording
+                          : t.tajwidHelpRecordThisWord),
                   style: GoogleFonts.manrope(
                       fontWeight: FontWeight.w700,
                       color: _state == _LoopState.recording

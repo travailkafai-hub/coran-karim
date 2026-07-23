@@ -1670,11 +1670,29 @@ abstract class AppLocalizations {
   /// **'Choisis ton départ'**
   String get memorizationAyahPickerTitle;
 
-  /// Sous-titre expliquant pourquoi on demande un verset de départ
+  /// Sous-titre de l'étape 1 (choix de la page) expliquant pourquoi on demande un point de départ
   ///
   /// In fr, this message translates to:
-  /// **'{surah} est longue : choisis le verset où tu veux commencer à jouer'**
+  /// **'{surah} est longue : choisis d\'abord la page où tu veux commencer'**
   String memorizationAyahPickerSubtitle(String surah);
+
+  /// Libellé d'une puce de page dans le sélecteur de départ
+  ///
+  /// In fr, this message translates to:
+  /// **'Page {page}'**
+  String memorizationAyahPickerPageLabel(int page);
+
+  /// Sous-titre de l'étape 2 (choix du verset dans la page choisie)
+  ///
+  /// In fr, this message translates to:
+  /// **'Page {page} : choisis le verset où tu veux commencer à jouer'**
+  String memorizationAyahPickerAyahSubtitle(int page);
+
+  /// Bouton pour revenir de la sélection de verset à la sélection de page
+  ///
+  /// In fr, this message translates to:
+  /// **'Changer de page'**
+  String get memorizationAyahPickerBackToPages;
 
   /// Sous-titre de l'écran boussole Qibla
   ///
