@@ -25,20 +25,6 @@ const double _kSimThreshold = 0.6;
 // mais sans correspondance stricte est jugé "unclear" (orange : bon mot,
 // articulation imprécise) plutôt que "error" (rouge : mot faux).
 const double _kUnclearSimThreshold = 0.85;
-
-// Seuil du GOP TAJWID (« 2ᵉ palier », 2026-07-23) : marge minimale, à la
-// meilleure frame du mot, entre le score de la règle attendue et celui de la
-// classe gagnante (cf. AlignedWord.tajwidGop -- valeur ≤ 0, 0 = la règle
-// gagne). Une règle au-dessus du seuil compte comme RÉALISÉE.
-//
-// -1.2 en log ≈ un rapport de 0,30 avec la classe gagnante : une ghunnah à
-// 0,45 battue par un blanc à 0,50 (marge -0,11) passe largement, alors qu'une
-// règle réellement absente (typiquement plusieurs unités de log sous le
-// blanc) reste signalée. Volontairement TOLÉRANT : un faux « tu as raté cette
-// règle » sur une récitation correcte est bien plus coûteux pédagogiquement
-// qu'une règle limite laissée passer -- et c'est exactement ce que produisait
-// l'ancien critère binaire (décodage glouton), qui jetait toute la nuance.
-const double _kTajwidGopRealized = -1.2;
 const int _kLookahead = 3;
 const int _kAlignLookahead = 6; // tolérance mots sautés/bruit dans le texte reconnu (realign complet)
 
@@ -396,56 +382,6 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     TajwidRule.idghamMutaqaribayn,
   };
 
-  /// Règles d'ASSIMILATION / ÉLISION : appliquées correctement, elles font
-  /// DISPARAÎTRE acoustiquement la lettre écrite (2026-07-23, observation
-  /// utilisateur : « si j'applique l'idgham, le son de la lettre ne sera
-  /// peut-être pas reconnu »).
-  ///
-  /// Mesuré trois fois sur device, sur trois règles différentes :
-  ///   وَوَالِدٍ + idgham  -> entendu "وَوَالِدِ" (tanwin absorbé)
-  ///   لَّن يَقْدِرَ + idgham -> entendu "لَّمْ"    (ن fondu dans le ي, nasale ambiguë)
-  ///   ٱل- + ham_wasl     -> ٱ élidé, jamais détecté en flux continu
-  /// À chaque fois l'alignement forcé, qui exige la forme ÉCRITE, a compté
-  /// une faute de prononciation alors que la règle était bien réalisée.
-  static const _assimilationRules = {
-    TajwidRule.idghamGhunnah,
-    TajwidRule.idghamWoGhunnah,
-    TajwidRule.idghamShafawi,
-    TajwidRule.idghamMutajanisayn,
-    TajwidRule.idghamMutaqaribayn,
-    TajwidRule.iqlab,
-    TajwidRule.laamShamsiyah,
-    TajwidRule.hamWasl,
-    TajwidRule.slnt,
-  };
-
-  /// La tête TAJWID explique-t-elle le désaccord de la tête LETTRES sur ce mot ?
-  ///
-  /// Les deux têtes observent le MÊME événement sous deux angles : quand une
-  /// assimilation est correctement réalisée, la tête lettres constate que la
-  /// lettre écrite n'est pas prononcée (désaccord) pendant que la tête tajwid
-  /// constate que la règle est là (détection positive). Le désaccord est alors
-  /// la PREUVE de la bonne prononciation, pas une faute.
-  ///
-  /// Jusqu'ici cette information n'était jamais exploitée : la tête tajwid
-  /// n'était consultée QUE sur un mot déjà jugé correct par les lettres (elle
-  /// pouvait dégrader un vert, jamais sauver un rouge). Sur لَّن jugé rouge,
-  /// on n'a donc jamais su que l'idgham avait été bien fait.
-  ///
-  /// Garde-fou : on n'excuse QUE si le modèle a POSITIVEMENT détecté la règle
-  /// (gop tajwid au-dessus du seuil). Un mot réellement faux ne déclenche pas
-  /// la règle attendue, donc n'est pas excusé.
-  bool _tajwidExplainsMismatch(int wordIndex, List<double> gop) {
-    if (!_verifier.hasRuleHead || gop.isEmpty) return false;
-    if (wordIndex < 0 || wordIndex >= state.words.length) return false;
-    for (final r in state.words[wordIndex].expectedRules) {
-      if (!_assimilationRules.contains(r)) continue;
-      final i = r.index;
-      if (i < gop.length && gop[i] >= _kTajwidGopRealized) return true;
-    }
-    return false;
-  }
-
   /// Union des règles détectées sur les mots voisins immédiats de [wordIndex]
   /// (frontières gauche et droite). Lu depuis `state.words` -- valable en
   /// usage POST-HOC (classifyError, après que le jugement a écrit `state`).
@@ -462,85 +398,23 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   }
 
   List<TajwidRule> unrealizedRulesFor(int wordIndex, Set<TajwidRule> emitted,
-      {Set<TajwidRule>? neighborEmitted,
-      List<double>? tajwidGop,
-      List<double>? neighborTajwidGop,
-      // Le mot SUIVANT est-il lui aussi entierement couvert par l'audio de
-      // cette passe ? (2026-07-23, observation utilisateur : « la tete tajwid
-      // est en avance quand elle doit juger »).
-      //
-      // Une regle de JONCTION se realise a cheval sur la fin du mot courant ET
-      // le debut du suivant (idgham de وَوَالِدٍ dans le وَ de وَمَا). Juger des
-      // que le mot COURANT est couvert revient a trancher alors que la moitie
-      // de la preuve acoustique n'est pas encore dans le segment : la tete ne
-      // peut que conclure « non detectee », faute de matiere. On differe donc
-      // ces regles tant que le mot suivant n'est pas la -- elles seront jugees
-      // a une passe ulterieure, quand l'audio sera complet. Null = information
-      // indisponible (appel post-hoc) -> on ne differe pas.
-      bool? nextWordCovered}) {
+      {Set<TajwidRule>? neighborEmitted}) {
     if (_activeRules.isEmpty) return const [];
     if (!_verifier.hasRuleHead) return const [];
     if (wordIndex < 0 || wordIndex >= state.words.length) return const [];
-    final w = state.words[wordIndex];
-    final expected = w.expectedRules;
+    final expected = state.words[wordIndex].expectedRules;
     if (expected.isEmpty) return const [];
     final neigh = neighborEmitted ?? _neighborDetectedFromState(wordIndex);
-    final gop = tajwidGop ?? w.tajwidGop;
-    final neighGop = neighborTajwidGop ?? _neighborTajwidGopFromState(wordIndex);
-
-    // Une règle est considérée RÉALISÉE si :
-    //   (a) le décodage glouton l'a émise sur ce mot (`emitted`) -- critère
-    //       historique, équivalent à un gop tajwid de 0 ; OU
-    //   (b) son GOP TAJWID atteint le seuil (2ᵉ palier, 2026-07-23) : la
-    //       règle était présente dans le signal même si une autre classe
-    //       gagnait l'argmax à cette frame. C'est ce qui évite de déclarer
-    //       « non détectée » une ghunnah à 0,45 battue par un blanc à 0,50 ;
-    //   (c) pour une règle de JONCTION, l'un ou l'autre sur le mot voisin
-    //       de frontière (le jitter d'attribution ±1 est mesuré).
-    bool realized(TajwidRule r) {
-      if (emitted.contains(r)) return true;
-      final i = r.index;
-      if (i < gop.length && gop[i] >= _kTajwidGopRealized) return true;
-      if (_junctionRules.contains(r)) {
-        if (neigh.contains(r)) return true;
-        if (i < neighGop.length && neighGop[i] >= _kTajwidGopRealized) {
-          return true;
-        }
-      }
-      return false;
-    }
-
     return [
       for (final r in expected)
         if (_activeRules.contains(r) &&
-            !realized(r) &&
-            // Regle de jonction sans le mot suivant : preuve acoustique
-            // incomplete, on ne conclut pas (cf. nextWordCovered).
-            !(_junctionRules.contains(r) && nextWordCovered == false))
+            !emitted.contains(r) &&
+            // Règle de jonction : tolère la détection sur le voisin de
+            // frontière (cf. _junctionRules). Les règles intra-mot (madda,
+            // ghunnah, qalaqah, slnt, laam_shamsiyah) restent strictes.
+            !(_junctionRules.contains(r) && neigh.contains(r)))
           r,
     ];
-  }
-
-  /// Meilleur GOP tajwid par classe sur les voisins immédiats de [wordIndex]
-  /// (union par le max : la règle compte comme réalisée si l'un des deux la
-  /// porte). Usage POST-HOC, cf. [_neighborDetectedFromState].
-  List<double> _neighborTajwidGopFromState(int wordIndex) {
-    final out = <double>[];
-    void merge(List<double> g) {
-      for (var i = 0; i < g.length; i++) {
-        if (i >= out.length) {
-          out.add(g[i]);
-        } else if (g[i] > out[i]) {
-          out[i] = g[i];
-        }
-      }
-    }
-
-    if (wordIndex - 1 >= 0) merge(state.words[wordIndex - 1].tajwidGop);
-    if (wordIndex + 1 < state.words.length) {
-      merge(state.words[wordIndex + 1].tajwidGop);
-    }
-    return out;
   }
 
   /// Règles détectées portées par [w], converties depuis les ids du modèle.
@@ -2103,14 +1977,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
 
   void _judge(List<RecitedWord> words, int i, WordStatus judged,
       {required bool lock, List<int>? newErrors, String? heard,
-      Set<TajwidRule>? detectedRules, List<double>? tajwidGop}) {
+      Set<TajwidRule>? detectedRules}) {
     if (words[i].locked) return;
     // `heard` : ce qui a été réellement entendu, conservé sur le mot pour
     // pouvoir CLASSER l'erreur ensuite (lettre / harakat / tajwid) --
     // cf. RecitationErrorKind. Passage unique par _judge, donc un seul
     // endroit à alimenter.
     words[i] = words[i].copyWith(status: judged, locked: lock, heard: heard,
-        detectedRules: detectedRules, tajwidGop: tajwidGop);
+        detectedRules: detectedRules);
     // Rouge (faux), orange (imprécis) ET gris (sauté) déclenchent la
     // correction — demande utilisateur 2026-07-05 (rouge/orange) puis
     // 2026-07-06 (sauté) : "pour moi c'est une erreur aussi" — sauter un mot
@@ -2659,12 +2533,6 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     final detectedByIndex = <int, Set<TajwidRule>>{
       for (final r in p.words) r.index: _rulesOf(r),
     };
-    // Idem pour le GOP tajwid gradué (2ᵉ palier) : nécessaire à la tolérance
-    // de frontière des règles de jonction, qui doit pouvoir lire le score du
-    // mot voisin AVANT que `state` soit écrit.
-    final gopByIndex = <int, List<double>>{
-      for (final r in p.words) r.index: r.tajwidGop,
-    };
 
     for (final r in p.words) {
       if (r.index < 0 || r.index >= words.length) continue;
@@ -2755,12 +2623,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           (expected.strict.endsWith(actualStrict) ||
               expected.strict.startsWith(actualStrict) ||
               isOrderedSubsequence);
-      // Le desaccord lettres est-il EXPLIQUE par une assimilation bien
-      // realisee (cf. _tajwidExplainsMismatch) ? Si oui, ce n'est pas un
-      // "autre mot" : c'est la forme assimilee du mot attendu.
-      final tajwidExplains = _tajwidExplainsMismatch(r.index, r.tajwidGop);
-      final spellsDifferentWord =
-          hasSpeech && !textMatches && !isFragment && !tajwidExplains;
+      final spellsDifferentWord = hasSpeech && !textMatches && !isFragment;
 
       // Recentré sur la ligne de base du mot (cf. _normalizedGop) : sur un
       // mot structurellement dur (moyenne connue négative), r.gop brut serait
@@ -2815,11 +2678,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           // different) donc textMatches=false. Si ce test est concluant sans
           // faux positifs, le rendre definitif ; sinon le remplacer par le fix
           // de fond (GOP invariant au decoupage / alignement squelette).
-          (normGop >= _gopCorrect || textMatches ||
-              // Assimilation correctement realisee : la lettre ecrite ne
-              // DOIT pas s'entendre, le gop des lettres s'effondre donc
-              // legitimement. Les deux tetes concordent, on valide.
-              tajwidExplains)) {
+          (normGop >= _gopCorrect || textMatches)) {
         judged = WordStatus.correct;
       } else if (normGop >= _gopUnclear ||
           ArabicNormalizer.similarity(actualNorm, expected.normalized) >=
@@ -2893,31 +2752,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // audio est complet ET il a du contexte des deux côtés), indépendamment
       // de la finalité du segment. C'est exactement la condition dont la tête
       // a besoin, et elle est vraie sur la grande majorité des aperçus.
-      // Meilleur GOP tajwid des voisins de frontière (union par le max), pour
-      // la tolérance des règles de jonction -- même raison que
-      // `neighborDetected` : lu depuis le segment courant, pas depuis `state`.
-      final neighborGop = <double>[];
-      for (final g in [gopByIndex[r.index - 1], gopByIndex[r.index + 1]]) {
-        if (g == null) continue;
-        for (var i = 0; i < g.length; i++) {
-          if (i >= neighborGop.length) {
-            neighborGop.add(g[i]);
-          } else if (g[i] > neighborGop[i]) {
-            neighborGop[i] = g[i];
-          }
-        }
-      }
       final unrealized = (expected.isBasmala || !r.covered)
           ? const <TajwidRule>[]
           : unrealizedRulesFor(r.index, detected,
-              neighborEmitted: neighborDetected,
-              tajwidGop: r.tajwidGop,
-              neighborTajwidGop: neighborGop,
-              // Le mot suivant est-il couvert DANS CETTE PASSE ? Sert a
-              // differer les regles de jonction dont la preuve acoustique
-              // est encore a moitie absente.
-              nextWordCovered:
-                  p.words.any((w) => w.index == r.index + 1 && w.covered));
+              neighborEmitted: neighborDetected);
       if (unrealized.isNotEmpty && judged == WordStatus.correct) {
         judged = WordStatus.unclear;
         // Libellé « NON DETECTEE » et non « non réalisée » (correctif
@@ -2931,28 +2769,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         // buffer. L'ancien libellé accusait le récitant d'une faute que le
         // système ne peut pas établir ; cf. la même mise en garde déjà
         // présente dans classifyError.
-        // gopTajwid des règles ATTENDUES : c'est ce qui permet de trancher
-        // a posteriori entre « le récitant ne l'a pas faite » (marge très
-        // négative) et « le modèle l'a vue mais dominée » (marge proche de 0,
-        // sous le seuil de peu) -- impossible à distinguer avec l'ancien log
-        // binaire. Affiché même quand la règle est jugée non détectée, pour
-        // pouvoir recalibrer _kTajwidGopRealized sur des cas réels.
-        final gopInfo = expected.expectedRules
-            .map((x) {
-              final g = r.tajwidGop;
-              final i = x.index;
-              return i < g.length
-                  ? '${x.key}=${g[i].toStringAsFixed(2)}'
-                  : '${x.key}=n/a';
-            })
-            .join(",");
         DiagnosticLog.log(
             'TAJWID',
             'mot=${r.index} "${expected.display}" regle(s) NON DETECTEE(S) : '
                 '${unrealized.map((x) => x.key).join(",")}'
                 ' | attendues=${expected.expectedRules.map((x) => x.key).join(",")}'
-                ' emises=${detected.map((x) => x.key).join(",")}'
-                ' gopTajwid[$gopInfo] seuil=$_kTajwidGopRealized');
+                ' emises=${detected.map((x) => x.key).join(",")}');
       }
       // Une erreur ne se verrouille QUE sur un segment figé (décision
       // utilisateur 2026-07-10, conservée) : un aperçu peut encore mal couvrir
@@ -2979,7 +2801,6 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           'entendu="${r.actual}"'
           '${spellsDifferentWord ? " autreMot=OUI" : ""}'
           '${isFragment ? " fragment" : ""}'
-          '${tajwidExplains ? " assimilationOK" : ""}'
           ' -> $judged (lock=$lock, final=${p.isFinal})'
           ' | $_modeTag');
       // `heard` = transcription BRUTE (symboles de règles conservés) et non
@@ -2988,7 +2809,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // Les normalisations sont réappliquées à la lecture (classifyError).
       _judge(words, r.index, judged,
           lock: lock, newErrors: newErrors, heard: r.actual,
-          detectedRules: detected, tajwidGop: r.tajwidGop);
+          detectedRules: detected);
     }
 
     // Capture de clip (mini-LoRA personnalisation vocale) : ne retenir ce

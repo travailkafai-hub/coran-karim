@@ -44,27 +44,6 @@ class AlignedWord {
   // à ne PAS confondre avec « aucune règle réalisée », d'où [hasRuleHead].
   final List<DetectedRule> detectedRules;
 
-  /// GOP TAJWID gradué, par classe de règle (index = id de règle, même ordre
-  /// que `rules.json` / [TajwidRule.values]) — « 2ᵉ palier » (2026-07-23,
-  /// idée utilisateur : « la tête 1 fait l'alignement, la tête tajwid juge le
-  /// tajwid, donc on doit avoir DEUX gop »).
-  ///
-  /// [detectedRules] ci-dessus vient d'un décodage GLOUTON : tout-ou-rien. Si
-  /// à sa meilleure frame la ghunnah est à 0,45 et le blanc à 0,50, l'argmax
-  /// prend le blanc et la règle ressort « non détectée » alors qu'elle était
-  /// clairement présente — c'est ce qui produisait des `emises=` vides sur des
-  /// règles pourtant réalisées.
-  ///
-  /// Ici on garde la mesure CONTINUE : pour chaque classe, la meilleure marge
-  /// sur les frames du mot entre le score de la classe et celui de la classe
-  /// gagnante à la même frame. Toujours ≤ 0 :
-  ///   `0`            → la règle est la classe gagnante (réalisation nette)
-  ///   `-0,5 / -1,5`  → présente mais dominée (réalisation partielle)
-  ///   très négatif   → absente
-  /// C'est la forme d'un gop (`forced − free`) appliquée à la tête 2. Vide si
-  /// le modèle chargé n'a qu'une seule tête.
-  final List<double> tajwidGop;
-
   const AlignedWord({
     required this.index,
     required this.gop,
@@ -74,13 +53,7 @@ class AlignedWord {
     this.rescoreMargin,
     this.rescoreHeard,
     this.detectedRules = const [],
-    this.tajwidGop = const [],
   });
-
-  /// GOP tajwid de la règle [ruleId], ou null si non mesurable (modèle à une
-  /// seule tête, ou id hors plage).
-  double? gopForRule(int ruleId) =>
-      (ruleId >= 0 && ruleId < tajwidGop.length) ? tajwidGop[ruleId] : null;
 }
 
 /// Une règle de tajwid détectée par la tête 2, avec sa confiance.
@@ -139,12 +112,6 @@ class AlignPayload {
               if (r is Map)
                 DetectedRule((r['id'] as num).toInt(),
                     (r['prob'] as num?)?.toDouble() ?? 0.0),
-          ],
-          // GOP tajwid gradué par classe (cf. AlignedWord.tajwidGop). Clé
-          // absente sur un modèle à une seule tête -> liste vide.
-          tajwidGop: [
-            for (final g in (w['tajwidGop'] as List? ?? const []))
-              if (g is num) g.toDouble(),
           ],
         ));
       }

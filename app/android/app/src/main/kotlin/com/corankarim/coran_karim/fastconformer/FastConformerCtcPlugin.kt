@@ -308,8 +308,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         if (anchor < it.size) it.subList(anchor, it.size) else null
                     }
                     var res = aligner.align(logprobs, slice, anchor, isFinal = true,
-                                            wordVariants = variantsSlice, segmentRules = segmentRules,
-                                            tajwidLogprobs = outputs.tajwid)
+                                            wordVariants = variantsSlice, segmentRules = segmentRules)
                     if (res == null) {
                         withContext(Dispatchers.Main) { result.success(null) }
                         return@launch
@@ -329,8 +328,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     if (deferred != null) {
                         val retried = aligner.align(
                             logprobs, slice, anchor, forceJudgeIndex = deferred, isFinal = true,
-                            wordVariants = variantsSlice, segmentRules = segmentRules,
-                            tajwidLogprobs = outputs.tajwid)
+                            wordVariants = variantsSlice, segmentRules = segmentRules)
                         if (retried != null) res = retried
                     }
                     val payload = mapOf(
@@ -350,9 +348,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                                 (if (it.detectedRules.isEmpty()) emptyMap() else mapOf(
                                     "rules" to it.detectedRules.map { r ->
                                         mapOf("id" to r.ruleId, "prob" to r.prob.toDouble())
-                                    })) +
-                                (if (it.tajwidGop.isEmpty()) emptyMap() else mapOf(
-                                    "tajwidGop" to it.tajwidGop.map { g -> g.toDouble() }))
+                                    }))
                         },
                     )
                     withContext(Dispatchers.Main) { result.success(payload) }
