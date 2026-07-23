@@ -29,6 +29,10 @@ Tout entraînement/export/diagnostic de modèle : invoquer le skill
   chaque nouveau run va dans un nouveau dossier `benchmark/models/...`, les
   modèles déployés sont préservés dans `benchmark/models_deployes/`, le
   `.nemo` de base NVIDIA n'est jamais modifié.
+  → Corollaire : pour libérer de l'espace, on **déplace** un run vers le HDD,
+  on ne le supprime jamais (cf. §"Runs archivés sur le HDD" plus bas). Un
+  dossier absent de `benchmark/models/` n'est donc PAS une preuve que le run
+  n'existe plus — vérifier le HDD avant de conclure ou de relancer.
 - **Métrique CTC** : lire `val_wer_ctc` uniquement. `val_wer` (tête RNNT
   historiquement gelée) = bruit, toujours ignorer.
 - **Modèle déployé sur le téléphone** : dossier device
@@ -48,6 +52,39 @@ Tout entraînement/export/diagnostic de modèle : invoquer le skill
   changement en cours a introduit, et aucun retour en arrière ciblé n'est
   possible (cf. "aucune piste n'est éliminée tant que le retour en arrière
   est possible" plus haut — un commit est CE point de retour).
+  → **Comment faire ce commit concrètement** (ajouté 2026-07-23 après un
+  rappel de l'utilisateur : la règle existait, elle a quand même été oubliée
+  au moment de coder). L'arbre de travail porte en permanence un **gros état
+  non commité PRÉEXISTANT** — mesuré ce jour-là : 147 fichiers modifiés sous
+  `app/`, **115 fichiers supprimés** (`app/assets/mindmaps/*.json`,
+  `.claude/scheduled_tasks.lock`...), plus des dossiers non suivis
+  (`app/android/build/`, `HANDOFF_UBUNTU*.md`, mindmaps `ar/en/fr/`).
+  Ce bruit n'appartient PAS à la session en cours.
+  ⇒ **Ne JAMAIS faire `git add -A` / `git commit -a`.** Committer fichier par
+  fichier, en connaissance de cause.
+  ⇒ Pour isoler ce que la session a réellement touché, comparer les dates de
+  modification au timestamp du dernier commit — c'est fiable et instantané :
+  ```bash
+  git status --porcelain | grep "^ M" | sed 's/^ M //' | while read -r f; do
+    m=$(stat -c %Y "$f"); [ "$m" -gt "$(git log -1 --format=%ct)" ] && \
+      echo "$(date -d @$m +%H:%M)  $f"
+  done | sort
+  ```
+
+- **Toucher à la segmentation ASR (`BufferedTranscriber`) sans mesure préalable
+  hors device = perte de temps garantie** (décision 2026-07-23, après une
+  journée entière). Ce jour-là, QUATRE correctifs « évidents » ont été testés
+  et **tous rejetés par la mesure** : stats de normalisation fixes (ne corrige
+  rien ET +1,28 pt de WER), désactivation du portier RMS (70,2 % contre
+  22,8 %), coupe à chaque pause (103,5 %), fenêtre glissante naïve (WER > 100 %
+  par duplication de texte). Le code en place s'est révélé le moins mauvais.
+  Bancs à utiliser AVANT de modifier une ligne de Kotlin :
+  | Banc | Ce qu'il répond |
+  |---|---|
+  | `benchmark/analyze_device_log.py <log>` | ce qu'a vraiment fait l'app (texte figé, blocages d'ancre, audio jeté par le portier, régressions d'aperçu) |
+  | `benchmark/simulate_sliding_window.py` | rejoue une politique de segmentation bloc par bloc sur du vrai audio et sort son WER |
+  | `benchmark/test_norm_fixed_vs_perfeature.py` | effet de la normalisation, du silence et de la longueur du buffer |
+  Détail des mesures et des trois hypothèses mortes : `FONCTIONNALITES_FUTURES.md` §4.
 - **Export ONNX vers l'app : TOUJOURS `audio_signal` (mel), JAMAIS `raw_audio`**
   (piège tombé DEUX fois : 2026-07-13 puis 2026-07-19). Le plugin Kotlin
   calcule le mel-spectrogramme lui-même (`MelSpectrogram.kt`) et appelle le
@@ -101,3 +138,55 @@ Tout entraînement/export/diagnostic de modèle : invoquer le skill
   comportement d'avant, inchangé.
 - `benchmark/.venv` et `.venv_nemotron` sont des venvs **Windows**
   (`Scripts/`, inutilisables ici) ; `.venv_tts` est Linux mais sans NeMo.
+- **Les deux disques sont en NTFS** : SSD monté en `fuseblk` (ntfs-3g), HDD en
+  `ntfs3`. Conséquences : pas de permissions POSIX fiables (utiliser
+  `rsync --no-perms --no-owner --no-group`, sinon erreurs à répétition), et
+  les caractères `: ? * < > | "` sont **interdits** dans les noms de fichiers
+  — vérifier avant toute copie de checkpoints, un nom invalide fait échouer la
+  copie. Les `=` des noms NeMo (`epoch=09-val_wer_ctc=0.059.ckpt`) passent
+  sans problème. Les symlinks fonctionnent malgré le symlink cassé du venv
+  (celui-ci vient d'un reparse tag Windows, pas d'une limite du FS).
+
+## Runs archivés sur le HDD (2026-07-20) — CHERCHER ICI avant de conclure
+
+Pour libérer le SSD (79 Go → 180 Go libres), 20 runs terminés ont été
+**déplacés** (jamais supprimés) du SSD vers le HDD, **en conservant le chemin
+relatif** — seule la racine disque change :
+
+```
+/media/kafai/NouveauNom/Coran Karim/benchmark/models/<X>   (SSD, avant)
+/run/media/kafai/HDD/Coran Karim/benchmark/models/<X>      (HDD, maintenant)
+```
+
+Chaque dossier a été copié puis vérifié (nombre de fichiers **et** taille en
+octets identiques) avant suppression de la source — 20/20 OK, aucun échec.
+
+**Runs déplacés** (~105 Go) :
+- **Toute la piste Whisper** (15 dossiers) : `whisper-medium-ft`,
+  `whisper-small-ft`, `whisper-small-ft-clean`, `whisper-medium-ft-fixed-tok`,
+  `whisper-medium-ft-onnx`, `whisper-medium-ft-onnx-int8`, `whisper-full-ft`,
+  `whisper-largev3turbo-quran`, `whisper-medium-quran`, `whisper-phase4-noisy`,
+  `whisper-base-ft`, `whisper-small-ft-onnx`, `whisper-small-ft-onnx-int8`,
+  `whisper-medium-sherpa`, `whisper-tiny-ar-quran`
+- **FastConformer pré-tajweed** : `fastconformer-quran`,
+  `fastconformer-quran-augmented`, `fastconformer-quran-pcd`
+- **Gros Gemma régénérables** : `gemma-4-E2B-it` (modèle de base),
+  `gemma-4-E2B-tutor-v6-merged`
+
+**Restés sur le SSD** (pistes actives ou récentes, accès rapide) :
+`fastconformer-quran-hybrid-v1` (run hybride en cours),
+`fastconformer-quran-tajweed-mixed` (source du modèle déployé, epoch 14),
+`fastconformer-quran-tajweed`, `-tajweed-v2`, `-tajweed-augmented`, les LoRA
+Gemma, `sherpa-arabic-*`. `benchmark/models_deployes/` n'a pas été touché.
+
+⚠️ Un run archivé reste **parfaitement utilisable** : il suffit de pointer le
+chemin HDD, ou de le recopier sur le SSD si l'I/O compte. Ne jamais le
+réentraîner en croyant qu'il a été perdu.
+
+Non déplacé volontairement : `benchmark/data/train_wav_local/` (213 Go) est un
+**doublon exact** de `/run/media/kafai/HDD/Coran Karim/benchmark/data/train_wav/`
+(414 569 fichiers de chaque côté, arborescences identiques, MD5 identiques sur
+échantillon). Décision utilisateur 2026-07-20 : on garde la copie SSD pour la
+vitesse d'entraînement (414 k petits fichiers en accès aléatoire depuis un
+disque à plateaux = goulot d'étranglement probable). C'est la réserve d'espace
+la plus évidente si le SSD resature — la supprimer ne perd aucune donnée.

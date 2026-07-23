@@ -220,6 +220,66 @@ Changement d'architecture conséquent côté moteur natif Kotlin — pas encore
 implémenté, en attente d'une décision sur la priorité par rapport aux
 autres chantiers ASR en cours.
 
+### Mesures du 2026-07-23 — ce qui est vrai, ce qui est faux
+
+Déclencheur : sur le log device `asm.log` (sourate 90), le verset 90:11
+(فَلَا ٱقْتَحَمَ ٱلْعَقَبَةَ) n'a JAMAIS été validé alors qu'il avait été
+correctement transcrit une fois — la transcription s'effondrait quand le
+buffer grossissait (3 mots justes à 1s → 1 mot à 3s → "" à 4s), donc
+`mots=0` sept fois et ancre figée à 42 pendant 22s. Corrélation 3/3 sur la
+session : les seuls segments où l'aperçu régresse sont les 3 intervalles où
+le portier RMS jette massivement de l'audio.
+
+Script : `benchmark/test_norm_fixed_vs_perfeature.py` (+ variantes inline),
+modèle `fastconformer-dual-head-v1`, 12 clips `val_canonical` 6-9s avec
+hésitation simulée (4 pauses de 2s insérées).
+
+**Trois hypothèses testées, TROIS REJETÉES** — à ne pas re-tenter :
+
+1. *"C'est la dérive de normalisation per_feature, des stats FIXES la
+   corrigeront"* (piste notée en fin de header de `BufferedTranscriber.kt`,
+   jamais testée avant). **FAUX deux fois** : les stats fixes ne suppriment
+   pas l'effondrement (transcription altérée 6/7 dans les deux modes) ET
+   coûtent du WER (12,99% → 14,27%, +1,28 pt sur 150 clips) — le checkpoint
+   n'a jamais vu ces stats à l'entraînement. La longueur seule ne dégrade
+   d'ailleurs rien (7,3s se transcrit mieux que 1,8s), et 3s de silence
+   ajoutés *à la fin* n'ont aucun effet (10,6% → 10,6%).
+2. *"Le portier RMS est le coupable, il faut le désactiver"*. **FAUX** :
+   sans lui, le silence conservé entier donne 70,2% de WER contre 22,8%
+   avec. C'est un pansement utile, pas un bug.
+3. *"Il faut couper le segment à chaque pause au lieu de recoller"*.
+   **FAUX, et c'est le pire** : 103,5% de WER. Des fragments de ~1,3s
+   privent le modèle de contexte et génèrent des insertions.
+
+```
+audio propre (référence)                       10,5 %
+recollage — COMPORTEMENT ACTUEL                22,8 %   <- le moins mauvais
+silence conservé entier (portier désactivé)    70,2 %
+coupe à chaque pause (450ms ou 250ms)         103,5 %
+```
+
+**Conclusion : le code actuel est déjà optimal parmi ces options.** Il n'y a
+pas de bug de segmentation à corriger. La cause réelle est un DÉCALAGE DE
+DOMAINE — le modèle est entraîné sur des clips de versets propres et
+continus, il n'a jamais vu de récitation hésitante, et toute pause interne
+le fait dérailler quelle que soit la façon dont on la traite.
+→ Le vrai correctif est côté ENTRAÎNEMENT : augmenter les données avec des
+pauses insérées (pleines ET recollées façon portier RMS). Pure augmentation
+audio sur le corpus existant, aucune collecte nouvelle. Cf. §5.
+
+**Ce qui reste valable pour la fenêtre glissante** : la dégradation suit le
+NOMBRE DE COUTURES créées par le portier — 10 coutures (3s de silence jeté)
+→ 27,7% de WER, 20 coutures (6s) → 59,6%, contre 10,6% propre. Une fenêtre
+de taille fixe **borne** ce nombre par construction. Elle ne guérit pas
+l'hésitation (seul l'entraînement le peut) mais elle plafonne les dégâts —
+c'est un gain mesuré, et c'est le meilleur argument pour cette piste.
+
+⚠️ Ne pas confondre avec le **streaming cache-aware**, lui bel et bien
+essayé et abandonné (verdict 2026-07-04, header de `BufferedTranscriber.kt`) :
+convolutions non-causales → décodage 100% blank. La fenêtre glissante
+re-transcrit une fenêtre ENTIÈRE en mode offline, sans cache — elle ne tombe
+pas dans cet échec.
+
 ---
 
 ## 5. Pistes pour un prochain entraînement — découvertes pendant la refonte GOP (2026-07-11)
@@ -305,3 +365,319 @@ le dictionnaire mot→IDs de tokens avec le vrai tokenizer NeMo
 asset à côté de `vocab.json`. Élimine tout risque de divergence entre la
 tokenisation utilisée pour l'alignement et celle réellement apprise par le
 modèle — à régénérer et redéployer à chaque nouveau checkpoint entraîné.
+
+---
+
+## 6. Encoder les RÈGLES de tajwid (pas juste les marques) dans le texte d'entraînement — idée utilisateur, 2026-07-13
+
+### Le problème / l'idée
+
+Le modèle CTC actuel (tajweed, val_wer_ctc 5.82%, cf. session 2026-07-12/13)
+apprend déjà les MARQUES écrites du tajwid préservées dans le texte (wasla,
+dagger alif, maddah, waqf, sajda — cf. `prepare_nemo_tajweed.py`). Mais les
+RÈGLES classiques de tajwid (idghâm, ikhfâ', iqlâb, qalqala, les 4 nuances
+de madd...) n'ont PAS de symbole écrit distinct dans le texte Uthmani
+standard — elles se déduisent de la séquence des lettres, et ne sont
+aujourd'hui exploitées dans l'app que pour de la COULEUR d'affichage (pas
+vérifiées à la récitation).
+
+Idée : puisque ces règles ont chacune une vraie signature acoustique
+(assimilation, nasalisation, rebond, allongement), inventer un symbole par
+règle (ou famille de règles), l'insérer dans le texte d'entraînement aux
+positions concernées, et laisser le modèle apprendre à les reconnaître —
+exactement comme il a appris le madd/waqf/sajda. Objectif final : pouvoir
+comparer une récitation non seulement au texte + harakat, mais au texte +
+règles de tajwid, et détecter qu'une règle précise n'a pas été respectée
+(pas seulement que le mot est mal prononcé).
+
+### Bonne nouvelle : la source de données annotée existe déjà dans le projet
+
+Pas besoin de la chercher ni de la construire : l'app récupère déjà depuis
+l'API quran.com le champ `text_uthmani_tajweed`, qui contient le texte avec
+des balises `<tajweed class=X>...</tajweed>` marquant précisément quelles
+lettres relèvent de quelle règle. **17 classes déjà catalogées et
+vérifiées** dans `app/lib/widgets/tajweed_text.dart` (`_classColors`) :
+madda_necessary, madda_obligatory, madda_permissible, madda_normal,
+ghunnah, ikhafa, ikhafa_shafawi, idgham_ghunnah, idgham_shafawi, iqlab,
+idgham_wo_ghunnah, idgham_mutajanisayn, idgham_mutaqaribayn,
+laam_shamsiyah, ham_wasl, slnt, qalaqah — aujourd'hui mappées à des
+couleurs, à remapper vers des symboles textuels pour l'entraînement.
+
+Piège déjà documenté à ne pas retraverser (même fichier, commentaire
+2026-07-10) : `text_uthmani_tajweed` ne contient PAS toujours exactement
+les mêmes caractères que `text_uthmani` une fois les balises retirées
+(4278/6236 versets diffèrent, ex. dagger alif ٰ remplacé par ٲ U+0672) —
+toujours ancrer les caractères affichés/entraînés sur `text_uthmani`
+canonique, et n'utiliser `text_uthmani_tajweed` QUE comme source de
+règle/position, jamais comme source de caractères (cf. `_remapWordColors`
+et son commentaire pour le pattern déjà validé côté app).
+
+### Ampleur du chantier si repris
+
+Comparable à ce qui vient d'être fait pour le tajweed actuel : télécharger
+`text_uthmani_tajweed` pour les 114 sourates (même API/méthode que les
+téléchargements tafsir), convertir les classes en symboles réservés,
+reconstruire le tokenizer BPE (nouveau vocabulaire), régénérer les
+manifests, et réentraîner (`change_vocabulary` + fine-tuning complet,
+comme fait pour la bascule pc→pcd→tajweed). Non prioritaire tant que le
+modèle tajweed actuel n'est pas validé en usage réel sur l'appareil.
+
+---
+
+## 7. Export ONNX end-to-end (audio brut) au lieu de mel calculé côté Kotlin — piste, 2026-07-13
+
+### Le constat
+
+En déployant le modèle tajweed, confusion entre deux formats d'export
+possibles pour FastConformer CTC, tous deux déjà écrits dans le projet :
+
+1. **Mel calculé côté Kotlin** (`export_pcd_checkpoint.py`, `model.export()`
+   natif NeMo) : le plugin (`FastConformerCtc.kt`, `MelSpectrogram.kt`)
+   calcule lui-même le mel-spectrogramme et l'envoie à l'ONNX sous le nom
+   `audio_signal` + `length` — l'ONNX ne contient QUE encodeur+décodeur CTC.
+   **C'est le format réellement utilisé aujourd'hui par l'app.**
+2. **Pipeline E2E audio brut** (`export_pcd_full_pipeline.py`,
+   `export_tajweed_full_pipeline.py`) : l'ONNX prend l'audio brut
+   (`raw_audio` + `length`) et fait TOUT en interne, y compris le calcul
+   mel — pensé justement pour éviter d'avoir à maintenir ce calcul (FFT,
+   fenêtrage, dither, log-guard) dupliqué et synchronisé à la main entre
+   Python (entraînement) et Kotlin (inférence mobile). **Écrit, validé
+   (PyTorch==ONNX), mais jamais branché côté Kotlin** — le plugin envoie
+   toujours `audio_signal`, pas `raw_audio`, donc ce format E2E casse la
+   transcription si déployé tel quel (constaté en déployant le modèle
+   tajweed le 2026-07-13 : `Unknown input name audio_signal, expected one
+   of [raw_audio, length]`).
+
+### L'avantage du format E2E, s'il était un jour branché
+
+Élimine un risque de divergence silencieuse déjà bien réel dans ce projet
+(cf. §5.3 : la normalisation d'entraînement et celle de comparaison avaient
+déjà dérivé sans que personne ne le remarque immédiatement). Le calcul mel
+est une étape numérique fine (fenêtrage exact, dither, garde logarithmique)
+— la reproduire à l'identique en Kotlin est un risque permanent de bug
+subtil (résultats légèrement différents de l'entraînement, dégradant le
+WER sans erreur visible). Le format E2E supprime ce risque : Kotlin n'a
+plus qu'à envoyer les échantillons audio bruts, le graphe ONNX fait
+exactement ce que PyTorch a fait à l'entraînement.
+
+### Ce qu'il faudrait pour le brancher réellement
+
+Réécrire `FastConformerCtc.kt` (et `MelSpectrogram.kt` deviendrait inutile)
+pour envoyer `raw_audio`/`length` au lieu du mel précalculé — changement
+côté app, pas côté modèle (le graphe ONNX E2E est déjà prêt et validé).
+Non prioritaire tant que le format mel-côté-Kotlin actuel fonctionne
+correctement (cf. §5.3 pour le vrai risque : s'assurer que le mel Kotlin
+reste synchronisé avec celui de l'entraînement à chaque changement).
+
+---
+
+## 8. Corpus de récitations à harakat délibérément fautives — repris de la session Windows, 2026-07-14
+
+### Le problème (déjà documenté ailleurs, jamais construit)
+
+`.claude/skills/model-training/references/asr.md` (§"Biais du modèle vers
+le texte canonique", 2026-07-05) documente un bug réel et déjà observé :
+si l'utilisateur récite volontairement une harakat fautive (ex. "الحمدِ"
+avec kasra au lieu de "الحمدُ" attendu avec damma), le modèle transcrit
+correctement l'erreur sur un aperçu court (peu de contexte), puis "corrige"
+tout seul vers le texte canonique dès qu'il a plus de contexte — alors que
+l'utilisateur n'a rien redit de travers. Cause probable : le corpus
+d'entraînement ne contient QUE des récitations correctes (aucune paire
+audio/texte fautive), donc pour les formules très répétées le modèle a
+appris "ce son → exactement ce texte canonique" avec une confiance
+écrasante.
+
+Cette piste était déjà "discutée avec l'utilisateur, PAS implémentée"
+dans le doc Windows d'origine, et **reste non implémentée** : vérifié
+2026-07-14, aucun dataset de ce type n'existe sur le disque (`arabic_speech_corpus/`
+est un corpus académique générique sans lien avec le Coran ni avec des
+erreurs délibérées ; les manifests `manifest_youtube_bad/clean.jsonl` sont
+un tri qualité ASR, pas des erreurs volontaires).
+
+### Idée retenue à l'époque : auto-étiquetage par erreur volontaire
+
+Protocole envisagé (2026-07-05) : quelqu'un qui sait exactement quelle
+erreur il vient de faire enregistre une récitation délibérément fautive
+(harakat inversée, mot substitué/sauté), étiquetée avec le texte
+**réellement dit** (fautif), jamais le texte corrigé — coller le texte
+canonique en face d'un audio fautif reproduirait exactement le mécanisme
+qui a créé le biais. Limite déjà notée : ne scale pas à des milliers
+d'heures (dépend d'un humain qui s'auto-corrige consciemment).
+
+### Complément évoqué le 2026-07-14 : synthèse TTS pour scaler le volume
+
+Repris en session le 2026-07-14 (référence floue à un sigle "RLS20%" —
+non identifié avec certitude, l'utilisateur ne se souvenait plus du terme
+exact utilisé dans la session Windows d'origine ; **à clarifier si
+retrouvé**). L'idée sous-jacente évoquée : utiliser un moteur TTS arabe
+pour SYNTHÉTISER de l'audio avec des harakat volontairement fausses,
+plutôt que de dépendre uniquement d'enregistrements humains — un TTS
+permet de générer à volonté n'importe quelle combinaison harakat/texte
+avec un étiquetage garanti exact (on contrôle exactement ce qu'on demande
+au moteur de prononcer), réglant le problème de scalabilité du protocole
+d'auto-étiquetage humain. Contrepartie à évaluer si repris : l'acoustique
+TTS diffère de la voix humaine (risque de sur-ajustement à des artefacts
+de synthèse plutôt qu'à la vraie confusion harakat) — mélanger avec une
+petite quantité d'erreurs humaines réelles (protocole ci-dessus) plutôt
+que de tout synthétiser. Ratio évoqué mais non confirmé : ~20% du corpus
+total en erreurs délibérées (synthétiques et/ou humaines), reste à valider
+par expérimentation avant de s'engager sur ce chiffre.
+
+### Statut
+
+Piste non prioritaire au moment de la rédaction initiale, distincte du fix
+de normalisation 2026-07-14 (§5.3) et du bug BPE/alignement — n'affecte pas
+la fiabilité du suivi de couleur, seulement le biais du modèle en cas de
+faute réelle de l'utilisateur. **Confirmée par un test réel le 2026-07-14**
+(cf. §8bis ci-dessous) : substitution volontaire ص/س sur Sourate An-Nas,
+gop=0.00 partout, aucune détection — preuve concrète du biais, pas
+seulement théorique. Deux pistes de mise en œuvre concrètes proposées et
+en cours d'implémentation (§8bis et §8ter).
+
+---
+
+## 8bis. Montage audio par lettres confusables — piste modèle de BASE, 2026-07-14
+
+### Le principe : "chemin inverse" plutôt que génération
+
+Au lieu d'enregistrer de nouvelles fautes ou de synthétiser par TTS (§8),
+réutiliser l'alignement forcé CTC (fiabilisé le jour même, cf. §5.3 et le
+fix `ForcedAligner.kt`/`MIN_FRAMES_FOR_JUDGMENT`) pour repérer les
+frontières EXACTES (en frames) de lettres précises dans l'audio déjà
+existant (284k clips, 54 récitateurs), puis **monter/splicer** des segments
+réels entre eux pour fabriquer des "fautes" composées à 100% de vraie voix
+humaine — sans jamais enregistrer une seule nouvelle prise.
+
+### Étapes
+
+1. **Table des paires confusables** (tajweed classique, makharij proches) :
+   ص↔س, ض↔د↔ظ, ط↔ت, ذ↔ز↔ظ, ح↔ه↔خ, ق↔ك, ع↔ء, غ↔خ.
+2. **Repérage automatique** : pour chaque mot du corpus contenant une lettre
+   cible, utiliser la DP d'alignement forcé pour trouver ses frames exactes.
+3. **Montage** : chercher ailleurs dans le corpus un passage où la lettre
+   confusable apparaît naturellement (idéalement même récitateur, pour la
+   cohérence timbre/voix), extraire ce segment réel, le substituer dans
+   l'audio cible à la place du son visé.
+4. **Étiquette = texte réellement obtenu après montage** (avec la lettre
+   substituée), jamais le texte canonique — même principe que §8.
+5. **Dosage** : ~10-20% du corpus en exemples synthétiques, sans remplacer
+   les données propres.
+
+### Risque principal
+
+Artefact acoustique au point de raccord (discontinuité timbre/pitch) que le
+modèle pourrait apprendre à repérer comme signal "montage" plutôt que la
+vraie confusion phonétique. Mitigation : couper uniquement aux frontières
+de blank/silence déjà détectées par la DP, prioriser les raccords
+intra-récitateur.
+
+### Statut
+
+Chantier lourd (table de confusion + extraction + montage + réentraînement
+complet du modèle de base) — bénéficie à TOUS les utilisateurs, contrairement
+à §8ter. En cours d'implémentation (script Python), 2026-07-14.
+
+---
+
+## 8ter. Calibration voix personnelle par mots confusables — piste mini-LoRA, 2026-07-14
+
+### Le principe
+
+Étendre l'infra de personnalisation vocale existante (`finetune_fastconformer_lora.py`,
+"mini-LoRA personnel niveau 3", implémenté 2026-07-12, PC-assisté — **distinct**
+de la tentative "100% on-device" via `onnxruntime-training-android` qui,
+elle, a échoué et a été revertée le même jour, cf. commits `2ebb383`→
+`6861b0b`→`9a61b77` ; la conclusion de cet échec dit explicitement de
+rester sur le mini-LoRA v1 PC-assisté). Ce pipeline prend déjà en entrée
+des clips exportés depuis l'app avec le texte **réellement prononcé**
+comme étiquette (`VoiceLoraClipService`) — exactement ce qu'il faut ici.
+
+### Étapes
+
+1. **Liste de calibration** (~15-30 vrais mots coraniques contenant des
+   lettres confusables, cf. table §8bis).
+2. **Écran guidé "calibration voix"** : pour chaque mot, demander à
+   l'utilisateur de le dire deux fois — correctement, puis en substituant
+   délibérément la lettre confusable, avec instruction explicite affichée.
+3. **Réutiliser le pipeline de capture existant tel quel** — aucun nouveau
+   code d'entraînement, juste alimenter `VoiceLoraClipService` avec ces
+   nouveaux clips (texte fautif = étiquette pour les prises "exprès").
+
+### Différence avec §8bis
+
+Corrige UNIQUEMENT la sensibilité de CET utilisateur (adaptateur LoRA
+personnel léger, base gelée) — rapide (~5-10 min d'enregistrement guidé),
+mais ne bénéficie qu'à lui. Complémentaire à §8bis, pas un substitut.
+
+### Statut
+
+Chantier léger, infra de base déjà en place. En cours d'implémentation
+(écran Flutter + liste de mots), 2026-07-14.
+
+---
+
+## 9. Le WAQF (règles d'arrêt) comme classe de tajwid à part entière — idée utilisateur, 2026-07-23
+
+### Le constat
+
+L'arrêt EST une règle de tajwid, et certains arrêts sont **interdits**
+(waqf mamnū'). Or **aucune des 17 classes** du modèle actuel ne la couvre
+(vérifié) et l'app ne la vérifie nulle part. Un « coach qui contrôle le
+tajwid » sans rien dire des arrêts a un trou fonctionnel visible.
+
+### Ce qui est déjà faisable SANS ré-entraîner (implémenté le 2026-07-23)
+
+Les signes sont **déjà dans le texte uthmani** — 4 363 mots en portent un,
+extraits par `benchmark/build_waqf_asset.py` vers
+`app/assets/data/quran_waqf.json` :
+
+```
+jaiz       1972   ۚ ج    arrêt permis
+wasl_awla  1682   ۖ صلى  mieux vaut continuer
+waqf_awla   603   ۗ قلى  mieux vaut s'arrêter
+mamnu        68   ۙ لا   arrêt INTERDIT
+lazim        22   ۘ م    arrêt OBLIGATOIRE
+muanaqah     12   ۛ ···  s'arrêter à l'UN des deux, jamais aux deux
+sakta         5   ۜ س    pause brève SANS reprendre son souffle
+```
+
+Et l'app **mesure déjà les pauses** (`BufferedTranscriber`,
+`MIN_TRACKED_PAUSE_MS = 150`, durées collectées pour le profil de rythme).
+Juger le waqf ne demande donc qu'une comparaison « pause détectée » ×
+« signe attendu à cette position » : aucune tête de modèle, aucun
+entraînement.
+
+⚠️ Piège d'indexation : ces signes sont des tokens SÉPARÉS placés APRÈS le
+mot concerné (`'رَيْبَ', 'ۛ', 'فِيهِ'`) et sont FILTRÉS de la liste des mots
+récitables (`splitExpectedWords` — le regex `_harakat` couvre la plage
+ۖ-ۭ). L'asset stocke donc l'index du mot RÉCITABLE, pas celui du split brut.
+Le rub-el-hizb ۞ tombe dans la même plage Unicode mais n'est PAS un waqf.
+
+### Ce qui justifierait un ENTRAÎNEMENT (demande utilisateur 2026-07-23)
+
+La détection binaire « il y a un silence » est triviale, mais elle ne
+distingue pas ce qu'un professeur distingue :
+
+- un **arrêt propre** (waqf : on coupe le son ET on reprend son souffle)
+  d'une **sakta** (pause brève, sans reprendre son souffle — 5 occurrences,
+  règle à part entière) ;
+- un arrêt **volontaire** d'une **hésitation** ou d'une reprise de souffle
+  mal placée ;
+- la façon dont la **dernière syllabe est traitée à l'arrêt** (le waqf
+  modifie la prononciation finale : sukūn, rendu du tanwīn, hâ' de pause…),
+  qui est la vraie compétence évaluée.
+
+Ces distinctions sont acoustiques et graduées : c'est exactement le profil
+d'une classe apprise, comme les autres règles de la tête 2. À ajouter au
+corpus annoté d'un prochain run (les positions sont déjà connues via les
+signes du texte — reste à étiqueter, dans l'audio, si le récitant s'est
+effectivement arrêté et comment).
+
+### Lien avec la segmentation du buffer (important)
+
+Le gel technique d'un segment et l'arrêt du récitant sont **deux choses
+différentes** qu'il ne faut jamais confondre : le premier est invisible, le
+second est une note pédagogique. Conséquence pour le choix du point de
+coupe : ne jamais couper là où les mots doivent rester LIÉS (arrêt `mamnu`,
+ou règle de jonction enjambant la frontière) — couper là détruit la
+continuité acoustique que la tête tajwid doit justement mesurer.
