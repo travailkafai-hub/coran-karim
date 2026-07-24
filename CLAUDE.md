@@ -16,6 +16,7 @@ App Android (Flutter/Kotlin) de récitation coranique : vérification ASR
 | Idées validées non implémentées (madd, fenêtre glissante...) | `FONCTIONNALITES_FUTURES.md` |
 | Plan/stratégie du run hybride 3 têtes (RNNT + CTC strict/tolérant) | `PLAN_ENTRAINEMENT_HYBRIDE.md` |
 | Glossaire des techniques (entraînement vs décodage, qui sert quoi) | `GLOSSAIRE_TECHNIQUES_ASR.md` |
+| Problématiques ASR (buffer, GOP, pauses) + état de l'art externe (forums/papers) | `PROBLEMATIQUES_ASR.md` |
 | Refonte IHM (presets de tolérance, navigation, plein écran, mindmap) | `REFONTE_IHM.md` |
 | Chantier "Suivre une prière" (journal détaillé) | `SUIVI_PRIERE.md` |
 
