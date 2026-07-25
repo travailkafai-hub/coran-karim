@@ -202,3 +202,68 @@ différents) -- ne pas tout committer d'un bloc sans confirmation.
   utilisateur/projet qui survit entre conversations, complémentaire à ces
   fichiers (pas redondant : la mémoire est côté agent, ces fichiers sont
   côté repo, lisibles par n'importe quel agent/machine).
+
+---
+
+## 2026-07-25 — ÉTAT GIT : quelle branche, quel moteur, où sont les commits
+
+### Les deux branches de test, et ce qui les distingue RÉELLEMENT
+
+| | `test-1-gop` | `test-2-gop` |
+|---|---|---|
+| dernier commit | **`08556f8`** (2026-07-25) | `58db2fa` (2026-07-23) |
+| message d'origine | « moteur ASR à l'état 5d97e09 (1 GOP + tête tajwid séparée) » | « moteur ASR à l'état c9c531f (2 têtes + segmentation recouvrement 2s) » |
+| GOP lettres | oui | oui |
+| **GOP tajwid** (`WordResult.tajwidGop`) | **non** — la tête 2 est seulement DÉCODÉE (`detectedRules` : règle réalisée ou pas), elle ne produit aucun score | **oui** — un `forced − free` par classe de règle sur les logprobs de la tête 2 |
+| **Recouvrement de segment** | non | **oui** — au gel, on garde les dernières secondes d'audio comme contexte, en ne conservant que des **mots ENTIERS** (une durée fixe de 2 s coupait des mots en deux) et en reculant l'ancre en conséquence |
+| écart sur la chaîne ASR | — | **666 lignes ajoutées, 71 retirées** sur 5 fichiers |
+
+### « 1 GOP » et « modèle à 2 têtes » ne sont PAS contradictoires
+
+Deux axes différents, d'où la confusion :
+
+- **Le MODÈLE** déployé (`fastconformer-ctc-dual-head-multilabel-v3`) a bien
+  **2 sorties** — vérifié : `out: [logprobs, ...]`, 2 sorties, contre 1 seule
+  pour tous les modèles de `models_deployes/`.
+- **L'ALGORITHME** de `test-1-gop` n'exploite qu'**une** tête pour NOTER : un
+  seul `forced − free` sur les lettres. La tête tajwid est décodée pour dire
+  « règle réalisée / non réalisée », sans score gradué.
+
+Donc `test-1-gop` **utilise** le modèle à 2 têtes mais n'en score qu'une. C'est
+cohérent, ce n'est pas un bug — mais ce n'est pas le moteur qu'on croyait
+tester. Le 2e GOP vient de l'idée citée dans le code de `test-2-gop` :
+« le tajwid juge le tajwid, donc on doit avoir deux GOP ».
+
+### Ce qui s'est passé le 2026-07-25 (à ne pas reproduire)
+
+- `test-1-gop` était déjà la branche active depuis le **2026-07-24**
+  (`reflog` : `checkout: moving from asr-nemo-solutions to test-1-gop`). Aucun
+  changement de branche n'a eu lieu ce jour-là.
+- **Erreur de méthode** : dès le premier diagnostic j'ai constaté que le
+  téléphone exécute un modèle à 2 têtes, sans jamais vérifier si la branche
+  active correspondait au moteur visé. Une journée de mesures a été menée sur
+  `test-1-gop`.
+- **Conséquence coûteuse** : j'ai proposé comme une découverte le principe
+  « conserver l'audio à la frontière de segment, aligné sur des mots entiers » —
+  or `test-2-gop` l'implémente **depuis le 2026-07-23**, avec la même
+  correction (garder des mots entiers plutôt qu'une durée fixe). J'ai même
+  produit une mesure qui semblait le contredire (elle ajoutait du contexte des
+  DEUX côtés en allongeant le segment, ce qui n'est pas ce que fait cette
+  branche).
+- La règle du projet le disait déjà : « aucun historique git ne compense un
+  agent qui ne pense pas à `git log -p` avant d'agir ». **Vérifier
+  `git branch -a` + `git log` des branches sœurs AVANT toute analyse.**
+
+### Où retrouver le travail du 2026-07-25
+
+`08556f8` sur **`test-1-gop`** — 24 fichiers, périmètre chaîne de récitation :
+course de gel (`commitInFlight`), suppression de `secPerWord`, purge de l'audio
+consommé, `entendu=""` interdit tout verdict, `src=dp|libre`, réglage
+diagnostic, bouton pause rogné, `benchmark/compare_onnx_on_device_wavs.py`.
+Mesures chiffrées : `JOURNAL_TESTS_LOGS.md`. Refonte proposée :
+`ARCHITECTURE_RECITATION.md`.
+
+**La plupart de ces correctifs sont indépendants du nombre de GOP** (buffer,
+jugement, diagnostic, IHM) et devraient se transposer sur `test-2-gop` — sauf
+`BufferedTranscriber.kt`, qui diffère de 374 lignes entre les deux branches : un
+cherry-pick y entrera forcément en conflit et devra être fait à la main.

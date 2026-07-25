@@ -1593,11 +1593,37 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// Vidé à chaque nouvelle cible : les index changent de signification.
   final Map<int, String> _lastTextDiffLine = {};
 
+  /// Verdict NÉGATIF vu sur les aperçus successifs, par index de mot, et
+  /// nombre d'aperçus consécutifs où il est resté identique.
+  ///
+  /// Sert à déclencher la correction dès le **2e aperçu au verdict identique**,
+  /// sans attendre le gel du segment (2026-07-25, validé par l'utilisateur).
+  /// Mesure qui l'impose : sur une correction réelle, le mot 30 "هُمْ" a été
+  /// jugé `error` sur **quatre aperçus consécutifs** (17:08:56.704, .708, .711,
+  /// .715) avec `lock=false`, et la correction n'a été déclenchée qu'au gel, à
+  /// 17:08:58.550 -- 1,84 s d'attente sur une information déjà stable.
+  ///
+  /// Pourquoi pas dès le 1er aperçu : un aperçu peut mal couvrir la fin d'un
+  /// mot, et un recul d'ancre injustifié est bien plus coûteux qu'un léger
+  /// délai. Deux aperçus identiques attestent la stabilité sans attendre le
+  /// gel. Si des reculs injustifiés apparaissent, monter à 3.
+  final Map<int, WordStatus> _previewNegative = {};
+  final Map<int, int> _previewNegativeStreak = {};
+
+  /// Mots pour lesquels la correction a déjà été signalée SANS verrouillage
+  /// (cf. _previewNegative) -- évite de refirer à chaque aperçu suivant.
+  final Set<int> _failureSignalled = {};
+
+  static const int _kPreviewsBeforeCorrection = 2;
+
   RecitationNotifier(this._verifier) : super(const RecitationSessionState());
 
   void setup(String arabicText) {
     final words = _wordsFromText(arabicText);
     _lastTextDiffLine.clear();
+    _previewNegative.clear();
+    _previewNegativeStreak.clear();
+    _failureSignalled.clear();
     state = RecitationSessionState(words: words);
   }
 
@@ -1677,6 +1703,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   Future<void> setupVerses(List<RecitationSegment> segments) async {
     await RuleAnnotationService.instance.ensureLoaded();
     _lastTextDiffLine.clear();
+    _previewNegative.clear();
+    _previewNegativeStreak.clear();
+    _failureSignalled.clear();
     state = RecitationSessionState(words: _wordsFromSegments(segments));
   }
 
@@ -2023,10 +2052,33 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // correction — demande utilisateur 2026-07-05 (rouge/orange) puis
     // 2026-07-06 (sauté) : "pour moi c'est une erreur aussi" — sauter un mot
     // n'est plus juste constaté passivement, ça doit aussi être corrigé.
-    if (lock &&
-        (judged == WordStatus.error ||
-            judged == WordStatus.unclear ||
-            judged == WordStatus.skipped)) {
+    final isNegative = judged == WordStatus.error ||
+        judged == WordStatus.unclear ||
+        judged == WordStatus.skipped;
+    if (lock && isNegative) {
+      newErrors?.add(i);
+      return;
+    }
+    if (!isNegative) {
+      // Le mot est redevenu bon : la série d'aperçus négatifs est cassée.
+      _previewNegative.remove(i);
+      _previewNegativeStreak.remove(i);
+      return;
+    }
+    // Négatif mais PAS verrouillé (aperçu) : on compte les aperçus consécutifs
+    // au verdict identique et on déclenche la correction dès le 2e, sans
+    // attendre le gel (cf. _previewNegative).
+    if (_previewNegative[i] == judged) {
+      _previewNegativeStreak[i] = (_previewNegativeStreak[i] ?? 1) + 1;
+    } else {
+      _previewNegative[i] = judged;
+      _previewNegativeStreak[i] = 1;
+    }
+    if (_previewNegativeStreak[i]! >= _kPreviewsBeforeCorrection &&
+        _failureSignalled.add(i)) {
+      DiagnosticLog.log('Correction',
+          'declenchee sur apercu stable : mot=$i statut=$judged '
+          '(${_previewNegativeStreak[i]} apercus identiques, sans attendre le gel)');
       newErrors?.add(i);
     }
   }
@@ -3525,6 +3577,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// laisserait les autres verrouillés "sauté" pour toujours.
   void rewindAndUnlock(int wordIndex) {
     if (wordIndex < 0 || wordIndex >= state.words.length) return;
+    // Le réciteur va REDIRE cette plage : la mémoire des aperçus négatifs doit
+    // repartir de zéro dessus, sinon un verdict resté en mémoire pourrait
+    // re-déclencher une correction avant même qu'il ait reparlé, ou au
+    // contraire empêcher un nouvel échec d'être signalé (`_failureSignalled`).
+    _previewNegative.removeWhere((k, _) => k >= wordIndex);
+    _previewNegativeStreak.removeWhere((k, _) => k >= wordIndex);
+    _failureSignalled.removeWhere((k) => k >= wordIndex);
     final words = [...state.words];
     final end = _anchorExp.clamp(wordIndex + 1, words.length);
     var errorDelta = 0, unclearDelta = 0;

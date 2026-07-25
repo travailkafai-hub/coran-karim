@@ -78,6 +78,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // 12s (et non 20s) : test reel du 2026-07-05 — la derive de normalisation
         // est deja nette a ~10s de buffer, un gel force a 20s fige du texte degrade.
         private const val MAX_SEGMENT_SECONDS = 12f   // borne dure : force le gel meme sans pause
+        private const val MAX_TARGET_SECONDS = MAX_SEGMENT_SECONDS
         private const val MIN_TRACKED_PAUSE_MS = 150  // pauses plus courtes = micro-respirations, ignorees du profil
 
         // ── COUPE SUR MICRO-SILENCE (2026-07-25, idee utilisateur) ──────────
@@ -163,9 +164,30 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // l'app rend "هُ", alors que le MEME audio recoupe depuis un vrai
         // inter-mot rend "هُدًى لِّلْمُتَّقِينَ" parfaitement). Le plafond a 3,5s
         // ci-dessous est justifie par le RETARD, jamais par l'acoustique.
-        private const val TARGET_SECONDS = 3.0f
+        // (c) Cible fixe 3,0s -- TESTEE et REJETEE aussi (2026-07-25, retour
+        //     utilisateur). Le retard tombait bien a 2,1-4,6s, mais les
+        //     transcriptions se sont DEGRADEES par rapport aux segments longs :
+        //     "ٱللَّهُمٍ", "قِينَ", "إِنَّقُونَ" la ou une cible plus longue rendait
+        //     du texte propre. Explication mesuree : hors device, en choisissant
+        //     LIBREMENT la coupe dans tout l'audio, 3,08s rend
+        //     "ذَٰلِكَ ٱلْكِتَـٰبُ لَا رَيْبَ فِيهِ" parfaitement -- mais dans l'app la
+        //     coupe du segment N+1 est CONTRAINTE par celle du segment N. Une
+        //     coupe qui tombe mal decale toutes les suivantes : les erreurs de
+        //     frontiere se COMPOSENT. Raccourcir la cible multiplie les
+        //     frontieres, donc les occasions de se tromper.
+        //     ⇒ On ne peut pas gagner en jouant sur la longueur. Le retard doit
+        //     etre decouple du gel -- cf. la refonte "deux horloges" decrite
+        //     dans ARCHITECTURE_RECITATION.md.
+        //
+        // ETAT COURANT (2026-07-25, demande utilisateur "remettre a 12s") : la
+        // coupe sur micro-silence est NEUTRALISEE (cible = la borne dure), donc
+        // seuls les mecanismes d'origine agissent -- gel sur pause franche et
+        // borne dure MAX_SEGMENT_SECONDS. C'est l'etat de reference sur lequel
+        // la refonte sera comparee. `findCutOffset` et les constantes de coupe
+        // sont CONSERVES (code et mesures) : ne pas les supprimer, ils
+        // documentent trois politiques deja testees.
+        private const val TARGET_SECONDS = MAX_SEGMENT_SECONDS
         private const val MIN_TARGET_SECONDS = 2.5f
-        private const val MAX_TARGET_SECONDS = 3.5f
         // Rayon de recherche du silence AUTOUR de la cible. On coupe au silence
         // le PLUS PROCHE de la cible, jamais au dernier du buffer : couper trop
         // tot laisse une grosse queue d'audio qui depasse elle-meme la cible ->

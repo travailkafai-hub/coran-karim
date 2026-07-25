@@ -320,6 +320,48 @@ abstract class RecitationVerifier {
   Future<void> pauseCapture();
   Future<void> resumeCapture();
 
+  /// Pause LOGICIELLE instantanée : la chaîne (transcription, alignement,
+  /// jugement) s'arrête net, mais le micro matériel n'est PAS touché.
+  ///
+  /// Pourquoi ça existe (mesuré 2026-07-25) : sur ce téléphone les appels du
+  /// plugin `record` sont pathologiquement lents -- `isRecording()` a mis
+  /// **3,6 s** et `pause()` **6,4 s** (jusqu'à 24 s observé) sur une seule
+  /// correction. Or la chaîne est déjà arrêtée dès que `_appPaused` est posé,
+  /// de façon synchrone : attendre le matériel n'apporte RIEN et retardait de
+  /// ~10 s le moment où le réciteur entend sa correction et où l'ancre revient
+  /// sur le mot raté. Dans un chemin où seul compte « ne plus juger », on
+  /// utilise donc cette version.
+  ///
+  /// Aucune course pause/resume possible : rien n'est en vol côté plateforme.
+  void pauseCaptureSoft();
+
+  /// Pendant de [pauseCaptureSoft].
+  void resumeCaptureSoft();
+
+  /// Pause destinée à encadrer une LECTURE AUDIO (correction, souffleur) :
+  /// arrête la chaîne **instantanément** (comme [pauseCaptureSoft]) ET suspend
+  /// le micro matériel, mais **sans attendre** que le natif ait fini.
+  ///
+  /// Pourquoi les deux à la fois (régression mesurée le 2026-07-25) : j'avais
+  /// d'abord retiré la pause matérielle du chemin de correction, pour supprimer
+  /// 6,4 s d'attente. Résultat sur device -- le micro reste actif pendant que
+  /// le haut-parleur joue la correction, la lecture perturbe l'enregistrement
+  /// Android, et **le flux PCM ne revient jamais** : dernier bloc à
+  /// `17:23:50.473`, plus rien après la reprise, l'utilisateur ne pouvait plus
+  /// continuer. La pause matérielle ne servait donc pas seulement à « ne plus
+  /// juger » : elle **protégeait l'intégrité de l'enregistrement**.
+  ///
+  /// D'où cette forme : on garde la pause matérielle (intégrité) mais on ne
+  /// l'attend pas (réactivité). L'appelant enchaîne immédiatement sur le recul
+  /// d'ancre et la lecture ; [resumeCaptureAfterPlayback] attend l'atterrissage
+  /// avant de reprendre, ce qui élimine aussi la course pause/resume.
+  void pauseCaptureForPlayback();
+
+  /// Reprise après [pauseCaptureForPlayback] : attend que la pause lancée en
+  /// tâche de fond ait ATTERRI (sinon `resume()` pourrait s'exécuter avant la
+  /// pause et le micro resterait coupé), puis relance micro et chaîne.
+  Future<void> resumeCaptureAfterPlayback();
+
   /// Vide le buffer de ré-transcription (texte figé + aperçu) SANS arrêter la
   /// session — à appeler entre pauseCapture()/resumeCapture() lors d'une
   /// correction automatique (demande utilisateur 2026-07-06) : sans ça, de
@@ -802,15 +844,74 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   }
 
   @override
+  void pauseCaptureSoft() {
+    _appPaused = true;
+    DiagnosticLog.log('ASR', 'pauseCaptureSoft() | chaine arretee (micro inchange)');
+  }
+
+  /// Pause matérielle lancée par [pauseCaptureForPlayback] et pas encore
+  /// atterrie. Attendue par [resumeCaptureAfterPlayback] -- c'est ce qui rend
+  /// le « ne pas attendre » sûr : la reprise ne peut jamais devancer la pause.
+  Future<void>? _pausingForPlayback;
+
+  @override
+  void pauseCaptureForPlayback() {
+    _appPaused = true; // synchrone : la chaine est arretee des cet instant
+    DiagnosticLog.log('ASR', 'pauseCaptureForPlayback() | chaine arretee, '
+        'pause micro lancee en tache de fond');
+    _pausingForPlayback = _recorder.pause().catchError((Object e) {
+      DiagnosticLog.log('ASR', 'pause micro (tache de fond) echouee : $e');
+    });
+  }
+
+  @override
+  Future<void> resumeCaptureAfterPlayback() async {
+    final t0 = DateTime.now();
+    try {
+      await _pausingForPlayback; // la pause a atterri -> aucune course possible
+    } catch (_) {
+      // deja journalise par le catchError ci-dessus
+    }
+    _pausingForPlayback = null;
+    try {
+      await _recorder.resume();
+    } catch (e) {
+      DiagnosticLog.log('ASR', 'resume micro echoue : $e');
+    }
+    _appPaused = false;
+    final ms = DateTime.now().difference(t0).inMilliseconds;
+    DiagnosticLog.log('ASR', 'resumeCaptureAfterPlayback() | chaine relancee en ${ms}ms');
+    // Verification NON bloquante : `isRecording()` peut couter plusieurs
+    // secondes sur ce telephone (3,6 s mesure), on ne la met donc pas dans le
+    // chemin -- mais on veut la trace, parce que "le micro n'est pas revenu"
+    // est exactement le symptome "je n'arrive plus a continuer".
+    unawaited(_recorder.isRecording().then((ok) {
+      DiagnosticLog.log('ASR', ok
+          ? 'controle post-correction : micro actif'
+          : 'ALERTE controle post-correction : MICRO NON REPRIS');
+    }).catchError((Object e) {
+      DiagnosticLog.log('ASR', 'controle post-correction indisponible : $e');
+    }));
+  }
+
+  @override
+  void resumeCaptureSoft() {
+    _appPaused = false;
+    DiagnosticLog.log('ASR', 'resumeCaptureSoft() | chaine relancee');
+  }
+
+  @override
   Future<void> pauseCapture() async {
     _appPaused = true; // synchrone, avant tout await -- cf. commentaire _appPaused
     try {
-      final wasRecording = await _recorder.isRecording();
-      DiagnosticLog.log('ASR', 'pauseCapture() | isRecording=$wasRecording');
-      if (wasRecording) await _recorder.pause();
-      DiagnosticLog.log('ASR', 'pauseCapture() | après pause : '
-          'isRecording=${await _recorder.isRecording()} '
-          'isPaused=${await _recorder.isPaused()}');
+      // `isRecording()` RETIRE du chemin (2026-07-25) : cet appel ne servait
+      // qu'à enrichir la ligne de log, et il a coûté **3,6 s** sur une
+      // correction reelle -- 3,6 s pour lire un booleen destine a un log. Les
+      // deux lignes "apres pause" (deux appels plateforme de plus) sont
+      // supprimees pour la meme raison. `pause()` est appele directement :
+      // s'il n'y a rien a mettre en pause, le plugin ne fait rien.
+      await _recorder.pause();
+      DiagnosticLog.log('ASR', 'pauseCapture() | micro en pause');
     } catch (e) {
       DiagnosticLog.log('ASR', 'pauseCapture échec : $e');
     }
@@ -936,6 +1037,14 @@ class MockRecitationVerifier implements RecitationVerifier {
 
   @override
   Future<void> pauseCapture() async {}
+  @override
+  void pauseCaptureSoft() {}
+  @override
+  void resumeCaptureSoft() {}
+  @override
+  void pauseCaptureForPlayback() {}
+  @override
+  Future<void> resumeCaptureAfterPlayback() async {}
   @override
   Future<void> resumeCapture() async {}
   @override

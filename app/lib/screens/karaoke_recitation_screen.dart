@@ -601,24 +601,76 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     _lastAutoCorrectedWordIndex = wordIndex;
     _autoCorrecting = true;
     final notifier = ref.read(recitationProvider.notifier);
-    // À lire AVANT rewindAndUnlock (qui modifie l'ancre) : combien de mots
-    // après le premier sont concernés par CETTE plage fautive (un saut de
-    // plusieurs mots verrouille toute la plage en un coup, cf. rewindAndUnlock)
-    // — demande utilisateur 2026-07-06 : le réciteur doit dire TOUS les vrais
-    // mots sautés, pas juste le premier.
-    final rangeEnd = notifier.rewindRangeEnd();
-    final wordsAfter = (rangeEnd - wordIndex - 1).clamp(0, 10);
+    // (Ici se calculait `wordsAfter` = nombre de mots de la plage fautive
+    // au-delà du premier, via `notifier.rewindRangeEnd()`, pour les REJOUER
+    // tous — demande utilisateur 2026-07-06 : « le réciteur doit dire TOUS les
+    // vrais mots sautés, pas juste le premier ». Retiré le 2026-07-25 : la
+    // règle de lecture est passée à DEUX MOTS MAXIMUM sur demande explicite de
+    // l'utilisateur (cf. l'appel à playWordRange plus bas). Le recul de l'ancre
+    // couvre toujours toute la plage — `rewindAndUnlock` la calcule lui-même,
+    // il n'a jamais eu besoin de cette variable — donc l'exigence « redire tous
+    // les mots sautés » reste tenue : seule la LECTURE audio est raccourcie.)
     final verifier = ref.read(recitationVerifierProvider);
     try {
-      await verifier.pauseCapture();
+      // ── ORDRE CORRIGE (2026-07-25, mesure a l'appui) ────────────────────
+      // AVANT : `await pauseCapture()` (3,6 s + 6,4 s d'appels plateforme),
+      // PUIS l'audio du mot, PUIS le recul de l'ancre. Chronologie mesuree sur
+      // une correction reelle :
+      //   17:08:58.550  wordFailed declenche (mot 30 "هُمْ" faux)
+      //   17:09:02.157  pauseCapture()                       +3,6 s
+      //   17:09:08.583  pause confirmee                      +6,4 s
+      //   17:09:08.588  audio du mot enfin joue
+      //   17:09:14.471  [ANCRE] recul 40 -> 30               +5,9 s
+      // Soit **15,9 s** entre la detection et le retour de l'ancre sur le mot
+      // rate -- pendant lesquelles l'app a continue a juger et VERROUILLER les
+      // mots 32 a 39, huit mots passes au vert puis deverrouilles par le recul.
+      // A l'ecran : huit mots qui verdissent puis redeviennent en attente,
+      // douze secondes apres la faute.
+      //
+      // MAINTENANT : tout ce qui compte est instantane et sans appel
+      // plateforme -- arret logiciel de la chaine, puis recul de l'ancre, PUIS
+      // seulement l'audio. Plus aucun mot ne peut etre valide pendant la
+      // lecture, et l'ancre est deja revenue sur le mot rate quand le
+      // reciteur entend la correction.
+      //
+      // Le micro reste physiquement actif pendant la lecture : les blocs sont
+      // jetes par `_appPaused` (aucun n'atteint `feed()`), donc ni
+      // transcription contaminee ni WAV pollue. Choix assume et valide par
+      // l'utilisateur -- c'est le prix a payer pour supprimer 10 s d'attente.
+      // `pauseCaptureForPlayback` et non `pauseCaptureSoft` (regression
+      // corrigee le 2026-07-25) : la premiere version laissait le micro ACTIF
+      // pendant la lecture, la lecture perturbait l'enregistrement Android et
+      // le flux PCM ne revenait JAMAIS -- dernier bloc a 17:23:50.473, plus
+      // rien apres la reprise, l'utilisateur ne pouvait plus continuer. La
+      // pause materielle protege l'integrite de l'enregistrement ; elle est
+      // donc conservee, mais lancee en tache de fond pour ne rien retarder.
+      verifier.pauseCaptureForPlayback();
+      // Recul + deverrouillage IMMEDIATS (etaient apres l'audio).
+      notifier.rewindAndUnlock(wordIndex);
+      if (mounted) setState(() => _resumeHintIndex = wordIndex);
       final reciter = ref.read(playerProvider).reciter;
       // Ne rejoue QUE le mot précédent + la plage fautive (demande
       // utilisateur 2026-07-05/06), pas tout le verset — c'est au réciteur de
       // se souvenir de la suite, mais il doit entendre TOUT ce qu'il faut
       // redire (y compris les mots sautés).
       try {
+        // DEUX MOTS MAXIMUM : le mot precedent (pour l'elan) + le mot rate.
+        // Rien apres.
+        //
+        // REMPLACE la regle du 2026-07-06 (« le reciteur doit entendre TOUT ce
+        // qu'il faut redire, y compris les mots sautes », d'ou `wordsAfter`
+        // jusqu'a 10) -- decision utilisateur du 2026-07-25, explicite :
+        // « il faut qu'il me corrige que le mot ou deux mots max et apres me
+        // donne la main pour reciter ». Mesure qui l'a motivee : sur une
+        // correction reelle, `fromIdx=1 toIdx=8` a rejoue HUIT mots, soit
+        // ~7,6 s d'audio avant de rendre la main.
+        //
+        // Consequence assumee : sur un saut de plusieurs mots, le reciteur
+        // n'entend que le premier. L'ancre recule bien sur TOUTE la plage
+        // (cf. rewindAndUnlock ci-dessus, `remis en attente: N mot(s)`), donc
+        // il sait ou reprendre et redit la suite de memoire.
         await WordCorrectionAudio.playWordRange(verse, reciter,
-            errorWordIndex: local, wordsAfter: wordsAfter);
+            errorWordIndex: local, wordsBefore: 1, wordsAfter: 0);
       } catch (e) {
         // Ne bloque pas la correction si l'audio (URL/segments de timing)
         // est indisponible pour ce récitateur/verset — constat réel
@@ -636,12 +688,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // called") -- le provider autoDispose peut avoir disparu, on abandonne
       // proprement plutôt que de planter.
       if (!mounted) return;
-      // Recul + déverrouillage (demande utilisateur 2026-07-06, précisée à
-      // plusieurs reprises) : le réciteur doit REFAIRE cette plage avec un
-      // nouvel audio, pas continuer sur la suite. S'il se trompe encore, la
-      // plage re-échoue naturellement -> wordFailed refire -> même boucle de
-      // correction, jusqu'à ce que ce soit correct (vert) et qu'on avance.
-      notifier.rewindAndUnlock(wordIndex);
+      // (Le recul + déverrouillage vivait ICI -- demande utilisateur
+      // 2026-07-06 : le réciteur doit REFAIRE cette plage avec un nouvel
+      // audio, pas continuer sur la suite. S'il se trompe encore, la plage
+      // re-échoue naturellement -> wordFailed refire -> même boucle. Cette
+      // exigence est INCHANGEE ; seul le MOMENT a bougé, remonté avant la
+      // lecture audio le 2026-07-25 pour que plus aucun mot ne soit validé
+      // pendant qu'on joue la correction. Ne pas le redescendre.)
       // Vide le buffer de transcription AVANT de reprendre l'écoute (demande
       // utilisateur 2026-07-06) : sans ça, de l'audio déjà dans le buffer
       // avant la pause (pas encore figé au moment de l'erreur) peut ressurgir
@@ -651,7 +704,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // sera transcrit.
       await verifier.resetBuffer();
     } finally {
-      await verifier.resumeCapture();
+      // Attend que la pause lancée en tâche de fond ait ATTERRI avant de
+      // relancer le micro -- sinon `resume()` pourrait devancer `pause()` et le
+      // micro resterait coupé. Le coût plugin restant se paie ICI, après la
+      // lecture, quand le réciteur écoute plutôt qu'il ne parle.
+      await verifier.resumeCaptureAfterPlayback();
       _autoCorrecting = false;
       _correctionCooldownUntil =
           DateTime.now().add(const Duration(seconds: 4));

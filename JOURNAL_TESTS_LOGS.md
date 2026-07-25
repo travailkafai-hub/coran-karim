@@ -932,3 +932,76 @@ GOP invariant au découpage BPE. Contexte utile mesuré : **1 990 mots sur 6 110
 - `src=libre` vs `src=dp` sur les mots à `forced` très négatif.
 - Pas de duplication de texte dans le transcript.
 - Pas de croissance sans fin du buffer (`segment FIGE` doit rester ≤ 12 s).
+
+## 2026-07-25 17:09 — CORRECTION : 15,9 s de retard, cause trouvée et corrigée
+
+Objectif utilisateur : « on veut que le réciteur récite là où il a raté ».
+Le mécanisme existait déjà (`rewindAndUnlock`) — c'est le **moment** où il
+s'exécutait qui était faux.
+
+### Budget mesuré sur une correction réelle (mot 30 `هُمْ`)
+
+| instant | événement | écart |
+|---|---|---|
+| `17:08:56.704` | `mot=30 "هُمْ" entendu="" -> error` (aperçu, `lock=false`) | — |
+| `.708 / .711 / .715` | 3 aperçus de plus, **verdict identique** | |
+| `17:08:58.540` | même verdict, enfin `lock=true` | **+1,84 s** |
+| `17:08:58.550` | `[Correction] wordFailed déclenché` | +0,01 s |
+| `17:09:02.157` | `pauseCapture()` — ligne émise seulement ici | **+3,61 s** |
+| `17:09:08.583` | pause matérielle confirmée | **+6,43 s** |
+| `17:09:08.588` | audio du mot enfin joué | +0,01 s |
+| `17:09:14.471` | `[ANCRE] recul 40 -> 30 \| remis en attente: 10 mot(s)` | +5,88 s |
+
+**15,9 s entre la détection et le retour de l'ancre sur le mot raté.** Et
+pendant ce temps l'app a **verrouillé les mots 32 à 39** (GOP à 17:09:02.6 →
+17:09:07.97), que le recul a ensuite déverrouillés : huit mots qui verdissent
+puis redeviennent en attente, douze secondes après la faute.
+
+### Où passaient les secondes
+
+Le code entre `wordFailed` et `pauseCapture()` est **entièrement synchrone** :
+les 3,61 s sont *à l'intérieur* de `pauseCapture()`, la ligne de log étant émise
+**après** `await _recorder.isRecording()`. Soit **3,6 s pour lire un booléen
+destiné uniquement à un log**. Puis 6,43 s pour `_recorder.pause()`.
+
+Deux appels du plugin `record`, pathologiquement lents sur ce téléphone (24 s
+observé sur une pause manuelle la même session), et **aucun nécessaire** avant
+de jouer le mot : `_appPaused` est posé **synchroniquement avant tout `await`**
+et c'est lui qui arrête réellement la chaîne.
+
+### Corrigé
+
+1. **`pauseCaptureSoft()` / `resumeCaptureSoft()`** — arrêt/reprise LOGICIELS
+   instantanés, le micro matériel n'est plus touché dans le chemin de
+   correction. Supprime 6,4 s et toute course pause/resume (plus rien en vol).
+2. **`isRecording()` retiré** de `pauseCapture()`, ainsi que les deux appels
+   plateforme de la ligne « après pause ». Supprime 3,6 s — bénéficie aussi au
+   bouton pause manuel et au souffleur.
+3. **Ordre inversé** : arrêt logiciel → **recul de l'ancre + déverrouillage +
+   repère visuel** → *puis* l'audio. Plus aucun mot ne peut être validé pendant
+   la lecture, et l'ancre est déjà revenue sur le mot raté quand le réciteur
+   entend la correction. Le commentaire d'origine de `rewindAndUnlock` est
+   conservé sur place avec « seul le MOMENT a bougé, ne pas le redescendre ».
+4. **Déclenchement dès le 2e aperçu au verdict identique**
+   (`_previewNegative` / `_kPreviewsBeforeCorrection = 2`) au lieu d'attendre le
+   gel. Supprime 1,84 s. Pas dès le 1er : un aperçu peut mal couvrir la fin d'un
+   mot, et un recul injustifié coûte plus cher qu'un léger délai. État remis à
+   zéro sur `rewindAndUnlock` (le mot doit pouvoir réechouer) et sur
+   `setup`/`setupVerses`.
+
+**Attendu : 15,9 s → ~0,1 s** avant que l'ancre revienne sur le mot. Ne reste
+que la lecture du mot (4,75 s), qui est le but.
+
+### Effet de bord assumé (validé par l'utilisateur)
+
+Le micro reste **physiquement actif** pendant la lecture du mot. Les blocs sont
+jetés par `_appPaused` avant d'atteindre `feed()` : ni transcription contaminée
+ni WAV pollué. Avant ce correctif la pause matérielle atterrissait juste avant
+la lecture, le micro était donc coupé pendant — ce n'est plus le cas.
+
+### À vérifier au prochain test
+- `[ANCRE] recul` doit apparaître **immédiatement** après `wordFailed`, avant
+  `Correction-Audio`.
+- `declenchee sur apercu stable : mot=N` doit apparaître pour les corrections.
+- Aucun mot verrouillé entre `wordFailed` et la reprise.
+- Le bouton pause manuel doit répondre tout de suite.
