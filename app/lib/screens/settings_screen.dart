@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,8 +7,10 @@ import '../l10n/app_localizations.dart';
 import '../models/reciter.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
+import '../providers/recitation_provider.dart' show recitationVerifierProvider;
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
+import 'prayer_times_settings_screen.dart';
 import 'qibla_screen.dart';
 import 'reciter_select_screen.dart';
 import 'voice_calibration_screen.dart';
@@ -98,6 +102,13 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const QiblaScreen())),
           ),
+          _SettingsTile(
+            icon: Icons.access_time_rounded,
+            title: 'Horaires de prière',
+            subtitle: 'Adhan programmé, rappel avant Sobh',
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const PrayerTimesSettingsScreen())),
+          ),
 
           const SizedBox(height: 12),
           _SectionHeader(t.settingsSectionVoicePersonalization),
@@ -122,6 +133,10 @@ class SettingsScreen extends ConsumerWidget {
               activeColor: AppColors.green700,
             ),
           ),
+
+          const SizedBox(height: 12),
+          _SectionHeader(t.settingsSectionDiagnostic),
+          const _DiagnosticTile(),
 
           const SizedBox(height: 12),
           _SectionHeader(t.settingsSectionApp),
@@ -229,6 +244,44 @@ class _SettingsTile extends StatelessWidget {
       );
 }
 
+/// Interrupteur du diagnostic : journal fichier (Dart + natif) ET capture des
+/// WAV de chaque segment figé, pilotés ensemble.
+///
+/// Demande utilisateur 2026-07-25 : « je veux m'assurer que ces retards ne
+/// sont pas dus à la création des logs ». Mesuré ce jour-là : 22 à 32
+/// écritures fichier synchrones par seconde côté Dart, plus les lignes natives
+/// émises depuis le thread d'inférence. Il faut pouvoir éteindre
+/// l'instrumentation et refaire la mesure, sinon on ne peut pas distinguer le
+/// retard de la chaîne ASR du retard causé par son observation.
+///
+/// Le natif est poussé ICI en plus du démarrage de session
+/// (RecitationNotifier._applyDiagnosticCapture) pour que le basculement soit
+/// effectif immédiatement, sans avoir à relancer une récitation.
+class _DiagnosticTile extends ConsumerWidget {
+  const _DiagnosticTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final on = ref.watch(diagnosticEnabledProvider);
+    return _SettingsTile(
+      icon: Icons.bug_report_outlined,
+      title: t.settingsDiagnosticTitle,
+      subtitle: on
+          ? t.settingsDiagnosticSubtitleOn
+          : t.settingsDiagnosticSubtitleOff,
+      trailing: Switch.adaptive(
+        value: on,
+        activeColor: AppColors.green700,
+        onChanged: (v) {
+          ref.read(diagnosticEnabledProvider.notifier).set(v);
+          unawaited(ref.read(recitationVerifierProvider).setLogEnabled(v));
+        },
+      ),
+    );
+  }
+}
+
 /// Clips de récitation VÉRIFIÉS CORRECTS (sessions de référence validées),
 /// collectés en vue d'un futur mini-LoRA de personnalisation vocale
 /// (FONCTIONNALITES_FUTURES.md, "Personnalisation voix -- niveau 3",
@@ -252,14 +305,18 @@ class _VoiceLoraClipsTileState extends State<_VoiceLoraClipsTile> {
     _refresh();
   }
 
+  // Captures de DIAGNOSTIC des récitations depuis le 2026-07-25 (et non plus
+  // les clips "vérifiés corrects" du mini-LoRA, objectif abandonné) : on
+  // compte/exporte désormais TOUS les enregistrements conservés, cf.
+  // VoiceLoraClipService.newRecitationCaptureDir.
   Future<void> _refresh() async {
-    final c = await _service.clipCount();
+    final c = await _service.recitationClipCount();
     if (mounted) setState(() => _count = c);
   }
 
   Future<void> _export() async {
     setState(() => _exporting = true);
-    final ok = await _service.exportViaShare();
+    final ok = await _service.exportRecitationCaptures();
     if (!mounted) return;
     setState(() => _exporting = false);
     final t = AppLocalizations.of(context)!;
@@ -333,86 +390,3 @@ class _LocaleSheet extends StatelessWidget {
       );
 }
 
-class _RepeatDrillCountSheet extends StatefulWidget {
-  final int current;
-  final void Function(int) onPick;
-  const _RepeatDrillCountSheet({required this.current, required this.onPick});
-
-  @override
-  State<_RepeatDrillCountSheet> createState() =>
-      _RepeatDrillCountSheetState();
-}
-
-class _RepeatDrillCountSheetState extends State<_RepeatDrillCountSheet> {
-  late int _value = widget.current;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(AppLocalizations.of(context)!.settingsRepeatDrillTitle,
-                style: GoogleFonts.fraunces(
-                    fontSize: 16, color: AppColors.brassLight)),
-            const SizedBox(height: 4),
-            Text(
-              AppLocalizations.of(context)!
-                  .settingsRepeatDrillDescription(kRepeatDrillCountMax),
-              style: GoogleFonts.manrope(
-                  fontSize: 12, color: AppColors.cream.withAlpha(180)),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  onPressed: _value > kRepeatDrillCountMin
-                      ? () => setState(() => _value--)
-                      : null,
-                  icon: const Icon(Icons.remove_circle_outline_rounded),
-                  color: AppColors.cream,
-                  disabledColor: AppColors.cream.withAlpha(70),
-                  iconSize: 30,
-                ),
-                SizedBox(
-                  width: 64,
-                  child: Text('$_value',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.manrope(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.cream)),
-                ),
-                IconButton(
-                  onPressed: _value < kRepeatDrillCountMax
-                      ? () => setState(() => _value++)
-                      : null,
-                  icon: const Icon(Icons.add_circle_outline_rounded),
-                  color: AppColors.cream,
-                  disabledColor: AppColors.cream.withAlpha(70),
-                  iconSize: 30,
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => widget.onPick(_value),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.brass,
-                  foregroundColor: AppColors.green900,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24)),
-                ),
-                child: Text(AppLocalizations.of(context)!.settingsValidate,
-                    style: GoogleFonts.manrope(fontWeight: FontWeight.w700)),
-              ),
-            ),
-          ],
-        ),
-      );
-}

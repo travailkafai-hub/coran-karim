@@ -44,6 +44,18 @@ class AlignedWord {
   // à ne PAS confondre avec « aucune règle réalisée », d'où [hasRuleHead].
   final List<DetectedRule> detectedRules;
 
+  /// VRAI si [actual] ne vient PAS des frames que l'alignement forcé a
+  /// attribuées à ce mot, mais du décodage libre GLOBAL du segment (cf.
+  /// ForcedAligner.WordResult.actualFromFree). Journalisé `src=libre`.
+  ///
+  /// Pourquoi c'est important : [actual] DÉCIDE la couleur (`textMatches`
+  /// court-circuite le gop). Quand il vient du décodage libre global, ce n'est
+  /// plus une mesure de CE mot -- et sur un passage à mots répétés (2:4 contient
+  /// `أُنزِلَ` aux index 23 ET 26) l'attribution par le texte ne peut pas
+  /// distinguer les occurrences. Sans cette trace, une ligne de log
+  /// `entendu="بِمَآ"` était indéchiffrable.
+  final bool actualFromFree;
+
   const AlignedWord({
     required this.index,
     required this.gop,
@@ -53,6 +65,7 @@ class AlignedWord {
     this.rescoreMargin,
     this.rescoreHeard,
     this.detectedRules = const [],
+    this.actualFromFree = false,
   });
 }
 
@@ -107,6 +120,7 @@ class AlignPayload {
           actual: w['actual'] as String? ?? '',
           rescoreMargin: (w['rescoreMargin'] as num?)?.toDouble(),
           rescoreHeard: w['rescoreHeard'] as String?,
+          actualFromFree: w['srcFree'] as bool? ?? false,
           detectedRules: [
             for (final r in (w['rules'] as List? ?? const []))
               if (r is Map)
@@ -228,7 +242,22 @@ class FastConformerVerifier {
   /// encore déployé sur l'appareil (pas une erreur — juste "pas encore prêt").
   Future<bool> ensureLoaded() async {
     if (_loaded) return true;
-    final appDir = await getApplicationSupportDirectory();
+    // TEST OVERRIDE (2026-07-24) : sur un build release (non debuggable),
+    // run-as ne marche pas -> impossible de pousser un modele dans le storage
+    // privé (getApplicationSupportDirectory). Le dossier EXTERNE
+    // getExternalStorageDirectory() = /storage/emulated/0/Android/data/<pkg>/
+    // files EST accessible en `adb push`. On charge donc de PREFERENCE le
+    // modele depuis là s'il y est present (teste un nouveau checkpoint sans
+    // build debuggable), sinon repli sur le storage privé habituel. A retirer
+    // pour le deploiement definitif.
+    Directory appDir = await getApplicationSupportDirectory();
+    final ext = await getExternalStorageDirectory();
+    if (ext != null &&
+        await File('${ext.path}/$_kModelSubdir/$_kModelFile').exists()) {
+      appDir = ext;
+      debugPrint('[FastConformer] TEST: modele depuis storage EXTERNE '
+          '(${ext.path}/$_kModelSubdir)');
+    }
     final modelFile = File('${appDir.path}/$_kModelSubdir/$_kModelFile');
     final vocabFile = File('${appDir.path}/$_kModelSubdir/$_kVocabFile');
     final wordTokensFile = File('${appDir.path}/$_kModelSubdir/$_kWordTokensFile');
@@ -464,6 +493,23 @@ class FastConformerVerifier {
       await _channel.invokeMethod('setClipCapture', {'dir': dir});
     } catch (e) {
       debugPrint('[FastConformer] Échec setClipCapture : $e');
+    }
+  }
+
+  /// Coupe/rétablit le journal de diagnostic NATIF (cf. DiagnosticLog.kt), en
+  /// miroir de `DiagnosticLog.enabled` côté Dart. Un seul réglage utilisateur
+  /// pilote les deux, sinon « diagnostic désactivé » ne voudrait rien dire :
+  /// le natif émet ses lignes depuis le thread d'inférence, c'est lui le plus
+  /// susceptible de peser sur le retard qu'on cherche à mesurer.
+  ///
+  /// Volontairement SANS garde `_loaded` (contrairement à setClipCapture) : le
+  /// réglage doit pouvoir être poussé avant le chargement du modèle, et le
+  /// plugin le retient dans un champ statique.
+  Future<void> setLogEnabled(bool enabled) async {
+    try {
+      await _channel.invokeMethod('setLogEnabled', {'enabled': enabled});
+    } catch (e) {
+      debugPrint('[FastConformer] Échec setLogEnabled : $e');
     }
   }
 

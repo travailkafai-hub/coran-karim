@@ -118,23 +118,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Record ~14 words deliberately said right/wrong (ص/س, ط/ت...) to fine-tune your sensitivity';
 
   @override
-  String get settingsMyClipsTitle => 'My verified clips';
+  String get settingsMyClipsTitle => 'My recitation recordings';
 
   @override
   String get settingsMyClipsLoading => 'Loading…';
 
   @override
   String get settingsMyClipsEmpty =>
-      'No clips yet — recorded during your reference recitations';
+      'No recordings yet — they are kept for every recitation';
 
   @override
   String settingsMyClipsCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other:
-          '$count verified clips — export to personalize the model to your voice',
-      one: '1 verified clip — export to personalize the model to your voice',
+      other: '$count recordings kept — tap to export them',
+      one: '1 recording kept — tap to export it',
     );
     return '$_temp0';
   }
@@ -172,15 +171,26 @@ class AppLocalizationsEn extends AppLocalizations {
       'Version 1.0.0  •  Powered by Gemma 4 + Whisper';
 
   @override
-  String get settingsRepeatDrillTitle => 'Memorization repetitions';
+  String get settingsValidate => 'Confirm';
 
   @override
-  String settingsRepeatDrillDescription(int max) {
-    return 'Number of times to repeat the verse before testing your memory (1 to $max).';
+  String get settingsRepeatEngineSectionTitle => 'INCREMENTAL REPETITION';
+
+  @override
+  String get settingsAdultChunkWordCountTitle => 'Words per step (Adult mode)';
+
+  @override
+  String settingsAdultChunkWordCountDescription(int max) {
+    return 'Approximates a Mushaf line (1 to $max words). No effect in Child mode, which always stays word by word.';
   }
 
   @override
-  String get settingsValidate => 'Confirm';
+  String get settingsRepeatWindowSizeTitle => 'Recitation window (cursor)';
+
+  @override
+  String settingsRepeatWindowSizeDescription(int max) {
+    return 'Number of steps to recite together to validate (1 to $max). This size stays fixed, the window slides forward as steps are added.';
+  }
 
   @override
   String get commonConnectionRequired => 'Connection required';
@@ -652,23 +662,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get coachImitatedNext => 'I imitated it — Repeat alone';
 
   @override
-  String get coachRepeatAloneInstruction =>
-      'Repeat alone, without the audio. The text stays visible to help you.';
+  String get coachIncrementalInstruction =>
+      'Listen then repeat. The step grows with each success.';
 
   @override
-  String get coachListeningRepeat => 'Repeating the verse…';
+  String get coachIncrementalPreparing => 'Preparing…';
 
   @override
-  String get coachRepeatAnalyzed => 'Recitation analyzed!';
+  String get coachIncrementalListening => 'Listening…';
 
   @override
-  String get coachTapToRepeat => 'Tap and repeat the verse';
+  String get coachIncrementalTapToStart => 'Tap to try again';
 
   @override
-  String get coachRestart => 'Restart';
+  String coachIncrementalUnitProgress(int done, int total) {
+    return 'Step $done/$total';
+  }
 
   @override
-  String get coachTestMemory => 'Test my memory';
+  String get coachIncrementalVerseAdvance => 'Next verse';
 
   @override
   String get coachRecallInstruction =>
@@ -1515,4 +1527,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String mushafJuzChip(int n) {
     return 'JUZ $n';
   }
+
+  @override
+  String get settingsSectionDiagnostic => 'Diagnostics';
+
+  @override
+  String get settingsDiagnosticTitle => 'Diagnostic log and audio';
+
+  @override
+  String get settingsDiagnosticSubtitleOn =>
+      'On — writes the log and keeps audio clips';
+
+  @override
+  String get settingsDiagnosticSubtitleOff =>
+      'Off — nothing is written while reciting';
 }

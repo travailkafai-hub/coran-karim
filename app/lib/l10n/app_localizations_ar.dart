@@ -117,22 +117,21 @@ class AppLocalizationsAr extends AppLocalizations {
       'سجّل نحو 14 كلمة منطوقة عمدًا بشكل صحيح/خاطئ (ص/س، ط/ت...) لضبط حساسيتك';
 
   @override
-  String get settingsMyClipsTitle => 'مقاطعي الموثّقة';
+  String get settingsMyClipsTitle => 'تسجيلات تلاواتي';
 
   @override
   String get settingsMyClipsLoading => 'جارٍ التحميل…';
 
   @override
-  String get settingsMyClipsEmpty =>
-      'لا يوجد أي مقطع بعد — تُسجَّل أثناء تلاواتك المرجعية';
+  String get settingsMyClipsEmpty => 'لا توجد تسجيلات — تُحفظ مع كل تلاوة';
 
   @override
   String settingsMyClipsCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count مقاطع موثّقة — صدّرها لتخصيص النموذج بصوتك',
-      one: 'مقطع واحد موثّق — صدّره لتخصيص النموذج بصوتك',
+      other: '$count تسجيلات محفوظة — اضغط لتصديرها',
+      one: 'تسجيل واحد محفوظ — اضغط لتصديره',
     );
     return '$_temp0';
   }
@@ -168,15 +167,27 @@ class AppLocalizationsAr extends AppLocalizations {
       'الإصدار 1.0.0 • بدعم من Gemma 4 و Whisper';
 
   @override
-  String get settingsRepeatDrillTitle => 'تكرارات الحفظ';
+  String get settingsValidate => 'تأكيد';
 
   @override
-  String settingsRepeatDrillDescription(int max) {
-    return 'عدد مرات تكرار الآية قبل اختبار حفظك (من 1 إلى $max).';
+  String get settingsRepeatEngineSectionTitle => 'التكرار التدريجي';
+
+  @override
+  String get settingsAdultChunkWordCountTitle =>
+      'عدد الكلمات في كل مرحلة (وضع البالغ)';
+
+  @override
+  String settingsAdultChunkWordCountDescription(int max) {
+    return 'يقارب سطرًا من المصحف (من 1 إلى $max كلمة). بلا أثر في وضع الطفل، الذي يبقى كلمة بكلمة دائمًا.';
   }
 
   @override
-  String get settingsValidate => 'تأكيد';
+  String get settingsRepeatWindowSizeTitle => 'نافذة التلاوة (المؤشر)';
+
+  @override
+  String settingsRepeatWindowSizeDescription(int max) {
+    return 'عدد المراحل الواجب تلاوتها معًا للتثبيت (من 1 إلى $max). هذا العدد ثابت، والنافذة تنزلق مع تقدّم المراحل.';
+  }
 
   @override
   String get commonConnectionRequired => 'الاتصال مطلوب';
@@ -633,23 +644,25 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachImitatedNext => 'حاكيت — أكرّر وحدي';
 
   @override
-  String get coachRepeatAloneInstruction =>
-      'كرّر وحدك، دون صوت. يبقى النص ظاهرًا لمساعدتك.';
+  String get coachIncrementalInstruction =>
+      'استمع ثم كرّر. تكبر المرحلة مع كل نجاح.';
 
   @override
-  String get coachListeningRepeat => 'تكرار الآية…';
+  String get coachIncrementalPreparing => 'التحضير جارٍ…';
 
   @override
-  String get coachRepeatAnalyzed => 'تم تحليل التلاوة!';
+  String get coachIncrementalListening => 'الاستماع جارٍ…';
 
   @override
-  String get coachTapToRepeat => 'اضغط وكرّر الآية';
+  String get coachIncrementalTapToStart => 'اضغط لإعادة المحاولة';
 
   @override
-  String get coachRestart => 'إعادة';
+  String coachIncrementalUnitProgress(int done, int total) {
+    return 'المرحلة $done/$total';
+  }
 
   @override
-  String get coachTestMemory => 'اختبار حفظي';
+  String get coachIncrementalVerseAdvance => 'الآية التالية';
 
   @override
   String get coachRecallInstruction => 'اتلُ من حفظك — النص مخفي.';
@@ -1433,4 +1446,18 @@ class AppLocalizationsAr extends AppLocalizations {
   String mushafJuzChip(int n) {
     return 'الجزء $n';
   }
+
+  @override
+  String get settingsSectionDiagnostic => 'التشخيص';
+
+  @override
+  String get settingsDiagnosticTitle => 'سجل التشخيص والصوت';
+
+  @override
+  String get settingsDiagnosticSubtitleOn =>
+      'مُفعَّل — يكتب السجل ويحفظ مقاطع الصوت';
+
+  @override
+  String get settingsDiagnosticSubtitleOff =>
+      'مُعطَّل — لا يُكتب شيء أثناء التلاوة';
 }

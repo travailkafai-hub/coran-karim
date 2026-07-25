@@ -79,6 +79,100 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // est deja nette a ~10s de buffer, un gel force a 20s fige du texte degrade.
         private const val MAX_SEGMENT_SECONDS = 12f   // borne dure : force le gel meme sans pause
         private const val MIN_TRACKED_PAUSE_MS = 150  // pauses plus courtes = micro-respirations, ignorees du profil
+
+        // ── COUPE SUR MICRO-SILENCE (2026-07-25, idee utilisateur) ──────────
+        // OBJECTIF : borner le retard de validation SANS jamais couper au
+        // milieu d'un mot. Les deux tentatives precedentes echouaient parce
+        // qu'elles opposaient ces deux exigences (gel sur pause = frontiere
+        // propre mais retard non borne ; gel sur horloge = retard borne mais
+        // coupe en plein mot, mesure : segments commencant en pleine parole
+        // 5/7 -> 11/14). Ici on ne coupe QUE sur un silence, mais on va le
+        // chercher a une resolution assez fine pour qu'il y en ait toujours un.
+        //
+        // MESURE QUI DEBLOQUE LE PROBLEME : le portier analyse des blocs de
+        // 80ms (la taille livree par le micro), granularite trop grossiere pour
+        // voir les frontieres de mots -- un micro-arret de 30-40ms est moyenne
+        // avec de la parole dans le meme bloc et devient invisible. Mesure sur
+        // les WAV captes de l'utilisateur, meme seuil (0.02), resolutions
+        // differentes :
+        //     80ms -> 15 silences, plages de parole med. 1920ms, max 7760ms
+        //     20ms -> 38 silences, plages de parole med.  760ms, max 3800ms
+        //     10ms -> 46 silences, plages de parole med.  620ms
+        // Le "bloc de 7,76s sans aucun silence" etait donc un ARTEFACT de
+        // resolution. A 20ms, la plage mediane vaut 760ms, soit ~1 mot (duree
+        // mediane d'un mot mesuree sur les timings officiels quran.com :
+        // 1019ms, moyenne 1193ms, max 3420ms). Les micro-arrets existent bien,
+        // en nombre suffisant pour decouper mot par mot ou deux par deux.
+        //
+        // PRINCIPE : quand le buffer atteint la cible, on cherche le
+        // micro-silence LE PLUS PROCHE DE LA CIBLE et on coupe la. L'audio situe
+        // APRES la coupe reste dans le buffer et servira au segment suivant --
+        // c'est ce qui garantit qu'aucun mot n'est saute (demande explicite de
+        // l'utilisateur : "il ne faut pas sauter le 2"). Aucun mot n'est juge
+        // deux fois : les mots apres la coupe n'ont jamais ete transcrits, donc
+        // l'ancre n'a pas avance dessus -- on evite le piege du recouvrement
+        // naif (cf. ForcedAligner "TENTATIVE 1", fenetre glissante a WER>100%).
+        //
+        // Si AUCUN micro-silence n'est trouve (cas theorique), on ne coupe pas :
+        // le comportement d'avant reprend la main (pause franche, puis borne
+        // dure MAX_SEGMENT_SECONDS). On ne cree jamais de coupe en plein mot.
+        private const val FINE_WINDOW_MS = 20         // resolution d'analyse (cf. mesure ci-dessus)
+        private const val MIN_MICRO_SILENCE_MS = 40   // 2 fenetres : un vrai inter-mot, pas une occlusive
+
+        // ── CIBLE DE SEGMENT : 3,0s FIXES ────────────────────────────────────
+        // HISTORIQUE DES DEUX TENTATIVES PRECEDENTES, conserve pour ne pas les
+        // refaire :
+        //
+        // (a) Cible fixe 2,0s -- MESUREE et REJETEE. Le retard tombait bien a
+        //     2,9s de mediane, mais chaque gel ne renvoyait plus qu'UN SEUL mot
+        //     avec une frontiere qui n'avancait pas (`ancre=13 frontiere=13
+        //     mots=1 nouvelle_ancre=14`, repete a l'identique) : l'aligneur
+        //     n'avait pas assez de frames pour placer plusieurs mots, et comme
+        //     `isFinal=true` force le jugement ET le verrouillage de tout ce
+        //     qu'il renvoie, 278 mots ont ete tamponnes "correct" quasi a vide.
+        //     Retour utilisateur : "il valide avant que je dise le mot".
+        //
+        // (b) Cible DYNAMIQUE `WORDS_PER_SEGMENT (3) x secPerWord`, le debit
+        //     etant appris en continu par moyenne glissante sur
+        //     `samples figes / mots places`. MESUREE et REJETEE aussi, pour une
+        //     raison de fond : quand l'aligneur echoue (`mots=0`, `mots=1` sur
+        //     un segment de 4s), ce rapport n'est PAS un debit, c'est un signal
+        //     d'echec -- et il pousse la cible vers le haut. Cible plus longue
+        //     -> segment plus long -> moins de mots places -> cible encore plus
+        //     longue : BOUCLE QUI S'EMBALLE. Mesure du 14:48 : secPerWord parti
+        //     de 1,00 s'est envole a 1,53, la cible a 4,6s, et les
+        //     transcriptions sont devenues "مِ ٱللَّهِ ٱلرَّحْمَحِيمِ", "هُ".
+        //     Ne pas reintroduire d'apprentissage du debit sans regler d'abord
+        //     ce point : un echec d'alignement doit etre exclu de la mesure.
+        //
+        // POURQUOI 3,0s, mesure sur l'audio reel du device (23 WAV, 81s,
+        // `benchmark/compare_onnx_on_device_wavs.py`) : depuis un MEME vrai
+        // inter-mot, le nombre de mots emis croit avec la duree sans se degrader
+        // jusqu'a ~5,6s -- 3,08s -> 5 mots justes, 4,80s -> 8, 5,56s -> 9. Le
+        // DEBIT de mots est donc constant (1,6-2,0 mots/s de parole) : l'ancre
+        // avance aussi vite avec des segments de 3s qu'avec des segments de
+        // 5,5s. Mais le RETARD DE VALIDATION vaut la duree du segment
+        // (mesure : retard = duree + 0,3 a 1,5s). 3,0s donne donc la meme
+        // precision et le meme avancement pour moitie moins de retard.
+        //
+        // ⚠️ A NE PAS CROIRE : "au-dela de 3,5-4s la transcription se degrade".
+        // Je l'ai ecrit le 2026-07-25 puis MESURE FAUX -- c'etait un artefact de
+        // comparaison entre segments qui ne commencaient pas au meme endroit. Ce
+        // qui detruit une transcription, c'est un segment qui DEMARRE au milieu
+        // d'un mot, pas sa longueur (preuve : le segment de 6,27s capte par
+        // l'app rend "هُ", alors que le MEME audio recoupe depuis un vrai
+        // inter-mot rend "هُدًى لِّلْمُتَّقِينَ" parfaitement). Le plafond a 3,5s
+        // ci-dessous est justifie par le RETARD, jamais par l'acoustique.
+        private const val TARGET_SECONDS = 3.0f
+        private const val MIN_TARGET_SECONDS = 2.5f
+        private const val MAX_TARGET_SECONDS = 3.5f
+        // Rayon de recherche du silence AUTOUR de la cible. On coupe au silence
+        // le PLUS PROCHE de la cible, jamais au dernier du buffer : couper trop
+        // tot laisse une grosse queue d'audio qui depasse elle-meme la cible ->
+        // nouvelle coupe immediate -> cascade de gels qui verrouillent un mot a
+        // chaque tour meme quand le recitateur s'est TU (bug mesure sur la 1re
+        // version).
+        private const val CUT_SEARCH_RADIUS_SECONDS = 0.8f
     }
 
     private val lock = Any()
@@ -165,22 +259,36 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
      *  courante. [isFinal] : segment fige (l'audio ne sera plus reanalyse) —
      *  les jugements de cette passe sont definitifs et l'ancre native avance. */
     private fun runAlignment(logprobs: Array<FloatArray>, isFinal: Boolean, clipPath: String? = null,
-                             segmentRules: List<DetectedRule> = emptyList()) {
-        val tokens = alignTokens ?: return
+                             segmentRules: List<DetectedRule> = emptyList(),
+                             segmentSamples: Int = 0): Int {
+        val tokens = alignTokens ?: return -1
         val anchor = alignAnchor
-        if (anchor >= tokens.size) return
+        if (anchor >= tokens.size) return -1
         try {
             val end = minOf(tokens.size, anchor + maxAlignWords)
             val slice = tokens.subList(anchor, end)
             // forceJudgeIndex seulement sur un appel FINAL : un apercu ne
             // verrouille jamais rien, differer un mot sur un apercu ne compte
             // pas comme une "tentative" reelle.
-            val forceIdx = if (isFinal) deferredOnceIndex else -1
+            //
+            // ... et seulement sur un segment assez long pour ETRE une vraie
+            // seconde chance (ajout 2026-07-25). Le commentaire de
+            // deferredOnceIndex dit "si le MEME mot se retrouve encore a la
+            // frontiere avec trop peu d'opportunite, on le juge quand meme" :
+            // un segment de 0,2s n'est pas une opportunite. Mesure qui l'a
+            // impose : le gel parasite du 14:12:22.609 (200ms d'audio) est
+            // arrive avec forceJudgeIndex=19 et a juge يُنفِقُونَ en rouge avec
+            // `entendu=""`. Avec commitInFlight + le garde-fou de duree
+            // minimale, un tel segment ne peut plus etre fige -- cette
+            // condition est un filet de securite : aucun mot ne doit JAMAIS
+            // etre juge sans preuve acoustique, quel que soit le chemin.
+            val realChance = segmentSamples >= (SAMPLE_RATE * MIN_COMMIT_SECONDS).toInt()
+            val forceIdx = if (isFinal && realChance) deferredOnceIndex else -1
             val variantsSlice = alignVariants?.let {
                 if (anchor < it.size) it.subList(anchor, minOf(it.size, end)) else null
             }
             val res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal, variantsSlice,
-                                    segmentRules) ?: return
+                                    segmentRules) ?: return -1
             val words = res.words.map {
                 mapOf(
                     "i" to it.index,
@@ -196,7 +304,10 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     (if (it.detectedRules.isEmpty()) emptyMap() else mapOf(
                         "rules" to it.detectedRules.map { r ->
                             mapOf("id" to r.ruleId, "prob" to r.prob.toDouble())
-                        }))
+                        })) +
+                    // Provenance du texte `actual` (cf. WordResult.actualFromFree) :
+                    // journalisee cote Dart en `src=libre` / `src=dp`.
+                    (if (it.actualFromFree) mapOf("srcFree" to true) else emptyMap())
             }
             alignSeq++
             lastAlign = mapOf(
@@ -228,18 +339,29 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // "مَالِكِ..." parfaitement correct).
             if (isFinal) {
                 alignAnchor = anchor + res.words.size
+                // (Ici vivait l'apprentissage du debit `secPerWord`, retire le
+                // 2026-07-25 : voir le bloc (b) des constantes de segment -- un
+                // echec d'alignement y etait compte comme un debit et faisait
+                // s'emballer la cible.)
                 // cf. deferredOnceIndex : ce FINAL a soit juge le mot qu'on
                 // forcait (forceIdx, alors deja inclus dans res.words -> on
                 // efface le garde-fou), soit differe un NOUVEAU mot (a
                 // repasser en force au prochain FINAL), soit n'a rien differe
                 // du tout (deferredIndex=null -> RAZ).
-                deferredOnceIndex = res.deferredIndex ?: -1
+                // `realChance` (cf. plus haut) : sur un segment trop court pour
+                // etre une vraie chance, on n'a PAS force -- il ne faut donc pas
+                // consommer le sursis en cours, sinon le mot perd sa seconde
+                // chance sans l'avoir eue.
+                deferredOnceIndex = res.deferredIndex ?: (if (realChance) -1 else deferredOnceIndex)
             }
             DiagnosticLog.log(TAG, "alignement seq=$alignSeq ancre=$anchor frontiere=${res.frontier} " +
-                    "final=$isFinal mots=${words.size} nouvelle_ancre=$alignAnchor differe=$deferredOnceIndex")
+                    "final=$isFinal mots=${words.size} nouvelle_ancre=$alignAnchor " +
+                    "differe=$deferredOnceIndex derniere_frame=${res.lastFrame}")
+            return res.lastFrame
         } catch (e: Exception) {
             DiagnosticLog.log(TAG, "echec alignement force: ${e.message}")
         }
+        return -1
     }
 
     // Exposes separement pour que le scoring Dart puisse s'ANCRER sur la partie
@@ -259,9 +381,36 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     private var pauseSamples = 0
     @Volatile private var pendingCommit = false
     @Volatile private var pendingForceCommit = false
+    // VRAI entre le prelevement de l'extrait d'un gel et la purge du buffer par
+    // la coroutine (~265ms plus tard, duree de l'inference). Pendant cette
+    // fenetre `samples` MENT : il contient encore l'audio deja parti en
+    // inference et deja en cours de verrouillage. Toute decision prise sur
+    // `samples.size` y est donc fausse -- ce drapeau les interdit toutes.
+    //
+    // BUG QUI A IMPOSE CE DRAPEAU (mesure 2026-07-25, log 14:12:22) : les blocs
+    // PCM arrivent par rafales (deux feed() a 4ms d'ecart portant 80ms d'audio
+    // chacun). La 2e a rearme la MEME coupe (offset 3320ms) sur le buffer non
+    // encore purge ; `busy` etant pris, elle est restee en attente ; une fois le
+    // buffer purge il ne restait que 120ms, et cet offset perime a fige un
+    // segment de 0,2s (`segment FIGE 0s -> 34ms : "م"`) qui a verrouille
+    // يُنفِقُونَ en ROUGE avec `entendu=""` 300ms AVANT que l'utilisateur ne le
+    // prononce -- puis a fait avancer l'ancre, si bien que le mot suivant
+    // recevait l'audio du precedent. C'est exactement le "la validation m'a
+    // devance" rapporte.
+    @Volatile private var commitInFlight = false
+    // Offset (samples) ou couper le prochain segment fige, trouve sur un
+    // micro-silence (cf. findCutOffset). -1 = pas de coupe programmee, le
+    // segment est fige en entier comme avant.
+    @Volatile private var pendingCutOffset = -1
     // Taille du buffer couverte par le dernier apercu (latestText) — permet au
     // gel force de figer l'apercu sans re-transcrire (cf. borne dure ci-dessous).
     @Volatile private var lastPreviewSize = 0
+    // Debut (horloge murale) de l'audio actuellement dans le buffer -- sert
+    // UNIQUEMENT a logger l'ecart entre le moment ou un mot a ete PRONONCE et
+    // celui ou il est VALIDE (demande utilisateur 2026-07-25 : mesurer le
+    // retard du curseur sans le deduire). Aucune influence sur le
+    // comportement : ni la segmentation, ni le jugement ne le lisent.
+    @Volatile private var segmentStartWallMs = 0L
     // Seuil de gel sur pause, personnalisable par le profil utilisateur (Dart).
     @Volatile private var commitSilenceSamples =
         SAMPLE_RATE * DEFAULT_COMMIT_SILENCE_MS / 1000
@@ -294,15 +443,112 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     /** Durees (ms) des pauses >= ${MIN_TRACKED_PAUSE_MS}ms observees depuis reset(). */
     fun getSessionPausesMs(): List<Int> = synchronized(sessionPausesMs) { sessionPausesMs.toList() }
 
+    /** RMS d'une fenetre de [len] samples a partir de [from]. */
+    private fun rmsAt(buf: FloatArray, from: Int, len: Int): Float {
+        var sum = 0.0
+        val end = minOf(from + len, buf.size)
+        for (i in from until end) sum += buf[i].toDouble() * buf[i]
+        val n = end - from
+        return if (n <= 0) 0f else sqrt(sum / n).toFloat()
+    }
+
+    /**
+     * Cherche dans [buf] le micro-silence (>= [MIN_MICRO_SILENCE_MS]) dont le
+     * milieu est le PLUS PROCHE de [targetOffset], entre [minKeep] (jamais de
+     * segment plus court) et la FIN du buffer. Retourne l'offset de coupe
+     * (milieu du silence : queue propre pour le segment fige, amorce propre
+     * pour le suivant), ou -1 si aucun silence exploitable.
+     *
+     * "LE PLUS PROCHE DE LA CIBLE" et non "le dernier du buffer" : couper trop
+     * tot laisse une queue qui depasse elle-meme la cible -> recoupe immediate
+     * -> cascade de gels verrouillant un mot a chaque tour, meme quand le
+     * recitateur s'est tu (bug mesure sur la 1re version, cf. constantes).
+     *
+     * BORNE DROITE = FIN DU BUFFER, correctif 2026-07-25 (2e mesure, validee
+     * par l'utilisateur). Avant, la recherche etait enfermee dans un couloir
+     * FIXE [cible-0,8s ; cible+0,8s] qui ne bougeait jamais : si ce couloir de
+     * 1,6s ne contenait aucun micro-silence, findCutOffset rendait -1, et au
+     * bloc suivant on rescannait EXACTEMENT le meme couloir avec le meme
+     * resultat -- indefiniment. Mesure sur la session du 14:25 : sur 15 gels,
+     * 5 coupes seulement, toutes dans les 15 premieres secondes, puis PLUS
+     * AUCUNE. Les segments montaient alors a 4s, 5s, 6s, 7s (seules la pause
+     * franche et la borne dure tranchaient encore) et le retard de validation
+     * passait de ~3s a 7,5-8,2s.
+     *
+     * Pire, c'est ce qui provoquait la DESYNCHRONISATION de la fin de session :
+     * a 6-7s la transcription libre s'effondre (derive de normalisation deja
+     * documentee en tete de fichier). Le gel de 7s a 14:26:09 a AVALE 4 mots
+     * (le texte rendu ne contenait ni "ءَأَنذَرْتَهُمْ" ni "أَمْ لَمْ تُنذِرْهُمْ"),
+     * l'ancre a donc pris 7 mots de retard ; a partir de la, l'audio qui
+     * arrivait ne contenait plus les mots attendus, l'aligneur ne placait plus
+     * qu'UN mot par gel (ancre 45,46,47,48,49) et ne rattrapait JAMAIS. En
+     * gardant les segments courts des qu'un micro-silence existe quelque part
+     * apres la cible, la transcription reste dans son domaine de stabilite et
+     * l'ancre suit le recitateur.
+     *
+     * Pas de retour de la cascade : la selection reste "le plus proche de la
+     * cible" (donc la queue laissee derriere est minimale) et [minKeep]
+     * garantit que tout segment fige fait au moins MIN_TARGET_SECONDS -- les
+     * micro-segments a `mots=1` de la v1 sont structurellement impossibles.
+     *
+     * Analyse a FINE_WINDOW_MS et non par blocs de 80ms : c'est tout l'objet du
+     * correctif -- a 80ms les frontieres de mots sont invisibles (mesure : 15
+     * silences vus a 80ms contre 38 a 20ms sur le meme audio).
+     */
+    private fun findCutOffset(buf: FloatArray, targetOffset: Int, minKeep: Int): Int {
+        val win = SAMPLE_RATE * FINE_WINDOW_MS / 1000
+        val minRunWins = MIN_MICRO_SILENCE_MS / FINE_WINDOW_MS
+        val radius = (SAMPLE_RATE * CUT_SEARCH_RADIUS_SECONDS).toInt()
+        // Borne GAUCHE bornee par le rayon : on ne coupe jamais loin AVANT la
+        // cible (sinon segments inutilement courts). Borne DROITE = fin du
+        // buffer : elle avance avec l'audio, c'est ce qui rend la fenetre
+        // glissante (cf. bloc de documentation ci-dessus).
+        val from = maxOf(minKeep, targetOffset - radius)
+        val to = buf.size
+        if (to - from < win * minRunWins) return -1
+
+        var best = -1
+        var bestDist = Int.MAX_VALUE
+        var runStart = -1
+        var i = from
+        while (i + win <= to) {
+            val silent = rmsAt(buf, i, win) < SILENCE_RMS_THRESHOLD
+            if (silent) {
+                if (runStart < 0) runStart = i
+            } else if (runStart >= 0) {
+                if (i - runStart >= win * minRunWins) {
+                    val mid = (runStart + i) / 2
+                    val dist = kotlin.math.abs(mid - targetOffset)
+                    if (dist < bestDist) { bestDist = dist; best = mid }
+                }
+                runStart = -1
+            }
+            i += win
+        }
+        // Silence encore ouvert a la fin de la plage examinee.
+        if (runStart >= 0 && to - runStart >= win * minRunWins) {
+            val mid = (runStart + to) / 2
+            if (kotlin.math.abs(mid - targetOffset) < bestDist) best = mid
+        }
+        return best
+    }
+
+    /** Cible de longueur de segment (cf. TARGET_SECONDS pour la mesure). */
+    private fun targetSeconds(): Float =
+        TARGET_SECONDS.coerceIn(MIN_TARGET_SECONDS, MAX_TARGET_SECONDS)
+
     fun reset() {
         synchronized(lock) { samples = FloatArray(0) }
         latestText = ""
         committedText = ""
         lastRunSize = 0
+        segmentStartWallMs = 0L // mesure seule, cf. segmentStartWallMs
         retainedSilenceSamples = 0
         pauseSamples = 0
         pendingCommit = false
         pendingForceCommit = false
+        pendingCutOffset = -1
+        commitInFlight = false
         lastPreviewSize = 0
         // L'ancre d'alignement n'est PAS touchee ici : reset() est appele
         // pendant la correction (resetBuffer Dart) qui repositionne l'ancre
@@ -354,15 +600,36 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         }
 
         val sizeSeconds = size.toFloat() / SAMPLE_RATE
+        // Horodatage du debut de l'audio de ce segment (mesure seule, cf.
+        // segmentStartWallMs) -- pose au premier bloc effectivement accumule.
+        if (segmentStartWallMs == 0L && size > 0) segmentStartWallMs = System.currentTimeMillis()
         // Le gel exige un segment assez long — verifie ICI (au moment de armer
         // le flag) ET au lancement (le flag peut survivre a un gel precedent :
         // course observee en test reel, micro-segment d'1s fige corrompu).
         if (isSilence && pauseSamples >= commitSilenceSamples &&
-            sizeSeconds >= MIN_COMMIT_SECONDS
+            sizeSeconds >= MIN_COMMIT_SECONDS && !commitInFlight
         ) {
             pendingCommit = true // pause franche sur un segment assez long -> fin de verset/groupe probable
         }
-        if (sizeSeconds >= MAX_SEGMENT_SECONDS) {
+        // Coupe sur MICRO-SILENCE (cf. commentaire des constantes) : des que le
+        // buffer atteint la longueur visee, on cherche en arriere un vrai
+        // inter-mot et on coupe la. Si on n'en trouve pas, on ne force RIEN --
+        // les mecanismes d'avant (pause franche, borne dure) gardent la main,
+        // donc on ne coupe jamais en plein mot.
+        val target = targetSeconds()
+        if (!pendingCommit && pendingCutOffset < 0 && !commitInFlight && sizeSeconds >= target) {
+            val targetOffset = (SAMPLE_RATE * target).toInt()
+            val minKeep = (SAMPLE_RATE * MIN_TARGET_SECONDS).toInt()
+            val cut = synchronized(lock) { findCutOffset(samples, targetOffset, minKeep) }
+            if (cut > 0) {
+                pendingCutOffset = cut
+                pendingCommit = true
+                DiagnosticLog.log(TAG, "coupe sur micro-silence a ${cut * 1000 / SAMPLE_RATE}ms " +
+                        "(buffer ${"%.1f".format(sizeSeconds)}s, cible ${"%.1f".format(target)}s) " +
+                        "-- ${(size - cut) * 1000 / SAMPLE_RATE}ms conserves pour le segment suivant")
+            }
+        }
+        if (sizeSeconds >= MAX_SEGMENT_SECONDS && !commitInFlight) {
             // Borne dure : recitation continue sans pause detectee. On ne
             // RE-transcrit PAS (test reel 2026-07-05 : a 12s la re-transcription
             // de gel etait degradee alors que le dernier apercu etait parfait) —
@@ -370,8 +637,34 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // l'audio qu'il couvrait.
             pendingForceCommit = true
         }
-        if (pendingCommit && sizeSeconds < MIN_COMMIT_SECONDS) {
-            pendingCommit = false // flag herite d'un gel precedent, segment courant trop court
+        // Garde-fou de duree minimale. Il teste la longueur REELLEMENT PREVUE
+        // pour le gel (l'offset de coupe s'il y en a un, sinon tout le buffer)
+        // et non `sizeSeconds`.
+        //
+        // TENTATIVE PRECEDENTE, FAUSSE (2026-07-25, conservee comme mise en
+        // garde) : la condition portait `&& pendingCutOffset < 0`, au motif
+        // qu'un gel programme respecte deja MIN_TARGET_SECONDS par
+        // construction (parametre minKeep de findCutOffset). C'est vrai DANS LE
+        // BUFFER OU L'OFFSET A ETE CALCULE -- et faux des que ce buffer est
+        // purge entre-temps. Cette exclusion a perce le trou par lequel un
+        // offset perime de 3320ms a fige un segment de 200ms et verrouille un
+        // mot en rouge avant qu'il soit prononce (cf. commitInFlight). Ne pas
+        // la reintroduire : c'est precisement ce garde-fou, dans sa forme
+        // d'origine, qui rattrapait la course.
+        val plannedSamples = if (pendingCutOffset > 0) minOf(pendingCutOffset, size) else size
+        if (pendingCommit && plannedSamples < (SAMPLE_RATE * MIN_COMMIT_SECONDS).toInt()) {
+            pendingCommit = false // segment prevu trop court (flag herite, ou offset perime)
+            pendingCutOffset = -1
+        }
+        // Un offset de coupe qui depasse le buffer n'a plus aucun sens : il a
+        // ete calcule sur un audio qui n'est plus la. On l'invalide ICI plutot
+        // que de le laisser degrader au prelevement (ou il figeait TOUT le
+        // buffer -- le pire choix possible, cf. le log de l'anomalie plus bas).
+        if (pendingCutOffset > 0 && pendingCutOffset >= size) {
+            DiagnosticLog.log(TAG, "offset de coupe perime (${pendingCutOffset} >= buffer ${size}) " +
+                    "-- invalide, aucun gel")
+            pendingCutOffset = -1
+            pendingCommit = false
         }
 
         if (pendingForceCommit && !busy.get()) {
@@ -421,7 +714,10 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     // la ligne 200 : efface (-1) si rien n'etait differe.
                     deferredOnceIndex = (la["deferredIndex"] as? Int) ?: -1
                 }
-                DiagnosticLog.log(TAG, "segment FIGE (borne ${MAX_SEGMENT_SECONDS}s, apercu reutilise, ${covered / SAMPLE_RATE}s couverts) : \"${previewText.take(80)}\"")
+                val ageMs = System.currentTimeMillis() - segmentStartWallMs
+                segmentStartWallMs = 0L
+                DiagnosticLog.log(TAG, "segment FIGE (borne ${MAX_SEGMENT_SECONDS}s, apercu reutilise, ${covered / SAMPLE_RATE}s couverts) " +
+                        "| VALIDATION retard=${ageMs}ms depuis le debut de cet audio : \"${previewText.take(80)}\"")
             } else {
                 // Pas d'apercu utilisable -> gel classique avec re-transcription.
                 pendingCommit = true
@@ -435,8 +731,30 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             lastRunSize = size
             val committing = pendingCommit
             pendingCommit = false
+            // Coupe sur micro-silence : on ne transcrit/juge QUE jusqu'au
+            // silence trouve. L'audio d'apres reste dans `samples` (la purge
+            // post-gel plus bas retire exactement `snapshot.size`), donc il
+            // sera transcrit avec le segment suivant -- aucun mot saute, aucun
+            // mot juge deux fois.
+            val cutAt = if (committing) pendingCutOffset else -1
+            pendingCutOffset = -1
+            // A partir d'ici et jusqu'a la purge (cf. bloc `committing` dans la
+            // coroutine), `samples` contient de l'audio deja en cours de gel :
+            // aucune decision de segmentation ne doit plus s'appuyer dessus.
+            if (committing) commitInFlight = true
             val snapshot: FloatArray
-            synchronized(lock) { snapshot = samples.copyOf() }
+            synchronized(lock) {
+                snapshot = if (cutAt in 1 until samples.size) {
+                    samples.copyOfRange(0, cutAt)
+                } else {
+                    // Ne devrait plus jamais arriver (invalide en amont) -- mais
+                    // ce repli figeait TOUT le buffer en silence : le rendre
+                    // visible plutot que muet.
+                    if (cutAt > 0) DiagnosticLog.log(TAG,
+                            "ANOMALIE: offset de coupe $cutAt hors buffer ${samples.size} au prelevement")
+                    samples.copyOf()
+                }
+            }
             scope.launch(Dispatchers.Default) {
                 try {
                     // Correctif crash natif (2026-07-23, mesure device : "JNI
@@ -464,24 +782,38 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     val text = engine.greedyDecode(logprobs)
                     val ms = (System.nanoTime() - t0) / 1_000_000
                     if (committing) {
-                        // Segment fige : plus jamais reconsidere. On ne retire du
-                        // buffer QUE la portion transcrite ici -- de l'audio a pu
-                        // arriver pendant l'inference (feed() n'est pas bloquant).
-                        synchronized(lock) {
-                            samples = if (samples.size > snapshot.size) {
-                                samples.copyOfRange(snapshot.size, samples.size)
-                            } else {
-                                FloatArray(0)
-                            }
-                            lastRunSize = samples.size
-                        }
-                        val sep = if (committedText.isEmpty()) "" else " "
-                        committedText = committedText + sep + text
-                        latestText = ""
-                        lastPreviewSize = 0
-                        // Capture du clip (session de reference uniquement, cf.
-                        // setClipCapture) -- best-effort, un echec d'ecriture ne
-                        // doit jamais interrompre la recitation en cours.
+                        // ── ALIGNER D'ABORD, PURGER ENSUITE (2026-07-25) ────
+                        // L'ordre est essentiel : c'est l'alignement qui dit
+                        // jusqu'ou l'audio a ete REELLEMENT consomme, et on ne
+                        // purge que jusque-la.
+                        //
+                        // CE QUE CA CORRIGE (mesure du 16:32) : avant, le buffer
+                        // jetait TOUT le segment alors que l'ancre n'avancait que
+                        // de `words.size`. Exemple exact du log --
+                        //   seq=20 : `segment FIGE 3s : "وَمَآ أُنزِلَ مِنبِ"`,
+                        //   `ancre=25 frontiere=25 mots=1 nouvelle_ancre=26`.
+                        // L'audio contenait les mots 25, 26, 27 (+ debut de 28) ;
+                        // l'aligneur n'a place QUE le mot 25 ; l'audio de 26 et 27
+                        // a ete DETRUIT. Deux gels plus tard :
+                        //   `mot=26 "أُنزِلَ" forced=-20.00 entendu="" -> error`
+                        //   `mot=27 "مِن"    forced=-20.00 entendu="" -> error`
+                        // -- rouges definitifs sur des mots reellement prononces,
+                        // juges sur un audio qui ne les contenait pas. L'ancre est
+                        // restee bloquee a 28 pendant que le recitateur etait au
+                        // mot 43 ("la validation ne me suit pas").
+                        //
+                        // Ce N'EST PAS un recouvrement : l'audio conserve n'a
+                        // jamais ete juge. Le piege de duplication (cf.
+                        // "TENTATIVE 1" dans ForcedAligner, fenetre glissante
+                        // naive a WER > 100 %) ne s'applique pas -- a condition
+                        // de ne figer QUE le texte des frames consommees, d'ou la
+                        // borne passee a greedyDecode ci-dessous.
+                        // Capture du clip (cf. setClipCapture) -- ECRITE AVANT
+                        // l'alignement depuis le 2026-07-25 : `clipPath` est joint
+                        // au payload d'alignement, il doit donc exister avant
+                        // l'appel. Ne depend que de `snapshot`, l'ordre est donc
+                        // libre. Best-effort : un echec d'ecriture ne doit jamais
+                        // interrompre la recitation en cours.
                         var clipPath: String? = null
                         val dir = captureDir
                         if (dir != null) {
@@ -493,9 +825,55 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                                 clipPath = null
                             }
                         }
-                        DiagnosticLog.log(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
-                        runAlignment(logprobs, isFinal = true, clipPath = clipPath,
-                                     segmentRules = segmentRules)
+                        val lastFrame = runAlignment(logprobs, isFinal = true,
+                                                     clipPath = clipPath,
+                                                     segmentRules = segmentRules,
+                                                     segmentSamples = snapshot.size)
+                        // Conversion frames -> samples DEDUITE, jamais codee en
+                        // dur : le facteur de sous-echantillonnage de l'encodeur
+                        // est une propriete du modele exporte ; une constante
+                        // fausse ne se verrait pas et decalerait tout.
+                        val samplesPerFrame =
+                            if (logprobs.isNotEmpty()) snapshot.size / logprobs.size else 0
+                        val consumed = if (lastFrame >= 0 && samplesPerFrame > 0) {
+                            minOf(snapshot.size, (lastFrame + 1) * samplesPerFrame)
+                        } else {
+                            // Aucun mot place (ou pas de cible d'alignement) :
+                            // comportement historique, on purge tout. Conserver le
+                            // buffer ici FIGERAIT la session -- on recommitterait
+                            // sans fin le meme audio sans jamais progresser.
+                            snapshot.size
+                        }
+                        synchronized(lock) {
+                            samples = if (samples.size > consumed) {
+                                samples.copyOfRange(consumed, samples.size)
+                            } else {
+                                FloatArray(0)
+                            }
+                            lastRunSize = samples.size
+                        }
+                        // Texte fige = celui des frames consommees UNIQUEMENT.
+                        val committedPart =
+                            if (consumed < snapshot.size) engine.greedyDecode(logprobs, lastFrame)
+                            else text
+                        val sep = if (committedText.isEmpty()) "" else " "
+                        committedText = committedText + sep + committedPart
+                        latestText = ""
+                        lastPreviewSize = 0
+                        // Ecart AUDIO -> VALIDATION : temps ecoule entre le
+                        // DEBUT de l'audio de ce segment et l'instant ou ses
+                        // mots sont definitivement valides (l'ancre avance
+                        // juste apres, cf. runAlignment isFinal=true). C'est
+                        // exactement le retard du curseur percu a l'ecran.
+                        // `wav=` permet de recaler sur le fichier capte.
+                        val ageMs = System.currentTimeMillis() - segmentStartWallMs
+                        segmentStartWallMs = 0L
+                        DiagnosticLog.log(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms " +
+                                "| consomme=${consumed * 1000 / SAMPLE_RATE}ms " +
+                                "conserve=${(snapshot.size - consumed) * 1000 / SAMPLE_RATE}ms " +
+                                "| VALIDATION retard=${ageMs}ms depuis le debut de cet audio" +
+                                "${if (clipPath != null) " | wav=${clipPath.substringAfterLast('/')}" else ""}" +
+                                " : \"${committedPart.take(80)}\"")
                     } else {
                         latestText = text
                         lastPreviewSize = snapshot.size
@@ -505,6 +883,12 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 } catch (e: Exception) {
                     DiagnosticLog.log(TAG, "echec retranscription: ${e.message}")
                 } finally {
+                    // Leve dans le `finally` et non apres la purge : si
+                    // l'inference echoue, la purge n'a PAS lieu, le buffer est
+                    // donc intact et les decisions peuvent reprendre
+                    // immediatement. L'oublier ici bloquerait tout gel jusqu'a
+                    // la fin de la session.
+                    commitInFlight = false
                     busy.set(false)
                 }
             }

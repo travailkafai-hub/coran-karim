@@ -2,6 +2,8 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/diagnostic_log.dart';
+
 const _kPrefAutoCorrection = 'auto_correction_enabled';
 
 /// Correction automatique en récitation continue (demande utilisateur
@@ -82,34 +84,69 @@ enum AutoScrollSpeed {
 final autoScrollSpeedProvider =
     StateProvider<AutoScrollSpeed>((ref) => AutoScrollSpeed.off);
 
-const _kPrefRepeatDrillCount = 'repeat_drill_count';
-const kRepeatDrillCountMin = 1;
-const kRepeatDrillCountMax = 50;
+const _kPrefAdultChunkWordCount = 'adult_chunk_word_count';
+const kAdultChunkWordCountMin = 1;
+const kAdultChunkWordCountMax = 15;
 
-/// Nombre de répétitions du verset visées à l'étape "Répète" du mode
-/// Apprentissage (demande utilisateur 2026-07-06 : technique de mémorisation
-/// classique — répéter le même verset N fois de suite). Réglable de 1 à 50,
-/// persisté entre les sessions.
-final repeatDrillCountProvider =
-    StateNotifierProvider<RepeatDrillCountNotifier, int>((ref) {
-  return RepeatDrillCountNotifier();
+/// Taille (en mots) d'une "unité" de répétition en mode Adulte/Tajwid/Custom
+/// à l'étape "Répète" du Coach (demande utilisateur 2026-07-24) --
+/// approxime une ligne du Mushaf imprimé (aucune vraie donnée de coupure de
+/// ligne n'existe dans l'app). En mode Enfant l'unité est toujours 1 mot,
+/// ce réglage ne s'y applique pas -- cf. IncrementalRepeatStep.
+final adultChunkWordCountProvider =
+    StateNotifierProvider<AdultChunkWordCountNotifier, int>((ref) {
+  return AdultChunkWordCountNotifier();
 });
 
-class RepeatDrillCountNotifier extends StateNotifier<int> {
-  RepeatDrillCountNotifier() : super(5) {
+class AdultChunkWordCountNotifier extends StateNotifier<int> {
+  AdultChunkWordCountNotifier() : super(6) {
     _restore();
   }
 
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getInt(_kPrefRepeatDrillCount);
+    final saved = prefs.getInt(_kPrefAdultChunkWordCount);
     if (saved != null && mounted) state = saved;
   }
 
   Future<void> set(int value) async {
-    state = value.clamp(kRepeatDrillCountMin, kRepeatDrillCountMax);
+    state = value.clamp(kAdultChunkWordCountMin, kAdultChunkWordCountMax);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_kPrefRepeatDrillCount, state);
+    await prefs.setInt(_kPrefAdultChunkWordCount, state);
+  }
+}
+
+const _kPrefRepeatWindowSize = 'repeat_window_size';
+const kRepeatWindowSizeMin = 1;
+const kRepeatWindowSizeMax = 6;
+
+/// Taille FIXE (le "curseur") de la fenêtre d'unités qu'il faut réciter
+/// ensemble pour valider un palier à l'étape "Répète" du Coach (demande
+/// utilisateur 2026-07-24, précisée explicitement : "le curseur ça doit
+/// être fixe, pas palier croissant" -- la fenêtre GLISSE au fil des unités
+/// introduites, sa TAILLE ne change pas). Ex. curseur=2 : on récite les
+/// unités {1,2} pour valider l'introduction de l'unité 2, puis {2,3} pour
+/// celle de l'unité 3, etc.
+final repeatWindowSizeProvider =
+    StateNotifierProvider<RepeatWindowSizeNotifier, int>((ref) {
+  return RepeatWindowSizeNotifier();
+});
+
+class RepeatWindowSizeNotifier extends StateNotifier<int> {
+  RepeatWindowSizeNotifier() : super(2) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getInt(_kPrefRepeatWindowSize);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(int value) async {
+    state = value.clamp(kRepeatWindowSizeMin, kRepeatWindowSizeMax);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kPrefRepeatWindowSize, state);
   }
 }
 
@@ -289,5 +326,54 @@ class AppLocaleNotifier extends StateNotifier<String> {
     state = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kPrefAppLocale, value);
+  }
+}
+
+const _kPrefDiagnosticEnabled = 'diagnostic_enabled';
+
+/// Interrupteur global du DIAGNOSTIC : journal fichier (Dart + natif) et
+/// capture des WAV de chaque segment figé.
+///
+/// Demande utilisateur 2026-07-25, formulée exactement comme il faut : « je
+/// veux m'assurer que ces retards ne sont pas dus à la création des logs ».
+/// Mesuré ce jour-là sur une session réelle : 22 à 32 écritures fichier
+/// synchrones par seconde côté Dart (`writeAsStringSync(flush: true)`, donc un
+/// appel système bloquant par ligne), plus les lignes natives émises depuis le
+/// thread d'inférence. Un instrument qui perturbe la grandeur qu'il mesure ne
+/// permet aucune conclusion — il faut pouvoir l'éteindre et refaire la mesure.
+///
+/// Défaut `true` : le diagnostic est l'outil de travail principal de cette
+/// phase du projet, on ne veut pas le perdre par oubli. Les WAV sont liés au
+/// MÊME interrupteur volontairement : quand on analyse un log, on a besoin de
+/// l'audio correspondant pour vérifier ce que le modèle a réellement entendu ;
+/// et quand on mesure la performance sans instrumentation, l'écriture des WAV
+/// ne doit pas rester allumée en douce.
+final diagnosticEnabledProvider =
+    StateNotifierProvider<DiagnosticEnabledNotifier, bool>((ref) {
+  return DiagnosticEnabledNotifier();
+});
+
+class DiagnosticEnabledNotifier extends StateNotifier<bool> {
+  DiagnosticEnabledNotifier() : super(true) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefDiagnosticEnabled);
+    if (saved != null && mounted) {
+      state = saved;
+      DiagnosticLog.enabled = saved;
+    }
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    // Appliqué immédiatement côté Dart ; le côté natif est poussé par
+    // l'écran de réglage (qui a accès au vérificateur) -- cf.
+    // settings_screen.dart.
+    DiagnosticLog.enabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefDiagnosticEnabled, value);
   }
 }

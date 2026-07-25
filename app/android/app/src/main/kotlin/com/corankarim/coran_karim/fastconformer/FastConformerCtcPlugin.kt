@@ -395,6 +395,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // niveau 3", implemente 2026-07-12). [dir] = null desactive la
             // capture (defaut). C'est Dart qui decide, a la fin de la session,
             // si les clips ecrits sont conserves definitivement ou jetes.
+            // Interrupteur du diagnostic natif (cf. DiagnosticLog.enabled).
+            // Pilote par le meme reglage utilisateur que le cote Dart, pour que
+            // "diagnostic desactive" veuille dire la MEME chose des deux cotes.
+            "setLogEnabled" -> {
+                DiagnosticLog.enabled = call.argument<Boolean>("enabled") ?: true
+                result.success(null)
+            }
             "setClipCapture" -> {
                 val dir = call.argument<String>("dir")
                 pendingClipCaptureDir = dir

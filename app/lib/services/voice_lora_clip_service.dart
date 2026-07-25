@@ -4,20 +4,117 @@ import 'package:archive/archive_io.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-/// Collecte et export des clips de récitation VÉRIFIÉS CORRECTS (session de
-/// référence validée), en vue d'un futur mini-LoRA de personnalisation vocale
-/// (FONCTIONNALITES_FUTURES.md, "Personnalisation voix -- niveau 3",
-/// implémenté 2026-07-12 sur demande explicite malgré les deux inconnues du
-/// plan d'origine -- ce service règle la première : pas de sync automatique
-/// téléphone->PC, un export MANUEL via le partage natif Android à la place.
+/// Enregistrements audio on-device.
+///
+/// ── HISTORIQUE ET CHANGEMENT DE FINALITÉ (2026-07-25) ────────────────────
+/// Ce service a été écrit le 2026-07-12 pour un mini-LoRA de personnalisation
+/// vocale entraîné SUR LE TÉLÉPHONE (FONCTIONNALITES_FUTURES.md,
+/// "Personnalisation voix -- niveau 3"). **Cet objectif est abandonné**
+/// (décision utilisateur 2026-07-25 : l'entraînement on-device n'est plus
+/// envisageable). Seule la mécanique d'ENREGISTREMENT est conservée, et
+/// réorientée vers le DIAGNOSTIC de la chaîne ASR.
+///
+/// ⚠️ RENVERSEMENT DE LA RÈGLE DE RÉTENTION -- ne pas le refaire à l'envers :
+/// la version mini-LoRA ne gardait que les segments **100 % corrects**
+/// (filtre `allCorrect` dans `recitation_provider`, supprimé le 2026-07-25),
+/// puisqu'elle cherchait des exemples propres pour entraîner. Un diagnostic
+/// a besoin de l'EXACT INVERSE : ce sont les segments contenant les mots
+/// signalés qui portent l'information. Mesuré ce jour-là : une session de
+/// référence a écrit 8 WAV sans erreur, puis les a TOUS supprimés parce
+/// qu'aucun segment n'était intégralement correct -- la preuve était créée
+/// puis détruite. Désormais on garde TOUT (demande utilisateur explicite :
+/// « il faut tout garder »).
 ///
 /// Stockage on-device UNIQUEMENT (donnée vocale sensible/religieuse, jamais
-/// synchronisée en arrière-plan -- même contrat que VoiceFingerprintService) :
-/// `ApplicationDocumentsDirectory/voice_lora_clips/{clip_*.wav, manifest.jsonl}`.
-/// `manifest.jsonl` : une ligne JSON par clip, `{clip, text, capturedAt}`.
+/// synchronisée en arrière-plan -- même contrat que VoiceFingerprintService).
+/// Deux espaces distincts :
+///  • `recitation_captures/session_<ts>/clip_*.wav` -- capture de DIAGNOSTIC
+///    des récitations, écrite directement par Kotlin, jamais filtrée ni
+///    supprimée automatiquement (cf. [newRecitationCaptureDir]).
+///  • `voice_lora_clips/{clip_*.wav, manifest.jsonl}` -- jeu de clips
+///    ÉTIQUETÉS de l'écran de calibration (mots prononcés volontairement
+///    juste/faux, cf. voice_calibration_screen.dart), toujours utile en
+///    export pour un entraînement hors téléphone. Conservé tel quel.
 class VoiceLoraClipService {
   static const _kDirName = 'voice_lora_clips';
   static const _kManifestFile = 'manifest.jsonl';
+  static const _kRecitationDirName = 'recitation_captures';
+
+  /// Racine durable des captures de diagnostic des récitations.
+  Future<Directory> _recitationDir() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final dir = Directory('${docs.path}/$_kRecitationDirName');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir;
+  }
+
+  /// Dossier de capture d'UNE session de récitation, dans le stockage
+  /// DURABLE (et non le cache temporaire comme l'ancien
+  /// [newTempCaptureDir]). Kotlin y écrit un WAV par segment figé, et
+  /// **rien ne les supprime** : ni filtre de qualité, ni nettoyage de fin de
+  /// session, ni `dispose()` de l'écran.
+  ///
+  /// POURQUOI DURABLE : l'ancien chemin passait par `getTemporaryDirectory()`
+  /// et le `dispose()` de l'écran de récitation supprimait le dossier alors
+  /// que le natif continuait d'y écrire -> `open failed: ENOENT` sur chaque
+  /// segment, silencieusement avalé (bug constaté 2026-07-25, 30 échecs
+  /// d'affilée). Un dossier durable et non supprimé ferme cette classe de
+  /// bug par construction.
+  Future<String> newRecitationCaptureDir() async {
+    final root = await _recitationDir();
+    final dir = Directory(
+        '${root.path}/session_${DateTime.now().millisecondsSinceEpoch}');
+    await dir.create(recursive: true);
+    return dir.path;
+  }
+
+  /// Nombre total de WAV de diagnostic conservés (toutes sessions).
+  Future<int> recitationClipCount() async {
+    final root = await _recitationDir();
+    if (!await root.exists()) return 0;
+    var n = 0;
+    await for (final entity in root.list(recursive: true)) {
+      if (entity is File && entity.path.endsWith('.wav')) n++;
+    }
+    return n;
+  }
+
+  /// Supprime toutes les captures de diagnostic (geste EXPLICITE de
+  /// l'utilisateur uniquement -- rien ne les efface automatiquement).
+  Future<void> deleteAllRecitationCaptures() async {
+    final root = await _recitationDir();
+    if (await root.exists()) await root.delete(recursive: true);
+  }
+
+  /// Empaquette toutes les captures de diagnostic dans un .zip et ouvre le
+  /// partage natif -- même contrat que [exportViaShare] : aucune sync
+  /// automatique, geste explicite à chaque fois.
+  Future<bool> exportRecitationCaptures() async {
+    final root = await _recitationDir();
+    if (!await root.exists()) return false;
+    final files = await root
+        .list(recursive: true)
+        .where((e) => e is File)
+        .cast<File>()
+        .toList();
+    if (files.isEmpty) return false;
+
+    final tmp = await getTemporaryDirectory();
+    final zipPath =
+        '${tmp.path}/coran_karim_diag_${DateTime.now().millisecondsSinceEpoch}.zip';
+    final encoder = ZipFileEncoder();
+    encoder.create(zipPath);
+    for (final f in files) {
+      encoder.addFile(f);
+    }
+    encoder.close();
+
+    final result = await SharePlus.instance.share(ShareParams(
+      files: [XFile(zipPath)],
+      text: 'Captures de diagnostic récitation — Coran Karim',
+    ));
+    return result.status == ShareResultStatus.success;
+  }
 
   Future<Directory> _dir() async {
     final docs = await getApplicationDocumentsDirectory();

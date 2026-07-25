@@ -5,7 +5,6 @@
   "navCoach": "مدرّبي",
   "navSettings": "إعدادات",
   "appTitle": "قرآن كريم",
-
   "mindMapAppBarTitle": "الخريطة الذهنية — {name}",
   "mindMapVerses": "الآيات {range}",
   "mindMapAyahCountBadge": "{count} آية",
@@ -14,7 +13,6 @@
   "mindMapSourcesLabel": "المصادر والتحفظات",
   "mindMapNotReadyTitle": "قريبًا",
   "mindMapNotReadyBody": "الخريطة الذهنية لسورة {name} (المحاور والفروع وروابط الآيات) قيد الإعداد.",
-
   "mindMapCatRecits": "قصص",
   "mindMapCatCroyance": "عقيدة",
   "mindMapCatEschatologie": "الآخرة",
@@ -24,7 +22,6 @@
   "mindMapCatSignes": "آيات كونية",
   "mindMapCatAdoration": "عبادة",
   "mindMapCatAutre": "أخرى",
-
   "settingsTitle": "الإعدادات",
   "settingsSectionAudio": "الصوت",
   "settingsReciterTitle": "القارئ",
@@ -36,10 +33,10 @@
   "settingsSectionVoicePersonalization": "تخصيص الصوت",
   "settingsVoiceCalibTitle": "معايرة الصوت (الحروف المتشابهة)",
   "settingsVoiceCalibSubtitle": "سجّل نحو 14 كلمة منطوقة عمدًا بشكل صحيح/خاطئ (ص/س، ط/ت...) لضبط حساسيتك",
-  "settingsMyClipsTitle": "مقاطعي الموثّقة",
+  "settingsMyClipsTitle": "تسجيلات تلاواتي",
   "settingsMyClipsLoading": "جارٍ التحميل…",
-  "settingsMyClipsEmpty": "لا يوجد أي مقطع بعد — تُسجَّل أثناء تلاواتك المرجعية",
-  "settingsMyClipsCount": "{count, plural, =1{مقطع واحد موثّق — صدّره لتخصيص النموذج بصوتك} other{{count} مقاطع موثّقة — صدّرها لتخصيص النموذج بصوتك}}",
+  "settingsMyClipsEmpty": "لا توجد تسجيلات — تُحفظ مع كل تلاوة",
+  "settingsMyClipsCount": "{count, plural, =1{تسجيل واحد محفوظ — اضغط لتصديره} other{{count} تسجيلات محفوظة — اضغط لتصديرها}}",
   "settingsExportStarted": "بدأ التصدير — اختر أين ترسل الملف.",
   "settingsExportCancelled": "أُلغي التصدير أو لا يوجد أي مقطع متاح.",
   "settingsSectionDisplay": "العرض",
@@ -49,10 +46,12 @@
   "settingsLocaleTitle": "لغة التطبيق",
   "settingsLocaleSheetDescription": "بالعربية، يبقى كل المحتوى (القوائم والقرآن) بالعربية دون ترجمة. بالفرنسية/الإنجليزية، يبقى القرآن دائمًا بالعربية؛ فقط القوائم والشروحات تتغيّر لغتها.",
   "settingsAboutSubtitle": "الإصدار 1.0.0 • بدعم من Gemma 4 و Whisper",
-  "settingsRepeatDrillTitle": "تكرارات الحفظ",
-  "settingsRepeatDrillDescription": "عدد مرات تكرار الآية قبل اختبار حفظك (من 1 إلى {max}).",
   "settingsValidate": "تأكيد",
-
+  "settingsRepeatEngineSectionTitle": "التكرار التدريجي",
+  "settingsAdultChunkWordCountTitle": "عدد الكلمات في كل مرحلة (وضع البالغ)",
+  "settingsAdultChunkWordCountDescription": "يقارب سطرًا من المصحف (من 1 إلى {max} كلمة). بلا أثر في وضع الطفل، الذي يبقى كلمة بكلمة دائمًا.",
+  "settingsRepeatWindowSizeTitle": "نافذة التلاوة (المؤشر)",
+  "settingsRepeatWindowSizeDescription": "عدد المراحل الواجب تلاوتها معًا للتثبيت (من 1 إلى {max}). هذا العدد ثابت، والنافذة تنزلق مع تقدّم المراحل.",
   "commonConnectionRequired": "الاتصال مطلوب",
   "commonRetry": "إعادة المحاولة",
   "homeIdentifyTooltip": "التعرّف على تلاوة",
@@ -60,7 +59,6 @@
   "surahMeccan": "مكية",
   "surahMedinan": "مدنية",
   "surahMetaLine": "{count} آية • {place}",
-
   "mushafExplanationTitleSurahVerse": "{surah} — الآية {ayah}",
   "mushafExplanationTitleSurahVerseWord": "{surah} {ayah} — {word}",
   "mushafPlay": "تشغيل",
@@ -71,7 +69,6 @@
   "mushafCoachAi": "المدرّب الذكي",
   "mushafMore": "المزيد",
   "mushafAutoScroll": "تمرير تلقائي",
-
   "commonCancel": "إلغاء",
   "commonClose": "إغلاق",
   "shazamListening": "الاستماع جارٍ...\nقرّب الهاتف من الصوت.",
@@ -81,7 +78,6 @@
   "shazamError": "حدث خطأ أثناء الاستماع.",
   "shazamMatchLabel": "سورة {surah}، الآية {ayah}",
   "shazamGoThere": "الانتقال إليه",
-
   "readingSettingsDisplaySection": "العرض",
   "readingSettingsAutoScrollSection": "التمرير التلقائي",
   "readingSettingsAutoScrollDescription": "يتمرّر النص تلقائيًا بالسرعة المختارة — مفيد للقراءة دون استخدام يديك. أي تمرير يدوي يوقفه.",
@@ -96,7 +92,6 @@
   "readingSettingsSpeedSlow": "بطيء",
   "readingSettingsSpeedNormal": "عادي",
   "readingSettingsSpeedFast": "سريع",
-
   "coachExplanationListen": "استماع",
   "coachExplanationStop": "إيقاف",
   "coachExplanationLanguageTooltip": "اللغة",
@@ -104,7 +99,6 @@
   "coachExplanationRoot": "الجذر: {root}",
   "coachExplanationExpand": "تعمّق أكثر",
   "coachExplanationNoneAvailable": "لا يوجد شرح متاح لهذا المقطع على هذا الجهاز.",
-
   "tajwidHelpVerseLabel": "الآية {key}",
   "tajwidHelpRulesInVerse": "الأحكام في هذه الآية",
   "tajwidHelpListenWithReciter": "استماع — {name}",
@@ -120,7 +114,6 @@
   "tajwidHelpAnalyzing": "التحليل جارٍ…",
   "tajwidHelpFinishRecording": "إنهاء التسجيل",
   "tajwidHelpRecordThisWord": "سجّل هذه الكلمة",
-
   "tajwidRuleMaddaNecessaryName": "مدّ لازم (٦ حركات)",
   "tajwidRuleMaddaNecessaryExplanation": "مدّ إلزامي مقداره ست حركات.",
   "tajwidRuleMaddaObligatoryName": "مدّ واجب (٤ أو ٥ حركات)",
@@ -153,7 +146,6 @@
   "tajwidRuleLaamShamsiyahExplanation": "لا تُنطق لام «ال» بل يُشدَّد الحرف التالي بدلًا منها.",
   "tajwidRuleSlntName": "حرف صامت",
   "tajwidRuleSlntExplanation": "يُكتب ولا يُنطق.",
-
   "duasScreenTitle": "الأذكار والأدعية",
   "duasSearchHint": "ابحث عن دعاء أو كلمة أو مصدر…",
   "duasExplore": "استكشاف",
@@ -162,7 +154,6 @@
   "duasGuideBadge": "دليل",
   "duasNoneFound": "لا توجد نتائج.",
   "duasInvocationCount": "{count} دعاء",
-
   "duaRemoveFavorite": "إزالة من المفضلة",
   "duaAddFavorite": "إضافة إلى المفضلة",
   "duaPlaybackError": "تعذّر التشغيل: {error}",
@@ -171,7 +162,6 @@
   "duaRepeatComplete": "تم — {target}/{target}",
   "duaResetCount": "إعادة العدّ من جديد",
   "duaCollectionEmpty": "هذه المجموعة لا تزال فارغة.",
-
   "coachSurahLabel": "سورة {number}",
   "coachHeaderLabel": "مدرّب الحفظ",
   "coachVerificationModeTooltip": "وضع التحقق",
@@ -195,12 +185,12 @@
   "coachSpeakAlong": "تكلّم في نفس وقت الصوت",
   "coachLaunchAndImitate": "شغّل الصوت وحاكِه",
   "coachImitatedNext": "حاكيت — أكرّر وحدي",
-  "coachRepeatAloneInstruction": "كرّر وحدك، دون صوت. يبقى النص ظاهرًا لمساعدتك.",
-  "coachListeningRepeat": "تكرار الآية…",
-  "coachRepeatAnalyzed": "تم تحليل التلاوة!",
-  "coachTapToRepeat": "اضغط وكرّر الآية",
-  "coachRestart": "إعادة",
-  "coachTestMemory": "اختبار حفظي",
+  "coachIncrementalInstruction": "استمع ثم كرّر. تكبر المرحلة مع كل نجاح.",
+  "coachIncrementalPreparing": "التحضير جارٍ…",
+  "coachIncrementalListening": "الاستماع جارٍ…",
+  "coachIncrementalTapToStart": "اضغط لإعادة المحاولة",
+  "coachIncrementalUnitProgress": "المرحلة {done}/{total}",
+  "coachIncrementalVerseAdvance": "الآية التالية",
   "coachRecallInstruction": "اتلُ من حفظك — النص مخفي.",
   "coachRecallBadge": "التلاوة من الحفظ",
   "coachListeningControl": "التلاوة من الحفظ جارية…",
@@ -224,13 +214,11 @@
   "coachMsgControlVeryGood": "تلاوة جيدة جدًا! واصل المراجعة بانتظام لترسيخها.",
   "coachMsgControlGoodPath": "أنت في الطريق الصحيح. بضع تكرارات أخرى وستُرسَّخ الآية.",
   "coachMsgControlKeepTraining": "واصل التدريب. عد إلى مرحلة القراءة لتستهدف نقاط الضعف.",
-
   "errorKindLettre": "الحرف",
   "errorKindHarakat": "الحركات",
   "errorKindTajwid": "التجويد",
   "errorKindSkippedWord": "كلمة مُسقَطة",
   "errorKindUnknown": "غير محدّد",
-
   "coachHubTitle": "مدرّبي",
   "coachHubResumeLabel": "متابعة",
   "coachHubResumeVerse": "{surahName} — الآية {ayah}",
@@ -264,40 +252,101 @@
   "coachHubResetErrorsDialogCancel": "إلغاء",
   "coachHubResetErrorsDone": "تمت إعادة تعيين سجل الأخطاء.",
   "coachHubGameSectionTitle": "العب",
-  "@coachHubGameSectionTitle": {"description": "عنوان منطقة لعبة الحفظ في مركز المدرّب"},
+  "@coachHubGameSectionTitle": {
+    "description": "عنوان منطقة لعبة الحفظ في مركز المدرّب"
+  },
   "coachHubGameSectionSubtitle": "استرجاع تدريجي، درجة بعد درجة",
-  "@coachHubGameSectionSubtitle": {"description": "العنوان الفرعي لمنطقة لعبة الحفظ"},
+  "@coachHubGameSectionSubtitle": {
+    "description": "العنوان الفرعي لمنطقة لعبة الحفظ"
+  },
   "coachHubGameActionTitle": "لعبة الحفظ",
-  "@coachHubGameActionTitle": {"description": "عنوان الإجراء الذي يبدأ لعبة الحفظ"},
+  "@coachHubGameActionTitle": {
+    "description": "عنوان الإجراء الذي يبدأ لعبة الحفظ"
+  },
   "coachHubGameActionSubtitle": "تظهر الكلمات واحدة تلو الأخرى، أكمل الباقي من حفظك",
-  "@coachHubGameActionSubtitle": {"description": "العنوان الفرعي للإجراء الذي يبدأ لعبة الحفظ"},
+  "@coachHubGameActionSubtitle": {
+    "description": "العنوان الفرعي للإجراء الذي يبدأ لعبة الحفظ"
+  },
   "coachHubPickerGameTitle": "لعبة الحفظ",
-  "@coachHubPickerGameTitle": {"description": "عنوان مُنتقي السورة للعبة الحفظ"},
+  "@coachHubPickerGameTitle": {
+    "description": "عنوان مُنتقي السورة للعبة الحفظ"
+  },
   "coachHubPickerGameSubtitle": "اختر السورة التي تريد حفظها باللعب",
-  "@coachHubPickerGameSubtitle": {"description": "العنوان الفرعي لمُنتقي السورة للعبة الحفظ"},
+  "@coachHubPickerGameSubtitle": {
+    "description": "العنوان الفرعي لمُنتقي السورة للعبة الحفظ"
+  },
   "memorizationGameTitle": "لعبة الحفظ",
-  "@memorizationGameTitle": {"description": "عنوان شاشة لعبة الحفظ"},
+  "@memorizationGameTitle": {
+    "description": "عنوان شاشة لعبة الحفظ"
+  },
   "memorizationGameRestartVerseTooltip": "إعادة هذه الآية",
-  "@memorizationGameRestartVerseTooltip": {"description": "تلميح زر إعادة ضبط الآية الحالية"},
+  "@memorizationGameRestartVerseTooltip": {
+    "description": "تلميح زر إعادة ضبط الآية الحالية"
+  },
   "memorizationGameVerseProgress": "الآية {current} من {total}",
-  "@memorizationGameVerseProgress": {"description": "مؤشر التقدّم داخل السورة", "placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
+  "@memorizationGameVerseProgress": {
+    "description": "مؤشر التقدّم داخل السورة",
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationGameCompleteTitle": "اكتملت السورة!",
-  "@memorizationGameCompleteTitle": {"description": "العنوان المعروض عند انتهاء لعبة الحفظ"},
+  "@memorizationGameCompleteTitle": {
+    "description": "العنوان المعروض عند انتهاء لعبة الحفظ"
+  },
   "memorizationGameCompleteBody": "لقد اجتزت جميع درجات {surah}. أعد المحاولة لترسيخ حفظك.",
-  "@memorizationGameCompleteBody": {"description": "النص المعروض عند انتهاء لعبة الحفظ", "placeholders": {"surah": {"type": "String"}}},
+  "@memorizationGameCompleteBody": {
+    "description": "النص المعروض عند انتهاء لعبة الحفظ",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      }
+    }
+  },
   "memorizationGameBackToHub": "رجوع",
-  "@memorizationGameBackToHub": {"description": "زر العودة إلى مركز المدرّب من شاشة نهاية اللعبة"},
+  "@memorizationGameBackToHub": {
+    "description": "زر العودة إلى مركز المدرّب من شاشة نهاية اللعبة"
+  },
   "memorizationAyahPickerTitle": "اختر نقطة البداية",
-  "@memorizationAyahPickerTitle": {"description": "عنوان شاشة اختيار آية البداية للعبة"},
+  "@memorizationAyahPickerTitle": {
+    "description": "عنوان شاشة اختيار آية البداية للعبة"
+  },
   "memorizationAyahPickerSubtitle": "سورة {surah} طويلة: اختر أولًا الصفحة التي تريد البدء منها",
-  "@memorizationAyahPickerSubtitle": {"description": "نص الخطوة الأولى (اختيار الصفحة) يوضّح سبب طلب نقطة بداية", "placeholders": {"surah": {"type": "String"}}},
+  "@memorizationAyahPickerSubtitle": {
+    "description": "نص الخطوة الأولى (اختيار الصفحة) يوضّح سبب طلب نقطة بداية",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      }
+    }
+  },
   "memorizationAyahPickerPageLabel": "الصفحة {page}",
-  "@memorizationAyahPickerPageLabel": {"description": "تسمية شارة الصفحة في مُخيّر نقطة البداية", "placeholders": {"page": {"type": "int"}}},
+  "@memorizationAyahPickerPageLabel": {
+    "description": "تسمية شارة الصفحة في مُخيّر نقطة البداية",
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationAyahPickerAyahSubtitle": "الصفحة {page}: اختر الآية التي تريد بدء اللعب منها",
-  "@memorizationAyahPickerAyahSubtitle": {"description": "نص الخطوة الثانية (اختيار الآية داخل الصفحة المختارة)", "placeholders": {"page": {"type": "int"}}},
+  "@memorizationAyahPickerAyahSubtitle": {
+    "description": "نص الخطوة الثانية (اختيار الآية داخل الصفحة المختارة)",
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationAyahPickerBackToPages": "تغيير الصفحة",
-  "@memorizationAyahPickerBackToPages": {"description": "زر العودة من اختيار الآية إلى اختيار الصفحة"},
-
+  "@memorizationAyahPickerBackToPages": {
+    "description": "زر العودة من اختيار الآية إلى اختيار الصفحة"
+  },
   "qiblaSubtitle": "اتجاه القبلة نحو مكة",
   "qiblaEnableLocationMessage": "فعّل خدمة الموقع لتحديد القبلة من موقعك الحالي.",
   "qiblaEnableLocationAction": "تفعيل خدمة الموقع",
@@ -308,7 +357,6 @@
   "qiblaKmToMecca": "كم حتى مكة",
   "qiblaFacingQibla": "أنت تواجه القبلة ✓",
   "qiblaTurnPhoneHint": "أدر هاتفك حتى يشير السهم إلى الأعلى",
-
   "prayerFollowSensitivityTolerant": "متساهل",
   "prayerFollowSensitivityStrict": "صارم",
   "prayerFollowSensitivityBalanced": "متوازن (افتراضي)",
@@ -328,7 +376,6 @@
   "prayerPhaseTarget": "السورة المتابَعة",
   "prayerPhaseListening": "الاستماع",
   "prayerPhaseStopped": "متوقف",
-
   "riteBeforeStartTooltip": "معلومات قبل البدء",
   "riteRestartTooltip": "إعادة بدء النسك",
   "riteWhatWeDoLabel": "ما نقوم به",
@@ -343,7 +390,6 @@
   "riteNextStepTooltip": "الخطوة التالية",
   "riteStepDone": "أُنجزت الخطوة",
   "riteMarkAsDone": "وضع علامة كمنجزة",
-
   "recitationModeLabel": "وضع الحفظ",
   "recitationVerseTitle": "الآية {key}",
   "recitationRangeTitle": "{from} ← {to} ({count} آية)",
@@ -358,12 +404,10 @@
   "recitationTapToStart": "اضغط وتلُ (عدة آيات متتالية)",
   "recitationMashallahAccuracy": "ما شاء الله! دقة {pct}٪",
   "recitationContinueAccuracy": "واصل — دقة {pct}٪",
-
   "reciterSelectTitle": "اختيار قارئ",
   "reciterSelectStreamingNote": "قرّاء مدمجون — متاحون بالبث المباشر. التنزيل دون اتصال متوفر قريبًا.",
   "reciterSelectOfflineTitle": "تنزيل للاستخدام دون اتصال",
   "reciterSelectOfflineSubtitle": "متوفر في تحديث قادم.",
-
   "voiceCalibTitle": "معايرة الصوت",
   "voiceCalibDoneTitle": "اكتملت المعايرة!",
   "voiceCalibDoneBody": "تم تسجيل {count} مقطع. ستنضم إلى مقاطعك الموثّقة — صدّرها من الإعدادات لبدء التخصيص.",
@@ -374,13 +418,11 @@
   "voiceCalibRecording": "التسجيل جارٍ… اضغط للإيقاف",
   "voiceCalibTapToRecord": "اضغط للتسجيل",
   "voiceCalibSavedSnackbar": "تم تسجيل {count} مقطع معايرة — صدّرها من الإعدادات لتخصيص النموذج.",
-
   "ruleReliableLabel": "موثوق",
   "ruleReliableLabelWithPct": "موثوق · {pct}٪",
   "ruleUnreliableLabel": "غير موثوق",
   "ruleUnreliableLabelWithPct": "غير موثوق · {pct}٪",
   "ruleNotMeasuredLabel": "غير مقاس",
-
   "tajwidRulesTitle": "التحقق من التلاوة",
   "tajwidRulesLoadError": "خطأ: {error}",
   "tajwidRulesHarakatTitle": "الحركات مطلوبة",
@@ -393,11 +435,9 @@
   "tajwidPresetTajwid": "تجويد",
   "tajwidPresetAdult": "بالغ",
   "tajwidPresetChild": "طفل",
-
   "surahPickerLoadVersesError": "تعذّر التحميل: {error}",
   "surahPickerLoadListError": "تعذّر تحميل السور: {error}",
   "surahPickerVerseCount": "{count} آية",
-
   "karaokeAudioUnavailable": "الصوت غير متاح لهذه الكلمة",
   "karaokeRepeatIndicated": "كرّر الكلمة المشار إليها ↓",
   "karaokeFirstRecitationTitle": "أول تلاوة لهذا المقطع",
@@ -443,14 +483,16 @@
   "karaokeReferenceStartHint": "المس الشاشة لتسجيل تلاوتك المرجعية",
   "karaokeTapToStartHint": "المس الشاشة للبدء",
   "karaokeSurahTransitionMeta": "{number} · {name} · {count} آية",
-
   "surahOrnamentMeta": "{place} · {count} آية",
-
   "miniPlayerRepeatOff": "تكرار",
   "miniPlayerRepeatVerse": "×{count} آية",
   "miniPlayerRepeatSurah": "سورة ∞",
   "mushafMindMapTooltip": "الخريطة الذهنية",
   "mushafPrayerNextIn": "الظهر بعد ٢س ١٤د",
   "mushafPrayerTimeLabel": "الظهر ١٣:٣٠",
-  "mushafJuzChip": "الجزء {n}"
+  "mushafJuzChip": "الجزء {n}",
+  "settingsSectionDiagnostic": "التشخيص",
+  "settingsDiagnosticTitle": "سجل التشخيص والصوت",
+  "settingsDiagnosticSubtitleOn": "مُفعَّل — يكتب السجل ويحفظ مقاطع الصوت",
+  "settingsDiagnosticSubtitleOff": "مُعطَّل — لا يُكتب شيء أثناء التلاوة"
 }

@@ -18,11 +18,11 @@ import '../providers/error_review_provider.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/rule_annotation_service.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
-import '../services/voice_lora_clip_service.dart';
 import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tajweed_text.dart';
 import '../widgets/tajwid_help_sheet.dart';
+import 'memorization_game_screen.dart';
 import 'tajwid_rules_screen.dart';
 
 /// Écran "karaoké" — récitation continue immersive.
@@ -54,8 +54,6 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // "Personnalisation voix -- niveau 3", implémenté 2026-07-12) : capture des
   // clips uniquement pendant une session de référence (cf. _toggle),
   // dossier temporaire actif tant que la session tourne.
-  final _voiceLoraClips = VoiceLoraClipService();
-  String? _activeCaptureDir;
 
   // La référence (manière de réciter ce passage : pauses, tempo) ne
   // s'enregistre JAMAIS en douce : c'est une étape explicite, annoncée avant
@@ -449,11 +447,29 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   void dispose() {
     _breath.dispose();
     _wordFailedSub?.cancel();
-    // Filet de sécurité : l'utilisateur a quitté l'écran en pleine session de
-    // référence (jamais arrivée jusqu'à _maybeSaveProfile) -- ne pas laisser
-    // le dossier temporaire de capture traîner indéfiniment.
-    final dir = _activeCaptureDir;
-    if (dir != null) _voiceLoraClips.discardTempDir(dir);
+    // ── CAUSE RACINE CORRIGÉE (2026-07-25) ───────────────────────────────
+    // Ici, `dispose()` SUPPRIMAIT le dossier temporaire de capture
+    // (`discardTempDir`) sans prévenir le côté natif, qui gardait le chemin
+    // et continuait d'y écrire un WAV à chaque segment figé. Résultat mesuré
+    // sur device : `open failed: ENOENT` sur 30 segments d'affilée,
+    // silencieusement avalé par le `catch` best-effort de
+    // BufferedTranscriber -- donc AUCUN enregistrement conservé dès qu'on
+    // quittait l'écran une fois, et pour toutes les sessions suivantes
+    // (le vérificateur n'étant pas `autoDispose`, son BufferedTranscriber
+    // survit aux écrans). Asymétrie de fond : le chemin propre (bouton stop
+    // -> `_maybeCommitVoiceClips`) appelait bien `setClipCapture(null)`, la
+    // sortie d'écran non.
+    //
+    // Correctif : on prévient le natif (comme le chemin propre) et on ne
+    // supprime PLUS rien -- les captures vivent dans un dossier durable et
+    // doivent survivre à la sortie d'écran, c'est tout leur intérêt pour le
+    // diagnostic. Fire-and-forget : `dispose()` est synchrone et ne doit
+    // jamais retarder la fermeture de l'écran.
+    // Inconditionnel depuis le 2026-07-25 : la capture n'est plus ARMÉE par
+    // cet écran (c'est le provider qui le fait, cf. _applyDiagnosticCapture),
+    // donc l'écran ne peut plus savoir si elle tourne. Or c'est justement ce
+    // qu'il faut couper en sortant. L'appel est idempotent et sans coût.
+    unawaited(ref.read(recitationVerifierProvider).setClipCapture(null));
     super.dispose();
   }
 
@@ -777,6 +793,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     if (st.status == RecitationStatus.listening) {
       if (_manuallyPaused) setState(() => _manuallyPaused = false);
       await n.stopContinuous();
+      // Fermer la capture audio à CHAQUE arrêt, indépendamment du profil :
+      // `_maybeSaveProfile` sort immédiatement hors session de référence
+      // (`if (_profileSaved || !_isReferenceSession) return;`), donc s'y fier
+      // laisserait la capture native active après une récitation normale --
+      // exactement le genre d'état résiduel qui a causé le bug ENOENT du
+      // 2026-07-25 (cf. dispose()). L'appel est idempotent.
+      await _closeAudioCapture();
       _maybeSaveProfile();
     } else if (st.status != RecitationStatus.processing) {
       _profileSaved = false;
@@ -812,14 +835,28 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // Session normale : seuil de gel adapté à la référence dédiée si elle
         // existe, sinon au profil global (cf. applyBestFor).
         await _pauseProfile.applyBestFor(_initialPassageKey);
-      } else {
-        // Session de référence -> capture des clips (mini-LoRA personnalisation
-        // vocale, cf. _maybeCommitVoiceClips) : uniquement ici, jamais pendant
-        // une récitation normale (on ne peut garantir la fiabilité du texte
-        // canonique comme vérité que sur une récitation explicitement mesurée).
-        _activeCaptureDir = await _voiceLoraClips.newTempCaptureDir();
-        await ref.read(recitationVerifierProvider).setClipCapture(_activeCaptureDir);
       }
+      // ── Capture audio de DIAGNOSTIC ─────────────────────────────────────
+      // Historique : la capture n'était activée QUE sur une session de
+      // référence (elle servait le mini-LoRA, qui exigeait un texte canonique
+      // fiable comme vérité terrain). Objectif abandonné ; les WAV servent
+      // maintenant à diagnostiquer la chaîne ASR, donc il les faut sur une
+      // récitation NORMALE, avec ses erreurs et ses coupures de mots.
+      //
+      // DÉPLACÉ dans RecitationNotifier.startContinuous
+      // (`_applyDiagnosticCapture`) le 2026-07-25, et retiré d'ici. Deux
+      // raisons :
+      //   1. Deux tests de suite ont produit un log complet mais AUCUN audio
+      //      (`capture de clips desactivee`) parce qu'ils partaient d'un écran
+      //      qui n'activait pas la capture -- c'est une propriété de « une
+      //      session tourne », pas d'un écran.
+      //   2. Laisser les deux en place créait DEUX dossiers de capture par
+      //      démarrage (mesuré dans le log du 14:48 : deux lignes
+      //      `capture de clips activee ->` à 731 ms d'écart, dont une vers un
+      //      dossier aussitôt abandonné), donc un dossier vide par récitation
+      //      et un log trompeur.
+      // Ne pas réintroduire un appel ici : `_closeAudioCapture()` plus bas
+      // reste utile (il coupe la capture à l'arrêt) et est idempotent.
       // Remise à zéro des stats d'erreur des sourates récitées (demande
       // utilisateur 2026-07-23 : « si je veux réciter une sourate, elle met à
       // zéro les stats par rapport à cette sourate »). Les compteurs
@@ -907,16 +944,18 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           '${missed > 0 ? t.karaokeMissedSuffix(missed) : ''}';
       setState(() => _sessionNotice = t.karaokeReferenceNotSaved(
           rst.accuracy.round(), rst.correctCount, rst.total, extra));
-      // Récitation pas fiable -> aucun clip de CETTE session n'est une bonne
-      // référence pour la personnalisation vocale non plus (même contrat que
-      // le profil de pauses ci-dessus, cf. _maybeCommitVoiceClips).
-      await _maybeCommitVoiceClips(keep: false);
+      // Le PROFIL DE PAUSES n'est pas retenu (récitation trop peu fiable pour
+      // servir de référence de rythme), mais l'AUDIO est conservé quand même
+      // depuis le 2026-07-25 : une session ratée est justement celle qu'on
+      // veut pouvoir écouter pour comprendre pourquoi (cf.
+      // _closeAudioCapture).
+      await _closeAudioCapture();
       return;
     }
     _profileSaved = true;
     final pauses = await _pauseProfile.fetchSessionPauses();
     await _pauseProfile.saveFor(_initialPassageKey, pauses);
-    await _maybeCommitVoiceClips(keep: true);
+    await _closeAudioCapture();
     if (mounted) {
       setState(() {
         _hasProfile = true;
@@ -926,23 +965,23 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
   }
 
-  /// Termine la capture de clips de la session de référence qui vient de
-  /// finir (mini-LoRA personnalisation vocale) : désactive la capture côté
-  /// natif, puis soit remonte les clips VÉRIFIÉS CORRECTS (cf.
-  /// RecitationNotifier.takeCollectedClips) vers le stockage permanent
-  /// ([keep]=true), soit jette tout le dossier temporaire ([keep]=false,
-  /// récitation jugée pas assez fiable dans son ensemble).
-  Future<void> _maybeCommitVoiceClips({required bool keep}) async {
-    final dir = _activeCaptureDir;
-    if (dir == null) return;
-    _activeCaptureDir = null;
+  /// Clôt la capture audio de la session qui vient de finir : désactive la
+  /// capture côté natif, sans rien supprimer.
+  ///
+  /// ── SIMPLIFIÉ LE 2026-07-25 ───────────────────────────────────────────
+  /// Cette méthode prenait un paramètre `keep` : elle remontait les seuls
+  /// segments 100 % corrects vers un stockage permanent (mini-LoRA), ou
+  /// jetait TOUT le dossier si la récitation globale était jugée peu fiable
+  /// (< 60 % de précision). Les deux branches détruisaient de l'audio.
+  /// L'objectif mini-LoRA est abandonné et les WAV servent désormais au
+  /// diagnostic : on garde tout, quelle que soit la qualité de la
+  /// récitation -- une session ratée est précisément celle qu'on veut
+  /// pouvoir écouter. Le paramètre `keep` n'a donc plus de sens.
+  /// Inconditionnel (cf. dispose) : cet écran n'arme plus la capture, il ne
+  /// peut donc plus tester un drapeau local pour savoir s'il y a quelque chose
+  /// à fermer. Idempotent côté natif.
+  Future<void> _closeAudioCapture() async {
     await ref.read(recitationVerifierProvider).setClipCapture(null);
-    final clips = ref.read(recitationProvider.notifier).takeCollectedClips();
-    if (keep) {
-      await _voiceLoraClips.commitClips(clips, dir);
-    } else {
-      await _voiceLoraClips.discardTempDir(dir);
-    }
   }
 
   /// Feuille de réglage de la sensibilité du jugement GOP (demande
@@ -964,6 +1003,34 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   ///
   /// Le RÉCITATEUR n'est PAS ici : c'est un choix transverse (écoute,
   /// souffleur, corrections audio) qui vit dans les Réglages généraux.
+  /// Lance le jeu de mémorisation (QCM mot par mot) depuis la sourate/le
+  /// passage en cours de récitation ici (demande utilisateur 2026-07-24 :
+  /// c'est l'écran de récitation du Coach qui doit activer ce chemin, pas la
+  /// page de lecture -- celle-ci reste dédiée à la lecture/aux explications).
+  /// Même règle de portée que `MemorizationAyahPickerScreen`
+  /// (jeux-memorisation SKILL.md) : jamais toute la sourate d'un coup,
+  /// seulement les versets de LA MÊME PAGE du Mushaf à partir du premier
+  /// verset de ce passage.
+  Future<void> _openMemorizationGame(BuildContext context) async {
+    final first = widget.verses.first;
+    final surahs = await QuranApi.fetchSurahs();
+    final surah = surahs.firstWhere((s) => s.number == first.surahNumber,
+        orElse: () => surahs.first);
+    final page = first.pageNumber;
+    final pageVerses = page == null
+        ? [first]
+        : widget.verses
+            .where((v) => v.pageNumber == page && v.ayahNumber >= first.ayahNumber)
+            .toList();
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MemorizationGameScreen(surah: surah, verses: pageVerses),
+      ),
+    );
+  }
+
   void _openVerificationSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -1308,10 +1375,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // ── Barre supérieure minimale ─────────────────────────────────────────────
   Widget _topBar(BuildContext context, String subtitle, RecitationSessionState st) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 20, 0),
+      // Marge droite ramenée de 20 à 4 (correctif 2026-07-25, cf. le bouton
+      // pause rogné plus bas) : 16 dp récupérés sur un écran qui n'en avait
+      // plus. `visualDensity: compact` sur les boutons secondaires en récupère
+      // 8 de plus chacun. La barre a désormais de la réserve même si un
+      // bouton s'y ajoute un jour.
+      padding: const EdgeInsets.fromLTRB(8, 4, 4, 0),
       child: Row(
         children: [
           IconButton(
+            visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.arrow_back, color: Colors.white70),
             onPressed: () => Navigator.of(context).pop(),
           ),
@@ -1319,6 +1392,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             child: Text(
               subtitle,
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.fraunces(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
@@ -1334,6 +1409,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           // et pendant sa propre lecture.
           if (st.status == RecitationStatus.listening)
             IconButton(
+              visualDensity: VisualDensity.compact,
               tooltip: AppLocalizations.of(context)!.karaokeHearExpectedWordTooltip,
               icon: Icon(
                 Icons.volume_up_rounded,
@@ -1353,10 +1429,31 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           // l'écoute : c'est souvent en récitant qu'on veut desserrer ou
           // durcir le jugement.
           IconButton(
+            visualDensity: VisualDensity.compact,
             tooltip: AppLocalizations.of(context)!.karaokeVerificationSettingsTitle,
             icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
             onPressed: () => _openVerificationSheet(context),
           ),
+          // Bascule vers le jeu de mémorisation (QCM mot par mot) pour ce
+          // même passage (demande utilisateur 2026-07-24) -- c'est l'écran
+          // de récitation qui active ce chemin, pas la page de lecture.
+          //
+          // Masqué PENDANT l'écoute (correctif 2026-07-25) : sur un écran de
+          // 360 dp, cinq boutons de 48 dp + les marges (28 dp) ne laissaient
+          // que 92 dp au titre et **rognaient le bouton pause hors de l'écran**
+          // -- l'utilisateur ne pouvait plus mettre en pause du tout
+          // (capture d'écran à l'appui, `RIGHT OVERFLOWED BY 12 PIXELS`).
+          // C'est cette icône, ajoutée le 2026-07-24, qui a fait déborder la
+          // rangée. On ne basculait de toute façon jamais vers un QCM en
+          // pleine récitation : la cacher pendant l'écoute est aussi le bon
+          // choix fonctionnel, pas seulement un gain de place.
+          if (st.status != RecitationStatus.listening)
+            IconButton(
+              tooltip: AppLocalizations.of(context)!.coachHubGameActionTitle,
+              icon: const Icon(Icons.videogame_asset_rounded,
+                  color: Colors.white70, size: 20),
+              onPressed: () => _openMemorizationGame(context),
+            ),
           // Pendant l'écoute : bouton pause/reprise (demande utilisateur
           // 2026-07-10). Sinon, à l'arrêt : geste explicite pour refaire
           // volontairement la référence.
@@ -1421,13 +1518,23 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                   const Icon(Icons.mic_none_rounded,
                       size: 15, color: AppColors.brassLight),
                   const SizedBox(width: 6),
-                  Text(
-                    title.toUpperCase(),
-                    style: GoogleFonts.manrope(
-                      fontSize: 10.5,
-                      letterSpacing: 1.2,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.brassLight,
+                  // Expanded (correctif 2026-07-25) : « RÉFÉRENCE EN COURS
+                  // D'ENREGISTREMENT » en capitales avec letterSpacing 1.2 ne
+                  // tient pas dans les 251 dp disponibles sur un écran de
+                  // 360 dp -- c'est CE débordement que montrait le marqueur
+                  // hachuré de la capture d'écran. Le titre s'ajuste
+                  // maintenant au lieu de déborder ; le français est la langue
+                  // la plus longue des trois, donc si ça tient ici ça tient
+                  // partout.
+                  Expanded(
+                    child: Text(
+                      title.toUpperCase(),
+                      style: GoogleFonts.manrope(
+                        fontSize: 10.5,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.brassLight,
+                      ),
                     ),
                   ),
                 ],

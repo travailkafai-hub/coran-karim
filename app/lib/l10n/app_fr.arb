@@ -1,237 +1,566 @@
 {
   "@@locale": "fr",
   "navQuran": "Coran",
-  "@navQuran": {"description": "Onglet de navigation principal : lecture du Coran"},
+  "@navQuran": {
+    "description": "Onglet de navigation principal : lecture du Coran"
+  },
   "navDuas": "Invocations",
-  "@navDuas": {"description": "Onglet de navigation : invocations/adhkar"},
+  "@navDuas": {
+    "description": "Onglet de navigation : invocations/adhkar"
+  },
   "navCoach": "Coach",
-  "@navCoach": {"description": "Onglet de navigation : coach IA"},
+  "@navCoach": {
+    "description": "Onglet de navigation : coach IA"
+  },
   "navSettings": "Réglages",
-  "@navSettings": {"description": "Onglet de navigation : réglages"},
+  "@navSettings": {
+    "description": "Onglet de navigation : réglages"
+  },
   "appTitle": "Coran Karim",
-  "@appTitle": {"description": "Titre de l'application"},
-
+  "@appTitle": {
+    "description": "Titre de l'application"
+  },
   "mindMapAppBarTitle": "Carte mentale — {name}",
-  "@mindMapAppBarTitle": {"description": "Titre de l'AppBar de l'écran carte mentale", "placeholders": {"name": {"type": "String"}}},
+  "@mindMapAppBarTitle": {
+    "description": "Titre de l'AppBar de l'écran carte mentale",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "mindMapVerses": "Versets {range}",
-  "@mindMapVerses": {"description": "Plage de versets d'une branche", "placeholders": {"range": {"type": "String"}}},
+  "@mindMapVerses": {
+    "description": "Plage de versets d'une branche",
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
   "mindMapAyahCountBadge": "{count} versets",
-  "@mindMapAyahCountBadge": {"description": "Nombre de versets sous le nom de la sourate dans le médaillon", "placeholders": {"count": {"type": "int"}}},
+  "@mindMapAyahCountBadge": {
+    "description": "Nombre de versets sous le nom de la sourate dans le médaillon",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "mindMapGoToVerse": "Aller au verset",
-  "@mindMapGoToVerse": {"description": "Lien vers le Mushaf depuis une carte de branche/passage"},
+  "@mindMapGoToVerse": {
+    "description": "Lien vers le Mushaf depuis une carte de branche/passage"
+  },
   "mindMapThemeLabel": "Fil directeur",
-  "@mindMapThemeLabel": {"description": "Titre de section dans la feuille d'info de la sourate"},
+  "@mindMapThemeLabel": {
+    "description": "Titre de section dans la feuille d'info de la sourate"
+  },
   "mindMapSourcesLabel": "Sources et réserves",
-  "@mindMapSourcesLabel": {"description": "Titre de section : provenance de la structure et réserves éventuelles"},
+  "@mindMapSourcesLabel": {
+    "description": "Titre de section : provenance de la structure et réserves éventuelles"
+  },
   "mindMapNotReadyTitle": "Bientôt disponible",
-  "@mindMapNotReadyTitle": {"description": "Écran affiché si le fichier de la carte mentale est absent/illisible"},
+  "@mindMapNotReadyTitle": {
+    "description": "Écran affiché si le fichier de la carte mentale est absent/illisible"
+  },
   "mindMapNotReadyBody": "La carte mentale de {name} (thèmes, branches, liens vers les versets) est en cours de rédaction.",
-  "@mindMapNotReadyBody": {"description": "Corps de l'écran \"bientôt disponible\"", "placeholders": {"name": {"type": "String"}}},
-
+  "@mindMapNotReadyBody": {
+    "description": "Corps de l'écran \"bientôt disponible\"",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "mindMapCatRecits": "Récits",
-  "@mindMapCatRecits": {"description": "Catégorie carte mentale : récits prophétiques"},
+  "@mindMapCatRecits": {
+    "description": "Catégorie carte mentale : récits prophétiques"
+  },
   "mindMapCatCroyance": "Croyance",
-  "@mindMapCatCroyance": {"description": "Catégorie carte mentale : croyance/tawhid"},
+  "@mindMapCatCroyance": {
+    "description": "Catégorie carte mentale : croyance/tawhid"
+  },
   "mindMapCatEschatologie": "Au-delà",
-  "@mindMapCatEschatologie": {"description": "Catégorie carte mentale : eschatologie"},
+  "@mindMapCatEschatologie": {
+    "description": "Catégorie carte mentale : eschatologie"
+  },
   "mindMapCatArgumentation": "Argumentation",
-  "@mindMapCatArgumentation": {"description": "Catégorie carte mentale : argumentation/réfutation"},
+  "@mindMapCatArgumentation": {
+    "description": "Catégorie carte mentale : argumentation/réfutation"
+  },
   "mindMapCatEthique": "Éthique",
-  "@mindMapCatEthique": {"description": "Catégorie carte mentale : éthique/akhlaq"},
+  "@mindMapCatEthique": {
+    "description": "Catégorie carte mentale : éthique/akhlaq"
+  },
   "mindMapCatLegislation": "Législation",
-  "@mindMapCatLegislation": {"description": "Catégorie carte mentale : législation/ahkam"},
+  "@mindMapCatLegislation": {
+    "description": "Catégorie carte mentale : législation/ahkam"
+  },
   "mindMapCatSignes": "Signes",
-  "@mindMapCatSignes": {"description": "Catégorie carte mentale : signes de la création"},
+  "@mindMapCatSignes": {
+    "description": "Catégorie carte mentale : signes de la création"
+  },
   "mindMapCatAdoration": "Adoration",
-  "@mindMapCatAdoration": {"description": "Catégorie carte mentale : adoration/ibadat"},
+  "@mindMapCatAdoration": {
+    "description": "Catégorie carte mentale : adoration/ibadat"
+  },
   "mindMapCatAutre": "Autre",
-  "@mindMapCatAutre": {"description": "Catégorie carte mentale : repli si catégorie inconnue"},
-
+  "@mindMapCatAutre": {
+    "description": "Catégorie carte mentale : repli si catégorie inconnue"
+  },
   "settingsTitle": "Réglages",
-  "@settingsTitle": {"description": "Titre de l'AppBar de l'écran réglages"},
+  "@settingsTitle": {
+    "description": "Titre de l'AppBar de l'écran réglages"
+  },
   "settingsSectionAudio": "Audio",
-  "@settingsSectionAudio": {"description": "En-tête de section réglages"},
+  "@settingsSectionAudio": {
+    "description": "En-tête de section réglages"
+  },
   "settingsReciterTitle": "Récitateur",
-  "@settingsReciterTitle": {"description": "Réglage : choix du récitateur"},
+  "@settingsReciterTitle": {
+    "description": "Réglage : choix du récitateur"
+  },
   "settingsStyleMurattal": "Murattal",
-  "@settingsStyleMurattal": {"description": "Style de récitation : Murattal (rythme régulier)"},
+  "@settingsStyleMurattal": {
+    "description": "Style de récitation : Murattal (rythme régulier)"
+  },
   "settingsStyleMujawwad": "Mujawwad",
-  "@settingsStyleMujawwad": {"description": "Style de récitation : Mujawwad (mélismatique)"},
+  "@settingsStyleMujawwad": {
+    "description": "Style de récitation : Mujawwad (mélismatique)"
+  },
   "settingsSectionPrayer": "Prière",
-  "@settingsSectionPrayer": {"description": "En-tête de section réglages"},
+  "@settingsSectionPrayer": {
+    "description": "En-tête de section réglages"
+  },
   "settingsQiblaTitle": "Direction de la Qibla",
-  "@settingsQiblaTitle": {"description": "Réglage : boussole Qibla"},
+  "@settingsQiblaTitle": {
+    "description": "Réglage : boussole Qibla"
+  },
   "settingsQiblaSubtitle": "Boussole vers la Mecque depuis ta position",
-  "@settingsQiblaSubtitle": {"description": "Sous-titre du réglage Qibla"},
+  "@settingsQiblaSubtitle": {
+    "description": "Sous-titre du réglage Qibla"
+  },
   "settingsSectionVoicePersonalization": "Personnalisation vocale",
-  "@settingsSectionVoicePersonalization": {"description": "En-tête de section réglages"},
+  "@settingsSectionVoicePersonalization": {
+    "description": "En-tête de section réglages"
+  },
   "settingsVoiceCalibTitle": "Calibration voix (lettres confusables)",
-  "@settingsVoiceCalibTitle": {"description": "Réglage : calibration voix"},
+  "@settingsVoiceCalibTitle": {
+    "description": "Réglage : calibration voix"
+  },
   "settingsVoiceCalibSubtitle": "Enregistre ~14 mots exprès bien/mal prononcés (ص/س, ط/ت...) pour affiner ta sensibilité",
-  "@settingsVoiceCalibSubtitle": {"description": "Sous-titre du réglage de calibration voix"},
-  "settingsMyClipsTitle": "Mes clips vérifiés",
-  "@settingsMyClipsTitle": {"description": "Réglage : clips vocaux vérifiés (mini-LoRA)"},
+  "@settingsVoiceCalibSubtitle": {
+    "description": "Sous-titre du réglage de calibration voix"
+  },
+  "settingsMyClipsTitle": "Enregistrements de mes récitations",
+  "@settingsMyClipsTitle": {
+    "description": "Réglage : enregistrements audio conservés pour diagnostic"
+  },
   "settingsMyClipsLoading": "Chargement…",
-  "@settingsMyClipsLoading": {"description": "Sous-titre pendant le comptage des clips"},
-  "settingsMyClipsEmpty": "Aucun clip pour l'instant — enregistrés lors de tes récitations de référence",
-  "@settingsMyClipsEmpty": {"description": "Sous-titre quand aucun clip vérifié n'existe"},
-  "settingsMyClipsCount": "{count, plural, =1{1 clip vérifié — exporter pour personnaliser le modèle à ta voix} other{{count} clips vérifiés — exporter pour personnaliser le modèle à ta voix}}",
-  "@settingsMyClipsCount": {"description": "Sous-titre : nombre de clips vérifiés disponibles", "placeholders": {"count": {"type": "int"}}},
+  "@settingsMyClipsLoading": {
+    "description": "Sous-titre pendant le comptage des enregistrements"
+  },
+  "settingsMyClipsEmpty": "Aucun enregistrement — ils sont conservés à chaque récitation",
+  "@settingsMyClipsEmpty": {
+    "description": "Sous-titre quand aucun enregistrement n'existe"
+  },
+  "settingsMyClipsCount": "{count, plural, =1{1 enregistrement conservé — appuie pour l'exporter} other{{count} enregistrements conservés — appuie pour les exporter}}",
+  "@settingsMyClipsCount": {
+    "description": "Sous-titre : nombre d'enregistrements audio conservés",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "settingsExportStarted": "Export lancé — choisis où envoyer le fichier.",
-  "@settingsExportStarted": {"description": "Snackbar après export réussi des clips vocaux"},
+  "@settingsExportStarted": {
+    "description": "Snackbar après export réussi des clips vocaux"
+  },
   "settingsExportCancelled": "Export annulé ou aucun clip disponible.",
-  "@settingsExportCancelled": {"description": "Snackbar après export annulé/impossible des clips vocaux"},
+  "@settingsExportCancelled": {
+    "description": "Snackbar après export annulé/impossible des clips vocaux"
+  },
   "settingsSectionDisplay": "Affichage",
-  "@settingsSectionDisplay": {"description": "En-tête de section réglages"},
+  "@settingsSectionDisplay": {
+    "description": "En-tête de section réglages"
+  },
   "settingsTajweedColorsTitle": "Couleurs Tajweed",
-  "@settingsTajweedColorsTitle": {"description": "Réglage : coloration tajweed"},
+  "@settingsTajweedColorsTitle": {
+    "description": "Réglage : coloration tajweed"
+  },
   "settingsTajweedColorsSubtitle": "Coloration selon les règles de récitation",
-  "@settingsTajweedColorsSubtitle": {"description": "Sous-titre du réglage couleurs tajweed"},
+  "@settingsTajweedColorsSubtitle": {
+    "description": "Sous-titre du réglage couleurs tajweed"
+  },
   "settingsSectionApp": "Application",
-  "@settingsSectionApp": {"description": "En-tête de section réglages"},
+  "@settingsSectionApp": {
+    "description": "En-tête de section réglages"
+  },
   "settingsLocaleTitle": "Langue de l'application",
-  "@settingsLocaleTitle": {"description": "Réglage + titre de la feuille de choix de langue"},
+  "@settingsLocaleTitle": {
+    "description": "Réglage + titre de la feuille de choix de langue"
+  },
   "settingsLocaleSheetDescription": "En arabe, tout le contenu (menus et Coran) reste en arabe, sans traduction. En français/anglais, le Coran reste toujours en arabe ; seuls les menus et les explications changent de langue.",
-  "@settingsLocaleSheetDescription": {"description": "Explique le comportement du choix de langue dans la feuille de sélection"},
+  "@settingsLocaleSheetDescription": {
+    "description": "Explique le comportement du choix de langue dans la feuille de sélection"
+  },
   "settingsAboutSubtitle": "Version 1.0.0  •  Propulsé par Gemma 4 + Whisper",
-  "@settingsAboutSubtitle": {"description": "Sous-titre de la tuile \"à propos\""},
-  "settingsRepeatDrillTitle": "Répétitions de mémorisation",
-  "@settingsRepeatDrillTitle": {"description": "Titre de la feuille de réglage du nombre de répétitions"},
-  "settingsRepeatDrillDescription": "Nombre de fois à répéter le verset avant de tester ta mémoire (1 à {max}).",
-  "@settingsRepeatDrillDescription": {"description": "Explique le réglage du nombre de répétitions", "placeholders": {"max": {"type": "int"}}},
+  "@settingsAboutSubtitle": {
+    "description": "Sous-titre de la tuile \"à propos\""
+  },
   "settingsValidate": "Valider",
-  "@settingsValidate": {"description": "Bouton de confirmation d'un réglage"},
-
+  "@settingsValidate": {
+    "description": "Bouton de confirmation d'un réglage"
+  },
+  "settingsRepeatEngineSectionTitle": "RÉPÉTITION INCRÉMENTALE",
+  "@settingsRepeatEngineSectionTitle": {
+    "description": "Titre de section des réglages du moteur de répétition incrémentale (étape Répète du Coach)"
+  },
+  "settingsAdultChunkWordCountTitle": "Mots par palier (mode Adulte)",
+  "@settingsAdultChunkWordCountTitle": {
+    "description": "Titre du réglage de la taille d'un palier en mots, hors mode Enfant"
+  },
+  "settingsAdultChunkWordCountDescription": "Approxime une ligne du Mushaf (1 à {max} mots). Sans effet en mode Enfant, toujours mot par mot.",
+  "@settingsAdultChunkWordCountDescription": {
+    "description": "Explique le réglage du nombre de mots par palier",
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsRepeatWindowSizeTitle": "Fenêtre de récitation (curseur)",
+  "@settingsRepeatWindowSizeTitle": {
+    "description": "Titre du réglage de la taille fixe de la fenêtre glissante de validation"
+  },
+  "settingsRepeatWindowSizeDescription": "Nombre de paliers à réciter ensemble pour valider (1 à {max}). Cette taille reste fixe, la fenêtre glisse au fil des paliers.",
+  "@settingsRepeatWindowSizeDescription": {
+    "description": "Explique le réglage de la fenêtre glissante",
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
   "commonConnectionRequired": "Connexion requise",
-  "@commonConnectionRequired": {"description": "Message d'erreur générique quand une requête réseau échoue"},
+  "@commonConnectionRequired": {
+    "description": "Message d'erreur générique quand une requête réseau échoue"
+  },
   "commonRetry": "Réessayer",
-  "@commonRetry": {"description": "Bouton générique pour relancer une action après erreur"},
+  "@commonRetry": {
+    "description": "Bouton générique pour relancer une action après erreur"
+  },
   "homeIdentifyTooltip": "Identifier une récitation",
-  "@homeIdentifyTooltip": {"description": "Tooltip de l'icône Shazam coranique sur la page d'accueil"},
+  "@homeIdentifyTooltip": {
+    "description": "Tooltip de l'icône Shazam coranique sur la page d'accueil"
+  },
   "homeFollowPrayerTooltip": "Suivre une prière",
-  "@homeFollowPrayerTooltip": {"description": "Tooltip de l'icône \"suivre une prière\" sur la page d'accueil"},
+  "@homeFollowPrayerTooltip": {
+    "description": "Tooltip de l'icône \"suivre une prière\" sur la page d'accueil"
+  },
   "surahMeccan": "Mecquoise",
-  "@surahMeccan": {"description": "Lieu de révélation d'une sourate : La Mecque"},
+  "@surahMeccan": {
+    "description": "Lieu de révélation d'une sourate : La Mecque"
+  },
   "surahMedinan": "Médinoise",
-  "@surahMedinan": {"description": "Lieu de révélation d'une sourate : Médine"},
+  "@surahMedinan": {
+    "description": "Lieu de révélation d'une sourate : Médine"
+  },
   "surahMetaLine": "{count, plural, =1{1 verset} other{{count} versets}} • {place}",
-  "@surahMetaLine": {"description": "Ligne de métadonnées sous le nom d'une sourate dans la liste", "placeholders": {"count": {"type": "int"}, "place": {"type": "String"}}},
-
+  "@surahMetaLine": {
+    "description": "Ligne de métadonnées sous le nom d'une sourate dans la liste",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "place": {
+        "type": "String"
+      }
+    }
+  },
   "mushafExplanationTitleSurahVerse": "{surah} — verset {ayah}",
-  "@mushafExplanationTitleSurahVerse": {"description": "Titre du sheet Coach IA quand on explique un verset entier depuis la lecture", "placeholders": {"surah": {"type": "String"}, "ayah": {"type": "int"}}},
+  "@mushafExplanationTitleSurahVerse": {
+    "description": "Titre du sheet Coach IA quand on explique un verset entier depuis la lecture",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      },
+      "ayah": {
+        "type": "int"
+      }
+    }
+  },
   "mushafExplanationTitleSurahVerseWord": "{surah} {ayah} — {word}",
-  "@mushafExplanationTitleSurahVerseWord": {"description": "Titre du sheet Coach IA quand on explique un mot précis depuis la lecture", "placeholders": {"surah": {"type": "String"}, "ayah": {"type": "int"}, "word": {"type": "String"}}},
+  "@mushafExplanationTitleSurahVerseWord": {
+    "description": "Titre du sheet Coach IA quand on explique un mot précis depuis la lecture",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      },
+      "ayah": {
+        "type": "int"
+      },
+      "word": {
+        "type": "String"
+      }
+    }
+  },
   "mushafPlay": "Lire",
-  "@mushafPlay": {"description": "Bouton barre du bas : lancer la lecture audio"},
+  "@mushafPlay": {
+    "description": "Bouton barre du bas : lancer la lecture audio"
+  },
   "mushafPause": "Pause",
-  "@mushafPause": {"description": "Bouton barre du bas : mettre la lecture audio en pause"},
+  "@mushafPause": {
+    "description": "Bouton barre du bas : mettre la lecture audio en pause"
+  },
   "mushafFavorites": "Favoris",
-  "@mushafFavorites": {"description": "Bouton barre du bas : favoris"},
+  "@mushafFavorites": {
+    "description": "Bouton barre du bas : favoris"
+  },
   "mushafMemorize": "Mémoriser",
-  "@mushafMemorize": {"description": "Bouton barre du bas : travailler ce verset (mémorisation)"},
+  "@mushafMemorize": {
+    "description": "Bouton barre du bas : travailler ce verset (mémorisation)"
+  },
   "mushafTranslation": "Trad.",
-  "@mushafTranslation": {"description": "Bouton barre du bas : afficher/masquer la traduction (abrégé, contrainte de largeur)"},
+  "@mushafTranslation": {
+    "description": "Bouton barre du bas : afficher/masquer la traduction (abrégé, contrainte de largeur)"
+  },
   "mushafCoachAi": "Coach IA",
-  "@mushafCoachAi": {"description": "Bouton barre du bas : ouvrir le coach IA"},
+  "@mushafCoachAi": {
+    "description": "Bouton barre du bas : ouvrir le coach IA"
+  },
   "mushafMore": "Plus",
-  "@mushafMore": {"description": "Bouton barre du bas : plus d'options"},
+  "@mushafMore": {
+    "description": "Bouton barre du bas : plus d'options"
+  },
   "mushafAutoScroll": "Défilement auto",
-  "@mushafAutoScroll": {"description": "Badge flottant : défilement automatique actif"},
-
+  "@mushafAutoScroll": {
+    "description": "Badge flottant : défilement automatique actif"
+  },
   "commonCancel": "Annuler",
-  "@commonCancel": {"description": "Bouton générique d'annulation"},
+  "@commonCancel": {
+    "description": "Bouton générique d'annulation"
+  },
   "commonClose": "Fermer",
-  "@commonClose": {"description": "Bouton générique de fermeture"},
+  "@commonClose": {
+    "description": "Bouton générique de fermeture"
+  },
   "shazamListening": "Écoute en cours...\nApproche le téléphone du son.",
-  "@shazamListening": {"description": "Feuille Shazam coranique : état écoute en cours"},
+  "@shazamListening": {
+    "description": "Feuille Shazam coranique : état écoute en cours"
+  },
   "shazamSearching": "Recherche dans le Coran...",
-  "@shazamSearching": {"description": "Feuille Shazam coranique : état recherche"},
+  "@shazamSearching": {
+    "description": "Feuille Shazam coranique : état recherche"
+  },
   "shazamFound": "Passage identifié !",
-  "@shazamFound": {"description": "Feuille Shazam coranique : état trouvé"},
+  "@shazamFound": {
+    "description": "Feuille Shazam coranique : état trouvé"
+  },
   "shazamNotFound": "Passage non identifié.\nRapproche-toi du son et réessaie.",
-  "@shazamNotFound": {"description": "Feuille Shazam coranique : état non trouvé"},
+  "@shazamNotFound": {
+    "description": "Feuille Shazam coranique : état non trouvé"
+  },
   "shazamError": "Erreur pendant l'écoute.",
-  "@shazamError": {"description": "Feuille Shazam coranique : état erreur"},
+  "@shazamError": {
+    "description": "Feuille Shazam coranique : état erreur"
+  },
   "shazamMatchLabel": "Sourate {surah}, verset {ayah}",
-  "@shazamMatchLabel": {"description": "Résultat Shazam coranique : référence du passage trouvé", "placeholders": {"surah": {"type": "int"}, "ayah": {"type": "int"}}},
+  "@shazamMatchLabel": {
+    "description": "Résultat Shazam coranique : référence du passage trouvé",
+    "placeholders": {
+      "surah": {
+        "type": "int"
+      },
+      "ayah": {
+        "type": "int"
+      }
+    }
+  },
   "shazamGoThere": "Y aller",
-  "@shazamGoThere": {"description": "Bouton : ouvrir le passage identifié par le Shazam coranique"},
-
+  "@shazamGoThere": {
+    "description": "Bouton : ouvrir le passage identifié par le Shazam coranique"
+  },
   "readingSettingsDisplaySection": "AFFICHAGE",
-  "@readingSettingsDisplaySection": {"description": "En-tête de section dans le tiroir de réglages de lecture"},
+  "@readingSettingsDisplaySection": {
+    "description": "En-tête de section dans le tiroir de réglages de lecture"
+  },
   "readingSettingsAutoScrollSection": "DÉFILEMENT AUTOMATIQUE",
-  "@readingSettingsAutoScrollSection": {"description": "En-tête de section dans le tiroir de réglages de lecture"},
+  "@readingSettingsAutoScrollSection": {
+    "description": "En-tête de section dans le tiroir de réglages de lecture"
+  },
   "readingSettingsAutoScrollDescription": "Le texte défile tout seul à la vitesse choisie — pratique pour lire sans les mains. Un glissement manuel l'arrête.",
-  "@readingSettingsAutoScrollDescription": {"description": "Explique le défilement automatique"},
+  "@readingSettingsAutoScrollDescription": {
+    "description": "Explique le défilement automatique"
+  },
   "readingSettingsPlaybackSpeedSection": "VITESSE DE LECTURE (AUDIO)",
-  "@readingSettingsPlaybackSpeedSection": {"description": "En-tête de section dans le tiroir de réglages de lecture"},
+  "@readingSettingsPlaybackSpeedSection": {
+    "description": "En-tête de section dans le tiroir de réglages de lecture"
+  },
   "readingSettingsRepeatSection": "RÉPÉTITION / BOUCLES",
-  "@readingSettingsRepeatSection": {"description": "En-tête de section dans le tiroir de réglages de lecture"},
+  "@readingSettingsRepeatSection": {
+    "description": "En-tête de section dans le tiroir de réglages de lecture"
+  },
   "readingSettingsRepeatDescription": "Répète chaque verset (ou toute la sourate) en boucle avant de passer au suivant.",
-  "@readingSettingsRepeatDescription": {"description": "Explique la répétition/boucles"},
+  "@readingSettingsRepeatDescription": {
+    "description": "Explique la répétition/boucles"
+  },
   "readingSettingsRepeatOff": "Désactivé",
-  "@readingSettingsRepeatOff": {"description": "Option de répétition : aucune"},
+  "@readingSettingsRepeatOff": {
+    "description": "Option de répétition : aucune"
+  },
   "readingSettingsRepeatVerseCount": "Verset × {count}",
-  "@readingSettingsRepeatVerseCount": {"description": "Option de répétition : verset répété N fois", "placeholders": {"count": {"type": "int"}}},
+  "@readingSettingsRepeatVerseCount": {
+    "description": "Option de répétition : verset répété N fois",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "readingSettingsRepeatVerseInfinite": "Verset × ∞",
-  "@readingSettingsRepeatVerseInfinite": {"description": "Option de répétition : verset répété en boucle infinie"},
+  "@readingSettingsRepeatVerseInfinite": {
+    "description": "Option de répétition : verset répété en boucle infinie"
+  },
   "readingSettingsRepeatSurah": "Sourate entière",
-  "@readingSettingsRepeatSurah": {"description": "Option de répétition : sourate entière en boucle"},
+  "@readingSettingsRepeatSurah": {
+    "description": "Option de répétition : sourate entière en boucle"
+  },
   "readingSettingsSpeedOff": "Arrêté",
-  "@readingSettingsSpeedOff": {"description": "Vitesse de défilement automatique : arrêté"},
+  "@readingSettingsSpeedOff": {
+    "description": "Vitesse de défilement automatique : arrêté"
+  },
   "readingSettingsSpeedSlow": "Lent",
-  "@readingSettingsSpeedSlow": {"description": "Vitesse de défilement automatique : lent"},
+  "@readingSettingsSpeedSlow": {
+    "description": "Vitesse de défilement automatique : lent"
+  },
   "readingSettingsSpeedNormal": "Normal",
-  "@readingSettingsSpeedNormal": {"description": "Vitesse de défilement automatique : normal"},
+  "@readingSettingsSpeedNormal": {
+    "description": "Vitesse de défilement automatique : normal"
+  },
   "readingSettingsSpeedFast": "Rapide",
-  "@readingSettingsSpeedFast": {"description": "Vitesse de défilement automatique : rapide"},
-
+  "@readingSettingsSpeedFast": {
+    "description": "Vitesse de défilement automatique : rapide"
+  },
   "coachExplanationListen": "Écouter",
-  "@coachExplanationListen": {"description": "Tooltip : lire l'explication à voix haute"},
+  "@coachExplanationListen": {
+    "description": "Tooltip : lire l'explication à voix haute"
+  },
   "coachExplanationStop": "Arrêter",
-  "@coachExplanationStop": {"description": "Tooltip : arrêter la lecture à voix haute"},
+  "@coachExplanationStop": {
+    "description": "Tooltip : arrêter la lecture à voix haute"
+  },
   "coachExplanationLanguageTooltip": "Langue",
-  "@coachExplanationLanguageTooltip": {"description": "Tooltip du sélecteur de langue de l'explication (contenu, pas l'UI)"},
+  "@coachExplanationLanguageTooltip": {
+    "description": "Tooltip du sélecteur de langue de l'explication (contenu, pas l'UI)"
+  },
   "coachExplanationError": "Erreur : {error}",
-  "@coachExplanationError": {"description": "Message d'erreur de chargement de l'explication", "placeholders": {"error": {"type": "String"}}},
+  "@coachExplanationError": {
+    "description": "Message d'erreur de chargement de l'explication",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "coachExplanationRoot": "Racine : {root}",
-  "@coachExplanationRoot": {"description": "Racine trilitère du mot expliqué", "placeholders": {"root": {"type": "String"}}},
+  "@coachExplanationRoot": {
+    "description": "Racine trilitère du mot expliqué",
+    "placeholders": {
+      "root": {
+        "type": "String"
+      }
+    }
+  },
   "coachExplanationExpand": "Approfondir",
-  "@coachExplanationExpand": {"description": "Bouton : afficher le palier d'explication suivant (plus détaillé)"},
+  "@coachExplanationExpand": {
+    "description": "Bouton : afficher le palier d'explication suivant (plus détaillé)"
+  },
   "coachExplanationNoneAvailable": "Aucune explication disponible pour ce passage sur cet appareil.",
-  "@coachExplanationNoneAvailable": {"description": "Repli quand ni la cascade offline ni le tuteur Gemma n'ont de contenu"},
-
+  "@coachExplanationNoneAvailable": {
+    "description": "Repli quand ni la cascade offline ni le tuteur Gemma n'ont de contenu"
+  },
   "tajwidHelpVerseLabel": "Verset {key}",
-  "@tajwidHelpVerseLabel": {"description": "En-tête de la fiche d'aide tajwid : référence du verset", "placeholders": {"key": {"type": "String"}}},
+  "@tajwidHelpVerseLabel": {
+    "description": "En-tête de la fiche d'aide tajwid : référence du verset",
+    "placeholders": {
+      "key": {
+        "type": "String"
+      }
+    }
+  },
   "tajwidHelpRulesInVerse": "RÈGLES DANS CE VERSET",
-  "@tajwidHelpRulesInVerse": {"description": "Titre de la légende des règles tajwid présentes dans le verset"},
+  "@tajwidHelpRulesInVerse": {
+    "description": "Titre de la légende des règles tajwid présentes dans le verset"
+  },
   "tajwidHelpListenWithReciter": "Écouter — {name}",
-  "@tajwidHelpListenWithReciter": {"description": "Bouton : écouter le verset par ce récitateur", "placeholders": {"name": {"type": "String"}}},
+  "@tajwidHelpListenWithReciter": {
+    "description": "Bouton : écouter le verset par ce récitateur",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "tajwidHelpListenPronunciation": "ÉCOUTER LA PRONONCIATION",
-  "@tajwidHelpListenPronunciation": {"description": "Titre du contrôle d'écoute par portée de mots"},
+  "@tajwidHelpListenPronunciation": {
+    "description": "Titre du contrôle d'écoute par portée de mots"
+  },
   "tajwidHelpThisWord": "Ce mot",
-  "@tajwidHelpThisWord": {"description": "Option de portée d'écoute : seulement le mot tapé"},
+  "@tajwidHelpThisWord": {
+    "description": "Option de portée d'écoute : seulement le mot tapé"
+  },
   "tajwidHelpPlusPrevious": "+ mot précédent",
-  "@tajwidHelpPlusPrevious": {"description": "Option de portée d'écoute : mot tapé + précédent"},
+  "@tajwidHelpPlusPrevious": {
+    "description": "Option de portée d'écoute : mot tapé + précédent"
+  },
   "tajwidHelpPlusBoth": "+ précédent et suivant",
-  "@tajwidHelpPlusBoth": {"description": "Option de portée d'écoute : mot tapé + précédent + suivant"},
+  "@tajwidHelpPlusBoth": {
+    "description": "Option de portée d'écoute : mot tapé + précédent + suivant"
+  },
   "tajwidHelpPlaying": "Lecture…",
-  "@tajwidHelpPlaying": {"description": "État du bouton d'écoute pendant la lecture audio"},
+  "@tajwidHelpPlaying": {
+    "description": "État du bouton d'écoute pendant la lecture audio"
+  },
   "tajwidHelpRetryThisWord": "RÉESSAYER CE MOT",
-  "@tajwidHelpRetryThisWord": {"description": "Titre de la boucle de correction (réenregistrement d'un mot)"},
+  "@tajwidHelpRetryThisWord": {
+    "description": "Titre de la boucle de correction (réenregistrement d'un mot)"
+  },
   "tajwidHelpCorrectedHeard": "Corrigé — entendu : \"{text}\"",
-  "@tajwidHelpCorrectedHeard": {"description": "Résultat de la boucle de correction : mot validé", "placeholders": {"text": {"type": "String"}}},
+  "@tajwidHelpCorrectedHeard": {
+    "description": "Résultat de la boucle de correction : mot validé",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
   "tajwidHelpNothingHeard": "(rien entendu)",
-  "@tajwidHelpNothingHeard": {"description": "Transcription vide après un réenregistrement"},
+  "@tajwidHelpNothingHeard": {
+    "description": "Transcription vide après un réenregistrement"
+  },
   "tajwidHelpNotYetHeard": "Pas encore — entendu : \"{text}\". Réessaie, à ton rythme.",
-  "@tajwidHelpNotYetHeard": {"description": "Résultat de la boucle de correction : mot pas encore correct", "placeholders": {"text": {"type": "String"}}},
+  "@tajwidHelpNotYetHeard": {
+    "description": "Résultat de la boucle de correction : mot pas encore correct",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
   "tajwidHelpAnalyzing": "Analyse en cours…",
-  "@tajwidHelpAnalyzing": {"description": "État du bouton de correction pendant l'analyse du mot réenregistré"},
+  "@tajwidHelpAnalyzing": {
+    "description": "État du bouton de correction pendant l'analyse du mot réenregistré"
+  },
   "tajwidHelpFinishRecording": "Terminer l'enregistrement",
-  "@tajwidHelpFinishRecording": {"description": "Bouton : arrêter l'enregistrement du mot"},
+  "@tajwidHelpFinishRecording": {
+    "description": "Bouton : arrêter l'enregistrement du mot"
+  },
   "tajwidHelpRecordThisWord": "S'enregistrer sur ce mot",
-  "@tajwidHelpRecordThisWord": {"description": "Bouton : démarrer l'enregistrement du mot"},
-
+  "@tajwidHelpRecordThisWord": {
+    "description": "Bouton : démarrer l'enregistrement du mot"
+  },
   "tajwidRuleMaddaNecessaryName": "Madd — 6 temps (obligatoire)",
   "tajwidRuleMaddaNecessaryExplanation": "Allongement obligatoire de 6 temps (madd lâzim).",
   "tajwidRuleMaddaObligatoryName": "Madd — 4 ou 5 temps (obligatoire)",
@@ -264,554 +593,1364 @@
   "tajwidRuleLaamShamsiyahExplanation": "Le lâm de \"ال\" ne se prononce pas : la lettre suivante est doublée à la place.",
   "tajwidRuleSlntName": "Lettre muette",
   "tajwidRuleSlntExplanation": "S'écrit mais ne se prononce pas.",
-
   "duasScreenTitle": "Invocations & Adhkar",
-  "@duasScreenTitle": {"description": "Titre de l'écran des invocations"},
+  "@duasScreenTitle": {
+    "description": "Titre de l'écran des invocations"
+  },
   "duasSearchHint": "Chercher une invocation, un mot, une source…",
-  "@duasSearchHint": {"description": "Placeholder du champ de recherche des invocations"},
+  "@duasSearchHint": {
+    "description": "Placeholder du champ de recherche des invocations"
+  },
   "duasExplore": "Explorer",
-  "@duasExplore": {"description": "Titre de section : parcourir les univers d'invocations"},
+  "@duasExplore": {
+    "description": "Titre de section : parcourir les univers d'invocations"
+  },
   "duasMyFavorites": "Mes favoris",
-  "@duasMyFavorites": {"description": "Titre de section : invocations favorites"},
+  "@duasMyFavorites": {
+    "description": "Titre de section : invocations favorites"
+  },
   "duasNow": "MAINTENANT",
-  "@duasNow": {"description": "Badge de la carte contextuelle (invocation du moment)"},
+  "@duasNow": {
+    "description": "Badge de la carte contextuelle (invocation du moment)"
+  },
   "duasGuideBadge": "GUIDE",
-  "@duasGuideBadge": {"description": "Badge : cette collection est un guide pas-à-pas (ex. rite du hajj)"},
+  "@duasGuideBadge": {
+    "description": "Badge : cette collection est un guide pas-à-pas (ex. rite du hajj)"
+  },
   "duasNoneFound": "Aucun résultat.",
-  "@duasNoneFound": {"description": "Message quand la recherche d'invocation ne donne rien"},
+  "@duasNoneFound": {
+    "description": "Message quand la recherche d'invocation ne donne rien"
+  },
   "duasInvocationCount": "{count, plural, =1{1 invocation} other{{count} invocations}}",
-  "@duasInvocationCount": {"description": "Nombre d'invocations dans une collection/un univers", "placeholders": {"count": {"type": "int"}}},
-
+  "@duasInvocationCount": {
+    "description": "Nombre d'invocations dans une collection/un univers",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "duaRemoveFavorite": "Retirer des favoris",
-  "@duaRemoveFavorite": {"description": "Tooltip du bouton favori quand l'invocation est déjà favorite"},
+  "@duaRemoveFavorite": {
+    "description": "Tooltip du bouton favori quand l'invocation est déjà favorite"
+  },
   "duaAddFavorite": "Mettre en favori",
-  "@duaAddFavorite": {"description": "Tooltip du bouton favori quand l'invocation n'est pas favorite"},
+  "@duaAddFavorite": {
+    "description": "Tooltip du bouton favori quand l'invocation n'est pas favorite"
+  },
   "duaPlaybackError": "Lecture impossible : {error}",
-  "@duaPlaybackError": {"description": "Message d'erreur si l'audio du verset associé échoue", "placeholders": {"error": {"type": "String"}}},
+  "@duaPlaybackError": {
+    "description": "Message d'erreur si l'audio du verset associé échoue",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "duaHideVirtue": "Masquer le mérite",
-  "@duaHideVirtue": {"description": "Bouton : replier le texte du mérite de l'invocation"},
+  "@duaHideVirtue": {
+    "description": "Bouton : replier le texte du mérite de l'invocation"
+  },
   "duaShowVirtue": "Pourquoi la dire",
-  "@duaShowVirtue": {"description": "Bouton : déplier le texte du mérite de l'invocation"},
+  "@duaShowVirtue": {
+    "description": "Bouton : déplier le texte du mérite de l'invocation"
+  },
   "duaRepeatComplete": "Terminé — {target}/{target}",
-  "@duaRepeatComplete": {"description": "Compteur de répétitions atteint", "placeholders": {"target": {"type": "int"}}},
+  "@duaRepeatComplete": {
+    "description": "Compteur de répétitions atteint",
+    "placeholders": {
+      "target": {
+        "type": "int"
+      }
+    }
+  },
   "duaResetCount": "Recommencer le compte",
-  "@duaResetCount": {"description": "Tooltip : remettre le compteur de répétitions à zéro"},
+  "@duaResetCount": {
+    "description": "Tooltip : remettre le compteur de répétitions à zéro"
+  },
   "duaCollectionEmpty": "Cette collection est encore vide.",
-  "@duaCollectionEmpty": {"description": "Message quand une collection d'invocations n'a aucune entrée"},
-
+  "@duaCollectionEmpty": {
+    "description": "Message quand une collection d'invocations n'a aucune entrée"
+  },
   "coachSurahLabel": "Sourate {number}",
-  "@coachSurahLabel": {"description": "Nom de repli d'une sourate quand le nom réel n'est pas chargé", "placeholders": {"number": {"type": "int"}}},
+  "@coachSurahLabel": {
+    "description": "Nom de repli d'une sourate quand le nom réel n'est pas chargé",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "coachHeaderLabel": "COACH MÉMORISATION",
-  "@coachHeaderLabel": {"description": "Sur-titre de l'écran Coach (au-dessus du nom du verset)"},
+  "@coachHeaderLabel": {
+    "description": "Sur-titre de l'écran Coach (au-dessus du nom du verset)"
+  },
   "coachVerificationModeTooltip": "Mode de vérification",
-  "@coachVerificationModeTooltip": {"description": "Tooltip de l'icône réglages tajwid dans l'en-tête Coach"},
+  "@coachVerificationModeTooltip": {
+    "description": "Tooltip de l'icône réglages tajwid dans l'en-tête Coach"
+  },
   "coachStepLecture": "Lecture",
-  "@coachStepLecture": {"description": "Étape 1 du Coach : lecture guidée"},
+  "@coachStepLecture": {
+    "description": "Étape 1 du Coach : lecture guidée"
+  },
   "coachStepTrain": "Entraîne",
-  "@coachStepTrain": {"description": "Étape 2 du Coach : entraînement/apprentissage"},
+  "@coachStepTrain": {
+    "description": "Étape 2 du Coach : entraînement/apprentissage"
+  },
   "coachStepControl": "Contrôle",
-  "@coachStepControl": {"description": "Étape 3 du Coach : récitation de mémoire"},
+  "@coachStepControl": {
+    "description": "Étape 3 du Coach : récitation de mémoire"
+  },
   "coachReadAloudInstruction": "Lis ce verset à voix haute — l'app détecte les mots difficiles et mémorise ta voix.",
-  "@coachReadAloudInstruction": {"description": "Bandeau d'instruction de l'étape Lecture"},
+  "@coachReadAloudInstruction": {
+    "description": "Bandeau d'instruction de l'étape Lecture"
+  },
   "coachListeningLecture": "Je note les mots difficiles…",
-  "@coachListeningLecture": {"description": "Statut micro pendant l'étape Lecture"},
+  "@coachListeningLecture": {
+    "description": "Statut micro pendant l'étape Lecture"
+  },
   "coachDoneLecture": "Lecture analysée",
-  "@coachDoneLecture": {"description": "Statut micro : étape Lecture terminée"},
+  "@coachDoneLecture": {
+    "description": "Statut micro : étape Lecture terminée"
+  },
   "coachTapToRead": "Appuie et lis le verset",
-  "@coachTapToRead": {"description": "Statut micro : invite à démarrer l'étape Lecture"},
+  "@coachTapToRead": {
+    "description": "Statut micro : invite à démarrer l'étape Lecture"
+  },
   "coachAlreadyKnow": "Je sais déjà",
-  "@coachAlreadyKnow": {"description": "Bouton : sauter directement au contrôle"},
+  "@coachAlreadyKnow": {
+    "description": "Bouton : sauter directement au contrôle"
+  },
   "coachTrainButton": "S'entraîner",
-  "@coachTrainButton": {"description": "Bouton : passer à l'étape d'entraînement"},
+  "@coachTrainButton": {
+    "description": "Bouton : passer à l'étape d'entraînement"
+  },
   "coachSubStepListen": "Écoute",
-  "@coachSubStepListen": {"description": "Sous-étape d'entraînement 1/3"},
+  "@coachSubStepListen": {
+    "description": "Sous-étape d'entraînement 1/3"
+  },
   "coachSubStepImitate": "Imite",
-  "@coachSubStepImitate": {"description": "Sous-étape d'entraînement 2/3"},
+  "@coachSubStepImitate": {
+    "description": "Sous-étape d'entraînement 2/3"
+  },
   "coachSubStepRepeat": "Répète",
-  "@coachSubStepRepeat": {"description": "Sous-étape d'entraînement 3/3"},
+  "@coachSubStepRepeat": {
+    "description": "Sous-étape d'entraînement 3/3"
+  },
   "coachListenInstruction": "Écoute le récitateur. Suis chaque mot avec les yeux.",
-  "@coachListenInstruction": {"description": "Bandeau d'instruction sous-étape Écoute"},
+  "@coachListenInstruction": {
+    "description": "Bandeau d'instruction sous-étape Écoute"
+  },
   "coachListeningAudio": "Écoute en cours…",
-  "@coachListeningAudio": {"description": "Statut pendant la lecture audio du récitateur"},
+  "@coachListeningAudio": {
+    "description": "Statut pendant la lecture audio du récitateur"
+  },
   "coachTapToListen": "Appuie pour écouter",
-  "@coachTapToListen": {"description": "Invite à démarrer l'écoute du récitateur"},
+  "@coachTapToListen": {
+    "description": "Invite à démarrer l'écoute du récitateur"
+  },
   "coachMoveToImitation": "Passons à l'imitation",
-  "@coachMoveToImitation": {"description": "Bouton : passer à la sous-étape Imite"},
+  "@coachMoveToImitation": {
+    "description": "Bouton : passer à la sous-étape Imite"
+  },
   "coachImitateInstruction": "Lance l'audio et parle en même temps. Copie le rythme, les pauses, l'intonation.",
-  "@coachImitateInstruction": {"description": "Bandeau d'instruction sous-étape Imite"},
+  "@coachImitateInstruction": {
+    "description": "Bandeau d'instruction sous-étape Imite"
+  },
   "coachSpeakAlong": "Parle en même temps que l'audio",
-  "@coachSpeakAlong": {"description": "Statut pendant l'audio à la sous-étape Imite"},
+  "@coachSpeakAlong": {
+    "description": "Statut pendant l'audio à la sous-étape Imite"
+  },
   "coachLaunchAndImitate": "Lance l'audio et imite",
-  "@coachLaunchAndImitate": {"description": "Invite à démarrer la sous-étape Imite"},
+  "@coachLaunchAndImitate": {
+    "description": "Invite à démarrer la sous-étape Imite"
+  },
   "coachImitatedNext": "J'ai imité — Répéter seul",
-  "@coachImitatedNext": {"description": "Bouton : passer à la sous-étape Répète"},
-  "coachRepeatAloneInstruction": "Répète seul, sans l'audio. Le texte reste visible pour t'aider.",
-  "@coachRepeatAloneInstruction": {"description": "Bandeau d'instruction sous-étape Répète"},
-  "coachListeningRepeat": "Répète le verset…",
-  "@coachListeningRepeat": {"description": "Statut micro pendant la sous-étape Répète"},
-  "coachRepeatAnalyzed": "Récitation analysée !",
-  "@coachRepeatAnalyzed": {"description": "Statut micro : sous-étape Répète terminée"},
-  "coachTapToRepeat": "Appuie et répète le verset",
-  "@coachTapToRepeat": {"description": "Invite à démarrer la sous-étape Répète"},
-  "coachRestart": "Recommencer",
-  "@coachRestart": {"description": "Bouton : refaire la sous-étape Répète"},
-  "coachTestMemory": "Tester ma mémoire",
-  "@coachTestMemory": {"description": "Bouton : passer à l'étape Contrôle"},
+  "@coachImitatedNext": {
+    "description": "Bouton : passer à la sous-étape Répète"
+  },
+  "coachIncrementalInstruction": "Écoute puis répète. Le palier grandit à chaque réussite.",
+  "@coachIncrementalInstruction": {
+    "description": "Bandeau d'instruction de l'étape Répète incrémentale"
+  },
+  "coachIncrementalPreparing": "Préparation…",
+  "@coachIncrementalPreparing": {
+    "description": "Libellé affiché pendant le chargement du moteur de vérification (jamais le nom technique du modèle)"
+  },
+  "coachIncrementalListening": "Écoute en cours…",
+  "@coachIncrementalListening": {
+    "description": "Statut pendant l'écoute ou la lecture audio d'un palier"
+  },
+  "coachIncrementalTapToStart": "Appuie pour réessayer",
+  "@coachIncrementalTapToStart": {
+    "description": "Invite à retaper le micro après un échec"
+  },
+  "coachIncrementalUnitProgress": "Palier {done}/{total}",
+  "@coachIncrementalUnitProgress": {
+    "description": "Progression dans les paliers du verset courant",
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "coachIncrementalVerseAdvance": "Verset suivant",
+  "@coachIncrementalVerseAdvance": {
+    "description": "Message bref affiché lors du passage automatique au verset suivant"
+  },
   "coachRecallInstruction": "Récite de mémoire — le texte est masqué.",
-  "@coachRecallInstruction": {"description": "Bandeau d'instruction de l'étape Contrôle"},
+  "@coachRecallInstruction": {
+    "description": "Bandeau d'instruction de l'étape Contrôle"
+  },
   "coachRecallBadge": "Récite de mémoire",
-  "@coachRecallBadge": {"description": "Badge court affiché sur le verset flouté avant la récitation"},
+  "@coachRecallBadge": {
+    "description": "Badge court affiché sur le verset flouté avant la récitation"
+  },
   "coachListeningControl": "Récite de mémoire…",
-  "@coachListeningControl": {"description": "Statut micro pendant l'étape Contrôle"},
+  "@coachListeningControl": {
+    "description": "Statut micro pendant l'étape Contrôle"
+  },
   "coachControlDone": "Récitation terminée",
-  "@coachControlDone": {"description": "Statut micro : étape Contrôle terminée"},
+  "@coachControlDone": {
+    "description": "Statut micro : étape Contrôle terminée"
+  },
   "coachTapToRecall": "Appuie et récite de mémoire",
-  "@coachTapToRecall": {"description": "Invite à démarrer l'étape Contrôle"},
+  "@coachTapToRecall": {
+    "description": "Invite à démarrer l'étape Contrôle"
+  },
   "coachBackToTraining": "Retour entraînement",
-  "@coachBackToTraining": {"description": "Bouton : retourner à l'étape d'entraînement depuis le Contrôle"},
+  "@coachBackToTraining": {
+    "description": "Bouton : retourner à l'étape d'entraînement depuis le Contrôle"
+  },
   "coachTranscriptLabel": "TRANSCRIPT MODÈLE",
-  "@coachTranscriptLabel": {"description": "Titre de l'encart montrant la transcription brute reconnue"},
+  "@coachTranscriptLabel": {
+    "description": "Titre de l'encart montrant la transcription brute reconnue"
+  },
   "coachAnalyzingAudio": "Analyse Whisper en cours…",
-  "@coachAnalyzingAudio": {"description": "Statut pendant l'inférence du modèle sur l'audio enregistré"},
+  "@coachAnalyzingAudio": {
+    "description": "Statut pendant l'inférence du modèle sur l'audio enregistré"
+  },
   "coachAccuracyPercent": "{pct}% de précision",
-  "@coachAccuracyPercent": {"description": "Score de précision affiché après une récitation", "placeholders": {"pct": {"type": "int"}}},
+  "@coachAccuracyPercent": {
+    "description": "Score de précision affiché après une récitation",
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
   "coachFingerprintScore": "Empreinte vocale : {pct}%",
-  "@coachFingerprintScore": {"description": "Score de similarité vocale avec la référence enregistrée", "placeholders": {"pct": {"type": "int"}}},
+  "@coachFingerprintScore": {
+    "description": "Score de similarité vocale avec la référence enregistrée",
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
   "coachMemorizedConfirmed": "Mémorisation confirmée !",
-  "@coachMemorizedConfirmed": {"description": "Le score de mémoire dépasse la première lecture"},
+  "@coachMemorizedConfirmed": {
+    "description": "Le score de mémoire dépasse la première lecture"
+  },
   "coachKeepTraining": "Continue à t'entraîner",
-  "@coachKeepTraining": {"description": "Le score de mémoire ne dépasse pas encore la première lecture"},
+  "@coachKeepTraining": {
+    "description": "Le score de mémoire ne dépasse pas encore la première lecture"
+  },
   "coachGapSummary": "1ère lecture : {baseline}%  →  De mémoire : {control}%  ({delta}%)",
-  "@coachGapSummary": {"description": "Comparaison entre le score de première lecture et le score de mémoire", "placeholders": {"baseline": {"type": "int"}, "control": {"type": "int"}, "delta": {"type": "String"}}},
+  "@coachGapSummary": {
+    "description": "Comparaison entre le score de première lecture et le score de mémoire",
+    "placeholders": {
+      "baseline": {
+        "type": "int"
+      },
+      "control": {
+        "type": "int"
+      },
+      "delta": {
+        "type": "String"
+      }
+    }
+  },
   "coachMsgLectureExcellent": "Excellente lecture ! Tu maîtrises bien la prononciation de ce verset.",
-  "@coachMsgLectureExcellent": {"description": "Message du coach, étape Lecture, score élevé"},
+  "@coachMsgLectureExcellent": {
+    "description": "Message du coach, étape Lecture, score élevé"
+  },
   "coachMsgLectureDifficultWords": "Ces mots t'ont posé problème : {words}\n\nConcentre-toi dessus lors de l'entraînement.",
-  "@coachMsgLectureDifficultWords": {"description": "Message du coach, étape Lecture, mots difficiles détectés", "placeholders": {"words": {"type": "String"}}},
+  "@coachMsgLectureDifficultWords": {
+    "description": "Message du coach, étape Lecture, mots difficiles détectés",
+    "placeholders": {
+      "words": {
+        "type": "String"
+      }
+    }
+  },
   "coachMsgLectureHesitant": "Quelques hésitations détectées. L'entraînement va t'aider à les corriger.",
-  "@coachMsgLectureHesitant": {"description": "Message du coach, étape Lecture, cas générique"},
+  "@coachMsgLectureHesitant": {
+    "description": "Message du coach, étape Lecture, cas générique"
+  },
   "coachMsgTrainGreat": "Très bien ! Tu répètes correctement. Tu peux maintenant tester ta mémorisation sans le texte.",
-  "@coachMsgTrainGreat": {"description": "Message du coach, étape Entraînement, score élevé"},
+  "@coachMsgTrainGreat": {
+    "description": "Message du coach, étape Entraînement, score élevé"
+  },
   "coachMsgTrainGoodStart": "C'est un bon début. Recommence encore une fois pour ancrer les mots hésitants.",
-  "@coachMsgTrainGoodStart": {"description": "Message du coach, étape Entraînement, score moyen"},
+  "@coachMsgTrainGoodStart": {
+    "description": "Message du coach, étape Entraînement, score moyen"
+  },
   "coachMsgTrainRestart": "Reprends l'écoute et l'imitation, puis réessaie la répétition.",
-  "@coachMsgTrainRestart": {"description": "Message du coach, étape Entraînement, score faible"},
+  "@coachMsgTrainRestart": {
+    "description": "Message du coach, étape Entraînement, score faible"
+  },
   "coachMsgControlMashallah": "Ma cha Allah ! Tu récites mieux de mémoire que lors de ta première lecture — le verset est mémorisé !",
-  "@coachMsgControlMashallah": {"description": "Message du coach, étape Contrôle, progression confirmée par rapport à la première lecture"},
+  "@coachMsgControlMashallah": {
+    "description": "Message du coach, étape Contrôle, progression confirmée par rapport à la première lecture"
+  },
   "coachMsgControlVeryGood": "Très bonne récitation ! Continue à réviser régulièrement pour consolider.",
-  "@coachMsgControlVeryGood": {"description": "Message du coach, étape Contrôle, score élevé"},
+  "@coachMsgControlVeryGood": {
+    "description": "Message du coach, étape Contrôle, score élevé"
+  },
   "coachMsgControlGoodPath": "Tu es sur la bonne voie. Encore quelques répétitions et le verset sera ancré.",
-  "@coachMsgControlGoodPath": {"description": "Message du coach, étape Contrôle, score moyen"},
+  "@coachMsgControlGoodPath": {
+    "description": "Message du coach, étape Contrôle, score moyen"
+  },
   "coachMsgControlKeepTraining": "Continue à t'entraîner. Reviens à la phase lecture pour cibler les points faibles.",
-  "@coachMsgControlKeepTraining": {"description": "Message du coach, étape Contrôle, score faible"},
-
+  "@coachMsgControlKeepTraining": {
+    "description": "Message du coach, étape Contrôle, score faible"
+  },
   "errorKindLettre": "Lettre",
-  "@errorKindLettre": {"description": "Type d'erreur de récitation : lettre mal prononcée"},
+  "@errorKindLettre": {
+    "description": "Type d'erreur de récitation : lettre mal prononcée"
+  },
   "errorKindHarakat": "Harakat",
-  "@errorKindHarakat": {"description": "Type d'erreur de récitation : voyelle brève mal prononcée"},
+  "@errorKindHarakat": {
+    "description": "Type d'erreur de récitation : voyelle brève mal prononcée"
+  },
   "errorKindTajwid": "Tajwid",
-  "@errorKindTajwid": {"description": "Type d'erreur de récitation : règle de tajwid non respectée (déduction)"},
+  "@errorKindTajwid": {
+    "description": "Type d'erreur de récitation : règle de tajwid non respectée (déduction)"
+  },
   "errorKindSkippedWord": "Mot sauté",
-  "@errorKindSkippedWord": {"description": "Type d'erreur de récitation : mot non prononcé"},
+  "@errorKindSkippedWord": {
+    "description": "Type d'erreur de récitation : mot non prononcé"
+  },
   "errorKindUnknown": "Indéterminé",
-  "@errorKindUnknown": {"description": "Type d'erreur de récitation : cause non identifiée"},
-
+  "@errorKindUnknown": {
+    "description": "Type d'erreur de récitation : cause non identifiée"
+  },
   "coachHubTitle": "Mon coach",
-  "@coachHubTitle": {"description": "Titre de l'écran hub Coach"},
+  "@coachHubTitle": {
+    "description": "Titre de l'écran hub Coach"
+  },
   "coachHubResumeLabel": "Reprendre",
-  "@coachHubResumeLabel": {"description": "Titre de la carte \"reprendre la dernière session\""},
+  "@coachHubResumeLabel": {
+    "description": "Titre de la carte \"reprendre la dernière session\""
+  },
   "coachHubResumeVerse": "{surahName} — verset {ayah}",
-  "@coachHubResumeVerse": {"description": "Référence du dernier verset travaillé", "placeholders": {"surahName": {"type": "String"}, "ayah": {"type": "int"}}},
+  "@coachHubResumeVerse": {
+    "description": "Référence du dernier verset travaillé",
+    "placeholders": {
+      "surahName": {
+        "type": "String"
+      },
+      "ayah": {
+        "type": "int"
+      }
+    }
+  },
   "coachHubContinue": "Continuer",
-  "@coachHubContinue": {"description": "Bouton : reprendre la dernière session Coach"},
+  "@coachHubContinue": {
+    "description": "Bouton : reprendre la dernière session Coach"
+  },
   "coachHubMemorizeSectionTitle": "MÉMORISER",
-  "@coachHubMemorizeSectionTitle": {"description": "Titre de la zone B du hub Coach"},
+  "@coachHubMemorizeSectionTitle": {
+    "description": "Titre de la zone B du hub Coach"
+  },
   "coachHubMemorizeSectionSubtitle": "Verset par verset, avec le micro",
-  "@coachHubMemorizeSectionSubtitle": {"description": "Sous-titre de la zone B du hub Coach"},
+  "@coachHubMemorizeSectionSubtitle": {
+    "description": "Sous-titre de la zone B du hub Coach"
+  },
   "coachHubMemorizeSurahTitle": "Mémoriser une sourate",
-  "@coachHubMemorizeSurahTitle": {"description": "Bouton d'action de la zone Mémoriser"},
+  "@coachHubMemorizeSurahTitle": {
+    "description": "Bouton d'action de la zone Mémoriser"
+  },
   "coachHubMemorizeSurahSubtitle": "Lecture → Apprentissage → Contrôle",
-  "@coachHubMemorizeSurahSubtitle": {"description": "Sous-titre du bouton Mémoriser une sourate"},
+  "@coachHubMemorizeSurahSubtitle": {
+    "description": "Sous-titre du bouton Mémoriser une sourate"
+  },
   "coachHubPickerMemorizeTitle": "Mémoriser",
-  "@coachHubPickerMemorizeTitle": {"description": "Titre de l'écran de choix de sourate pour la mémorisation"},
+  "@coachHubPickerMemorizeTitle": {
+    "description": "Titre de l'écran de choix de sourate pour la mémorisation"
+  },
   "coachHubPickerMemorizeSubtitle": "Choisis la sourate à travailler",
-  "@coachHubPickerMemorizeSubtitle": {"description": "Sous-titre de l'écran de choix de sourate pour la mémorisation"},
+  "@coachHubPickerMemorizeSubtitle": {
+    "description": "Sous-titre de l'écran de choix de sourate pour la mémorisation"
+  },
   "coachHubReciteSurahTitle": "Réciter une sourate",
-  "@coachHubReciteSurahTitle": {"description": "Titre de la grande carte d'action Réciter"},
+  "@coachHubReciteSurahTitle": {
+    "description": "Titre de la grande carte d'action Réciter"
+  },
   "coachHubReciteSurahSubtitle": "Suivi mot à mot, correction en direct",
-  "@coachHubReciteSurahSubtitle": {"description": "Sous-titre de la grande carte d'action Réciter"},
+  "@coachHubReciteSurahSubtitle": {
+    "description": "Sous-titre de la grande carte d'action Réciter"
+  },
   "coachHubPickerReciteTitle": "Réciter",
-  "@coachHubPickerReciteTitle": {"description": "Titre de l'écran de choix de sourate pour la récitation"},
+  "@coachHubPickerReciteTitle": {
+    "description": "Titre de l'écran de choix de sourate pour la récitation"
+  },
   "coachHubPickerReciteSubtitle": "Choisis la sourate à réciter",
-  "@coachHubPickerReciteSubtitle": {"description": "Sous-titre de l'écran de choix de sourate pour la récitation"},
+  "@coachHubPickerReciteSubtitle": {
+    "description": "Sous-titre de l'écran de choix de sourate pour la récitation"
+  },
   "coachHubErrorsSectionTitle": "MES ERREURS",
-  "@coachHubErrorsSectionTitle": {"description": "Titre de la zone D du hub Coach"},
+  "@coachHubErrorsSectionTitle": {
+    "description": "Titre de la zone D du hub Coach"
+  },
   "coachHubErrorsSectionSubtitle": "Par type, puis par sourate",
-  "@coachHubErrorsSectionSubtitle": {"description": "Sous-titre de la zone D du hub Coach"},
+  "@coachHubErrorsSectionSubtitle": {
+    "description": "Sous-titre de la zone D du hub Coach"
+  },
   "coachHubLoadErrorLog": "Impossible de charger le journal : {error}",
-  "@coachHubLoadErrorLog": {"description": "Erreur de chargement du journal des erreurs de récitation", "placeholders": {"error": {"type": "String"}}},
+  "@coachHubLoadErrorLog": {
+    "description": "Erreur de chargement du journal des erreurs de récitation",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "coachHubNoErrorsTitle": "Aucune erreur journalisée",
-  "@coachHubNoErrorsTitle": {"description": "Titre affiché quand le journal d'erreurs est vide"},
+  "@coachHubNoErrorsTitle": {
+    "description": "Titre affiché quand le journal d'erreurs est vide"
+  },
   "coachHubNoErrorsBody": "Récite depuis « Réciter » ou « Mémoriser » : les mots repris apparaîtront ici, regroupés par sourate.",
-  "@coachHubNoErrorsBody": {"description": "Corps affiché quand le journal d'erreurs est vide"},
+  "@coachHubNoErrorsBody": {
+    "description": "Corps affiché quand le journal d'erreurs est vide"
+  },
   "coachHubVersesTouched": "{count, plural, =1{1 verset} other{{count} versets}} sur {total}",
-  "@coachHubVersesTouched": {"description": "Nombre de versets touchés par des erreurs, sur le total de la sourate", "placeholders": {"count": {"type": "int"}, "total": {"type": "int"}}},
+  "@coachHubVersesTouched": {
+    "description": "Nombre de versets touchés par des erreurs, sur le total de la sourate",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "coachHubGoToMindMap": "Situer dans la carte mentale",
-  "@coachHubGoToMindMap": {"description": "Bouton : ouvrir la carte mentale de la sourate depuis le journal d'erreurs"},
+  "@coachHubGoToMindMap": {
+    "description": "Bouton : ouvrir la carte mentale de la sourate depuis le journal d'erreurs"
+  },
   "coachHubAyahErrorCount": "Verset {ayah}  ·  {count, plural, =1{1 erreur} other{{count} erreurs}}",
-  "@coachHubAyahErrorCount": {"description": "Ligne d'erreur pour un verset donné", "placeholders": {"ayah": {"type": "int"}, "count": {"type": "int"}}},
+  "@coachHubAyahErrorCount": {
+    "description": "Ligne d'erreur pour un verset donné",
+    "placeholders": {
+      "ayah": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "coachHubExplanationTooltip": "Explication",
-  "@coachHubExplanationTooltip": {"description": "Tooltip : ouvrir l'explication Coach IA pour ce verset"},
+  "@coachHubExplanationTooltip": {
+    "description": "Tooltip : ouvrir l'explication Coach IA pour ce verset"
+  },
   "coachHubReviewVerseTooltip": "Revoir ce verset",
-  "@coachHubReviewVerseTooltip": {"description": "Tooltip : ouvrir CoachScreen sur ce verset"},
+  "@coachHubReviewVerseTooltip": {
+    "description": "Tooltip : ouvrir CoachScreen sur ce verset"
+  },
   "coachHubErrorNoteExplainer": "Lettre et Harakat = prononciation. « Tajwid » signifie que ni les lettres ni les voyelles n'expliquent l'écart sur un mot porteur d'une règle — c'est une déduction, pas une preuve que la règle a été ratée.",
-  "@coachHubErrorNoteExplainer": {"description": "Note explicative sous la répartition des erreurs par type"},
+  "@coachHubErrorNoteExplainer": {
+    "description": "Note explicative sous la répartition des erreurs par type"
+  },
   "coachHubRuleBreakdownTitle": "Détail par règle de tajwid",
-  "@coachHubRuleBreakdownTitle": {"description": "Titre de la répartition des erreurs de tajwid par règle précise"},
+  "@coachHubRuleBreakdownTitle": {
+    "description": "Titre de la répartition des erreurs de tajwid par règle précise"
+  },
   "coachHubResetErrorsTooltip": "Réinitialiser le journal d'erreurs",
-  "@coachHubResetErrorsTooltip": {"description": "Tooltip du bouton de remise à zéro des statistiques d'erreurs"},
+  "@coachHubResetErrorsTooltip": {
+    "description": "Tooltip du bouton de remise à zéro des statistiques d'erreurs"
+  },
   "coachHubResetErrorsDialogTitle": "Réinitialiser les statistiques ?",
-  "@coachHubResetErrorsDialogTitle": {"description": "Titre de la boîte de dialogue de confirmation avant remise à zéro"},
+  "@coachHubResetErrorsDialogTitle": {
+    "description": "Titre de la boîte de dialogue de confirmation avant remise à zéro"
+  },
   "coachHubResetErrorsDialogBody": "Tout l'historique des erreurs (toutes sourates, tous types) sera effacé définitivement. Cette action est irréversible.",
-  "@coachHubResetErrorsDialogBody": {"description": "Corps de la boîte de dialogue de confirmation avant remise à zéro"},
+  "@coachHubResetErrorsDialogBody": {
+    "description": "Corps de la boîte de dialogue de confirmation avant remise à zéro"
+  },
   "coachHubResetErrorsDialogConfirm": "Réinitialiser",
-  "@coachHubResetErrorsDialogConfirm": {"description": "Bouton de confirmation de la remise à zéro"},
+  "@coachHubResetErrorsDialogConfirm": {
+    "description": "Bouton de confirmation de la remise à zéro"
+  },
   "coachHubResetErrorsDialogCancel": "Annuler",
-  "@coachHubResetErrorsDialogCancel": {"description": "Bouton d'annulation de la remise à zéro"},
+  "@coachHubResetErrorsDialogCancel": {
+    "description": "Bouton d'annulation de la remise à zéro"
+  },
   "coachHubResetErrorsDone": "Journal d'erreurs réinitialisé.",
-  "@coachHubResetErrorsDone": {"description": "Confirmation affichée après la remise à zéro"},
-
+  "@coachHubResetErrorsDone": {
+    "description": "Confirmation affichée après la remise à zéro"
+  },
   "coachHubGameSectionTitle": "Jouer",
-  "@coachHubGameSectionTitle": {"description": "Titre de la zone jeu de mémorisation dans le hub Coach"},
+  "@coachHubGameSectionTitle": {
+    "description": "Titre de la zone jeu de mémorisation dans le hub Coach"
+  },
   "coachHubGameSectionSubtitle": "Rappel progressif, palier par palier",
-  "@coachHubGameSectionSubtitle": {"description": "Sous-titre de la zone jeu de mémorisation"},
+  "@coachHubGameSectionSubtitle": {
+    "description": "Sous-titre de la zone jeu de mémorisation"
+  },
   "coachHubGameActionTitle": "Jeu de mémorisation",
-  "@coachHubGameActionTitle": {"description": "Titre de l'action lançant le jeu de mémorisation"},
+  "@coachHubGameActionTitle": {
+    "description": "Titre de l'action lançant le jeu de mémorisation"
+  },
   "coachHubGameActionSubtitle": "Les mots se dévoilent un à un, à toi de réciter le reste",
-  "@coachHubGameActionSubtitle": {"description": "Sous-titre de l'action lançant le jeu de mémorisation"},
+  "@coachHubGameActionSubtitle": {
+    "description": "Sous-titre de l'action lançant le jeu de mémorisation"
+  },
   "coachHubPickerGameTitle": "Jeu de mémorisation",
-  "@coachHubPickerGameTitle": {"description": "Titre du sélecteur de sourate pour le jeu de mémorisation"},
+  "@coachHubPickerGameTitle": {
+    "description": "Titre du sélecteur de sourate pour le jeu de mémorisation"
+  },
   "coachHubPickerGameSubtitle": "Choisis la sourate à mémoriser en jouant",
-  "@coachHubPickerGameSubtitle": {"description": "Sous-titre du sélecteur de sourate pour le jeu de mémorisation"},
+  "@coachHubPickerGameSubtitle": {
+    "description": "Sous-titre du sélecteur de sourate pour le jeu de mémorisation"
+  },
   "memorizationGameTitle": "Jeu de mémorisation",
-  "@memorizationGameTitle": {"description": "Titre de l'écran du jeu de mémorisation"},
+  "@memorizationGameTitle": {
+    "description": "Titre de l'écran du jeu de mémorisation"
+  },
   "memorizationGameRestartVerseTooltip": "Recommencer ce verset",
-  "@memorizationGameRestartVerseTooltip": {"description": "Tooltip du bouton de réinitialisation du verset courant"},
+  "@memorizationGameRestartVerseTooltip": {
+    "description": "Tooltip du bouton de réinitialisation du verset courant"
+  },
   "memorizationGameVerseProgress": "Verset {current} sur {total}",
-  "@memorizationGameVerseProgress": {"description": "Indicateur de progression dans la sourate", "placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
+  "@memorizationGameVerseProgress": {
+    "description": "Indicateur de progression dans la sourate",
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationGameCompleteTitle": "Sourate terminée !",
-  "@memorizationGameCompleteTitle": {"description": "Titre affiché à la fin du jeu de mémorisation"},
+  "@memorizationGameCompleteTitle": {
+    "description": "Titre affiché à la fin du jeu de mémorisation"
+  },
   "memorizationGameCompleteBody": "Tu as parcouru tous les paliers de {surah}. Recommence pour renforcer ta mémorisation.",
-  "@memorizationGameCompleteBody": {"description": "Corps affiché à la fin du jeu de mémorisation", "placeholders": {"surah": {"type": "String"}}},
+  "@memorizationGameCompleteBody": {
+    "description": "Corps affiché à la fin du jeu de mémorisation",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      }
+    }
+  },
   "memorizationGameBackToHub": "Retour",
-  "@memorizationGameBackToHub": {"description": "Bouton de retour au hub Coach depuis l'écran de fin de jeu"},
+  "@memorizationGameBackToHub": {
+    "description": "Bouton de retour au hub Coach depuis l'écran de fin de jeu"
+  },
   "memorizationAyahPickerTitle": "Choisis ton départ",
-  "@memorizationAyahPickerTitle": {"description": "Titre de l'écran de sélection de l'aya de départ pour le jeu"},
+  "@memorizationAyahPickerTitle": {
+    "description": "Titre de l'écran de sélection de l'aya de départ pour le jeu"
+  },
   "memorizationAyahPickerSubtitle": "{surah} est longue : choisis d'abord la page où tu veux commencer",
-  "@memorizationAyahPickerSubtitle": {"description": "Sous-titre de l'étape 1 (choix de la page) expliquant pourquoi on demande un point de départ", "placeholders": {"surah": {"type": "String"}}},
+  "@memorizationAyahPickerSubtitle": {
+    "description": "Sous-titre de l'étape 1 (choix de la page) expliquant pourquoi on demande un point de départ",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      }
+    }
+  },
   "memorizationAyahPickerPageLabel": "Page {page}",
-  "@memorizationAyahPickerPageLabel": {"description": "Libellé d'une puce de page dans le sélecteur de départ", "placeholders": {"page": {"type": "int"}}},
+  "@memorizationAyahPickerPageLabel": {
+    "description": "Libellé d'une puce de page dans le sélecteur de départ",
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationAyahPickerAyahSubtitle": "Page {page} : choisis le verset où tu veux commencer à jouer",
-  "@memorizationAyahPickerAyahSubtitle": {"description": "Sous-titre de l'étape 2 (choix du verset dans la page choisie)", "placeholders": {"page": {"type": "int"}}},
+  "@memorizationAyahPickerAyahSubtitle": {
+    "description": "Sous-titre de l'étape 2 (choix du verset dans la page choisie)",
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationAyahPickerBackToPages": "Changer de page",
-  "@memorizationAyahPickerBackToPages": {"description": "Bouton pour revenir de la sélection de verset à la sélection de page"},
-
+  "@memorizationAyahPickerBackToPages": {
+    "description": "Bouton pour revenir de la sélection de verset à la sélection de page"
+  },
   "qiblaSubtitle": "Direction de la Mecque",
-  "@qiblaSubtitle": {"description": "Sous-titre de l'écran boussole Qibla"},
+  "@qiblaSubtitle": {
+    "description": "Sous-titre de l'écran boussole Qibla"
+  },
   "qiblaEnableLocationMessage": "Active la localisation pour trouver la Qibla depuis ton emplacement actuel.",
-  "@qiblaEnableLocationMessage": {"description": "Message quand le service de localisation est désactivé"},
+  "@qiblaEnableLocationMessage": {
+    "description": "Message quand le service de localisation est désactivé"
+  },
   "qiblaEnableLocationAction": "Activer la localisation",
-  "@qiblaEnableLocationAction": {"description": "Bouton : ouvrir les réglages de localisation du système"},
+  "@qiblaEnableLocationAction": {
+    "description": "Bouton : ouvrir les réglages de localisation du système"
+  },
   "qiblaPermissionDeniedMessage": "La localisation est refusée pour Coran Karim. Autorise-la dans les réglages du téléphone pour voir la Qibla.",
-  "@qiblaPermissionDeniedMessage": {"description": "Message quand la permission de localisation est refusée"},
+  "@qiblaPermissionDeniedMessage": {
+    "description": "Message quand la permission de localisation est refusée"
+  },
   "qiblaOpenSettingsAction": "Ouvrir les réglages",
-  "@qiblaOpenSettingsAction": {"description": "Bouton : ouvrir les réglages de l'app pour accorder la permission"},
+  "@qiblaOpenSettingsAction": {
+    "description": "Bouton : ouvrir les réglages de l'app pour accorder la permission"
+  },
   "qiblaPositionError": "Impossible de déterminer ta position : {error}",
-  "@qiblaPositionError": {"description": "Message d'erreur de géolocalisation", "placeholders": {"error": {"type": "String"}}},
+  "@qiblaPositionError": {
+    "description": "Message d'erreur de géolocalisation",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "qiblaNoCompassMessage": "Cet appareil ne possède pas de boussole. La distance jusqu'à la Mecque reste disponible ci-dessous.",
-  "@qiblaNoCompassMessage": {"description": "Message quand l'appareil n'a pas de capteur boussole"},
+  "@qiblaNoCompassMessage": {
+    "description": "Message quand l'appareil n'a pas de capteur boussole"
+  },
   "qiblaKmToMecca": "KM JUSQU'À LA MECQUE",
-  "@qiblaKmToMecca": {"description": "Légende sous la distance en kilomètres jusqu'à la Mecque"},
+  "@qiblaKmToMecca": {
+    "description": "Légende sous la distance en kilomètres jusqu'à la Mecque"
+  },
   "qiblaFacingQibla": "Tu fais face à la Qibla ✓",
-  "@qiblaFacingQibla": {"description": "Indication : le téléphone est aligné avec la Qibla"},
+  "@qiblaFacingQibla": {
+    "description": "Indication : le téléphone est aligné avec la Qibla"
+  },
   "qiblaTurnPhoneHint": "Tourne ton téléphone jusqu'à ce que l'aiguille pointe en haut",
-  "@qiblaTurnPhoneHint": {"description": "Indication : le téléphone n'est pas encore aligné avec la Qibla"},
-
+  "@qiblaTurnPhoneHint": {
+    "description": "Indication : le téléphone n'est pas encore aligné avec la Qibla"
+  },
   "prayerFollowSensitivityTolerant": "Tolérant",
-  "@prayerFollowSensitivityTolerant": {"description": "Niveau de sensibilité bas (Suivre une prière)"},
+  "@prayerFollowSensitivityTolerant": {
+    "description": "Niveau de sensibilité bas (Suivre une prière)"
+  },
   "prayerFollowSensitivityStrict": "Strict",
-  "@prayerFollowSensitivityStrict": {"description": "Niveau de sensibilité haut (Suivre une prière)"},
+  "@prayerFollowSensitivityStrict": {
+    "description": "Niveau de sensibilité haut (Suivre une prière)"
+  },
   "prayerFollowSensitivityBalanced": "Équilibré (par défaut)",
-  "@prayerFollowSensitivityBalanced": {"description": "Niveau de sensibilité moyen (Suivre une prière)"},
+  "@prayerFollowSensitivityBalanced": {
+    "description": "Niveau de sensibilité moyen (Suivre une prière)"
+  },
   "prayerFollowSensitivityTitle": "Sensibilité (suivi de prière)",
-  "@prayerFollowSensitivityTitle": {"description": "Titre du réglage de sensibilité dans la feuille Suivre une prière"},
+  "@prayerFollowSensitivityTitle": {
+    "description": "Titre du réglage de sensibilité dans la feuille Suivre une prière"
+  },
   "prayerFollowSensitivityDescription": "Réglage indépendant de celui de la récitation classique -- plus tolérant accepte des prononciations imprécises en vert, plus strict exige davantage de précision.",
-  "@prayerFollowSensitivityDescription": {"description": "Explique le réglage de sensibilité de Suivre une prière"},
+  "@prayerFollowSensitivityDescription": {
+    "description": "Explique le réglage de sensibilité de Suivre une prière"
+  },
   "prayerFollowSouffleurTitle": "Souffleur automatique",
-  "@prayerFollowSouffleurTitle": {"description": "Titre du réglage souffleur automatique"},
+  "@prayerFollowSouffleurTitle": {
+    "description": "Titre du réglage souffleur automatique"
+  },
   "prayerFollowSouffleurSubtitle": "Joue le mot attendu après {seconds}s de silence -- jamais de blocage dans ce mode.",
-  "@prayerFollowSouffleurSubtitle": {"description": "Explique le réglage souffleur automatique", "placeholders": {"seconds": {"type": "int"}}},
+  "@prayerFollowSouffleurSubtitle": {
+    "description": "Explique le réglage souffleur automatique",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "prayerFollowTitle": "Suivre une prière",
-  "@prayerFollowTitle": {"description": "Titre de l'écran Suivre une prière"},
+  "@prayerFollowTitle": {
+    "description": "Titre de l'écran Suivre une prière"
+  },
   "prayerFollowSettingsTooltip": "Réglages",
-  "@prayerFollowSettingsTooltip": {"description": "Tooltip de l'icône réglages de l'écran Suivre une prière"},
+  "@prayerFollowSettingsTooltip": {
+    "description": "Tooltip de l'icône réglages de l'écran Suivre une prière"
+  },
   "prayerFollowWaitingFatiha": "En attente du début d'Al-Fatiha…",
-  "@prayerFollowWaitingFatiha": {"description": "Message avant que la récitation d'Al-Fatiha ne commence"},
+  "@prayerFollowWaitingFatiha": {
+    "description": "Message avant que la récitation d'Al-Fatiha ne commence"
+  },
   "prayerFollowIdentifying": "Al-Fatiha terminée -- identification de la sourate suivante…",
-  "@prayerFollowIdentifying": {"description": "Message pendant l'identification automatique de la sourate suivante"},
+  "@prayerFollowIdentifying": {
+    "description": "Message pendant l'identification automatique de la sourate suivante"
+  },
   "prayerFollowListening": "En écoute…",
-  "@prayerFollowListening": {"description": "Message pendant l'écoute active"},
+  "@prayerFollowListening": {
+    "description": "Message pendant l'écoute active"
+  },
   "prayerFollowTapToStart": "Appuyez sur le micro pour commencer à suivre la prière.",
-  "@prayerFollowTapToStart": {"description": "Message avant de démarrer le suivi de prière"},
+  "@prayerFollowTapToStart": {
+    "description": "Message avant de démarrer le suivi de prière"
+  },
   "prayerPhaseStandby": "En attente (rukū'/sujūd)",
-  "@prayerPhaseStandby": {"description": "Badge de phase : en attente pendant une posture non récitée"},
+  "@prayerPhaseStandby": {
+    "description": "Badge de phase : en attente pendant une posture non récitée"
+  },
   "prayerPhaseFatiha": "Al-Fatiha",
-  "@prayerPhaseFatiha": {"description": "Badge de phase : récitation d'Al-Fatiha en cours"},
+  "@prayerPhaseFatiha": {
+    "description": "Badge de phase : récitation d'Al-Fatiha en cours"
+  },
   "prayerPhaseDetecting": "Identification…",
-  "@prayerPhaseDetecting": {"description": "Badge de phase : identification de la sourate en cours"},
+  "@prayerPhaseDetecting": {
+    "description": "Badge de phase : identification de la sourate en cours"
+  },
   "prayerPhaseTarget": "Sourate suivie",
-  "@prayerPhaseTarget": {"description": "Badge de phase : sourate identifiée en cours de suivi"},
+  "@prayerPhaseTarget": {
+    "description": "Badge de phase : sourate identifiée en cours de suivi"
+  },
   "prayerPhaseListening": "En écoute",
-  "@prayerPhaseListening": {"description": "Badge de phase : écoute active, aucune phase spécifique"},
+  "@prayerPhaseListening": {
+    "description": "Badge de phase : écoute active, aucune phase spécifique"
+  },
   "prayerPhaseStopped": "Arrêté",
-  "@prayerPhaseStopped": {"description": "Badge de phase : suivi de prière arrêté"},
-
+  "@prayerPhaseStopped": {
+    "description": "Badge de phase : suivi de prière arrêté"
+  },
   "riteBeforeStartTooltip": "À savoir avant de commencer",
-  "@riteBeforeStartTooltip": {"description": "Tooltip : ouvrir la feuille d'essentiels du rite"},
+  "@riteBeforeStartTooltip": {
+    "description": "Tooltip : ouvrir la feuille d'essentiels du rite"
+  },
   "riteRestartTooltip": "Recommencer le rite",
-  "@riteRestartTooltip": {"description": "Tooltip : réinitialiser la progression du rite"},
+  "@riteRestartTooltip": {
+    "description": "Tooltip : réinitialiser la progression du rite"
+  },
   "riteWhatWeDoLabel": "CE QUE L'ON FAIT",
-  "@riteWhatWeDoLabel": {"description": "Titre de la liste d'actions d'une étape de rite"},
+  "@riteWhatWeDoLabel": {
+    "description": "Titre de la liste d'actions d'une étape de rite"
+  },
   "riteWhatWeSayLabel": "CE QUE L'ON DIT ICI",
-  "@riteWhatWeSayLabel": {"description": "Titre de la liste d'invocations d'une étape de rite"},
+  "@riteWhatWeSayLabel": {
+    "description": "Titre de la liste d'invocations d'une étape de rite"
+  },
   "riteStepOfTotal": "ÉTAPE {index} SUR {total}",
-  "@riteStepOfTotal": {"description": "Repère \"étape N sur M\" dans l'en-tête d'une étape de rite", "placeholders": {"index": {"type": "int"}, "total": {"type": "int"}}},
+  "@riteStepOfTotal": {
+    "description": "Repère \"étape N sur M\" dans l'en-tête d'une étape de rite",
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "riteBeforeStartTitle": "Avant de commencer",
-  "@riteBeforeStartTitle": {"description": "Titre de la feuille des essentiels du rite"},
+  "@riteBeforeStartTitle": {
+    "description": "Titre de la feuille des essentiels du rite"
+  },
   "riteDisclaimer": "Ce guide est un aide-mémoire, pas une fatwa. Les écoles juridiques divergent sur plusieurs détails secondaires : en cas de doute sur place, demandez à un guide qualifié ou à l'encadrement de votre groupe.",
-  "@riteDisclaimer": {"description": "Avertissement en bas de la feuille des essentiels du rite"},
+  "@riteDisclaimer": {
+    "description": "Avertissement en bas de la feuille des essentiels du rite"
+  },
   "riteResetConfirmTitle": "Recommencer ?",
-  "@riteResetConfirmTitle": {"description": "Titre de la boîte de dialogue de confirmation de réinitialisation"},
+  "@riteResetConfirmTitle": {
+    "description": "Titre de la boîte de dialogue de confirmation de réinitialisation"
+  },
   "riteResetConfirmBody": "Les étapes validées et tous les compteurs seront remis à zéro.",
-  "@riteResetConfirmBody": {"description": "Corps de la boîte de dialogue de confirmation de réinitialisation"},
+  "@riteResetConfirmBody": {
+    "description": "Corps de la boîte de dialogue de confirmation de réinitialisation"
+  },
   "riteResetConfirmAction": "Recommencer",
-  "@riteResetConfirmAction": {"description": "Bouton de confirmation dans la boîte de dialogue de réinitialisation"},
+  "@riteResetConfirmAction": {
+    "description": "Bouton de confirmation dans la boîte de dialogue de réinitialisation"
+  },
   "ritePreviousStepTooltip": "Étape précédente",
-  "@ritePreviousStepTooltip": {"description": "Tooltip du bouton étape précédente"},
+  "@ritePreviousStepTooltip": {
+    "description": "Tooltip du bouton étape précédente"
+  },
   "riteNextStepTooltip": "Étape suivante",
-  "@riteNextStepTooltip": {"description": "Tooltip du bouton étape suivante"},
+  "@riteNextStepTooltip": {
+    "description": "Tooltip du bouton étape suivante"
+  },
   "riteStepDone": "Étape faite",
-  "@riteStepDone": {"description": "Bouton : l'étape courante est marquée comme faite"},
+  "@riteStepDone": {
+    "description": "Bouton : l'étape courante est marquée comme faite"
+  },
   "riteMarkAsDone": "Marquer comme faite",
-  "@riteMarkAsDone": {"description": "Bouton : marquer l'étape courante comme faite"},
-
+  "@riteMarkAsDone": {
+    "description": "Bouton : marquer l'étape courante comme faite"
+  },
   "recitationModeLabel": "Mode mémorisation",
-  "@recitationModeLabel": {"description": "Sur-titre de l'écran de récitation continue"},
+  "@recitationModeLabel": {
+    "description": "Sur-titre de l'écran de récitation continue"
+  },
   "recitationVerseTitle": "Verset {key}",
-  "@recitationVerseTitle": {"description": "Titre quand un seul verset est récité", "placeholders": {"key": {"type": "String"}}},
+  "@recitationVerseTitle": {
+    "description": "Titre quand un seul verset est récité",
+    "placeholders": {
+      "key": {
+        "type": "String"
+      }
+    }
+  },
   "recitationRangeTitle": "{from} → {to} ({count, plural, =1{1 verset} other{{count} versets}})",
-  "@recitationRangeTitle": {"description": "Titre quand plusieurs versets sont récités d'affilée", "placeholders": {"from": {"type": "String"}, "to": {"type": "String"}, "count": {"type": "int"}}},
+  "@recitationRangeTitle": {
+    "description": "Titre quand plusieurs versets sont récités d'affilée",
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "recitationSegmentAnalyzing": "{count, plural, =1{1 segment en cours d'analyse…} other{{count} segments en attente d'analyse…}}",
-  "@recitationSegmentAnalyzing": {"description": "Badge : segments audio en attente d'analyse", "placeholders": {"count": {"type": "int"}}},
+  "@recitationSegmentAnalyzing": {
+    "description": "Badge : segments audio en attente d'analyse",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "recitationTranscriptLabel": "Transcript modèle",
-  "@recitationTranscriptLabel": {"description": "Titre de l'encart transcript brut"},
+  "@recitationTranscriptLabel": {
+    "description": "Titre de l'encart transcript brut"
+  },
   "recitationStatCorrect": "Corrects",
-  "@recitationStatCorrect": {"description": "Statistique : nombre de mots corrects"},
+  "@recitationStatCorrect": {
+    "description": "Statistique : nombre de mots corrects"
+  },
   "recitationStatErrors": "Erreurs",
-  "@recitationStatErrors": {"description": "Statistique : nombre d'erreurs"},
+  "@recitationStatErrors": {
+    "description": "Statistique : nombre d'erreurs"
+  },
   "recitationStatAccuracy": "Précision",
-  "@recitationStatAccuracy": {"description": "Statistique : pourcentage de précision"},
+  "@recitationStatAccuracy": {
+    "description": "Statistique : pourcentage de précision"
+  },
   "recitationListeningContinuous": "Récite en continu… pause naturelle = verset suivant",
-  "@recitationListeningContinuous": {"description": "Statut pendant la récitation continue"},
+  "@recitationListeningContinuous": {
+    "description": "Statut pendant la récitation continue"
+  },
   "recitationFinalizing": "Finalisation de l'analyse…",
-  "@recitationFinalizing": {"description": "Statut pendant la finalisation de l'analyse"},
+  "@recitationFinalizing": {
+    "description": "Statut pendant la finalisation de l'analyse"
+  },
   "recitationFinishedRestart": "Terminé — appuie pour recommencer",
-  "@recitationFinishedRestart": {"description": "Statut une fois la récitation terminée"},
+  "@recitationFinishedRestart": {
+    "description": "Statut une fois la récitation terminée"
+  },
   "recitationTapToStart": "Appuie et récite (plusieurs versets d'affilée)",
-  "@recitationTapToStart": {"description": "Statut avant de démarrer la récitation"},
+  "@recitationTapToStart": {
+    "description": "Statut avant de démarrer la récitation"
+  },
   "recitationMashallahAccuracy": "Ma cha Allah ! {pct}% de précision",
-  "@recitationMashallahAccuracy": {"description": "Bandeau de résultat, bonne précision", "placeholders": {"pct": {"type": "String"}}},
+  "@recitationMashallahAccuracy": {
+    "description": "Bandeau de résultat, bonne précision",
+    "placeholders": {
+      "pct": {
+        "type": "String"
+      }
+    }
+  },
   "recitationContinueAccuracy": "Continue — {pct}% de précision",
-  "@recitationContinueAccuracy": {"description": "Bandeau de résultat, précision à améliorer", "placeholders": {"pct": {"type": "String"}}},
-
+  "@recitationContinueAccuracy": {
+    "description": "Bandeau de résultat, précision à améliorer",
+    "placeholders": {
+      "pct": {
+        "type": "String"
+      }
+    }
+  },
   "reciterSelectTitle": "Choisir un réciteur",
-  "@reciterSelectTitle": {"description": "Titre de l'écran de choix du récitateur"},
+  "@reciterSelectTitle": {
+    "description": "Titre de l'écran de choix du récitateur"
+  },
   "reciterSelectStreamingNote": "Réciteurs intégrés — disponibles en streaming. Téléchargement hors-ligne disponible prochainement.",
-  "@reciterSelectStreamingNote": {"description": "Note en haut de l'écran de choix du récitateur"},
+  "@reciterSelectStreamingNote": {
+    "description": "Note en haut de l'écran de choix du récitateur"
+  },
   "reciterSelectOfflineTitle": "Téléchargement hors-ligne",
-  "@reciterSelectOfflineTitle": {"description": "Titre du bandeau \"à venir\" de téléchargement hors-ligne"},
+  "@reciterSelectOfflineTitle": {
+    "description": "Titre du bandeau \"à venir\" de téléchargement hors-ligne"
+  },
   "reciterSelectOfflineSubtitle": "Disponible dans une prochaine mise à jour.",
-  "@reciterSelectOfflineSubtitle": {"description": "Sous-titre du bandeau \"à venir\" de téléchargement hors-ligne"},
-
+  "@reciterSelectOfflineSubtitle": {
+    "description": "Sous-titre du bandeau \"à venir\" de téléchargement hors-ligne"
+  },
   "voiceCalibTitle": "Calibration voix",
-  "@voiceCalibTitle": {"description": "Titre de l'écran de calibration voix"},
+  "@voiceCalibTitle": {
+    "description": "Titre de l'écran de calibration voix"
+  },
   "voiceCalibDoneTitle": "Calibration terminée !",
-  "@voiceCalibDoneTitle": {"description": "Titre affiché une fois la calibration voix terminée"},
+  "@voiceCalibDoneTitle": {
+    "description": "Titre affiché une fois la calibration voix terminée"
+  },
   "voiceCalibDoneBody": "{count, plural, =1{1 clip enregistré.} other{{count} clips enregistrés.}} Ils rejoignent tes clips vérifiés — exporte-les depuis Réglages pour lancer la personnalisation.",
-  "@voiceCalibDoneBody": {"description": "Corps affiché une fois la calibration voix terminée", "placeholders": {"count": {"type": "int"}}},
+  "@voiceCalibDoneBody": {
+    "description": "Corps affiché une fois la calibration voix terminée",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "voiceCalibSave": "Enregistrer",
-  "@voiceCalibSave": {"description": "Bouton : sauvegarder les clips de calibration"},
+  "@voiceCalibSave": {
+    "description": "Bouton : sauvegarder les clips de calibration"
+  },
   "voiceCalibWordProgress": "Mot {index}/{total} — {reference}",
-  "@voiceCalibWordProgress": {"description": "Progression dans la liste de mots de calibration", "placeholders": {"index": {"type": "int"}, "total": {"type": "int"}, "reference": {"type": "String"}}},
+  "@voiceCalibWordProgress": {
+    "description": "Progression dans la liste de mots de calibration",
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "reference": {
+        "type": "String"
+      }
+    }
+  },
   "voiceCalibWrongInstruction": "Dis ce mot en remplaçant EXPRÈS le \"{target}\" par un \"{confused}\" — une faute volontaire, pas une vraie récitation.",
-  "@voiceCalibWrongInstruction": {"description": "Instruction pour la prononciation volontairement fautive", "placeholders": {"target": {"type": "String"}, "confused": {"type": "String"}}},
+  "@voiceCalibWrongInstruction": {
+    "description": "Instruction pour la prononciation volontairement fautive",
+    "placeholders": {
+      "target": {
+        "type": "String"
+      },
+      "confused": {
+        "type": "String"
+      }
+    }
+  },
   "voiceCalibCorrectInstruction": "Dis ce mot correctement, comme d'habitude.",
-  "@voiceCalibCorrectInstruction": {"description": "Instruction pour la prononciation correcte"},
+  "@voiceCalibCorrectInstruction": {
+    "description": "Instruction pour la prononciation correcte"
+  },
   "voiceCalibRecording": "Enregistrement… touche pour arrêter",
-  "@voiceCalibRecording": {"description": "Statut pendant l'enregistrement d'un mot de calibration"},
+  "@voiceCalibRecording": {
+    "description": "Statut pendant l'enregistrement d'un mot de calibration"
+  },
   "voiceCalibTapToRecord": "Touche pour enregistrer",
-  "@voiceCalibTapToRecord": {"description": "Invite à démarrer l'enregistrement d'un mot de calibration"},
+  "@voiceCalibTapToRecord": {
+    "description": "Invite à démarrer l'enregistrement d'un mot de calibration"
+  },
   "voiceCalibSavedSnackbar": "{count, plural, =1{1 clip de calibration enregistré} other{{count} clips de calibration enregistrés}} — exporte-les depuis Réglages pour personnaliser le modèle.",
-  "@voiceCalibSavedSnackbar": {"description": "Snackbar de confirmation après sauvegarde des clips de calibration", "placeholders": {"count": {"type": "int"}}},
-
+  "@voiceCalibSavedSnackbar": {
+    "description": "Snackbar de confirmation après sauvegarde des clips de calibration",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "ruleReliableLabel": "fiable",
-  "@ruleReliableLabel": {"description": "Badge de fiabilité d'une règle tajwid : fiable, sans pourcentage mesuré"},
+  "@ruleReliableLabel": {
+    "description": "Badge de fiabilité d'une règle tajwid : fiable, sans pourcentage mesuré"
+  },
   "ruleReliableLabelWithPct": "fiable · {pct}%",
-  "@ruleReliableLabelWithPct": {"description": "Badge de fiabilité d'une règle tajwid : fiable, avec pourcentage de rappel mesuré", "placeholders": {"pct": {"type": "int"}}},
+  "@ruleReliableLabelWithPct": {
+    "description": "Badge de fiabilité d'une règle tajwid : fiable, avec pourcentage de rappel mesuré",
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
   "ruleUnreliableLabel": "peu fiable",
-  "@ruleUnreliableLabel": {"description": "Badge de fiabilité d'une règle tajwid : peu fiable, sans pourcentage mesuré"},
+  "@ruleUnreliableLabel": {
+    "description": "Badge de fiabilité d'une règle tajwid : peu fiable, sans pourcentage mesuré"
+  },
   "ruleUnreliableLabelWithPct": "peu fiable · {pct}%",
-  "@ruleUnreliableLabelWithPct": {"description": "Badge de fiabilité d'une règle tajwid : peu fiable, avec pourcentage de rappel mesuré", "placeholders": {"pct": {"type": "int"}}},
+  "@ruleUnreliableLabelWithPct": {
+    "description": "Badge de fiabilité d'une règle tajwid : peu fiable, avec pourcentage de rappel mesuré",
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
   "ruleNotMeasuredLabel": "non mesurée",
-  "@ruleNotMeasuredLabel": {"description": "Badge de fiabilité d'une règle tajwid : données insuffisantes"},
-
+  "@ruleNotMeasuredLabel": {
+    "description": "Badge de fiabilité d'une règle tajwid : données insuffisantes"
+  },
   "tajwidRulesTitle": "Vérification de la récitation",
-  "@tajwidRulesTitle": {"description": "Titre de l'écran de sélection des règles tajwid"},
+  "@tajwidRulesTitle": {
+    "description": "Titre de l'écran de sélection des règles tajwid"
+  },
   "tajwidRulesLoadError": "Erreur : {error}",
-  "@tajwidRulesLoadError": {"description": "Erreur de chargement des données de fiabilité des règles", "placeholders": {"error": {"type": "String"}}},
+  "@tajwidRulesLoadError": {
+    "description": "Erreur de chargement des données de fiabilité des règles",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "tajwidRulesHarakatTitle": "Harakat exigées",
-  "@tajwidRulesHarakatTitle": {"description": "Réglage : exiger les voyelles courtes"},
+  "@tajwidRulesHarakatTitle": {
+    "description": "Réglage : exiger les voyelles courtes"
+  },
   "tajwidRulesHarakatSubtitle": "Désactivé : les voyelles courtes ne comptent pas comme erreur",
-  "@tajwidRulesHarakatSubtitle": {"description": "Explique le réglage harakat exigées"},
+  "@tajwidRulesHarakatSubtitle": {
+    "description": "Explique le réglage harakat exigées"
+  },
   "tajwidRulesConfusablesTitle": "Tolérer les lettres proches",
-  "@tajwidRulesConfusablesTitle": {"description": "Réglage : tolérer les lettres confusables"},
+  "@tajwidRulesConfusablesTitle": {
+    "description": "Réglage : tolérer les lettres confusables"
+  },
   "tajwidRulesConfusablesSubtitle": "ص/س, ط/ت, ض/د, ذ/ز, ح/ه, ق/ك, ع/ء comptées équivalentes (mode enfant)",
-  "@tajwidRulesConfusablesSubtitle": {"description": "Explique le réglage tolérance des lettres confusables"},
+  "@tajwidRulesConfusablesSubtitle": {
+    "description": "Explique le réglage tolérance des lettres confusables"
+  },
   "tajwidRulesSectionTitle": "RÈGLES DE TAJWID",
-  "@tajwidRulesSectionTitle": {"description": "Titre de la liste des règles tajwid activables"},
+  "@tajwidRulesSectionTitle": {
+    "description": "Titre de la liste des règles tajwid activables"
+  },
   "tajwidRulesSectionSubtitle": "Choisissez les règles que l'app doit vérifier pendant votre récitation.",
-  "@tajwidRulesSectionSubtitle": {"description": "Explique la liste des règles tajwid activables"},
+  "@tajwidRulesSectionSubtitle": {
+    "description": "Explique la liste des règles tajwid activables"
+  },
   "tajwidRulesImpreciseNote": "Détection encore imprécise : cette règle peut signaler un doute, mais ne validera jamais un mot en vert à elle seule.",
-  "@tajwidRulesImpreciseNote": {"description": "Note sous une règle dont la détection est encore imprécise"},
+  "@tajwidRulesImpreciseNote": {
+    "description": "Note sous une règle dont la détection est encore imprécise"
+  },
   "tajwidPresetTajwid": "Tajwid",
-  "@tajwidPresetTajwid": {"description": "Preset de vérification : tajwid strict"},
+  "@tajwidPresetTajwid": {
+    "description": "Preset de vérification : tajwid strict"
+  },
   "tajwidPresetAdult": "Adulte",
-  "@tajwidPresetAdult": {"description": "Preset de vérification : adulte tolérant"},
+  "@tajwidPresetAdult": {
+    "description": "Preset de vérification : adulte tolérant"
+  },
   "tajwidPresetChild": "Enfant",
-  "@tajwidPresetChild": {"description": "Preset de vérification : enfant tolérant lettres"},
-
+  "@tajwidPresetChild": {
+    "description": "Preset de vérification : enfant tolérant lettres"
+  },
   "surahPickerLoadVersesError": "Chargement impossible : {error}",
-  "@surahPickerLoadVersesError": {"description": "Erreur de chargement des versets d'une sourate choisie", "placeholders": {"error": {"type": "String"}}},
+  "@surahPickerLoadVersesError": {
+    "description": "Erreur de chargement des versets d'une sourate choisie",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "surahPickerLoadListError": "Impossible de charger les sourates : {error}",
-  "@surahPickerLoadListError": {"description": "Erreur de chargement de la liste des sourates", "placeholders": {"error": {"type": "String"}}},
+  "@surahPickerLoadListError": {
+    "description": "Erreur de chargement de la liste des sourates",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "surahPickerVerseCount": "{count, plural, =1{1 verset} other{{count} versets}}",
-  "@surahPickerVerseCount": {"description": "Nombre de versets affiché sous le nom d'une sourate dans le sélecteur", "placeholders": {"count": {"type": "int"}}},
-
+  "@surahPickerVerseCount": {
+    "description": "Nombre de versets affiché sous le nom d'une sourate dans le sélecteur",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "karaokeAudioUnavailable": "Audio indisponible pour ce mot",
-  "@karaokeAudioUnavailable": {"description": "Snackbar : l'audio de correction n'a pas pu être joué"},
+  "@karaokeAudioUnavailable": {
+    "description": "Snackbar : l'audio de correction n'a pas pu être joué"
+  },
   "karaokeRepeatIndicated": "Répète le mot indiqué ↓",
-  "@karaokeRepeatIndicated": {"description": "Snackbar après une correction automatique"},
+  "@karaokeRepeatIndicated": {
+    "description": "Snackbar après une correction automatique"
+  },
   "karaokeFirstRecitationTitle": "Première récitation de ce passage",
-  "@karaokeFirstRecitationTitle": {"description": "Titre du dialogue proposant une session de référence"},
+  "@karaokeFirstRecitationTitle": {
+    "description": "Titre du dialogue proposant une session de référence"
+  },
   "karaokeFirstRecitationBody": "Veux-tu que cette récitation serve de référence pour ton rythme naturel (pauses mesurées, sans correction automatique), ou réciter normalement dès maintenant (avec correction automatique) ?",
-  "@karaokeFirstRecitationBody": {"description": "Corps du dialogue proposant une session de référence"},
+  "@karaokeFirstRecitationBody": {
+    "description": "Corps du dialogue proposant une session de référence"
+  },
   "karaokeReciteNormally": "Réciter normalement",
-  "@karaokeReciteNormally": {"description": "Bouton : réciter sans créer de référence"},
+  "@karaokeReciteNormally": {
+    "description": "Bouton : réciter sans créer de référence"
+  },
   "karaokeMakeReference": "Faire une référence",
-  "@karaokeMakeReference": {"description": "Bouton : démarrer une session de référence"},
+  "@karaokeMakeReference": {
+    "description": "Bouton : démarrer une session de référence"
+  },
   "karaokeReferenceNotSaved": "Référence non enregistrée : seulement {pct}% des mots ont été bien reconnus ({correct}/{total} corrects{extra}). Une référence doit refléter une récitation fiable — rapproche-toi du micro, réduis le bruit ambiant, et réessaie à ton rythme naturel.",
-  "@karaokeReferenceNotSaved": {"description": "Message quand une session de référence est rejetée pour score insuffisant", "placeholders": {"pct": {"type": "int"}, "correct": {"type": "int"}, "total": {"type": "int"}, "extra": {"type": "String"}}},
+  "@karaokeReferenceNotSaved": {
+    "description": "Message quand une session de référence est rejetée pour score insuffisant",
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      },
+      "correct": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "extra": {
+        "type": "String"
+      }
+    }
+  },
   "karaokeUnclearSuffix": ", {count} imprécis",
-  "@karaokeUnclearSuffix": {"description": "Fragment ajouté au détail du score si des mots sont imprécis", "placeholders": {"count": {"type": "int"}}},
+  "@karaokeUnclearSuffix": {
+    "description": "Fragment ajouté au détail du score si des mots sont imprécis",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "karaokeMissedSuffix": ", {count} non reconnus",
-  "@karaokeMissedSuffix": {"description": "Fragment ajouté au détail du score si des mots ne sont pas reconnus", "placeholders": {"count": {"type": "int"}}},
+  "@karaokeMissedSuffix": {
+    "description": "Fragment ajouté au détail du score si des mots ne sont pas reconnus",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "karaokeReferenceSaved": "Ta manière de réciter ce passage est mémorisée ✓ ({pct}% de reconnaissance, {pauseCount} pauses apprises)",
-  "@karaokeReferenceSaved": {"description": "Message quand une session de référence est validée", "placeholders": {"pct": {"type": "int"}, "pauseCount": {"type": "int"}}},
+  "@karaokeReferenceSaved": {
+    "description": "Message quand une session de référence est validée",
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      },
+      "pauseCount": {
+        "type": "int"
+      }
+    }
+  },
   "karaokeVerificationSettingsTitle": "Paramètres de vérification",
-  "@karaokeVerificationSettingsTitle": {"description": "Titre de la feuille des paramètres de vérification"},
+  "@karaokeVerificationSettingsTitle": {
+    "description": "Titre de la feuille des paramètres de vérification"
+  },
   "karaokeVerificationModeTitle": "Mode de vérification",
-  "@karaokeVerificationModeTitle": {"description": "Réglage : ouvrir l'écran des règles/presets tajwid"},
+  "@karaokeVerificationModeTitle": {
+    "description": "Réglage : ouvrir l'écran des règles/presets tajwid"
+  },
   "karaokeVerificationModeSubtitle": "Presets tajwid / adulte / enfant, 17 règles",
-  "@karaokeVerificationModeSubtitle": {"description": "Sous-titre du réglage mode de vérification"},
+  "@karaokeVerificationModeSubtitle": {
+    "description": "Sous-titre du réglage mode de vérification"
+  },
   "karaokeSensitivityTitle": "Sensibilité de la correction",
-  "@karaokeSensitivityTitle": {"description": "Titre du réglage de sensibilité dans la feuille de vérification karaoké"},
+  "@karaokeSensitivityTitle": {
+    "description": "Titre du réglage de sensibilité dans la feuille de vérification karaoké"
+  },
   "karaokeSensitivityDescription": "Plus tolérant : accepte des harakat/prononciations imprécises en vert. Plus strict : exige une prononciation plus proche du modèle.",
-  "@karaokeSensitivityDescription": {"description": "Explique le réglage de sensibilité"},
+  "@karaokeSensitivityDescription": {
+    "description": "Explique le réglage de sensibilité"
+  },
   "karaokeEngineTitle": "Moteur : alignement forcé (gop)",
-  "@karaokeEngineTitle": {"description": "Réglage : moteur de jugement gop vs texte"},
+  "@karaokeEngineTitle": {
+    "description": "Réglage : moteur de jugement gop vs texte"
+  },
   "karaokeEngineActiveSubtitle": "Actif — sensible aux harakat, parfois trop sévère sur certains mots",
-  "@karaokeEngineActiveSubtitle": {"description": "Sous-titre quand le moteur gop est actif"},
+  "@karaokeEngineActiveSubtitle": {
+    "description": "Sous-titre quand le moteur gop est actif"
+  },
   "karaokeEngineInactiveSubtitle": "Désactivé — comparaison texte (historique), moins fine sur les harakat",
-  "@karaokeEngineInactiveSubtitle": {"description": "Sous-titre quand le moteur gop est désactivé"},
+  "@karaokeEngineInactiveSubtitle": {
+    "description": "Sous-titre quand le moteur gop est désactivé"
+  },
   "karaokeAutoCorrectionTitle": "Correction automatique",
-  "@karaokeAutoCorrectionTitle": {"description": "Réglage : correction automatique activée/désactivée"},
+  "@karaokeAutoCorrectionTitle": {
+    "description": "Réglage : correction automatique activée/désactivée"
+  },
   "karaokeAutoCorrectionSubtitle": "Mot rouge → pause, le récitateur corrige, reprise auto",
-  "@karaokeAutoCorrectionSubtitle": {"description": "Explique le réglage de correction automatique"},
+  "@karaokeAutoCorrectionSubtitle": {
+    "description": "Explique le réglage de correction automatique"
+  },
   "karaokeStrictnessTitle": "Rigueur de la correction",
-  "@karaokeStrictnessTitle": {"description": "Réglage : rigueur de la correction automatique"},
+  "@karaokeStrictnessTitle": {
+    "description": "Réglage : rigueur de la correction automatique"
+  },
   "karaokeStrictnessStrictSubtitle": "Strict — rouge ET orange (imprécis) sont repris",
-  "@karaokeStrictnessStrictSubtitle": {"description": "Sous-titre quand la rigueur est stricte"},
+  "@karaokeStrictnessStrictSubtitle": {
+    "description": "Sous-titre quand la rigueur est stricte"
+  },
   "karaokeStrictnessTolerantSubtitle": "Tolérant — seul le rouge (mot faux) est repris",
-  "@karaokeStrictnessTolerantSubtitle": {"description": "Sous-titre quand la rigueur est tolérante"},
+  "@karaokeStrictnessTolerantSubtitle": {
+    "description": "Sous-titre quand la rigueur est tolérante"
+  },
   "karaokeFollowFreeTitle": "Suivre sans bloquer",
-  "@karaokeFollowFreeTitle": {"description": "Réglage : suivre sans bloquer sur une reprise ratée"},
+  "@karaokeFollowFreeTitle": {
+    "description": "Réglage : suivre sans bloquer sur une reprise ratée"
+  },
   "karaokeFollowFreeOnSubtitle": "Avance librement même sans reprise exacte",
-  "@karaokeFollowFreeOnSubtitle": {"description": "Sous-titre quand suivre sans bloquer est actif"},
+  "@karaokeFollowFreeOnSubtitle": {
+    "description": "Sous-titre quand suivre sans bloquer est actif"
+  },
   "karaokeFollowFreeOffSubtitle": "Chaque échec force à reprendre le mot",
-  "@karaokeFollowFreeOffSubtitle": {"description": "Sous-titre quand suivre sans bloquer est désactivé"},
+  "@karaokeFollowFreeOffSubtitle": {
+    "description": "Sous-titre quand suivre sans bloquer est désactivé"
+  },
   "karaokeNewReferenceSnackbar": "La prochaine récitation redéfinira ta référence pour ce passage.",
-  "@karaokeNewReferenceSnackbar": {"description": "Snackbar après avoir demandé à refaire la référence"},
+  "@karaokeNewReferenceSnackbar": {
+    "description": "Snackbar après avoir demandé à refaire la référence"
+  },
   "karaokeHearExpectedWordTooltip": "Entendre le mot attendu",
-  "@karaokeHearExpectedWordTooltip": {"description": "Tooltip : souffleur, jouer le mot attendu"},
+  "@karaokeHearExpectedWordTooltip": {
+    "description": "Tooltip : souffleur, jouer le mot attendu"
+  },
   "karaokeResumeTooltip": "Reprendre",
-  "@karaokeResumeTooltip": {"description": "Tooltip : reprendre la capture après une pause manuelle"},
+  "@karaokeResumeTooltip": {
+    "description": "Tooltip : reprendre la capture après une pause manuelle"
+  },
   "karaokePauseTooltip": "Mettre en pause",
-  "@karaokePauseTooltip": {"description": "Tooltip : mettre la capture en pause manuellement"},
+  "@karaokePauseTooltip": {
+    "description": "Tooltip : mettre la capture en pause manuellement"
+  },
   "karaokeRedoReferenceTooltip": "Refaire ma récitation de référence",
-  "@karaokeRedoReferenceTooltip": {"description": "Tooltip : redemander une session de référence"},
+  "@karaokeRedoReferenceTooltip": {
+    "description": "Tooltip : redemander une session de référence"
+  },
   "karaokeReferenceRecordingTitle": "Récitation de référence",
-  "@karaokeReferenceRecordingTitle": {"description": "Titre du bandeau annonçant une session de référence à venir"},
+  "@karaokeReferenceRecordingTitle": {
+    "description": "Titre du bandeau annonçant une session de référence à venir"
+  },
   "karaokeReferenceRecordingBody": "Première récitation de ce passage : récite à ton rythme naturel — ta manière de réciter (pauses, tempo) sera mémorisée et respectée pour toutes tes prochaines récitations.",
-  "@karaokeReferenceRecordingBody": {"description": "Corps du bandeau annonçant une session de référence à venir"},
+  "@karaokeReferenceRecordingBody": {
+    "description": "Corps du bandeau annonçant une session de référence à venir"
+  },
   "karaokeReferenceInProgressTitle": "Référence en cours d'enregistrement",
-  "@karaokeReferenceInProgressTitle": {"description": "Titre du bandeau pendant l'enregistrement de la référence"},
+  "@karaokeReferenceInProgressTitle": {
+    "description": "Titre du bandeau pendant l'enregistrement de la référence"
+  },
   "karaokeReferenceInProgressBody": "Récite naturellement, à ton rythme.",
-  "@karaokeReferenceInProgressBody": {"description": "Corps du bandeau pendant l'enregistrement de la référence"},
+  "@karaokeReferenceInProgressBody": {
+    "description": "Corps du bandeau pendant l'enregistrement de la référence"
+  },
   "karaokeHeardLabel": "entendu",
-  "@karaokeHeardLabel": {"description": "Étiquette au-dessus de l'extrait de transcript entendu"},
+  "@karaokeHeardLabel": {
+    "description": "Étiquette au-dessus de l'extrait de transcript entendu"
+  },
   "karaokeTranscriptFullTitle": "TRANSCRIPT COMPLET",
-  "@karaokeTranscriptFullTitle": {"description": "Titre de la feuille affichant le transcript complet"},
+  "@karaokeTranscriptFullTitle": {
+    "description": "Titre de la feuille affichant le transcript complet"
+  },
   "karaokeNothingHeardYet": "Rien entendu pour l'instant.",
-  "@karaokeNothingHeardYet": {"description": "Message quand le transcript est encore vide"},
+  "@karaokeNothingHeardYet": {
+    "description": "Message quand le transcript est encore vide"
+  },
   "karaokeFinalizing": "Finalisation…",
-  "@karaokeFinalizing": {"description": "Indication en bas d'écran pendant la finalisation de l'analyse"},
+  "@karaokeFinalizing": {
+    "description": "Indication en bas d'écran pendant la finalisation de l'analyse"
+  },
   "karaokePausedHint": "En pause — touche ⏸ pour reprendre",
-  "@karaokePausedHint": {"description": "Indication en bas d'écran quand la capture est en pause manuelle"},
+  "@karaokePausedHint": {
+    "description": "Indication en bas d'écran quand la capture est en pause manuelle"
+  },
   "karaokeListeningHint": "À l'écoute — touche le cercle pour t'arrêter",
-  "@karaokeListeningHint": {"description": "Indication en bas d'écran pendant l'écoute active"},
+  "@karaokeListeningHint": {
+    "description": "Indication en bas d'écran pendant l'écoute active"
+  },
   "karaokeFinishedHint": "Touche l'écran pour recommencer",
-  "@karaokeFinishedHint": {"description": "Indication en bas d'écran une fois la récitation terminée"},
+  "@karaokeFinishedHint": {
+    "description": "Indication en bas d'écran une fois la récitation terminée"
+  },
   "karaokeReferenceStartHint": "Touche l'écran pour enregistrer ta récitation de référence",
-  "@karaokeReferenceStartHint": {"description": "Indication en bas d'écran avant de démarrer une session de référence"},
+  "@karaokeReferenceStartHint": {
+    "description": "Indication en bas d'écran avant de démarrer une session de référence"
+  },
   "karaokeTapToStartHint": "Touche l'écran pour commencer",
-  "@karaokeTapToStartHint": {"description": "Indication en bas d'écran avant de démarrer une récitation normale"},
+  "@karaokeTapToStartHint": {
+    "description": "Indication en bas d'écran avant de démarrer une récitation normale"
+  },
   "karaokeSurahTransitionMeta": "{number} · {name} · {count, plural, =1{1 verset} other{{count} versets}}",
-  "@karaokeSurahTransitionMeta": {"description": "Métadonnées sous le nom arabe dans le bandeau de transition entre sourates", "placeholders": {"number": {"type": "int"}, "name": {"type": "String"}, "count": {"type": "int"}}},
-
+  "@karaokeSurahTransitionMeta": {
+    "description": "Métadonnées sous le nom arabe dans le bandeau de transition entre sourates",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "surahOrnamentMeta": "{place} · {count, plural, =1{1 verset} other{{count} versets}}",
-  "@surahOrnamentMeta": {"description": "Métadonnées sous le titre du bandeau ornemental de sourate (lieu de révélation + nombre de versets)", "placeholders": {"place": {"type": "String"}, "count": {"type": "int"}}},
-
+  "@surahOrnamentMeta": {
+    "description": "Métadonnées sous le titre du bandeau ornemental de sourate (lieu de révélation + nombre de versets)",
+    "placeholders": {
+      "place": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "miniPlayerRepeatOff": "Répéter",
-  "@miniPlayerRepeatOff": {"description": "Bouton répétition de la barre de lecture : désactivée"},
+  "@miniPlayerRepeatOff": {
+    "description": "Bouton répétition de la barre de lecture : désactivée"
+  },
   "miniPlayerRepeatVerse": "×{count} verset",
-  "@miniPlayerRepeatVerse": {"description": "Bouton répétition de la barre de lecture : verset répété N fois", "placeholders": {"count": {"type": "int"}}},
+  "@miniPlayerRepeatVerse": {
+    "description": "Bouton répétition de la barre de lecture : verset répété N fois",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "miniPlayerRepeatSurah": "Sourate ∞",
-  "@miniPlayerRepeatSurah": {"description": "Bouton répétition de la barre de lecture : sourate en boucle infinie"},
+  "@miniPlayerRepeatSurah": {
+    "description": "Bouton répétition de la barre de lecture : sourate en boucle infinie"
+  },
   "mushafMindMapTooltip": "Carte mentale",
-  "@mushafMindMapTooltip": {"description": "Tooltip de l'icône carte mentale dans l'en-tête du Mushaf"},
+  "@mushafMindMapTooltip": {
+    "description": "Tooltip de l'icône carte mentale dans l'en-tête du Mushaf"
+  },
   "mushafPrayerNextIn": "Dhuhr dans 2h 14m",
-  "@mushafPrayerNextIn": {"description": "Bandeau prière : compte à rebours avant la prochaine prière (donnée provisoire, pas encore branchée sur l'heure réelle)"},
+  "@mushafPrayerNextIn": {
+    "description": "Bandeau prière : compte à rebours avant la prochaine prière (donnée provisoire, pas encore branchée sur l'heure réelle)"
+  },
   "mushafPrayerTimeLabel": "Dhuhr 13:30",
-  "@mushafPrayerTimeLabel": {"description": "Bandeau prière : heure de la prochaine prière (donnée provisoire, pas encore branchée sur l'heure réelle)"},
+  "@mushafPrayerTimeLabel": {
+    "description": "Bandeau prière : heure de la prochaine prière (donnée provisoire, pas encore branchée sur l'heure réelle)"
+  },
   "mushafJuzChip": "JUZ {n}",
-  "@mushafJuzChip": {"description": "Pastille de navigation : numéro du juz courant", "placeholders": {"n": {"type": "int"}}}
+  "@mushafJuzChip": {
+    "description": "Pastille de navigation : numéro du juz courant",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsSectionDiagnostic": "Diagnostic",
+  "@settingsSectionDiagnostic": {
+    "description": "Section header for diagnostic settings"
+  },
+  "settingsDiagnosticTitle": "Journal et audio de diagnostic",
+  "@settingsDiagnosticTitle": {
+    "description": "Toggle title: diagnostic log file + WAV capture"
+  },
+  "settingsDiagnosticSubtitleOn": "Actif — écrit le journal et garde les extraits audio",
+  "@settingsDiagnosticSubtitleOn": {
+    "description": "Subtitle when diagnostics are enabled"
+  },
+  "settingsDiagnosticSubtitleOff": "Désactivé — aucune écriture pendant la récitation",
+  "@settingsDiagnosticSubtitleOff": {
+    "description": "Subtitle when diagnostics are disabled"
+  }
 }

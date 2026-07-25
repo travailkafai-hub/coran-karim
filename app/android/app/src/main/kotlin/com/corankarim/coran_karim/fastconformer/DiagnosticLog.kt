@@ -20,6 +20,14 @@ object DiagnosticLog {
     private var file: File? = null
     private val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.US)
 
+    // Interrupteur global, pilote par Dart (methode plugin "setLogEnabled",
+    // reglage utilisateur 2026-07-25). Meme motif que le pendant Dart : chaque
+    // ligne ouvre/ecrit/ferme un FileWriter, et le BufferedTranscriber en emet
+    // depuis le thread d'inference. L'utilisateur doit pouvoir couper toute
+    // l'instrumentation pour verifier que le retard de validation ne vient pas
+    // de l'instrumentation elle-meme.
+    @Volatile var enabled = true
+
     @Synchronized
     fun setFile(path: String) {
         file = File(path)
@@ -28,6 +36,9 @@ object DiagnosticLog {
 
     @Synchronized
     fun log(tag: String, message: String) {
+        // Sortie AVANT tout formatage (interpolation + SimpleDateFormat) :
+        // c'est le cout dominant quand le log est verbeux.
+        if (!enabled) return
         val line = "${fmt.format(Date())} [$tag] $message"
         Log.i(TAG, line) // garde aussi la visibilite logcat habituelle
         val f = file ?: return

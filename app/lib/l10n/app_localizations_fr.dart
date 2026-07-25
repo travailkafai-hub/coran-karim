@@ -119,23 +119,22 @@ class AppLocalizationsFr extends AppLocalizations {
       'Enregistre ~14 mots exprès bien/mal prononcés (ص/س, ط/ت...) pour affiner ta sensibilité';
 
   @override
-  String get settingsMyClipsTitle => 'Mes clips vérifiés';
+  String get settingsMyClipsTitle => 'Enregistrements de mes récitations';
 
   @override
   String get settingsMyClipsLoading => 'Chargement…';
 
   @override
   String get settingsMyClipsEmpty =>
-      'Aucun clip pour l\'instant — enregistrés lors de tes récitations de référence';
+      'Aucun enregistrement — ils sont conservés à chaque récitation';
 
   @override
   String settingsMyClipsCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other:
-          '$count clips vérifiés — exporter pour personnaliser le modèle à ta voix',
-      one: '1 clip vérifié — exporter pour personnaliser le modèle à ta voix',
+      other: '$count enregistrements conservés — appuie pour les exporter',
+      one: '1 enregistrement conservé — appuie pour l\'exporter',
     );
     return '$_temp0';
   }
@@ -173,15 +172,27 @@ class AppLocalizationsFr extends AppLocalizations {
       'Version 1.0.0  •  Propulsé par Gemma 4 + Whisper';
 
   @override
-  String get settingsRepeatDrillTitle => 'Répétitions de mémorisation';
+  String get settingsValidate => 'Valider';
 
   @override
-  String settingsRepeatDrillDescription(int max) {
-    return 'Nombre de fois à répéter le verset avant de tester ta mémoire (1 à $max).';
+  String get settingsRepeatEngineSectionTitle => 'RÉPÉTITION INCRÉMENTALE';
+
+  @override
+  String get settingsAdultChunkWordCountTitle =>
+      'Mots par palier (mode Adulte)';
+
+  @override
+  String settingsAdultChunkWordCountDescription(int max) {
+    return 'Approxime une ligne du Mushaf (1 à $max mots). Sans effet en mode Enfant, toujours mot par mot.';
   }
 
   @override
-  String get settingsValidate => 'Valider';
+  String get settingsRepeatWindowSizeTitle => 'Fenêtre de récitation (curseur)';
+
+  @override
+  String settingsRepeatWindowSizeDescription(int max) {
+    return 'Nombre de paliers à réciter ensemble pour valider (1 à $max). Cette taille reste fixe, la fenêtre glisse au fil des paliers.';
+  }
 
   @override
   String get commonConnectionRequired => 'Connexion requise';
@@ -655,23 +666,25 @@ class AppLocalizationsFr extends AppLocalizations {
   String get coachImitatedNext => 'J\'ai imité — Répéter seul';
 
   @override
-  String get coachRepeatAloneInstruction =>
-      'Répète seul, sans l\'audio. Le texte reste visible pour t\'aider.';
+  String get coachIncrementalInstruction =>
+      'Écoute puis répète. Le palier grandit à chaque réussite.';
 
   @override
-  String get coachListeningRepeat => 'Répète le verset…';
+  String get coachIncrementalPreparing => 'Préparation…';
 
   @override
-  String get coachRepeatAnalyzed => 'Récitation analysée !';
+  String get coachIncrementalListening => 'Écoute en cours…';
 
   @override
-  String get coachTapToRepeat => 'Appuie et répète le verset';
+  String get coachIncrementalTapToStart => 'Appuie pour réessayer';
 
   @override
-  String get coachRestart => 'Recommencer';
+  String coachIncrementalUnitProgress(int done, int total) {
+    return 'Palier $done/$total';
+  }
 
   @override
-  String get coachTestMemory => 'Tester ma mémoire';
+  String get coachIncrementalVerseAdvance => 'Verset suivant';
 
   @override
   String get coachRecallInstruction =>
@@ -1529,4 +1542,18 @@ class AppLocalizationsFr extends AppLocalizations {
   String mushafJuzChip(int n) {
     return 'JUZ $n';
   }
+
+  @override
+  String get settingsSectionDiagnostic => 'Diagnostic';
+
+  @override
+  String get settingsDiagnosticTitle => 'Journal et audio de diagnostic';
+
+  @override
+  String get settingsDiagnosticSubtitleOn =>
+      'Actif — écrit le journal et garde les extraits audio';
+
+  @override
+  String get settingsDiagnosticSubtitleOff =>
+      'Désactivé — aucune écriture pendant la récitation';
 }

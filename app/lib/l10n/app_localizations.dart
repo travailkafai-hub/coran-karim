@@ -298,28 +298,28 @@ abstract class AppLocalizations {
   /// **'Enregistre ~14 mots exprès bien/mal prononcés (ص/س, ط/ت...) pour affiner ta sensibilité'**
   String get settingsVoiceCalibSubtitle;
 
-  /// Réglage : clips vocaux vérifiés (mini-LoRA)
+  /// Réglage : enregistrements audio conservés pour diagnostic
   ///
   /// In fr, this message translates to:
-  /// **'Mes clips vérifiés'**
+  /// **'Enregistrements de mes récitations'**
   String get settingsMyClipsTitle;
 
-  /// Sous-titre pendant le comptage des clips
+  /// Sous-titre pendant le comptage des enregistrements
   ///
   /// In fr, this message translates to:
   /// **'Chargement…'**
   String get settingsMyClipsLoading;
 
-  /// Sous-titre quand aucun clip vérifié n'existe
+  /// Sous-titre quand aucun enregistrement n'existe
   ///
   /// In fr, this message translates to:
-  /// **'Aucun clip pour l\'instant — enregistrés lors de tes récitations de référence'**
+  /// **'Aucun enregistrement — ils sont conservés à chaque récitation'**
   String get settingsMyClipsEmpty;
 
-  /// Sous-titre : nombre de clips vérifiés disponibles
+  /// Sous-titre : nombre d'enregistrements audio conservés
   ///
   /// In fr, this message translates to:
-  /// **'{count, plural, =1{1 clip vérifié — exporter pour personnaliser le modèle à ta voix} other{{count} clips vérifiés — exporter pour personnaliser le modèle à ta voix}}'**
+  /// **'{count, plural, =1{1 enregistrement conservé — appuie pour l\'exporter} other{{count} enregistrements conservés — appuie pour les exporter}}'**
   String settingsMyClipsCount(int count);
 
   /// Snackbar après export réussi des clips vocaux
@@ -376,23 +376,41 @@ abstract class AppLocalizations {
   /// **'Version 1.0.0  •  Propulsé par Gemma 4 + Whisper'**
   String get settingsAboutSubtitle;
 
-  /// Titre de la feuille de réglage du nombre de répétitions
-  ///
-  /// In fr, this message translates to:
-  /// **'Répétitions de mémorisation'**
-  String get settingsRepeatDrillTitle;
-
-  /// Explique le réglage du nombre de répétitions
-  ///
-  /// In fr, this message translates to:
-  /// **'Nombre de fois à répéter le verset avant de tester ta mémoire (1 à {max}).'**
-  String settingsRepeatDrillDescription(int max);
-
   /// Bouton de confirmation d'un réglage
   ///
   /// In fr, this message translates to:
   /// **'Valider'**
   String get settingsValidate;
+
+  /// Titre de section des réglages du moteur de répétition incrémentale (étape Répète du Coach)
+  ///
+  /// In fr, this message translates to:
+  /// **'RÉPÉTITION INCRÉMENTALE'**
+  String get settingsRepeatEngineSectionTitle;
+
+  /// Titre du réglage de la taille d'un palier en mots, hors mode Enfant
+  ///
+  /// In fr, this message translates to:
+  /// **'Mots par palier (mode Adulte)'**
+  String get settingsAdultChunkWordCountTitle;
+
+  /// Explique le réglage du nombre de mots par palier
+  ///
+  /// In fr, this message translates to:
+  /// **'Approxime une ligne du Mushaf (1 à {max} mots). Sans effet en mode Enfant, toujours mot par mot.'**
+  String settingsAdultChunkWordCountDescription(int max);
+
+  /// Titre du réglage de la taille fixe de la fenêtre glissante de validation
+  ///
+  /// In fr, this message translates to:
+  /// **'Fenêtre de récitation (curseur)'**
+  String get settingsRepeatWindowSizeTitle;
+
+  /// Explique le réglage de la fenêtre glissante
+  ///
+  /// In fr, this message translates to:
+  /// **'Nombre de paliers à réciter ensemble pour valider (1 à {max}). Cette taille reste fixe, la fenêtre glisse au fil des paliers.'**
+  String settingsRepeatWindowSizeDescription(int max);
 
   /// Message d'erreur générique quand une requête réseau échoue
   ///
@@ -1196,41 +1214,41 @@ abstract class AppLocalizations {
   /// **'J\'ai imité — Répéter seul'**
   String get coachImitatedNext;
 
-  /// Bandeau d'instruction sous-étape Répète
+  /// Bandeau d'instruction de l'étape Répète incrémentale
   ///
   /// In fr, this message translates to:
-  /// **'Répète seul, sans l\'audio. Le texte reste visible pour t\'aider.'**
-  String get coachRepeatAloneInstruction;
+  /// **'Écoute puis répète. Le palier grandit à chaque réussite.'**
+  String get coachIncrementalInstruction;
 
-  /// Statut micro pendant la sous-étape Répète
+  /// Libellé affiché pendant le chargement du moteur de vérification (jamais le nom technique du modèle)
   ///
   /// In fr, this message translates to:
-  /// **'Répète le verset…'**
-  String get coachListeningRepeat;
+  /// **'Préparation…'**
+  String get coachIncrementalPreparing;
 
-  /// Statut micro : sous-étape Répète terminée
+  /// Statut pendant l'écoute ou la lecture audio d'un palier
   ///
   /// In fr, this message translates to:
-  /// **'Récitation analysée !'**
-  String get coachRepeatAnalyzed;
+  /// **'Écoute en cours…'**
+  String get coachIncrementalListening;
 
-  /// Invite à démarrer la sous-étape Répète
+  /// Invite à retaper le micro après un échec
   ///
   /// In fr, this message translates to:
-  /// **'Appuie et répète le verset'**
-  String get coachTapToRepeat;
+  /// **'Appuie pour réessayer'**
+  String get coachIncrementalTapToStart;
 
-  /// Bouton : refaire la sous-étape Répète
+  /// Progression dans les paliers du verset courant
   ///
   /// In fr, this message translates to:
-  /// **'Recommencer'**
-  String get coachRestart;
+  /// **'Palier {done}/{total}'**
+  String coachIncrementalUnitProgress(int done, int total);
 
-  /// Bouton : passer à l'étape Contrôle
+  /// Message bref affiché lors du passage automatique au verset suivant
   ///
   /// In fr, this message translates to:
-  /// **'Tester ma mémoire'**
-  String get coachTestMemory;
+  /// **'Verset suivant'**
+  String get coachIncrementalVerseAdvance;
 
   /// Bandeau d'instruction de l'étape Contrôle
   ///
@@ -2562,6 +2580,30 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'JUZ {n}'**
   String mushafJuzChip(int n);
+
+  /// Section header for diagnostic settings
+  ///
+  /// In fr, this message translates to:
+  /// **'Diagnostic'**
+  String get settingsSectionDiagnostic;
+
+  /// Toggle title: diagnostic log file + WAV capture
+  ///
+  /// In fr, this message translates to:
+  /// **'Journal et audio de diagnostic'**
+  String get settingsDiagnosticTitle;
+
+  /// Subtitle when diagnostics are enabled
+  ///
+  /// In fr, this message translates to:
+  /// **'Actif — écrit le journal et garde les extraits audio'**
+  String get settingsDiagnosticSubtitleOn;
+
+  /// Subtitle when diagnostics are disabled
+  ///
+  /// In fr, this message translates to:
+  /// **'Désactivé — aucune écriture pendant la récitation'**
+  String get settingsDiagnosticSubtitleOff;
 }
 
 class _AppLocalizationsDelegate

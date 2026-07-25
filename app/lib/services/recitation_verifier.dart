@@ -289,6 +289,11 @@ abstract class RecitationVerifier {
   /// session de référence.
   Future<void> setClipCapture(String? dir);
 
+  /// Coupe/rétablit le journal de diagnostic natif (cf.
+  /// DiagnosticLog.enabled). Piloté par le même réglage utilisateur que le
+  /// côté Dart — cf. FastConformerVerifier.setLogEnabled.
+  Future<void> setLogEnabled(bool enabled);
+
   /// [continuous] : enregistrement continu segmenté par détection de silence
   /// (VAD énergie), pour réciter plusieurs versets/une sourate entière sans
   /// interaction manuelle entre chaque verset.
@@ -324,6 +329,15 @@ abstract class RecitationVerifier {
   Future<void> resetBuffer();
 
   void dispose();
+
+  /// S'assure que le modèle ASR est chargé, SANS démarrer de session
+  /// (idempotent, sûr à appeler plusieurs fois). Ajouté pour le moteur de
+  /// répétition incrémentale du Coach (demande utilisateur 2026-07-24,
+  /// "éviter qu'il parle dans le vide") : [start] ne bloque pas sur le
+  /// chargement, il le lance en fire-and-forget en interne -- ce point
+  /// d'entrée permet à l'UI d'attendre explicitement AVANT de signaler
+  /// "à toi" et de lancer l'écoute automatique.
+  Future<bool> ensureModelLoaded();
 }
 
 // ── ASR on-device ────────────────────────────────────────────────────────────
@@ -424,6 +438,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   @override
   Future<void> setClipCapture(String? dir) => _fastConformer.setClipCapture(dir);
+
+  @override
+  Future<void> setLogEnabled(bool enabled) => _fastConformer.setLogEnabled(enabled);
 
   // ── Segmentation continue (VAD énergie) ──────────────────────────────────
   // dBFS en dessous duquel on considère qu'il y a silence (seuil à ajuster
@@ -820,6 +837,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   Future<void> resetBuffer() => _fastConformer.resetBuffered();
 
   @override
+  Future<bool> ensureModelLoaded() => _fastConformer.ensureLoaded();
+
+  @override
   void dispose() {
     _levelTimer?.cancel();
     _pcmSub?.cancel();
@@ -876,6 +896,9 @@ class MockRecitationVerifier implements RecitationVerifier {
   @override
   Future<void> setClipCapture(String? dir) async {}
 
+  @override
+  Future<void> setLogEnabled(bool enabled) async {}
+
   int _generation = 0;
   @override
   int get sessionGeneration => _generation;
@@ -917,6 +940,9 @@ class MockRecitationVerifier implements RecitationVerifier {
   Future<void> resumeCapture() async {}
   @override
   Future<void> resetBuffer() async {}
+
+  @override
+  Future<bool> ensureModelLoaded() async => true;
 
   @override
   Future<void> stop() async {

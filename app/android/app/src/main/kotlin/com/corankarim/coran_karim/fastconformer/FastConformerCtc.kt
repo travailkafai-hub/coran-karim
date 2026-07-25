@@ -155,10 +155,21 @@ class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? 
         }
     }
 
-    fun greedyDecode(logprobs: Array<FloatArray>): String {
-        val ids = ArrayList<Int>(logprobs.size)
+    /** Decodage glouton, eventuellement borne aux frames [0..toFrameIncl].
+     *
+     *  [toFrameIncl] = -1 (defaut) : tout le segment, comportement historique.
+     *  Sinon on ne decode que le debut -- utilise par BufferedTranscriber pour
+     *  ne FIGER que le texte de l'audio reellement consomme par l'aligneur
+     *  (2026-07-25). Sans cette borne, figer le texte du segment ENTIER tout en
+     *  conservant sa queue audio ferait reapparaitre cette queue une seconde
+     *  fois dans le texte au segment suivant -- la duplication qui avait mis la
+     *  fenetre glissante naive a WER > 100 %. */
+    fun greedyDecode(logprobs: Array<FloatArray>, toFrameIncl: Int = -1): String {
+        val end = if (toFrameIncl in 0 until logprobs.size) toFrameIncl else logprobs.size - 1
+        val ids = ArrayList<Int>(end + 1)
         var prev = -1
-        for (frame in logprobs) {
+        for (fi in 0..end) {
+            val frame = logprobs[fi]
             var best = 0
             var bestVal = frame[0]
             for (c in 1 until frame.size) {

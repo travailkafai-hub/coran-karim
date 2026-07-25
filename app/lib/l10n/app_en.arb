@@ -5,7 +5,6 @@
   "navCoach": "Coach",
   "navSettings": "Settings",
   "appTitle": "Coran Karim",
-
   "mindMapAppBarTitle": "Mind map — {name}",
   "mindMapVerses": "Verses {range}",
   "mindMapAyahCountBadge": "{count} verses",
@@ -14,7 +13,6 @@
   "mindMapSourcesLabel": "Sources and caveats",
   "mindMapNotReadyTitle": "Coming soon",
   "mindMapNotReadyBody": "The mind map for {name} (themes, branches, links to verses) is being written.",
-
   "mindMapCatRecits": "Stories",
   "mindMapCatCroyance": "Belief",
   "mindMapCatEschatologie": "Afterlife",
@@ -24,7 +22,6 @@
   "mindMapCatSignes": "Signs",
   "mindMapCatAdoration": "Worship",
   "mindMapCatAutre": "Other",
-
   "settingsTitle": "Settings",
   "settingsSectionAudio": "Audio",
   "settingsReciterTitle": "Reciter",
@@ -36,10 +33,10 @@
   "settingsSectionVoicePersonalization": "Voice personalization",
   "settingsVoiceCalibTitle": "Voice calibration (confusable letters)",
   "settingsVoiceCalibSubtitle": "Record ~14 words deliberately said right/wrong (ص/س, ط/ت...) to fine-tune your sensitivity",
-  "settingsMyClipsTitle": "My verified clips",
+  "settingsMyClipsTitle": "My recitation recordings",
   "settingsMyClipsLoading": "Loading…",
-  "settingsMyClipsEmpty": "No clips yet — recorded during your reference recitations",
-  "settingsMyClipsCount": "{count, plural, =1{1 verified clip — export to personalize the model to your voice} other{{count} verified clips — export to personalize the model to your voice}}",
+  "settingsMyClipsEmpty": "No recordings yet — they are kept for every recitation",
+  "settingsMyClipsCount": "{count, plural, =1{1 recording kept — tap to export it} other{{count} recordings kept — tap to export them}}",
   "settingsExportStarted": "Export started — choose where to send the file.",
   "settingsExportCancelled": "Export cancelled or no clip available.",
   "settingsSectionDisplay": "Display",
@@ -49,10 +46,12 @@
   "settingsLocaleTitle": "Application language",
   "settingsLocaleSheetDescription": "In Arabic, all content (menus and Quran) stays in Arabic, with no translation. In French/English, the Quran always stays in Arabic; only menus and explanations change language.",
   "settingsAboutSubtitle": "Version 1.0.0  •  Powered by Gemma 4 + Whisper",
-  "settingsRepeatDrillTitle": "Memorization repetitions",
-  "settingsRepeatDrillDescription": "Number of times to repeat the verse before testing your memory (1 to {max}).",
   "settingsValidate": "Confirm",
-
+  "settingsRepeatEngineSectionTitle": "INCREMENTAL REPETITION",
+  "settingsAdultChunkWordCountTitle": "Words per step (Adult mode)",
+  "settingsAdultChunkWordCountDescription": "Approximates a Mushaf line (1 to {max} words). No effect in Child mode, which always stays word by word.",
+  "settingsRepeatWindowSizeTitle": "Recitation window (cursor)",
+  "settingsRepeatWindowSizeDescription": "Number of steps to recite together to validate (1 to {max}). This size stays fixed, the window slides forward as steps are added.",
   "commonConnectionRequired": "Connection required",
   "commonRetry": "Retry",
   "homeIdentifyTooltip": "Identify a recitation",
@@ -60,7 +59,6 @@
   "surahMeccan": "Meccan",
   "surahMedinan": "Medinan",
   "surahMetaLine": "{count, plural, =1{1 verse} other{{count} verses}} • {place}",
-
   "mushafExplanationTitleSurahVerse": "{surah} — verse {ayah}",
   "mushafExplanationTitleSurahVerseWord": "{surah} {ayah} — {word}",
   "mushafPlay": "Play",
@@ -71,7 +69,6 @@
   "mushafCoachAi": "AI Coach",
   "mushafMore": "More",
   "mushafAutoScroll": "Auto-scroll",
-
   "commonCancel": "Cancel",
   "commonClose": "Close",
   "shazamListening": "Listening...\nMove the phone closer to the sound.",
@@ -81,7 +78,6 @@
   "shazamError": "An error occurred while listening.",
   "shazamMatchLabel": "Surah {surah}, verse {ayah}",
   "shazamGoThere": "Go there",
-
   "readingSettingsDisplaySection": "DISPLAY",
   "readingSettingsAutoScrollSection": "AUTO-SCROLL",
   "readingSettingsAutoScrollDescription": "The text scrolls on its own at the chosen speed — handy for reading hands-free. A manual swipe stops it.",
@@ -96,7 +92,6 @@
   "readingSettingsSpeedSlow": "Slow",
   "readingSettingsSpeedNormal": "Normal",
   "readingSettingsSpeedFast": "Fast",
-
   "coachExplanationListen": "Listen",
   "coachExplanationStop": "Stop",
   "coachExplanationLanguageTooltip": "Language",
@@ -104,7 +99,6 @@
   "coachExplanationRoot": "Root: {root}",
   "coachExplanationExpand": "Learn more",
   "coachExplanationNoneAvailable": "No explanation available for this passage on this device.",
-
   "tajwidHelpVerseLabel": "Verse {key}",
   "tajwidHelpRulesInVerse": "RULES IN THIS VERSE",
   "tajwidHelpListenWithReciter": "Listen — {name}",
@@ -120,7 +114,6 @@
   "tajwidHelpAnalyzing": "Analyzing…",
   "tajwidHelpFinishRecording": "Finish recording",
   "tajwidHelpRecordThisWord": "Record yourself on this word",
-
   "tajwidRuleMaddaNecessaryName": "Madd — 6 beats (mandatory)",
   "tajwidRuleMaddaNecessaryExplanation": "Mandatory elongation of 6 beats (madd lazim).",
   "tajwidRuleMaddaObligatoryName": "Madd — 4 or 5 beats (mandatory)",
@@ -153,7 +146,6 @@
   "tajwidRuleLaamShamsiyahExplanation": "The lam of \"ال\" is not pronounced: the next letter is doubled instead.",
   "tajwidRuleSlntName": "Silent letter",
   "tajwidRuleSlntExplanation": "Written but not pronounced.",
-
   "duasScreenTitle": "Duas & Adhkar",
   "duasSearchHint": "Search an invocation, a word, a source…",
   "duasExplore": "Explore",
@@ -162,7 +154,6 @@
   "duasGuideBadge": "GUIDE",
   "duasNoneFound": "No results.",
   "duasInvocationCount": "{count, plural, =1{1 invocation} other{{count} invocations}}",
-
   "duaRemoveFavorite": "Remove from favorites",
   "duaAddFavorite": "Add to favorites",
   "duaPlaybackError": "Playback failed: {error}",
@@ -171,7 +162,6 @@
   "duaRepeatComplete": "Done — {target}/{target}",
   "duaResetCount": "Reset the count",
   "duaCollectionEmpty": "This collection is still empty.",
-
   "coachSurahLabel": "Surah {number}",
   "coachHeaderLabel": "MEMORIZATION COACH",
   "coachVerificationModeTooltip": "Verification mode",
@@ -195,12 +185,12 @@
   "coachSpeakAlong": "Speak along with the audio",
   "coachLaunchAndImitate": "Play the audio and imitate",
   "coachImitatedNext": "I imitated it — Repeat alone",
-  "coachRepeatAloneInstruction": "Repeat alone, without the audio. The text stays visible to help you.",
-  "coachListeningRepeat": "Repeating the verse…",
-  "coachRepeatAnalyzed": "Recitation analyzed!",
-  "coachTapToRepeat": "Tap and repeat the verse",
-  "coachRestart": "Restart",
-  "coachTestMemory": "Test my memory",
+  "coachIncrementalInstruction": "Listen then repeat. The step grows with each success.",
+  "coachIncrementalPreparing": "Preparing…",
+  "coachIncrementalListening": "Listening…",
+  "coachIncrementalTapToStart": "Tap to try again",
+  "coachIncrementalUnitProgress": "Step {done}/{total}",
+  "coachIncrementalVerseAdvance": "Next verse",
   "coachRecallInstruction": "Recite from memory — the text is hidden.",
   "coachRecallBadge": "Recite from memory",
   "coachListeningControl": "Reciting from memory…",
@@ -224,13 +214,11 @@
   "coachMsgControlVeryGood": "Very good recitation! Keep reviewing regularly to consolidate it.",
   "coachMsgControlGoodPath": "You're on the right track. A few more repetitions and the verse will be anchored.",
   "coachMsgControlKeepTraining": "Keep training. Go back to the reading phase to target the weak points.",
-
   "errorKindLettre": "Letter",
   "errorKindHarakat": "Harakat",
   "errorKindTajwid": "Tajwid",
   "errorKindSkippedWord": "Skipped word",
   "errorKindUnknown": "Undetermined",
-
   "coachHubTitle": "My coach",
   "coachHubResumeLabel": "Resume",
   "coachHubResumeVerse": "{surahName} — verse {ayah}",
@@ -264,40 +252,101 @@
   "coachHubResetErrorsDialogCancel": "Cancel",
   "coachHubResetErrorsDone": "Error log reset.",
   "coachHubGameSectionTitle": "Play",
-  "@coachHubGameSectionTitle": {"description": "Title of the memorization game zone in the Coach hub"},
+  "@coachHubGameSectionTitle": {
+    "description": "Title of the memorization game zone in the Coach hub"
+  },
   "coachHubGameSectionSubtitle": "Progressive recall, tier by tier",
-  "@coachHubGameSectionSubtitle": {"description": "Subtitle of the memorization game zone"},
+  "@coachHubGameSectionSubtitle": {
+    "description": "Subtitle of the memorization game zone"
+  },
   "coachHubGameActionTitle": "Memorization game",
-  "@coachHubGameActionTitle": {"description": "Title of the action launching the memorization game"},
+  "@coachHubGameActionTitle": {
+    "description": "Title of the action launching the memorization game"
+  },
   "coachHubGameActionSubtitle": "Words appear one by one — recite the rest yourself",
-  "@coachHubGameActionSubtitle": {"description": "Subtitle of the action launching the memorization game"},
+  "@coachHubGameActionSubtitle": {
+    "description": "Subtitle of the action launching the memorization game"
+  },
   "coachHubPickerGameTitle": "Memorization game",
-  "@coachHubPickerGameTitle": {"description": "Title of the surah picker for the memorization game"},
+  "@coachHubPickerGameTitle": {
+    "description": "Title of the surah picker for the memorization game"
+  },
   "coachHubPickerGameSubtitle": "Choose the surah to memorize by playing",
-  "@coachHubPickerGameSubtitle": {"description": "Subtitle of the surah picker for the memorization game"},
+  "@coachHubPickerGameSubtitle": {
+    "description": "Subtitle of the surah picker for the memorization game"
+  },
   "memorizationGameTitle": "Memorization game",
-  "@memorizationGameTitle": {"description": "Title of the memorization game screen"},
+  "@memorizationGameTitle": {
+    "description": "Title of the memorization game screen"
+  },
   "memorizationGameRestartVerseTooltip": "Restart this verse",
-  "@memorizationGameRestartVerseTooltip": {"description": "Tooltip for the button resetting the current verse"},
+  "@memorizationGameRestartVerseTooltip": {
+    "description": "Tooltip for the button resetting the current verse"
+  },
   "memorizationGameVerseProgress": "Verse {current} of {total}",
-  "@memorizationGameVerseProgress": {"description": "Progress indicator within the surah", "placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
+  "@memorizationGameVerseProgress": {
+    "description": "Progress indicator within the surah",
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationGameCompleteTitle": "Surah complete!",
-  "@memorizationGameCompleteTitle": {"description": "Title shown at the end of the memorization game"},
+  "@memorizationGameCompleteTitle": {
+    "description": "Title shown at the end of the memorization game"
+  },
   "memorizationGameCompleteBody": "You went through every tier of {surah}. Restart to reinforce your memorization.",
-  "@memorizationGameCompleteBody": {"description": "Body shown at the end of the memorization game", "placeholders": {"surah": {"type": "String"}}},
+  "@memorizationGameCompleteBody": {
+    "description": "Body shown at the end of the memorization game",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      }
+    }
+  },
   "memorizationGameBackToHub": "Back",
-  "@memorizationGameBackToHub": {"description": "Button returning to the Coach hub from the game completion screen"},
+  "@memorizationGameBackToHub": {
+    "description": "Button returning to the Coach hub from the game completion screen"
+  },
   "memorizationAyahPickerTitle": "Choose your start",
-  "@memorizationAyahPickerTitle": {"description": "Title of the starting-ayah picker screen for the game"},
+  "@memorizationAyahPickerTitle": {
+    "description": "Title of the starting-ayah picker screen for the game"
+  },
   "memorizationAyahPickerSubtitle": "{surah} is long: choose the page where you want to start first",
-  "@memorizationAyahPickerSubtitle": {"description": "Step 1 (page choice) subtitle explaining why a starting point is requested", "placeholders": {"surah": {"type": "String"}}},
+  "@memorizationAyahPickerSubtitle": {
+    "description": "Step 1 (page choice) subtitle explaining why a starting point is requested",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      }
+    }
+  },
   "memorizationAyahPickerPageLabel": "Page {page}",
-  "@memorizationAyahPickerPageLabel": {"description": "Label of a page chip in the starting-point picker", "placeholders": {"page": {"type": "int"}}},
+  "@memorizationAyahPickerPageLabel": {
+    "description": "Label of a page chip in the starting-point picker",
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationAyahPickerAyahSubtitle": "Page {page}: choose the verse where you want to start playing",
-  "@memorizationAyahPickerAyahSubtitle": {"description": "Step 2 (verse choice within the chosen page) subtitle", "placeholders": {"page": {"type": "int"}}},
+  "@memorizationAyahPickerAyahSubtitle": {
+    "description": "Step 2 (verse choice within the chosen page) subtitle",
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationAyahPickerBackToPages": "Change page",
-  "@memorizationAyahPickerBackToPages": {"description": "Button to go back from verse selection to page selection"},
-
+  "@memorizationAyahPickerBackToPages": {
+    "description": "Button to go back from verse selection to page selection"
+  },
   "qiblaSubtitle": "Direction to Mecca",
   "qiblaEnableLocationMessage": "Enable location to find the Qibla from your current position.",
   "qiblaEnableLocationAction": "Enable location",
@@ -308,7 +357,6 @@
   "qiblaKmToMecca": "KM TO MECCA",
   "qiblaFacingQibla": "You're facing the Qibla ✓",
   "qiblaTurnPhoneHint": "Turn your phone until the needle points up",
-
   "prayerFollowSensitivityTolerant": "Tolerant",
   "prayerFollowSensitivityStrict": "Strict",
   "prayerFollowSensitivityBalanced": "Balanced (default)",
@@ -328,7 +376,6 @@
   "prayerPhaseTarget": "Followed surah",
   "prayerPhaseListening": "Listening",
   "prayerPhaseStopped": "Stopped",
-
   "riteBeforeStartTooltip": "Good to know before starting",
   "riteRestartTooltip": "Restart the ritual",
   "riteWhatWeDoLabel": "WHAT WE DO",
@@ -343,7 +390,6 @@
   "riteNextStepTooltip": "Next step",
   "riteStepDone": "Step done",
   "riteMarkAsDone": "Mark as done",
-
   "recitationModeLabel": "Memorization mode",
   "recitationVerseTitle": "Verse {key}",
   "recitationRangeTitle": "{from} → {to} ({count, plural, =1{1 verse} other{{count} verses}})",
@@ -358,12 +404,10 @@
   "recitationTapToStart": "Tap and recite (several verses in a row)",
   "recitationMashallahAccuracy": "Ma sha Allah! {pct}% accuracy",
   "recitationContinueAccuracy": "Keep going — {pct}% accuracy",
-
   "reciterSelectTitle": "Choose a reciter",
   "reciterSelectStreamingNote": "Built-in reciters — available via streaming. Offline download coming soon.",
   "reciterSelectOfflineTitle": "Offline download",
   "reciterSelectOfflineSubtitle": "Available in an upcoming update.",
-
   "voiceCalibTitle": "Voice calibration",
   "voiceCalibDoneTitle": "Calibration complete!",
   "voiceCalibDoneBody": "{count, plural, =1{1 clip recorded.} other{{count} clips recorded.}} They join your verified clips — export them from Settings to start personalization.",
@@ -374,13 +418,11 @@
   "voiceCalibRecording": "Recording… tap to stop",
   "voiceCalibTapToRecord": "Tap to record",
   "voiceCalibSavedSnackbar": "{count, plural, =1{1 calibration clip saved} other{{count} calibration clips saved}} — export them from Settings to personalize the model.",
-
   "ruleReliableLabel": "reliable",
   "ruleReliableLabelWithPct": "reliable · {pct}%",
   "ruleUnreliableLabel": "not very reliable",
   "ruleUnreliableLabelWithPct": "not very reliable · {pct}%",
   "ruleNotMeasuredLabel": "not measured",
-
   "tajwidRulesTitle": "Recitation verification",
   "tajwidRulesLoadError": "Error: {error}",
   "tajwidRulesHarakatTitle": "Harakat required",
@@ -393,11 +435,9 @@
   "tajwidPresetTajwid": "Tajwid",
   "tajwidPresetAdult": "Adult",
   "tajwidPresetChild": "Child",
-
   "surahPickerLoadVersesError": "Couldn't load: {error}",
   "surahPickerLoadListError": "Couldn't load the surahs: {error}",
   "surahPickerVerseCount": "{count, plural, =1{1 verse} other{{count} verses}}",
-
   "karaokeAudioUnavailable": "Audio unavailable for this word",
   "karaokeRepeatIndicated": "Repeat the indicated word ↓",
   "karaokeFirstRecitationTitle": "First recitation of this passage",
@@ -443,14 +483,16 @@
   "karaokeReferenceStartHint": "Tap the screen to record your reference recitation",
   "karaokeTapToStartHint": "Tap the screen to start",
   "karaokeSurahTransitionMeta": "{number} · {name} · {count, plural, =1{1 verse} other{{count} verses}}",
-
   "surahOrnamentMeta": "{place} · {count, plural, =1{1 verse} other{{count} verses}}",
-
   "miniPlayerRepeatOff": "Repeat",
   "miniPlayerRepeatVerse": "×{count} verse",
   "miniPlayerRepeatSurah": "Surah ∞",
   "mushafMindMapTooltip": "Mind map",
   "mushafPrayerNextIn": "Dhuhr in 2h 14m",
   "mushafPrayerTimeLabel": "Dhuhr 13:30",
-  "mushafJuzChip": "JUZ {n}"
+  "mushafJuzChip": "JUZ {n}",
+  "settingsSectionDiagnostic": "Diagnostics",
+  "settingsDiagnosticTitle": "Diagnostic log and audio",
+  "settingsDiagnosticSubtitleOn": "On — writes the log and keeps audio clips",
+  "settingsDiagnosticSubtitleOff": "Off — nothing is written while reciting"
 }

@@ -288,6 +288,30 @@ class ForcedAligner(
          *  (recouvrement avec la fenetre de frames du mot, la meme que celle
          *  qui sert deja au gop), donc exacte, et la confiance est conservee. */
         val detectedRules: List<DetectedRule> = emptyList(),
+        /** VRAI si `actual` NE vient PAS des frames que la DP a attribuees a ce
+         *  mot, mais du decodage libre GLOBAL du segment (cf. "validation
+         *  GLOBALE prioritaire" plus bas). Journalise cote Dart en `src=libre`.
+         *
+         *  Pourquoi ce champ existe (2026-07-25) : sans lui, une ligne de log
+         *  `entendu="بِمَآ"` etait indechiffrable -- impossible de savoir si
+         *  c'etait la mesure de CE mot ou un texte repris ailleurs dans le
+         *  segment. Or `actual` DECIDE la couleur (`textMatches` court-circuite
+         *  le gop). Sur un passage a mots repetes -- verset 2:4 contient
+         *  `أُنزِلَ` aux index 23 ET 26, `بِمَآ`/`وَمَآ` aux index 22 et 25 --
+         *  une attribution par le texte ne peut pas distinguer les occurrences.
+         *  Tracer la source est le minimum pour que le diagnostic soit fiable. */
+        val actualFromFree: Boolean = false,
+        /** Derniere frame de ce mot dans le segment courant, ou -1 si la DP ne
+         *  lui a attribue aucune frame.
+         *
+         *  Sert au rognage continu du buffer (refonte 2026-07-25) : quand Dart a
+         *  VERROUILLE un mot, le natif peut retirer du buffer exactement l'audio
+         *  jusqu'a la fin de ce mot -- donc toujours sur une frontiere de mot,
+         *  jamais en plein milieu. Mesure a l'appui : un buffer qui demarre au
+         *  milieu d'un mot est la cause dominante des transcriptions detruites,
+         *  et garder un contexte gauche PARTIEL est pire que pas de contexte
+         *  (0/4 mots retrouves avec 600-1500 ms de contexte contre 2/4 sans). */
+        val lastFrame: Int = -1,
     )
 
     /**
@@ -305,6 +329,17 @@ class ForcedAligner(
         val frontier: Int,
         val words: List<WordResult>,
         val deferredIndex: Int? = null,
+        /** Derniere frame REELLEMENT consommee par le dernier mot place, ou -1
+         *  si aucun mot n'a ete place.
+         *
+         *  Sert a BufferedTranscriber pour ne purger du buffer que l'audio
+         *  effectivement consomme (2026-07-25). Avant, le buffer jetait TOUT le
+         *  segment alors que l'ancre n'avancait que sur `words.size` : toute
+         *  sous-couverture detruisait definitivement l'audio des mots non
+         *  places, qui etaient ensuite tamponnes rouges (`entendu=""`,
+         *  `forced=-20`) sur de l'audio etranger. Mesure du 16:32 : ancre
+         *  bloquee a 28 pendant que le recitateur etait au mot 43. */
+        val lastFrame: Int = -1,
     )
 
     /**
@@ -494,6 +529,14 @@ class ForcedAligner(
                     //    des `results` sans JAMAIS entrer dans le mecanisme
                     //    des 2 chances, silencieusement, a chaque appel.
                     if (anchor + wi == forceJudgeIndex) {
+                        // Ce mot n'a AUCUNE frame : son propre `lastFrame` reste
+                        // -1, mais l'audio consomme s'arrete a la fin du mot
+                        // PRECEDENT -- sinon `lastUsedFrame` restait a -1 et le
+                        // rognage retombait sur "tout jeter" (defaut mesure le
+                        // 2026-07-25 : `derniere_frame=-1` sur 10 alignements
+                        // sur 18, donc le correctif ne s'appliquait qu'aux
+                        // passes qui marchaient deja).
+                        if (wi > 0) lastUsedFrame = maxOf(lastUsedFrame, wordLastFrame[wi - 1])
                         results.add(WordResult(
                             anchor + wi, -20.0, -20.0, wi < frontierWordRel, ""))
                     } else {
@@ -558,10 +601,12 @@ class ForcedAligner(
                     it.frame >= wordFirstFrame[wi] && it.frame <= wordLastFrame[wi]
                 } ?: emptyList()
                 results.add(WordResult(anchor + wi, forced - free, forced, covered, actual,
-                    rescoreMargin, rescoreHeard, rulesHere))
+                    rescoreMargin, rescoreHeard, rulesHere,
+                    lastFrame = wordLastFrame[wi]))
                 lastUsedFrame = maxOf(lastUsedFrame, wordLastFrame[wi])
             }
-            return Result(anchor + frontierWordRel, results, deferredIndex) to lastUsedFrame
+            return Result(anchor + frontierWordRel, results, deferredIndex,
+                          lastUsedFrame) to lastUsedFrame
         }
 
         val (natural, naturalLastFrame) = buildFrom(bestEnd)
@@ -618,12 +663,15 @@ class ForcedAligner(
             if (spans != null) {
                 val corrected = natural.words.map { r ->
                     val wi = r.index - anchor
-                    if (wi in spans.indices) r.copy(actual = decodeFreeSpan(free, spans[wi])) else r
+                    if (wi in spans.indices)
+                        r.copy(actual = decodeFreeSpan(free, spans[wi]), actualFromFree = true)
+                    else r
                 }
                 DiagnosticLog.log(TAG,
                     "validation globale : texte 'actual' recalcule via decodage libre " +
                             "(${natural.words.size} mots confirmes, ancre=$anchor)")
-                return Result(natural.frontier, corrected, natural.deferredIndex)
+                return Result(natural.frontier, corrected, natural.deferredIndex,
+                              natural.lastFrame)
             }
 
             // Filet de secours pilote par le decodage LIBRE (cf. companion

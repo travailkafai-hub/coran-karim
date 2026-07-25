@@ -106,6 +106,50 @@ Tout entraînement/export/diagnostic de modèle : invoquer le skill
   → Corollaire de diagnostic : "le modèle est chargé" ne prouve RIEN sur son
   utilisabilité. Toujours vérifier une vraie transcription (log natif
   `DiagnosticLog`/logcat), pas seulement la ligne de chargement.
+- **PROPOSER ET FAIRE VALIDER AVANT DE DÉVELOPPER** (consigne utilisateur
+  2026-07-25, après deux correctifs implémentés sans accord qui ont dégradé
+  l'app). Sur toute modification de la chaîne de récitation (ASR, buffer,
+  segmentation, jugement) : **exposer d'abord** la cause identifiée, le
+  correctif envisagé, et **les effets de bord attendus** — puis ATTENDRE la
+  validation. Ne pas coder, ne pas builder, ne pas installer avant.
+  → Ce qui a motivé la consigne : j'ai ajouté une borne de gel en temps réel
+  (5 s) pour réduire le retard de validation, **en ayant moi-même identifié
+  et écrit** que cela ferait tomber les coupes en plein mot. Mesuré après
+  coup : retard 43 s → 8 s, mais segments coupés en plein mot 5/7 → 11/14, et
+  beaucoup de rouge à l'écran. J'ai ensuite empilé un second correctif
+  (« armer le gel, attendre un silence bref ») toujours sans validation.
+  ⇒ Règle absolue : **si un effet de bord est identifié pendant l'analyse, il
+  interdit l'implémentation directe** — il doit être présenté et arbitré par
+  l'utilisateur, pas « assumé » unilatéralement puis mesuré après coup sur
+  son temps.
+  ⇒ Ne jamais enchaîner un correctif sur un correctif non validé.
+- **PAS DE CORRECTIF PALLIATIF — chercher et traiter la cause d'origine**
+  (consigne utilisateur 2026-07-25, après un correctif proposé puis refusé).
+  Un correctif qui neutralise un **symptôme** dans une couche AVAL alors que
+  le défaut NAÎT dans une couche AMONT est à rejeter, même s'il "règle" le cas
+  observé dans le log.
+  → Cas concret qui a motivé la consigne : les troncatures de capture du
+  buffer (mot coupé en plein milieu) produisaient de faux rouges (9 contre 4
+  vraies fautes sur une session). Correctif tenté : requalifier `correct` tout
+  mot dont le texte entendu est un fragment cohérent de l'attendu, dans la
+  couche de JUGEMENT (`_onAligned`). Effet de bord inacceptable relevé par
+  l'utilisateur : **un récitateur qui ne dit que la moitié d'un mot était
+  alors validé** — précisément ce que l'app existe pour détecter. La cause
+  réelle est la coupe en plein mot dans `BufferedTranscriber` ; c'est là qu'il
+  faut travailler (recouvrement d'audio au gel, coupe qui évite le milieu d'un
+  mot), pas ajouter de la tolérance en aval.
+  ⇒ Méthode imposée avant tout correctif :
+  1. **Identifier la couche où le défaut naît**, pas celle où il se voit
+     (remonter : jugement → alignement → buffer/segmentation → capture/micro).
+  2. Si la cause est en amont, **le dire** et proposer le travail de fond avec
+     la mesure requise — quitte à ne rien livrer immédiatement. Ne pas
+     "dépanner" en attendant.
+  3. **Ne jamais compenser une perte d'information d'une couche basse par une
+     tolérance ajoutée dans une couche haute** : ça dégrade la fonction
+     première (vérifier la récitation) et masque le vrai défaut, qui devient
+     ensuite invisible dans les logs.
+  4. Un palliatif n'est acceptable QUE s'il est explicitement demandé, borné
+     dans le temps, et documenté comme tel (avec la cause d'origine nommée).
 - **Ne JAMAIS supprimer un commentaire existant qui documente une tentative
   passée, un piège ou un "pourquoi"** (décision 2026-07-19, suite à un doute
   légitime de l'utilisateur sur le rescoring NLL : sans cette règle, un futur
