@@ -1610,6 +1610,20 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   final Map<int, WordStatus> _previewNegative = {};
   final Map<int, int> _previewNegativeStreak = {};
 
+  /// Numéro de séquence d'alignement (`AlignPayload.seq`) de la DERNIÈRE passe
+  /// comptée pour ce mot.
+  ///
+  /// Indispensable, sinon le compteur est faux (bug mesuré 2026-07-25) : le
+  /// même résultat d'alignement peut être traité DEUX fois côté Dart, et les
+  /// deux verdicts arrivent à **2 ms d'écart avec des valeurs rigoureusement
+  /// identiques** (`mot=41 "ٱلَّذِينَ" gop=-0.25 forced=-4.10 free=-3.85`, deux
+  /// fois à 17:35:29.165 et .167). Mon compteur croyait voir une confirmation
+  /// sur deux passes ; il ne voyait qu'un doublon. La correction a été
+  /// déclenchée, puis 253 ms plus tard la VRAIE passe suivante jugeait le mot
+  /// `correct` -- l'utilisateur voyait donc du vert à l'écran et entendait
+  /// quand même la correction. Deux verdicts du même `seq` comptent pour un.
+  final Map<int, int> _previewNegativeSeq = {};
+
   /// Mots pour lesquels la correction a déjà été signalée SANS verrouillage
   /// (cf. _previewNegative) -- évite de refirer à chaque aperçu suivant.
   final Set<int> _failureSignalled = {};
@@ -1623,6 +1637,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _lastTextDiffLine.clear();
     _previewNegative.clear();
     _previewNegativeStreak.clear();
+    _previewNegativeSeq.clear();
     _failureSignalled.clear();
     state = RecitationSessionState(words: words);
   }
@@ -1705,6 +1720,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _lastTextDiffLine.clear();
     _previewNegative.clear();
     _previewNegativeStreak.clear();
+    _previewNegativeSeq.clear();
     _failureSignalled.clear();
     state = RecitationSessionState(words: _wordsFromSegments(segments));
   }
@@ -2040,7 +2056,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
 
   void _judge(List<RecitedWord> words, int i, WordStatus judged,
       {required bool lock, List<int>? newErrors, String? heard,
-      Set<TajwidRule>? detectedRules}) {
+      Set<TajwidRule>? detectedRules, int? alignSeq}) {
     if (words[i].locked) return;
     // `heard` : ce qui a été réellement entendu, conservé sur le mot pour
     // pouvoir CLASSER l'erreur ensuite (lettre / harakat / tajwid) --
@@ -2060,14 +2076,21 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       return;
     }
     if (!isNegative) {
-      // Le mot est redevenu bon : la série d'aperçus négatifs est cassée.
+      // Le mot est redevenu bon : la série d'aperçus négatifs est cassée, et on
+      // oublie AUSSI qu'un échec a été signalé -- sinon une vraie erreur
+      // ultérieure sur ce même mot ne serait plus jamais signalée.
       _previewNegative.remove(i);
       _previewNegativeStreak.remove(i);
+      _previewNegativeSeq.remove(i);
+      _failureSignalled.remove(i);
       return;
     }
-    // Négatif mais PAS verrouillé (aperçu) : on compte les aperçus consécutifs
-    // au verdict identique et on déclenche la correction dès le 2e, sans
-    // attendre le gel (cf. _previewNegative).
+    // Négatif mais PAS verrouillé (aperçu). Sans numéro de passe on ne compte
+    // rien : mieux vaut attendre le gel que compter un doublon (cf.
+    // _previewNegativeSeq).
+    if (alignSeq == null) return;
+    if (_previewNegativeSeq[i] == alignSeq) return; // même passe, déjà comptée
+    _previewNegativeSeq[i] = alignSeq;
     if (_previewNegative[i] == judged) {
       _previewNegativeStreak[i] = (_previewNegativeStreak[i] ?? 1) + 1;
     } else {
@@ -2641,6 +2664,93 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       for (final r in p.words) r.index: _rulesOf(r),
     };
 
+    // ── VALIDATION GROUPÉE PAR GOP (idée utilisateur, 2026-07-25) ──────────
+    // Avant de carver mot par mot, on prend la plus longue suite EN TÊTE dont
+    // le GOP est franchement bon, et on la valide d'un bloc — sans passer par
+    // les contrôles textuels.
+    //
+    // POURQUOI (mesuré sur la session du 17:42, 42 segments figés) : le texte
+    // `entendu` de chaque mot est découpé dans les frames que la DP lui a
+    // attribuées, et ce découpage produit des artefacts — `الذينلذين`,
+    // `عليلهم`, `ءاممننا`, `أُو۟لَأُو۟لَـٰٓئِكَ` (syllabes doublées),
+    // `لَ` pour `ٱلَّذِينَ` (tronqué). Ces artefacts déclenchent
+    // `spellsDifferentWord` et dégradent le verdict alors que **le GOP dit que
+    // la prononciation est bonne**. Cas relevés, tous avec un normGop AU-DESSUS
+    // du seuil du vert :
+    //     mot 12 `ٱلَّذِينَ`      orange  normGop=+0,77
+    //     mot 17 `وَمِمَّا`        orange  normGop=+0,83  (deux fois)
+    //     mot 37 `وَأُو۟لَـٰٓئِكَ` orange  normGop=+0,06  (deux fois)
+    // 15 segments sur 42 (35 %) ont TOUS leurs mots au-dessus du seuil : la
+    // voie rapide y valide 5 ou 6 mots d'un coup, ce qui est aussi tout
+    // l'intérêt côté fluidité. Les 27 autres ont un GOP réellement faible
+    // (−2,46, −3,39, −19,93) et basculent en mot-par-mot à juste titre.
+    //
+    // TROIS CONDITIONS, aucune négociable :
+    //  1. `covered` — jamais le mot en cours de prononciation à la frontière
+    //     d'un aperçu (bug historique 2026-07-05).
+    //  2. `actual` NON VIDE — un mot sans aucune frame a un `forced ≈ free ≈ 0`
+    //     sur du blank pur, donc un gop trompeusement bon. Le mot 65 `مَن`
+    //     (`entendu=""`, normGop=−0,00) serait passé vert par cette
+    //     coïncidence : ce serait valider un mot sans AUCUNE preuve
+    //     acoustique, exactement ce que l'utilisateur refuse. Il reste donc
+    //     rouge, via la voie mot-par-mot.
+    //  3. suite CONTIGUË depuis le début de la passe — on s'arrête au premier
+    //     mot qui échoue, on ne saute personne.
+    //
+    // RENONCEMENT ASSUMÉ (arbitré avec l'utilisateur) : le contrôle textuel
+    // court-circuité est aussi celui qui attrape le piège س/ص (bon gop, mais le
+    // modèle a écrit une autre lettre). Les 5 mots ci-dessus portent tous
+    // `autreMot=OUI`, donc on ne peut pas conserver ce contrôle en n'excluant
+    // que les fragments (`لَ` est un préfixe de `ٱلَّذِينَ` mais trop court
+    // pour être reconnu comme tel). Le garde-fou propre pour س/ص est le
+    // rescoring NLL déjà calculé et journalisé (`rescore=`), pas encore branché
+    // au verdict faute de seuil calibré sur device. C'est le chantier suivant.
+    var fastRun = 0;
+    for (final r in p.words) {
+      if (r.index < 0 || r.index >= words.length) break;
+      if (words[r.index].locked) { fastRun++; continue; }
+      if (!r.covered) break;
+      if (r.actual.isEmpty) break;
+      final w = words[r.index];
+      if (_normalizedGop(w.training, r.gop) < _gopCorrect) break;
+      // 4. AUCUNE règle tajwid attendue sur ce mot. La voie mot-par-mot
+      //    rétrograde `correct` en `unclear` quand une règle attendue n'a pas
+      //    été détectée (cf. `unrealized` plus bas) ; valider en bloc ici
+      //    court-circuiterait cette vérification en silence. Plutôt que de
+      //    dupliquer cette logique (jonctions, voisin couvert, report), on
+      //    exclut simplement ces mots : en mode tajwid la voie rapide ne tire
+      //    pas et le comportement d'avant est intégralement conservé. La
+      //    session mesurée était en `reglesActives=aucune`, donc cette
+      //    condition n'y coûte rien.
+      //
+      //    ⚠️ `_activeRules.isNotEmpty` EN PREMIER, et c'est essentiel :
+      //    `expectedRules` est rempli à l'annotation du texte QUEL QUE SOIT le
+      //    préréglage (cf. `RuleSymbols.rulesIn` dans _wordsFromSegments) — le
+      //    filtrage par préréglage n'intervient que dans `unrealizedRulesFor`
+      //    (`if (_activeRules.isEmpty) return const []`). Tester
+      //    `expectedRules` seul aurait donc bloqué la voie rapide sur presque
+      //    tous les mots, y compris en mode adulte sans tajwid : le correctif
+      //    n'aurait jamais tiré.
+      if (_activeRules.isNotEmpty && w.expectedRules.isNotEmpty) break;
+      fastRun++;
+    }
+    if (fastRun > 0) {
+      final judgedNow = <int>[];
+      for (final r in p.words.take(fastRun)) {
+        if (words[r.index].locked) continue;
+        _judge(words, r.index, WordStatus.correct,
+            lock: true, heard: r.actual, detectedRules: _rulesOf(r));
+        judgedNow.add(r.index);
+        if (r.index > maxJudgedIndex) maxJudgedIndex = r.index;
+      }
+      if (judgedNow.isNotEmpty) {
+        DiagnosticLog.log('GOP',
+            'validation groupee : ${judgedNow.length} mot(s) verts d\'un coup '
+            '(${judgedNow.first}..${judgedNow.last}) -- tous GOP >= '
+            '${_gopCorrect.toStringAsFixed(2)}, controle textuel non applique');
+      }
+    }
+
     for (final r in p.words) {
       if (r.index < 0 || r.index >= words.length) continue;
       if (words[r.index].locked) continue;
@@ -3021,7 +3131,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // Les normalisations sont réappliquées à la lecture (classifyError).
       _judge(words, r.index, judged,
           lock: lock, newErrors: newErrors, heard: r.actual,
-          detectedRules: detected);
+          detectedRules: detected, alignSeq: p.seq);
     }
 
     // ── SÉLECTION DE CLIPS SUPPRIMÉE (2026-07-25) ────────────────────────
@@ -3583,6 +3693,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // contraire empêcher un nouvel échec d'être signalé (`_failureSignalled`).
     _previewNegative.removeWhere((k, _) => k >= wordIndex);
     _previewNegativeStreak.removeWhere((k, _) => k >= wordIndex);
+    _previewNegativeSeq.removeWhere((k, _) => k >= wordIndex);
     _failureSignalled.removeWhere((k) => k >= wordIndex);
     final words = [...state.words];
     final end = _anchorExp.clamp(wordIndex + 1, words.length);

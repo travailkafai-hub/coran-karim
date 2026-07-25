@@ -72,6 +72,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   StreamSubscription<int>? _wordFailedSub;
   bool _autoCorrecting = false; // évite deux corrections en même temps
   DateTime? _correctionCooldownUntil; // anti-rafale, voir _onWordFailed
+
+  /// Nombre de mots joués AVANT le mot raté, pour donner l'élan (décision
+  /// utilisateur 2026-07-25 : « que le mot ou deux mots max »).
+  ///
+  /// La MÊME constante pilote le recul de l'ancre : l'ancre doit revenir
+  /// exactement là où on demande au réciteur de reprendre, sinon son audio et
+  /// l'alignement forcé sont décalés (cf. le bloc de mesure dans
+  /// _onWordFailed). Les deux ne doivent JAMAIS être réglés séparément.
+  static const int _kCorrectionWordsBefore = 1;
   bool _promptingWord = false; // souffleur en cours, voir _promptCurrentWord
   // "Un seul essai forcé" (demande utilisateur 2026-07-16 soir) : le mot pour
   // lequel on a DÉJÀ joué l'audio de correction + reculé l'ancre une fois.
@@ -594,9 +603,27 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           'wordIndex(global)=$wordIndex');
       return;
     }
+    // ── LE MOT EST-IL ENCORE FAUX ? (garde-fou 2026-07-25) ────────────────
+    // `wordFailed` porte un index, pas un verdict : entre son émission et cet
+    // instant, une passe d'alignement plus récente a pu rejuger le mot BON.
+    // Cas mesuré, log 17:35:29 -- correction déclenchée sur `mot=41
+    // "ٱلَّذِينَ"` (`entendu=""` -> error), puis **253 ms plus tard** la passe
+    // suivante rendait `entendu="ٱلَّذِينَ" -> correct (lock=true)`.
+    // L'utilisateur voyait donc le mot VERT à l'écran et entendait quand même
+    // la correction : « il me corrige inna alladhina alors qu'il est vert ».
+    // On relit donc l'état courant, et on abandonne s'il n'est plus négatif.
+    final current =
+        wordIndex < words.length ? words[wordIndex].status : WordStatus.pending;
+    if (current != WordStatus.error &&
+        current != WordStatus.unclear &&
+        current != WordStatus.skipped) {
+      DiagnosticLog.log('Correction',
+          'ABANDON : le mot $wordIndex est repasse a $current avant la correction');
+      return;
+    }
     DiagnosticLog.log('Correction', 'wordFailed déclenché : wordIndex(global)=$wordIndex '
         'mot="${wordIndex < words.length ? words[wordIndex].display : "?"}" '
-        'status=${wordIndex < words.length ? words[wordIndex].status : "?"} '
+        'status=$current '
         'verset=${verse.key} local(dans verset)=$local');
     _lastAutoCorrectedWordIndex = wordIndex;
     _autoCorrecting = true;
@@ -645,9 +672,28 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // pause materielle protege l'integrite de l'enregistrement ; elle est
       // donc conservee, mais lancee en tache de fond pour ne rien retarder.
       verifier.pauseCaptureForPlayback();
-      // Recul + deverrouillage IMMEDIATS (etaient apres l'audio).
-      notifier.rewindAndUnlock(wordIndex);
-      if (mounted) setState(() => _resumeHintIndex = wordIndex);
+      // ── L'ANCRE DOIT REVENIR OU ON DEMANDE AU RECITEUR DE REPRENDRE ──────
+      // On lui fait entendre `_kCorrectionWordsBefore` mot(s) AVANT le mot
+      // rate (pour l'elan), il reprend donc naturellement a ce mot-la. Si
+      // l'ancre ne recule que jusqu'au mot rate, son audio commence un mot
+      // trop tot et l'aligneur force ce mot-la sur le suivant.
+      //
+      // MESURE QUI L'IMPOSE (log 17:43:20 -> 17:43:50) :
+      //   recul 40 -> 33 (sur "عَلَىٰ")   puis segment "أُو۟لَـٰٓئِكَ عَلَى ٱ…"  (debute au mot 32)
+      //   recul 40 -> 34 (sur "هُدًى")    puis segment "عَلَىٰ هُدًى مِّن رَّ…"   (debute au mot 33)
+      //   recul 40 -> 36 (sur "رَّبِّهِمْ") puis segment "هُدًى مِّن رَّبِّهِۦ…"    (debute au mot 34)
+      // Systematiquement un mot d'ecart. Consequences observees :
+      //  - syllabes doublees dans `entendu` (`رَّبِّيْبِّهِمْ`, `بِمُؤْمِنؤْمِنِينَ`,
+      //    `ءَامَمَنَّنَّا`) -- pas un audio duplique, un alignement DECALE ;
+      //  - des mots DEJA valides repassent negatifs (4 regressions mesurees :
+      //    mots 34, 36, 73, 77 ; le mot 36 a recu SEPT jugements) ;
+      //  - une seule progression d'un mot par correction (33, 34, 36), d'ou
+      //    « je suis oblige de reciter ».
+      // Le decalage etait de NOTRE fait : c'est nous qui faisons entendre le
+      // mot precedent.
+      final rewindTo = (wordIndex - _kCorrectionWordsBefore).clamp(0, wordIndex);
+      notifier.rewindAndUnlock(rewindTo);
+      if (mounted) setState(() => _resumeHintIndex = rewindTo);
       final reciter = ref.read(playerProvider).reciter;
       // Ne rejoue QUE le mot précédent + la plage fautive (demande
       // utilisateur 2026-07-05/06), pas tout le verset — c'est au réciteur de
@@ -670,7 +716,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // (cf. rewindAndUnlock ci-dessus, `remis en attente: N mot(s)`), donc
         // il sait ou reprendre et redit la suite de memoire.
         await WordCorrectionAudio.playWordRange(verse, reciter,
-            errorWordIndex: local, wordsBefore: 1, wordsAfter: 0);
+            errorWordIndex: local,
+            wordsBefore: _kCorrectionWordsBefore, wordsAfter: 0);
       } catch (e) {
         // Ne bloque pas la correction si l'audio (URL/segments de timing)
         // est indisponible pour ce récitateur/verset — constat réel
