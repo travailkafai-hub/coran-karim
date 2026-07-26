@@ -35,10 +35,10 @@ Fichiers : session et plugin Kotlin, 2 à 4 fichiers.
 
 ## Tâche 4 — Brancher le mode continu
 
-- [ ] Charger le modèle stateful pour `continuous=true`.
-- [ ] Fermer la session stateless avant le causal.
-- [ ] Préserver le fallback bufferisé.
-- [ ] Réinitialiser sur arrêt, correction et nouvelle session.
+- [x] Charger le modèle stateful pour `continuous=true`.
+- [x] Fermer la session stateless avant le causal.
+- [x] Préserver le fallback bufferisé.
+- [x] Réinitialiser sur arrêt, correction et nouvelle session.
 
 Vérification : tests Flutter ciblés, analyse et build.
 
@@ -49,5 +49,5 @@ Fichiers : deux services Dart, éventuellement l'interface de vérification.
 - [ ] Déployer le modèle stateful et l'APK sur le téléphone.
 - [ ] Vérifier chargement, caches, transcript et absence de tajweed.
 - [ ] Tester le rollback bufferisé.
-- [ ] Effectuer la revue à cinq axes.
-- [ ] Committer chaque incrément avec un périmètre explicite.
+- [x] Effectuer la revue à cinq axes.
+- [x] Committer chaque incrément avec un périmètre explicite.
