@@ -106,6 +106,14 @@ def main():
     # l'etat Adam/scheduler d'ORIGINE et annule tout changement de --lr.
     p.add_argument("--init_weights_from", default=None)
     p.add_argument("--save_top_k", type=int, default=5)
+    p.add_argument("--augment_silence", action="store_true",
+                   help="insere des pauses internes dans le train (cf. "
+                        "causal_silence_augment.py) -- vise l'ecart mesure sur "
+                        "la recitation hesitante")
+    p.add_argument("--silence_prob", type=float, default=0.5,
+                   help="fraction des clips augmentes. <1 volontairement : le "
+                        "regime fluide est deja a parite, on l'AJOUTE a "
+                        "l'hesitant au lieu de l'echanger contre lui")
     # Contexte(s) d'attention. Par defaut : le SEUL [70,13] (1,04s, defaut
     # NVIDIA), pas le multi-lookahead -- corrige le 2026-07-25 apres un
     # plateau observe (val_wer_ctc bloque a ~0,50 sur ~1,5 epoch, `0,502 ->
@@ -193,14 +201,54 @@ def main():
     if hasattr(model, "wer"):
         model.wer.log_prediction = False
 
+    # ── Augmentation par pauses INTERNES (2026-07-26) ────────────────────
+    # Cible l'ecart MESURE sur le regime hesitant : +13 pt de WER contre
+    # l'offline (79,4 % vs 66,2 %, `simulate_sliding_window.py --n 30`), alors
+    # que le regime fluide est deja a parite. Cf. causal_silence_augment.py
+    # pour le POURQUOI complet et les deux choix de conception.
+    #
+    # ⚠️ NE JAMAIS porter cette augmentation dans `finetune_dual_head.py` :
+    # ce script-la utilise des cibles tajwid au niveau FRAME
+    # (`--train_frame_spans`), calculees sur les timings de l'audio D'ORIGINE.
+    # Inserer du silence decale toutes les frames suivantes -> les etiquettes
+    # tajwid deviennent fausses SILENCIEUSEMENT (aucune erreur, le modele
+    # apprend juste une mauvaise association). Ici c'est sur : le CTC est sans
+    # alignement, le silence est absorbe en blank et la transcription de
+    # reference est inchangee.
+    augmentor = None
+    if args.augment_silence:
+        import causal_silence_augment
+        causal_silence_augment.register()
+        augmentor = {
+            "internal_silence": {
+                "prob": args.silence_prob,
+                "min_pause_secs": 0.5, "max_pause_secs": 2.5,
+                "min_pauses": 1, "max_pauses": 3,
+            }
+        }
+        print(f"augmentation pauses internes ACTIVE (prob={args.silence_prob}) "
+              f"-- uniquement sur le train, jamais sur la validation")
+
     def data_cfg(path, is_train):
-        return {
+        cfg = {
             "manifest_filepath": path, "sample_rate": 16000,
             "batch_size": args.batch_size, "shuffle": is_train,
             "num_workers": 6, "pin_memory": True,
             "max_duration": 20.0, "min_duration": 0.5,
             "is_tarred": False, "use_start_end_token": False,
         }
+        # Validation JAMAIS augmentee : sa comparabilite avec les runs
+        # precedents est ce qui rend `val_wer_ctc` lisible d'un run a l'autre.
+        # L'effet sur l'hesitant se mesure separement au banc segmente.
+        if is_train and augmentor is not None:
+            cfg["augmentor"] = augmentor
+        # max_duration s'applique APRES l'augmentation : jusqu'a 3 pauses de
+        # 2,5 s peuvent ajouter 7,5 s. Sans marge, les clips longs augmentes
+        # seraient filtres et l'augmentation ne porterait plus que sur les
+        # clips courts -- biais invisible.
+        if is_train and augmentor is not None:
+            cfg["max_duration"] = 20.0 + 3 * 2.5
+        return cfg
 
     with open_dict(model.cfg):
         model.cfg.train_ds = OmegaConf.create(data_cfg(args.train_manifest, True))

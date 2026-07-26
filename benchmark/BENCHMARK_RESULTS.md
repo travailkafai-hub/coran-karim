@@ -304,3 +304,64 @@ Au-delà de cette bascule, l'état de l'art CTC actuel pertinent pour ce projet 
 3. **FastConformer CTC** : plafond historique (43-46 % WER) attribué à un choix de modèle de base sans tokens diacritiques (`pc`) — bascule vers `pcd` (137 tokens harakat), nouveau training en cours sur données propres. L'idée CTC reste valable pour un futur aligneur karaoké et pour la vérification mot-à-mot en direct.
 4. **Nemotron-3.5** écarté (perd au benchmark + non fine-tunable ici).
 5. **Alignement karaoké** : 2 candidats validés en test isolé (MMS-300M, wav2vec2-arabe natif), intégration app pas encore faite.
+
+## 2026-07-26 — Modèle causal : ce que mesurent (et ne mesurent pas) les bancs
+
+### WER sur clips propres (`eval_quran_vs_tts.py`, val 1988 clips Coran)
+| modèle | WER Coran | WER TTS/ASC |
+|---|---|---|
+| offline non-causal `mixed-e14` (référence) | **0,116** | 0,454 |
+| causal cycle 1 (encodeur seul) | 0,195 | 0,493 |
+| causal + Stage B (encodeur + tête tajwid) | 0,189 | 0,495 |
+
+Stage B : `val_tajwid` 0,248 → 0,180 tout en gagnant 0,006 de WER.
+
+### WER dans le RÉGIME SEGMENTÉ de l'app (`simulate_sliding_window.py --n 30`)
+Politique `ACTUELLE` = celle qui tourne réellement dans `BufferedTranscriber`.
+
+| régime | offline `mixed-e14` | causal Stage B |
+|---|---|---|
+| récitation fluide | 30,1 % | **30,9 %** |
+| récitation hésitante (pauses de 2 s) | 66,2 % | **79,4 %** |
+
+**Conclusion qui renverse la lecture « clips propres »** : l'écart 0,116 → 0,189
+ne se transpose PAS au régime réel. Sur fluide, les deux modèles sont à parité
+(0,8 pt, dans le bruit sur 30 clips) — la segmentation domine tellement
+l'erreur qu'elle absorbe l'avantage du non-causal. L'écart réel est ailleurs :
+**+13 pt sur l'hésitant**, précisément le cas d'usage prioritaire
+(débutant/enfant qui s'arrête).
+
+Cause : le corpus est fait de clips studio d'UN VERSET, donc continus, sans
+aucune pause interne — le causal n'a jamais vu ça, et son contexte gauche borné
+(70 frames ≈ 5,6 s) se remplit de silence. D'où `causal_silence_augment.py`
+(insertion de pauses sur de vrais creux d'énergie ; `SilencePerturbation` de
+NeMo n'ajoute qu'aux extrémités, inutilisable ici). Non encore entraîné.
+
+⚠️ Toutes les politiques glissantes restent bien pires (jusqu'à 92 %) sur les
+DEUX modèles — reconfirme §4 de FONCTIONNALITES_FUTURES.md, ne pas réintroduire
+de fenêtre glissante naïve.
+
+### Sur audio device réel (`compare_onnx_on_device_wavs.py`, 2 clips)
+| clip | causal Stage B | offline `mixed-e14` |
+|---|---|---|
+| `rec_biggest.wav` (18,2 s) | `ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَـٰلَمِينَ` | **(vide)** |
+| `rec_last.wav` (5,6 s) | **(vide)** | `بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ` |
+
+Domaines de défaillance DISJOINTS. Sur 18 s l'offline s'effondre (dérive de
+normalisation documentée depuis le 05/07, jamais mesurée aussi nettement) ; le
+causal rend du vide sur la Bismillah (récitée ~44 % plus vite dans le corpus).
+2 clips ≠ une mesure — indicatif seulement.
+
+### NOUVEAU : détection de fautes de bout en bout (`score_error_detection.py`)
+Le trou de REFONTE_IHM.md §12 est comblé côté outillage. Les bancs ci-dessus
+mesurent le TEXTE ; celui-ci mesure ce que l'app existe pour faire — voir une
+faute, et laisser passer une récitation correcte. Lit le PREMIER verdict de
+chaque mot (le verdict final arrive souvent après une correction réussie).
+
+Première mesure, session causale device du 12:20 (Al-Fatiha, 6 mots jugés,
+aucune faute volontaire) : **4 faux rouges sur 6 mots, soit 67 %** — les 4 mots
+de la Bismillah, tous `entendu=""` et pourtant `error (lock=true)`. Cause :
+absence de preuve acoustique traitée comme une faute. Corrigé dans
+`recitation_provider.dart` (Bismillah sans son = NON JUGÉE, ni verte ni rouge).
+Session trop courte pour conclure : le protocole complet est décrit en tête de
+`score_error_detection.py`.

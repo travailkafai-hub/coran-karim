@@ -55,13 +55,17 @@ OVERLAP = 2.0                # OVERLAP_SECONDS (politique actuelle)
 
 
 class Engine:
-    def __init__(self):
-        self.vocab = json.load(open(DEPLOY / "vocab.json", encoding="utf-8"))
+    # `deploy` parametrable (2026-07-26) : ce banc sert desormais a COMPARER
+    # deux modeles dans le regime segmente de l'app (causal vs offline), pas
+    # seulement a regler une politique sur un modele unique. Defaut inchange.
+    def __init__(self, deploy=DEPLOY):
+        self.deploy = deploy
+        self.vocab = json.load(open(deploy / "vocab.json", encoding="utf-8"))
         self.blank = len(self.vocab)
         so = ort.SessionOptions()
         so.log_severity_level = 3
         self.sess = ort.InferenceSession(
-            str(DEPLOY / "model.onnx"), so, providers=["CPUExecutionProvider"])
+            str(deploy / "model.onnx"), so, providers=["CPUExecutionProvider"])
         self.cache = {}
 
     def decode_words(self, audio):
@@ -213,9 +217,12 @@ def remap(p):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=12)
+    ap.add_argument("--deploy", default=str(DEPLOY),
+                    help="dossier contenant model.onnx + vocab.json")
     args = ap.parse_args()
 
-    eng = Engine()
+    eng = Engine(Path(args.deploy))
+    print(f"modele : {args.deploy}")
     val = [json.loads(l) for l in open(
         BASE / "nemo_manifests_mixed/val_canonical.jsonl", encoding="utf-8")]
     rng = np.random.default_rng(11)

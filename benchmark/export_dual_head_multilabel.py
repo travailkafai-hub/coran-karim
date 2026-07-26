@@ -59,6 +59,18 @@ OUT_ONNX = DEPLOY_DIR / "model.onnx"
 OUT_VOCAB = DEPLOY_DIR / "vocab.json"
 OUT_RULES = DEPLOY_DIR / "rules.json"
 
+# Surcharge par CLI (2026-07-26) : le meme wrapper sert desormais au modele
+# CAUSAL de stage B, dont l'encodeur porte deja sa config causale dans le
+# .nemo. Les defauts ci-dessus sont inchanges -> un appel sans argument
+# reproduit exactement l'export stage A d'origine.
+#
+# --causal_context : sur un encodeur causal, `att_context_size` doit etre fixe
+# AVANT la trace ONNX, sinon la valeur embarquee est celle du dernier tirage
+# multi-lookahead du training (le graphe exporte serait muet sur ce point et on
+# ne s'en apercevrait qu'au comportement). Export SANS etat (segment complet) :
+# c'est ce que la chaine Kotlin actuelle sait consommer, cf. la note
+# `_kModelSubdir` dans app/lib/services/fastconformer_verifier.dart.
+
 RULE_CLASSES = [
     "madda_necessary", "madda_obligatory", "madda_permissible", "madda_normal",
     "ghunnah", "ikhafa", "ikhafa_shafawi", "idgham_ghunnah", "idgham_shafawi",
@@ -113,11 +125,32 @@ def multilabel_rules(tajwid_logp, threshold=0.5):
 
 
 def main():
-    DEPLOY_DIR.mkdir(parents=True, exist_ok=True)
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--nemo", default=str(NEMO_PATH))
+    ap.add_argument("--head", default=str(HEAD_PATH))
+    ap.add_argument("--out_dir", default=str(DEPLOY_DIR))
+    ap.add_argument("--head_hidden", type=int, default=TAJWID_HEAD_HIDDEN)
+    ap.add_argument("--causal_context", default=None,
+                    help="ex. '70,13' -- fixe att_context_size avant la trace "
+                         "(modele causal uniquement, cf. en-tete)")
+    a = ap.parse_args()
+
+    deploy_dir = Path(a.out_dir)
+    out_onnx = deploy_dir / "model.onnx"
+    out_vocab = deploy_dir / "vocab.json"
+    out_rules = deploy_dir / "rules.json"
+    deploy_dir.mkdir(parents=True, exist_ok=True)
+
     model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.restore_from(
-        str(NEMO_PATH), map_location="cpu")
+        str(a.nemo), map_location="cpu")
     model.eval()
     model.preprocessor.featurizer.dither = 0.0
+    if a.causal_context:
+        ctx = [int(x) for x in a.causal_context.split(",")]
+        model.encoder.set_default_att_context_size(ctx)
+        print(f"contexte d'attention fixe a {ctx} avant la trace ONNX")
 
     vocab = [model.tokenizer.ids_to_tokens([i])[0]
              for i in range(model.tokenizer.vocab_size)]
@@ -125,14 +158,14 @@ def main():
     print(f"vocab tete 1 : {len(vocab)} tokens, {n_pua} avec symbole PUA "
           f"(doit etre 0)")
     assert n_pua == 0, "vocabulaire CONTAMINE par des symboles de regles"
-    with open(OUT_VOCAB, "w", encoding="utf-8") as f:
+    with open(out_vocab, "w", encoding="utf-8") as f:
         json.dump(vocab, f, ensure_ascii=False)
-    with open(OUT_RULES, "w", encoding="utf-8") as f:
+    with open(out_rules, "w", encoding="utf-8") as f:
         json.dump(RULE_CLASSES, f, ensure_ascii=False, indent=2)
     print(f"vocab.json + rules.json ecrits ({N_RULES} classes, PAS de blank -- multi-label)")
 
-    tajwid_head = ConvTajwidHead(model.encoder._feat_out, TAJWID_HEAD_HIDDEN, N_RULES)
-    tajwid_head.load_state_dict(torch.load(HEAD_PATH, map_location="cpu"))
+    tajwid_head = ConvTajwidHead(model.encoder._feat_out, a.head_hidden, N_RULES)
+    tajwid_head.load_state_dict(torch.load(a.head, map_location="cpu"))
     tajwid_head.eval()
 
     wrapper = DualHeadWrapper(model, tajwid_head)
@@ -148,7 +181,7 @@ def main():
     torch.onnx.export(
         wrapper,
         (dummy_mel, dummy_len),
-        str(OUT_ONNX),
+        str(out_onnx),
         input_names=["audio_signal", "length"],
         output_names=["logprobs", "tajwid_logprobs"],
         dynamic_axes={
@@ -161,7 +194,7 @@ def main():
         do_constant_folding=True,
         dynamo=False,
     )
-    print(f"Export : {OUT_ONNX} ({OUT_ONNX.stat().st_size/1e6:.1f} Mo)")
+    print(f"Export : {out_onnx} ({out_onnx.stat().st_size/1e6:.1f} Mo)")
 
     # ── Validation : le cas ٱلنَّاسِ (114:2) qui a motive ce chantier ──
     import onnxruntime as ort
@@ -188,7 +221,7 @@ def main():
         t_letters, t_tajwid = wrapper(feats, feats_len)
     t_letters, t_tajwid = t_letters.numpy(), t_tajwid.numpy()
 
-    sess = ort.InferenceSession(str(OUT_ONNX), providers=["CPUExecutionProvider"])
+    sess = ort.InferenceSession(str(out_onnx), providers=["CPUExecutionProvider"])
     entrees = [i.name for i in sess.get_inputs()]
     print("\nENTREES ONNX :", entrees)
     assert entrees[0] == "audio_signal", "ENTREE INCORRECTE"
@@ -220,7 +253,7 @@ def main():
     assert txt_torch.strip() == txt_onnx.strip(), "tete 1 divergente"
     assert rules_torch == rules_onnx, "tete 2 divergente"
     print("\nOK -- pret pour le deploiement.")
-    print(f"  dossier : {DEPLOY_DIR}")
+    print(f"  dossier : {deploy_dir}")
 
 
 if __name__ == "__main__":
