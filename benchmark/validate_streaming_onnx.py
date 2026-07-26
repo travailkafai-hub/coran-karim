@@ -4,8 +4,13 @@ la meme sortie que l'encodeur PyTorch natif, chunk par chunk, avec le cache qui
 persiste d'un appel au suivant -- c'est la vraie question de fidelite pour le
 streaming (pas juste "un appel isole marche", mais "la chaine de plusieurs
 appels avec cache transmis reste coherente").
+
+MISE A JOUR 2026-07-26 : la version d'origine validait la tentative PCD non
+causale en forcant [70,1]. Elle est conservee dans l'historique Git, mais ce
+validateur cible desormais le checkpoint causal entraine et son contexte
+[70,13], sans mutation de configuration.
 """
-import os, json, random
+import os, json
 os.environ["USE_TF"] = "0"; os.environ["USE_JAX"] = "0"
 try:
     import truststore; truststore.inject_into_ssl()
@@ -17,15 +22,17 @@ import nemo.collections.asr as nemo_asr
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
-NEMO_PATH = BASE_DIR / "models" / "fastconformer-quran-pcd" / "fastconformer-quran-pcd-snapshot.nemo"
-ONNX_PATH = BASE_DIR / "models" / "fastconformer-quran-pcd" / "onnx_streaming" / "fastconformer_ctc_streaming.onnx"
-ATT_CONTEXT_SIZE = [70, 1]
+NEMO_PATH = BASE_DIR / "models" / "fastconformer-streaming-causal-v1-lr3e4" / "causal-final.nemo"
+ONNX_PATH = NEMO_PATH.parent / "deploy" / "fastconformer-ctc-causal-v1" / "model_streaming.onnx"
+VAL_MANIFEST = BASE_DIR / "nemo_manifests_dual" / "val_manifest.jsonl"
 
 model = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.restore_from(str(NEMO_PATH), map_location="cpu")
 model.eval()
 enc = model.encoder
-enc.att_context_style = "chunked_limited"
-enc.set_default_att_context_size(ATT_CONTEXT_SIZE)
+if enc.att_context_style != "chunked_limited" or list(enc.att_context_size) != [70, 13]:
+    raise RuntimeError(
+        f"checkpoint inattendu : {enc.att_context_style=} {enc.att_context_size=}"
+    )
 enc.export_cache_support = True
 enc.setup_streaming_params()
 cfg = enc.streaming_cfg
@@ -37,9 +44,11 @@ window = chunk_size + pre_cache
 print(f"chunk_size={chunk_size} pre_cache={pre_cache} window={window}")
 
 # Vrai audio -> mel features (via le preprocesseur NeMo, deja valide ailleurs)
-rows = [json.loads(l) for l in open(BASE_DIR/"nemo_manifests"/"val_manifest.jsonl", encoding="utf-8")]
-random.seed(5)
-r = random.choice(rows)
+rows = [json.loads(l) for l in open(VAL_MANIFEST, encoding="utf-8")]
+r = next(
+    row for row in rows
+    if float(row.get("duration", 0)) >= 5.0 and Path(row["audio_filepath"]).exists()
+)
 import soundfile as sf
 audio_np, sr = sf.read(r["audio_filepath"], dtype="float32")
 audio_t = torch.tensor(audio_np).unsqueeze(0)
@@ -68,7 +77,8 @@ pos = 0
 # testant seulement quelques chunks consecutifs a partir du debut du signal, en
 # zero-paddant le debut pour avoir une fenetre complete des le 1er appel.
 padded = torch.nn.functional.pad(feats, (pre_cache, 0))
-padded_len = feats_len + pre_cache
+pt_chunks = []
+onnx_chunks = []
 
 while pos + window <= padded.shape[-1] and n_chunks < 5:
     chunk = padded[:, :, pos:pos+window]
@@ -92,6 +102,8 @@ while pos + window <= padded.shape[-1] and n_chunks < 5:
         "cache_last_channel_len": onnx_cache_len,
     })
     onnx_logprobs, onnx_cache_ch_next, onnx_cache_t_next, onnx_cache_len_next = onnx_out
+    pt_chunks.append(pt_logprobs)
+    onnx_chunks.append(onnx_logprobs)
 
     diff = np.abs(pt_logprobs - onnx_logprobs).max()
     max_diff_overall = max(max_diff_overall, diff)
@@ -105,4 +117,32 @@ while pos + window <= padded.shape[-1] and n_chunks < 5:
     n_chunks += 1
 
 print(f"\n=== Max diff sur {n_chunks} chunks consecutifs (cache transmis) : {max_diff_overall:.6f} ===")
-print("OK (fidele)" if max_diff_overall < 1e-3 else "ATTENTION : divergence significative")
+if n_chunks < 3:
+    raise RuntimeError(f"clip trop court pour valider la chaine : {n_chunks} chunks")
+if max_diff_overall >= 1e-3:
+    raise RuntimeError(f"divergence significative : {max_diff_overall}")
+
+
+def greedy_decode(chunks):
+    logprobs = np.concatenate(chunks, axis=1)
+    ids = logprobs[0].argmax(axis=-1)
+    collapsed = []
+    prev = -1
+    blank = logprobs.shape[-1] - 1
+    for token in ids:
+        token = int(token)
+        if token != prev and token != blank:
+            collapsed.append(token)
+        prev = token
+    return model.tokenizer.ids_to_text(collapsed)
+
+
+pt_text = greedy_decode(pt_chunks)
+onnx_text = greedy_decode(onnx_chunks)
+print("PyTorch :", pt_text)
+print("ONNX    :", onnx_text)
+if pt_text != onnx_text:
+    raise RuntimeError("le decodage PyTorch et ONNX diverge")
+if not onnx_text.strip():
+    raise RuntimeError("le modele causal stateful ne produit aucun texte sur le clip reel")
+print("OK : fidele sur audio reel et cache transmis")
