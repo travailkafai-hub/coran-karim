@@ -2687,7 +2687,32 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // supprime la correction parasite et le recul d'ancre 6 -> 0 sans rien
     // valider à tort. Cf. le `continue` dans la boucle de jugement.
 
-    // ── VALIDATION GROUPÉE PAR GOP (idée utilisateur, 2026-07-25) ──────────
+    // ── VALIDATION GROUPÉE PAR GOP — RETIRÉE le 2026-07-26 ─────────────────
+    // ⚠️ Tout le bloc ci-dessous documente une voie rapide qui N'EXISTE PLUS
+    // dans le code (décision utilisateur après mesure). Conservé parce qu'il
+    // porte le POURQUOI de sa création et les mesures qui l'ont motivée — sans
+    // ça, un futur agent ne pourrait plus distinguer « jamais essayé » de
+    // « essayé puis retiré ».
+    //
+    // CE QUI L'A FAIT RETIRER (mesure sur la session du 21:03-21:09, modèle
+    // causal) : les deux bénéfices annoncés plus bas ont disparu.
+    //   • « valide 5 ou 6 mots d'un coup » -> mesuré : 1 mot 34 fois, 2 mots
+    //     21 fois, 3 mots 6 fois, 4 mots 1 fois. Jamais 5 ni 6. Plus de la
+    //     moitié des déclenchements ne validaient qu'UN mot, ce que la voie
+    //     mot-par-mot fait de toute façon.
+    //   • « sauve les mots au texte artefacté » -> mesuré : sur 25 mots
+    //     `autreMot=OUI` de la session, **0 validé** par la voie rapide, 25
+    //     dégradés. Le bénéfice pour lequel elle existait ne s'est produit
+    //     aucune fois.
+    // Ne restait donc que son coût : valider sans contrôle textuel, ce qui
+    // laisse passer le piège س/ص (« RENONCEMENT ASSUMÉ » plus bas). Hypothèse
+    // pour l'écart avec la mesure du 25/07 : elle avait été calibrée sur le
+    // modèle dual-head, pas sur le causal déployé depuis.
+    // Si on la réintroduit un jour, la condition à vérifier D'ABORD est
+    // qu'elle sauve réellement des mots `autreMot=OUI` — c'est sa seule raison
+    // d'être, et c'est exactement ce qui a cessé d'être vrai.
+    //
+    // ── Documentation d'origine (2026-07-25) ──────────────────────────────
     // Avant de carver mot par mot, on prend la plus longue suite EN TÊTE dont
     // le GOP est franchement bon, et on la valide d'un bloc — sans passer par
     // les contrôles textuels.
@@ -2728,52 +2753,6 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // pour être reconnu comme tel). Le garde-fou propre pour س/ص est le
     // rescoring NLL déjà calculé et journalisé (`rescore=`), pas encore branché
     // au verdict faute de seuil calibré sur device. C'est le chantier suivant.
-    var fastRun = 0;
-    for (final r in p.words) {
-      if (r.index < 0 || r.index >= words.length) break;
-      if (words[r.index].locked) { fastRun++; continue; }
-      if (!r.covered) break;
-      if (r.actual.isEmpty) break;
-      final w = words[r.index];
-      if (_normalizedGop(w.training, r.gop) < _gopCorrect) break;
-      // 4. AUCUNE règle tajwid attendue sur ce mot. La voie mot-par-mot
-      //    rétrograde `correct` en `unclear` quand une règle attendue n'a pas
-      //    été détectée (cf. `unrealized` plus bas) ; valider en bloc ici
-      //    court-circuiterait cette vérification en silence. Plutôt que de
-      //    dupliquer cette logique (jonctions, voisin couvert, report), on
-      //    exclut simplement ces mots : en mode tajwid la voie rapide ne tire
-      //    pas et le comportement d'avant est intégralement conservé. La
-      //    session mesurée était en `reglesActives=aucune`, donc cette
-      //    condition n'y coûte rien.
-      //
-      //    ⚠️ `_activeRules.isNotEmpty` EN PREMIER, et c'est essentiel :
-      //    `expectedRules` est rempli à l'annotation du texte QUEL QUE SOIT le
-      //    préréglage (cf. `RuleSymbols.rulesIn` dans _wordsFromSegments) — le
-      //    filtrage par préréglage n'intervient que dans `unrealizedRulesFor`
-      //    (`if (_activeRules.isEmpty) return const []`). Tester
-      //    `expectedRules` seul aurait donc bloqué la voie rapide sur presque
-      //    tous les mots, y compris en mode adulte sans tajwid : le correctif
-      //    n'aurait jamais tiré.
-      if (_activeRules.isNotEmpty && w.expectedRules.isNotEmpty) break;
-      fastRun++;
-    }
-    if (fastRun > 0) {
-      final judgedNow = <int>[];
-      for (final r in p.words.take(fastRun)) {
-        if (words[r.index].locked) continue;
-        _judge(words, r.index, WordStatus.correct,
-            lock: true, heard: r.actual, detectedRules: _rulesOf(r));
-        judgedNow.add(r.index);
-        if (r.index > maxJudgedIndex) maxJudgedIndex = r.index;
-      }
-      if (judgedNow.isNotEmpty) {
-        DiagnosticLog.log('GOP',
-            'validation groupee : ${judgedNow.length} mot(s) verts d\'un coup '
-            '(${judgedNow.first}..${judgedNow.last}) -- tous GOP >= '
-            '${_gopCorrect.toStringAsFixed(2)}, controle textuel non applique');
-      }
-    }
-
     for (final r in p.words) {
       if (r.index < 0 || r.index >= words.length) continue;
       if (words[r.index].locked) continue;
