@@ -1202,14 +1202,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           final strict = ref.watch(strictCorrectionProvider);
           final followFree = ref.watch(followWithoutBlockingProvider);
           final useGop = ref.watch(judgementOptionsProvider).useGopScoring;
-          String label;
-          if (sensitivity < 0.35) {
-            label = t.prayerFollowSensitivityTolerant;
-          } else if (sensitivity > 0.65) {
-            label = t.prayerFollowSensitivityStrict;
-          } else {
-            label = t.prayerFollowSensitivityBalanced;
-          }
+          // DEUX positions, plus trois (demande utilisateur 2026-07-26) : le
+          // palier central « équilibré » n'apportait pas de choix lisible --
+          // on tranche entre tolérant et strict. Le seuil du garde-fou
+          // « trou d'alignement » suit le même réglage (cf. `_freeConfident`
+          // dans recitation_provider.dart), donc un seul curseur gouverne
+          // toute la sévérité du jugement.
+          final strictSensitivity = sensitivity >= 0.5;
+          final label = strictSensitivity
+              ? t.prayerFollowSensitivityStrict
+              : t.prayerFollowSensitivityTolerant;
           return SafeArea(
             child: ConstrainedBox(
               constraints: BoxConstraints(
@@ -1253,26 +1255,35 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                             color: AppColors.cream.withValues(alpha: 0.75),
                             fontSize: 12.5),
                       ),
-                      Row(
-                        children: [
-                          Text(t.prayerFollowSensitivityTolerant,
-                              style: const TextStyle(
-                                  color: Colors.white54, fontSize: 12)),
-                          Expanded(
-                            child: Slider(
-                              value: sensitivity,
-                              activeColor: AppColors.brassLight,
-                              inactiveColor: Colors.white24,
-                              onChanged: (v) => ref
-                                  .read(correctionSensitivityProvider.notifier)
-                                  .state = v,
-                            ),
-                          ),
-                          Text(t.prayerFollowSensitivityStrict,
-                              style: const TextStyle(
-                                  color: Colors.white54, fontSize: 12)),
+                      const SizedBox(height: 10),
+                      SegmentedButton<bool>(
+                        segments: [
+                          ButtonSegment(
+                              value: false,
+                              label: Text(t.prayerFollowSensitivityTolerant)),
+                          ButtonSegment(
+                              value: true,
+                              label: Text(t.prayerFollowSensitivityStrict)),
                         ],
+                        selected: {strictSensitivity},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (s) => ref
+                            .read(correctionSensitivityProvider.notifier)
+                            .state = s.first ? 1.0 : 0.0,
+                        style: ButtonStyle(
+                          foregroundColor: WidgetStateProperty.resolveWith(
+                              (st) => st.contains(WidgetState.selected)
+                                  ? AppColors.ink
+                                  : AppColors.cream),
+                          backgroundColor: WidgetStateProperty.resolveWith(
+                              (st) => st.contains(WidgetState.selected)
+                                  ? AppColors.brassLight
+                                  : Colors.transparent),
+                          side: WidgetStateProperty.all(
+                              const BorderSide(color: Colors.white24)),
+                        ),
                       ),
+                      const SizedBox(height: 6),
                       Center(
                         child: Text(label,
                             style: const TextStyle(

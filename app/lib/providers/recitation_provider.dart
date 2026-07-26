@@ -194,6 +194,24 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   double _gopCorrect = _kGopCorrectDefault;
   double _gopUnclear = _kGopUnclearDefault;
 
+  // Seuil du garde-fou "trou d'alignement" (cf. son bloc dans _onAligned),
+  // piloté par le MÊME curseur de sensibilité que les seuils GOP — demande
+  // utilisateur 2026-07-26 : un seul réglage doit gouverner toute la sévérité,
+  // pas une constante cachée à côté.
+  //
+  // Un mot sans frames attribuées dont le décodage libre est SÛR (`free`
+  // proche de 0) est un trou d'alignement, pas une faute. Le seuil décide de
+  // ce qu'on appelle "sûr" :
+  //   tolérant : -0,15  -> couvre aussi les cas limites (le mot 15 mesuré à
+  //                        free=-0,11 cesse d'être rouge) — moins de faux
+  //                        rouges, mais une vraie omission peut passer.
+  //   strict   : -0,02  -> ne blanchit que les trous incontestables
+  //                        (mesurés à free=0,00 / -0,00) — toute hésitation du
+  //                        modèle reste jugée.
+  static const double _kFreeConfidentTolerant = -0.15;
+  static const double _kFreeConfidentStrict = -0.02;
+  double _freeConfident = _kFreeConfidentStrict;
+
   // Options de jugement post-décodage (REFONTE_IHM.md §1, presets
   // tajwid/adulte/enfant). Poussées par le provider via [applyJudgementOptions]
   // (ref.listen sur judgementOptionsProvider). Défaut = adulte (strict) tant
@@ -1570,6 +1588,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       _gopCorrect = _lerp(_kGopCorrectDefault, _kGopCorrectStrict, t);
       _gopUnclear = _lerp(_kGopUnclearDefault, _kGopUnclearStrict, t);
     }
+    // Le garde-fou "trou d'alignement" suit le même curseur (cf. sa
+    // déclaration) : interpolé de bout en bout, il n'a pas de palier central
+    // à distinguer.
+    _freeConfident = _lerp(_kFreeConfidentTolerant, _kFreeConfidentStrict, s);
+    DiagnosticLog.log('MODE',
+        'seuils -> correct=${_gopCorrect.toStringAsFixed(2)} '
+        'unclear=${_gopUnclear.toStringAsFixed(2)} '
+        'trouAlignement(free)=${_freeConfident.toStringAsFixed(2)}');
   }
 
   /// Vrai pendant le stop() — empêche le double-stop et préserve le statut
@@ -2861,6 +2887,51 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
             'GOP',
             'mot=${r.index} "${expected.display}" Bismillah sans preuve '
                 'acoustique -> NON JUGEE (ni verte ni rouge)');
+        continue;
+      }
+
+      // ── TROU D'ALIGNEMENT : LE MODÈLE EST SÛR, L'ALIGNEUR A ÉCHOUÉ ───────
+      // (2026-07-26, demande utilisateur : « si modèle confiant, pas de
+      // jugement ».)
+      //
+      // `free` = score du décodage LIBRE sur ces frames (ce que le modèle
+      // entend sans contrainte) ; `forced` = score du chemin CONTRAINT sur le
+      // mot attendu. Quand `entendu` est vide, la DP n'a attribué AUCUNE frame
+      // au mot -- deux situations opposées se cachent derrière :
+      //
+      //   • le mot n'a pas été prononcé      -> vraie faute, doit rester rouge
+      //   • la DP a placé son audio ailleurs -> TROU, le mot est bien là
+      //
+      // Le discriminant mesuré (session 21:21-21:23, 5 mots signalés) :
+      //     mot 49 `لَا`          forced=-20,00  free= 0,00  <- présent dans le libre
+      //     mot 50 `يُؤْمِنُونَ`   forced=-16,93  free=-0,00  <- présent dans le libre
+      //     mot 14 `بِٱلْغَيْبِ`   forced=-13,09  free=-0,00  <- présent dans le libre
+      //     mot 15 `وَيُقِيمُونَ`  forced= -2,54  free=-0,11  <- ABSENT du libre
+      // Un `free` collé à zéro signifie que le modèle est PARFAITEMENT sûr de
+      // ce qu'il entend sur ces frames : elles portent donc du signal exploité,
+      // simplement attribué à un autre mot par la DP. Conclure « pas prononcé »
+      // dans ce cas est faux -- et c'est exactement ce qui produisait les faux
+      // rouges, les corrections injustifiées et les reculs d'ancre en cascade
+      // (3 faux rouges sur 5 mots signalés, 3 corrections déclenchées à tort).
+      //
+      // Le mot 15, lui, garde `free=-0,11` : le modèle hésite un peu, le mot
+      // est vraiment absent de sa transcription libre. En position STRICTE il
+      // reste donc jugé ; en position TOLÉRANTE le seuil descend à -0,15 et il
+      // cesse d'être rouge. C'est précisément le curseur que l'utilisateur
+      // règle (cf. `_freeConfident`), pas une constante figée.
+      //
+      // Ce n'est PAS de la tolérance ajoutée (cf. règle « pas de correctif
+      // palliatif ») : on ne valide rien, on refuse de CONDAMNER sans preuve.
+      // Même forme que le garde-fou Bismillah juste au-dessus, et symétrique
+      // du principe déjà en vigueur « aucune preuve -> aucun verdict positif ».
+      final free = r.forced - r.gop;
+      if (!hasSpeech && free >= _freeConfident) {
+        DiagnosticLog.log(
+            'GOP',
+            'mot=${r.index} "${expected.display}" trou d\'alignement '
+                '(free=${free.toStringAsFixed(2)} forced=${r.forced.toStringAsFixed(2)}) '
+                '-> NON JUGE : le modele est sur de ce qu\'il entend, '
+                'la DP n\'a pas su placer ce mot');
         continue;
       }
 
