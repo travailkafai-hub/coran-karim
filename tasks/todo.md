@@ -46,8 +46,8 @@ Fichiers : deux services Dart, éventuellement l'interface de vérification.
 
 ## Tâche 5 — Valider et livrer
 
-- [ ] Déployer le modèle stateful et l'APK sur le téléphone.
-- [ ] Vérifier chargement, caches, transcript et absence de tajweed.
-- [ ] Tester le rollback bufferisé.
+- [x] Déployer le modèle stateful et l'APK sur le téléphone.
+- [x] Vérifier chargement, caches, transcript et absence de tajweed.
+- [x] Tester le rollback bufferisé.
 - [x] Effectuer la revue à cinq axes.
 - [x] Committer chaque incrément avec un périmètre explicite.
