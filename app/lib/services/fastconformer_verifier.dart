@@ -355,7 +355,44 @@ class FastConformerVerifier {
   static const _kStreamingConfigFile = 'streaming_config.json';
   bool _streamingLoaded = false;
 
+  // ── CACHE-AWARE DESACTIVE (2026-07-26) — le MODELE n'est pas en cause ────
+  // Mesure decisive sur l'audio reel de l'utilisateur (82 s captees sur
+  // device, `stream_1785083047340.wav`), MEME modele causal, MEME decoupe de
+  // 12 s, la seule difference etant le chemin d'alimentation :
+  //     causal en SEGMENTS (sans cache) : 4 segments sur 4 transcrits juste
+  //     ancien modele offline, idem      : 3 sur 4
+  // Le causal est donc MEILLEUR que l'ancien modele sur cette voix et ce
+  // telephone -- il ne faut surtout pas revenir au modele precedent.
+  //
+  // En revanche le chemin cache-aware (`feedCausalAudio`) decroche en session
+  // reelle : le compteur de tokens se fige (`ids=9` pendant 140 s sur une
+  // session de 187 s, `ids=3` sur une autre), l'aligneur n'a plus rien a
+  // juger, aucun mot ne passe au vert et le curseur gele SANS afficher ni
+  // orange ni rouge. CINQ politiques de gestion du cache ont ete testees hors
+  // device sur cet audio et TOUTES rejetees par la mesure (fenetre glissante
+  // de normalisation, remise a zero sur silence / a intervalle fixe / a la
+  // frontiere de verset / combinee sur la politique BufferedTranscriber) --
+  // detail chiffre dans PROBLEMATIQUES_ASR.md §1.5.
+  //
+  // On bascule donc sur le repli bufferise, qui utilise le MEME checkpoint
+  // causal via son export sans etat (`_kModelSubdir` pointe deja dessus).
+  // Cout assume : on perd la latence du vrai streaming, on retrouve celle du
+  // buffer. Gain : une app qui fonctionne avec le meilleur modele disponible.
+  //
+  // TOUT le code cache-aware est CONSERVE (Kotlin, export, config) : remettre
+  // ce drapeau a `true` suffira a le reactiver une fois la cause traitee
+  // (entrainement sur sessions longues, cf. piste B du recul architectural --
+  // les clips d'entrainement plafonnent a 20 s alors que la session
+  // d'inference n'a aucune borne).
+  static const bool _kCausalStreamingEnabled = false;
+
   Future<bool> ensureStreamingLoaded() async {
+    if (!_kCausalStreamingEnabled) {
+      DiagnosticLog.log('FastConformer',
+          'streaming cache-aware DESACTIVE (_kCausalStreamingEnabled=false) '
+          '-- repli bufferise sur le meme modele causal, cf. commentaire');
+      return false;
+    }
     if (_streamingLoaded) return true;
     Directory appDir = await getApplicationSupportDirectory();
     final ext = await getExternalStorageDirectory();
