@@ -29,7 +29,7 @@ ce contexte pendant l'export. Les dimensions sont ecrites dans
 `streaming_config.json` pour que Kotlin ne reutilise plus les constantes de
 l'ancien prototype (25/16/cache-time=4 au lieu de 121/112/cache-time=8).
 """
-import os, json
+import os, json, shutil
 os.environ["USE_TF"] = "0"; os.environ["USE_JAX"] = "0"
 try:
     import truststore; truststore.inject_into_ssl()
@@ -56,6 +56,11 @@ OUT_DIR = (
 )
 ONNX_PATH = OUT_DIR / "model_streaming.onnx"
 CONFIG_PATH = OUT_DIR / "streaming_config.json"
+VOCAB_PATH = OUT_DIR / "vocab.json"
+WORD_TOKENS_PATH = OUT_DIR / "word_tokens.json"
+TOKENIZER_DEPLOY_DIR = (
+    BASE_DIR / "models" / "fastconformer-quran-tajweed-mixed" / "deploy"
+)
 EXPECTED_ATT_CONTEXT_SIZE = [70, 13]
 
 
@@ -140,6 +145,36 @@ def _write_config(enc, examples):
     )
     print(f"Metadonnees : {CONFIG_PATH}")
     print(json.dumps(metadata, ensure_ascii=False, indent=2))
+
+
+def _deploy_tokenizer_assets():
+    """Copie le lookup exact uniquement si le vocabulaire est identique."""
+    source_vocab = TOKENIZER_DEPLOY_DIR / "vocab.json"
+    source_word_tokens = TOKENIZER_DEPLOY_DIR / "word_tokens.json"
+    deployed_vocab = json.loads(VOCAB_PATH.read_text(encoding="utf-8"))
+    compatible_vocab = json.loads(source_vocab.read_text(encoding="utf-8"))
+    if deployed_vocab != compatible_vocab:
+        raise RuntimeError(
+            "word_tokens.json refuse : son vocabulaire source differe de "
+            "celui du checkpoint causal"
+        )
+    shutil.copy2(source_word_tokens, WORD_TOKENS_PATH)
+    print(
+        f"Lookup tokenizer : {WORD_TOKENS_PATH} "
+        f"({WORD_TOKENS_PATH.stat().st_size / 1024:.0f} Ko)"
+    )
+
+
+def _write_vocab(model):
+    vocab = [
+        model.tokenizer.ids_to_tokens([index])[0]
+        for index in range(model.tokenizer.vocab_size)
+    ]
+    VOCAB_PATH.write_text(
+        json.dumps(vocab, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    print(f"Vocabulaire : {VOCAB_PATH} ({len(vocab)} tokens)")
 
 
 def _validate_three_chunks(wrapper, examples):
@@ -271,7 +306,9 @@ def main():
         dynamo=False,
     )
     print(f"Export termine : {ONNX_PATH} ({ONNX_PATH.stat().st_size/1e6:.1f} Mo)")
+    _write_vocab(model)
     _write_config(enc, examples)
+    _deploy_tokenizer_assets()
     _validate_three_chunks(wrapper, examples)
 
 
