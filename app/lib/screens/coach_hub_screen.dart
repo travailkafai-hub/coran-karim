@@ -38,6 +38,35 @@ import 'memorization_game_screen.dart';
 import 'mind_map_screen.dart';
 import 'surah_picker_screen.dart';
 
+/// Borne le lot initial de récitation à la PAGE du premier verset, au lieu
+/// de charger toute la sourate (correctif 2026-07-25, constat utilisateur :
+/// « ne pas charger toute la sourate, ça doit être glissant page avant et
+/// page après, ça alourdit le traitement »).
+///
+/// Mesuré : depuis ce point d'entrée, Al-Baqara arrivait entière —
+/// `cible d'alignement : 6121 mots`. Coût réel côté Dart et UI, pas côté
+/// modèle (`maxAlignWords = 80` borne déjà la DP) : `_onAligned` recopie
+/// `state.words` à CHAQUE payload (~12 fois/s), soit 6121 éléments par
+/// copie, et la tokenisation initiale enregistrait 1990 replis gloutons
+/// (`hits=4113 misses=1987`).
+///
+/// La suite est chargée à la demande par `_maybeExtendNextPage` /
+/// `extendAlignmentTarget` (mécanisme déjà en place, `_kExtendLookaheadWords`),
+/// donc la récitation continue sans coupure au-delà de la page. Même borne
+/// que celle déjà appliquée depuis le Mushaf (`_fragmentFromActive`) — ce
+/// point d'entrée était le seul à ne pas la respecter.
+///
+/// `pageNumber` est nullable côté API : à défaut de pagination connue, on
+/// renvoie la liste inchangée (comportement d'avant, jamais de perte).
+List<Verse> _firstPageOf(List<Verse> verses) {
+  if (verses.isEmpty) return verses;
+  final page = verses.first.pageNumber;
+  if (page == null) return verses;
+  final samePage = verses.takeWhile((v) => v.pageNumber == page).toList();
+  return samePage.isEmpty ? verses : samePage;
+}
+
+
 class CoachHubScreen extends ConsumerWidget {
   const CoachHubScreen({super.key});
 
@@ -311,7 +340,7 @@ class _ReciteSection extends StatelessWidget {
             onPicked: (surah, verses) => Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                  builder: (_) => KaraokeRecitationScreen(verses: verses)),
+                  builder: (_) => KaraokeRecitationScreen(verses: _firstPageOf(verses))),
             ),
           ),
         ),
