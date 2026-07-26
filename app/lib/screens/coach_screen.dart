@@ -8,7 +8,6 @@ import '../l10n/app_localizations.dart';
 import '../models/coach_session.dart';
 import '../models/recitation_state.dart';
 import '../models/verse.dart';
-import '../providers/app_settings_provider.dart';
 import '../providers/coach_provider.dart';
 import '../providers/last_coach_verse_provider.dart';
 import '../providers/player_provider.dart';
@@ -16,6 +15,7 @@ import '../providers/recitation_provider.dart';
 import '../services/recitation_verifier.dart';
 import '../services/voice_fingerprint_service.dart';
 import '../theme/app_theme.dart';
+import 'coach_incremental_repeat.dart';
 import 'tajwid_rules_screen.dart';
 import '../widgets/tajwid_help_sheet.dart';
 import '../widgets/tajweed_text.dart';
@@ -61,44 +61,125 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(coachProvider);
-    final verse = widget.verses.first;
-    final title = widget.verses.length == 1
-        ? verse.key
-        : '${verse.key} – ${widget.verses.last.key}';
+    // Ayah par ayah même sur une sourate entière (demande utilisateur
+    // 2026-07-24) : les 3 modes ne travaillent QUE sur le verset courant
+    // (session.currentVerse), jamais sur widget.verses entier concaténé.
+    final currentVerse = session.verses.isEmpty ? widget.verses.first : session.currentVerse;
+    final multiVerse = widget.verses.length > 1;
 
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
         child: Column(
           children: [
-            _Header(title: title),
+            _Header(title: currentVerse.key),
+            if (multiVerse)
+              _VerseNavBar(
+                current: session.currentVerseIndex,
+                total: widget.verses.length,
+                onPrevious: session.hasPreviousVerse
+                    ? () => ref.read(coachProvider.notifier).previousVerse()
+                    : null,
+                onNext: session.hasNextVerse
+                    ? () => ref.read(coachProvider.notifier).nextVerse()
+                    : null,
+              ),
             _StepBar(
               session: session,
               onSelect: (m) => ref.read(coachProvider.notifier).setMode(m),
             ),
             Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 280),
-                transitionBuilder: (child, anim) =>
-                    FadeTransition(opacity: anim, child: child),
-                child: switch (session.mode) {
-                  CoachMode.lecture => _LectureMode(
-                      key: const ValueKey('lecture'),
-                      verses: widget.verses,
-                    ),
-                  CoachMode.apprentissage => _ApprentissageMode(
-                      key: const ValueKey('apprentissage'),
-                      verses: widget.verses,
-                    ),
-                  CoachMode.controle => _ControleMode(
-                      key: const ValueKey('controle'),
-                      verses: widget.verses,
-                    ),
-                },
+              child: GestureDetector(
+                // Glisser pour passer au verset suivant/précédent SANS
+                // quitter l'écran (demande utilisateur 2026-07-24, "un
+                // scrolling par exemple pour passer à l'ayah suivante") --
+                // seuil de vitesse pour ne pas confondre avec un simple
+                // scroll vertical du contenu (SingleChildScrollView à
+                // l'intérieur de chaque mode).
+                onHorizontalDragEnd: !multiVerse
+                    ? null
+                    : (details) {
+                        final v = details.primaryVelocity ?? 0;
+                        if (v < -250) {
+                          ref.read(coachProvider.notifier).nextVerse();
+                        } else if (v > 250) {
+                          ref.read(coachProvider.notifier).previousVerse();
+                        }
+                      },
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 280),
+                  transitionBuilder: (child, anim) =>
+                      FadeTransition(opacity: anim, child: child),
+                  // Clé incluant l'index du verset : sans ça, rester dans le
+                  // même mode (ex. Lecture) en glissant vers l'ayah suivante
+                  // réutiliserait le même State et n'appellerait jamais
+                  // initState -- l'écran resterait bloqué sur l'ancien
+                  // verset "terminé" au lieu de redémarrer proprement.
+                  child: switch (session.mode) {
+                    CoachMode.lecture => _LectureMode(
+                        key: ValueKey('lecture-${session.currentVerseIndex}'),
+                        verses: [currentVerse],
+                      ),
+                    CoachMode.apprentissage => _ApprentissageMode(
+                        key: ValueKey(
+                            'apprentissage-${session.currentVerseIndex}'),
+                        verses: [currentVerse],
+                      ),
+                    CoachMode.controle => _ControleMode(
+                        key:
+                            ValueKey('controle-${session.currentVerseIndex}'),
+                        verses: [currentVerse],
+                      ),
+                  },
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _VerseNavBar extends StatelessWidget {
+  final int current;
+  final int total;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+  const _VerseNavBar({
+    required this.current,
+    required this.total,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    return Container(
+      color: AppColors.green900,
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left_rounded),
+            color: onPrevious != null ? AppColors.brassLight : Colors.white24,
+            onPressed: onPrevious,
+            visualDensity: VisualDensity.compact,
+          ),
+          Text(
+            t.memorizationGameVerseProgress(current + 1, total),
+            style: GoogleFonts.manrope(
+                fontSize: 12, color: AppColors.brassLight, fontWeight: FontWeight.w600),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right_rounded),
+            color: onNext != null ? AppColors.brassLight : Colors.white24,
+            onPressed: onNext,
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
       ),
     );
   }
@@ -366,14 +447,14 @@ class _LectureModeState extends ConsumerState<_LectureMode>
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       child: Column(
         children: [
-          _InfoBanner(
+          InfoBanner(
             icon: Icons.auto_stories_outlined,
             text: t.coachReadAloudInstruction,
           ),
           const SizedBox(height: 20),
-          _VerseDisplay(words: rst.words, verses: widget.verses),
+          VerseDisplay(words: rst.words, verses: widget.verses),
           const SizedBox(height: 28),
-          _MicSection(
+          MicSection(
             listening: listening,
             processing: rst.status == RecitationStatus.processing,
             finished: finished,
@@ -397,7 +478,7 @@ class _LectureModeState extends ConsumerState<_LectureMode>
               ref.read(recitationProvider.notifier).reset();
             },
           ),
-          _RawTranscriptBox(text: rst.rawTranscript),
+          RawTranscriptBox(text: rst.rawTranscript),
           if (finished) ...[
             const SizedBox(height: 20),
             _ScoreRow(accuracy: rst.accuracy),
@@ -418,7 +499,7 @@ class _LectureModeState extends ConsumerState<_LectureMode>
             Row(
               children: [
                 Expanded(
-                  child: _ActionButton(
+                  child: ActionButton(
                     label: t.coachAlreadyKnow,
                     icon: Icons.fast_forward_rounded,
                     primary: false,
@@ -430,7 +511,7 @@ class _LectureModeState extends ConsumerState<_LectureMode>
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 2,
-                  child: _ActionButton(
+                  child: ActionButton(
                     label: t.coachTrainButton,
                     icon: Icons.arrow_forward_rounded,
                     primary: true,
@@ -467,9 +548,6 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulse;
   bool _audioStarted = false;
-  bool _step2Setup = false;
-
-  String get _text => widget.verses.map((v) => v.textUthmani).join(' ');
 
   @override
   void initState() {
@@ -486,41 +564,13 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
     super.dispose();
   }
 
-  void _setupRepete() {
-    _step2Setup = true;
-    ref.read(recitationProvider.notifier).setup(_text);
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final session = ref.watch(coachProvider);
     final step = session.appStep;
     final player = ref.watch(playerProvider);
-    final rst = ref.watch(recitationProvider);
     final coach = ref.read(coachProvider.notifier);
-    final repeatTarget = ref.watch(repeatDrillCountProvider);
-
-    // Auto-setup recitation when reaching step 2
-    if (step == 2 && !_step2Setup) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _setupRepete();
-      });
-    }
-    if (step != 2) _step2Setup = false;
-
-    // Chaque récitation menée à son terme à l'étape "Répète" compte comme une
-    // répétition (objectif : mémorisation par répétition, réglage 1-50).
-    ref.listen<RecitationSessionState>(recitationProvider, (prev, next) {
-      if (step == 2 &&
-          next.status == RecitationStatus.finished &&
-          prev?.status != RecitationStatus.finished) {
-        coach.incrementRepeatDone();
-      }
-    });
-
-    final repDone = rst.status == RecitationStatus.finished && rst.total > 0;
 
     return Column(
       children: [
@@ -534,12 +584,12 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
               children: [
                 // ── Étape 0 : Écoute ──────────────────────────────────────
                 if (step == 0) ...[
-                  _InfoBanner(
+                  InfoBanner(
                     icon: Icons.headphones_outlined,
                     text: t.coachListenInstruction,
                   ),
                   const SizedBox(height: 16),
-                  _VerseDisplay(words: const [], verses: widget.verses),
+                  VerseDisplay(words: const [], verses: widget.verses),
                   const SizedBox(height: 28),
                   _PlayButton(
                     isPlaying: player.isPlaying,
@@ -567,7 +617,7 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
                   ),
                   if (_audioStarted) ...[
                     const SizedBox(height: 28),
-                    _ActionButton(
+                    ActionButton(
                       label: t.coachMoveToImitation,
                       icon: Icons.arrow_forward_rounded,
                       primary: true,
@@ -581,12 +631,12 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
 
                 // ── Étape 1 : Imite ───────────────────────────────────────
                 if (step == 1) ...[
-                  _InfoBanner(
+                  InfoBanner(
                     icon: Icons.record_voice_over_outlined,
                     text: t.coachImitateInstruction,
                   ),
                   const SizedBox(height: 16),
-                  _VerseDisplay(words: const [], verses: widget.verses),
+                  VerseDisplay(words: const [], verses: widget.verses),
                   const SizedBox(height: 28),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -650,134 +700,28 @@ class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
                         fontSize: 12, color: AppColors.inkLight),
                   ),
                   const SizedBox(height: 28),
-                  _ActionButton(
+                  ActionButton(
                     label: t.coachImitatedNext,
                     icon: Icons.arrow_forward_rounded,
                     primary: true,
                     onTap: () {
                       ref.read(playerProvider.notifier).stop();
-                      _setupRepete();
                       coach.nextAppStep();
                     },
                   ),
                 ],
 
-                // ── Étape 2 : Répète ──────────────────────────────────────
-                if (step == 2) ...[
-                  _InfoBanner(
-                    icon: Icons.mic_outlined,
-                    text: t.coachRepeatAloneInstruction,
+                // ── Étape 2 : Répète (moteur incrémental) ──────────────────
+                if (step == 2)
+                  IncrementalRepeatStep(
+                    key: ValueKey('incremental-${widget.verses.first.key}'),
+                    verse: widget.verses.first,
+                    isLastVerse: session.isLastVerse,
+                    onAllVersesDone: () =>
+                        coach.setMode(CoachMode.controle),
                   ),
-                  const SizedBox(height: 14),
-                  _RepeatProgressBar(
-                      done: session.repeatDoneCount, target: repeatTarget),
-                  const SizedBox(height: 14),
-                  _VerseDisplay(words: rst.words, verses: widget.verses),
-                  const SizedBox(height: 28),
-                  _MicSection(
-                    listening: rst.status == RecitationStatus.listening,
-                    processing: rst.status == RecitationStatus.processing,
-                    finished: repDone,
-                    pulse: _pulse,
-                    statusText: rst.status == RecitationStatus.listening
-                        ? t.coachListeningRepeat
-                        : repDone
-                            ? t.coachRepeatAnalyzed
-                            : t.coachTapToRepeat,
-                    onTap: () {
-                      final n = ref.read(recitationProvider.notifier);
-                      if (rst.status == RecitationStatus.listening) {
-                        n.stop();
-                      } else {
-                        _setupRepete();
-                        n.start();
-                      }
-                    },
-                    onReset: () => _setupRepete(),
-                  ),
-                  _RawTranscriptBox(text: rst.rawTranscript),
-                  if (repDone) ...[
-                    const SizedBox(height: 20),
-                    _ScoreRow(accuracy: rst.accuracy),
-                    const SizedBox(height: 12),
-                    _CoachBubble(
-                      accuracy: rst.accuracy,
-                      difficultWords: rst.words
-                          .where((w) =>
-                              w.status == WordStatus.error ||
-                              w.status == WordStatus.unclear ||
-                              w.status == WordStatus.skipped)
-                          .map((w) => w.display)
-                          .toList(),
-                      mode: CoachMode.apprentissage,
-                      baseline: null,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ActionButton(
-                            label: t.coachRestart,
-                            icon: Icons.replay_rounded,
-                            primary: false,
-                            onTap: () => _setupRepete(),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 2,
-                          child: _ActionButton(
-                            label: t.coachTestMemory,
-                            icon: Icons.visibility_off_rounded,
-                            primary: true,
-                            onTap: () => ref
-                                .read(coachProvider.notifier)
-                                .setMode(CoachMode.controle),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
               ],
             ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RepeatProgressBar extends StatelessWidget {
-  final int done;
-  final int target;
-  const _RepeatProgressBar({required this.done, required this.target});
-
-  @override
-  Widget build(BuildContext context) {
-    final reached = done >= target;
-    final ratio = target == 0 ? 0.0 : (done / target).clamp(0.0, 1.0);
-    return Row(
-      children: [
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: ratio,
-              minHeight: 8,
-              backgroundColor: AppColors.green100,
-              valueColor: AlwaysStoppedAnimation(
-                  reached ? AppColors.brass : AppColors.green600),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          reached ? '$done/$target ✓' : '$done/$target',
-          style: GoogleFonts.manrope(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: reached ? AppColors.brass : AppColors.inkLight,
           ),
         ),
       ],
@@ -973,7 +917,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       child: Column(
         children: [
-          _InfoBanner(
+          InfoBanner(
             icon: Icons.visibility_off_outlined,
             text: t.coachRecallInstruction,
             dark: true,
@@ -981,14 +925,14 @@ class _ControleModeState extends ConsumerState<_ControleMode>
           const SizedBox(height: 20),
           // Before finish: blurred card. After: colored words revealed.
           finished
-              ? _VerseDisplay(
+              ? VerseDisplay(
                   words: rst.words,
                   verses: widget.verses,
                   onProblemWordTap: (i) => _openWordHelp(rst.words, i),
                 )
               : _BlurredVerse(verses: widget.verses),
           const SizedBox(height: 28),
-          _MicSection(
+          MicSection(
             listening: listening,
             processing: rst.status == RecitationStatus.processing,
             finished: finished,
@@ -1021,7 +965,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
               });
             },
           ),
-          _RawTranscriptBox(text: rst.rawTranscript),
+          RawTranscriptBox(text: rst.rawTranscript),
           if (finished) ...[
             const SizedBox(height: 20),
             _ScoreRow(accuracy: rst.accuracy),
@@ -1053,7 +997,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
             Row(
               children: [
                 Expanded(
-                  child: _ActionButton(
+                  child: ActionButton(
                     label: t.commonRetry,
                     icon: Icons.replay_rounded,
                     primary: false,
@@ -1066,7 +1010,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 2,
-                  child: _ActionButton(
+                  child: ActionButton(
                     label: t.coachBackToTraining,
                     icon: Icons.headphones_outlined,
                     primary: true,
@@ -1088,9 +1032,9 @@ class _ControleModeState extends ConsumerState<_ControleMode>
 // Shared Widgets
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _RawTranscriptBox extends StatelessWidget {
+class RawTranscriptBox extends StatelessWidget {
   final String text;
-  const _RawTranscriptBox({required this.text});
+  const RawTranscriptBox({super.key, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -1130,11 +1074,11 @@ class _RawTranscriptBox extends StatelessWidget {
   }
 }
 
-class _InfoBanner extends StatelessWidget {
+class InfoBanner extends StatelessWidget {
   final IconData icon;
   final String text;
   final bool dark;
-  const _InfoBanner({required this.icon, required this.text, this.dark = false});
+  const InfoBanner({super.key, required this.icon, required this.text, this.dark = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1166,7 +1110,7 @@ class _InfoBanner extends StatelessWidget {
   }
 }
 
-class _VerseDisplay extends StatelessWidget {
+class VerseDisplay extends StatelessWidget {
   final List<RecitedWord> words;
   final List<Verse> verses;
 
@@ -1174,7 +1118,8 @@ class _VerseDisplay extends StatelessWidget {
   /// tajwid + lecture réciteur en mode Contrôle. Null ailleurs (pas de tap).
   final void Function(int wordIndex)? onProblemWordTap;
 
-  const _VerseDisplay({
+  const VerseDisplay({
+    super.key,
     required this.words,
     required this.verses,
     this.onProblemWordTap,
@@ -1400,7 +1345,7 @@ class _BlurredVerse extends StatelessWidget {
   }
 }
 
-class _MicSection extends StatelessWidget {
+class MicSection extends StatelessWidget {
   final bool listening;
   final bool processing; // ASR en cours dans compute() — UI doit rester réactive
   final bool finished;
@@ -1409,7 +1354,8 @@ class _MicSection extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onReset;
 
-  const _MicSection({
+  const MicSection({
+    super.key,
     required this.listening,
     required this.processing,
     required this.finished,
@@ -1837,12 +1783,13 @@ class _CoachBubble extends StatelessWidget {
       );
 }
 
-class _ActionButton extends StatelessWidget {
+class ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool primary;
   final VoidCallback onTap;
-  const _ActionButton({
+  const ActionButton({
+    super.key,
     required this.label,
     required this.icon,
     required this.primary,

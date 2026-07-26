@@ -10,6 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/judgement_options.dart';
+import '../providers/app_settings_provider.dart';
 import '../providers/judgement_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tajwid_help_sheet.dart' show kTajwidRuleInfo;
@@ -55,6 +56,8 @@ class TajwidRulesScreen extends ConsumerWidget {
               onChanged: notifier.setTolerateConfusables,
               activeTrackColor: AppColors.green700,
             ),
+            const Divider(height: 32),
+            _RepeatEngineSettings(preset: options.preset),
             const Divider(height: 32),
             Text('RÈGLES DE TAJWID',
                 style: GoogleFonts.manrope(
@@ -134,6 +137,187 @@ class _PresetRow extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Réglages du moteur de répétition incrémentale du Coach (étape "Répète",
+/// demande utilisateur 2026-07-24) -- vivent ici, avec les autres réglages
+/// de vérification, pas dans Settings global (même logique déjà en place
+/// pour les presets tajwid/adulte/enfant).
+class _RepeatEngineSettings extends ConsumerWidget {
+  final JudgementPreset preset;
+  const _RepeatEngineSettings({required this.preset});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final chunkWords = ref.watch(adultChunkWordCountProvider);
+    final windowSize = ref.watch(repeatWindowSizeProvider);
+    final isEnfant = preset == JudgementPreset.enfant;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(t.settingsRepeatEngineSectionTitle,
+            style: GoogleFonts.manrope(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+                color: AppColors.inkLight)),
+        const SizedBox(height: 8),
+        Opacity(
+          opacity: isEnfant ? 0.4 : 1.0,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            enabled: !isEnfant,
+            title: Text(t.settingsAdultChunkWordCountTitle,
+                style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
+            subtitle: Text(
+                t.settingsAdultChunkWordCountDescription(kAdultChunkWordCountMax),
+                style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight)),
+            trailing: Text('$chunkWords',
+                style: GoogleFonts.manrope(
+                    fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.brass)),
+            onTap: isEnfant
+                ? null
+                : () => showModalBottomSheet(
+                      context: context,
+                      backgroundColor: AppColors.green900,
+                      shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+                      builder: (_) => _StepperSheet(
+                        title: t.settingsAdultChunkWordCountTitle,
+                        description:
+                            t.settingsAdultChunkWordCountDescription(kAdultChunkWordCountMax),
+                        current: chunkWords,
+                        min: kAdultChunkWordCountMin,
+                        max: kAdultChunkWordCountMax,
+                        onPick: (v) {
+                          ref.read(adultChunkWordCountProvider.notifier).set(v);
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ),
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(t.settingsRepeatWindowSizeTitle,
+              style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
+          subtitle: Text(t.settingsRepeatWindowSizeDescription(kRepeatWindowSizeMax),
+              style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight)),
+          trailing: Text('$windowSize',
+              style: GoogleFonts.manrope(
+                  fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.brass)),
+          onTap: () => showModalBottomSheet(
+            context: context,
+            backgroundColor: AppColors.green900,
+            shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+            builder: (_) => _StepperSheet(
+              title: t.settingsRepeatWindowSizeTitle,
+              description: t.settingsRepeatWindowSizeDescription(kRepeatWindowSizeMax),
+              current: windowSize,
+              min: kRepeatWindowSizeMin,
+              max: kRepeatWindowSizeMax,
+              onPick: (v) {
+                ref.read(repeatWindowSizeProvider.notifier).set(v);
+                Navigator.pop(context);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Feuille stepper générique +/- (même forme que l'ancienne
+/// `_RepeatDrillCountSheet` de settings_screen.dart, retirée avec l'ancien
+/// mode de répétition -- reprise ici de façon paramétrable pour servir aux
+/// deux nouveaux réglages sans dupliquer le boilerplate).
+class _StepperSheet extends StatefulWidget {
+  final String title;
+  final String description;
+  final int current;
+  final int min;
+  final int max;
+  final void Function(int) onPick;
+  const _StepperSheet({
+    required this.title,
+    required this.description,
+    required this.current,
+    required this.min,
+    required this.max,
+    required this.onPick,
+  });
+
+  @override
+  State<_StepperSheet> createState() => _StepperSheetState();
+}
+
+class _StepperSheetState extends State<_StepperSheet> {
+  late int _value = widget.current;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.title,
+                style: GoogleFonts.fraunces(fontSize: 16, color: AppColors.brassLight)),
+            const SizedBox(height: 4),
+            Text(widget.description,
+                style: GoogleFonts.manrope(
+                    fontSize: 12, color: AppColors.cream.withAlpha(180))),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed:
+                      _value > widget.min ? () => setState(() => _value--) : null,
+                  icon: const Icon(Icons.remove_circle_outline_rounded),
+                  color: AppColors.cream,
+                  disabledColor: AppColors.cream.withAlpha(70),
+                  iconSize: 30,
+                ),
+                SizedBox(
+                  width: 64,
+                  child: Text('$_value',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.manrope(
+                          fontSize: 28, fontWeight: FontWeight.w700, color: AppColors.cream)),
+                ),
+                IconButton(
+                  onPressed:
+                      _value < widget.max ? () => setState(() => _value++) : null,
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  color: AppColors.cream,
+                  disabledColor: AppColors.cream.withAlpha(70),
+                  iconSize: 30,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => widget.onPick(_value),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brass,
+                  foregroundColor: AppColors.green900,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                ),
+                child: Text(AppLocalizations.of(context)!.settingsValidate,
+                    style: GoogleFonts.manrope(fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _RuleTile extends StatelessWidget {

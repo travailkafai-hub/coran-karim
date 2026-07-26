@@ -15,6 +15,13 @@ import 'quran_api.dart';
 /// (`_onComplete` -> `_advance()`) sur un état (`playerState.playlist`) qui n'a
 /// rien à voir avec la session de récitation en cours. Instance isolée, un
 /// seul rôle : jouer UN verset et signaler la fin.
+///
+/// Réutilisée depuis 2026-07-24 par le moteur de répétition incrémentale du
+/// Coach (`coach_incremental_repeat.dart`) pour jouer l'audio réel du
+/// récitateur sur la fenêtre de mots en cours d'apprentissage -- malgré son
+/// nom, [playWordRange] n'a rien de spécifique à la correction d'erreur,
+/// c'est un lecteur générique "plage de mots" ; ne pas dupliquer ce
+/// mécanisme ailleurs.
 class WordCorrectionAudio {
   static final _player = AudioPlayer();
   static final _urlCache = <int, Map<String, String>>{};
@@ -117,6 +124,24 @@ class WordCorrectionAudio {
       _player.pause();
     });
   }
+
+  /// Joue exactement les mots [startWordIdx]..[endWordIdx] (inclus) --
+  /// wrapper de lisibilité au-dessus de [playWordRange] pour le moteur de
+  /// répétition incrémentale (fenêtre de mots à apprendre), qui n'a pas de
+  /// notion de "mot fautif" mais veut une plage explicite.
+  static Future<void> playWordWindow(
+    Verse verse,
+    Reciter reciter, {
+    required int startWordIdx,
+    required int endWordIdx,
+  }) =>
+      playWordRange(
+        verse,
+        reciter,
+        errorWordIndex: endWordIdx,
+        wordsBefore: endWordIdx - startWordIdx,
+        wordsAfter: 0,
+      );
 
   /// Préchauffe les caches réseau (URLs audio du récitateur + segments de
   /// timing du verset) AVANT qu'une erreur ne survienne (demande utilisateur

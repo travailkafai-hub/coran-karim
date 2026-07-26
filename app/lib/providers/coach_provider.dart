@@ -16,6 +16,21 @@ class CoachNotifier extends StateNotifier<CoachSessionState> {
 
   void setMode(CoachMode mode) => state = state.copyWith(mode: mode);
 
+  /// Passe au verset suivant/précédent SANS quitter l'écran (demande
+  /// utilisateur 2026-07-24) -- réinitialise la progression (mode, étape,
+  /// scores) puisqu'un nouveau verset démarre sa propre passe.
+  void nextVerse() {
+    if (state.hasNextVerse) {
+      state = state.withVerseIndex(state.currentVerseIndex + 1);
+    }
+  }
+
+  void previousVerse() {
+    if (state.hasPreviousVerse) {
+      state = state.withVerseIndex(state.currentVerseIndex - 1);
+    }
+  }
+
   void nextAppStep() {
     if (state.appStep < 2) state = state.copyWith(appStep: state.appStep + 1);
   }
@@ -32,9 +47,5 @@ class CoachNotifier extends StateNotifier<CoachSessionState> {
 
   void resetControl() {
     state = state.withResetControl();
-  }
-
-  void incrementRepeatDone() {
-    state = state.withRepeatIncrement();
   }
 }
