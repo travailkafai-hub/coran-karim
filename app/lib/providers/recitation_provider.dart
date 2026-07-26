@@ -3697,9 +3697,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _failureSignalled.removeWhere((k) => k >= wordIndex);
     final words = [...state.words];
     final end = _anchorExp.clamp(wordIndex + 1, words.length);
-    var errorDelta = 0, unclearDelta = 0;
+    var correctDelta = 0, errorDelta = 0, unclearDelta = 0;
     for (var i = wordIndex; i < end; i++) {
-      if (words[i].status == WordStatus.error) errorDelta++;
+      if (words[i].status == WordStatus.correct) correctDelta++;
+      if (words[i].status == WordStatus.error ||
+          words[i].status == WordStatus.skipped) {
+        errorDelta++;
+      }
       if (words[i].status == WordStatus.unclear) unclearDelta++;
       words[i] = words[i].copyWith(status: WordStatus.pending, locked: false);
     }
@@ -3746,6 +3750,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     state = state.copyWith(
       words: words,
       pointer: wordIndex,
+      correctCount: state.correctCount - correctDelta,
       errorCount: state.errorCount - errorDelta,
       unclearCount: state.unclearCount - unclearDelta,
     );

@@ -25,14 +25,22 @@ void main() {
     final judgedWords = [
       for (var i = 0; i < notifier.state.words.length; i++)
         notifier.state.words[i].copyWith(
-          status: i < 9 ? WordStatus.correct : WordStatus.pending,
+          status: switch (i) {
+            3 => WordStatus.error,
+            4 => WordStatus.skipped,
+            5 => WordStatus.unclear,
+            < 9 => WordStatus.correct,
+            _ => WordStatus.current,
+          },
           locked: i < 9,
         ),
     ];
     notifier.replaceState(notifier.state.copyWith(
       words: judgedWords,
       pointer: 9,
-      correctCount: 9,
+      correctCount: 6,
+      unclearCount: 1,
+      errorCount: 2,
       status: RecitationStatus.listening,
     ));
 
@@ -41,6 +49,9 @@ void main() {
     expect(notifier.state.pointer, 3);
     expect(notifier.state.words[3].status, WordStatus.current);
     expect(notifier.state.words[3].locked, isFalse);
+    expect(notifier.state.correctCount, 3);
+    expect(notifier.state.unclearCount, 0);
+    expect(notifier.state.errorCount, 0);
     expect(
       notifier.state.words.where((word) => word.status == WordStatus.current),
       hasLength(1),
