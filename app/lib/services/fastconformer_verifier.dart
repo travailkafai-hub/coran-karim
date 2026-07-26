@@ -207,7 +207,17 @@ class FastConformerVerifier {
   // vérification tajwid reste inactive au lieu de tout accuser à tort.
   // Rollback : 'models/fastconformer-ctc-rules-260h' (toujours sur l'appareil),
   // ou 'models/fastconformer-ctc-mixed-e02' (fichiers jamais supprimés du PC).
-  static const _kModelSubdir = 'models/fastconformer-ctc-dual-head';
+  //
+  // MODÈLE CAUSAL V1 SANS TÊTE TAJWID (2026-07-26) : checkpoint
+  // fastconformer-streaming-causal-v1-lr3e4/causal-final.nemo, entraîné avec
+  // convolutions causales puis exporté SANS état pour rester compatible avec
+  // BufferedTranscriber. Ce n'est donc pas encore le chemin cache-aware :
+  // l'app continue à lui envoyer des segments complets. Le modèle ONNX n'a
+  // qu'une sortie `logprobs`; l'absence volontaire de rules.json maintient
+  // hasRuleHead=false et interdit tout verdict tajwid sans preuve acoustique.
+  // Le modèle dual-head précédent reste dans son propre dossier sur le PC pour
+  // un rollback sans réexport.
+  static const _kModelSubdir = 'models/fastconformer-ctc-causal-v1';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // Dictionnaire mot -> IDs de tokens précalculé avec le VRAI tokenizer NeMo
