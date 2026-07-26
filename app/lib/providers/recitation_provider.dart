@@ -3703,6 +3703,20 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       if (words[i].status == WordStatus.unclear) unclearDelta++;
       words[i] = words[i].copyWith(status: WordStatus.pending, locked: false);
     }
+    // Le pointeur UI et l'ancre native représentent la même position de
+    // reprise. Avant ce correctif, seule l'ancre reculait : l'écran continuait
+    // d'indiquer l'ancien mot courant, donc le réciteur suivait le mot N
+    // pendant que l'aligneur attendait encore le mot wordIndex. Le journal du
+    // 2026-07-26 l'a rendu visible : recul 9 -> 3, puis 22 ids CTC reconnus
+    // sans aucun nouveau verdict. On rétablit aussi l'invariant d'un unique
+    // mot `current`, déjà appliqué dans _onAligned.
+    for (var i = 0; i < words.length; i++) {
+      if (i != wordIndex && words[i].status == WordStatus.current) {
+        words[i] = words[i].copyWith(status: WordStatus.pending);
+      }
+    }
+    words[wordIndex] =
+        words[wordIndex].copyWith(status: WordStatus.current, locked: false);
     // Trace décisive pour l'audit du 2026-07-20 (cascade de faux oranges) :
     // après une correction, l'ancre RECULE sur le mot raté — le système attend
     // que le réciteur le RÉPÈTE. S'il enchaîne au lieu de répéter, l'alignement
@@ -3731,6 +3745,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     unawaited(_verifier.setAlignmentAnchor(wordIndex));
     state = state.copyWith(
       words: words,
+      pointer: wordIndex,
       errorCount: state.errorCount - errorDelta,
       unclearCount: state.unclearCount - unclearDelta,
     );
