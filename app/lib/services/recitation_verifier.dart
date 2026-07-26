@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'diagnostic_log.dart';
 import 'fastconformer_verifier.dart';
+import 'streaming_wav_capture.dart';
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -402,16 +403,22 @@ abstract class RecitationVerifier {
 const String _kAsrVersion = 'ASR-v46-causal-stateful';
 
 class WhisperOnnxVerifier implements RecitationVerifier {
+  WhisperOnnxVerifier({
+    AudioRecorder? recorder,
+    FastConformerVerifier? fastConformer,
+  })  : _recorder = recorder ?? AudioRecorder(),
+        _fastConformer = fastConformer ?? FastConformerVerifier();
+
   final _tokenCtrl = StreamController<RecognizedToken>.broadcast();
   final _levelCtrl = StreamController<double>.broadcast();
   final _rawCtrl = StreamController<String>.broadcast();
   final _structCtrl =
       StreamController<({String committed, String preview})>.broadcast();
   final _alignCtrl = StreamController<AlignPayload>.broadcast();
-  final _recorder = AudioRecorder();
+  final AudioRecorder _recorder;
   Timer? _levelTimer;
 
-  final _fastConformer = FastConformerVerifier();
+  final FastConformerVerifier _fastConformer;
 
   String? _lastAudioPath;
 
@@ -419,6 +426,8 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   int _lastAlignSeq = -1;
   bool _usingCausalStreaming = false;
   Future<void> _continuousFeedTail = Future.value();
+  String? _clipCaptureDir;
+  StreamingWavCapture? _streamingWavCapture;
 
   // ── Verrou de session (bug corrige 2026-07-16, revue de code, Finding #1) ──
   // recitationVerifierProvider N'EST PAS autoDispose : CETTE instance survit
@@ -490,7 +499,11 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   }
 
   @override
-  Future<void> setClipCapture(String? dir) => _fastConformer.setClipCapture(dir);
+  Future<void> setClipCapture(String? dir) async {
+    _clipCaptureDir = dir;
+    await _fastConformer.setClipCapture(dir);
+    if (dir == null) await _closeStreamingWavCapture();
+  }
 
   @override
   Future<void> setLogEnabled(bool enabled) => _fastConformer.setLogEnabled(enabled);
@@ -599,6 +612,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// blank en flux. Cette conclusion reste vraie pour CE checkpoint ancien,
   /// mais ne s'applique pas au nouveau modèle entraîné causalement.
   Future<void> _startStreamingCapture(List<String> expectedWords) async {
+    await _closeStaleContinuousCapture();
     _chunkCount = 0;
     _continuousFeedTail = Future.value();
     _rawCtrl.add('⏳ Chargement FastConformer…');
@@ -635,6 +649,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       await _fastConformer.resetBuffered();
     }
 
+    await _openStreamingWavCapture();
     DiagnosticLog.log('ASR', 'Appel _recorder.startStream()…');
     try {
       final hasPerm = await _recorder.hasPermission();
@@ -648,6 +663,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       _pcmSub = stream.listen(
         (bytes) {
           if (_appPaused) return;
+          _streamingWavCapture?.add(bytes);
           _chunkCount++;
           final chunkNumber = _chunkCount;
           if (_chunkCount == 1) {
@@ -670,8 +686,61 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         onDone: () => DiagnosticLog.log('ASR', 'Flux PCM terminé (onDone) — $_chunkCount blocs reçus au total'),
       );
     } catch (e, st) {
+      await _closeStreamingWavCapture();
       DiagnosticLog.log('ASR', 'EXCEPTION dans _startStreamingCapture : $e\n$st');
       _rawCtrl.add('❌ Erreur démarrage capture audio : $e');
+    }
+  }
+
+  /// `AudioRecorder.startStream()` ferme son ancien Stream Dart, mais ne
+  /// garantit pas l'arrêt de la session native qui peut être encore PAUSÉE.
+  /// Sur le Samsung de test, redémarrer dans cet état renvoyait un nouveau
+  /// Stream sans jamais livrer un seul bloc PCM. Fermer explicitement
+  /// l'ancienne capture avant le nouveau start rend chaque récitation
+  /// indépendante.
+  Future<void> _closeStaleContinuousCapture() async {
+    final stale = _pcmSub;
+    if (stale == null) {
+      _appPaused = false;
+      return;
+    }
+    _pcmSub = null;
+    await stale.cancel();
+    try {
+      await _recorder.stop();
+    } catch (e) {
+      DiagnosticLog.log('ASR', 'arrêt ancien flux avant redémarrage échoué : $e');
+    }
+    await _continuousFeedTail;
+    await _closeStreamingWavCapture();
+    _appPaused = false;
+    DiagnosticLog.log(
+        'ASR', 'ancien flux fermé avant nouvelle capture continue');
+  }
+
+  Future<void> _openStreamingWavCapture() async {
+    await _closeStreamingWavCapture();
+    if (!_usingCausalStreaming || _clipCaptureDir == null) return;
+    final path =
+        '$_clipCaptureDir/stream_${DateTime.now().millisecondsSinceEpoch}.wav';
+    try {
+      _streamingWavCapture = await StreamingWavCapture.open(path);
+      DiagnosticLog.log('ASR', 'capture WAV causale activee -> $path');
+    } catch (e) {
+      DiagnosticLog.log('ASR', 'capture WAV causale indisponible : $e');
+    }
+  }
+
+  Future<void> _closeStreamingWavCapture() async {
+    final capture = _streamingWavCapture;
+    if (capture == null) return;
+    _streamingWavCapture = null;
+    try {
+      final path = await capture.close();
+      _lastAudioPath = path;
+      DiagnosticLog.log('ASR', 'capture WAV causale finalisee -> $path');
+    } catch (e) {
+      DiagnosticLog.log('ASR', 'finalisation WAV causale echouee : $e');
     }
   }
 
@@ -834,6 +903,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       _pcmSub = null;
       await _recorder.stop();
       await _continuousFeedTail;
+      await _closeStreamingWavCapture();
       if (_usingCausalStreaming) {
         await _fastConformer.disposeStreaming();
         _usingCausalStreaming = false;
@@ -991,6 +1061,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   void dispose() {
     _levelTimer?.cancel();
     _pcmSub?.cancel();
+    unawaited(_closeStreamingWavCapture());
     _recorder.dispose();
     unawaited(_fastConformer.dispose());
     unawaited(_fastConformer.disposeStreaming());

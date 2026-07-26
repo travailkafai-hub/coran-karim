@@ -2663,6 +2663,29 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     final detectedByIndex = <int, Set<TajwidRule>>{
       for (final r in p.words) r.index: _rulesOf(r),
     };
+    // La Bismillah est volontairement exclue de la vérification (décision
+    // produit documentée plus bas), mais le garde-fou `actual vide = erreur`
+    // passait avant cette exemption. Cas réel causal du 2026-07-26 : les
+    // quatre mots de la Bismillah avaient `actual=""`, puis LA MÊME passe
+    // reconnaissait correctement "ٱلْحَمْدُ لِلَّهِ". Le système colorait les
+    // quatre premiers mots en rouge, déclenchait une correction et reculait
+    // l'ancre 6 -> 0 : le curseur semblait ne jamais avancer.
+    //
+    // Une parole décodée ailleurs dans la même passe est une preuve acoustique
+    // suffisante pour appliquer l'exemption aux mots Bismillah. Une passe
+    // entièrement vide reste protégée : aucun silence n'est validé.
+    // CORRECTIF RETENU (2026-07-26, revue du correctif ci-dessus) : le premier
+    // jet validait ces mots en VERT dès que la passe contenait de la parole
+    // ailleurs (`payloadContainsSpeech`). Rejeté : ça remet exactement le
+    // comportement banni le 2026-07-25 (`mot=3 "ٱلرَّحِيمِ" entendu="" ->
+    // correct`, cf. le garde-fou `!hasSpeech` plus bas et son « Ne pas le
+    // redescendre »). Une parole décodée sur un AUTRE mot n'est pas une preuve
+    // sur CELUI-CI.
+    // La réponse honnête est de ne pas juger du tout : ni vert (rien
+    // d'entendu), ni rouge (Bismillah exclue de toute vérification, décision
+    // produit). Le mot reste sans couleur et l'ancre avance quand même, ce qui
+    // supprime la correction parasite et le recul d'ancre 6 -> 0 sans rien
+    // valider à tort. Cf. le `continue` dans la boucle de jugement.
 
     // ── VALIDATION GROUPÉE PAR GOP (idée utilisateur, 2026-07-25) ──────────
     // Avant de carver mot par mot, on prend la plus longue suite EN TÊTE dont
@@ -2847,6 +2870,20 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // jugé faux même parfaitement récité -- normGop mesure l'ÉCART à ce qui
       // est normal pour CE mot, comparé aux mêmes seuils que d'habitude.
       final normGop = _normalizedGop(expected.training, r.gop);
+
+      // Bismillah dont AUCUN son n'a été capté : non jugée du tout (cf. le
+      // bloc « CORRECTIF RETENU » avant la boucle). Sortir AVANT la cascade
+      // laisse le mot sans couleur, sans verrou et hors du compte d'erreurs ;
+      // l'ancre, elle, avance normalement plus bas (`p.anchor +
+      // p.words.length` sur un segment figé), donc plus de blocage ni de
+      // correction déclenchée sur du silence.
+      if (expected.isBasmala && !hasSpeech) {
+        DiagnosticLog.log(
+            'GOP',
+            'mot=${r.index} "${expected.display}" Bismillah sans preuve '
+                'acoustique -> NON JUGEE (ni verte ni rouge)');
+        continue;
+      }
 
       WordStatus judged;
       if (!hasSpeech) {
