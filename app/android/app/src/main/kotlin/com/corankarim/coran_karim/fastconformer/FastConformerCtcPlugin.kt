@@ -22,6 +22,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private lateinit var channel: MethodChannel
     private var engine: FastConformerCtc? = null
     private var streaming: FastConformerStreamingSession? = null
+    private var causalAlignment: CausalAlignmentSession? = null
     private var buffered: BufferedTranscriber? = null
     // Seuil personnalise recu AVANT la creation (lazy) du BufferedTranscriber —
     // applique des sa construction, sinon un setCommitSilenceMs appele avant le
@@ -62,6 +63,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         engine = null
         streaming?.close()
         streaming = null
+        causalAlignment = null
         fingerprint?.close()
         fingerprint = null
     }
@@ -108,6 +110,9 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         withContext(Dispatchers.Main) { result.success(true) }
                         return@launch
                     }
+                    streaming?.close()
+                    streaming = null
+                    causalAlignment = null
                     val modelPath = call.argument<String>("modelPath")!!
                     val vocabPath = call.argument<String>("vocabPath")!!
                     // rules.json : noms des classes de la TETE 2 (modeles a deux
@@ -147,6 +152,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 }
             }
             "dispose" -> {
+                buffered = null
                 engine?.close()
                 engine = null
                 result.success(null)
@@ -156,10 +162,35 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 try {
                     val modelPath = call.argument<String>("modelPath")!!
                     val vocabPath = call.argument<String>("vocabPath")!!
+                    val configPath = call.argument<String>("configPath")!!
+                    val wordTokensPath = call.argument<String>("wordTokensPath")
+                    // Contrainte device 6 Go : le modele causal et le modele
+                    // stateless ne doivent jamais cohabiter. Le fallback est
+                    // recharge seulement si ce chargement echoue cote Dart.
+                    buffered = null
+                    engine?.close()
+                    engine = null
                     streaming?.close()
-                    streaming = FastConformerStreamingSession(modelPath, vocabPath)
+                    Thread.currentThread().contextClassLoader =
+                        FastConformerStreamingSession::class.java.classLoader
+                    val newStreaming = FastConformerStreamingSession(
+                        modelPath,
+                        vocabPath,
+                        configPath,
+                    )
+                    streaming = newStreaming
+                    causalAlignment = CausalAlignmentSession(
+                        newStreaming.vocabPieces,
+                        newStreaming.blank,
+                    )
+                    wordTokenLookup =
+                        wordTokensPath?.let { loadWordTokenLookup(it) }
+                    tokenizer = null
                     withContext(Dispatchers.Main) { result.success(true) }
                 } catch (e: Exception) {
+                    streaming?.close()
+                    streaming = null
+                    causalAlignment = null
                     withContext(Dispatchers.Main) { result.error("LOAD_STREAMING_FAILED", e.message, null) }
                 }
             }
@@ -172,19 +203,51 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         return@launch
                     }
                     val samples = pcm16ToFloat(pcm16)
-                    val text = current.feedAudio(samples)
-                    withContext(Dispatchers.Main) { result.success(text) }
+                    val output = current.feedAudio(samples)
+                    withContext(Dispatchers.Main) { result.success(output.text) }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { result.error("FEED_CHUNK_FAILED", e.message, null) }
                 }
             }
+            "feedCausalAudio" -> scope.launch {
+                try {
+                    val pcm16 = call.argument<ByteArray>("pcm16")!!
+                    val current = streaming
+                    if (current == null) {
+                        withContext(Dispatchers.Main) {
+                            result.error(
+                                "NOT_LOADED",
+                                "loadStreamingModel() n'a pas ete appele",
+                                null,
+                            )
+                        }
+                        return@launch
+                    }
+                    val output = current.feedAudio(pcm16ToFloat(pcm16))
+                    val alignment = causalAlignment?.feed(output.logProbs)
+                    val payload = mapOf(
+                        "committed" to output.text,
+                        "preview" to "",
+                        "align" to alignment,
+                        "inferenceCount" to output.inferenceCount,
+                        "cacheLength" to output.cacheLength,
+                    )
+                    withContext(Dispatchers.Main) { result.success(payload) }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        result.error("FEED_CAUSAL_FAILED", e.message, null)
+                    }
+                }
+            }
             "resetStreaming" -> {
                 streaming?.reset()
+                causalAlignment?.reset()
                 result.success(null)
             }
             "disposeStreaming" -> {
                 streaming?.close()
                 streaming = null
+                causalAlignment = null
                 result.success(null)
             }
             // ── Streaming "bufferise" (fallback fiable, cf. BufferedTranscriber) ──
@@ -232,14 +295,19 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "setAlignmentTarget" -> scope.launch {
                 try {
                     val current = engine
-                    if (current == null) {
+                    val currentStreaming = streaming
+                    val vocabPieces =
+                        current?.vocabPieces ?: currentStreaming?.vocabPieces
+                    if (vocabPieces == null) {
                         // Pas une erreur : le modele n'est juste pas encore deploye.
                         withContext(Dispatchers.Main) { result.success(false) }
                         return@launch
                     }
                     val words = call.argument<List<String>>("words")!!
                     val anchor = call.argument<Int>("anchor") ?: 0
-                    if (tokenizer == null) tokenizer = CtcTokenizer(current.vocabPieces, wordTokenLookup)
+                    if (tokenizer == null) {
+                        tokenizer = CtcTokenizer(vocabPieces, wordTokenLookup)
+                    }
                     val tokens = words.map { tokenizer!!.tokenizeWord(it) }
                     val empty = tokens.count { it.isEmpty() }
                     if (empty > 0) {
@@ -251,6 +319,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     val variants = if (rescoringEnabled) buildVariants(words) else null
                     alignVariants = variants
                     buffered?.setAlignmentTarget(tokens, anchor, variants)
+                    causalAlignment?.setTarget(tokens, anchor, variants)
                     withContext(Dispatchers.Main) { result.success(true) }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { result.error("SET_ALIGN_TARGET_FAILED", e.message, null) }
@@ -261,6 +330,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 if (anchor != null) {
                     alignAnchor = anchor
                     buffered?.setAlignmentAnchor(anchor)
+                    causalAlignment?.setAnchor(anchor)
                 }
                 result.success(null)
             }
@@ -271,12 +341,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "extendAlignmentTarget" -> scope.launch {
                 try {
                     val current = engine
-                    if (current == null) {
+                    val currentStreaming = streaming
+                    val vocabPieces =
+                        current?.vocabPieces ?: currentStreaming?.vocabPieces
+                    if (vocabPieces == null) {
                         withContext(Dispatchers.Main) { result.success(false) }
                         return@launch
                     }
                     val words = call.argument<List<String>>("words")!!
-                    if (tokenizer == null) tokenizer = CtcTokenizer(current.vocabPieces, wordTokenLookup)
+                    if (tokenizer == null) {
+                        tokenizer = CtcTokenizer(vocabPieces, wordTokenLookup)
+                    }
                     val newTokens = words.map { tokenizer!!.tokenizeWord(it) }
                     alignTokens = (alignTokens ?: emptyList()) + newTokens
                     val newVariants = if (rescoringEnabled) buildVariants(words) else null
@@ -285,6 +360,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         alignVariants = currentV + newVariants
                     }
                     buffered?.extendAlignmentTarget(newTokens, newVariants)
+                    causalAlignment?.extendTarget(newTokens, newVariants)
                     DiagnosticLog.log("FastConformerCtcPlugin",
                         "cible etendue : +${newTokens.size} mots, total=${alignTokens?.size}")
                     withContext(Dispatchers.Main) { result.success(true) }

@@ -13,9 +13,9 @@ import kotlin.math.sqrt
 /**
  * Session de streaming CTC "cache-aware" (vrai flux continu, pas des segments
  * VAD transcrits en batch). Modele exporte via benchmark/export_streaming_onnx.py
- * (encodeur FastConformer bascule en attention chunked_limited [70,1] + tete CTC,
- * cache d'encodeur en entree/sortie -- validee fidele au PyTorch natif a 4e-5
- * pres, cf. benchmark/validate_streaming_onnx.py).
+ * (encodeur FastConformer causal entraine en attention chunked_limited [70,13]
+ * + tete CTC, cache d'encodeur en entree/sortie -- valide fidele au PyTorch
+ * natif a moins de 1e-3, cf. benchmark/validate_streaming_onnx.py).
  *
  * v2 (2026-07-04) -- reecriture de la featurisation apres un premier test device
  * ou TOUT decodait blank. Deux causes racines corrigees :
@@ -31,34 +31,57 @@ import kotlin.math.sqrt
  *     ses echantillons reels sont disponibles (retard fixe de 456 echantillons
  *     = ~28ms, negligeable).
  *
- * Grille temporelle (streaming_cfg du modele, att_context_size=[70,1]) :
- *   chunk_size=16 frames mel neuves par inference (~160ms), pre_cache=9 frames
- *   de contexte gauche -> fenetre de 25 frames par appel, avancant de 16.
+ * Grille temporelle actuelle (streaming_cfg du modele causal entraine,
+ * att_context_size=[70,13]) : shift=112 frames mel neuves par inference,
+ * pre_cache=9 frames de contexte gauche -> fenetre de 121 frames par appel.
+ * Ces valeurs ne sont plus codees en dur : streaming_config.json est valide
+ * avant l'ouverture de la session ONNX.
  */
-class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
+class FastConformerStreamingSession(
+    modelPath: String,
+    vocabPath: String,
+    configPath: String,
+) {
 
     companion object {
         private const val TAG = "FastConformerStream"
         private const val N_MELS = MelSpectrogram.N_MELS_PUBLIC
         private const val HOP = MelSpectrogram.HOP_PUBLIC
-        private const val CHUNK_FRAMES = 16
-        private const val PRE_CACHE_FRAMES = 9
-        private const val WINDOW_FRAMES = CHUNK_FRAMES + PRE_CACHE_FRAMES // 25
-        private const val NUM_LAYERS = 17
-        private const val CACHE_LEN = 70
-        private const val D_MODEL = 512
-        private const val TIME_CACHE = 4
         private const val NORM_EPS = 1e-5
+        private val EXPECTED_INPUT_NAMES = setOf(
+            "audio_signal",
+            "length",
+            "cache_last_channel",
+            "cache_last_time",
+            "cache_last_channel_len",
+        )
     }
 
+    data class FeedResult(
+        val text: String,
+        val logProbs: Array<FloatArray>,
+        val inferenceCount: Long,
+        val cacheLength: Long,
+    )
+
+    private val config = StreamingModelConfig.fromJson(
+        File(configPath).readText(Charsets.UTF_8),
+    )
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
     private val session: OrtSession = env.createSession(modelPath, OrtSession.SessionOptions())
     private val vocab: List<String> = loadVocab(vocabPath)
     private val blankId: Int = vocab.size
+    private val ctcState = StreamingCtcState(blankId)
+
+    val vocabPieces: List<String>
+        get() = vocab
+
+    val blank: Int
+        get() = blankId
 
     // ── Etat encodeur (persiste entre inferences — c'est le coeur du streaming)
-    private var cacheLastChannel = FloatArray(NUM_LAYERS * CACHE_LEN * D_MODEL)
-    private var cacheLastTime = FloatArray(NUM_LAYERS * D_MODEL * TIME_CACHE)
+    private var cacheLastChannel = FloatArray(config.cacheLastChannelShape.product())
+    private var cacheLastTime = FloatArray(config.cacheLastTimeShape.product())
     private var cacheLastChannelLen: Long = 0L
 
     // ── Signal preemphasise + padde-centre, buffer roulant a indexation globale
@@ -70,18 +93,26 @@ class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
 
     // ── Frames mel (log, NON normalisees) + stats cumulatives de session
     private var framesComputed = 0L
-    private var nextWindowEndFrame = CHUNK_FRAMES.toLong() // 1ere fenetre couvre frames [-9,16)
-    private val melWindow = ArrayDeque<FloatArray>() // dernieres <=WINDOW_FRAMES frames
+    // La premiere fenetre couvre [-preCache, shift), completee a gauche.
+    private var nextWindowEndFrame = config.shiftFrames.toLong()
+    private val melWindow = ArrayDeque<FloatArray>() // dernieres <=inputFrames frames
     private val statSum = DoubleArray(N_MELS)
     private val statSumSq = DoubleArray(N_MELS)
     private var statCount = 0L
 
-    private val decodedIds = ArrayList<Int>()
-    private var prevTokenForCollapse = -1
     private var inferenceCount = 0L
 
     init {
+        require(session.inputNames == EXPECTED_INPUT_NAMES) {
+            "entrees ONNX streaming invalides: ${session.inputNames.sorted()}"
+        }
         seedCenterPad()
+        DiagnosticLog.log(
+            TAG,
+            "session causal chargee : fenetre=${config.inputFrames} " +
+                "shift=${config.shiftFrames} sorties=${config.validOutputFrames} " +
+                "lookahead=${config.lookaheadMs}ms",
+        )
     }
 
     private fun seedCenterPad() {
@@ -96,28 +127,33 @@ class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
     }
 
     /** Reinitialise tout l'etat (nouvelle session de recitation). */
+    @Synchronized
     fun reset() {
-        cacheLastChannel = FloatArray(NUM_LAYERS * CACHE_LEN * D_MODEL)
-        cacheLastTime = FloatArray(NUM_LAYERS * D_MODEL * TIME_CACHE)
+        cacheLastChannel = FloatArray(config.cacheLastChannelShape.product())
+        cacheLastTime = FloatArray(config.cacheLastTimeShape.product())
         cacheLastChannelLen = 0L
         seedCenterPad()
         prevRawSample = 0f
         framesComputed = 0L
-        nextWindowEndFrame = CHUNK_FRAMES.toLong()
+        nextWindowEndFrame = config.shiftFrames.toLong()
         melWindow.clear()
         java.util.Arrays.fill(statSum, 0.0)
         java.util.Arrays.fill(statSumSq, 0.0)
         statCount = 0L
-        decodedIds.clear()
-        prevTokenForCollapse = -1
+        ctcState.reset()
         inferenceCount = 0L
+        DiagnosticLog.log(TAG, "etat causal reinitialise")
     }
 
     /**
      * Alimente la session avec du PCM brut (mono 16kHz, [-1,1], taille libre).
-     * Retourne le texte complet decode jusqu'ici.
+     * Retourne le texte complet et uniquement les nouvelles log-probabilites
+     * produites pendant cet appel. Elles alimentent l'alignement sans refaire
+     * une seconde inference.
      */
-    fun feedAudio(newSamples: FloatArray): String {
+    @Synchronized
+    fun feedAudio(newSamples: FloatArray): FeedResult {
+        val newLogProbs = ArrayList<FloatArray>()
         appendPreemphasized(newSamples)
 
         // Calcule toutes les frames devenues ENTIEREMENT calculables (causal strict)
@@ -127,7 +163,7 @@ class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
             val lm = MelSpectrogram.frameLogMel(paddedBuf, localStart)
 
             melWindow.addLast(lm)
-            if (melWindow.size > WINDOW_FRAMES) melWindow.removeFirst()
+            if (melWindow.size > config.inputFrames) melWindow.removeFirst()
             for (m in 0 until N_MELS) {
                 statSum[m] += lm[m].toDouble()
                 statSumSq[m] += lm[m].toDouble() * lm[m]
@@ -136,13 +172,18 @@ class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
             framesComputed++
 
             if (framesComputed == nextWindowEndFrame) {
-                runInference()
-                nextWindowEndFrame += CHUNK_FRAMES
+                newLogProbs.addAll(runInference())
+                nextWindowEndFrame += config.shiftFrames
             }
         }
 
         compactBuffer()
-        return detokenize(decodedIds)
+        return FeedResult(
+            text = detokenize(ctcState.decodedIds),
+            logProbs = newLogProbs.toTypedArray(),
+            inferenceCount = inferenceCount,
+            cacheLength = cacheLastChannelLen,
+        )
     }
 
     private fun appendPreemphasized(samples: FloatArray) {
@@ -168,7 +209,7 @@ class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
         }
     }
 
-    private fun runInference() {
+    private fun runInference(): Array<FloatArray> {
         val t0 = System.nanoTime()
 
         // mean/std cumulatifs de session (ddof=1 comme NeMo)
@@ -183,15 +224,15 @@ class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
             std[m] = sqrt(variance) + NORM_EPS
         }
 
-        // Fenetre de 25 frames : les dernieres melWindow.size frames, completees
+        // Fenetre du contrat : les dernieres melWindow.size frames, completees
         // a gauche par des zeros EN ESPACE NORMALISE (= valeur moyenne) pour la
-        // toute premiere fenetre (frames "-9..-1" inexistantes) — meme convention
+        // toute premiere fenetre (frames de pre-cache inexistantes) — meme convention
         // que la validation Python (F.pad sur les features normalisees).
-        val missing = WINDOW_FRAMES - melWindow.size
-        val audioBuf = FloatBuffer.allocate(N_MELS * WINDOW_FRAMES)
+        val missing = config.inputFrames - melWindow.size
+        val audioBuf = FloatBuffer.allocate(N_MELS * config.inputFrames)
         val frames = melWindow.toList()
         for (m in 0 until N_MELS) {
-            for (i in 0 until WINDOW_FRAMES) {
+            for (i in 0 until config.inputFrames) {
                 val v = if (i < missing) 0f
                 else ((frames[i - missing][m] - mean[m]) / std[m]).toFloat()
                 audioBuf.put(v)
@@ -199,15 +240,16 @@ class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
         }
         audioBuf.rewind()
 
-        val lengthBuf = LongBuffer.allocate(1).put(WINDOW_FRAMES.toLong()).apply { rewind() }
+        val lengthBuf = LongBuffer.allocate(1).put(config.inputFrames.toLong()).apply { rewind() }
         val cacheChBuf = FloatBuffer.wrap(cacheLastChannel)
         val cacheTBuf = FloatBuffer.wrap(cacheLastTime)
         val cacheLenBuf = LongBuffer.allocate(1).put(cacheLastChannelLen).apply { rewind() }
 
-        OnnxTensor.createTensor(env, audioBuf, longArrayOf(1, N_MELS.toLong(), WINDOW_FRAMES.toLong())).use { audioTensor ->
+        var emittedLogProbs: Array<FloatArray>? = null
+        OnnxTensor.createTensor(env, audioBuf, longArrayOf(1, N_MELS.toLong(), config.inputFrames.toLong())).use { audioTensor ->
         OnnxTensor.createTensor(env, lengthBuf, longArrayOf(1)).use { lengthTensor ->
-        OnnxTensor.createTensor(env, cacheChBuf, longArrayOf(1, NUM_LAYERS.toLong(), CACHE_LEN.toLong(), D_MODEL.toLong())).use { cacheChTensor ->
-        OnnxTensor.createTensor(env, cacheTBuf, longArrayOf(1, NUM_LAYERS.toLong(), D_MODEL.toLong(), TIME_CACHE.toLong())).use { cacheTTensor ->
+        OnnxTensor.createTensor(env, cacheChBuf, config.cacheLastChannelShape.toLongArray()).use { cacheChTensor ->
+        OnnxTensor.createTensor(env, cacheTBuf, config.cacheLastTimeShape.toLongArray()).use { cacheTTensor ->
         OnnxTensor.createTensor(env, cacheLenBuf, longArrayOf(1)).use { cacheLenTensor ->
             val inputs = mapOf(
                 "audio_signal" to audioTensor,
@@ -225,10 +267,26 @@ class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
                 val nextCacheT = results[2].value as Array<Array<Array<FloatArray>>>
                 val nextCacheLen = (results[3].value as LongArray)[0]
 
-                appendGreedyDecode(logprobs[0])
+                val currentLogProbs = logprobs[0]
+                require(currentLogProbs.size == config.validOutputFrames) {
+                    "sortie ONNX invalide: ${currentLogProbs.size} frames, " +
+                        "${config.validOutputFrames} attendues"
+                }
+                ctcState.appendLogProbs(currentLogProbs)
+                emittedLogProbs = currentLogProbs
 
-                cacheLastChannel = flatten4D(nextCacheCh, NUM_LAYERS, CACHE_LEN, D_MODEL)
-                cacheLastTime = flatten4D(nextCacheT, NUM_LAYERS, D_MODEL, TIME_CACHE)
+                cacheLastChannel = flatten4D(
+                    nextCacheCh,
+                    config.numLayers,
+                    config.channelCacheFrames,
+                    config.modelDimension,
+                )
+                cacheLastTime = flatten4D(
+                    nextCacheT,
+                    config.numLayers,
+                    config.modelDimension,
+                    config.timeCacheFrames,
+                )
                 cacheLastChannelLen = nextCacheLen
             }
         }}}}}
@@ -236,7 +294,14 @@ class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
         inferenceCount++
         if (inferenceCount % 25 == 1L) {
             val ms = (System.nanoTime() - t0) / 1_000_000
-            Log.i(TAG, "inference #$inferenceCount : ${ms}ms | frames=$framesComputed | ids=${decodedIds.size} | cacheLen=$cacheLastChannelLen")
+            val message =
+                "inference #$inferenceCount : ${ms}ms | frames=$framesComputed | " +
+                    "ids=${ctcState.decodedIds.size} | cacheLen=$cacheLastChannelLen"
+            Log.i(TAG, message)
+            DiagnosticLog.log(TAG, message)
+        }
+        return checkNotNull(emittedLogProbs) {
+            "la session ONNX n'a retourne aucune sortie CTC"
         }
     }
 
@@ -247,25 +312,20 @@ class FastConformerStreamingSession(modelPath: String, vocabPath: String) {
         return out
     }
 
-    private fun appendGreedyDecode(frames: Array<FloatArray>) {
-        for (frame in frames) {
-            var best = 0
-            var bestVal = frame[0]
-            for (c in 1 until frame.size) {
-                if (frame[c] > bestVal) { bestVal = frame[c]; best = c }
-            }
-            if (best != prevTokenForCollapse && best != blankId) decodedIds.add(best)
-            prevTokenForCollapse = best
-        }
-    }
-
     private fun detokenize(ids: List<Int>): String {
         val sb = StringBuilder()
         for (id in ids) if (id < vocab.size) sb.append(vocab[id])
         return sb.toString().replace('▁', ' ').trim()
     }
 
+    @Synchronized
     fun close() {
         session.close()
+    }
+
+    private fun List<Long>.product(): Int {
+        val product = fold(1L) { acc, value -> Math.multiplyExact(acc, value) }
+        require(product <= Int.MAX_VALUE) { "cache ONNX trop grand: $this" }
+        return product.toInt()
     }
 }

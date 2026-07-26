@@ -24,10 +24,10 @@ Fichiers : primitives Kotlin et tests JVM, 3 à 5 fichiers.
 
 ## Tâche 3 — Porter la session ONNX causal
 
-- [ ] Consommer les dimensions exportées.
-- [ ] Transmettre et remplacer les caches à chaque appel.
-- [ ] Retourner texte et nouvelles log-probabilités sans double inférence.
-- [ ] Alimenter l'alignement forcé avec le payload existant.
+- [x] Consommer les dimensions exportées.
+- [x] Transmettre et remplacer les caches à chaque appel.
+- [x] Retourner texte et nouvelles log-probabilités sans double inférence.
+- [x] Alimenter l'alignement forcé avec le payload existant.
 
 Vérification : tests Android puis `cd app && flutter build apk --debug`.
 
