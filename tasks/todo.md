@@ -14,9 +14,9 @@ Fichiers : deux scripts `benchmark/`, métadonnées générées non committées.
 
 ## Tâche 2 — Sécuriser les primitives Kotlin
 
-- [ ] Tester le chargement/contrôle des métadonnées.
-- [ ] Tester le collapse CTC à travers deux chunks.
-- [ ] Tester le reset complet de l'état pur.
+- [x] Tester le chargement/contrôle des métadonnées.
+- [x] Tester le collapse CTC à travers deux chunks.
+- [x] Tester le reset complet de l'état pur.
 
 Vérification : `cd app/android && ./gradlew app:testDebugUnitTest`
 

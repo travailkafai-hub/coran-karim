@@ -60,6 +60,7 @@ dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20180813")
     // Core library desugaring (flutter_local_notifications, adhan programme).
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
