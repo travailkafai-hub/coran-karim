@@ -488,7 +488,19 @@ class FastConformerVerifier {
   /// null désactive (défaut). N'écrit rien tant que non activé — zéro coût
   /// hors session de référence.
   Future<void> setClipCapture(String? dir) async {
-    if (!_loaded) return;
+    // PAS de garde `if (!_loaded) return;` (retiree le 2026-07-25) : le plugin
+    // retient la valeur dans `pendingClipCaptureDir` et l'applique a la
+    // creation du BufferedTranscriber, precisement pour pouvoir etre appele
+    // AVANT le chargement du modele.
+    //
+    // Bug qu'elle a cause : l'activation de la capture a ete deplacee dans
+    // `RecitationNotifier.startContinuous` (pour qu'elle ne dependre plus d'un
+    // ecran), donc AVANT que le modele soit charge. L'appel repartait en
+    // silence, `pendingClipCaptureDir` restait nul, et le log affichait
+    // `capture de clips desactivee` -- AUCUN WAV pour toute la session, alors
+    // que le reglage diagnostic etait bien a `true`. Impossible de verifier ce
+    // que le modele avait reellement entendu, ce qui est tout l'objet de ces
+    // captures. Meme raison que pour `setLogEnabled`, deja sans garde.
     try {
       await _channel.invokeMethod('setClipCapture', {'dir': dir});
     } catch (e) {

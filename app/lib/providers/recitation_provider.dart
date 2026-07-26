@@ -3710,9 +3710,15 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // s'effondre pendant que `free` reste bon, et le décalage se propage aux
     // mots suivants. Sans cette ligne, impossible de distinguer ce scénario
     // d'une vraie faute de prononciation dans le log.
+    // Le mot nomme est celui de DESTINATION du recul, pas forcement le mot
+    // FAUTIF : depuis le 2026-07-25 l'appelant recule d'un mot de plus, pour
+    // que l'ancre coincide avec ce qu'on fait entendre au reciteur
+    // (`_kCorrectionWordsBefore`). Le libelle le dit explicitement, sinon le
+    // log est trompeur -- constate sur `recul 29 -> 22 (correction sur
+    // "بِمَآ")` alors que le mot fautif etait le 23 (`أُنزِلَ`).
     DiagnosticLog.log('ANCRE',
-        'recul $_anchorExp -> $wordIndex (correction sur "${words[wordIndex].display}")'
-        ' | remis en attente: ${end - wordIndex} mot(s)');
+        'recul $_anchorExp -> $wordIndex | reprise demandee sur '
+        '"${words[wordIndex].display}" | remis en attente: ${end - wordIndex} mot(s)');
     _anchorExp = wordIndex;
     // Le buffer natif est vidé séparément (verifier.resetBuffer(), appelé par
     // l'écran avant resumeCapture()) -- on oublie ici le texte figé déjà vu,
