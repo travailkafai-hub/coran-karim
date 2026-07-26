@@ -2527,6 +2527,42 @@ abstract class AppLocalizations {
   /// **'Touche l\'écran pour commencer'**
   String get karaokeTapToStartHint;
 
+  /// Message affiché pendant le préchargement du modèle causal
+  ///
+  /// In fr, this message translates to:
+  /// **'Chargement du modèle de récitation…'**
+  String get karaokeLoadingModel;
+
+  /// Instruction affichée pendant le compte à rebours
+  ///
+  /// In fr, this message translates to:
+  /// **'Prépare-toi'**
+  String get karaokeGetReady;
+
+  /// Message entre le compte à rebours et l'ouverture effective du micro
+  ///
+  /// In fr, this message translates to:
+  /// **'Préparation du micro…'**
+  String get karaokePreparingMicrophone;
+
+  /// Signal indiquant que l'utilisateur peut commencer à réciter
+  ///
+  /// In fr, this message translates to:
+  /// **'GO !'**
+  String get karaokeGo;
+
+  /// Erreur affichée quand aucun modèle continu ne peut être chargé
+  ///
+  /// In fr, this message translates to:
+  /// **'Le modèle de récitation est indisponible.'**
+  String get karaokeModelUnavailable;
+
+  /// Erreur affichée si l'ouverture du micro ou de la session échoue
+  ///
+  /// In fr, this message translates to:
+  /// **'Impossible de démarrer l’écoute.'**
+  String get karaokeStartFailed;
+
   /// Métadonnées sous le nom arabe dans le bandeau de transition entre sourates
   ///
   /// In fr, this message translates to:

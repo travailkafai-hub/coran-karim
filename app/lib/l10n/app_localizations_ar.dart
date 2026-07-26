@@ -1413,6 +1413,24 @@ class AppLocalizationsAr extends AppLocalizations {
   String get karaokeTapToStartHint => 'المس الشاشة للبدء';
 
   @override
+  String get karaokeLoadingModel => 'جارٍ تحميل نموذج التلاوة…';
+
+  @override
+  String get karaokeGetReady => 'استعد';
+
+  @override
+  String get karaokePreparingMicrophone => 'جارٍ تجهيز الميكروفون…';
+
+  @override
+  String get karaokeGo => 'ابدأ!';
+
+  @override
+  String get karaokeModelUnavailable => 'نموذج التلاوة غير متاح.';
+
+  @override
+  String get karaokeStartFailed => 'تعذر بدء الاستماع.';
+
+  @override
   String karaokeSurahTransitionMeta(int number, String name, int count) {
     return '$number · $name · $count آية';
   }

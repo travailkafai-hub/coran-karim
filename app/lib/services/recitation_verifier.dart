@@ -380,6 +380,15 @@ abstract class RecitationVerifier {
   /// d'entrée permet à l'UI d'attendre explicitement AVANT de signaler
   /// "à toi" et de lancer l'écoute automatique.
   Future<bool> ensureModelLoaded();
+
+  /// Charge le moteur utilisé par une récitation CONTINUE sans ouvrir le
+  /// micro. Le graphe causal streaming est prioritaire ; le modèle bufferisé
+  /// reste le repli prévu par [start].
+  ///
+  /// Ce contrat permet à l'UI d'attendre le vrai moteur, d'afficher son compte
+  /// à rebours, puis seulement d'appeler [start] et d'annoncer « Go » une fois
+  /// la capture effectivement ouverte.
+  Future<bool> ensureContinuousModelLoaded();
 }
 
 // ── ASR on-device ────────────────────────────────────────────────────────────
@@ -973,6 +982,12 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   Future<bool> ensureModelLoaded() => _fastConformer.ensureLoaded();
 
   @override
+  Future<bool> ensureContinuousModelLoaded() async {
+    final causalOk = await _fastConformer.ensureStreamingLoaded();
+    return causalOk || await _fastConformer.ensureLoaded();
+  }
+
+  @override
   void dispose() {
     _levelTimer?.cancel();
     _pcmSub?.cancel();
@@ -1084,6 +1099,9 @@ class MockRecitationVerifier implements RecitationVerifier {
 
   @override
   Future<bool> ensureModelLoaded() async => true;
+
+  @override
+  Future<bool> ensureContinuousModelLoaded() async => true;
 
   @override
   Future<void> stop() async {

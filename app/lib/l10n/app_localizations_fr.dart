@@ -1497,6 +1497,25 @@ class AppLocalizationsFr extends AppLocalizations {
   String get karaokeTapToStartHint => 'Touche l\'écran pour commencer';
 
   @override
+  String get karaokeLoadingModel => 'Chargement du modèle de récitation…';
+
+  @override
+  String get karaokeGetReady => 'Prépare-toi';
+
+  @override
+  String get karaokePreparingMicrophone => 'Préparation du micro…';
+
+  @override
+  String get karaokeGo => 'GO !';
+
+  @override
+  String get karaokeModelUnavailable =>
+      'Le modèle de récitation est indisponible.';
+
+  @override
+  String get karaokeStartFailed => 'Impossible de démarrer l’écoute.';
+
+  @override
   String karaokeSurahTransitionMeta(int number, String name, int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

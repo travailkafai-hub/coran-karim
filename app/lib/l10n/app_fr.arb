@@ -1872,6 +1872,30 @@
   "@karaokeTapToStartHint": {
     "description": "Indication en bas d'écran avant de démarrer une récitation normale"
   },
+  "karaokeLoadingModel": "Chargement du modèle de récitation…",
+  "@karaokeLoadingModel": {
+    "description": "Message affiché pendant le préchargement du modèle causal"
+  },
+  "karaokeGetReady": "Prépare-toi",
+  "@karaokeGetReady": {
+    "description": "Instruction affichée pendant le compte à rebours"
+  },
+  "karaokePreparingMicrophone": "Préparation du micro…",
+  "@karaokePreparingMicrophone": {
+    "description": "Message entre le compte à rebours et l'ouverture effective du micro"
+  },
+  "karaokeGo": "GO !",
+  "@karaokeGo": {
+    "description": "Signal indiquant que l'utilisateur peut commencer à réciter"
+  },
+  "karaokeModelUnavailable": "Le modèle de récitation est indisponible.",
+  "@karaokeModelUnavailable": {
+    "description": "Erreur affichée quand aucun modèle continu ne peut être chargé"
+  },
+  "karaokeStartFailed": "Impossible de démarrer l’écoute.",
+  "@karaokeStartFailed": {
+    "description": "Erreur affichée si l'ouverture du micro ou de la session échoue"
+  },
   "karaokeSurahTransitionMeta": "{number} · {name} · {count, plural, =1{1 verset} other{{count} versets}}",
   "@karaokeSurahTransitionMeta": {
     "description": "Métadonnées sous le nom arabe dans le bandeau de transition entre sourates",

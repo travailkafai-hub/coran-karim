@@ -16,10 +16,12 @@ import '../services/pause_profile_service.dart';
 import '../services/quran_api.dart';
 import '../providers/error_review_provider.dart';
 import '../services/recitation_error_log_service.dart';
+import '../services/recitation_start_sequence.dart';
 import '../services/rule_annotation_service.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
+import '../widgets/recitation_start_overlay.dart';
 import '../widgets/tajweed_text.dart';
 import '../widgets/tajwid_help_sheet.dart';
 import 'memorization_game_screen.dart';
@@ -134,6 +136,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // potentiellement d'un fetch réseau (Bismillah), donc plus "late final".
   List<List<TextSpan>>? _tajwidSpans;
   bool _ready = false;
+  RecitationStartStage? _startStage;
   int _bismillahWordCount = 0;
 
   // Liste MUTABLE (contrairement à widget.verses, figé à l'ouverture) — permet
@@ -893,6 +896,55 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   bool get _willBeReferenceSession =>
       _hasProfile == false && _globalStable != true;
 
+  Future<void> _startWithCountdown(RecitationNotifier notifier) async {
+    if (_startStage != null) return;
+    final verifier = ref.read(recitationVerifierProvider);
+    var modelUnavailable = false;
+    final sequenceId = DateTime.now().millisecondsSinceEpoch;
+    final stopwatch = Stopwatch()..start();
+    try {
+      final started = await RecitationStartSequence().run(
+        prepareModel: verifier.ensureContinuousModelLoaded,
+        startCapture: notifier.startContinuous,
+        canContinue: () => mounted,
+        onStage: (stage) {
+          if (stage == RecitationStartStage.modelUnavailable) {
+            modelUnavailable = true;
+          }
+          DiagnosticLog.log(
+            'KaraokeStart',
+            'event=stage sequence_id=$sequenceId stage=${stage.name} '
+                'elapsed_ms=${stopwatch.elapsedMilliseconds}',
+          );
+          if (mounted) setState(() => _startStage = stage);
+        },
+      );
+      if (!mounted || started || !modelUnavailable) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text(AppLocalizations.of(context)!.karaokeModelUnavailable),
+        ),
+      );
+    } catch (e, st) {
+      DiagnosticLog.log(
+        'KaraokeStart',
+        'event=failed sequence_id=$sequenceId '
+            'elapsed_ms=${stopwatch.elapsedMilliseconds} '
+            'error_type=${e.runtimeType} detail=$e\n$st',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.karaokeStartFailed),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _startStage = null);
+    }
+  }
+
   Future<void> _toggle(RecitationSessionState st, RecitationNotifier n) async {
     if (st.status == RecitationStatus.listening) {
       if (_manuallyPaused) setState(() => _manuallyPaused = false);
@@ -981,7 +1033,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         ref.invalidate(errorKindBreakdownProvider);
         ref.invalidate(tajwidRuleBreakdownProvider);
       }
-      await n.startContinuous();
+      await _startWithCountdown(n);
     }
   }
 
@@ -1386,6 +1438,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
     final notifier = ref.read(recitationProvider.notifier);
     final listening = st.status == RecitationStatus.listening;
+    final starting = _startStage != null;
     final t = AppLocalizations.of(context)!;
     final ref0 = _verses.first;
     final subtitle = _verses.length == 1
@@ -1402,7 +1455,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // accidentel en toute fin de récitation coupait les derniers mots
         // avant qu'ils soient entendus.
         onTap: () {
-          if (!listening) _toggle(st, notifier);
+          if (!listening && !starting) _toggle(st, notifier);
         },
         child: Stack(
           fit: StackFit.expand,
@@ -1410,8 +1463,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             _ambientBackground(),
             AnimatedBuilder(
               animation: _breath,
-              builder: (context, _) =>
-                  _halo(st.soundLevel, listening, () => _toggle(st, notifier)),
+              builder: (context, _) => _halo(
+                st.soundLevel,
+                listening,
+                () {
+                  if (!starting) _toggle(st, notifier);
+                },
+              ),
             ),
             SafeArea(
               child: Column(
@@ -1425,6 +1483,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                 ],
               ),
             ),
+            if (_startStage case final stage?)
+              Positioned.fill(child: RecitationStartOverlay(stage: stage)),
           ],
         ),
       ),
