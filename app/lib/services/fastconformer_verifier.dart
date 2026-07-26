@@ -210,11 +210,11 @@ class FastConformerVerifier {
   //
   // MODÈLE CAUSAL V1 SANS TÊTE TAJWID (2026-07-26) : checkpoint
   // fastconformer-streaming-causal-v1-lr3e4/causal-final.nemo, entraîné avec
-  // convolutions causales puis exporté SANS état pour rester compatible avec
-  // BufferedTranscriber. Ce n'est donc pas encore le chemin cache-aware :
-  // l'app continue à lui envoyer des segments complets. Le modèle ONNX n'a
-  // qu'une sortie `logprobs`; l'absence volontaire de rules.json maintient
-  // hasRuleHead=false et interdit tout verdict tajwid sans preuve acoustique.
+  // convolutions causales. Le premier export stateless `model.onnx` reste le
+  // fallback bufferisé ; `model_streaming.onnx` transmet désormais les trois
+  // caches et consomme le contrat `streaming_config.json`. L'absence volontaire
+  // de rules.json maintient hasRuleHead=false et interdit tout verdict tajwid
+  // sans preuve acoustique.
   // Le modèle dual-head précédent reste dans son propre dossier sur le PC pour
   // un rollback sans réexport.
   static const _kModelSubdir = 'models/fastconformer-ctc-causal-v1';
@@ -252,6 +252,7 @@ class FastConformerVerifier {
   /// encore déployé sur l'appareil (pas une erreur — juste "pas encore prêt").
   Future<bool> ensureLoaded() async {
     if (_loaded) return true;
+    if (_streamingLoaded) await disposeStreaming();
     // TEST OVERRIDE (2026-07-24) : sur un build release (non debuggable),
     // run-as ne marche pas -> impossible de pousser un modele dans le storage
     // privé (getApplicationSupportDirectory). Le dossier EXTERNE
@@ -347,31 +348,59 @@ class FastConformerVerifier {
   }
 
   // ── Streaming cache-aware (vrai flux continu, karaoké) ──────────────────────
-  // Modèle distinct de celui du mode segment-par-segment ci-dessus : encodeur
-  // basculé en attention chunked_limited + cache d'état en entrée/sortie
-  // (benchmark/export_streaming_onnx.py, validé fidèle au PyTorch natif).
-  static const _kStreamingModelSubdir = 'models/fastconformer-ctc-pcd-streaming';
+  // Même checkpoint causal que le fallback segment-par-segment, mais export
+  // cache-aware distinct, avec son contrat versionné.
+  static const _kStreamingModelSubdir = 'models/fastconformer-ctc-causal-v1';
   static const _kStreamingModelFile = 'model_streaming.onnx';
+  static const _kStreamingConfigFile = 'streaming_config.json';
   bool _streamingLoaded = false;
 
   Future<bool> ensureStreamingLoaded() async {
     if (_streamingLoaded) return true;
-    final appDir = await getApplicationSupportDirectory();
+    Directory appDir = await getApplicationSupportDirectory();
+    final ext = await getExternalStorageDirectory();
+    if (ext != null &&
+        await File('${ext.path}/$_kStreamingModelSubdir/$_kStreamingModelFile')
+            .exists()) {
+      appDir = ext;
+    }
     final modelFile = File('${appDir.path}/$_kStreamingModelSubdir/$_kStreamingModelFile');
     final vocabFile = File('${appDir.path}/$_kStreamingModelSubdir/$_kVocabFile');
-    if (!await modelFile.exists() || !await vocabFile.exists()) {
-      debugPrint('[FastConformer] Modèle streaming absent (${modelFile.path}) — ignoré');
+    final configFile =
+        File('${appDir.path}/$_kStreamingModelSubdir/$_kStreamingConfigFile');
+    final wordTokensFile =
+        File('${appDir.path}/$_kStreamingModelSubdir/$_kWordTokensFile');
+    if (!await modelFile.exists() ||
+        !await vocabFile.exists() ||
+        !await configFile.exists()) {
+      debugPrint('[FastConformer] Modèle/config streaming absent '
+          '(${modelFile.path}) — repli bufferisé');
       return false;
     }
+    final hasWordTokens = await wordTokensFile.exists();
+    // Libère le fallback seulement une fois le déploiement causal complet
+    // confirmé : les deux graphes font chacun ~459 Mo et ne doivent pas
+    // cohabiter sur le téléphone 6 Go.
+    if (_loaded) await dispose();
     try {
       final ok = await _channel.invokeMethod<bool>('loadStreamingModel', {
         'modelPath': modelFile.path,
         'vocabPath': vocabFile.path,
+        'configPath': configFile.path,
+        'wordTokensPath': hasWordTokens ? wordTokensFile.path : null,
       });
       _streamingLoaded = ok ?? false;
-      debugPrint('[FastConformer] Modèle streaming chargé : $_streamingLoaded');
+      _hasRuleHead = false;
+      DiagnosticLog.log('FastConformer',
+          'modele causal stateful charge=$_streamingLoaded '
+          'subdir=$_kStreamingModelSubdir');
+      final logPath = DiagnosticLog.path;
+      if (_streamingLoaded && logPath != null) {
+        unawaited(_channel.invokeMethod('setLogFile', {'path': logPath}));
+      }
       return _streamingLoaded;
     } catch (e) {
+      _streamingLoaded = false;
       debugPrint('[FastConformer] Échec chargement modèle streaming : $e');
       return false;
     }
@@ -406,14 +435,36 @@ class FastConformerVerifier {
     _streamingLoaded = false;
   }
 
+  /// Flux causal principal : texte append-only, alignement forcé et compteurs
+  /// de cache proviennent de la même inférence ONNX.
+  Future<({String committed, String preview, AlignPayload? align})?>
+      feedCausalAudio(Uint8List pcm16) async {
+    if (!_streamingLoaded) return null;
+    try {
+      final raw = await _channel
+          .invokeMapMethod<String, dynamic>('feedCausalAudio', {'pcm16': pcm16});
+      if (raw == null) return null;
+      return (
+        committed: raw['committed'] as String? ?? '',
+        preview: raw['preview'] as String? ?? '',
+        align: AlignPayload.fromMap(raw['align']),
+      );
+    } catch (e) {
+      debugPrint('[FastConformer] Échec feedCausalAudio : $e');
+      return null;
+    }
+  }
+
   // ── Streaming "bufferisé" (fallback fiable) ─────────────────────────────────
-  // Le vrai streaming cache-aware (ci-dessus) ne fonctionne pas : notre
-  // checkpoint est entraîné avec des convolutions non-causales, incompatibles
+  // Note historique sur l'ancien checkpoint PCD : son streaming cache-aware
+  // ne fonctionne pas car il est entraîné avec des convolutions non-causales,
+  // incompatibles
   // avec l'inférence par cache en flux (confirmé : même l'API officielle NeMo
   // conformer_stream_step plante dessus). Solution qui marche : re-transcrire
   // le buffer audio complet de la session avec le modèle OFFLINE (déjà validé)
   // toutes les ~1,5s de nouvel audio — latence perçue ~1,5-3s, mais continu,
-  // sans coupure manuelle. Réutilise le modèle chargé via ensureLoaded().
+  // sans coupure manuelle. Ce chemin est maintenant le rollback du checkpoint
+  // causal stateful et réutilise le modèle chargé via ensureLoaded().
   /// Retourne les deux parties du transcript : `committed` (segments figés,
   /// append-only, plus jamais révisés) et `preview` (segment courant, encore
   /// susceptible de changer à chaque re-transcription). Le scoring s'ancre sur
@@ -452,7 +503,7 @@ class FastConformerVerifier {
   /// l'alignement est actif (modèle chargé + tokenisation OK) — sinon le
   /// scoring Dart doit retomber sur le diff textuel historique.
   Future<bool> setAlignmentTarget(List<String> strictWords, int anchor) async {
-    if (!_loaded) return false;
+    if (!_loaded && !_streamingLoaded) return false;
     try {
       final ok = await _channel.invokeMethod<bool>('setAlignmentTarget', {
         'words': strictWords,
@@ -484,7 +535,7 @@ class FastConformerVerifier {
   /// Repositionne l'ancre d'alignement (correction/recul : la prochaine passe
   /// compare l'audio au mot [anchor], pas à la suite).
   Future<void> setAlignmentAnchor(int anchor) async {
-    if (!_loaded) return;
+    if (!_loaded && !_streamingLoaded) return;
     try {
       await _channel.invokeMethod('setAlignmentAnchor', {'anchor': anchor});
     } catch (e) {
@@ -553,7 +604,7 @@ class FastConformerVerifier {
   /// STRICTES d'entraînement), à la SUITE de la cible actuelle — SANS toucher
   /// l'ancre. Enchaînement sur la sourate suivante sans interrompre la session.
   Future<bool> extendAlignmentTarget(List<String> strictWords) async {
-    if (!_loaded) return false;
+    if (!_loaded && !_streamingLoaded) return false;
     try {
       final ok = await _channel.invokeMethod<bool>('extendAlignmentTarget', {
         'words': strictWords,

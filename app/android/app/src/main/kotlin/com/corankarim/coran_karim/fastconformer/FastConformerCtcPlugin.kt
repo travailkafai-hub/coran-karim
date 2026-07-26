@@ -110,9 +110,14 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         withContext(Dispatchers.Main) { result.success(true) }
                         return@launch
                     }
-                    streaming?.close()
-                    streaming = null
-                    causalAlignment = null
+                    // Une autre instance Dart peut appeler loadModel pendant
+                    // une recitation causale. Ne jamais fermer son moteur
+                    // global : le changement explicite passe d'abord par
+                    // disposeStreaming(), sinon ce chargement est refuse.
+                    if (streaming != null) {
+                        withContext(Dispatchers.Main) { result.success(false) }
+                        return@launch
+                    }
                     val modelPath = call.argument<String>("modelPath")!!
                     val vocabPath = call.argument<String>("vocabPath")!!
                     // rules.json : noms des classes de la TETE 2 (modeles a deux
@@ -160,6 +165,18 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // ── Streaming cache-aware (vrai flux continu, karaoke) ─────────────
             "loadStreamingModel" -> scope.launch {
                 try {
+                    if (streaming != null) {
+                        withContext(Dispatchers.Main) { result.success(true) }
+                        return@launch
+                    }
+                    // Symetrique de loadModel : une instance secondaire ne
+                    // doit pas fermer le moteur stateless d'une session active.
+                    // Le proprietaire appelle dispose() avant une bascule
+                    // intentionnelle (FastConformerVerifier).
+                    if (engine != null) {
+                        withContext(Dispatchers.Main) { result.success(false) }
+                        return@launch
+                    }
                     val modelPath = call.argument<String>("modelPath")!!
                     val vocabPath = call.argument<String>("vocabPath")!!
                     val configPath = call.argument<String>("configPath")!!
@@ -168,9 +185,6 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // stateless ne doivent jamais cohabiter. Le fallback est
                     // recharge seulement si ce chargement echoue cote Dart.
                     buffered = null
-                    engine?.close()
-                    engine = null
-                    streaming?.close()
                     Thread.currentThread().contextClassLoader =
                         FastConformerStreamingSession::class.java.classLoader
                     val newStreaming = FastConformerStreamingSession(

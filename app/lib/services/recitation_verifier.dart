@@ -390,7 +390,7 @@ abstract class RecitationVerifier {
 // (modèle de production actuel, ~11% WER) mais n'est pas utilisé par CETTE classe
 // pendant que le training du modèle maison est en cours.
 
-const String _kAsrVersion = 'ASR-v45-gop-forced-align';
+const String _kAsrVersion = 'ASR-v46-causal-stateful';
 
 class WhisperOnnxVerifier implements RecitationVerifier {
   final _tokenCtrl = StreamController<RecognizedToken>.broadcast();
@@ -408,6 +408,8 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   bool _alignmentActive = false;
   int _lastAlignSeq = -1;
+  bool _usingCausalStreaming = false;
+  Future<void> _continuousFeedTail = Future.value();
 
   // ── Verrou de session (bug corrige 2026-07-16, revue de code, Finding #1) ──
   // recitationVerifierProvider N'EST PAS autoDispose : CETTE instance survit
@@ -578,21 +580,26 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   int _chunkCount = 0;
 
-  /// Flux continu (karaoké) : capture PCM16 brute en direct (pas de
-  /// fichiers/segments VAD). Le VRAI streaming cache-aware a été abandonné —
-  /// voir SKILL.md "Streaming CTC : incompatibilité architecturale" — notre
-  /// checkpoint est entraîné avec des convolutions non-causales, incompatibles
-  /// avec l'inférence par cache en flux (même l'API officielle NeMo
-  /// conformer_stream_step plante dessus, pas juste notre export ONNX).
-  /// Solution qui marche : re-transcription du buffer complet toutes les
-  /// ~1,5s via BufferedTranscriber.kt (modèle offline déjà validé) — latence
-  /// perçue ~1,5-3s, mais continu, sans coupure manuelle.
+  /// Flux continu (karaoké) : capture PCM16 brute en direct. Le checkpoint
+  /// causal entraîné utilise en priorité son export cache-aware ; l'ancien
+  /// BufferedTranscriber reste un rollback explicite si l'ONNX stateful ou ses
+  /// métadonnées ne sont pas présents sur le device.
+  ///
+  /// Historique : le premier essai cache-aware avait été abandonné parce que
+  /// le checkpoint PCD utilisait des convolutions non causales et sortait du
+  /// blank en flux. Cette conclusion reste vraie pour CE checkpoint ancien,
+  /// mais ne s'applique pas au nouveau modèle entraîné causalement.
   Future<void> _startStreamingCapture(List<String> expectedWords) async {
     _chunkCount = 0;
+    _continuousFeedTail = Future.value();
     _rawCtrl.add('⏳ Chargement FastConformer…');
-    final ok = await _fastConformer.ensureLoaded();
+    final causalOk = await _fastConformer.ensureStreamingLoaded();
+    final ok = causalOk || await _fastConformer.ensureLoaded();
+    _usingCausalStreaming = causalOk;
     _rawCtrl.add(ok
-        ? '✅ Chargé — en écoute (re-transcription ~1,5s)'
+        ? causalOk
+            ? '✅ Causal chargé — en écoute (lookahead 1,04 s)'
+            : '✅ Repli bufferisé chargé — en écoute'
         : '❌ Modèle introuvable (modèle/vocab absents sur le device)');
     if (!ok) return;
     // Moteur prêt -- `alignmentActive` marque désormais "le moteur peut
@@ -613,7 +620,11 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       DiagnosticLog.log('ASR',
           'alignement forcé actif = $_alignmentActive (cible vide au départ)');
     }
-    await _fastConformer.resetBuffered();
+    if (_usingCausalStreaming) {
+      await _fastConformer.resetStreaming();
+    } else {
+      await _fastConformer.resetBuffered();
+    }
 
     DiagnosticLog.log('ASR', 'Appel _recorder.startStream()…');
     try {
@@ -626,43 +637,25 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       DiagnosticLog.log('ASR', 'startStream() a retourné un Stream — abonnement…');
 
       _pcmSub = stream.listen(
-        (bytes) async {
+        (bytes) {
           if (_appPaused) return;
           _chunkCount++;
+          final chunkNumber = _chunkCount;
           if (_chunkCount == 1) {
             DiagnosticLog.log('ASR', 'PREMIER bloc PCM reçu ! ${bytes.length} octets');
           } else if (_chunkCount % 20 == 0) {
             DiagnosticLog.log('ASR', 'bloc PCM #$_chunkCount (${bytes.length} octets)');
           }
           _levelCtrl.add(_estimatePcmLevel(bytes));
-          try {
-            final parts = await _fastConformer.feedBufferedAudio(bytes);
-            if (parts != null &&
-                (parts.committed.isNotEmpty || parts.preview.isNotEmpty)) {
-              final display = [parts.committed, parts.preview]
-                  .where((s) => s.isNotEmpty)
-                  .join(' ');
-              if (_chunkCount % 20 == 0) {
-                debugPrint('[FastConformer] #$_chunkCount fige="${parts.committed}" '
-                    'apercu="${parts.preview}"');
-              }
-              _rawCtrl.add(display); // affichage brut (debug/caption)
-              // Scoring ancré : la partie figée est append-only, seule
-              // l'aperçu est ré-aligné à chaque passe (voir recitation_provider).
-              _structCtrl.add(
-                  (committed: parts.committed, preview: parts.preview));
-            }
-            // Passe d'alignement forcé GOP : dédupliquée par `seq` (le natif
-            // renvoie le DERNIER résultat connu à chaque bloc PCM, mais une
-            // passe d'inférence n'a lieu que toutes les ~1,5s).
-            final align = parts?.align;
-            if (align != null && align.seq != _lastAlignSeq) {
-              _lastAlignSeq = align.seq;
-              _alignCtrl.add(align);
-            }
-          } catch (e) {
-            debugPrint('[FastConformer] Erreur feedBufferedAudio : $e');
-          }
+          // MethodChannel + coroutines natives autorisent plusieurs appels en
+          // vol. Cette chaine FIFO preserve strictement l'ordre PCM, condition
+          // indispensable pour que les caches t-1 alimentent bien le chunk t.
+          _continuousFeedTail = _continuousFeedTail
+              .then((_) => _processContinuousChunk(bytes, chunkNumber))
+              .catchError((Object e, StackTrace st) {
+            DiagnosticLog.log(
+                'ASR', 'Erreur flux continu chunk=$chunkNumber : $e\n$st');
+          });
         },
         onError: (e) => DiagnosticLog.log('ASR', 'Erreur sur le flux PCM : $e'),
         onDone: () => DiagnosticLog.log('ASR', 'Flux PCM terminé (onDone) — $_chunkCount blocs reçus au total'),
@@ -670,6 +663,33 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     } catch (e, st) {
       DiagnosticLog.log('ASR', 'EXCEPTION dans _startStreamingCapture : $e\n$st');
       _rawCtrl.add('❌ Erreur démarrage capture audio : $e');
+    }
+  }
+
+  Future<void> _processContinuousChunk(
+      Uint8List bytes, int chunkNumber) async {
+    final parts = _usingCausalStreaming
+        ? await _fastConformer.feedCausalAudio(bytes)
+        : await _fastConformer.feedBufferedAudio(bytes);
+    if (parts != null &&
+        (parts.committed.isNotEmpty || parts.preview.isNotEmpty)) {
+      final display = [parts.committed, parts.preview]
+          .where((s) => s.isNotEmpty)
+          .join(' ');
+      if (chunkNumber % 20 == 0) {
+        debugPrint('[FastConformer] #$chunkNumber '
+            'fige="${parts.committed}" apercu="${parts.preview}"');
+      }
+      _rawCtrl.add(display);
+      _structCtrl.add(
+          (committed: parts.committed, preview: parts.preview));
+    }
+    // Une même séquence est renvoyée sur les blocs PCM qui ne déclenchent pas
+    // encore d'inférence ; la déduplication évite de rejouer son verdict.
+    final align = parts?.align;
+    if (align != null && align.seq != _lastAlignSeq) {
+      _lastAlignSeq = align.seq;
+      _alignCtrl.add(align);
     }
   }
 
@@ -804,6 +824,11 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       await _pcmSub?.cancel();
       _pcmSub = null;
       await _recorder.stop();
+      await _continuousFeedTail;
+      if (_usingCausalStreaming) {
+        await _fastConformer.disposeStreaming();
+        _usingCausalStreaming = false;
+      }
       return;
     }
 
@@ -935,7 +960,14 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   }
 
   @override
-  Future<void> resetBuffer() => _fastConformer.resetBuffered();
+  Future<void> resetBuffer() async {
+    await _continuousFeedTail;
+    if (_usingCausalStreaming) {
+      await _fastConformer.resetStreaming();
+    } else {
+      await _fastConformer.resetBuffered();
+    }
+  }
 
   @override
   Future<bool> ensureModelLoaded() => _fastConformer.ensureLoaded();
