@@ -365,3 +365,50 @@ absence de preuve acoustique traitée comme une faute. Corrigé dans
 `recitation_provider.dart` (Bismillah sans son = NON JUGÉE, ni verte ni rouge).
 Session trop courte pour conclure : le protocole complet est décrit en tête de
 `score_error_detection.py`.
+
+## 2026-07-27 — Nemotron 3.5 ASR : encodeur pré-entraîné + tête CTC maison
+
+**Contexte** : le fine-tune causal maison ayant échoué en usage réel sur les
+sessions longues (cf. `PROBLEMATIQUES_ASR.md` §1.5), on a testé si l'encodeur de
+`nvidia/nemotron-3.5-asr-streaming-0.6b` (Cache-Aware FastConformer, conçu
+streaming dès l'entraînement, sorti le 04/06/2026) pouvait servir de base.
+
+**Montage** (`make_nemotron_ctc_init.py`) : encodeur Nemotron transplanté tel
+quel (609 M params, `strict=True`, 0 écart) + tête CTC **fraîche** sur NOTRE
+vocabulaire `tajweed_bpe_v1` (1024 tokens, harakat incluses). Son vocabulaire
+natif (13 087 tokens, ~2 % d'arabe) est inadapté au coranique vocalisé.
+Environnement dédié : `.venv_nemotron_ft` (Python 3.13 + NeMo main 3.1.0) —
+`.venv_nemo` jamais touché. NeMo 2.5.0 ne suffit pas (classe
+`EncDecRNNTBPEModelWithPrompt` absente).
+
+**Résultat, 8 epochs, ~2 h 20 sur RTX 5080** (`finetune_nemotron_ctc.py`,
+batch 4 × accum 8, lr 3e-5) :
+
+| epoch | val_loss | val_wer |
+|---|---|---|
+| 0 | 220,7 | 1,000 |
+| 1 | 64,4 | 0,994 |
+| 2 | 38,0 | 0,884 |
+| 3 | 28,3 | 0,762 |
+| 4 | 25,4 | 0,709 |
+| 6 | 22,4 | 0,637 |
+| **7 (final)** | **22,1** | **0,628** |
+
+**Conclusion : faisabilité prouvée, mais écarté pour la production.**
+L'encodeur multilingue APPREND bien le coranique vocalisé (1,00 → 0,628, aucune
+plateau) — ce n'était pas acquis, et ça valide qu'un encodeur cache-aware natif
+peut porter nos deux têtes. Mais 0,628 reste très loin des **0,116** de
+`mixed-e14`, et la courbe s'aplatit nettement en fin de run (0,637 → 0,628 sur
+la dernière epoch) : il faudrait beaucoup plus d'epochs pour un résultat
+incertain. S'ajoutent 609 M params contre ~115 M (5×) et un `.nemo` de 2,4 Go,
+donc un vrai problème de déploiement mobile non résolu.
+
+À rouvrir seulement si le streaming cache-aware redevient la priorité ET qu'on
+accepte le gabarit. Le checkpoint est conservé
+(`models/nemotron-ctc-v1/nemotron-ctc-final.nemo`).
+
+⚠️ Rappel : l'évaluation zero-shot du 2026-07-03 avait écarté Nemotron sur
+« non fine-tunable ici (RNNT-only, blocage NVVM) ». Ce motif est FAUX depuis :
+la tête CTC greffée n'utilise que `nn.CTCLoss` (aucun warprnnt/NVVM), et le
+fine-tuning fonctionne. Seule la performance justifie l'écart, pas la
+faisabilité technique.
