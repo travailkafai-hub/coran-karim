@@ -20,6 +20,7 @@ benchmark/models_deployes/
 benchmark/nemo_manifests_dual/
 benchmark/nemo_manifests_rules/
 benchmark/nemo_manifests_rules_grouped/
+benchmark/nemo_manifests_mixed/
 .venv*/
 **/.venv*/
 venv/

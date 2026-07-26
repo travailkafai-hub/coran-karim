@@ -207,10 +207,19 @@ le commit — pas encore confirmé en usage réel.
   vs 9,46% CER — deux sources donnent des valeurs différentes, non tranché).
 - **Confirmer le global-match (commit `3fb04c3`) en usage réel sur device** —
   marqué "à tester" au moment du commit.
-- **Vérifier si `nemo_manifests_tajweed/` (base du run `tajweed`, donc en
-  amont de `tajweed-v2` puis `mixed`) utilise bien le manifest Hafs-only** —
-  jamais confirmé dans les notes de session (`HANDOFF_UBUNTU_TRAINING.md` §2
-  le signalait déjà comme point ouvert le 12/07, toujours pas vérifié).
+- ~~Vérifier si `nemo_manifests_tajweed/` utilise bien le manifest Hafs-only~~
+  **Vérifié le 2026-07-26** (question ouverte depuis le 12/07, jamais
+  tranchée) : croisement direct des noms de dossier réciteur présents dans
+  `nemo_manifests_dual/{train,val}_manifest.jsonl` (lignée
+  `tajweed → mixed → rules → dual`, utilisée pour l'entraînement causal
+  streaming) contre `EXCLUDE_RECITERS` de `build_hafs_only_manifest.py`.
+  Résultat : **0 clip** des 21 réciteurs tagués Warsh ni des 2 mal-tagués
+  (`HassanSaleh_assajda`, `AbdulRashidSufi_assajda`). Les clips `_assajda`
+  présents (9 479 train / 315 val) proviennent exactement des 12 réciteurs
+  vérifiés Hafs page par page (`AbdallahMatroud`, `SaberAbdulHakam`,
+  `AlzainMohamedAhmed`, `AbdulWadudHaneef`, `AdelKalbani`, `MustaphaLahouni`,
+  `AbdallahKamel`, `KhalidAlJalil`, `MohamedElBarak`, `MohamedMohisni`,
+  `AntarMuslim`, `AhmedSaoud`). Manifest propre pour cette lignée.
 
 ### Intégration app
 - ~~**Rescoring NLL canonique/prononcé** (§5a)~~ **Branché le 2026-07-19**
@@ -350,6 +359,107 @@ par `PLAN_ENTRAINEMENT_HYBRIDE.md`**.
 
 ---
 
+## 7bis. Tête tajwid MULTI-LABEL (2026-07-24) — remplace le CTC+softmax
+
+### Diagnostic (chaîne complète, cf. session du 24/07)
+
+Mesure device décisive : sur ٱلنَّاسِ (114:2, نّ doublé + assimilation du
+lam), la tête tajwid (CTC+softmax+blank, 18 classes) ne détectait JAMAIS
+`ghunnah` ET `laam_shamsiyah` en même temps — un log `[TAJWID]` montrait
+`emises=laam_shamsiyah` puis `emises=` (vide) selon la passe, jamais les
+deux. Cause : les deux règles se réalisent sur les MÊMES frames (le lam
+s'assimile littéralement dans le noun doublé), mais un softmax partagé
+FORCE une seule classe gagnante par frame — l'autre ressort "non détectée"
+par construction, quelle que soit la prononciation réelle. Confirmé dans le
+code d'entraînement (`finetune_dual_head.py::_tajwid_loss`, `F.ctc_loss`
+avec cible séquentielle ordonnée) et dans l'annotation source (`uthmani_tajweed.jsonl`,
+`<laam_shamsiyah>ل</laam_shamsiyah><ghunnah>نّ</ghunnah>` — deux lettres
+adjacentes, positions distinctes, mais acoustiquement fusionnées).
+
+### Fix : sigmoïde indépendante par classe
+
+- **Labels** : `build_frame_level_tajwid_labels.py` (nouveau) — dérive une
+  fenêtre de FRAMES par règle (alignement forcé de la tête 1, ±1 frame de
+  marge) au lieu d'une séquence positionnelle. Sortie :
+  `nemo_manifests_dual/tajwid_frame_spans_{train,val}.jsonl`. Ajoute aussi
+  `waqf_lazim`/`waqf_awla` (positions déjà connues via
+  `app/assets/data/quran_waqf.json`, fenêtre = silence réel détecté après le
+  mot — cf. FONCTIONNALITES_FUTURES.md §9). **19 classes au total**
+  (17 régles tajwid + 2 waqf), plus de blank.
+- **Loss** : `finetune_dual_head.py::_tajwid_loss` réécrite en
+  `F.binary_cross_entropy_with_logits` par frame par classe, indépendante
+  (remplace `F.ctc_loss`). `pos_weight` par classe calibré par
+  `calibrate_tajwid_pos_weight.py` (sqrt de l'inverse-fréquence, plafonné à
+  15 — idée utilisateur : atténuer l'impact des classes dominantes comme
+  `ham_wasl` sans laisser les classes rarissimes comme `waqf_lazim` — 318
+  frames positives sur tout le corpus — exploser la loss).
+- **Tête** : `ConvTajwidHead(..., N_RULES)` (plus de `+1` pour le blank).
+- **Export** : `export_dual_head_multilabel.py` (nouveau, remplace
+  `export_dual_head_checkpoint.py` pour cette lignée) — sortie
+  `tajwid_logprobs` = `logsigmoid(logits)` par classe, indépendant.
+- **Kotlin** : `FastConformerCtc.kt::decodeTajwid` réécrit (seuil
+  `logsigmoid > 0` = proba > 50%, par classe indépendamment, collapse de
+  plateau par classe — plus d'argmax global). `ForcedAligner.kt::tajwidGop`
+  simplifié : le meilleur logsigmoid PROPRE à chaque classe sur la fenêtre du
+  mot (plus de marge compétitive "score - meilleure autre classe", qui n'a
+  plus de sens hors softmax). Garde-fou `-inf` → `-50f` (underflow ONNX de
+  `logsigmoid` sur les classes très confidemment absentes, mesuré `ecart
+  tajwid=inf` PyTorch/ONNX lors de la validation d'export — sans impact sur
+  le seuil, mais à plafonner avant tout calcul aval).
+- **Dart** : `TajwidRule` (judgement_options.dart) étendu avec `waqfLazim`/
+  `waqfAwla` (ordre = ids 17/18, DOIT matcher `RULE_CLASSES` Python).
+  `rule_reliability.json` : les deux classes waqf marquées
+  `insufficient_data` (aucune mesure recall/précision sur eval tenu à l'écart
+  à ce jour — ne jamais afficher un vert/rouge confiant dessus).
+
+### Runs (`benchmark/models/fastconformer-dual-head-v1/`)
+
+| Run | Base (`--init_nemo`) | val_tajwid final | Statut |
+|---|---|---|---|
+| `stagea-multilabel-v1` | `mixed-e14-snapshot.nemo` (brut) | 0,0497 (8 epochs) | ⚠️ **régression tête lettres** — perd tout l'acquis Stage B (voir ci-dessous) |
+| `stagea-multilabel-v2-pauseaugbase` | `stageb-convhead-pause-aug-v1/stageb-final.nemo` | *(en cours de re-run)* | Base = Stage B + pause-aug |
+| `stagea-multilabel-v3-cleanbase` | `stageb-convhead-v1/stageb-final.nemo` (2026-07-23 10:21, Stage B SANS pause-aug) | **0,0459** (8 epochs, meilleur) | ✅ **Déployé sur device** (21:59) |
+
+**Régression découverte sur v1** (constat utilisateur en test live, confirmé
+log : "قُلْ هُوَ ٱللَّهُ أَحَدٌ" propre AVANT → "قُلْ هُوَرُونَ" dégradé APRÈS) :
+`stagea` gèle l'encodeur+tête1 pendant l'entraînement, donc leurs poids
+viennent ENTIÈREMENT du `--init_nemo` fourni. `mixed-e14-snapshot.nemo` est
+le tout premier checkpoint, AVANT tout le travail d'affinage ultérieur
+(Stage A tajwid warmup → Stage B dégel complet → Stage B pause-aug). Repartir
+de lui pour v1 a fait perdre trois étapes d'affinage de la tête lettres d'un
+coup. v3 repart de `stageb-convhead-v1` (juste avant la branche pause-aug,
+"Stage B propre") — récupère l'essentiel de l'acquis sans la variable
+pause-aug ; v2 (en cours) permettra de mesurer si la variable pause-aug
+apporte réellement quelque chose sur ce point de départ ou si elle est,
+elle, la cause d'une régression différente (à trancher par comparaison
+directe une fois les deux terminés).
+
+### Déploiement device (dossier fixe `files/models/fastconformer-ctc-dual-head/`)
+
+Chronologie des exports poussés sur le téléphone le 24/07 (le dossier est
+toujours écrasé au même endroit, la trace ci-dessous sert à savoir QUEL
+modèle a produit quel log/clip de test) :
+- 06:08 — `fastconformer-ctc-dual-head-pauseaug` (ancien, CTC+softmax,
+  18 classes) — celui testé pendant toute la 1ère partie de la session.
+- 20:45 — `fastconformer-ctc-dual-head-multilabel` (v1, régression lettres).
+- 21:59 — `fastconformer-ctc-dual-head-multilabel-v3` (v3, base propre) —
+  **version actuellement déployée**.
+
+### Reste à faire
+
+- Terminer et évaluer v2 (pause-aug base) pour trancher si la variable
+  pause-aug doit être réintégrée (Stage B complet) par-dessus v3.
+- Éventuel Stage B complet (dégel total, comme l'ancien pipeline) sur la
+  meilleure des deux bases une fois choisie — le Stage A seul a déjà donné
+  0,0459, un Stage B pourrait encore améliorer sans risque de régression
+  cette fois (on repart d'une base déjà bonne, pas de mixed-e14 brut).
+- Recalibrer `_kTajwidGopRealized` (actuellement -1.2, hérité de l'ancien
+  système) sur les vraies marges multi-label mesurées en usage réel — la
+  valeur "traduit" à peu près pareil (proba ≈30%) mais n'a jamais été
+  validée empiriquement dans ce nouveau régime.
+
+---
+
 ## 7. Incertitudes explicites (à vérifier avant de s'appuyer dessus)
 
 - Chiffres epoch02 divergents entre le commentaire Dart et les logs retrouvés
@@ -359,3 +469,62 @@ par `PLAN_ENTRAINEMENT_HYBRIDE.md`**.
 - Le "0,013" transitoire de `tajweed-v2` epoch9 (probable artefact CUDA
   graphs, jamais creusé formellement — cohérent avec le glitch déjà documenté
   et confirmé invalide pour `tajweed-augmented` epoch01).
+
+---
+
+## RESTE À FAIRE — le fine-tune STREAMING n'a JAMAIS été lancé (constat 2026-07-25)
+
+Constat de l'utilisateur, vérifié : **9 runs FastConformer existent, aucun n'est
+un entraînement streaming.**
+
+`quran-clean`, `quran-personal`, `tajweed`, `tajweed-v2`, `tajweed-augmented`,
+`tajweed-mixed`, `mixed-e14-rules-ctc`, `hybrid-v1`, `dual-head-v1`.
+
+Pire : les quatre scripts « streaming » du dépôt sont **tous des tentatives de
+bascule SANS réentraînement**, sur un checkpoint entraîné en offline —
+- `test_streaming_ctc.py` : « cache-aware chunked_limited **SANS
+  reentrainement** — juste un changement de [config] »
+- `test_official_stream_step.py` : `att_context_style = "chunked_limited"` posé
+  sur le checkpoint existant
+- `export_streaming_onnx.py` : export en `att_context_size [70,1]` du modèle
+  offline
+- `simulate_kotlin_streaming.py` : simulation de la politique côté Kotlin
+
+C'est exactement ce que l'en-tête de `BufferedTranscriber.kt` décrit comme
+impossible depuis le **2026-07-04** :
+
+> le checkpoint est entraîné en mode offline avec des convolutions NON causales
+> (subsampling + convs depthwise regardent ~4 frames dans le futur) […] le
+> découpage chunk-par-chunk avec cache corrompt chaque frontière → décode
+> **100 % blank** ; même le chemin officiel NeMo `conformer_stream_step` crashe.
+> Le vrai streaming exige un fine-tune dédié avec convolutions causales.
+
+**On a donc tenté quatre fois par la configuration, et jamais lancé
+l'entraînement qui le rendrait possible.** La capacité existe (GPU, venv NeMo,
+manifests, recette RNNT réparée le 2026-07-19) — c'est un manquement de
+priorisation, pas un obstacle technique.
+
+### Pourquoi ça compte plus que tout le reste du travail applicatif
+
+Mesures du 2026-07-25 sur device :
+- charge CPU de l'inférence : **12–15 %** — le calcul n'est PAS le goulot
+- latence de validation : 2,1–4,9 s, dont ~10 % seulement d'inférence
+- coût quadratique de la boucle : un segment de 7 s est transcrit à 1, 3, 4, 6
+  et 7 s → **21 s d'audio traitées pour 7 s de parole**
+
+L'app fait de l'**ASR d'énoncé complet en boucle pour simuler du streaming**.
+Toutes les pathologies combattues le 2026-07-25 en découlent : dérive de
+normalisation, syllabes doublées (`بِمَامَآمَآ`, `يُؤْمِنُونَ يُؤْمِنُونَ`),
+texte `entendu` instable d'une passe à l'autre, verdicts qui changent.
+
+### Ce qu'il faut lancer
+
+Fine-tune **à partir du meilleur checkpoint existant** (pas de zéro) avec
+convolutions causales :
+- `encoder.att_context_style = chunked_limited`
+- `encoder.att_context_size` borné (ex. `[70, 1]`)
+- `encoder.conv_context_size = causal`, `causal_downsampling = true`
+- manifests déjà construits, recette GPU déjà validée
+
+⚠️ Avant de relancer une bascule de configuration sans entraînement : **elle a
+déjà été tentée quatre fois et échoue par construction.** Ne pas la refaire.

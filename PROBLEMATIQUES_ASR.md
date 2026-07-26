@@ -102,6 +102,66 @@ exige un fine-tune dédié à **convolutions causales** (verdict 2026-07-04,
 header `BufferedTranscriber.kt`). La fenêtre glissante offline, elle, re-transcrit
 une fenêtre entière sans cache — elle ne tombe pas dans cet échec.
 
+> **MISE À JOUR 2026-07-26** : le fine-tune causal évoqué ci-dessus comme
+> condition manquante a été fait cette session (cf. `ETAT_CTC_NEMO.md`,
+> `.claude/skills/model-training/references/asr.md`). Le blocage structurel
+> décrit ici est donc levé, mais pas encore validé bout en bout côté app —
+> voir §1.4 pour la comparaison complète ancienne/nouvelle méthode et l'état
+> d'avancement réel.
+
+### 1.4 Ancienne méthode vs nouvelle méthode (streaming causal) — comparatif
+
+Document demandé par l'utilisateur (2026-07-26) pour clarifier ce qui change
+concrètement avant de toucher à `BufferedTranscriber.kt` (règle projet :
+proposer et faire valider avant de développer). Les deux méthodes ci-dessous
+ne sont PAS interchangeables au même niveau de maturité : l'ancienne est en
+production, mesurée sur device ; la nouvelle est un modèle entraîné mais
+**pas encore portée côté Kotlin, pas encore validée sur audio réel device**.
+
+#### Ancienne méthode — buffer offline re-transcrit en entier
+
+**Principe.** Le buffer audio grandit à chaque frame captée. À intervalle
+régulier (~1,5 s), `BufferedTranscriber` renvoie **tout le buffer depuis le
+début du segment** au modèle **offline** (convolutions non-causales, voit
+~4 frames de futur), qui le retranscrit intégralement ; le jugement (GOP,
+alignement) est réévalué sur ce nouveau texte complet.
+
+| Points forts | Points faibles |
+|---|---|
+| Chaque passage voit **tout le contexte disponible** → un mot mal jugé au premier passage peut être **corrigé rétroactivement** quand plus de contexte arrive (mécanisme observé et exploité, cf. `resume_log_recitation.py` : « signalé puis repassé vert ») | Coût de calcul **quadratique dans le temps** : chaque nouveau chunk refait tout le travail depuis le début → le calcul dupliqué croît avec la durée récitée |
+| Modèle **offline standard, éprouvé** : WER de référence 0,116 sur Coran (mixed-e14) | **Dérive de normalisation `per_feature`** au-delà de ~10 s : le buffer sort du domaine des clips d'entraînement (mean/std recalculés sur un signal de plus en plus long) |
+| Pas de gestion d'état complexe côté Kotlin (appel stateless, le buffer entier suffit) | **Coupe en plein mot / effondrement** documentés en détail au §1.1 (occlusives peu énergiques, portier RMS) |
+| Comportement **connu et mesuré** sur device depuis longtemps (aucune inconnue de maturité) | **Retard de validation** croissant avec la durée (avant le dernier correctif de gel, mesuré à 15,9 s) |
+| | La tentative de fenêtre glissante **naïve** (sans cache) a produit un WER > 100 % par **duplication de texte** — rejetée par la mesure, pas une option de repli |
+
+#### Nouvelle méthode — streaming cache-aware, convolutions causales
+
+**Principe.** Le modèle est ré-entraîné avec des **convolutions causales**
+et une fenêtre d'attention `chunked_limited` (contexte droit **borné**, ex.
+`[70,13]` ≈ 1,04 s de lookahead — cf. formule NVIDIA dans `asr.md`). Chaque
+**nouveau** chunk audio n'est traité **qu'une seule fois** ; un état
+(`cache_last_channel`, `cache_last_time`, `cache_last_channel_len`) est
+conservé entre deux appels et réinjecté au chunk suivant — le décodage CTC
+devient incrémental (append-only) plutôt que ré-évalué en bloc.
+
+| Points forts | Points faibles |
+|---|---|
+| Coût de calcul **linéaire** : chaque frame traitée exactement une fois par construction (résout structurellement la duplication qui a tué la fenêtre glissante naïve ci-dessus) | Contexte droit **borné par construction** — un mot dont l'interprétation ne se clarifie qu'avec beaucoup de contexte futur **ne bénéficie plus** de la correction rétroactive de l'ancienne méthode (effet de bord identifié, pas encore arbitré avec l'utilisateur) |
+| Aligné avec l'état de l'art mesuré (cache-aware FastConformer : jusqu'à 17× de réduction de latence rapportée, §2.4) et les modèles NVIDIA récents conçus pour ça (Nemotron Speech ASR) | **WER actuellement moins bon** que l'offline : 0,195 vs 0,116 sur Coran (cycle 1, décodage CTC forcé) — écart pas encore comblé, structurellement attendu (moins de contexte futur = moins d'info) mais son ampleur reste à valider |
+| Pas de dérive de normalisation sur un buffer qui grandit sans borne (chaque chunk traité dans une fenêtre de taille fixe) | Décodage CTC incrémental doit **fusionner les répétitions à travers la frontière de chunk** — logique **pas encore écrite côté Kotlin** ; mal faite, elle peut dédoubler ou couper des mots |
+| Latence de bout en bout indépendante de la durée déjà récitée (pas de retard croissant) | **Complexité d'état nouvelle** : la session ONNX porte un état mutable entre appels (reset sur erreur/interruption plus délicat qu'un appel stateless) |
+| | **Pas encore validé sur audio réel device** : seul un export SANS état (drop-in, mêmes entrées/sorties que l'ancien modèle) a été testé à ce stade ; l'export cache-aware réel (`export_streaming_onnx.py`) doit être refait pour pointer sur le nouveau checkpoint causal, et le portage Kotlin (gestion du cache) n'a pas commencé |
+
+**Où on en est (2026-07-26)** : le fine-tune causal existe
+(`fastconformer-streaming-causal-v1-lr3e4/causal-final.nemo`), un export
+stateless a été produit pour tester la qualité de transcription seule dans
+l'app (sans changer l'architecture de `BufferedTranscriber`), et un second
+entraînement joint encodeur+tête tajwid (stage b) est en cours. Le passage à
+l'architecture streaming réelle (cache + décodage incrémental côté Kotlin)
+est une étape **distincte, non commencée**, avec l'effet de bord ci-dessus
+(perte possible de la correction rétroactive) qui doit être tranché avant
+d'y toucher — pas assumé unilatéralement.
+
 ---
 
 ## Partie 2 — Ce que rapportent les autres (forums & recherche)

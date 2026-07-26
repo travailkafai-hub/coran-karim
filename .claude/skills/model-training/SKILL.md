@@ -12,23 +12,72 @@ Ce projet entraîne plusieurs modèles très différents (ASR audio, LLM texte, 
 - Question Gemma/LLM tuteur (LoRA, dataset islamique tafsir/hadith/lexique, SFT) → lis `references/gemma-llm.md`.
 - Question transverse (checkpoint, environnement, statut d'un run) → tout est ci-dessous, pas besoin d'aller plus loin.
 
-## Environnement — pièges Windows récurrents (tout script Python du projet)
+## Documentation d'entraînement — l'index complet (mis à jour 2026-07-25)
 
-Tout script tourne dans `benchmark/.venv` (Windows, GPU NVIDIA CUDA). Deux pièges systématiques, quel que soit le modèle entraîné :
+Ces documents contiennent l'essentiel de la mémoire d'entraînement. **Les lire
+avant d'agir sur le sujet correspondant** — plusieurs journées ont été perdues à
+re-dériver ce qui y était déjà écrit.
 
-1. **Conflit protobuf/TensorFlow** : `transformers` importe TensorFlow en cascade dès qu'on importe `WhisperProcessor`/`AutoModel*`/`AutoModelForMultimodalLM`, ce qui casse sur un conflit de version protobuf (`VersionError: Detected incompatible Protobuf Gencode/Runtime versions`). Fix : **toujours** en tout début de script, avant tout autre import :
-   ```python
-   import os
-   os.environ["USE_TF"] = "0"; os.environ["USE_JAX"] = "0"
-   import truststore; truststore.inject_into_ssl()  # SSL corporate
-   ```
-   Si un script existant plante avec cette erreur, c'est presque toujours parce que ces deux lignes manquent ou sont après un autre import.
+| Document | Ce qu'il contient |
+|---|---|
+| `ETAT_CTC_NEMO.md` | Inventaire des runs NeMo, WER, déploiement, **reste à faire** (dont le fine-tune streaming jamais lancé) |
+| `PLAN_ENTRAINEMENT_HYBRIDE.md` | Stratégie du run 3 têtes (RNNT + CTC strict/tolérant), §5quater sur la calibration GOP |
+| `benchmark/BENCHMARK_RESULTS.md` | Historique chiffré de tous les benchmarks et décisions |
+| `QAT_TRAINING_PLAN.md` | Plan de réentraînement QAT du Coach IA (Gemma) — **absent de l'index CLAUDE.md** |
+| `HANDOFF_UBUNTU_TRAINING.md` | Training tajweed + pistes explorées — **absent de l'index CLAUDE.md** |
+| `REVUE_ARCHITECTURE_KARAOKE.md` | Revue d'architecture du karaoké temps réel — **absent de l'index CLAUDE.md** |
+| `PROBLEMATIQUES_ASR.md` | Problématiques ASR (buffer, GOP, pauses) + état de l'art externe |
+| `GLOSSAIRE_TECHNIQUES_ASR.md` | Quelle technique sert à quoi (entraînement vs décodage) |
+| `JOURNAL_TESTS_LOGS.md` | Mesures device horodatées — indispensable avant toute hypothèse |
+| `ARCHITECTURE_RECITATION.md` | Chaîne audio → jugement, limites structurelles |
 
-2. **Lancement en arrière-plan** : le wrapper `cmd.exe /c ".venv\Scripts\activate.bat && python ..."` échoue parfois silencieusement quand il est backgroundé (log vide, aucun process, pas d'erreur visible). Préfère l'appel **direct** de l'exécutable du venv :
-   ```bash
-   "D:/Coran Karim/benchmark/.venv/Scripts/python.exe" -X utf8 script.py > logs/mon_log.log 2>&1
-   ```
-   Si le lancement en arrière-plan ne produit rien après quelques secondes (log vide, aucun `python.exe` dans `Get-CimInstance Win32_Process`), ne pas réessayer la même commande en boucle — relancer en premier plan (bloquant, bref) pour voir la vraie erreur, corriger, puis rebackgrounder.
+⚠️ **Avant toute analyse : `git branch -a` et `git log` des branches sœurs.**
+Le dépôt porte plusieurs branches de moteur (`test-1-gop`, `test-2-gop`,
+`asr-nemo-solutions`) qui diffèrent de centaines de lignes sur la chaîne ASR.
+Le 2026-07-25, une journée a été passée à re-dériver un mécanisme (recouvrement
+de segment sur mots entiers) **déjà implémenté dans `test-2-gop` depuis le 23**.
+
+## Environnement — CETTE machine est Ubuntu, pas Windows (corrigé 2026-07-25)
+
+⚠️ La version précédente de ce fichier décrivait un environnement **Windows**
+(`benchmark/.venv/Scripts/python.exe`). C'est faux sur cette machine et un agent
+qui suit ces instructions échoue : `benchmark/.venv` et `.venv_nemotron` **sont**
+des venvs Windows (`Scripts/`), inutilisables ici.
+
+**Venv NeMo à utiliser** (NeMo 2.5.0, torch 2.11 cu128, Python 3.14) — son
+binaire `bin/python3.14` est un symlink cassé (reparse tag Windows), donc on
+appelle l'interpréteur système avec le `PYTHONPATH` du venv :
+
+```bash
+SITE="benchmark/.venv_nemo/lib/python3.14/site-packages"
+PYTHONPATH="$PWD/$SITE" /usr/bin/python3.14 benchmark/mon_script.py
+```
+
+**Loss RNNT** : ajouter `CUDA_HOME="$SITE/nvidia/cuda_nvcc"` (libnvvm installée
+dans le venv le 2026-07-19). Sans ça, seul le CTC-only fonctionne.
+
+**Chemins** : projet sur `/media/kafai/NouveauNom/Coran Karim` (espace dans le
+nom → attention sentencepiece et scripts shell) ; audio volumineux sur
+`/run/media/kafai/HDD/Coran Karim/`. Les deux disques sont en NTFS : pas de
+permissions POSIX fiables (`rsync --no-perms --no-owner --no-group`), et les
+caractères `: ? * < > | "` sont interdits dans les noms de fichiers.
+
+**Manifests à chemins morts** : `benchmark/nemo_manifests_mixed/` pointe vers
+`/mnt/ssd5/...` et `/mnt/hdd/...` (autre machine). Remap :
+`/mnt/ssd5/Coran Karim/` → `/media/kafai/NouveauNom/Coran Karim/`,
+`/mnt/hdd/Coran Karim/` → `/run/media/kafai/HDD/Coran Karim/`. Faire des copies
+corrigées, ne pas modifier les manifests du dépôt.
+
+**Piège protobuf/TensorFlow** (valable partout) : toujours en tête de script,
+avant tout autre import :
+```python
+import os
+os.environ["USE_TF"] = "0"; os.environ["USE_JAX"] = "0"
+```
+
+**Runs archivés** : 20 runs terminés ont été DÉPLACÉS sur le HDD en conservant
+le chemin relatif. Un dossier absent de `benchmark/models/` n'est PAS une preuve
+que le run n'existe plus — vérifier le HDD avant de conclure ou de relancer.
 
 ## Discipline de checkpoint — vérifier AVANT de lancer, pas après un crash
 

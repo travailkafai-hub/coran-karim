@@ -9,9 +9,15 @@ Sorties ONNX : logprobs (CTC, pour le chunk courant),
                cache_last_channel_next, cache_last_time_next, cache_last_channel_next_len
                (a repasser en entree pour le CHUNK SUIVANT -> etat qui persiste)
 
-Contexte att_context_size choisi : [70, 1] (~1120ms de look-ahead, le plus gros
-preset -- on privilegie la qualite d'abord, on pourra reduire la latence
-ensuite si besoin). Bascule "zero-shot" sans reentrainement, deja validee
+Contexte att_context_size choisi : [70, 1].
+
+⛔ CORRECTION 2026-07-25 : le commentaire d'origine disait "~1120ms de
+look-ahead, le plus gros preset" -- C'EST FAUX, et l'erreur fausse tout
+arbitrage latence/qualite. Formule officielle NVIDIA :
+    look-ahead(s) = att_context_size[1] * subsampling_factor * window_stride
+soit ici R * 8 * 0.01 = R * 80 ms. Donc [70,1] = 80 ms, le preset le plus
+AGRESSIF (pas le plus gros) ; les ~1040 ms correspondent a [70,13], qui est le
+DEFAUT NVIDIA. Cf. references/asr.md du skill model-training. Bascule "zero-shot" sans reentrainement, deja validee
 (test_streaming_ctc.py) : qualite comparable au mode offline sur le
 checkpoint actuel (~20% val_wer_ctc, training en cours).
 """

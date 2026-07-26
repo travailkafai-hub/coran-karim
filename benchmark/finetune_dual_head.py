@@ -64,15 +64,21 @@ MANIFEST_DIR = BASE_DIR / "nemo_manifests_dual"
 # U+E000..U+E010). Ce sont les seules sorties de la tete 2 : AUCUNE lettre,
 # AUCUNE harakat -- c'est toute la raison d'etre de la separation. Pas de BPE
 # non plus : une classification par frame, pas une tokenisation de texte.
+# AJOUT waqf_lazim/waqf_awla (2026-07-24, decision utilisateur -- cf.
+# FONCTIONNALITES_FUTURES.md §9) : positions deja connues via
+# app/assets/data/quran_waqf.json, fenetre = silence REEL detecte juste apres
+# le mot (cf. build_frame_level_tajwid_labels.py::waqf_span_after). Les 5
+# autres types (jaiz/wasl_awla/mamnu/muanaqah/sakta) restent hors-perimetre :
+# mamnu en particulier demanderait de detecter une ABSENCE de regle, signal
+# different, pas traite ici.
 RULE_CLASSES = [
     "madda_necessary", "madda_obligatory", "madda_permissible", "madda_normal",
     "ghunnah", "ikhafa", "ikhafa_shafawi", "idgham_ghunnah", "idgham_shafawi",
     "iqlab", "idgham_wo_ghunnah", "idgham_mutajanisayn", "idgham_mutaqaribayn",
     "laam_shamsiyah", "ham_wasl", "slnt", "qalaqah",
+    "waqf_lazim", "waqf_awla",
 ]
-N_RULES = len(RULE_CLASSES)          # 17 -> ids 0..16
-TAJWID_BLANK = N_RULES               # blank CTC = 17
-PUA_LO = 0xE000
+N_RULES = len(RULE_CLASSES)          # 19 -> ids 0..18
 
 
 class _ZeroRNNTLoss(nn.Module):
@@ -83,21 +89,22 @@ class _ZeroRNNTLoss(nn.Module):
         return log_probs.sum() * 0.0
 
 
-def tajwid_ids(symbol_str):
-    """Symboles PUA -> ids de classes (0..16)."""
-    return [ord(c) - PUA_LO for c in symbol_str]
+def load_frame_spans_lookup(spans_jsonl_path):
+    """chemin audio -> (n_frames, [[class_id, start_frame, end_frame_incl], ...]).
 
-
-def load_tajwid_lookup(manifest_path):
-    """chemin audio -> ids de regles. Verifie le 2026-07-22 : les 58 612 clips
-    annotes ont tous un chemin UNIQUE et sans conflit de cible, donc indexer
-    par chemin est sur (les seuls doublons de chemin sont des clips TTS, qui
-    ne sont jamais annotes)."""
+    Remplace load_tajwid_lookup/tajwid_ids (2026-07-24) : l'ancienne cible
+    etait une SEQUENCE ORDONNEE de symboles consommee par F.ctc_loss (une
+    seule classe gagnante par frame, ordre impose) -- structurellement
+    incapable de representer deux regles VRAIMENT simultanees (mesure device :
+    laam_shamsiyah et ghunnah sur les MEMES frames dans "ٱلنَّاسِ", l'un
+    n'etant jamais detecte car l'autre gagne le softmax). Les fenetres par
+    classe, independantes, permettent le chevauchement par construction --
+    cf. build_frame_level_tajwid_labels.py pour comment elles sont derivees
+    (alignement force de la tete 1, deja fiable, val_wer_ctc=0.124)."""
     lut = {}
-    for line in open(manifest_path, encoding="utf-8"):
+    for line in open(spans_jsonl_path, encoding="utf-8"):
         r = json.loads(line)
-        if r.get("text_tajwid"):
-            lut[r["audio_filepath"]] = tajwid_ids(r["text_tajwid"])
+        lut[r["audio_filepath"]] = (r["n_frames"], r["spans"])
     return lut
 
 
@@ -159,14 +166,24 @@ class DualHeadTrainer(pl.LightningModule):
 
     def __init__(self, nemo_model, tajwid_by_index, stage, lr,
                  w_letters, w_tajwid, head_hidden=0,
-                 train_letters_in_stage_a=False):
+                 train_letters_in_stage_a=False, pos_weight=None):
         super().__init__()
         self.m = nemo_model
-        self.tajwid_by_index = tajwid_by_index     # index collection -> [ids]
+        # index collection -> (n_frames, [[class_id, start, end_incl], ...])
+        # (2026-07-24, cf. load_frame_spans_lookup -- avant : liste d'ids
+        # ORDONNEE pour F.ctc_loss)
+        self.tajwid_by_index = tajwid_by_index
         self.stage = stage
         self.lr = lr
         self.w_letters = w_letters
         self.w_tajwid = w_tajwid
+        # Poids par classe (2026-07-24, idee utilisateur : attenuer l'impact
+        # des classes tres frequentes dans la loss BCE) -- optionnel, cf.
+        # calibrate_tajwid_pos_weight.py. None = tout a 1.0 (comportement par
+        # defaut si non fourni).
+        self.register_buffer(
+            "pos_weight",
+            torch.ones(N_RULES) if pos_weight is None else torch.tensor(pos_weight, dtype=torch.float32))
         # 2026-07-23 : chauffe d'un decodeur lettres FRAIS (ConvLettersDecoder)
         # -- contrairement au cas habituel (stage a = decodeur lettres deja
         # mature, gele, sa loss n'a meme pas besoin d'etre calculee), ici
@@ -177,12 +194,15 @@ class DualHeadTrainer(pl.LightningModule):
         d = self.m.encoder._feat_out
         if head_hidden > 0:
             # Tete profonde (cf. ConvTajwidHead) -- experience 2026-07-23.
-            self.tajwid_head = ConvTajwidHead(d, head_hidden, N_RULES + 1)
+            self.tajwid_head = ConvTajwidHead(d, head_hidden, N_RULES)
         else:
-            # Tete 2 : projection lineaire directe encodeur -> 18 classes
-            # (17 regles + blank). Volontairement minimale : c'est une
-            # classification par frame, pas une modelisation de langue.
-            self.tajwid_head = nn.Linear(d, N_RULES + 1)
+            # Tete 2 : projection lineaire directe encodeur -> N_RULES
+            # classes INDEPENDANTES (2026-07-24 : plus de blank/softmax
+            # partage -- cf. load_frame_spans_lookup, chaque classe a son
+            # propre sigmoide, le chevauchement de regles devient possible).
+            # Volontairement minimale : classification par frame, pas de
+            # modelisation de langue.
+            self.tajwid_head = nn.Linear(d, N_RULES)
         self._val_letters, self._val_tajwid, self._val_n = 0.0, 0.0, 0
 
     def _zero_loss(self):
@@ -204,35 +224,48 @@ class DualHeadTrainer(pl.LightningModule):
         return self.m.encoder(audio_signal=feats, length=feats_len)
 
     def _tajwid_loss(self, enc, enc_len, sample_ids):
-        """CTC sur la tete 2, UNIQUEMENT sur les echantillons annotes du batch
-        (cf. masquage dans la docstring). Retourne 0.0 si aucun."""
-        targets, tgt_len, keep = [], [], []
+        """BCE multi-label INDEPENDANTE par classe, par frame (2026-07-24,
+        remplace le CTC+softmax -- cf. load_frame_spans_lookup pour le
+        POURQUOI : deux regles vraiment simultanees, ex. laam_shamsiyah et
+        ghunnah sur les MEMES frames dans "ٱلنَّاسِ", ne peuvent PAS coexister
+        sous un softmax partage -- l'une gagne systematiquement, l'autre
+        ressort "non detectee" par construction, quelle que soit la
+        prononciation. Un sigmoide par classe supprime cette concurrence :
+        chaque regle est jugee independamment des autres sur les memes
+        frames. UNIQUEMENT sur les echantillons annotes du batch (comme
+        avant), ET seulement sur les frames reellement dans le clip (masque
+        de longueur -- le batch est pad a la plus longue sequence)."""
+        items = []
         for i, sid in enumerate(sample_ids.tolist()):
-            ids = self.tajwid_by_index.get(sid)
-            if ids:
-                targets.append(torch.tensor(ids, dtype=torch.long))
-                tgt_len.append(len(ids))
-                keep.append(i)
-        if not keep:
+            entry = self.tajwid_by_index.get(sid)
+            if entry:
+                items.append((i, entry))
+        if not items:
             return self._zero_loss(), 0
 
+        keep = [i for i, _ in items]
         keep_t = torch.tensor(keep, device=enc.device)
         h = enc.index_select(0, keep_t).transpose(1, 2)     # (B', T, D)
-        logits = self.tajwid_head(h)
-        logp = F.log_softmax(logits, dim=-1).transpose(0, 1)  # (T, B', C)
+        logits = self.tajwid_head(h)                        # (B', T, N_RULES)
+        kept_enc_len = enc_len.index_select(0, keep_t)
 
-        flat = torch.cat(targets).to(enc.device)
-        loss = F.ctc_loss(
-            logp, flat,
-            enc_len.index_select(0, keep_t),
-            torch.tensor(tgt_len, device=enc.device),
-            blank=TAJWID_BLANK, reduction="mean",
-            # zero_infinity=True : une cible tajwid peut etre plus longue que
-            # le nombre de frames disponibles sur un clip tres court -> loss
-            # infinie qui contaminerait tout le batch. La mettre a 0 revient a
-            # ignorer ces cas infaisables, pas a les recompenser.
-            zero_infinity=True,
-        )
+        b_, t_, c_ = logits.shape
+        target = torch.zeros(b_, t_, c_, device=enc.device)
+        valid = torch.zeros(b_, t_, device=enc.device)
+        for row, (_, (n_frames, spans)) in enumerate(items):
+            length = min(int(kept_enc_len[row].item()), t_, n_frames)
+            if length <= 0:
+                continue
+            valid[row, :length] = 1.0
+            for cid, s0, e0 in spans:
+                s = max(0, min(int(s0), length - 1))
+                e = max(s, min(int(e0), length - 1))
+                target[row, s:e + 1, cid] = 1.0
+
+        n_valid = valid.sum().clamp(min=1.0)
+        per_elem = F.binary_cross_entropy_with_logits(
+            logits, target, pos_weight=self.pos_weight, reduction="none")  # (B',T,C)
+        loss = (per_elem * valid.unsqueeze(-1)).sum() / (n_valid * c_)
         return loss, len(keep)
 
     def training_step(self, batch, batch_idx):
@@ -294,6 +327,20 @@ def parse_args():
                    default=str(MANIFEST_DIR / "train_manifest.jsonl"))
     p.add_argument("--val_manifest",
                    default=str(MANIFEST_DIR / "val_manifest.jsonl"))
+    p.add_argument("--train_frame_spans",
+                   default=str(MANIFEST_DIR / "tajwid_frame_spans_train.jsonl"),
+                   help="2026-07-24 : labels PAR FRAME multi-label (cf. "
+                        "build_frame_level_tajwid_labels.py), remplace le "
+                        "champ text_tajwid du manifest pour la tete tajwid.")
+    p.add_argument("--val_frame_spans",
+                   default=str(MANIFEST_DIR / "tajwid_frame_spans_val.jsonl"))
+    p.add_argument("--tajwid_pos_weight_json", default=None,
+                   help="2026-07-24 : json {classe: poids} pour atténuer/"
+                        "renforcer des classes dans la BCE (idee utilisateur : "
+                        "les classes tres frequentes -- ham_wasl, madda_normal "
+                        "-- ne doivent pas dominer l'apprentissage des classes "
+                        "rares). Defaut : tout a 1.0. Cf. "
+                        "calibrate_tajwid_pos_weight.py pour le calcul.")
     p.add_argument("--epochs", type=int, default=None)
     p.add_argument("--lr", type=float, default=None)
     p.add_argument("--batch_size", type=int, default=8)
@@ -407,23 +454,29 @@ def main():
     # Cibles tajwid indexees sur la collection FILTREE (max_duration/
     # min_duration ecartent des clips -> les index ne correspondent pas au
     # fichier manifest brut).
-    def build_index(manifest_path, dl):
-        lut = load_tajwid_lookup(manifest_path)
+    def build_index(spans_path, dl):
+        lut = load_frame_spans_lookup(spans_path)
         coll = dl.dataset.manifest_processor.collection
         out, hit = {}, 0
         for i, s in enumerate(coll):
-            ids = lut.get(s.audio_file)
-            if ids:
-                out[i] = ids
+            entry = lut.get(s.audio_file)
+            if entry:
+                out[i] = entry
                 hit += 1
-        print(f"    {Path(manifest_path).name} : {len(coll)} clips retenus, "
+        print(f"    {Path(spans_path).name} : {len(coll)} clips retenus, "
               f"{hit} avec cible tajwid")
         return out
 
-    print("  indexation des cibles tajwid :")
-    train_idx = build_index(args.train_manifest, model._train_dl)
-    val_idx = build_index(args.val_manifest, model._validation_dl)
+    print("  indexation des cibles tajwid (labels par frame) :")
+    train_idx = build_index(args.train_frame_spans, model._train_dl)
+    val_idx = build_index(args.val_frame_spans, model._validation_dl)
     assert train_idx, "aucune cible tajwid trouvee -- verifier les manifests"
+
+    pos_weight = None
+    if args.tajwid_pos_weight_json:
+        w = json.load(open(args.tajwid_pos_weight_json, encoding="utf-8"))
+        pos_weight = [float(w.get(name, 1.0)) for name in RULE_CLASSES]
+        print(f"  pos_weight tajwid charge : {dict(zip(RULE_CLASSES, pos_weight))}")
 
     # ── Gel selon le stage ──
     # `.freeze()`/`.unfreeze()` sont des methodes NeMo (NeuralModule), absentes
@@ -467,7 +520,8 @@ def main():
     trainer_module = DualHeadTrainer(
         model, train_idx, args.stage, lr, args.w_letters, args.w_tajwid,
         head_hidden=args.head_hidden,
-        train_letters_in_stage_a=fresh_letters)
+        train_letters_in_stage_a=fresh_letters,
+        pos_weight=pos_weight)
     if args.init_tajwid_head:
         # --head_hidden doit correspondre a l'architecture du checkpoint
         # repris (ex. reprendre une ConvTajwidHead(hidden=256) chauffee en

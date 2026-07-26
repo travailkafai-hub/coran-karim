@@ -303,3 +303,265 @@ Si une nouvelle expérience change une de ces lignes, mets à jour `BENCHMARK_RE
 **Ne pas confondre avec les pistes "modèle de langage pour le décodage" ci-dessus** : ces 3 options (n-gram, LM neuronal, décodage contraint) vont dans le sens INVERSE — elles renforcent le biais vers le texte connu. Ne pas les appliquer en pensant régler ce problème-ci, elles l'aggraveraient.
 
 Ne touche pas au training en cours (idée d'augmentation de données pour un futur run, pas celui en cours).
+
+---
+
+# ARCHITECTURE À DEUX TÊTES (2026-07-22) — le modèle actuellement déployé
+
+⚠️ Tout ce qui précède dans ce fichier s'arrête au **2026-07-19**. La section
+ci-dessous couvre ce qui a été fait depuis, et **c'est le modèle qui tourne sur
+le téléphone** — ne pas raisonner sur les sections antérieures en croyant
+décrire l'état courant.
+
+```
+encodeur partagé
+  ├─ tête 1 (CTC) : lettres + harakat  — vocabulaire mixed-e14, 1024 BPE
+  └─ tête 2 (CTC) : règles tajwid      — 19 classes multilabel, PAS de BPE
+```
+
+**Pourquoi deux têtes** (mesures ayant motivé la refonte) : mélanger lettres et
+symboles de règles dans UN vocabulaire causait deux dégâts —
+1. ~20 % de masse de probabilité partait sur les tokens-symboles même sur un mot
+   SANS règle attendue (mesuré sur `يَوْمِ` : gop −0,03 → −20,09) ;
+2. le symbole `ham_wasl` cassait la fusion BPE `ٱ+ل`, si bien que le modèle
+   n'apprenait jamais le token soudé que l'alignement forcé lui réclame.
+Deux softmax séparés suppriment les deux **par construction**.
+
+**Pourquoi partir de `mixed-e14`** : son tokenizer contient 1024 tokens et ZÉRO
+symbole PUA — exactement le vocabulaire dont la tête 1 a besoin. Aucun
+`change_vocabulary` n'est nécessaire, la tête lettres garde tous ses poids
+(`val_wer_ctc` 0,124) au lieu de repartir de zéro.
+
+**Pourquoi pas de RNNT ici** : l'app n'utilise QUE le CTC (GOP, ForcedAligner,
+karaoké). Le RNNT n'a pas de DP d'alignement forcé simple (auto-régressif, pas
+frame-synchrone). Il est neutralisé (`_ZeroRNNTLoss`).
+
+**Protocole en 2 étapes** (`benchmark/finetune_dual_head.py`) :
+- `--stage a` : encodeur + tête 1 **gelés**, seule la tête 2 (fraîche, gradients
+  chaotiques au début) apprend. Protège l'acquis de mixed-e14.
+- `--stage b` : dégel complet, `loss = w1·CTC_lettres + w2·CTC_tajwid`, LR bas.
+
+**Masquage de la loss tajwid** — point de méthode important : 98 280 des 156 892
+clips (ASC arabe général, TTS) n'ont AUCUNE annotation tajwid. Leur imposer une
+cible vide apprendrait à la tête 2 à se taire sur ces voix — « non annoté » ≠
+« aucune règle ». Ces clips sont **exclus de la loss tajwid** (masque) tout en
+entraînant normalement la tête 1.
+
+**Manifests** (`benchmark/nemo_manifests_dual/`) :
+
+| fichier | lignes | usage |
+|---|---|---|
+| `train_manifest.jsonl` | 156 892 | mix complet (dont 98 280 sans annotation tajwid) |
+| `train_manifest_augmented_clean.jsonl` | 195 156 | + augmentation, version nettoyée |
+| `train_manifest_pause_aug.jsonl` | 162 892 | + augmentation de pauses |
+| `train_annotated_only.jsonl` | 58 612 | uniquement les clips annotés tajwid |
+| `tajwid_frame_spans_train.jsonl` | 53 701 | étiquettes tajwid **au niveau frame** (tête 2) |
+| `tajwid_frame_spans_val.jsonl` | 1 776 | validation tête 2 |
+| `tajwid_pos_weight.json` | — | `pos_weight` par classe (BCE déséquilibrée), cf. `calibrate_tajwid_pos_weight.py` |
+
+**Repère de résultat** : `val_tajwid = 0,0445` sur le run multilabel v2 ;
+débit d'entraînement observé ~51 it/s. Modèle déployé =
+`models/fastconformer-dual-head-v1/deploy/fastconformer-ctc-dual-head-multilabel-v3`
+(2 sorties ONNX ; tous les modèles de `models_deployes/` n'en ont qu'une).
+
+# LE FINE-TUNE STREAMING N'A JAMAIS ÉTÉ LANCÉ (constat 2026-07-25)
+
+**9 runs FastConformer existent, aucun n'est un entraînement streaming** :
+`quran-clean`, `quran-personal`, `tajweed`, `tajweed-v2`, `tajweed-augmented`,
+`tajweed-mixed`, `mixed-e14-rules-ctc`, `hybrid-v1`, `dual-head-v1`.
+
+Et les quatre scripts « streaming » du dépôt sont **tous des tentatives de
+bascule SANS réentraînement** (`test_streaming_ctc.py`,
+`test_official_stream_step.py`, `export_streaming_onnx.py`,
+`simulate_kotlin_streaming.py`) — exactement ce que la section « Streaming CTC :
+incompatibilité architecturale » plus haut décrit comme impossible **depuis le
+2026-07-04**.
+
+⚠️ **Ne pas retenter une bascule par la configuration : elle a déjà échoué
+quatre fois et échoue par construction.** Le vrai streaming exige un fine-tune
+avec convolutions causales, et il reste à faire.
+
+**Pourquoi c'est le chantier le plus rentable** (mesures device 2026-07-25) :
+- charge CPU de l'inférence **12–15 %** — le calcul n'est PAS le goulot ;
+- latence de validation 2,1–4,9 s, dont ~10 % seulement d'inférence ;
+- coût quadratique de la boucle actuelle : un segment de 7 s est transcrit à 1,
+  3, 4, 6 et 7 s → **21 s d'audio traitées pour 7 s de parole**.
+
+L'app fait de l'**ASR d'énoncé complet en boucle pour simuler du streaming** ;
+toutes les pathologies constatées en découlent (dérive de normalisation,
+syllabes doublées `بِمَامَآمَآ`, texte `entendu` instable d'une passe à l'autre).
+
+**Quatre politiques de découpage ont été testées et REJETÉES le 2026-07-25** —
+ne pas les reproposer sans lire `JOURNAL_TESTS_LOGS.md` :
+1. cible fixe 2,0 s → cascade de gels, 1 mot par gel ;
+2. cible dynamique selon le débit → emballement (`secPerWord` 1,00 → 1,53) ;
+3. cible fixe 3,0 s → les erreurs de frontière se **composent** (la coupe du
+   segment N+1 est contrainte par celle du segment N) ;
+4. recouvrement audio aux extrémités → mesuré, le cœur seul gagne 5 fois sur 5.
+
+## Streaming causal — STAGE 0 VALIDÉ + doctrine NVIDIA (2026-07-25)
+
+### Ce qui a été vérifié en 30 min, avant de dépenser du GPU
+
+**Q1 — transfert des poids : OK.** Sur **707 tenseurs, 706 passent tels quels.**
+Le seul incompatible est `encoder.pre_encode.out.weight` :
+`[512, 2560]` → `[512, 2816]`, soit `256 canaux × 10 bandes` → `× 11 bandes`.
+Le padding causal du sous-échantillonnage `dw_striding` (facteur 8) conserve une
+bande de fréquence de plus. **Ne pas le réinitialiser au hasard** : le
+réinterpréter en `(512, 256, 10)` et le recopier dans `(512, 256, 11)`, bande
+supplémentaire à zéro (cf. `benchmark/make_causal_init.py`). Chaque connexion
+apprise est préservée → vrai départ à chaud, pas une réinitialisation.
+
+**Q1bis — le causal change bien le comportement.** Le modèle causal NON entraîné
+transcrit `ففففففففففسُو وَٱتَّف أَعْ أَعْ...` : la preuve que les convolutions non
+causales étaient réellement exploitées, donc qu'il y a bien quelque chose à
+réapprendre.
+
+**Q2 — le chemin de PRODUCTION fonctionne.** Ce qui compte n'est pas
+`conformer_stream_step` (API Python) mais l'encodeur avec cache + export ONNX,
+puisque l'app gère le cache côté Kotlin. Mesuré :
+```
+forward : audio (1,80,136) + caches (17,1,70,512) (17,1,512,8)
+       -> logprobs (1,16,1025) + caches de même forme
+ONNX    : export OK (459 Mo), état propagé sur 3 chunks (cache_len 16 -> 32 -> 48)
+```
+⚠️ `torch.onnx.export` de torch 2.11 utilise `torch.export` (dynamo) par défaut
+et **échoue** sur le code NeMo. Passer `dynamo=False` pour l'exporteur
+historique — c'est celui qui avait été validé à 4e-5 près.
+
+⚠️ `streaming_cfg` affiche `last_channel_num=0, last_time_num=0` : ce sont des
+champs d'affichage que cette version de NeMo ne remplit pas, **pas** la taille
+réelle du cache (qui vaut bien 17 couches). Le crash de `conformer_stream_step`
+(`cannot reshape tensor of 0 elements`) vient de cet orchestrateur de haut
+niveau, pas du mécanisme de cache. Ne pas en conclure que la piste est morte.
+
+### Doctrine NVIDIA — la formule de latence, et une ERREUR du dépôt à corriger
+
+Config officielle
+(`examples/asr/conf/fastconformer/hybrid_cache_aware_streaming/fastconformer_hybrid_transducer_ctc_bpe_streaming.yaml`) :
+```yaml
+att_context_style: "chunked_limited"
+att_context_size:  [70, 13]     # défaut NVIDIA
+self_attention_model: "rel_pos"
+conv_context_size: "causal"
+conv_kernel_size: 9
+causal_downsampling: true
+```
+
+**`look-ahead (s) = att_context_size[1] × subsampling_factor × window_stride`**
+Chez nous : `R × 8 × 0,01` = **R × 80 ms**.
+
+| `att_context_size` | look-ahead |
+|---|---|
+| `[70, 13]` (défaut NVIDIA) | **1,04 s** |
+| `[70, 6]` | 480 ms |
+| `[70, 1]` | **80 ms** |
+
+⛔ **`benchmark/export_streaming_onnx.py` affirme « [70, 1] (~1120 ms de
+look-ahead, le plus gros preset) » — C'EST FAUX.** `[70,1]` donne 80 ms ; c'est
+le preset le plus AGRESSIF, pas le plus gros. Le 1040 ms correspond à `[70,13]`.
+Cette confusion fausse tout arbitrage latence/qualité — ne pas la reprendre.
+
+**Multi-lookahead : officiellement supporté.** `att_context_size` accepte une
+LISTE de contextes ; le modèle est entraîné sur tous et **la latence se choisit
+à l'inférence**, sans réentraîner. C'est la bonne stratégie ici : entraîner sur
+`[[70,13],[70,6],[70,1]]` et choisir sur device.
+
+Autres points de la doc NVIDIA :
+- toutes les convolutions, **y compris celles du sous-échantillonnage**, doivent
+  être causales — sinon le look-ahead réel dépasse celui annoncé ;
+- `fastemit_lambda: 5e-3` est recommandé pour le streaming mais c'est un
+  régularisateur **RNNT** : sans objet ici (le RNNT est neutralisé) ;
+- LR `5.0` + `NoamAnnealing` (warmup 10000) vaut pour un entraînement **depuis
+  zéro** — pour un fine-tune, LR bien plus bas.
+
+### Quatre pièges d'environnement au lancement du run causal (2026-07-25)
+
+Rencontrés en série, chacun tuait le run au démarrage. À appliquer d'emblée pour
+tout nouveau script NeMo sur cette machine :
+
+1. **`test_ds.manifest_filepath` manquant** → `MissingMandatoryValue`. La config
+   du `.nemo` porte `???` et NeMo y accède pendant `setup`, même si on ne teste
+   jamais. Renseigner `model.cfg.test_ds` (pointer sur la validation suffit).
+
+2. **Python 3.14 a changé la méthode de démarrage des sous-processus** sur Linux
+   (`fork` → `forkserver`), ce qui impose de sérialiser les objets passés aux
+   workers. Le dataset BPE de NeMo définit `TokenizerWrapper` comme classe
+   **locale** dans `AudioToBPEDataset.__init__` →
+   `PicklingError: Can't pickle local object`, mort au sanity check. Remède :
+   ```python
+   import torch.multiprocessing as _mp
+   _mp.set_start_method("fork", force=True)
+   ```
+   (Sinon `num_workers=0`, beaucoup plus lent.)
+
+3. **Multi-lookahead : `att_context_probs` doit suivre `att_context_size`.**
+   NeMo tire au sort un contexte à chaque pas via
+   `random.choices(att_context_size_all, att_context_probs)`. Ces probabilités
+   sont calculées à la **construction** de l'encodeur ; muter la liste des
+   contextes après un `restore_from` sans les régénérer donne
+   `ValueError: The number of weights does not match the population` dès le
+   premier pas. Poser explicitement `encoder.att_context_probs`.
+
+4. **`libnvvm.so: cannot open shared object file`** — même avec le RNNT
+   neutralisé (`_ZeroRNNTLoss`), la branche RNNT du modèle hybride touche
+   `warprnnt_numba`. Piège déjà documenté dans `CLAUDE.md` :
+   ```bash
+   CUDA_HOME="$SITE/nvidia/cuda_nvcc"
+   ```
+
+**Lancement en arrière-plan** : `VAR=... && ... nohup cmd &` backgroundé
+n'exporte pas les variables dans le shell appelant (le `&` englobe toute la
+chaîne `&&`). Exporter d'abord, puis `setsid nohup … > log 2>&1 < /dev/null &`.
+
+### Incident : crash GPU (Xid 8) déclenché en ÉTEIGNANT l'écran physique (2026-07-25)
+
+Pendant le stage 1 du fine-tune causal (epoch 3/4), l'utilisateur a éteint
+l'écran (bouton physique du moniteur) pour laisser l'entraînement tourner.
+Le training est mort ~1 min après :
+
+```
+NVRM: krcWatchdog_IMPL: RC watchdog: GPU is probably locked!  Notify Timeout Seconds: 7
+NVRM: Xid (PCI:0000:01:00): 8, pid=..., name=python3.14, channel 0x0000001a
+python3.14[...]: segfault
+```
+
+**Diagnostic** : ce GPU (RTX 5080) sert À LA FOIS l'affichage du bureau et le
+calcul. Éteindre le moniteur envoie un signal DPMS au GPU ; si un noyau CUDA
+est actif à ce moment (gros produit matriciel d'attention sur un batch), le
+driver peut le confondre avec un blocage réel et le tuer via son "RC watchdog"
+(délai 7 s). Le GPU redevient sain immédiatement après (vérifié : calcul test
+réussi dans la minute), seul le **processus** meurt.
+
+**Écarté comme cause** : ni `nvidia-persistenced` (déjà actif depuis le
+démarrage) ni les réglages GNOME de veille (`idle-delay`, `sleep-inactive-*`,
+déjà à zéro/désactivés) n'étaient en cause — c'est l'extinction **physique**
+du moniteur (bouton du moniteur) qui déclenche le signal DPMS, indépendamment
+des réglages logiciels de la session.
+
+**Pas de parade fiable côté OS trouvée** pour ce cas précis (session Wayland :
+`xset`/DPMS ne s'applique pas, le serveur n'expose pas l'extension). La seule
+protection retenue : **rendre l'entraînement reprenable** (`--resume_from`,
+`trainer.fit(model, ckpt_path=...)`), pour qu'un futur incident du même type
+ne coûte que la reprise (~1-2 min de rattrapage Lightning) au lieu de tout le
+run. Voir `finetune_streaming_causal.py --resume_from <ckpt>`.
+
+**Règle pratique retenue** : ne pas éteindre l'écran physique de cette machine
+tant qu'un entraînement GPU tourne. Le laisser allumé (même verrouillé/éteint
+en luminosité logicielle) évite le déclenchement.
+
+### Le warning `att_context_size not among supported look-aheads` est BÉNIN
+
+Vu au lancement d'un fine-tune sur un contexte fixe différent de celui gravé
+dans le `.nemo` d'origine (ex. entraîné sur `[70,13]` alors que
+`streaming-causal-init.nemo` ne déclare que `[[70,1]]` dans sa config) :
+```
+att_context_size=[70, 13] is not among the list of the supported look-aheads: [[70, 1]]
+```
+Vérifié dans `conformer_encoder.py::set_default_att_context_size` : l'assignation
+`self.att_context_size = att_context_size` est **inconditionnelle**, le warning
+est émis À CÔTÉ, pas à la place. Et dans `forward()`, le tirage aléatoire entre
+contextes ne se déclenche que si `len(self.att_context_size_all) > 1` — avec un
+seul contexte déclaré, `cur_att_context_size = self.att_context_size` est
+utilisé directement. **Le contexte demandé est bien appliqué**, ne pas
+s'arrêter sur ce warning.

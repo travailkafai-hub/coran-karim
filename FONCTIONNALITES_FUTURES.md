@@ -701,3 +701,22 @@ second est une note pédagogique. Conséquence pour le choix du point de
 coupe : ne jamais couper là où les mots doivent rester LIÉS (arrêt `mamnu`,
 ou règle de jonction enjambant la frontière) — couper là détruit la
 continuité acoustique que la tête tajwid doit justement mesurer.
+
+## Idée utilisateur (2026-07-26) — utiliser TOUT le Warsh, pas l'exclure
+
+Au lieu d'exclure les clips Warsh d'un manifest Hafs (approche actuelle,
+`build_hafs_only_manifest.py`), **aligner chaque clip avec le texte de SA
+propre riwaya** : audio Warsh → texte Warsh canonique, audio Hafs → texte
+Hafs. Aucune donnée n'est jetée.
+
+**Pourquoi ce n'est pas fait aujourd'hui** (`CLAUDE.md`, piste 🔴) : chantier
+séparé et lourd — texte Warsh différent du Hafs, numérotation des versets
+décalée (déjà constaté sur les sourates 1, 2, 57 — cf. `asr.md` §Warsh),
+nécessite un ré-alignement forcé complet, une source de texte Warsh canonique
+verset par verset, et une détection fiable Hafs/Warsh par clip (le script
+`verify_reciters_hafs_warsh.py` écrit le 2026-07-26 pour une vérification
+rapide a un bug de normalisation des harakat le rendant inutilisable en l'état
+— à refaire proprement si ce chantier est un jour prioritaire).
+
+Non prioritaire tant que le pipeline Hafs seul n'est pas stabilisé (règle déjà
+actée). Piste à reprendre une fois la piste streaming causale terminée.
