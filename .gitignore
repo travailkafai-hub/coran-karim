@@ -58,3 +58,7 @@ scratch_screens/
 *.iml
 .DS_Store
 Thumbs.db
+
+# Sortie generee par graphify (graphe de connaissance) — jamais versionnee
+graphify-out/
+**/graphify-out/
