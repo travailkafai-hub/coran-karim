@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/app_settings_provider.dart';
+import 'providers/prayer_settings_provider.dart';
 import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_hub_screen.dart';
@@ -49,14 +50,24 @@ class CoranKarimApp extends ConsumerWidget {
   }
 }
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Amorce la programmation de l'adhan meme si l'utilisateur ne visite
+    // jamais l'ecran de reglages prieres -- lire le provider une fois suffit
+    // a declencher son _bootstrap() (position GPS + calcul + programmation
+    // des 5 prieres + rappel Sobh, cf. prayer_settings_provider.dart).
+    Future.microtask(() => ref.read(prayerSettingsProvider));
+  }
 
   // Keep all tabs alive
   static const _screens = [

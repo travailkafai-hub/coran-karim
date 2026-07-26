@@ -14,6 +14,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Requis par flutter_local_notifications (adhan programme, 2026-07-24).
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -57,6 +59,8 @@ dependencies {
     // Inference du modele FastConformer CTC (Quran ASR) en parallele de whisper.cpp
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // Core library desugaring (flutter_local_notifications, adhan programme).
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {
