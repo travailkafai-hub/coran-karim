@@ -568,6 +568,37 @@ class ForcedAligner(
             val frontierTok = endState / 2
             val frontierWordRel = if (frontierTok >= n) w else owner[frontierTok]
 
+            // ── MESURE (2026-07-27) : DUREE REELLE PAR MOT, DANS LA VOIX DU
+            // RECITEUR ─────────────────────────────────────────────────────────
+            // Pourquoi cette ligne existe : on veut savoir si un plancher deduit
+            // d'une RECITATION DE REFERENCE de l'utilisateur vaudrait mieux que
+            // celui importe de quran.com (cf. FONCTIONNALITES_FUTURES.md §10).
+            // Or aucun log ne contenait la duree que la DP donne reellement a un
+            // mot -- seuls les cas d'echec (ZERO FRAME, ETRANGLE) etaient
+            // journalises, donc l'echantillon etait biaise vers les mots courts.
+            // Ici on sort les TROIS grandeurs comparables d'un coup, pour tous
+            // les mots de la passe :
+            //   f   = frames reellement attribuees (la duree dans SA voix)
+            //   c   = plancher CTC          (exact, souvent 1 seule frame)
+            //   r   = plancher de reference (quran.com x0,4, -1 si absent)
+            // Ce que la mesure doit trancher : de combien le facteur x0,4
+            // sous-estime la duree reelle, et donc quelle marge un plancher
+            // "voix propre" pourrait viser (cf. point 2 du §10).
+            //
+            // Volume : UNE ligne par passe FINALE seulement (celles qui
+            // verrouillent), pas par apercu -- ~10 a 20 mots par ligne. Aucun
+            // effet sur le jugement, c'est une trace pure.
+            if (isFinal) {
+                val sb = StringBuilder("DUREES ")
+                for (wi in 0 until w) {
+                    if (wordFrames[wi] == 0) continue
+                    val c = ctcMinFrames(wordTokens[wi])
+                    val r = refMinFrames?.getOrNull(wi) ?: -1
+                    sb.append("${anchor + wi}:f=${wordFrames[wi]}/c=$c/r=$r ")
+                }
+                DiagnosticLog.log(TAG, sb.toString().trimEnd())
+            }
+
             val results = ArrayList<WordResult>(w)
             var deferredIndex: Int? = null
             var lastUsedFrame = -1
