@@ -557,8 +557,34 @@ class ForcedAligner(
                     val prevLastFrame = if (wi > 0) wordLastFrame[wi - 1] else -1
                     val framesSincePrev = (t - 1) - prevLastFrame
                     if (framesSincePrev < MIN_FRAMES_FOR_JUDGMENT) {
+                        // MESURE (2026-07-27, avant de decider s'il faut un
+                        // second decodage centre sur les mots de frontiere --
+                        // idee utilisateur) : combien de mots sont REPORTES
+                        // faute d'opportunite. Hors device, sur des
+                        // recitations AVEC pauses, la mesure donnait 2 % de
+                        // mots en frontiere -- trop peu pour justifier le
+                        // surcout. Mais la coupe y tombait sur des silences,
+                        // donc des frontieres propres. En recitation CONTINUE
+                        // (Al-Balad, Al-Fatiha d'un trait) c'est la borne dure
+                        // de 12 s qui tranche, potentiellement en plein mot :
+                        // ce log mesure ce cas-la, le seul qui compte pour
+                        // trancher.
+                        DiagnosticLog.log(TAG,
+                            "FRONTIERE mot=${anchor + wi} REPORTE " +
+                                "(marge=${framesSincePrev} frames < $MIN_FRAMES_FOR_JUDGMENT, " +
+                                "final=$isFinal)")
                         deferredIndex = anchor + wi
                         break
+                    }
+                    // Juge MALGRE une marge faible : c'est exactement la
+                    // population que le second decodage centre sauverait. Si
+                    // ce compteur reste bas en recitation continue, l'idee
+                    // n'est pas rentable ; s'il explose, elle l'est.
+                    if (framesSincePrev < MIN_FRAMES_FOR_JUDGMENT * 3) {
+                        DiagnosticLog.log(TAG,
+                            "FRONTIERE mot=${anchor + wi} JUGE QUAND MEME " +
+                                "(marge=${framesSincePrev} frames, " +
+                                "~${framesSincePrev * 80}ms, final=$isFinal)")
                     }
                 }
                 val forced = wordForcedSum[wi] / wordFrames[wi]
