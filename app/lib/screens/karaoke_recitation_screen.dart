@@ -276,6 +276,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       for (final e in metaEntries) {
         if (e != null) _surahMeta[e.key] = e.value;
       }
+      _rebuildWordVerseMap();
       _ready = true;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -355,6 +356,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         _verses = [..._verses, ...nextVerses];
         _tajwidSpans = [...?_tajwidSpans, ...chunk.spans];
         _wordKeys = [...?_wordKeys, ...newKeys];
+        _rebuildWordVerseMap();
         for (final e in metaEntries) {
           if (e != null) _surahMeta[e.key] = e.value;
         }
@@ -828,7 +830,64 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// Bismillah (toujours le même nombre de mots, `_bismillahWordCount`) à
   /// chaque frontière de sourate qui en a besoin, pas seulement au début de
   /// la session (cf. `_bismillahBefore`).
+  /// Table PRECALCULEE mot -> verset, et ensemble des indices de fin de verset.
+  ///
+  /// ── POURQUOI ELLE EXISTE (2026-07-27) ────────────────────────────────────
+  /// `_verseContaining` parcourait TOUS les versets et REDECOUPAIT le texte
+  /// arabe de chacun (`splitExpectedWords`) a chaque appel. Or le rendu appelle
+  /// `_isLastWordOfVerse` pour CHAQUE mot, et celui-ci appelle
+  /// `_verseContaining` DEUX fois. Sur une page de 246 mots et ~30 versets :
+  ///     246 mots x 2 appels x 30 versets ~ 15 000 decoupages de chaine arabe
+  /// a chaque reconstruction de l'ecran -- et l'ecran se reconstruit a chaque
+  /// payload d'alignement, soit toutes les ~1,5 s.
+  ///
+  /// Ce n'est pas qu'un probleme de confort (« l'ecran est lourd, le scroll ne
+  /// repond pas », constat utilisateur) : les allers-retours MethodChannel qui
+  /// alimentent le natif en PCM reviennent par le THREAD PRINCIPAL, celui-la
+  /// meme qui execute ces decoupages. Un rendu lourd retarde donc l'audio --
+  /// c'est le mecanisme qui avait produit une file de 35 s le matin meme.
+  ///
+  /// Ici : construite UNE fois quand le texte change, puis acces en O(1).
+  List<Verse?> _verseByWord = const [];
+  List<int?> _surahByWord = const [];
+  Set<int> _lastWordOfVerse = const {};
+
+  void _rebuildWordVerseMap() {
+    final map = <Verse?>[];
+    final sur = <int?>[];
+    final last = <int>{};
+    int? prevSurah;
+    for (final v in _verses) {
+      if (_bismillahBefore(v, prevSurah)) {
+        for (var k = 0; k < _bismillahWordCount; k++) {
+          map.add(null); // dans la Bismillah elle-meme
+          sur.add(v.surahNumber); // ... mais elle APPARTIENT a cette sourate
+        }
+      }
+      prevSurah = v.surahNumber;
+      final count = ArabicNormalizer.splitExpectedWords(v.textUthmani).length;
+      for (var k = 0; k < count; k++) {
+        map.add(v);
+        sur.add(v.surahNumber);
+      }
+      if (count > 0) last.add(map.length - 1);
+    }
+    _verseByWord = map;
+    _surahByWord = sur;
+    _lastWordOfVerse = last;
+  }
+
   Verse? _verseContaining(int wordIndex) {
+    // Table precalculee (cf. _rebuildWordVerseMap). Repli sur le calcul
+    // d'origine si elle n'est pas encore prete -- jamais de resultat different,
+    // seulement plus lent.
+    if (wordIndex >= 0 && wordIndex < _verseByWord.length) {
+      return _verseByWord[wordIndex];
+    }
+    return _verseContainingSlow(wordIndex);
+  }
+
+  Verse? _verseContainingSlow(int wordIndex) {
     var offset = 0;
     int? prevSurah;
     for (final v in _verses) {
@@ -850,6 +909,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// PRÉCÈDENT. Sert uniquement à détecter les frontières de sourate dans
   /// [_verseArea] pour y insérer [_SurahTransitionBanner].
   int? _surahOwning(int wordIndex) {
+    // O(1) depuis la table precalculee -- meme motif et meme raison que
+    // _verseContaining : cette fonction etait appelee pour CHAQUE mot a chaque
+    // reconstruction, en reparcourant tous les versets a chaque appel.
+    if (wordIndex >= 0 && wordIndex < _surahByWord.length) {
+      return _surahByWord[wordIndex];
+    }
+    return _surahOwningSlow(wordIndex);
+  }
+
+  int? _surahOwningSlow(int wordIndex) {
     var offset = 0;
     int? prevSurah;
     for (final v in _verses) {
@@ -1787,7 +1856,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
     final renderEnd =
         math.min(st.words.length, st.pointer + _kRenderLookaheadWords);
-    final blocks = <Widget>[];
+    // ── RENDU PARESSEUX (2026-07-27) ─────────────────────────────────────
+    // On ne construit ici que les BORNES des blocs (quelques dizaines
+    // d'entiers) ; les widgets eux-memes sont bâtis a la demande par le
+    // ListView, donc uniquement pour ce qui est visible.
+    //
+    // AVANT : `blocks` contenait des widgets DEJA CONSTRUITS, et
+    // SingleChildScrollView + Column les mettait TOUS en page, hors ecran
+    // compris. Sur une page de 246 mots -- et l'enchainement va au-dela de 300
+    // -- c'etait l'integralite du texte reconstruite a chaque payload
+    // d'alignement, soit toutes les ~1,5 s.
+    //
+    // Pourquoi ca comptait pour l'ASR et pas seulement pour le confort : les
+    // allers-retours MethodChannel qui alimentent le natif en PCM reviennent
+    // par le THREAD PRINCIPAL, celui qui execute ce rendu. Constat utilisateur
+    // (« l'ecran est lourd, le scroll ne repond pas ») sur un Galaxy S25 : le
+    // MEILLEUR cas materiel, d'ou la demande explicite de privilegier l'ASR
+    // quitte a appauvrir l'ecran.
+    final ranges = <({int start, int end, int? banner})>[];
     var blockStart = 0;
     int? blockSurah;
     for (var i = 0; i <= renderEnd; i++) {
@@ -1798,11 +1884,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       final boundary = i == renderEnd ||
           (surah != null && blockSurah != null && surah != blockSurah);
       if (boundary) {
-        if (i > blockStart) blocks.add(_wordWrapBlock(st, blockStart, i));
+        if (i > blockStart) {
+          ranges.add((start: blockStart, end: i, banner: null));
+        }
         blockStart = i;
-        if (i < renderEnd && surah != null) {
-          final meta = _surahMeta[surah];
-          if (meta != null) blocks.add(_SurahTransitionBanner(meta));
+        if (i < renderEnd && surah != null && _surahMeta[surah] != null) {
+          ranges.add((start: i, end: i, banner: surah));
         }
       }
       blockSurah = surah ?? blockSurah;
@@ -1818,9 +1905,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         }
         return false;
       },
-      child: SingleChildScrollView(
+      child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Column(children: blocks),
+        itemCount: ranges.length,
+        // Marge de construction hors ecran : l'auto-scroll utilise
+        // Scrollable.ensureVisible sur la GlobalKey du mot courant, qui exige
+        // que le widget SOIT construit. Une marge large garantit que le mot
+        // courant l'est presque toujours -- et le code d'auto-scroll teste
+        // deja `ctx != null`, donc le cas limite degrade proprement (pas de
+        // defilement) au lieu de planter.
+        cacheExtent: 1600,
+        itemBuilder: (_, i) {
+          final r = ranges[i];
+          final b = r.banner;
+          if (b != null) return _SurahTransitionBanner(_surahMeta[b]!);
+          return _wordWrapBlock(st, r.start, r.end);
+        },
       ),
     );
   }
@@ -1850,11 +1950,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// appartient à un autre verset, ou il n'y a plus de mot après) -- jamais
   /// vrai pour un mot de la Bismillah (pas un verset à part entière ici).
   bool _isLastWordOfVerse(int wordIndex) {
-    final verse = _verseContaining(wordIndex);
+    // O(1) depuis la table precalculee. L'ancien calcul faisait DEUX appels a
+    // _verseContaining, chacun O(versets) avec un decoupage de chaine par
+    // verset -- cf. _rebuildWordVerseMap pour l'ordre de grandeur.
+    if (_verseByWord.isNotEmpty) return _lastWordOfVerse.contains(wordIndex);
+    final verse = _verseContainingSlow(wordIndex);
     if (verse == null) return false;
     final words = ref.read(recitationProvider).words;
     if (wordIndex + 1 >= words.length) return true;
-    return _verseContaining(wordIndex + 1) != verse;
+    return _verseContainingSlow(wordIndex + 1) != verse;
   }
 
   // Coloration tajwid lettre-par-lettre TOUJOURS visible (demande utilisateur
