@@ -410,8 +410,32 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             val spf = maxOf(1, audio.size / lp.size)
             val ctxFrames = ((absFrom - from) / spf).toInt().coerceIn(0, lp.size - 1)
             val dpLp = if (ctxFrames > 0) lp.copyOfRange(ctxFrames, lp.size) else lp
-            val res = aligner.align(dpLp, listOf(tokens), wordIndex, isFinal = true)
-            res?.words?.firstOrNull()
+            // `forceJudgeIndex` OBLIGATOIRE ICI (2026-07-27, mesure device) :
+            //     secours mot=20 SANS RESULTAT : DP muette sur 6042ms
+            //     (39 frames apres 38 de contexte)
+            // Sans lui, la branche zero-frame DIFFERE le mot (deferredIndex) et
+            // sort avec une liste VIDE -- or un secours one-shot n'a pas de
+            // « prochaine passe » : differer y equivaut a ne rien produire.
+            //
+            // C'est le meme bug que celui deja corrige le 2026-07-16 sur
+            // alignFile (revue de code, Finding #3) : « ce mode one-shot ne
+            // rappelait jamais align() avec forceJudgeIndex -- un mot differe
+            // etait donc perdu DEFINITIVEMENT pour ce clip ». Meme classe,
+            // meme fichier, refaite trois mois plus tard.
+            val res = aligner.align(dpLp, listOf(tokens), wordIndex,
+                                    forceJudgeIndex = wordIndex, isFinal = true)
+            val out = res?.words?.firstOrNull()
+            if (out == null) {
+                // Chemin MUET corrige (2026-07-27) : la DP du secours peut ne
+                // rien rendre (align null, ou liste vide). Sans cette ligne,
+                // c'etait indiscernable d'un secours jamais appele -- deux
+                // sessions perdues a formuler des hypotheses.
+                DiagnosticLog.log(TAG,
+                    "secours mot=$wordIndex SANS RESULTAT : DP muette sur " +
+                        "${audio.size * 1000 / SAMPLE_RATE}ms " +
+                        "(${dpLp.size} frames apres ${ctxFrames} de contexte)")
+            }
+            out
         } catch (e: Exception) {
             DiagnosticLog.log(TAG, "secours mot=$wordIndex echec: ${e.message}")
             null
@@ -604,6 +628,15 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                                 "SECOURS mot=${w.index} : gop ${"%.2f".format(w.gop)} -> " +
                                     "${"%.2f".format(rj.gop)}, entendu \"${w.actual}\" -> " +
                                     "\"${rj.actual}\"")
+                        } else if (rj != null) {
+                            // Second chemin MUET corrige : le secours a bien
+                            // repondu, mais son verdict n'ameliore pas. Le
+                            // taire rendait « secours inefficace » et « secours
+                            // jamais appele » indiscernables.
+                            DiagnosticLog.log(TAG,
+                                "secours mot=${w.index} SANS GAIN : gop " +
+                                    "${"%.2f".format(w.gop)} -> ${"%.2f".format(rj.gop)}, " +
+                                    "entendu \"${w.actual}\" -> \"${rj.actual}\" (conserve l'original)")
                         }
                     }
                     if (w.lastFrame >= 0) prevLast = w.lastFrame
