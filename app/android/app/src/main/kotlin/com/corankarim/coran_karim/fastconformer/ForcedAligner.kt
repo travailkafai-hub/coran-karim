@@ -599,6 +599,32 @@ class ForcedAligner(
             // sous-estime la duree reelle, et donc quelle marge un plancher
             // "voix propre" pourrait viser (cf. point 2 du §10).
             //
+            // ⚠️ CE QU'ELLE A TRANCHE, ET QUI INVALIDE LA PREMISSE (mesure du
+            // 2026-07-27 sur une lecture de reference, 178 mots tous juges
+            // `correct`, donc tout declenchement y est un faux positif) :
+            //   plancher CTC seul          ->   1/178 mots `starved` (1 %)
+            //   plancher max(CTC,quran.com)-> 45/95  mots `starved` (47 %)
+            // Le plancher de duree se declenche sur un mot correct sur DEUX.
+            // Raison de fond : `wordFrames` N'EST PAS UNE DUREE. Le CTC est
+            // "peaky" -- sur cette session, 731 frames etiquetees par un token
+            // pour 1960 frames d'audio consomme, soit 37 % : la DP met 63 % des
+            // frames en blank. Un mot dure 881 ms d'audio en moyenne mais ne
+            // recoit que 4,1 frames-tokens (~330 ms). Le compte de frames
+            // non-blank mesure OU LA DP A POSE SES TOKENS, pas combien de temps
+            // le mot a ete prononce -- le comparer a des millisecondes n'a donc
+            // pas de sens, quelle que soit la source de ces millisecondes.
+            // Preuve la plus directe : 23 mots (13 %) ont ete correctement
+            // recites avec UNE SEULE frame. Aucun plancher au-dessus de 1 frame
+            // n'est donc sans faux positif (2 frames -> 13 %, 3 -> 42 %).
+            // Le plancher CTC reste sain parce qu'il compare deux grandeurs de
+            // MEME NATURE : un nombre de tokens a un nombre de frames-tokens.
+            //
+            // D'ou l'ajout des BORNES de frames ci-dessous : `lastFrame -
+            // firstFrame + 1` (silences internes INCLUS) est, lui, une vraie
+            // duree, et les bornes donnent en plus les silences ENTRE mots.
+            // C'est la grandeur a mesurer avant de decider si un plancher de
+            // duree peut faire mieux que le plancher CTC.
+            //
             // Volume : UNE ligne par passe FINALE seulement (celles qui
             // verrouillent), pas par apercu -- ~10 a 20 mots par ligne. Aucun
             // effet sur le jugement, c'est une trace pure.
@@ -608,7 +634,9 @@ class ForcedAligner(
                     if (wordFrames[wi] == 0) continue
                     val c = ctcMinFrames(wordTokens[wi])
                     val r = refMinFrames?.getOrNull(wi) ?: -1
-                    sb.append("${anchor + wi}:f=${wordFrames[wi]}/c=$c/r=$r ")
+                    // <index>:<premiere>-<derniere>/f=<frames-tokens>/c=<plancher ctc>/r=<plancher ref>
+                    sb.append("${anchor + wi}:${wordFirstFrame[wi]}-${wordLastFrame[wi]}")
+                        .append("/f=${wordFrames[wi]}/c=$c/r=$r ")
                 }
                 DiagnosticLog.log(TAG, sb.toString().trimEnd())
             }
