@@ -336,6 +336,32 @@ class ForcedAligner(
          *
          *  0 si la DP n'a attribue aucune frame (cf. le cas ZERO FRAME). */
         val frames: Int = 0,
+        /** VRAI quand la DP n'a donne AUCUNE frame a ce mot, que la place
+         *  disponible suffisait pourtant (cf. `fits`), et que sa seconde chance
+         *  est epuisee : il n'y a donc aucune preuve acoustique a juger, mais il
+         *  ne faut plus le differer non plus.
+         *
+         *  Pourquoi ce troisieme etat existe (2026-07-27) -- REGRESSION MESUREE
+         *  LE JOUR MEME : le `if (fits)` ajoute le matin rendait ce chemin
+         *  capable de differer INDEFINIMENT. Or `forceJudgeIndex` EST le
+         *  mecanisme "2 chances max" : au deuxieme passage il faut trancher.
+         *  Mesure sur device (session de reference 15:17) : 5 blocages d'ancre
+         *  de 8 a 9 alignements consecutifs (mots 49, 61, 93, 131, 208) et 18
+         *  mots jamais verrouilles.
+         *
+         *  Aggravant propre au MODE REFERENCE : la correction y est desactivee,
+         *  donc l'ancre ne recule jamais et le mot differe ne repasse JAMAIS.
+         *  Le contrat "2 chances" suppose que le reciteur redise le mot -- vrai
+         *  en mode normal, faux ici (constat de l'utilisateur : « en flux
+         *  continu on a juste la coloration »).
+         *
+         *  Le mot est donc PRESENT dans la liste -- c'est ce qui fait avancer
+         *  l'ancre et supprime le blocage -- mais Dart ne lui donne aucun
+         *  verdict : pas de rouge sans preuve (regle projet). Consequence
+         *  assumee, arbitree avec l'utilisateur : un mot reellement saute n'est
+         *  plus signale dans ce cas. Coherent avec le mode reference, qui ne
+         *  journalise deja aucune erreur. */
+        val noEvidence: Boolean = false,
     )
 
     /**
@@ -760,7 +786,17 @@ class ForcedAligner(
                         // entier dans le cas `!fits` : un mot reellement saute
                         // est toujours tranche ici, il ne peut pas boucler.
                         if (fits) {
-                            deferredIndex = anchor + wi
+                            // Seconde chance EPUISEE : ne pas differer une
+                            // troisieme fois (l'ancre resterait bloquee, mesure
+                            // du 15:17) et ne pas condamner sans preuve. On
+                            // avance sans juger -- cf. WordResult.noEvidence.
+                            DiagnosticLog.log(TAG,
+                                "mot=${anchor + wi} 2e chance epuisee, place " +
+                                    "suffisante mais zero frame -> AVANCE SANS " +
+                                    "JUGER (l'ancre ne bloque plus)")
+                            results.add(WordResult(
+                                anchor + wi, -20.0, -20.0, wi < frontierWordRel, "",
+                                noEvidence = true))
                         } else {
                             results.add(WordResult(
                                 anchor + wi, -20.0, -20.0, wi < frontierWordRel, ""))

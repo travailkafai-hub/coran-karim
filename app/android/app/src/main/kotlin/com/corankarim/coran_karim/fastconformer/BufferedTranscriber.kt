@@ -344,6 +344,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     // alimente le plancher deduit de la voix de l'utilisateur
                     // (WordDurationStore cote Dart). Cf. WordResult.frames.
                     "frames" to it.frames,
+                    "noEvidence" to it.noEvidence,
                 ) + (it.rescoreMargin?.let { m -> mapOf("rescoreMargin" to m) } ?: emptyMap()) +
                     (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap()) +
                     // Regles REELLEMENT detectees sur les frames de ce mot

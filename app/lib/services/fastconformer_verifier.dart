@@ -71,6 +71,13 @@ class AlignedWord {
   /// 0 si la DP ne lui a attribué aucune frame.
   final int frames;
 
+  /// VRAI quand la DP n'a donné aucune frame à ce mot alors que la place
+  /// suffisait, et que sa seconde chance est épuisée : il n'y a aucune preuve
+  /// acoustique à juger, mais il ne faut plus le différer (l'ancre bloquerait).
+  /// Cf. ForcedAligner.WordResult.noEvidence — le mot est présent dans la liste
+  /// pour que l'ancre avance, et le jugement le saute.
+  final bool noEvidence;
+
   const AlignedWord({
     required this.index,
     required this.gop,
@@ -83,6 +90,7 @@ class AlignedWord {
     this.actualFromFree = false,
     this.starved = false,
     this.frames = 0,
+    this.noEvidence = false,
   });
 }
 
@@ -140,6 +148,7 @@ class AlignPayload {
           actualFromFree: w['srcFree'] as bool? ?? false,
           starved: w['starved'] as bool? ?? false,
           frames: (w['frames'] as num?)?.toInt() ?? 0,
+          noEvidence: w['noEvidence'] as bool? ?? false,
           detectedRules: [
             for (final r in (w['rules'] as List? ?? const []))
               if (r is Map)

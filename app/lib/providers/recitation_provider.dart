@@ -2994,6 +2994,19 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // par le CTC pour ce nombre de tokens) attrape ce cas que `free` seul
       // manquait : la DP a physiquement trop peu de place pour ce mot, quelle
       // que soit sa confiance sur ces quelques frames.
+      // Seconde chance épuisée sur un mot que la DP n'a jamais placé alors que
+      // la place suffisait (cf. AlignedWord.noEvidence) : le natif l'inclut
+      // dans la liste UNIQUEMENT pour que l'ancre avance et cesse de bloquer --
+      // il n'y a rien à juger. Régression mesurée le 2026-07-27 : sans ce
+      // troisième état, 5 blocages d'ancre et 18 mots jamais verrouillés sur
+      // une seule session de référence.
+      if (r.noEvidence) {
+        DiagnosticLog.log('GOP',
+            'mot=${r.index} "${expected.display}" NON JUGE : 2e chance épuisée, '
+            'la DP ne l\'a jamais placé alors que la place suffisait '
+            '-- l\'ancre avance sans verdict (pas de rouge sans preuve)');
+        continue;
+      }
       final free = r.forced - r.gop;
       if (!hasSpeech && (free >= _freeConfident || r.starved)) {
         DiagnosticLog.log(
