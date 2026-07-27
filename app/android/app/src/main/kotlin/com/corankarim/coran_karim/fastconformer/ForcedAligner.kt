@@ -528,6 +528,48 @@ class ForcedAligner(
                     //    d'opportunite" plus bas -- sinon il disparaissait
                     //    des `results` sans JAMAIS entrer dans le mecanisme
                     //    des 2 chances, silencieusement, a chaque appel.
+                    // ── DISCRIMINANT "PLACE DISPONIBLE" (2026-07-27) ─────────
+                    // Le CTC impose une contrainte MATHEMATIQUE : emettre un mot
+                    // de n tokens exige AU MOINS n frames (une par token, plus
+                    // un blank obligatoire entre deux tokens identiques
+                    // consecutifs). Donc, pour un mot a qui la DP n'a donne
+                    // AUCUNE frame, on peut trancher sans deviner :
+                    //
+                    //   place disponible >= minimum requis  -> le mot POUVAIT
+                    //       tenir la : c'est la DP qui a echoue (elle est restee
+                    //       en blank, cf. le journal de decrochage plus haut).
+                    //       Le condamner serait injuste.
+                    //   place disponible <  minimum requis  -> le mot ne peut
+                    //       PHYSIQUEMENT pas s'y trouver : il a ete saute.
+                    //
+                    // Pourquoi ce critere et pas les durees de reference
+                    // quran.com (envisagees d'abord) : celles-ci demandent un
+                    // appel reseau et une plomberie Dart->Kotlin, elles varient
+                    // avec le tempo du recitateur, et elles incluent parfois la
+                    // pause de waqf (mesure : le mot "هُمُ" y dure 3030 ms,
+                    // absurde pour un mot si court). Le compte de tokens, lui,
+                    // est LOCAL, exact, et deja disponible ici. Les durees de
+                    // reference resteraient un raffinement possible pour
+                    // estimer le debit reel, pas une necessite.
+                    val minFramesNeeded = run {
+                        val toks = wordTokens[wi]
+                        var need = toks.size
+                        for (k in 1 until toks.size) if (toks[k] == toks[k - 1]) need++
+                        need
+                    }
+                    val prevEnd = if (wi > 0) wordLastFrame[wi - 1] else -1
+                    var nextStart = t
+                    for (k in wi + 1 until w) {
+                        if (wordFirstFrame[k] >= 0) { nextStart = wordFirstFrame[k]; break }
+                    }
+                    val roomFrames = nextStart - prevEnd - 1
+                    val fits = roomFrames >= minFramesNeeded
+                    DiagnosticLog.log(TAG,
+                        "ZERO FRAME mot=${anchor + wi} tokens=$minFramesNeeded " +
+                            "place=$roomFrames frames (~${roomFrames * 80}ms) -> " +
+                            (if (fits) "LA DP A ECHOUE (le mot pouvait tenir)"
+                             else "SAUTE (pas la place)") +
+                            " | final=$isFinal")
                     if (anchor + wi == forceJudgeIndex) {
                         // Ce mot n'a AUCUNE frame : son propre `lastFrame` reste
                         // -1, mais l'audio consomme s'arrete a la fin du mot
@@ -537,8 +579,27 @@ class ForcedAligner(
                         // sur 18, donc le correctif ne s'appliquait qu'aux
                         // passes qui marchaient deja).
                         if (wi > 0) lastUsedFrame = maxOf(lastUsedFrame, wordLastFrame[wi - 1])
-                        results.add(WordResult(
-                            anchor + wi, -20.0, -20.0, wi < frontierWordRel, ""))
+                        // `fits` (2026-07-27) : ne condamner que si le mot ne
+                        // POUVAIT PAS tenir dans la place disponible. Quand il
+                        // pouvait, le zero frame est un echec de la DP, pas une
+                        // faute du recitateur -- on le laisse en differe pour
+                        // qu'il soit rejuge sur un audio ou la DP s'en sortira,
+                        // au lieu de le verrouiller rouge sur -20,00.
+                        //
+                        // Ce que ca CHANGE par rapport au comportement du
+                        // 2026-07-16 : ce chemin etait le jugement DEFINITIF de
+                        // la 2e chance ("le meilleur chemin de la DP n'a
+                        // litteralement aucune place pour lui"). C'etait vrai
+                        // comme intuition mais jamais VERIFIE -- on sait
+                        // maintenant le verifier. Le garde-fou anti-boucle reste
+                        // entier dans le cas `!fits` : un mot reellement saute
+                        // est toujours tranche ici, il ne peut pas boucler.
+                        if (fits) {
+                            deferredIndex = anchor + wi
+                        } else {
+                            results.add(WordResult(
+                                anchor + wi, -20.0, -20.0, wi < frontierWordRel, ""))
+                        }
                     } else {
                         deferredIndex = anchor + wi
                     }
