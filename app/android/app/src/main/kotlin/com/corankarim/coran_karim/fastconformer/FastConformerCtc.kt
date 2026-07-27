@@ -164,11 +164,18 @@ class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? 
      *  conservant sa queue audio ferait reapparaitre cette queue une seconde
      *  fois dans le texte au segment suivant -- la duplication qui avait mis la
      *  fenetre glissante naive a WER > 100 %. */
-    fun greedyDecode(logprobs: Array<FloatArray>, toFrameIncl: Int = -1): String {
+    /** [fromFrame] (2026-07-27) : borne de DEBUT, pour exclure du texte les
+     *  frames de CONTEXTE d'un segment chevauchant -- cet audio a deja ete fige
+     *  au segment precedent, le redecoder ici dupliquerait le texte (piege
+     *  mesure : fenetre glissante naive a WER > 100 %). Defaut 0 = comportement
+     *  d'avant, inchange pour tous les autres appelants. */
+    fun greedyDecode(logprobs: Array<FloatArray>, toFrameIncl: Int = -1,
+                     fromFrame: Int = 0): String {
         val end = if (toFrameIncl in 0 until logprobs.size) toFrameIncl else logprobs.size - 1
-        val ids = ArrayList<Int>(end + 1)
+        val start = fromFrame.coerceIn(0, maxOf(0, end))
+        val ids = ArrayList<Int>(end - start + 1)
         var prev = -1
-        for (fi in 0..end) {
+        for (fi in start..end) {
             val frame = logprobs[fi]
             var best = 0
             var bestVal = frame[0]

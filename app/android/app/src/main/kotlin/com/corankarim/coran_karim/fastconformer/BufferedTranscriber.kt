@@ -81,6 +81,43 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         private const val MAX_TARGET_SECONDS = MAX_SEGMENT_SECONDS
         private const val MIN_TRACKED_PAUSE_MS = 150  // pauses plus courtes = micro-respirations, ignorees du profil
 
+        // ── SEGMENTS CHEVAUCHANTS (2026-07-27) ──────────────────────────────
+        // Duree d'audio DEJA FIGE conservee en tete du segment suivant, comme
+        // CONTEXTE pour l'encodeur -- jamais rejugee, jamais reaffichee.
+        //
+        // POURQUOI : un segment qui commence en plein mot est illisible. Preuve
+        // directe sur l'audio de l'utilisateur (17:03) -- un clip de 2,96 s
+        // contenant de la vraie parole se decode en RIEN du tout ; le meme,
+        // precede du clip d'avant, se lit parfaitement
+        // ("...أَمْ لَمْ تُنذِرْهُمْ لَا يُؤْمِنُونَ"). C'est aussi ce que dit
+        // le commentaire de ForcedAligner depuis le 2026-07-25 : « un buffer
+        // qui demarre au milieu d'un mot est la cause dominante des
+        // transcriptions detruites ».
+        //
+        // MESURE QUI A TRANCHE ENTRE LES POLITIQUES (bench_double_decoupage.py
+        // sur le flux brut du 17:56, 181,8 s) :
+        //     actuelle          4 mots en frontiere / 119   15 inferences
+        //     double decalee    3 / 119                     30 inferences
+        //     CHEVAUCHANTE      1 / 133                     15 inferences
+        // Le double decoupage ne gagne quasiment rien pour le double du cout :
+        // les deux decoupes s'accrochent aux MEMES micro-silences reels, donc
+        // decaler la cible ne decale pas les frontieres. Le chevauchement, lui,
+        // ne depend d'aucune position -- il donne du contexte a CHAQUE segment.
+        // Cout : meme nombre d'inferences, ~1,3x le calcul par inference
+        // (11,3 s -> 14,3 s d'audio), tres au-dessus de la marge disponible.
+        //
+        // POURQUOI LE PIEGE DE DUPLICATION NE S'APPLIQUE PAS. Une fenetre
+        // glissante naive avait donne un WER > 100 % par duplication de texte
+        // (cf. ForcedAligner "TENTATIVE 1"). Ici deux garde-fous INDEPENDANTS :
+        //  1. le TEXTE (fige comme apercu) est decode a partir de
+        //     `contextSamples` seulement -- les mots du contexte n'apparaissent
+        //     jamais deux fois ;
+        //  2. le JUGEMENT est borne par l'ANCRE, qui a deja depasse ces mots :
+        //     ils ne sont pas dans la cible d'alignement, la DP ne peut donc
+        //     pas les rejuger. Ce n'est pas de la prudence, c'est structurel.
+        private const val OVERLAP_SECONDS = 3f
+        private val OVERLAP_SAMPLES = (SAMPLE_RATE * OVERLAP_SECONDS).toInt()
+
         // ── COUPE SUR MICRO-SILENCE (2026-07-25, idee utilisateur) ──────────
         // OBJECTIF : borner le retard de validation SANS jamais couper au
         // milieu d'un mot. Les deux tentatives precedentes echouaient parce
@@ -429,6 +466,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     /** Compteur de blocs recus par feed() -- abscisse commune a toutes les
      *  lignes de trace (un bloc = 80 ms, donc n x 80 ms = temps audio ecoule). */
     @Volatile private var feedCount = 0
+
+    /** Echantillons en TETE du buffer deja figes au segment precedent : contexte
+     *  pour l'encodeur, exclu du texte (borne `fromFrame` de greedyDecode) et du
+     *  jugement (l'ancre les a deja depasses). Cf. OVERLAP_SECONDS. */
+    @Volatile private var contextSamples = 0
     private var retainedSilenceSamples = 0
     private var pauseSamples = 0
     @Volatile private var pendingCommit = false
@@ -597,6 +639,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         segmentStartWallMs = 0L // mesure seule, cf. segmentStartWallMs
         retainedSilenceSamples = 0
         pauseSamples = 0
+        contextSamples = 0
         pendingCommit = false
         pendingForceCommit = false
         pendingCutOffset = -1
@@ -763,14 +806,20 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         DiagnosticLog.log(TAG, "echec capture clip (borne dure): ${e.message}")
                     }
                 }
+                // Meme chevauchement que le gel normal (cf. OVERLAP_SECONDS) :
+                // ce chemin est justement celui de la recitation CONTINUE, donc
+                // celui ou un segment commencant en plein mot est le plus
+                // probable.
+                val purgeF = maxOf(0, covered - OVERLAP_SAMPLES)
                 synchronized(lock) {
-                    samples = if (samples.size > covered) {
-                        samples.copyOfRange(covered, samples.size)
+                    samples = if (samples.size > purgeF) {
+                        samples.copyOfRange(purgeF, samples.size)
                     } else {
                         FloatArray(0)
                     }
                     lastRunSize = 0
                 }
+                contextSamples = covered - purgeF
                 val sep = if (committedText.isEmpty()) "" else " "
                 committedText = committedText + sep + previewText
                 latestText = ""
@@ -855,6 +904,10 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 "n=$feedCount buf=$size cause=" +
                     (if (committing) (if (cutAt > 0) "coupe" else "gel") else "audio") +
                     " cutAt=$cutAt")
+            // Contexte porte par CE snapshot (audio deja fige au segment
+            // precedent) -- fige ici car `contextSamples` sera reecrit par la
+            // purge avant que la coroutine ne s'en serve.
+            val contextStart = contextSamples
             val snapshot: FloatArray
             synchronized(lock) {
                 snapshot = if (cutAt in 1 until samples.size) {
@@ -938,7 +991,17 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         if (dir != null) {
                             try {
                                 clipPath = "$dir/clip_${System.currentTimeMillis()}.wav"
-                                WavWriter.writeMono16k(clipPath, snapshot)
+                                // SANS le contexte : deux clips consecutifs
+                                // doivent rester CONTIGUS ET SANS RECOUVREMENT
+                                // -- c'est la premisse de
+                                // ReferenceTimingExtractor, qui les concatene
+                                // par paires pour recoller les mots coupes. Y
+                                // laisser le chevauchement ferait compter deux
+                                // fois les memes 3 secondes.
+                                WavWriter.writeMono16k(clipPath,
+                                    if (contextStart in 1 until snapshot.size)
+                                        snapshot.copyOfRange(contextStart, snapshot.size)
+                                    else snapshot)
                             } catch (e: Exception) {
                                 DiagnosticLog.log(TAG, "echec capture clip: ${e.message}")
                                 clipPath = null
@@ -963,17 +1026,30 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                             // sans fin le meme audio sans jamais progresser.
                             snapshot.size
                         }
+                        // CHEVAUCHEMENT (2026-07-27) : on ne purge que jusqu'a
+                        // `consumed - OVERLAP`. Les OVERLAP dernieres secondes de
+                        // l'audio DEJA FIGE restent en tete du buffer suivant,
+                        // uniquement comme contexte pour l'encodeur -- exclues du
+                        // texte (borne `fromFrame` ci-dessous) et du jugement
+                        // (l'ancre les a deja depassees). Cf. OVERLAP_SECONDS.
+                        val purgeFrom = maxOf(0, consumed - OVERLAP_SAMPLES)
                         synchronized(lock) {
-                            samples = if (samples.size > consumed) {
-                                samples.copyOfRange(consumed, samples.size)
+                            samples = if (samples.size > purgeFrom) {
+                                samples.copyOfRange(purgeFrom, samples.size)
                             } else {
                                 FloatArray(0)
                             }
                             lastRunSize = samples.size
                         }
-                        // Texte fige = celui des frames consommees UNIQUEMENT.
+                        contextSamples = consumed - purgeFrom
+                        // Texte fige = frames consommees UNIQUEMENT, et a partir
+                        // de la fin du contexte : sans cette borne de debut, les
+                        // mots du chevauchement seraient figes DEUX FOIS.
+                        val ctxFrames =
+                            if (samplesPerFrame > 0) contextStart / samplesPerFrame else 0
                         val committedPart =
-                            if (consumed < snapshot.size) engine.greedyDecode(logprobs, lastFrame)
+                            if (consumed < snapshot.size || ctxFrames > 0)
+                                engine.greedyDecode(logprobs, lastFrame, ctxFrames)
                             else text
                         val sep = if (committedText.isEmpty()) "" else " "
                         committedText = committedText + sep + committedPart
@@ -990,11 +1066,22 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         DiagnosticLog.log(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms " +
                                 "| consomme=${consumed * 1000 / SAMPLE_RATE}ms " +
                                 "conserve=${(snapshot.size - consumed) * 1000 / SAMPLE_RATE}ms " +
+                                "| contexte=${contextStart * 1000 / SAMPLE_RATE}ms " +
+                                "-> garde=${contextSamples * 1000 / SAMPLE_RATE}ms " +
                                 "| VALIDATION retard=${ageMs}ms depuis le debut de cet audio" +
                                 "${if (clipPath != null) " | wav=${clipPath.substringAfterLast('/')}" else ""}" +
                                 " : \"${committedPart.take(80)}\"")
                     } else {
-                        latestText = text
+                        // Apercu : meme exclusion du contexte, sans quoi le
+                        // chemin de gel a la borne dure (qui REUTILISE cet
+                        // apercu tel quel) figerait les mots du chevauchement
+                        // une seconde fois.
+                        val ctxF =
+                            if (logprobs.isNotEmpty() && snapshot.isNotEmpty())
+                                contextStart / maxOf(1, snapshot.size / logprobs.size)
+                            else 0
+                        latestText =
+                            if (ctxF > 0) engine.greedyDecode(logprobs, -1, ctxF) else text
                         lastPreviewSize = snapshot.size
                         DiagnosticLog.log(TAG, "retranscription ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
                         runAlignment(logprobs, isFinal = false, segmentRules = segmentRules)
