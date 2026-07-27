@@ -793,8 +793,16 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 val dirF = captureDir
                 if (dirF != null) {
                     try {
+                        // SANS le contexte, comme le gel normal : sinon deux
+                        // clips consecutifs se recouvrent de 3 s et la premisse
+                        // de ReferenceTimingExtractor (clips contigus) tombe.
+                        // Mesure du 18:31 : 142,3 s de clips pour 121,0 s de flux
+                        // brut -- 21 s de duplication, exactement les 3 s x 7
+                        // gels a la borne dure.
                         val extrait = synchronized(lock) {
-                            samples.copyOfRange(0, minOf(covered, samples.size))
+                            val from = minOf(contextSamples, samples.size)
+                            val to = minOf(covered, samples.size)
+                            if (to > from) samples.copyOfRange(from, to) else FloatArray(0)
                         }
                         val p = "$dirF/clip_${System.currentTimeMillis()}.wav"
                         WavWriter.writeMono16k(p, extrait)
@@ -1009,16 +1017,42 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                                 clipPath = null
                             }
                         }
-                        val lastFrame = runAlignment(logprobs, isFinal = true,
-                                                     clipPath = clipPath,
-                                                     segmentRules = segmentRules,
-                                                     segmentSamples = snapshot.size)
                         // Conversion frames -> samples DEDUITE, jamais codee en
                         // dur : le facteur de sous-echantillonnage de l'encodeur
                         // est une propriete du modele exporte ; une constante
                         // fausse ne se verrait pas et decalerait tout.
                         val samplesPerFrame =
                             if (logprobs.isNotEmpty()) snapshot.size / logprobs.size else 0
+                        // ── LE CONTEXTE VA A L'ENCODEUR, PAS AU JUGE ─────────
+                        // REGRESSION MESUREE (18:29-18:31, la premiere session
+                        // avec chevauchement) : l'ancre n'avancait plus que d'UN
+                        // mot par gel, et LES ONZE passes finales se terminaient
+                        // par un ZERO FRAME avec une place enorme --
+                        // `place=100 frames (~8000ms) -> LA DP A ECHOUE`. Avant
+                        // le chevauchement il y en avait 4 sur toute une session.
+                        //
+                        // Cause : les frames de contexte etaient passees a
+                        // l'aligneur en meme temps qu'a l'encodeur. La DP y
+                        // accrochait les premiers mots de sa cible -- l'audio du
+                        // contexte correspond aux mots PRECEDANT l'ancre, il
+                        // ressemble donc a du texte plausible -- puis laissait le
+                        // vrai audio inexplique, d'ou les 8 s de "place".
+                        //
+                        // Le contexte doit nourrir l'ENCODEUR (pour qu'un segment
+                        // ne commence pas en plein mot) sans jamais entrer dans
+                        // la DP. On tronque donc les logprobs avant l'alignement
+                        // et on reporte l'index de frame en absolu ensuite.
+                        val ctxFrames =
+                            if (samplesPerFrame > 0) contextStart / samplesPerFrame else 0
+                        val alignLp =
+                            if (ctxFrames in 1 until logprobs.size)
+                                logprobs.copyOfRange(ctxFrames, logprobs.size)
+                            else logprobs
+                        val lastRel = runAlignment(alignLp, isFinal = true,
+                                                     clipPath = clipPath,
+                                                     segmentRules = segmentRules,
+                                                     segmentSamples = snapshot.size - contextStart)
+                        val lastFrame = if (lastRel >= 0) lastRel + ctxFrames else lastRel
                         val consumed = if (lastFrame >= 0 && samplesPerFrame > 0) {
                             minOf(snapshot.size, (lastFrame + 1) * samplesPerFrame)
                         } else {
@@ -1059,8 +1093,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // Texte fige = frames consommees UNIQUEMENT, et a partir
                         // de la fin du contexte : sans cette borne de debut, les
                         // mots du chevauchement seraient figes DEUX FOIS.
-                        val ctxFrames =
-                            if (samplesPerFrame > 0) contextStart / samplesPerFrame else 0
+                        // (`ctxFrames` est calcule plus haut, avant l'alignement.)
                         val committedPart =
                             if (consumed < snapshot.size || ctxFrames > 0)
                                 engine.greedyDecode(logprobs, lastFrame, ctxFrames)
