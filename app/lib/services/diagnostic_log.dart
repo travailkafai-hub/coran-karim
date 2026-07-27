@@ -69,7 +69,7 @@ class DiagnosticLog {
   /// [_kBuildTimestamp] complète le tag manuel : injecté au build via
   /// `--dart-define=BUILD_TS=...`, il distingue deux compilations du même tag
   /// (utile quand on itère sans bumper le tag). Vide si non fourni.
-  static const String _kBuildTag = 'causal-v1-mesure-etendue';
+  static const String _kBuildTag = 'causal-v1-trace-fine';
   static const String _kBuildTimestamp =
       String.fromEnvironment('BUILD_TS', defaultValue: '');
 
@@ -99,6 +99,60 @@ class DiagnosticLog {
       debugPrint('[DiagnosticLog] init échoué : $e');
       return null;
     }
+  }
+
+  // ── TRACE FINE (2026-07-27) : accumulée EN MÉMOIRE, écrite à la fin ───────
+  // Même raison que le pendant Kotlin (DiagnosticLog.kt) : [log] fait un
+  // `writeAsStringSync(flush: true)` par ligne, donc un appel système BLOQUANT
+  // sur l'isolate — celui qui reçoit justement le flux PCM. Mesure déjà au
+  // dossier (2026-07-25) : 22 à 32 écritures/s pour la seule instrumentation.
+  // Tracer finement une latence avec ce mécanisme mesurerait l'instrumentation
+  // elle-même.
+  //
+  // Ici : un ajout dans une liste (aucune I/O, aucun debugPrint, aucun
+  // formatage de date — on stocke un écart en microsecondes), puis UNE seule
+  // écriture au vidage, après la récitation.
+  static final List<String> _trace = <String>[];
+  static Stopwatch? _traceClock;
+
+  /// Borne dure (~200k lignes) : au-delà on cesse d'ajouter plutôt que de
+  /// risquer un OOM en pleine récitation.
+  static const int _kTraceMax = 200000;
+
+  static void traceReset() {
+    _trace.clear();
+    _traceClock = Stopwatch()..start();
+  }
+
+  static void trace(String step, String data) {
+    if (!enabled || _trace.length >= _kTraceMax) return;
+    final c = _traceClock ??= (Stopwatch()..start());
+    final ms = c.elapsedMicroseconds ~/ 100;
+    _trace.add('${ms ~/ 10}.${ms % 10}\t$step\t$data');
+  }
+
+  /// Écrit toute la trace accumulée en UNE ouverture de fichier. À appeler
+  /// UNIQUEMENT hors récitation (fin de session).
+  static int flushTrace() {
+    final n = _trace.length;
+    if (n == 0) return 0;
+    final f = _file;
+    if (f == null) {
+      _trace.clear();
+      return 0;
+    }
+    try {
+      final sb = StringBuffer('--- TRACE DART ($n lignes) : ms\tetape\tdonnees ---\n');
+      for (final l in _trace) {
+        sb.write('D\t$l\n');
+      }
+      sb.write('--- FIN TRACE DART ---\n');
+      f.writeAsStringSync(sb.toString(), mode: FileMode.append, flush: true);
+    } catch (_) {
+      // Jamais bloquant.
+    }
+    _trace.clear();
+    return n;
   }
 
   static void log(String tag, String message) {

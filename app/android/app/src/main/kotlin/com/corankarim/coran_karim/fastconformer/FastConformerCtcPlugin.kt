@@ -301,6 +301,16 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 buffered?.reset()
                 result.success(null)
             }
+            // Vide la trace fine accumulee en memoire (cf. DiagnosticLog.trace)
+            // -- A APPELER HORS RECITATION uniquement : c'est une ecriture
+            // fichier unique mais volumineuse.
+            "flushTrace" -> {
+                result.success(DiagnosticLog.flushTrace())
+            }
+            "traceReset" -> {
+                DiagnosticLog.traceReset()
+                result.success(null)
+            }
             // ── Alignement force GOP (cf. ForcedAligner.kt) ────────────────────
             // Le texte attendu est CONNU d'avance : chaque passe de transcription
             // aligne de force les mots restants sur les logprobs et retourne un

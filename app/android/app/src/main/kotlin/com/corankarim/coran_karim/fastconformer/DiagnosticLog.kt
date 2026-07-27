@@ -34,6 +34,65 @@ object DiagnosticLog {
         log("DiagnosticLog", "=== fichier natif relie : $path ===")
     }
 
+    // ── TRACE FINE (2026-07-27) : accumulee EN MEMOIRE, ecrite a la fin ─────
+    // Pourquoi ce chemin separe de log() : log() ouvre/ecrit/FERME un
+    // FileWriter A CHAQUE ligne, et il est appele depuis le chemin audio
+    // (feed()) comme depuis le thread d'inference. Mesure deja au dossier
+    // (2026-07-25) : l'instrumentation seule representait 22 a 32 ecritures
+    // fichier synchrones par seconde -- c'est la raison d'etre de
+    // l'interrupteur `enabled`. Tracer FINEMENT une latence avec ce mecanisme
+    // reviendrait a mesurer l'instrumentation elle-meme : un diagnostic qui
+    // modifie ce qu'il mesure n'est pas un diagnostic.
+    //
+    // Ici : un simple ajout dans une liste (aucune I/O, aucun logcat, aucun
+    // formatage de date -- on stocke le nanoTime brut), puis UNE SEULE
+    // ouverture de fichier au moment du vidage, apres la recitation.
+    private val traceBuf = ArrayList<String>(64_000)
+    private var traceT0 = 0L
+
+    /** Borne dure : ~200k lignes (~10 Mo). Au-dela on cesse d'ajouter plutot
+     *  que de risquer un OOM en pleine recitation -- la trace est un outil de
+     *  diagnostic, jamais une raison de faire tomber l'app. */
+    private const val TRACE_MAX = 200_000
+
+    @Synchronized
+    fun traceReset() {
+        traceBuf.clear()
+        traceT0 = System.nanoTime()
+    }
+
+    /** Ajout O(1) sans I/O. [t] = etiquette courte d'etape, [msg] = donnees. */
+    @Synchronized
+    fun trace(t: String, msg: String) {
+        if (!enabled || traceBuf.size >= TRACE_MAX) return
+        if (traceT0 == 0L) traceT0 = System.nanoTime()
+        // Millisecondes depuis le debut de la trace, a 0,1 ms pres : c'est un
+        // ECART qu'on veut lire, pas une heure absolue.
+        val ms = (System.nanoTime() - traceT0) / 100_000L
+        traceBuf.add("${ms / 10}.${ms % 10}\t$t\t$msg")
+    }
+
+    /** Ecrit toute la trace accumulee en UNE ouverture de fichier, puis vide le
+     *  tampon. A appeler UNIQUEMENT hors recitation (fin de session). */
+    @Synchronized
+    fun flushTrace(): Int {
+        val n = traceBuf.size
+        if (n == 0) return 0
+        val f = file
+        if (f == null) { traceBuf.clear(); return 0 }
+        try {
+            FileWriter(f, true).use { w ->
+                w.write("--- TRACE ($n lignes) : ms\tetape\tdonnees ---\n")
+                for (line in traceBuf) w.write("T\t$line\n")
+                w.write("--- FIN TRACE ---\n")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "echec ecriture trace: ${e.message}")
+        }
+        traceBuf.clear()
+        return n
+    }
+
     @Synchronized
     fun log(tag: String, message: String) {
         // Sortie AVANT tout formatage (interpolation + SimpleDateFormat) :

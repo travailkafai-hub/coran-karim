@@ -661,6 +661,24 @@ class FastConformerVerifier {
     }
   }
 
+  /// Vide la trace fine NATIVE (accumulée en mémoire) dans le fichier de log.
+  /// À appeler uniquement hors récitation. Retourne le nombre de lignes.
+  Future<int> flushNativeTrace() async {
+    try {
+      return await _channel.invokeMethod<int>('flushTrace') ?? 0;
+    } catch (e) {
+      debugPrint('[FastConformer] Échec flushTrace : $e');
+      return 0;
+    }
+  }
+
+  /// Remet à zéro l'horloge de la trace native (début de session).
+  Future<void> resetNativeTrace() async {
+    try {
+      await _channel.invokeMethod('traceReset');
+    } catch (_) {}
+  }
+
   /// Étend la cible d'alignement avec des mots supplémentaires (formes
   /// STRICTES d'entraînement), à la SUITE de la cible actuelle — SANS toucher
   /// l'ancre. Enchaînement sur la sourate suivante sans interrompre la session.

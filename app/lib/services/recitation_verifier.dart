@@ -300,6 +300,11 @@ abstract class RecitationVerifier {
   /// côté Dart — cf. FastConformerVerifier.setLogEnabled.
   Future<void> setLogEnabled(bool enabled);
 
+  /// Vide la trace fine NATIVE (accumulée en mémoire, cf. DiagnosticLog.trace)
+  /// dans le fichier de log. À appeler uniquement HORS récitation. Retourne le
+  /// nombre de lignes écrites.
+  Future<int> flushNativeTrace();
+
   /// [continuous] : enregistrement continu segmenté par détection de silence
   /// (VAD énergie), pour réciter plusieurs versets/une sourate entière sans
   /// interaction manuelle entre chaque verset.
@@ -516,6 +521,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   @override
   Future<void> setLogEnabled(bool enabled) => _fastConformer.setLogEnabled(enabled);
 
+  @override
+  Future<int> flushNativeTrace() => _fastConformer.flushNativeTrace();
+
   // ── Segmentation continue (VAD énergie) ──────────────────────────────────
   // dBFS en dessous duquel on considère qu'il y a silence (seuil à ajuster
   // selon la sensibilité du micro — point de réglage principal).
@@ -624,6 +632,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       List<String> expectedWords, List<int?>? refMinFrames) async {
     await _closeStaleContinuousCapture();
     _chunkCount = 0;
+    _pcmQueued = 0;
+    DiagnosticLog.traceReset();
+    unawaited(_fastConformer.resetNativeTrace());
     _continuousFeedTail = Future.value();
     _rawCtrl.add('⏳ Chargement FastConformer…');
     final causalOk = await _fastConformer.ensureStreamingLoaded();
@@ -683,6 +694,12 @@ class WhisperOnnxVerifier implements RecitationVerifier {
             DiagnosticLog.log('ASR', 'bloc PCM #$_chunkCount (${bytes.length} octets)');
           }
           _levelCtrl.add(_estimatePcmLevel(bytes));
+          // TRACE (2026-07-27) : `enFile` = blocs recus mais pas encore passes
+          // au natif. C'est LA grandeur qui manquait pour savoir si le retard
+          // vient de la chaine d'alimentation ou d'ailleurs -- `bloc PCM #N`
+          // etait journalise a la RECEPTION, donc aveugle a cette file.
+          _pcmQueued++;
+          DiagnosticLog.trace('recu', 'n=$chunkNumber enFile=$_pcmQueued');
           // MethodChannel + coroutines natives autorisent plusieurs appels en
           // vol. Cette chaine FIFO preserve strictement l'ordre PCM, condition
           // indispensable pour que les caches t-1 alimentent bien le chunk t.
@@ -755,11 +772,20 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     }
   }
 
+  /// Blocs PCM recus mais pas encore remis au natif (cf. la chaine FIFO
+  /// `_continuousFeedTail`). Trace seule, aucune decision ne s'appuie dessus.
+  int _pcmQueued = 0;
+
   Future<void> _processContinuousChunk(
       Uint8List bytes, int chunkNumber) async {
+    DiagnosticLog.trace('feedEntree', 'n=$chunkNumber enFile=$_pcmQueued');
+    final sw = Stopwatch()..start();
     final parts = _usingCausalStreaming
         ? await _fastConformer.feedCausalAudio(bytes)
         : await _fastConformer.feedBufferedAudio(bytes);
+    _pcmQueued--;
+    DiagnosticLog.trace('feedSortie',
+        'n=$chunkNumber ms=${sw.elapsedMilliseconds} enFile=$_pcmQueued');
     if (parts != null &&
         (parts.committed.isNotEmpty || parts.preview.isNotEmpty)) {
       final display = [parts.committed, parts.preview]
@@ -1129,6 +1155,8 @@ class MockRecitationVerifier implements RecitationVerifier {
 
   @override
   Future<void> setLogEnabled(bool enabled) async {}
+  @override
+  Future<int> flushNativeTrace() async => 0;
 
   int _generation = 0;
   @override

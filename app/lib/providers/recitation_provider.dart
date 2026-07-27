@@ -3738,6 +3738,18 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _cleanup();
   }
 
+  /// Vide les traces fines (Dart + natif) dans le fichier de log — UNIQUEMENT
+  /// en fin de session : c'est une écriture volumineuse, et la faire pendant la
+  /// récitation fausserait la latence qu'on cherche justement à mesurer (cf.
+  /// DiagnosticLog.trace).
+  Future<void> _flushTraces() async {
+    final n = DiagnosticLog.flushTrace();
+    final m = await _verifier.flushNativeTrace();
+    if (n > 0 || m > 0) {
+      DiagnosticLog.log('Trace', 'vidée : $n lignes Dart + $m lignes natives');
+    }
+  }
+
   void _cleanup() {
     _tokenSub?.cancel();
     _levelSub?.cancel();
@@ -3748,6 +3760,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // Mode continu : ce chemin ne passe PAS par stop(), il lui faut son propre
     // flush (idempotent, no-op si rien n'a change).
     unawaited(WordDurationStore.instance.flush());
+    unawaited(_flushTraces());
     _stopping = false;
     _endingContinuous = false;
     state = state.copyWith(status: RecitationStatus.finished, soundLevel: 0);
@@ -3779,6 +3792,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // est appele sur chaque mot valide (des dizaines par session), on ne veut
       // pas un acces disque par mot. Sans effet si rien n'a change.
       unawaited(WordDurationStore.instance.flush());
+      unawaited(_flushTraces());
       _stopping = false;
       if (state.status != RecitationStatus.finished) {
         state = state.copyWith(status: RecitationStatus.finished);

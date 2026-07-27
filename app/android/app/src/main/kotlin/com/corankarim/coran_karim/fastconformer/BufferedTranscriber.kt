@@ -425,6 +425,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     // duree REELLE de la pause en cours et continue de compter meme quand les
     // blocs sont jetes — sinon il plafonne a ~300ms et le gel sur pause (700ms)
     // ne se declenche jamais (seule la borne dure tombait, trop tard).
+    /** Compteur de blocs recus par feed() -- abscisse commune a toutes les
+     *  lignes de trace (un bloc = 80 ms, donc n x 80 ms = temps audio ecoule). */
+    @Volatile private var feedCount = 0
     private var retainedSilenceSamples = 0
     private var pauseSamples = 0
     @Volatile private var pendingCommit = false
@@ -613,6 +616,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
      * immediatement le texte complet connu (segments figes + apercu courant).
      */
     fun feed(newSamples: FloatArray, scope: CoroutineScope): String {
+        feedCount++
         var sumSq = 0.0
         for (v in newSamples) sumSq += v.toDouble() * v
         val rms = sqrt(sumSq / newSamples.size)
@@ -775,6 +779,17 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         val newSinceLast = size - lastRunSize
         val shouldRun =
             size > 0 && (newSinceLast >= (SAMPLE_RATE * MIN_NEW_SECONDS).toInt() || pendingCommit)
+        // TRACE (2026-07-27) : etat COMPLET a chaque bloc. C'est la seule facon
+        // de voir ou part le temps -- le log classique n'emet une ligne qu'aux
+        // re-transcriptions, donc il est aveugle entre deux passes. En memoire,
+        // aucune I/O ici (cf. DiagnosticLog.trace).
+        DiagnosticLog.trace("feed",
+            "n=$feedCount sil=${if (isSilence) 1 else 0} rms=${"%.4f".format(rms)} " +
+                "garde=${if (toAppend != null) toAppend.size else 0} buf=$size " +
+                "nouv=$newSinceLast run=${if (shouldRun) 1 else 0} " +
+                "busy=${if (busy.get()) 1 else 0} pc=${if (pendingCommit) 1 else 0} " +
+                "pfc=${if (pendingForceCommit) 1 else 0} cut=$pendingCutOffset " +
+                "cif=${if (commitInFlight) 1 else 0}")
         if (shouldRun && busy.compareAndSet(false, true)) {
             lastRunSize = size
             val committing = pendingCommit
@@ -790,6 +805,12 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // coroutine), `samples` contient de l'audio deja en cours de gel :
             // aucune decision de segmentation ne doit plus s'appuyer dessus.
             if (committing) commitInFlight = true
+            // Declencheur de CETTE passe : c'est ce qui manquait pour expliquer
+            // les passes qui continuent alors que plus aucun bloc n'arrive.
+            DiagnosticLog.trace("lance",
+                "n=$feedCount buf=$size cause=" +
+                    (if (committing) (if (cutAt > 0) "coupe" else "gel") else "audio") +
+                    " cutAt=$cutAt")
             val snapshot: FloatArray
             synchronized(lock) {
                 snapshot = if (cutAt in 1 until samples.size) {
@@ -803,6 +824,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     samples.copyOf()
                 }
             }
+            var tCoroutine = 0L
             scope.launch(Dispatchers.Default) {
                 try {
                     // Correctif crash natif (2026-07-23, mesure device : "JNI
@@ -819,7 +841,12 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     // ce correctif, plus jamais depuis.
                     Thread.currentThread().contextClassLoader =
                         FastConformerCtc::class.java.classLoader
-                    val t0 = System.nanoTime()
+                    // Entree REELLE dans la coroutine : l'ecart avec la ligne
+                    // "lance" correspondante mesure l'attente d'ordonnancement
+                    // sur Dispatchers.Default (invisible jusqu'ici).
+                    DiagnosticLog.trace("infDebut", "n=$feedCount ech=${snapshot.size}")
+                    tCoroutine = System.nanoTime()
+                    val t0 = tCoroutine
                     // Une seule inference ONNX : les logprobs servent au texte
                     // (greedy) ET a l'alignement force GOP (cf. runAlignment).
                     val outputs = engine.computeAll(snapshot)
@@ -938,6 +965,12 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     // la fin de la session.
                     commitInFlight = false
                     busy.set(false)
+                    // Fin d'inference : l'ecart avec "infDebut" est la duree
+                    // reelle de calcul, et l'ecart avec le "feed" suivant dit si
+                    // des blocs ont attendu derriere `busy`.
+                    DiagnosticLog.trace("infFin",
+                        "n=$feedCount ech=${snapshot.size} " +
+                            "duree=${(System.nanoTime() - tCoroutine) / 1_000_000}ms")
                 }
             }
         }
