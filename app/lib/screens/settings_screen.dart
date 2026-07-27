@@ -137,6 +137,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           _SectionHeader(t.settingsSectionDiagnostic),
           const _DiagnosticTile(),
+          const _NoiseSuppressTile(),
 
           const SizedBox(height: 12),
           _SectionHeader(t.settingsSectionApp),
@@ -277,6 +278,36 @@ class _DiagnosticTile extends ConsumerWidget {
           ref.read(diagnosticEnabledProvider.notifier).set(v);
           unawaited(ref.read(recitationVerifierProvider).setLogEnabled(v));
         },
+      ),
+    );
+  }
+}
+
+/// Suppression de bruit du micro — **éteinte par défaut, délibérément** (voir
+/// noiseSuppressProvider pour les trois raisons mesurées le 2026-07-27 :
+/// décalage entraînement/inférence, baisse du niveau d'entrée qui aggrave le
+/// portier de segmentation à seuil absolu, et surtout le fait que le bruit
+/// n'est pas le défaut mesuré). Ce réglage existe pour TRANCHER PAR LA MESURE :
+/// réciter deux fois le même passage, avec et sans, et comparer les logs.
+///
+/// Prend effet au DÉMARRAGE de la prochaine récitation : la valeur est lue à
+/// l'ouverture du flux micro, la changer en cours de session ne fait rien.
+class _NoiseSuppressTile extends ConsumerWidget {
+  const _NoiseSuppressTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(noiseSuppressProvider);
+    return _SettingsTile(
+      icon: Icons.noise_control_off_outlined,
+      title: 'Suppression de bruit du micro',
+      subtitle: on
+          ? 'Activée — à comparer avec le réglage éteint avant de la garder'
+          : 'Éteinte (recommandé) — le modèle est entraîné sur de l\'audio non filtré',
+      trailing: Switch.adaptive(
+        value: on,
+        activeColor: AppColors.green700,
+        onChanged: (v) => ref.read(noiseSuppressProvider.notifier).set(v),
       ),
     );
   }

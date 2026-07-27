@@ -353,6 +353,53 @@ final diagnosticEnabledProvider =
   return DiagnosticEnabledNotifier();
 });
 
+/// Suppression de bruit du micro (Android `NoiseSuppressor`, via le package
+/// `record`). **Désactivée par défaut, et c'est délibéré.**
+///
+/// POURQUOI PAS PAR DÉFAUT (analyse 2026-07-27) :
+///  1. Décalage entraînement/inférence : le modèle a été affiné sur un corpus
+///     de récitations NON traité par ce filtre. Les artefacts d'une suppression
+///     de bruit (bruit musical de soustraction spectrale, attaques de consonnes
+///     atténuées) sont un signal qu'il n'a jamais vu. Ces traitements sont
+///     conçus pour l'oreille humaine, pas pour la reconnaissance.
+///  2. Effet de bord direct : la doc du package prévient que le volume d'entrée
+///     baisse. Or le portier de segmentation est un seuil ABSOLU (0,02) --
+///     mesuré sur une session réelle, il écartait déjà 96 s d'audio sur 253.
+///     Baisser le niveau aggrave mécaniquement ce chiffre.
+///  3. Le bruit n'est pas le défaut mesuré : sur les erreurs relevées, le
+///     modèle affiche `gop=0,00` et `free≈0` -- il est CERTAIN de ce qu'il
+///     entend, il n'a reçu qu'un fragment de mot. Un modèle gêné par le bruit
+///     montrerait des `free` bas partout.
+///
+/// Le réglage existe donc pour TRANCHER PAR LA MESURE (demande utilisateur
+/// 2026-07-27) : réciter deux fois le même passage, avec et sans, et comparer
+/// hors ligne. Son état est journalisé au démarrage de chaque session, sans
+/// quoi une comparaison de logs serait ininterprétable.
+final noiseSuppressProvider =
+    StateNotifierProvider<NoiseSuppressNotifier, bool>((ref) {
+  return NoiseSuppressNotifier();
+});
+
+const _kPrefNoiseSuppress = 'noise_suppress_enabled';
+
+class NoiseSuppressNotifier extends StateNotifier<bool> {
+  NoiseSuppressNotifier() : super(false) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefNoiseSuppress);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefNoiseSuppress, value);
+  }
+}
+
 class DiagnosticEnabledNotifier extends StateNotifier<bool> {
   DiagnosticEnabledNotifier() : super(true) {
     _restore();

@@ -305,11 +305,22 @@ abstract class RecitationVerifier {
   /// nombre de lignes écrites.
   Future<int> flushNativeTrace();
 
+  /// Alignement forcé ONE-SHOT sur un WAV complet (pas de streaming, pas de
+  /// segmentation, `isFinal=true`). Utilisé par [ReferenceTimingExtractor]
+  /// pour mesurer les durées après coup sur des clips recollés — c'est le VRAI
+  /// aligneur de production, rien n'est réimplémenté.
+  Future<AlignPayload?> alignFile(String wavPath);
+
   /// [continuous] : enregistrement continu segmenté par détection de silence
   /// (VAD énergie), pour réciter plusieurs versets/une sourate entière sans
   /// interaction manuelle entre chaque verset.
   Future<void> start(List<String> expectedWords,
       {bool continuous = false, List<int?>? refMinFrames});
+
+  /// Suppression de bruit du micro (cf. noiseSuppressProvider). Poussé AVANT
+  /// [start] : la valeur est lue au moment d'ouvrir le flux, la changer en
+  /// cours de session n'a aucun effet.
+  set noiseSuppress(bool value);
   Future<void> stop();
 
   /// Numero de la session actuellement demarree (0 = aucune) -- capturer
@@ -524,6 +535,10 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   @override
   Future<int> flushNativeTrace() => _fastConformer.flushNativeTrace();
 
+  @override
+  Future<AlignPayload?> alignFile(String wavPath) =>
+      _fastConformer.alignFile(wavPath);
+
   // ── Segmentation continue (VAD énergie) ──────────────────────────────────
   // dBFS en dessous duquel on considère qu'il y a silence (seuil à ajuster
   // selon la sensibilité du micro — point de réglage principal).
@@ -558,6 +573,10 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   // du native, pour que le pipeline s'arrete immediatement du point de vue
   // de l'app, meme si le micro physique met du temps a suivre.
   bool _appPaused = false;
+
+  bool _noiseSuppress = false;
+  @override
+  set noiseSuppress(bool value) => _noiseSuppress = value;
 
   @override
   Future<void> start(List<String> expectedWords,
@@ -677,9 +696,18 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       final hasPerm = await _recorder.hasPermission();
       DiagnosticLog.log('ASR', 'hasPermission (juste avant startStream) = $hasPerm');
 
+      // `noiseSuppress` : desactive par defaut (cf. noiseSuppressProvider pour
+      // les trois raisons mesurees). Expose pour pouvoir trancher par une
+      // comparaison A/B, pas pour etre allume a l'aveugle.
       final stream = await _recorder.startStream(
-        const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: 16000, numChannels: 1),
+        RecordConfig(
+            encoder: AudioEncoder.pcm16bits,
+            sampleRate: 16000,
+            numChannels: 1,
+            noiseSuppress: _noiseSuppress),
       );
+      DiagnosticLog.log('ASR',
+          'capture ouverte | suppression de bruit = $_noiseSuppress');
       DiagnosticLog.log('ASR', 'startStream() a retourné un Stream — abonnement…');
 
       _pcmSub = stream.listen(
@@ -1162,6 +1190,10 @@ class MockRecitationVerifier implements RecitationVerifier {
   Future<void> setLogEnabled(bool enabled) async {}
   @override
   Future<int> flushNativeTrace() async => 0;
+  @override
+  set noiseSuppress(bool value) {}
+  @override
+  Future<AlignPayload?> alignFile(String wavPath) async => null;
 
   int _generation = 0;
   @override

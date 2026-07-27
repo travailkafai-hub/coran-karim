@@ -14,6 +14,7 @@ import '../services/quran_verse_locator_service.dart';
 import '../services/recitation_verifier.dart';
 import '../services/rule_annotation_service.dart';
 import '../services/voice_lora_clip_service.dart';
+import '../services/reference_timing_extractor.dart';
 import '../services/word_duration_store.dart';
 import '../services/word_timing_service.dart';
 
@@ -1873,8 +1874,24 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// Démarre une récitation continue (plusieurs versets/une sourate entière),
   /// segmentée automatiquement par détection de silence (VAD). [arabicText]
   /// doit couvrir tout le fragment à réciter (setup() l'a déjà découpé en mots).
-  Future<void> startContinuous() async {
+  /// Segments figés de la session : clip audio + plage de mots couverte.
+  /// Renseigné UNIQUEMENT en session de référence, c'est la matière première de
+  /// [ReferenceTimingExtractor] -- et c'est la correspondance que l'app connaît
+  /// en direct alors qu'une analyse hors ligne devrait la deviner.
+  final List<ReferenceSegment> _referenceSegments = [];
+  List<ReferenceSegment> get referenceSegments =>
+      List.unmodifiable(_referenceSegments);
+
+  /// Vrai pendant une session de RÉFÉRENCE. Deux effets : l'audio est capturé
+  /// même diagnostic éteint (c'est la matière première de la mesure de durées,
+  /// pas de la trace -- décision utilisateur 2026-07-27), et les segments figés
+  /// sont collectés ci-dessus.
+  bool _referenceSession = false;
+
+  Future<void> startContinuous({bool referenceSession = false}) async {
     if (state.words.isEmpty || state.isActive) return;
+    _referenceSession = referenceSession;
+    _referenceSegments.clear();
     final reset = state.words.map((w) => w.copyWith(status: WordStatus.pending)).toList();
     if (reset.isNotEmpty) reset[0] = reset[0].copyWith(status: WordStatus.current);
     _endingContinuous = false;
@@ -1936,7 +1953,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   Future<void> _applyDiagnosticCapture() async {
     final on = DiagnosticLog.enabled;
     await _verifier.setLogEnabled(on);
-    if (!on) {
+    // L'AUDIO d'une session de référence est capturé même diagnostic éteint
+    // (décision utilisateur 2026-07-27) : c'est la matière première dont
+    // [ReferenceTimingExtractor] déduit les durées, pas de la trace de debug.
+    // Sans ça la fonctionnalité n'existerait qu'en mode debug.
+    if (!on && !_referenceSession) {
       await _verifier.setClipCapture(null);
       return;
     }
@@ -3338,7 +3359,20 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // puis détruite. Ne pas réintroduire de filtre de rétention ici : Kotlin
     // écrit désormais chaque segment figé dans un dossier DURABLE que rien
     // ne nettoie (cf. VoiceLoraClipService.newRecitationCaptureDir).
-    // `p.clipPath` reste disponible dans le payload pour un usage futur.
+    // `p.clipPath` reste disponible dans le payload -- et il SERT desormais :
+    // en session de reference on retient (clip, ancre, nombre de mots) pour
+    // chaque segment fige. C'est cette correspondance, connue en direct, qui
+    // permet a ReferenceTimingExtractor de recoller deux clips consecutifs en
+    // sachant EXACTEMENT quels mots ils contiennent -- la ou une analyse hors
+    // ligne devrait l'apparier a l'aveugle.
+    final clip = p.clipPath;
+    if (_referenceSession && clip != null && p.words.isNotEmpty) {
+      _referenceSegments.add((
+        clipPath: clip,
+        anchor: p.anchor,
+        wordCount: p.words.length,
+      ));
+    }
 
     // L'ancre (utilisée par la correction, cf. rewindRangeEnd) doit avancer
     // EXACTEMENT jusqu'où ce bloc a verrouillé des mots — pas jusqu'à

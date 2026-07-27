@@ -17,6 +17,7 @@ import '../services/quran_api.dart';
 import '../providers/error_review_provider.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/recitation_start_sequence.dart';
+import '../services/reference_timing_extractor.dart';
 import '../services/rule_annotation_service.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../services/word_correction_audio.dart';
@@ -905,7 +906,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     try {
       final started = await RecitationStartSequence().run(
         prepareModel: verifier.ensureContinuousModelLoaded,
-        startCapture: notifier.startContinuous,
+        startCapture: () {
+          // Poussé AVANT start() : la valeur est lue à l'ouverture du flux.
+          ref.read(recitationVerifierProvider).noiseSuppress =
+              ref.read(noiseSuppressProvider);
+          return notifier.startContinuous(
+              referenceSession: _isReferenceSession);
+        },
         canContinue: () => mounted,
         onStage: (stage) {
           if (stage == RecitationStartStage.modelUnavailable) {
@@ -1132,6 +1139,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final pauses = await _pauseProfile.fetchSessionPauses();
     await _pauseProfile.saveFor(_initialPassageKey, pauses);
     await _closeAudioCapture();
+    // ── DEDUCTION DES DUREES, SUR LE TELEPHONE (2026-07-27) ────────────────
+    // Automatique (decision utilisateur) : la session de reference vient de
+    // produire exactement la matiere premiere necessaire -- des clips contigus
+    // et la correspondance clip -> plage de mots. On recolle les paires de
+    // clips pour reconstituer les mots coupes par la segmentation (67 % des
+    // erreurs mesurees le 2026-07-27 tombaient sur un bord de segment) et on
+    // en tire les durees reelles dans la voix du reciteur.
+    // Volontairement APRES saveFor : meme si l'extraction echoue, le profil de
+    // pauses -- la raison d'etre historique de cette session -- est acquis.
+    final notifier = ref.read(recitationProvider.notifier);
+    final segs = notifier.referenceSegments;
+    if (segs.length >= 2) {
+      final n = await ReferenceTimingExtractor(
+              ref.read(recitationVerifierProvider))
+          .run(segs, ref.read(recitationProvider).words);
+      DiagnosticLog.log('RefTiming',
+          'extraction post-session : $n mots mesures sur ${segs.length} segments');
+    }
     if (mounted) {
       setState(() {
         _hasProfile = true;
