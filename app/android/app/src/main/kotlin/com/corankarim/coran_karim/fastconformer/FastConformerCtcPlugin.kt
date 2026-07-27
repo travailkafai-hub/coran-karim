@@ -282,7 +282,24 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         alignTokens?.let { buffered!!.setAlignmentTarget(it, alignAnchor, alignVariants) }
                     }
                     val samples = pcm16ToFloat(pcm16)
-                    buffered!!.feed(samples, scope)
+                    // ── REDECOUPAGE EN BLOCS DE 80 ms (2026-07-27) ──────────
+                    // Dart groupe desormais plusieurs blocs par appel pour
+                    // reduire les allers-retours MethodChannel (la file
+                    // atteignait ~35 s, cf. le commentaire du listener PCM).
+                    // Mais le portier RMS et la detection de pause de
+                    // BufferedTranscriber decident PAR APPEL a feed() :
+                    // transmettre un gros paquet d'un coup rendrait le portier
+                    // plus grossier et changerait la segmentation.
+                    // On regroupe donc le TRANSPORT sans toucher au TRAITEMENT :
+                    // le natif redecoupe a la granularite d'origine, et le
+                    // comportement reste bit pour bit celui d'avant.
+                    val block = 1280 // 80 ms a 16 kHz, la taille livree par le micro
+                    var off = 0
+                    while (off < samples.size) {
+                        val end = minOf(off + block, samples.size)
+                        buffered!!.feed(samples.copyOfRange(off, end), scope)
+                        off = end
+                    }
                     // Parties figee/apercu separees : le scoring Dart s'ancre sur
                     // la partie figee (append-only) au lieu de re-aligner du mot 0.
                     // "align" : dernier resultat d'alignement force GOP (nullable,

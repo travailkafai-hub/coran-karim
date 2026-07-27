@@ -652,6 +652,8 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     await _closeStaleContinuousCapture();
     _chunkCount = 0;
     _pcmQueued = 0;
+    _pendingPcm.clear();
+    _feedInFlight = false;
     DiagnosticLog.traceReset();
     unawaited(_fastConformer.resetNativeTrace());
     _continuousFeedTail = Future.value();
@@ -728,15 +730,32 @@ class WhisperOnnxVerifier implements RecitationVerifier {
           // etait journalise a la RECEPTION, donc aveugle a cette file.
           _pcmQueued++;
           DiagnosticLog.trace('recu', 'n=$chunkNumber enFile=$_pcmQueued');
-          // MethodChannel + coroutines natives autorisent plusieurs appels en
-          // vol. Cette chaine FIFO preserve strictement l'ordre PCM, condition
-          // indispensable pour que les caches t-1 alimentent bien le chunk t.
-          _continuousFeedTail = _continuousFeedTail
-              .then((_) => _processContinuousChunk(bytes, chunkNumber))
-              .catchError((Object e, StackTrace st) {
-            DiagnosticLog.log(
-                'ASR', 'Erreur flux continu chunk=$chunkNumber : $e\n$st');
-          });
+          // ── GROUPAGE ADAPTATIF DU TRANSPORT (2026-07-27) ──────────────────
+          // AVANT : un aller-retour MethodChannel PAR BLOC de 80 ms, serialise
+          // par une chaine FIFO. Si l'aller-retour depasse 80 ms en moyenne --
+          // il fait un saut par le thread principal, celui-la meme qui dessine
+          // le karaoke -- la file grossit SANS BORNE.
+          //
+          // MESURE QUI L'IMPOSE (session du 16:56) : a la pause, ~35 s de blocs
+          // etaient encore en attente. L'app a continue de figer QUATRE
+          // segments pendant 45 s apres l'appui, buffer grossissant de 1 s a
+          // 10 s alors qu'aucun audio n'arrivait plus. C'est la meme cause que
+          // les 28,7 s de validations posterieures au dernier bloc et que les
+          // retards de validation de 10 a 27 s. Verifie au passage : AUCUNE
+          // perte d'audio a la capture (426,3 s de micro actif contre 425,6 s
+          // recues, soit 0,2 % d'ecart) -- le defaut est entierement en aval.
+          //
+          // ICI : on accumule, et on n'envoie que lorsque la chaine est libre,
+          // en un seul appel. Auto-regulant par construction : chaine rapide ->
+          // paquets d'un bloc (comportement d'avant) ; chaine lente -> paquets
+          // plus gros qui la font rattraper. Il ne peut JAMAIS y avoir plus
+          // d'un appel en vol, donc plus d'accumulation possible.
+          //
+          // On groupe le TRANSPORT, pas le TRAITEMENT : le natif redecoupe en
+          // blocs de 80 ms (cf. feedBufferedAudio), donc le portier RMS et la
+          // segmentation gardent exactement la granularite d'aujourd'hui.
+          _pendingPcm.add(bytes);
+          _pumpFeed();
         },
         onError: (e) => DiagnosticLog.log('ASR', 'Erreur sur le flux PCM : $e'),
         onDone: () => DiagnosticLog.log('ASR', 'Flux PCM terminé (onDone) — $_chunkCount blocs reçus au total'),
@@ -803,6 +822,28 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// Blocs PCM recus mais pas encore remis au natif (cf. la chaine FIFO
   /// `_continuousFeedTail`). Trace seule, aucune decision ne s'appuie dessus.
   int _pcmQueued = 0;
+
+  /// Audio recu et pas encore transmis au natif (cf. le groupage adaptatif
+  /// dans le listener PCM). Vide des que la chaine est libre.
+  final BytesBuilder _pendingPcm = BytesBuilder();
+  bool _feedInFlight = false;
+
+  /// Transmet tout l'audio en attente en UN appel, si la chaine est libre.
+  /// Se rappelle a la fin de l'appel pour absorber ce qui est arrive pendant.
+  void _pumpFeed() {
+    if (_feedInFlight || _pendingPcm.isEmpty) return;
+    final batch = _pendingPcm.takeBytes();
+    final n = _chunkCount;
+    _feedInFlight = true;
+    _continuousFeedTail = _processContinuousChunk(batch, n)
+        .catchError((Object e, StackTrace st) {
+      DiagnosticLog.log('ASR', 'Erreur flux continu chunk=$n : $e\n$st');
+    }).whenComplete(() {
+      _feedInFlight = false;
+      _pcmQueued = 0;
+      _pumpFeed();
+    });
+  }
 
   Future<void> _processContinuousChunk(
       Uint8List bytes, int chunkNumber) async {
