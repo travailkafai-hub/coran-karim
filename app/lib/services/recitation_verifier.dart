@@ -793,16 +793,41 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         'ASR', 'ancien flux fermé avant nouvelle capture continue');
   }
 
+  /// Capture du flux micro BRUT, AVANT le portier RMS.
+  ///
+  /// ── POURQUOI ELLE EST INDISPENSABLE (2026-07-27) ──────────────────────────
+  /// Les clips (`clip_*.wav`) ne contiennent QUE ce que le portier a GARDE.
+  /// Tout ce qu'il ecarte n'existe nulle part -- donc ses decisions etaient
+  /// INVERIFIABLES, et c'est exactement la question qui bloque le diagnostic :
+  ///
+  /// Mesure du 17:25, recitation CONTINUE d'un recitateur rejoue depuis un
+  /// autre telephone : 220,8 s recues, 112,0 s ecrites dans les clips, donc
+  /// **49 % ecartes**. Impossible de dire si ce sont de vraies pauses de
+  /// murattal ou de la parole jetee a tort -- et trois mots
+  /// (`تُنذِرْهُمْ`, `بِمُؤْمِنِينَ`, `يَكْذِبُونَ`), pourtant forcement
+  /// prononces puisque la source est un enregistrement continu, restent
+  /// introuvables meme en recollant tous les clips.
+  ///
+  /// Avec ce fichier, la question se tranche en superposant le flux brut et
+  /// les clips : on voit ce qui a ete jete, et si ces mots s'y trouvent le
+  /// suspect principal devient le PORTIER, avant meme la coupe.
+  ///
+  /// ── LA CONDITION QUI L'EMPECHAIT ──────────────────────────────────────────
+  /// Elle etait conditionnee a `_usingCausalStreaming`, faux depuis que le
+  /// streaming cache-aware est desactive (2026-07-27 matin) : le fichier
+  /// n'etait donc PLUS JAMAIS ecrit, silencieusement. Le flux brut est utile
+  /// quel que soit le chemin d'inference -- la condition est retiree.
   Future<void> _openStreamingWavCapture() async {
     await _closeStreamingWavCapture();
-    if (!_usingCausalStreaming || _clipCaptureDir == null) return;
+    if (_clipCaptureDir == null) return;
     final path =
         '$_clipCaptureDir/stream_${DateTime.now().millisecondsSinceEpoch}.wav';
     try {
       _streamingWavCapture = await StreamingWavCapture.open(path);
-      DiagnosticLog.log('ASR', 'capture WAV causale activee -> $path');
+      DiagnosticLog.log('ASR',
+          'capture du flux BRUT (avant portier RMS) activee -> $path');
     } catch (e) {
-      DiagnosticLog.log('ASR', 'capture WAV causale indisponible : $e');
+      DiagnosticLog.log('ASR', 'capture du flux brut indisponible : $e');
     }
   }
 
