@@ -62,3 +62,5 @@ Thumbs.db
 # Sortie generee par graphify (graphe de connaissance) — jamais versionnee
 graphify-out/
 **/graphify-out/
+benchmark/.timings_cache/
+benchmark/word_timings_ref.json
