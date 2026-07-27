@@ -162,6 +162,8 @@ class CausalAlignmentSession(
                 "forced" to word.forced,
                 "covered" to word.covered,
                 "actual" to word.actual,
+                "starved" to word.starved,
+                "frames" to word.frames,
             ) + (word.rescoreMargin?.let { mapOf("rescoreMargin" to it) }
                 ?: emptyMap()) +
                 (word.rescoreHeard?.let { mapOf("rescoreHeard" to it) }

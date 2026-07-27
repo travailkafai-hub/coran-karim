@@ -14,6 +14,7 @@ import '../services/quran_verse_locator_service.dart';
 import '../services/recitation_verifier.dart';
 import '../services/rule_annotation_service.dart';
 import '../services/voice_lora_clip_service.dart';
+import '../services/word_duration_store.dart';
 import '../services/word_timing_service.dart';
 
 /// Segment de texte à réciter, avec sa clé de verset quand elle est connue
@@ -826,6 +827,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     try {
       await RuleAnnotationService.instance.ensureLoaded();
       await WordTimingService.instance.ensureLoaded();
+      await WordDurationStore.instance.ensureLoaded();
       final verses = await QuranApi.fetchVerses(1);
       _fatihaWords = _wordsFromVerses(verses);
       _fatihaVerses = verses;
@@ -1746,14 +1748,27 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       for (var i = 0; i < canonWords.length; i++) {
         final w = canonWords[i];
         final aw = annotated?[i];
-        final refMinFrames = refMs == null
-            ? null
-            : WordTimingService.minFramesFromMs(refMs[i]);
+        // PRIORITE (2026-07-27, demande utilisateur) : la durée mesurée dans
+        // la voix de l'utilisateur REMPLACE celle importée de quran.com dès
+        // qu'elle existe. Elle est meilleure sur les deux axes qui comptent :
+        // c'est une durée ARTICULÉE (pas une borne incluant le silence
+        // jusqu'au mot suivant, cf. le « هُمُ » à 3030 ms qui avait imposé le
+        // facteur ×0,4), et elle existe pour ce que l'utilisateur récite
+        // vraiment — là où quran.com ne couvre que 1 % des versets de 41+ mots.
+        // Repli sur quran.com tant que le mot n'a jamais été validé : il
+        // couvre bien les versets courts (98 % sous 5 mots).
+        // `training` = la clé du magasin : c'est aussi ce que devient
+        // `alignTarget` ici (passé à null juste en dessous), donc la même forme
+        // que celle sous laquelle la durée a été apprise.
+        final training = ArabicNormalizer.normalizeTraining(w);
+        final learned = WordDurationStore.instance.minFramesFor(training);
+        final refMinFrames = learned ??
+            (refMs == null ? null : WordTimingService.minFramesFromMs(refMs[i]));
         out.add(RecitedWord(
           display: w,
           normalized: ArabicNormalizer.normalize(w),
           strict: ArabicNormalizer.normalizeStrict(w),
-          training: ArabicNormalizer.normalizeTraining(w),
+          training: training,
           isBasmala: isBasmalaSeg,
           // Cible d'alignement = texte NU (lettres + harakat), PAS la forme
           // annotée : voir la note « INVALIDÉ PAR LA MESURE » sur
@@ -1777,6 +1792,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   Future<void> setupVerses(List<RecitationSegment> segments) async {
     await RuleAnnotationService.instance.ensureLoaded();
     await WordTimingService.instance.ensureLoaded();
+    await WordDurationStore.instance.ensureLoaded();
     _lastTextDiffLine.clear();
     _previewNegative.clear();
     _previewNegativeStreak.clear();
@@ -1818,6 +1834,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   Future<void> extendVerses(List<RecitationSegment> segments) async {
     await RuleAnnotationService.instance.ensureLoaded();
     await WordTimingService.instance.ensureLoaded();
+    await WordDurationStore.instance.ensureLoaded();
     final newWords = _wordsFromSegments(segments);
     if (newWords.isEmpty) return;
     state = state.copyWith(words: [...state.words, ...newWords]);
@@ -3270,6 +3287,24 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // `actualStrict` : la forme stricte filtre la zone privée Unicode, ce qui
       // effacerait justement les symboles dont la vérification tajwid a besoin.
       // Les normalisations sont réappliquées à la lecture (classifyError).
+      // APPRENTISSAGE DE LA DUREE (2026-07-27) : un mot juge correct ET
+      // verrouille donne une mesure fiable de sa duree d'articulation dans la
+      // voix de l'utilisateur -> elle remplacera la duree quran.com au prochain
+      // setup (cf. WordDurationStore, et _wordsFromSegments pour la priorite).
+      // Conditions volontairement strictes :
+      //  - `correct` seulement : la duree d'un mot mal recite, ou tronque par
+      //    une coupe de segment, n'a aucune raison de servir de plancher
+      //    (garde-fou souleve par l'utilisateur : « on a egalement la
+      //    validation ») ;
+      //  - `lock` seulement : un apercu non verrouille peut encore etre rejuge,
+      //    sa duree n'est pas definitive ;
+      //  - hors Bismillah : ces 4 mots ne sont pas juges (cf.
+      //    RecitedWord.isBasmala), et sont recites ~44 % plus vite que le reste
+      //    du Coran -- leur duree n'est pas representative.
+      if (judged == WordStatus.correct && lock && r.frames > 0 &&
+          !expected.isBasmala) {
+        WordDurationStore.instance.record(expected.alignTarget, r.frames);
+      }
       _judge(words, r.index, judged,
           lock: lock, newErrors: newErrors, heard: r.actual,
           detectedRules: detected, alignSeq: p.seq);
@@ -3710,6 +3745,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _structSub?.cancel();
     _pendingSub?.cancel();
     _alignSub?.cancel();
+    // Mode continu : ce chemin ne passe PAS par stop(), il lui faut son propre
+    // flush (idempotent, no-op si rien n'a change).
+    unawaited(WordDurationStore.instance.flush());
     _stopping = false;
     _endingContinuous = false;
     state = state.copyWith(status: RecitationStatus.finished, soundLevel: 0);
@@ -3737,6 +3775,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       _rawSub?.cancel();
       _structSub?.cancel();
       _alignSub?.cancel();
+      // Ecriture GROUPEE des durees apprises pendant la session : `record()`
+      // est appele sur chaque mot valide (des dizaines par session), on ne veut
+      // pas un acces disque par mot. Sans effet si rien n'a change.
+      unawaited(WordDurationStore.instance.flush());
       _stopping = false;
       if (state.status != RecitationStatus.finished) {
         state = state.copyWith(status: RecitationStatus.finished);
@@ -3899,6 +3941,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
 
   @override
   void dispose() {
+    // Dernier recours : ecran quitte sans arret propre -- ne pas perdre les
+    // durees apprises pendant la session.
+    unawaited(WordDurationStore.instance.flush());
     _tokenSub?.cancel();
     _levelSub?.cancel();
     _rawSub?.cancel();

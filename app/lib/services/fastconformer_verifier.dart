@@ -65,6 +65,12 @@ class AlignedWord {
   /// série d'aperçus négatifs, sans jamais s'afficher rouge à l'écran.
   final bool starved;
 
+  /// Nombre de frames ARTICULÉES attribuées à ce mot par la DP (frames blank
+  /// exclues, 80 ms/frame) — donc la durée de prononciation réelle. Alimente
+  /// [WordDurationStore], le plancher appris dans la voix de l'utilisateur.
+  /// 0 si la DP ne lui a attribué aucune frame.
+  final int frames;
+
   const AlignedWord({
     required this.index,
     required this.gop,
@@ -76,6 +82,7 @@ class AlignedWord {
     this.detectedRules = const [],
     this.actualFromFree = false,
     this.starved = false,
+    this.frames = 0,
   });
 }
 
@@ -132,6 +139,7 @@ class AlignPayload {
           rescoreHeard: w['rescoreHeard'] as String?,
           actualFromFree: w['srcFree'] as bool? ?? false,
           starved: w['starved'] as bool? ?? false,
+          frames: (w['frames'] as num?)?.toInt() ?? 0,
           detectedRules: [
             for (final r in (w['rules'] as List? ?? const []))
               if (r is Map)

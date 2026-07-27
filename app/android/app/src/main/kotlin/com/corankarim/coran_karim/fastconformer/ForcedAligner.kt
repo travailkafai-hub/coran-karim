@@ -322,6 +322,20 @@ class ForcedAligner(
          *  correction via la serie d'apercus negatifs, sans jamais s'afficher
          *  rouge a l'ecran. */
         val starved: Boolean = false,
+        /** Nombre de frames ARTICULEES attribuees a ce mot par la DP : frames
+         *  blank exclues (cf. `if (si % 2 == 0) continue` au point de calcul),
+         *  donc la duree de PRONONCIATION reelle, pas l'ecart entre bornes.
+         *
+         *  Expose le 2026-07-27 pour alimenter un plancher deduit de la VOIX DE
+         *  L'UTILISATEUR (`WordDurationStore` cote Dart) au lieu d'un
+         *  referentiel externe. C'est exactement la grandeur cherchee : les
+         *  segments quran.com, eux, sont des bornes [start_ms, end_ms] qui
+         *  INCLUENT le silence jusqu'au mot suivant -- mesure a l'appui, le mot
+         *  "هُمُ" y dure 3030 ms, ce qui avait impose un facteur de securite
+         *  x0,4 arbitraire. Ici il n'y a plus rien a compenser.
+         *
+         *  0 si la DP n'a attribue aucune frame (cf. le cas ZERO FRAME). */
+        val frames: Int = 0,
     )
 
     /**
@@ -854,7 +868,8 @@ class ForcedAligner(
                 } ?: emptyList()
                 results.add(WordResult(anchor + wi, forced - free, forced, covered, actual,
                     rescoreMargin, rescoreHeard, rulesHere,
-                    lastFrame = wordLastFrame[wi], starved = starved))
+                    lastFrame = wordLastFrame[wi], starved = starved,
+                    frames = wordFrames[wi]))
                 lastUsedFrame = maxOf(lastUsedFrame, wordLastFrame[wi])
             }
             return Result(anchor + frontierWordRel, results, deferredIndex,

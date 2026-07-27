@@ -449,6 +449,8 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                                 "forced" to it.forced,
                                 "covered" to it.covered,
                                 "actual" to it.actual,
+                                "starved" to it.starved,
+                                "frames" to it.frames,
                             ) + (it.rescoreMargin?.let { m -> mapOf("rescoreMargin" to m) } ?: emptyMap()) +
                                 (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap()) +
                                 (if (it.detectedRules.isEmpty()) emptyMap() else mapOf(

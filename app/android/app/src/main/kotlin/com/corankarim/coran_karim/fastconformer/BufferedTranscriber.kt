@@ -340,6 +340,10 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     // signal `free` cote Dart pour le garde-fou "pas de
                     // jugement sans preuve exploitable" -- cf. WordResult.starved.
                     "starved" to it.starved,
+                    // Duree ARTICULEE de ce mot (frames blank exclues) --
+                    // alimente le plancher deduit de la voix de l'utilisateur
+                    // (WordDurationStore cote Dart). Cf. WordResult.frames.
+                    "frames" to it.frames,
                 ) + (it.rescoreMargin?.let { m -> mapOf("rescoreMargin" to m) } ?: emptyMap()) +
                     (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap()) +
                     // Regles REELLEMENT detectees sur les frames de ce mot
