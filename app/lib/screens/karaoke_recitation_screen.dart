@@ -987,6 +987,26 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         _isReferenceSession = false;
       }
       setState(() => _sessionNotice = null);
+      // MODE journalisé (2026-07-27, demande utilisateur) : les deux modes
+      // partagent toute la chaîne ASR mais pas leurs garde-fous, et rien dans
+      // le log ne permettait de les distinguer -- il fallait le DÉDUIRE de
+      // l'absence de `wordFailed déclenché`, ce qui est indirect et invitait
+      // aux erreurs d'interprétation. Les conséquences sont rappelées sur la
+      // ligne même, pour qu'une analyse de log n'ait pas à retourner au code :
+      //   - pas de correction => pas de recul d'ancre, donc un mot différé ne
+      //     repassera JAMAIS (le contrat "2 chances max" de ForcedAligner
+      //     suppose que le réciteur redise le mot -- faux dans ce mode) ;
+      //   - pas d'applyBestFor => le seuil de gel reste au défaut, donc la
+      //     segmentation n'est pas celle d'une session normale ;
+      //   - aucune erreur journalisée, aucune stat remise à zéro.
+      DiagnosticLog.log('MODE',
+          _isReferenceSession
+              ? 'session de REFERENCE : correction DESACTIVEE (donc aucun recul '
+                  'd\'ancre), seuil de gel NON personnalise (defaut), aucune '
+                  'erreur journalisee, profil de pauses enregistre a la fin si '
+                  'precision >= 60%'
+              : 'session NORMALE : correction active, seuil de gel personnalise '
+                  'si un profil existe');
       if (!_isReferenceSession) {
         // Session normale : seuil de gel adapté à la référence dédiée si elle
         // existe, sinon au profil global (cf. applyBestFor).

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'diagnostic_log.dart';
+
 /// Profil de pauses personnel, PAR PASSAGE (idée utilisateur 2026-07-05,
 /// prolongement de [[voice-personalization-idea]]) : la récitation validée
 /// d'un passage révèle où et combien de temps CET utilisateur s'arrête entre
@@ -113,14 +115,20 @@ class PauseProfileService {
     final profile =
         (all[passageKey] ?? all[_kGlobalKey]) as Map<String, dynamic>?;
     if (profile == null) {
-      debugPrint('[PauseProfile] Aucun profil (passage ni global) — seuil par défaut');
+      // Journalisé dans le FICHIER (2026-07-27) et pas seulement en debugPrint :
+      // le seuil de gel décide où tombent les coupes de segment, donc où
+      // tombent les mots tronqués -- sans lui dans le log, impossible
+      // d'interpréter un taux d'erreurs de bord.
+      DiagnosticLog.log('PauseProfile',
+          'aucun profil (ni passage ni global) -> seuil de gel par DEFAUT');
       return;
     }
     final ms = profile['commitMs'] as int;
     try {
       await _channel.invokeMethod('setCommitSilenceMs', {'ms': ms});
-      debugPrint('[PauseProfile] Profil appliqué pour "$passageKey" : gel à '
-          '${ms}ms (médiane ${profile['medianPauseMs']}ms, n=${profile['nPauses']}'
+      DiagnosticLog.log('PauseProfile',
+          'profil applique pour "$passageKey" : seuil de gel ${ms}ms '
+          '(mediane ${profile['medianPauseMs']}ms, n=${profile['nPauses']}'
           '${all.containsKey(passageKey) ? "" : ", global"})');
     } catch (e) {
       debugPrint('[PauseProfile] Échec application : $e');
