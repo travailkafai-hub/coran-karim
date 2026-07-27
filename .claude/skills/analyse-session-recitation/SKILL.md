@@ -159,51 +159,58 @@ file qui grossit, c'est précisément un arriéré. Mesurer la **latence**.
 celle de la dernière validation. Des validations postérieures à l'arrêt du micro
 = file d'attente, quel qu'en soit le motif.
 
-## Étape 7 — Le compte rendu
+## Étape 7 — Le compte rendu : UN SEUL FORMAT, TOUJOURS LE MÊME
 
-Format attendu (l'utilisateur l'a demandé explicitement) : **des tableaux**,
-tous les cas, pas de sélection.
+Consigne explicite de l'utilisateur : *« à chaque fois tu changes la
+présentation, ajoute dans le skill le même format »*. La dérive venait de ce que
+le compte rendu était coupé en DEUX tableaux (signalés d'un côté, non jugés de
+l'autre) : cette séparation invite à en oublier un, et à réinventer la forme à
+chaque session.
 
-1. bilan chiffré, avec le total qui boucle ;
-2. tableau des signalés (attendu / entendu / forced / free / statut) ;
-3. tableau des non jugés, **avec la cause de chacun** ;
-4. classement par mécanisme (A / B / C ci-dessus) ;
-5. confrontation audio pour les cas litigieux ;
-6. ce qui reste inexpliqué, nommé comme tel.
+**Un seul tableau, une ligne par mot non vert, colonnes dans cet ordre, sans
+exception :**
 
-Un `forced` proche de 0 avec un `entendu` tronqué signifie que **le modèle est
-certain** de ce qu'il a reçu : ce n'est pas une faute de prononciation, c'est un
-mot coupé. Ne jamais présenter ces cas comme des erreurs du récitant.
+```
+| mot | attendu | entendu | état | forced | free | cause | dans le WAV ? | mécanisme |
+```
 
-## Règle n°2 — pas d'hypothèse tant qu'une ligne de log peut trancher
+- **mot** — index absolu.
+- **attendu / entendu** — textes bruts du log. `(vide)` si `entendu=""`.
+- **état** — 🔴 rouge / 🟠 orange / ⚪ non jugé. Les trois dans le MÊME tableau.
+- **forced / free** — tels quels. `free` proche de 0 = le modèle est certain de
+  ce qu'il a reçu, donc ce n'est PAS une faute de prononciation.
+- **cause** — la ligne de log qui l'explique (cf. Étape 3). Jamais « divers » :
+  un mot sans cause est un trou de diagnostic, à nommer comme tel.
+- **dans le WAV ?** — OUI / non / *(non vérifié)*. Voir ci-dessous.
+- **mécanisme** — A, B, C (cf. Étape 4), ou « faute réelle ».
 
-Quand le log ne répond pas à la question, **la réponse n'est pas une hypothèse :
-c'est une ligne de log de plus**. Consigne explicite de l'utilisateur, donnée
-après avoir vu la scène se répéter.
+**Puis, et seulement après le tableau :**
 
-Ce qui l'a motivée : un mécanisme de secours est resté **entièrement muet** sur
-deux sessions — ni verdict, ni échec, ni message d'impossibilité. À chaque fois
-j'ai propose une cause plausible (fenêtre hors anneau, arithmétique des index,
-exception avalée, condition d'entrée) au lieu d'instrumenter le déclencheur.
-Trois hypothèses, trois fois faux, deux sessions perdues. Une seule ligne
-exposant les conditions d'entrée aurait tranché du premier coup.
+1. le bilan chiffré, avec le total qui boucle (`verrouillés + non jugés = ancre`)
+   et le taux de mots **non verts** ;
+2. le regroupement par mécanisme, avec ce que chacun implique ;
+3. ce qui reste inexpliqué, nommé comme tel.
 
-**La méthode :**
+### La colonne « dans le WAV ? » n'est pas optionnelle
 
-1. Formuler la question en variables observables — pas « pourquoi ça ne marche
-   pas » mais « laquelle de ces quatre conditions est fausse ».
-2. Émettre **une** ligne qui les expose toutes d'un coup :
-   `secours? isFinal=… spf=… segmentSamples=… frames=… mots=… besoins=…`
-3. Une passe de test suffit alors à éliminer trois maillons sur quatre.
+C'est elle qui distingue une analyse d'un simple relevé. Pour chaque mot du
+tableau, décoder le flux brut et chercher le mot :
 
-**Corollaire, appris à ses dépens : un mécanisme qui échoue en silence est pire
-qu'absent.** Il donne l'illusion d'être en place. Tout chemin qui peut
-abandonner (fenêtre indisponible, audio trop court, exception) doit journaliser
-sa raison — sinon son absence de trace est indiscernable de son inaction.
+| brut | clips | conclusion à écrire dans la colonne « mécanisme » |
+|---|---|---|
+| OUI | OUI | l'audio était là : c'est l'ALIGNEMENT qui a échoué |
+| OUI | non | perdu entre le micro et le clip |
+| non | non | limite du modèle, ou mot réellement non prononcé — à écouter |
 
-Cette règle vaut aussi pour l'analyse : quand une cause manque au tableau des
-non jugés, ne pas la ranger dans « divers ». Nommer le trou, et ajouter la trace
-qui le comblera au prochain test.
+**Le mode change l'interprétation, le dire explicitement :**
+
+- récitation d'un **récitateur rejoué en continu** : chaque mot est forcément
+  prononcé, donc tout `entendu` vide est un defaut de l'app ;
+- **voix de l'utilisateur** : un `entendu` vide peut signifier qu'il n'a
+  réellement pas prononcé le mot. Ne jamais conclure sans le WAV.
+
+Si la vérification audio n'a pas été faite, écrire *(non vérifié)* dans la
+colonne — jamais laisser croire qu'elle l'a été.
 
 ## Rationalisations à refuser
 
