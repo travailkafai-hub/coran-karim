@@ -475,6 +475,18 @@ class ForcedAligner(
         // explique pourquoi la reference avait d'abord ete ecartee et
         // pourquoi cette decision a ete corrigee.
         refMinFrames: List<Int?>? = null,
+        // VRAI quand l'ancre ne doit JAMAIS caler : un mot que la DP ne place
+        // pas fait avancer l'ancre de +1 immediatement, sans attendre la
+        // « seconde chance ». Demande utilisateur 2026-07-27 : « l'ancre doit
+        // faire +1 en cas d'erreur, elle ne doit pas s'arreter dans ce mode ».
+        //
+        // Pourquoi c'est juste EN MODE REFERENCE : le contrat « 2 chances max »
+        // suppose que le reciteur REDISE le mot apres une correction. Or la
+        // correction y est desactivee et l'ancre ne recule jamais -- le mot
+        // differe ne repassera donc JAMAIS, et differer revient a caler.
+        // Mesure : 5 blocages d'ancre de 8 a 13 alignements sur une seule
+        // session, et des mots interieurs au segment suivant abimes en cascade.
+        neverBlock: Boolean = false,
     ): Result? {
         val t = logprobs.size
         if (t == 0 || wordTokens.isEmpty()) return null
@@ -761,7 +773,7 @@ class ForcedAligner(
                             (if (fits) "LA DP A ECHOUE (le mot pouvait tenir)"
                              else "SAUTE (pas la place)") +
                             " | final=$isFinal")
-                    if (anchor + wi == forceJudgeIndex) {
+                    if (anchor + wi == forceJudgeIndex || neverBlock) {
                         // Ce mot n'a AUCUNE frame : son propre `lastFrame` reste
                         // -1, mais l'audio consomme s'arrete a la fin du mot
                         // PRECEDENT -- sinon `lastUsedFrame` restait a -1 et le

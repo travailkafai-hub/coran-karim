@@ -116,6 +116,14 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         //     ils ne sont pas dans la cible d'alignement, la DP ne peut donc
         //     pas les rejuger. Ce n'est pas de la prudence, c'est structurel.
         private const val OVERLAP_SECONDS = 3f
+
+        // ── Resynchronisation de l'ancre (cf. findResyncOffset) ─────────────
+        // Volontairement exigeante : deplacer l'ancre a tort saute des mots sans
+        // les juger. Mieux vaut ne pas resynchroniser que resynchroniser faux.
+        private const val MIN_RESYNC_TOKENS = 6   // segment trop court -> on ne tente rien
+        private const val MIN_RESYNC_HITS = 3     // 3 mots attendus retrouves D'AFFILEE
+        private const val RESYNC_WINDOW_WORDS = 6 // fenetre d'appariement
+        private const val MAX_RESYNC_LOOKAHEAD = 60 // ne jamais sauter plus loin
         private val OVERLAP_SAMPLES = (SAMPLE_RATE * OVERLAP_SECONDS).toInt()
 
         // ── COUPE SUR MICRO-SILENCE (2026-07-25, idee utilisateur) ──────────
@@ -293,6 +301,15 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         DiagnosticLog.log(TAG, "cible d'alignement : ${tokens.size} mots, ancre=$alignAnchor")
     }
 
+    /** Mode ou l'ancre ne doit jamais caler (cf. ForcedAligner.neverBlock).
+     *  Pousse par Dart au demarrage d'une session de REFERENCE. */
+    @Volatile private var neverBlockAnchor = false
+
+    fun setNeverBlockAnchor(value: Boolean) {
+        neverBlockAnchor = value
+        DiagnosticLog.log(TAG, "ancre sans blocage = $value")
+    }
+
     fun setAlignmentAnchor(anchor: Int) {
         val tokens = alignTokens ?: return
         alignAnchor = anchor.coerceIn(0, tokens.size)
@@ -323,6 +340,67 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         }
         DiagnosticLog.log(TAG, "cible d'alignement etendue : +${newTokens.size} mots, " +
                 "total=${alignTokens?.size}, ancre inchangee=$alignAnchor")
+    }
+
+    /** Cherche ou se trouve REELLEMENT le recitateur, en appariant le decodage
+     *  LIBRE de ce segment a la suite de mots attendue.
+     *
+     *  Tout se passe en espace de TOKENS, jamais en texte : pas de
+     *  normalisation arabe a reimplementer, donc pas de desaccord silencieux
+     *  possible avec le tokenizer.
+     *
+     *  Retourne l'index absolu du mot ou reprendre, ou -1 si aucun appariement
+     *  franc. Volontairement exigeant (cf. MIN_RESYNC_HITS) : deplacer l'ancre a
+     *  tort sauterait des mots sans les juger, ce qui est pire que d'attendre.
+     */
+    private fun findResyncOffset(
+        logprobs: Array<FloatArray>,
+        tokens: List<IntArray>,
+        anchor: Int,
+    ): Int {
+        // Suite de tokens du decodage libre (doublons consecutifs et blancs
+        // retires) -- ce que le modele entend VRAIMENT sur ce segment.
+        val heard = ArrayList<Int>(logprobs.size)
+        var prev = -1
+        for (fr in logprobs) {
+            var best = 0
+            var bv = fr[0]
+            for (c in 1 until fr.size) if (fr[c] > bv) { bv = fr[c]; best = c }
+            if (best != prev && best != engine.blank) heard.add(best)
+            prev = best
+        }
+        if (heard.size < MIN_RESYNC_TOKENS) return -1
+
+        // Meilleur decalage : on essaie chaque position candidate et on compte
+        // combien de mots attendus s'y retrouvent DANS L'ORDRE.
+        var bestOff = -1
+        var bestHits = 0
+        val limit = minOf(tokens.size, anchor + MAX_RESYNC_LOOKAHEAD)
+        for (off in anchor until limit) {
+            var hits = 0
+            var pos = 0
+            for (w in off until minOf(tokens.size, off + RESYNC_WINDOW_WORDS)) {
+                val toks = tokens[w]
+                if (toks.isEmpty()) continue
+                val at = indexOfSub(heard, toks, pos)
+                if (at < 0) break            // rupture de suite : on s'arrete la
+                hits++
+                pos = at + toks.size
+            }
+            if (hits > bestHits) { bestHits = hits; bestOff = off }
+        }
+        // Exiger un appariement FRANC, et strictement en avant de l'ancre.
+        return if (bestHits >= MIN_RESYNC_HITS && bestOff > anchor) bestOff else -1
+    }
+
+    /** Position de [sub] dans [list] a partir de [from], ou -1. */
+    private fun indexOfSub(list: List<Int>, sub: IntArray, from: Int): Int {
+        if (sub.isEmpty() || from >= list.size) return -1
+        outer@ for (i in from..list.size - sub.size) {
+            for (j in sub.indices) if (list[i + j] != sub[j]) continue@outer
+            return i
+        }
+        return -1
     }
 
     /** Dernier resultat d'alignement (ou null) — joint au payload feedBufferedAudio. */
@@ -364,7 +442,46 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 if (anchor < it.size) it.subList(anchor, minOf(it.size, end)) else null
             }
             val res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal, variantsSlice,
-                                    segmentRules, refMinFramesSlice) ?: return -1
+                                    segmentRules, refMinFramesSlice,
+                                    neverBlockAnchor) ?: return -1
+            // ── RESYNCHRONISATION DE L'ANCRE (2026-07-27) ────────────────────
+            // LE DEFAUT QU'ELLE TRAITE. Quand la DP ne place PAS un mot, l'ancre
+            // reste dessus. Le recitateur, lui, continue. Trois consequences
+            // mesurees le meme jour :
+            //  - les mots INTERIEURS du segment suivant echouent alors qu'ils ne
+            //    sont pas en frontiere (mots 76-77 : la DP part d'un mot qu'elle
+            //    ne trouve pas, tout l'alignement du segment est decale) ;
+            //  - un mot attendu se voit attribuer l'audio de PLUSIEURS mots
+            //    (mot 124 : `entendu="ءَامَنَّا وَإِذَا خَلَوْا۟ إِلَىٰ شَيَ"`) ;
+            //  - l'ancre avance d'un mot par gel pendant que le recitateur est
+            //    des versets plus loin (« l'ancre ne suit plus »).
+            // AUCUNE politique de decoupage ne corrige ca : ce n'est pas l'audio
+            // qui manque, c'est la POSITION qui est perdue.
+            //
+            // POURQUOI LE DECODAGE LIBRE A LE DROIT DE TRANCHER ICI. La doctrine
+            // du projet (ForcedAligner, « RETENU 14h50 ») est explicite : le
+            // decodage libre decide de la POSITION, jamais du rouge/vert. C'est
+            // exactement cet usage. Mesure a l'appui : pendant un blocage
+            // d'ancre, le libre lisait parfaitement deux versets d'avance
+            // (« ٱللَّهُ يَسْتَهْزِئُ بِهِمْ وَيَمُدُّهُمْ فِى طُغْيَـٰنِهِمْ
+            // يَعْمَهُونَ ») alors que l'ancre attendait un mot trois versets en
+            // arriere.
+            //
+            // ON NE JUGE RIEN DES MOTS SAUTES : l'ancre saute, aucun verdict
+            // n'est emis sur eux -- pas de rouge sans preuve (regle projet).
+            if (isFinal && res.words.isEmpty()) {
+                val resync = findResyncOffset(logprobs, tokens, anchor)
+                if (resync > anchor) {
+                    DiagnosticLog.log(TAG,
+                        "RESYNC : la DP n'a rien place a l'ancre $anchor, le decodage " +
+                            "libre situe le recitateur au mot $resync -> ancre deplacee " +
+                            "(+${resync - anchor} mots sautes, AUCUN juge)")
+                    alignAnchor = resync
+                    deferredOnceIndex = -1
+                    lastAlign = null
+                    return -1
+                }
+            }
             val words = res.words.map {
                 mapOf(
                     "i" to it.index,

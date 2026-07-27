@@ -28,6 +28,9 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     // applique des sa construction, sinon un setCommitSilenceMs appele avant le
     // premier bloc audio serait perdu.
     @Volatile private var pendingCommitSilenceMs: Int? = null
+    /** Retenu ici tant que `buffered` n'existe pas (le reglage arrive avant la
+     *  premiere inference) -- meme motif que pendingCommitSilenceMs. */
+    @Volatile private var pendingNeverBlockAnchor = false
     // Meme pattern : dossier de capture des clips de reference (mini-LoRA
     // personnalisation vocale, cf. setClipCapture), applique des la creation
     // du BufferedTranscriber si demande avant le premier bloc audio.
@@ -278,6 +281,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     if (buffered == null) {
                         buffered = BufferedTranscriber(current)
                         pendingCommitSilenceMs?.let { buffered!!.setCommitSilenceMs(it) }
+                        buffered!!.setNeverBlockAnchor(pendingNeverBlockAnchor)
                         buffered!!.setClipCapture(pendingClipCaptureDir)
                         alignTokens?.let { buffered!!.setAlignmentTarget(it, alignAnchor, alignVariants) }
                     }
@@ -323,6 +327,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // fichier unique mais volumineuse.
             "flushTrace" -> {
                 result.success(DiagnosticLog.flushTrace())
+            }
+            "setNeverBlockAnchor" -> {
+                val v = call.argument<Boolean>("value") ?: false
+                pendingNeverBlockAnchor = v
+                buffered?.setNeverBlockAnchor(v)
+                result.success(null)
             }
             "traceReset" -> {
                 DiagnosticLog.traceReset()

@@ -681,6 +681,19 @@ class FastConformerVerifier {
     }
   }
 
+  /// Mode où l'ancre ne doit JAMAIS caler : un mot que la DP ne place pas fait
+  /// avancer l'ancre de +1 immédiatement, sans attendre la « seconde chance ».
+  /// Activé en session de RÉFÉRENCE, où la correction est désactivée : le
+  /// contrat « 2 chances » y suppose un recul d'ancre qui n'arrive jamais, donc
+  /// différer revient à caler.
+  Future<void> setNeverBlockAnchor(bool value) async {
+    try {
+      await _channel.invokeMethod('setNeverBlockAnchor', {'value': value});
+    } catch (e) {
+      debugPrint('[FastConformer] Échec setNeverBlockAnchor : $e');
+    }
+  }
+
   /// Remet à zéro l'horloge de la trace native (début de session).
   Future<void> resetNativeTrace() async {
     try {

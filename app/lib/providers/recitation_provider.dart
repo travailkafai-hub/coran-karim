@@ -1933,6 +1933,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // manquait pour conclure. La capture est une propriété de « une session de
     // récitation tourne », pas d'un écran : elle appartient donc ici, sur le
     // chemin que TOUS les écrans empruntent.
+    // L'ancre ne doit jamais caler en session de REFERENCE : la correction y
+    // est desactivee, donc le report d'un mot non place ne sera JAMAIS rattrape
+    // (demande utilisateur : « l'ancre doit faire +1 en cas d'erreur, elle ne
+    // doit pas s'arreter dans ce mode »).
+    await _verifier.setNeverBlockAnchor(referenceSession);
     await _applyDiagnosticCapture();
     // Forme fidèle à l'entraînement — cible de l'alignement forcé GOP.
     await _verifier.start(

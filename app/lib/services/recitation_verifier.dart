@@ -311,6 +311,9 @@ abstract class RecitationVerifier {
   /// aligneur de production, rien n'est réimplémenté.
   Future<AlignPayload?> alignFile(String wavPath);
 
+  /// Cf. FastConformerVerifier.setNeverBlockAnchor — à pousser AVANT [start].
+  Future<void> setNeverBlockAnchor(bool value);
+
   /// [continuous] : enregistrement continu segmenté par détection de silence
   /// (VAD énergie), pour réciter plusieurs versets/une sourate entière sans
   /// interaction manuelle entre chaque verset.
@@ -538,6 +541,10 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   @override
   Future<AlignPayload?> alignFile(String wavPath) =>
       _fastConformer.alignFile(wavPath);
+
+  @override
+  Future<void> setNeverBlockAnchor(bool value) =>
+      _fastConformer.setNeverBlockAnchor(value);
 
   // ── Segmentation continue (VAD énergie) ──────────────────────────────────
   // dBFS en dessous duquel on considère qu'il y a silence (seuil à ajuster
@@ -1260,6 +1267,8 @@ class MockRecitationVerifier implements RecitationVerifier {
   set noiseSuppress(bool value) {}
   @override
   Future<AlignPayload?> alignFile(String wavPath) async => null;
+  @override
+  Future<void> setNeverBlockAnchor(bool value) async {}
 
   int _generation = 0;
   @override
