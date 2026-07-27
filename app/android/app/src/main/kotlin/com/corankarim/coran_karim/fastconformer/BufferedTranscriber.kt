@@ -810,7 +810,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 // ce chemin est justement celui de la recitation CONTINUE, donc
                 // celui ou un segment commencant en plein mot est le plus
                 // probable.
-                val purgeF = maxOf(0, covered - OVERLAP_SAMPLES)
+                // Meme invariant que le gel normal : purger au-dela du
+                // contexte, sinon boucle (cf. le bug du 18:17:30).
+                val purgeF = maxOf(contextSamples, covered - OVERLAP_SAMPLES)
                 synchronized(lock) {
                     samples = if (samples.size > purgeF) {
                         samples.copyOfRange(purgeF, samples.size)
@@ -1032,7 +1034,19 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // uniquement comme contexte pour l'encodeur -- exclues du
                         // texte (borne `fromFrame` ci-dessous) et du jugement
                         // (l'ancre les a deja depassees). Cf. OVERLAP_SECONDS.
-                        val purgeFrom = maxOf(0, consumed - OVERLAP_SAMPLES)
+                        // BUG CORRIGE (2026-07-27, mesure device 18:17:30) :
+                        // `consumed` porte sur TOUT le snapshot, contexte
+                        // compris. Quand l'aligneur ne place rien au-dela du
+                        // contexte, consumed <= OVERLAP donc purgeFrom valait 0 :
+                        // RIEN n'etait purge et le meme audio repartait --
+                        // quatre gels de 3000 ms exactement en une seconde, le
+                        // buffer regelant son propre contexte en boucle.
+                        // L'invariant manquant : la purge doit TOUJOURS depasser
+                        // le contexte, sinon le buffer n'avance pas. Le
+                        // chevauchement est donc pris sur l'audio NOUVEAU
+                        // uniquement.
+                        val purgeFrom =
+                            maxOf(contextStart, consumed - OVERLAP_SAMPLES)
                         synchronized(lock) {
                             samples = if (samples.size > purgeFrom) {
                                 samples.copyOfRange(purgeFrom, samples.size)

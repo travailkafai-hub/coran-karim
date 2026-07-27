@@ -69,7 +69,7 @@ class DiagnosticLog {
   /// [_kBuildTimestamp] complète le tag manuel : injecté au build via
   /// `--dart-define=BUILD_TS=...`, il distingue deux compilations du même tag
   /// (utile quand on itère sans bumper le tag). Vide si non fourni.
-  static const String _kBuildTag = 'causal-v1-chevauchant';
+  static const String _kBuildTag = 'causal-v1-chevauchant-fix';
   static const String _kBuildTimestamp =
       String.fromEnvironment('BUILD_TS', defaultValue: '');
 
