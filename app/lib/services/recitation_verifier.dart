@@ -791,7 +791,12 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       final display = [parts.committed, parts.preview]
           .where((s) => s.isNotEmpty)
           .join(' ');
-      if (chunkNumber % 20 == 0) {
+      // Conditionne au meme interrupteur que le reste (2026-07-27) : c'etait la
+      // SEULE ecriture restante du chemin audio a echapper au toggle -- un
+      // debugPrint par 20 blocs (~1,6 s), sur l'isolate qui recoit le PCM.
+      // Elle rendait invalide le test "meme situation sans log ?" que
+      // l'interrupteur existe precisement pour permettre.
+      if (DiagnosticLog.enabled && chunkNumber % 20 == 0) {
         debugPrint('[FastConformer] #$chunkNumber '
             'fige="${parts.committed}" apercu="${parts.preview}"');
       }
