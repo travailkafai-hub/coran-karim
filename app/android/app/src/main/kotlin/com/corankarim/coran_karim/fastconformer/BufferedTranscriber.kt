@@ -124,6 +124,13 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         private const val MIN_RESYNC_HITS = 3     // 3 mots attendus retrouves D'AFFILEE
         private const val RESYNC_WINDOW_WORDS = 6 // fenetre d'appariement
         private const val MAX_RESYNC_LOOKAHEAD = 60 // ne jamais sauter plus loin
+
+        // ── Secours par le second buffer (cf. rescueWord / RescueBuffer) ────
+        // Contexte GAUCHE surtout : la mesure du jour montre qu'un segment qui
+        // commence en plein mot est illisible, alors qu'une fin tronquee gene
+        // beaucoup moins. D'ou une marge asymetrique.
+        private const val RESCUE_CONTEXT_SECONDS = 3f
+        private const val RESCUE_TAIL_SECONDS = 1f
         private val OVERLAP_SAMPLES = (SAMPLE_RATE * OVERLAP_SECONDS).toInt()
 
         // ── COUPE SUR MICRO-SILENCE (2026-07-25, idee utilisateur) ──────────
@@ -342,6 +349,57 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 "total=${alignTokens?.size}, ancre inchangee=$alignAnchor")
     }
 
+    /**
+     * SECOURS : rejuge UN mot que le buffer principal n'a pas su placer, en le
+     * ressortant de l'anneau avec du contexte (cf. RescueBuffer).
+     *
+     * ── LA REGLE QUI COMMANDE TOUT LE RESTE ──────────────────────────────────
+     * Le contexte nourrit l'ENCODEUR, il ne se juge JAMAIS. Formulation de
+     * l'utilisateur : « il aura 3 s de contexte mais pas pour juger ces 3 s ».
+     * Ce n'est pas une precaution theorique : donner le contexte a la DP est
+     * exactement l'erreur commise le matin meme avec le chevauchement -- la DP
+     * accrochait sa cible sur l'audio deja juge et l'ancre n'avancait plus que
+     * d'un mot par gel, avec des `place=8000ms` sur toutes les passes finales.
+     * Ici l'inference porte sur [mot - CONTEXTE, mot + MARGE], mais la DP ne
+     * demarre qu'aux frames du mot.
+     *
+     * ── SANS ETAT ────────────────────────────────────────────────────────────
+     * Une extraction, une inference, un verdict, on rend la main. Ni ancre, ni
+     * progression, ni memoire : une desynchronisation entre deux ancres, une
+     * boucle ou une duplication sont IMPOSSIBLES ici, pas seulement evitees.
+     *
+     * Retourne le WordResult recalcule, ou null si le secours n'a rien pu dire
+     * (fenetre sortie de l'anneau, audio trop court, DP muette).
+     */
+    private fun rescueWord(
+        wordIndex: Int,
+        tokens: IntArray,
+        absFrom: Long,
+        absTo: Long,
+    ): ForcedAligner.WordResult? {
+        if (tokens.isEmpty()) return null
+        val ctx = (SAMPLE_RATE * RESCUE_CONTEXT_SECONDS).toInt()
+        val pad = (SAMPLE_RATE * RESCUE_TAIL_SECONDS).toInt()
+        val from = maxOf(0L, absFrom - ctx)
+        val to = absTo + pad
+        val audio = rescue.extract(from, to) ?: return null
+        if (audio.size < SAMPLE_RATE / 2) return null
+        return try {
+            val outputs = engine.computeAll(audio)
+            val lp = outputs.letters
+            if (lp.isEmpty()) return null
+            // Frames de CONTEXTE a exclure de la DP -- la regle ci-dessus.
+            val spf = maxOf(1, audio.size / lp.size)
+            val ctxFrames = ((absFrom - from) / spf).toInt().coerceIn(0, lp.size - 1)
+            val dpLp = if (ctxFrames > 0) lp.copyOfRange(ctxFrames, lp.size) else lp
+            val res = aligner.align(dpLp, listOf(tokens), wordIndex, isFinal = true)
+            res?.words?.firstOrNull()
+        } catch (e: Exception) {
+            DiagnosticLog.log(TAG, "secours mot=$wordIndex echec: ${e.message}")
+            null
+        }
+    }
+
     /** Cherche ou se trouve REELLEMENT le recitateur, en appariant le decodage
      *  LIBRE de ce segment a la suite de mots attendue.
      *
@@ -482,7 +540,45 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     return -1
                 }
             }
-            val words = res.words.map {
+            // ── SECOURS PAR LE SECOND BUFFER (2026-07-27) ────────────────────
+            // Declencheur valide avec l'utilisateur : mot non place, etrangle,
+            // ou entendu vide -- et UNIQUEMENT sur une passe finale. Repere qui
+            // rend le surcout negligeable : sur une session, 175 zero-frames au
+            // total mais seulement 4 sur des passes finales.
+            //
+            // Le verdict de secours ne peut que RATTRAPER : il remplace le
+            // resultat s'il est MEILLEUR (gop superieur), jamais sinon. Un mot
+            // deja vert ne peut donc pas devenir rouge -- sans cette regle on
+            // rouvrirait la porte au « meilleur des deux verdicts », qui gonfle
+            // la tolerance en silence.
+            val spfRescue = if (logprobs.isNotEmpty()) segmentSamples / logprobs.size else 0
+            val patched = HashMap<Int, ForcedAligner.WordResult>()
+            if (isFinal && spfRescue > 0) {
+                var prevLast = -1
+                for (w in res.words) {
+                    val besoin = w.frames == 0 || w.starved || w.actual.isEmpty()
+                    if (besoin) {
+                        // Fenetre absolue du mot. S'il n'a AUCUNE frame, on part
+                        // de la fin du mot precedent : c'est forcement apres.
+                        val f0 = if (w.firstFrame >= 0) w.firstFrame else prevLast + 1
+                        val f1 = if (w.lastFrame >= 0) w.lastFrame
+                                 else f0 + (SAMPLE_RATE * 2 / spfRescue)
+                        val absFrom = absStart + f0.toLong() * spfRescue
+                        val absTo = absStart + (f1 + 1).toLong() * spfRescue
+                        val rj = rescueWord(w.index, tokens[w.index], absFrom, absTo)
+                        if (rj != null && rj.gop > w.gop) {
+                            patched[w.index] = rj
+                            DiagnosticLog.log(TAG,
+                                "SECOURS mot=${w.index} : gop ${"%.2f".format(w.gop)} -> " +
+                                    "${"%.2f".format(rj.gop)}, entendu \"${w.actual}\" -> " +
+                                    "\"${rj.actual}\"")
+                        }
+                    }
+                    if (w.lastFrame >= 0) prevLast = w.lastFrame
+                }
+            }
+            val words = res.words.map { w0 ->
+                val it = patched[w0.index] ?: w0
                 mapOf(
                     "i" to it.index,
                     "gop" to it.gop,
@@ -583,6 +679,17 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     /** Compteur de blocs recus par feed() -- abscisse commune a toutes les
      *  lignes de trace (un bloc = 80 ms, donc n x 80 ms = temps audio ecoule). */
     @Volatile private var feedCount = 0
+
+    /** Second buffer, en lecture seule, pour le secours (cf. RescueBuffer).
+     *  30 s : largement au-dela du plus long segment (12 s) plus la marge de
+     *  contexte, donc un mot reste extractible longtemps apres son gel. */
+    private val rescue = RescueBuffer(SAMPLE_RATE * 30)
+
+    /** Index ABSOLU (dans le flux d'apres portier) du premier echantillon
+     *  actuellement present dans `samples`. C'est le lien exact entre le buffer
+     *  principal et l'anneau : position d'un mot = absStart + frame x
+     *  echantillonsParFrame. Aucune recherche, aucun appariement. */
+    @Volatile private var absStart = 0L
 
     /** Echantillons en TETE du buffer deja figes au segment precedent : contexte
      *  pour l'encodeur, exclu du texte (borne `fromFrame` de greedyDecode) et du
@@ -757,6 +864,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         retainedSilenceSamples = 0
         pauseSamples = 0
         contextSamples = 0
+        absStart = rescue.totalSamples() // l'anneau n'est PAS vide : on se recale
         pendingCommit = false
         pendingForceCommit = false
         pendingCutOffset = -1
@@ -802,6 +910,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             }
         }
 
+        // L'anneau recoit EXACTEMENT ce que recoit le buffer principal (flux
+        // d'apres portier) : c'est ce qui garantit une echelle de temps unique
+        // -- stocker le flux brut ferait diverger les deux des qu'un bloc est
+        // jete, l'erreur qui avait fausse bench_double_decoupage.py.
+        if (toAppend != null) rescue.append(toAppend)
         var size: Int
         synchronized(lock) {
             if (toAppend != null && samples.size < SAMPLE_RATE * MAX_SECONDS) {
@@ -956,6 +1069,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 // Meme invariant que le gel normal : purger au-dela du
                 // contexte, sinon boucle (cf. le bug du 18:17:30).
                 val purgeF = maxOf(contextSamples, covered - OVERLAP_SAMPLES)
+                absStart += purgeF
                 synchronized(lock) {
                     samples = if (samples.size > purgeF) {
                         samples.copyOfRange(purgeF, samples.size)
@@ -1216,6 +1330,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // uniquement.
                         val purgeFrom =
                             maxOf(contextStart, consumed - OVERLAP_SAMPLES)
+                        absStart += purgeFrom // l'anneau garde l'origine absolue
                         synchronized(lock) {
                             samples = if (samples.size > purgeFrom) {
                                 samples.copyOfRange(purgeFrom, samples.size)

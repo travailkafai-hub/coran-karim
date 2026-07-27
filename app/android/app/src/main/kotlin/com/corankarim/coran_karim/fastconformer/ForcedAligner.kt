@@ -336,6 +336,10 @@ class ForcedAligner(
          *
          *  0 si la DP n'a attribue aucune frame (cf. le cas ZERO FRAME). */
         val frames: Int = 0,
+        /** Premiere frame de ce mot, ou -1 si la DP ne lui en a donne aucune.
+         *  Complete `lastFrame` : les deux bornes donnent la fenetre ABSOLUE du
+         *  mot dans le flux, donc l'extraction exacte depuis RescueBuffer. */
+        val firstFrame: Int = -1,
         /** VRAI quand la DP n'a donne AUCUNE frame a ce mot, que la place
          *  disponible suffisait pourtant (cf. `fits`), et que sa seconde chance
          *  est epuisee : il n'y a donc aucune preuve acoustique a juger, mais il
@@ -945,7 +949,7 @@ class ForcedAligner(
                 results.add(WordResult(anchor + wi, forced - free, forced, covered, actual,
                     rescoreMargin, rescoreHeard, rulesHere,
                     lastFrame = wordLastFrame[wi], starved = starved,
-                    frames = wordFrames[wi]))
+                    frames = wordFrames[wi], firstFrame = wordFirstFrame[wi]))
                 lastUsedFrame = maxOf(lastUsedFrame, wordLastFrame[wi])
             }
             return Result(anchor + frontierWordRel, results, deferredIndex,
