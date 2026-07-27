@@ -720,3 +720,139 @@ rapide a un bug de normalisation des harakat le rendant inutilisable en l'état
 
 Non prioritaire tant que le pipeline Hafs seul n'est pas stabilisé (règle déjà
 actée). Piste à reprendre une fois la piste streaming causale terminée.
+
+---
+
+## 10. Durées de référence : la source quran.com est un cul-de-sac sur les cas durs — déduire les durées de la RÉCITATION DE RÉFÉRENCE (idée utilisateur, 2026-07-27)
+
+### Ce qui est implémenté aujourd'hui (commit f634f92)
+
+Un plancher de durée par mot, médiane sur 9 récitateurs murattal, collecté par
+`benchmark/collect_word_timings.py` via l'API quran.com
+(`/api/v4/recitations/{id}/by_chapter/{s}?fields=segments`), embarqué en asset
+(`app/assets/data/word_timings_ms.json`, 156 Ko) et acheminé jusqu'à
+`ForcedAligner` (`WordTimingService` → `RecitedWord.refMinFrames` →
+`setAlignmentTarget`). Aucun appel réseau au runtime. Sert **uniquement** à
+excuser un mot étranglé (`starved`), jamais à en condamner un — cf. le bloc
+« DEUX PLANCHERS, DEUX USAGES » en tête de `ForcedAligner.kt`.
+
+### Le défaut mesuré le 2026-07-27 : la couverture s'effondre là où on en a besoin
+
+Le découpage en mots de quran.com ne correspond pas toujours au découpage
+canonique `text_uthmani.split()` (vérifié sur les 9 récitateurs : ils donnent
+TOUS le même nombre de segments pour un verset donné — c'est le référentiel
+quran.com qui fusionne des groupes de mots, pas un récitateur). Tout écart de
+comptage est exclu, par la règle positionnelle du projet. Résultat :
+
+| Longueur du verset | Versets couverts |
+|---|---|
+| 1-5 mots | 1503/1528 (**98 %**) |
+| 6-10 mots | 1177/1528 (77 %) |
+| 11-20 mots | 773/2083 (37 %) |
+| 21-40 mots | 66/958 (7 %) |
+| 41+ mots | 1/139 (**1 %**) |
+
+Médiane de longueur : **6 mots** pour les versets couverts, **18 mots** pour
+les absents. La couverture est donc **inversement corrélée à la longueur du
+verset** — or c'est exactement sur les versets longs que les problèmes
+d'alignement se concentrent (segments coupés en plein mot, décrochage de la DP,
+mots de frontière).
+
+**Vérification sur une session réelle** (2026-07-27 13:43→13:49, sourate 3) :
+la quasi-totalité des corrections et des `ZERO FRAME` tombe dans le verset
+**3:7 (50 mots)**, absent de l'asset. Conséquence : le log
+`ETRANGLE PAR LA REFERENCE` (qui ne se déclenche que quand la référence change
+le verdict) est sorti **0 fois sur toute la session**, alors qu'il sortait bien
+sur la session précédente (13:00, sourate 2, versets courts). La référence
+quran.com n'est donc pas « imparfaite » sur les cas durs : elle y est
+**absente**.
+
+Ajouter des récitateurs n'y change rien (déjà vérifié sur les 9 disponibles,
+hors Mujawwad/Muallim) : ça affine la médiane des versets déjà couverts, ça
+n'en couvre pas un seul de plus.
+
+### Apport réel du timing dans la DP, mesuré sur deux sessions du 2026-07-27
+
+Le garde-fou n'excuse un mot que si RIEN n'a été décodé dessus (`!hasSpeech`).
+Le nombre de déclenchements du log est donc très supérieur au nombre de
+verdicts réellement changés — il faut mesurer le second, pas le premier.
+
+| | session 12:56 (sourate 2, versets courts, **couverts**) | session 13:43 (sourate 3, versets longs, **non couverts**) |
+|---|---|---|
+| `ZERO FRAME` | 112 | 123 (dont 33 sur passes finales : 26 reportés, 7 jugés sautés) |
+| `ETRANGLE PAR LA REFERENCE` | 165 | **0** |
+| mots non jugés (trou d'alignement) | 8 | 6 |
+| … déjà couverts par `free` seul | 3 | 6 |
+| **… épargnés uniquement grâce à `starved`** | **5 (3 mots distincts)** | **0** |
+
+Les 3 mots épargnés grâce à la référence — `ٱلنَّاسِ` (free −0,38 / −0,54),
+`بِٱللَّهِ` (−0,17 / −0,22), `ٱلْـَٔاخِرِ` (−0,18) — rataient tous le seuil de
+confiance `free` (−0,15 en tolérant) de peu, et **tous les trois ont été jugés
+`correct` sur une passe suivante** : le report était le bon verdict, la
+référence a évité 3 faux négatifs. C'est un gain réel mais étroit.
+
+Deux constats structurels en découlent :
+
+1. **Sans la référence, beaucoup de mots n'ont aucun plancher utile** :
+   `plancher_ctc = 1` frame sur **114 des 165** déclenchements (le tokenizer
+   mappe souvent un mot entier sur un seul token). Le rapport
+   plancher_ref/plancher_ctc est de x3 en médiane, jusqu'à x9. Le plancher CTC
+   seul ne protège donc quasiment rien sur ces mots — c'est là que la
+   référence a sa valeur.
+2. **Mais elle est absente exactement là où ça casse** : dans la session
+   sourate 3, **85 des 131 incidents (65 %) tombent dans le seul verset 3:7**
+   (50 mots, absent de l'asset), et 82 % des incidents sont dans un verset non
+   couvert. D'où l'apport de 0.
+
+### La piste : déduire les durées de la récitation de référence de l'utilisateur
+
+Idée utilisateur du 2026-07-27, à tester juste après (l'utilisateur prévoit
+d'ajouter l'enregistrement de référence). Le principe : au lieu d'importer des
+durées d'un référentiel externe au découpage incompatible, les **mesurer
+nous-mêmes** par alignement forcé hors ligne sur une récitation de référence,
+une fois, puis réutiliser les frontières de mots obtenues.
+
+Ce que ça résout, point par point :
+
+| Défaut de la source quran.com | Ce que la récitation de référence apporte |
+|---|---|
+| Découpage incompatible → 44 % des versets exclus, 99 % des versets longs | Le découpage est **le nôtre** (`splitExpectedWords`), par construction : couverture 100 % de ce qui est récité, aucune règle positionnelle à appliquer |
+| Tempo d'un autre récitateur (marge de sécurité fixe x0,4 pour compenser) | Le tempo est **celui de l'utilisateur** → plancher juste, plus besoin de marge grossière |
+| Pauses de waqf incluses dans la durée (mesuré : `هُمُ` à 3030 ms) | La pause est au bon endroit puisque c'est la même personne qui récite |
+| Voix/timbre différents | Même voix → utile aussi pour l'empreinte vocale (§8ter) |
+| Nécessite un asset embarqué de 156 Ko | Rien à embarquer : produit à la demande, sur le passage travaillé |
+
+### Comment le mesurer (déjà faisable avec l'existant, rien à écrire côté modèle)
+
+L'alignement forcé de bout en bout existe déjà côté natif :
+`"alignFile"` dans `FastConformerCtcPlugin.kt` fait une inférence + un
+alignement forcé one-shot sur un WAV complet, avec `isFinal=true`. Sur un
+enregistrement de référence entier (pas de segmentation, pas de streaming,
+donc **aucun** des problèmes de buffer), `ForcedAligner.Result` donne déjà
+`wordFirstFrame`/`wordLastFrame` par mot — soit exactement les frontières
+cherchées, en frames, dans la même unité que `refMinFrames` (80 ms/frame).
+Il n'y a donc pas de nouvelle brique de modèle à construire : juste à stocker
+le résultat et à le relire.
+
+Points à trancher avant de coder (non résolus) :
+1. **Que faire si la récitation de référence est elle-même fautive ?** Un
+   plancher déduit d'un mot mal récité serait faux. Garde-fou minimal :
+   n'accepter les durées que des mots jugés `correct` sur la référence, et
+   retomber sur le plancher CTC seul pour les autres.
+2. **Quelle marge appliquer**, puisque le tempo n'est plus étranger ? Le
+   facteur 0,4 de `WordTimingService._kSafetyFactor` était là pour absorber
+   l'écart de tempo entre récitateurs ; avec sa propre voix il devrait pouvoir
+   remonter beaucoup plus près de 1, ce qui rendrait le plancher nettement plus
+   utile. À mesurer, pas à supposer.
+3. **Où stocker** : contrainte utilisateur déjà posée (2026-07-27) —
+   enregistrement de référence plafonné à **15-30 min**, tout en local.
+4. **Repli** : garder l'asset quran.com comme source de second rang pour les
+   passages sans récitation de référence (il couvre bien les versets courts,
+   98 % sous 5 mots), plutôt que de le retirer.
+
+### Décision
+
+Piste **validée sur le principe**, non implémentée. À reprendre quand
+l'enregistrement de référence existera dans l'app. L'asset quran.com reste en
+place en attendant : il ne nuit pas (il ne sert qu'à excuser, jamais à
+condamner) et il couvre correctement les sourates courtes.
