@@ -23,6 +23,24 @@ App Android (Flutter/Kotlin) de récitation coranique : vérification ASR
 Tout entraînement/export/diagnostic de modèle : invoquer le skill
 `model-training` d'abord.
 
+Toute analyse d'une session de récitation sur device (« regarde la log »,
+« analyse », « qu'est-ce qui cloche ») : invoquer le skill
+`analyse-session-recitation`. Il encode la méthode ET les erreurs de méthode
+réellement commises le 2026-07-26/27 — omettre les mots non jugés, confondre
+cadence et latence, conclure sur un log tronqué, croire les clips alors que 35 %
+de l'audio n'y était pas écrit. Sans lui, ces erreurs se répètent : elles se
+sont répétées une dizaine de fois en une journée.
+
+Dès que le même bout de code en est à sa 4ᵉ/5ᵉ version dans la session, qu'un
+symptôme déjà corrigé réapparaît, ou qu'on retombe sur une piste déjà tentée :
+invoquer le skill `recul-architectural` — arrêt du code, analyse structurelle,
+état de l'art, pistes à faire arbitrer. Garde-fou anti-boucle (2026-07-26).
+Le déclenchement est **automatique** : le hook `.claude/hooks/detect-boucle.py`
+(branché dans `.claude/settings.json`) compte les réécritures successives d'un
+même passage et injecte le rappel tout seul — un agent qui boucle ne se voit
+pas boucler, il ne faut pas compter sur son jugement. Seuil réglable en tête du
+script (`REGION_CHURN_TRIGGER`), calibré avec l'utilisateur le 2026-07-26.
+
 ## Règles du projet (décisions utilisateur, ne pas re-dériver)
 
 - **Aucune piste n'est éliminée tant que le retour en arrière est possible**
