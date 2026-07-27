@@ -725,6 +725,44 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             val previewText = latestText
             val covered = lastPreviewSize
             if (previewText.isNotEmpty() && covered > 0) {
+                // ── CAPTURE DU CLIP SUR CE CHEMIN AUSSI (2026-07-27) ─────────
+                // Ce gel-ci reutilise l'apercu sans re-transcrire (volontaire :
+                // a 12 s la re-transcription etait degradee). Mais l'ecriture du
+                // clip vivait UNIQUEMENT dans le chemin d'inference -- donc ce
+                // chemin n'ecrivait JAMAIS de WAV, silencieusement.
+                //
+                // MESURE (session du 17:44) : 7 gels sur 25 passent par ici,
+                // soit ~73 s sur 212 s d'audio -- **35 % de la recitation
+                // n'existait dans aucun fichier**. Consequences constatees dans
+                // la journee : des mots reputes "introuvables dans les clips"
+                // etaient en fait dans des segments non enregistres (le flux
+                // brut les contient tous), et ReferenceTimingExtractor, qui
+                // travaille sur des PAIRES de clips consecutifs, etait
+                // structurellement aveugle sur un tiers de chaque session.
+                //
+                // Et c'est precisement la recitation CONTINUE qui declenche ce
+                // chemin (aucune pause franche avant la borne de 12 s), donc le
+                // cas ou l'enregistrement importe le plus.
+                //
+                // On ecrit exactement l'extrait couvert par l'apercu, PRIS AVANT
+                // la purge -- le meme audio que celui qui vient d'etre juge.
+                var forcedClipPath: String? = null
+                val dirF = captureDir
+                if (dirF != null) {
+                    try {
+                        val extrait = synchronized(lock) {
+                            samples.copyOfRange(0, minOf(covered, samples.size))
+                        }
+                        val p = "$dirF/clip_${System.currentTimeMillis()}.wav"
+                        WavWriter.writeMono16k(p, extrait)
+                        forcedClipPath = p
+                        DiagnosticLog.log(TAG,
+                            "clip du gel a la borne dure ecrit : ${p.substringAfterLast('/')} " +
+                                "(${extrait.size * 1000 / SAMPLE_RATE}ms)")
+                    } catch (e: Exception) {
+                        DiagnosticLog.log(TAG, "echec capture clip (borne dure): ${e.message}")
+                    }
+                }
                 synchronized(lock) {
                     samples = if (samples.size > covered) {
                         samples.copyOfRange(covered, samples.size)
@@ -746,6 +784,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     lastAlign = HashMap(la).apply {
                         put("final", true)
                         put("seq", alignSeq)
+                        // Sans cette ligne le clip serait ecrit mais INVISIBLE
+                        // cote Dart : ReferenceTimingExtractor construit sa
+                        // liste de segments depuis `p.clipPath`, il aurait donc
+                        // continue d'ignorer ce tiers de la session.
+                        forcedClipPath?.let { put("clipPath", it) }
                     }
                     // Meme regle que runAlignment() : Dart verrouille TOUS les
                     // mots de la liste des lors que final=true (le garde-fou
