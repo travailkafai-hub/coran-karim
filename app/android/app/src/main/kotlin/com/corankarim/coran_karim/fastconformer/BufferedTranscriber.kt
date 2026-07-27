@@ -696,6 +696,22 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         }
 
         val sizeSeconds = size.toFloat() / SAMPLE_RATE
+        // ── LES BORNES PORTENT SUR L'AUDIO NOUVEAU, PAS SUR LE CONTEXTE ─────
+        // BUG TROUVE PAR L'UTILISATEUR (2026-07-27, par le calcul) : « buffer
+        // de 1 a 12, avec chevauchement le deuxieme sera de 9 a 24 » -- soit
+        // 3 s de contexte PLUS 12 s de nouveau. Or les trois bornes ci-dessous
+        // testaient `sizeSeconds`, le buffer TOTAL. Avec 3 s de contexte, seuls
+        // 9 s de nouveau tenaient avant que la borne dure ne tire : les
+        // segments se raccourcissaient de 25 %, donc les FRONTIERES se
+        // multipliaient d'autant -- l'inverse exact du but du chevauchement.
+        //
+        // MESURE : audio nouveau consomme par gel, mediane 9,3 s avant le
+        // chevauchement -> 8,4 s apres. Le chevauchement se payait en segments
+        // plus courts.
+        //
+        // Les bornes portent donc desormais sur `newSeconds` : le contexte
+        // s'ajoute en plus, il ne prend pas la place du nouveau.
+        val newSeconds = (size - contextSamples).toFloat() / SAMPLE_RATE
         // Horodatage du debut de l'audio de ce segment (mesure seule, cf.
         // segmentStartWallMs) -- pose au premier bloc effectivement accumule.
         if (segmentStartWallMs == 0L && size > 0) segmentStartWallMs = System.currentTimeMillis()
@@ -703,7 +719,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // le flag) ET au lancement (le flag peut survivre a un gel precedent :
         // course observee en test reel, micro-segment d'1s fige corrompu).
         if (isSilence && pauseSamples >= commitSilenceSamples &&
-            sizeSeconds >= MIN_COMMIT_SECONDS && !commitInFlight
+            newSeconds >= MIN_COMMIT_SECONDS && !commitInFlight
         ) {
             pendingCommit = true // pause franche sur un segment assez long -> fin de verset/groupe probable
         }
@@ -713,9 +729,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // les mecanismes d'avant (pause franche, borne dure) gardent la main,
         // donc on ne coupe jamais en plein mot.
         val target = targetSeconds()
-        if (!pendingCommit && pendingCutOffset < 0 && !commitInFlight && sizeSeconds >= target) {
-            val targetOffset = (SAMPLE_RATE * target).toInt()
-            val minKeep = (SAMPLE_RATE * MIN_TARGET_SECONDS).toInt()
+        if (!pendingCommit && pendingCutOffset < 0 && !commitInFlight && newSeconds >= target) {
+            // Decalage du contexte : la cible de coupe se compte a partir du
+            // debut de l'audio NOUVEAU, pas du debut du buffer.
+            val targetOffset = contextSamples + (SAMPLE_RATE * target).toInt()
+            val minKeep = contextSamples + (SAMPLE_RATE * MIN_TARGET_SECONDS).toInt()
             val cut = synchronized(lock) { findCutOffset(samples, targetOffset, minKeep) }
             if (cut > 0) {
                 pendingCutOffset = cut
@@ -725,7 +743,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         "-- ${(size - cut) * 1000 / SAMPLE_RATE}ms conserves pour le segment suivant")
             }
         }
-        if (sizeSeconds >= MAX_SEGMENT_SECONDS && !commitInFlight) {
+        if (newSeconds >= MAX_SEGMENT_SECONDS && !commitInFlight) {
             // Borne dure : recitation continue sans pause detectee. On ne
             // RE-transcrit PAS (test reel 2026-07-05 : a 12s la re-transcription
             // de gel etait degradee alors que le dernier apercu etait parfait) —
