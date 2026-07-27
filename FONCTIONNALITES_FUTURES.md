@@ -834,16 +834,49 @@ cherchées, en frames, dans la même unité que `refMinFrames` (80 ms/frame).
 Il n'y a donc pas de nouvelle brique de modèle à construire : juste à stocker
 le résultat et à le relire.
 
+### Précisions apportées par l'utilisateur le 2026-07-27 (résolvent 2 des 4 points ci-dessous)
+
+1. **« On a le texte, donc la lecture gère bien le timing. »** Exact, et c'est
+   le point structurel : une lecture de référence passe par `alignFile` — une
+   inférence sur l'audio COMPLET, `isFinal=true`, sans streaming ni
+   segmentation. Aucun des défauts qui occupent la piste live (décrochage de la
+   DP, mots de frontière, coupe à 12 s en plein mot) n'existe dans ce mode.
+2. **« Si on enlève les blancs, les pauses ou silences entre mots. »** C'est
+   déjà ce que le code compte : `ForcedAligner.wordFrames` n'incrémente que sur
+   les états non-blank (`if (si % 2 == 0) continue`), donc c'est la durée
+   ARTICULÉE, silences internes exclus. C'est structurellement supérieur à
+   quran.com, dont les segments sont des bornes `[start_ms, end_ms]` INCLUANT
+   le silence jusqu'au mot suivant — d'où le `هُمُ` à 3030 ms qui avait imposé
+   le facteur ×0,4. Avec des frames articulées il n'y a plus rien à compenser.
+   La ligne de log `DUREES` (commit 3f75b94) sort exactement cette grandeur en
+   `f=`.
+3. **« Le user ne va pas sauter, en plus on a la validation. »** Ces deux
+   arguments ferment le point 1 ci-dessous : une lecture attentive ne saute pas
+   de mot (donc pas de zéro-frame parasite à interpréter), et le GOP filtre le
+   reste — on ne retient la durée que des mots jugés `correct`.
+
+**Ce que ça ne couvre pas, et la conséquence de conception.** Une lecture de
+référence est plus LENTE qu'une récitation de mémoire à vitesse normale : un
+plancher tiré de la lecture serait trop haut pour la récitation réelle, donc
+excuserait trop (effet borné, puisque le garde-fou n'excuse que si rien n'est
+entendu, mais réel). Et une seule lecture = un seul échantillon, sans la
+robustesse que donnaient les 9 récitateurs.
+
+⇒ **Un plancher est une borne INFÉRIEURE : la bonne statistique n'est donc pas
+la médiane mais le MINIMUM.** Le `médiane × 0,4` actuel est un bricolage faute
+de mieux ; avec deux ou trois lectures de l'utilisateur, le minimum observé par
+mot EST directement la grandeur cherchée — plus aucun facteur arbitraire à
+régler. C'est le rapport « durée en lecture / durée en récitation » que la
+ligne `DUREES` doit établir.
+
 Points à trancher avant de coder (non résolus) :
-1. **Que faire si la récitation de référence est elle-même fautive ?** Un
-   plancher déduit d'un mot mal récité serait faux. Garde-fou minimal :
-   n'accepter les durées que des mots jugés `correct` sur la référence, et
-   retomber sur le plancher CTC seul pour les autres.
-2. **Quelle marge appliquer**, puisque le tempo n'est plus étranger ? Le
-   facteur 0,4 de `WordTimingService._kSafetyFactor` était là pour absorber
-   l'écart de tempo entre récitateurs ; avec sa propre voix il devrait pouvoir
-   remonter beaucoup plus près de 1, ce qui rendrait le plancher nettement plus
-   utile. À mesurer, pas à supposer.
+1. ~~**Que faire si la récitation de référence est elle-même fautive ?**~~
+   Tranché ci-dessus (validation GOP en filtre). Le garde-fou reste : n'accepter
+   les durées que des mots jugés `correct`, retomber sur le plancher CTC seul
+   pour les autres.
+2. **Quelle marge appliquer** : reformulé ci-dessus — prendre le MINIMUM sur
+   plusieurs lectures plutôt qu'une médiane amputée d'un facteur. Reste à
+   mesurer le rapport lecture/récitation avant de fixer quoi que ce soit.
 3. **Où stocker** : contrainte utilisateur déjà posée (2026-07-27) —
    enregistrement de référence plafonné à **15-30 min**, tout en local.
 4. **Repli** : garder l'asset quran.com comme source de second rang pour les
