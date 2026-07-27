@@ -59,8 +59,8 @@ class _FakeFastConformer extends FastConformerVerifier {
   Future<bool> ensureStreamingLoaded() async => true;
 
   @override
-  Future<bool> setAlignmentTarget(
-          List<String> strictWords, int anchor) async =>
+  Future<bool> setAlignmentTarget(List<String> strictWords, int anchor,
+          {List<int?>? refMinFrames}) async =>
       true;
 
   @override

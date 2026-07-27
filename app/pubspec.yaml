@@ -94,6 +94,7 @@ flutter:
     - assets/data/gop_word_baseline.json
     - assets/data/quran_rules_annotated.json
     - assets/data/quran_rules_boundary.json
+    - assets/data/word_timings_ms.json
     - assets/illumination/medallion.svg
     - assets/illumination/quran_pattern_tile.svg
     - assets/audio/adhan_makkah.mp3

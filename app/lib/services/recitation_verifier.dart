@@ -274,14 +274,19 @@ abstract class RecitationVerifier {
   /// [trainingWords] = formes fidèles à l'entraînement (mêmes que
   /// `RecitedWord.training`). Retourne true si l'alignement est actif pour
   /// cette nouvelle cible (modèle chargé + tokenisation OK).
-  Future<bool> replaceAlignmentTarget(List<String> trainingWords, int anchor);
+  /// [refMinFrames] (parallèle à [trainingWords], null par mot sans référence)
+  /// = plancher de durée de référence en frames, cf. WordTimingService /
+  /// ForcedAligner.combinedMinFrames.
+  Future<bool> replaceAlignmentTarget(List<String> trainingWords, int anchor,
+      {List<int?>? refMinFrames});
 
   /// Étend la cible d'alignement forcé avec des mots supplémentaires (formes
   /// STRICTES d'entraînement), à la SUITE de la cible actuelle — SANS toucher
   /// l'ancre en cours. Utilisé pour enchaîner sur la sourate suivante sans
   /// interrompre la session (demande utilisateur 2026-07-11) : la récitation
   /// continue exactement où elle en était, juste avec plus de texte derrière.
-  Future<void> extendAlignmentTarget(List<String> moreTrainingWords);
+  Future<void> extendAlignmentTarget(List<String> moreTrainingWords,
+      {List<int?>? refMinFrames});
 
   /// Active/désactive la capture de clips VÉRIFIÉS CORRECTS pour le futur
   /// mini-LoRA de personnalisation vocale (FONCTIONNALITES_FUTURES.md,
@@ -298,7 +303,8 @@ abstract class RecitationVerifier {
   /// [continuous] : enregistrement continu segmenté par détection de silence
   /// (VAD énergie), pour réciter plusieurs versets/une sourate entière sans
   /// interaction manuelle entre chaque verset.
-  Future<void> start(List<String> expectedWords, {bool continuous = false});
+  Future<void> start(List<String> expectedWords,
+      {bool continuous = false, List<int?>? refMinFrames});
   Future<void> stop();
 
   /// Numero de la session actuellement demarree (0 = aucune) -- capturer
@@ -487,14 +493,16 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       _fastConformer.setAlignmentAnchor(index);
 
   @override
-  Future<void> extendAlignmentTarget(List<String> moreTrainingWords) =>
-      _fastConformer.extendAlignmentTarget(moreTrainingWords);
+  Future<void> extendAlignmentTarget(List<String> moreTrainingWords,
+          {List<int?>? refMinFrames}) =>
+      _fastConformer.extendAlignmentTarget(moreTrainingWords,
+          refMinFrames: refMinFrames);
 
   @override
-  Future<bool> replaceAlignmentTarget(
-      List<String> trainingWords, int anchor) async {
-    _alignmentActive =
-        await _fastConformer.setAlignmentTarget(trainingWords, anchor);
+  Future<bool> replaceAlignmentTarget(List<String> trainingWords, int anchor,
+      {List<int?>? refMinFrames}) async {
+    _alignmentActive = await _fastConformer
+        .setAlignmentTarget(trainingWords, anchor, refMinFrames: refMinFrames);
     return _alignmentActive;
   }
 
@@ -544,13 +552,14 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   bool _appPaused = false;
 
   @override
-  Future<void> start(List<String> expectedWords, {bool continuous = false}) {
-    return _serialized(
-        () => _startLocked(expectedWords, continuous: continuous));
+  Future<void> start(List<String> expectedWords,
+      {bool continuous = false, List<int?>? refMinFrames}) {
+    return _serialized(() => _startLocked(expectedWords,
+        continuous: continuous, refMinFrames: refMinFrames));
   }
 
   Future<void> _startLocked(List<String> expectedWords,
-      {bool continuous = false}) async {
+      {bool continuous = false, List<int?>? refMinFrames}) async {
     _generation++;
     final hasPerm = await _recorder.hasPermission();
     debugPrint(
@@ -563,7 +572,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     _lastAlignSeq = -1;
 
     if (continuous) {
-      await _startStreamingCapture(expectedWords);
+      await _startStreamingCapture(expectedWords, refMinFrames);
       return;
     }
 
@@ -581,8 +590,8 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         // dégradés observés en test alors que alignement forcé actif=true
         // sur une cible vide).
         if (expectedWords.isNotEmpty) {
-          _alignmentActive =
-              await _fastConformer.setAlignmentTarget(expectedWords, 0);
+          _alignmentActive = await _fastConformer
+              .setAlignmentTarget(expectedWords, 0, refMinFrames: refMinFrames);
           DiagnosticLog.log('ASR', 'alignement forcé actif = $_alignmentActive');
         }
       }
@@ -611,7 +620,8 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// le checkpoint PCD utilisait des convolutions non causales et sortait du
   /// blank en flux. Cette conclusion reste vraie pour CE checkpoint ancien,
   /// mais ne s'applique pas au nouveau modèle entraîné causalement.
-  Future<void> _startStreamingCapture(List<String> expectedWords) async {
+  Future<void> _startStreamingCapture(
+      List<String> expectedWords, List<int?>? refMinFrames) async {
     await _closeStaleContinuousCapture();
     _chunkCount = 0;
     _continuousFeedTail = Future.value();
@@ -636,7 +646,8 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     // attente d'Al-Fatiha) avant qu'une cible existe.
     _alignmentActive = true;
     if (expectedWords.isNotEmpty) {
-      await _fastConformer.setAlignmentTarget(expectedWords, 0);
+      await _fastConformer
+          .setAlignmentTarget(expectedWords, 0, refMinFrames: refMinFrames);
       DiagnosticLog.log('ASR',
           'alignement forcé actif = $_alignmentActive (cible=${expectedWords.length} mots)');
     } else {
@@ -1106,10 +1117,11 @@ class MockRecitationVerifier implements RecitationVerifier {
   @override
   Future<void> setAlignmentAnchor(int index) async {}
   @override
-  Future<void> extendAlignmentTarget(List<String> moreTrainingWords) async {}
+  Future<void> extendAlignmentTarget(List<String> moreTrainingWords,
+      {List<int?>? refMinFrames}) async {}
   @override
-  Future<bool> replaceAlignmentTarget(
-          List<String> trainingWords, int anchor) async =>
+  Future<bool> replaceAlignmentTarget(List<String> trainingWords, int anchor,
+          {List<int?>? refMinFrames}) async =>
       false;
 
   @override
@@ -1130,7 +1142,8 @@ class MockRecitationVerifier implements RecitationVerifier {
   }
 
   @override
-  Future<void> start(List<String> expectedWords, {bool continuous = false}) async {
+  Future<void> start(List<String> expectedWords,
+      {bool continuous = false, List<int?>? refMinFrames}) async {
     _generation++;
     var i = 0;
     _levelTimer = Timer.periodic(const Duration(milliseconds: 90), (_) {

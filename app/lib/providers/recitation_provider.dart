@@ -14,6 +14,7 @@ import '../services/quran_verse_locator_service.dart';
 import '../services/recitation_verifier.dart';
 import '../services/rule_annotation_service.dart';
 import '../services/voice_lora_clip_service.dart';
+import '../services/word_timing_service.dart';
 
 /// Segment de texte à réciter, avec sa clé de verset quand elle est connue
 /// (surah/ayah) -- permet l'annotation POSITIONNELLE des règles tajwid par le
@@ -824,6 +825,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _fetchingFatiha = true;
     try {
       await RuleAnnotationService.instance.ensureLoaded();
+      await WordTimingService.instance.ensureLoaded();
       final verses = await QuranApi.fetchVerses(1);
       _fatihaWords = _wordsFromVerses(verses);
       _fatihaVerses = verses;
@@ -1075,7 +1077,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       errorCount: 0,
       prayerPhase: PrayerPhase.fatiha,
     );
-    await _verifier.replaceAlignmentTarget(fatiha.map((w) => w.alignTarget).toList(), 0);
+    await _verifier.replaceAlignmentTarget(
+        fatiha.map((w) => w.alignTarget).toList(), 0,
+        refMinFrames: _refMinFrames(fatiha));
     DiagnosticLog.log('Prière', 'Al-Fatiha reconnue -- suivi actif (${fatiha.length} mots)');
   }
 
@@ -1099,7 +1103,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       errorCount: 0,
       prayerPhase: PrayerPhase.target,
     );
-    await _verifier.replaceAlignmentTarget(target.map((w) => w.alignTarget).toList(), 0);
+    await _verifier.replaceAlignmentTarget(
+        target.map((w) => w.alignTarget).toList(), 0,
+        refMinFrames: _refMinFrames(target));
     debugPrint('[Prière] Al-Fatiha terminée -- reprise de la sourate suivie '
         '(${target.length} mots)');
   }
@@ -1189,7 +1195,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       prayerPhase: PrayerPhase.target,
     );
     unawaited(_verifier.replaceAlignmentTarget(
-        allWords.map((w) => w.alignTarget).toList(), anchor));
+        allWords.map((w) => w.alignTarget).toList(), anchor,
+        refMinFrames: _refMinFrames(allWords)));
     debugPrint('[Prière] silence prolongé, aucune identification -- reprise '
         'de la continuité : sourate $surahNumber depuis le mot '
         '$anchor/${allWords.length}');
@@ -1301,7 +1308,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       prayerPhase: PrayerPhase.target,
     );
     await _verifier.replaceAlignmentTarget(
-        allWords.map((w) => w.alignTarget).toList(), anchor);
+        allWords.map((w) => w.alignTarget).toList(), anchor,
+        refMinFrames: _refMinFrames(allWords));
     DiagnosticLog.log('Prière', 'sourate identifiée : ${match.surahNumber}:'
         '${match.ayahNumber} (confiance ${match.confidence.toStringAsFixed(2)}) '
         '-- suivi actif dès le mot $anchor/${allWords.length}');
@@ -1683,6 +1691,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
               ))
           .toList();
 
+  /// Planchers de durée de référence PARALLÈLES à la cible d'alignement
+  /// envoyée au natif — toujours construits à partir de la MÊME liste de mots
+  /// que `alignTarget`, pour que les deux listes ne puissent pas se
+  /// désynchroniser (cf. ForcedAligner.combinedMinFrames).
+  static List<int?> _refMinFrames(List<RecitedWord> words) =>
+      words.map((w) => w.refMinFrames).toList();
+
   /// Construit les mots d'un ou plusieurs segments AVEC annotation de règles
   /// tajwid quand la clé de verset est connue et présente dans l'asset :
   /// la cible d'alignement forcé (`alignTarget`) devient la forme apprise par
@@ -1696,6 +1711,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     for (final seg in segments) {
       final canonWords = ArabicNormalizer.splitExpectedWords(seg.text);
       List<String>? annotated;
+      List<int>? refMs;
       if (seg.surah != null && seg.ayah != null) {
         annotated =
             RuleAnnotationService.instance.annotatedWords(seg.surah!, seg.ayah!);
@@ -1707,6 +1723,19 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
               '(${annotated.length} vs ${canonWords.length} mots) -> canonique');
           annotated = null;
         }
+        // Durées de référence : MÊME précaution positionnelle que les
+        // annotations juste au-dessus, et pour la même raison. L'asset est
+        // généré contre `text_uthmani.split()` alors qu'on découpe ici avec
+        // splitExpectedWords -- tout écart de comptage doit retomber sur
+        // "aucune référence" (le plancher CTC reste seul), jamais sur un
+        // décalage silencieux qui attribuerait la durée d'un mot à son voisin.
+        refMs = WordTimingService.instance.msForVerse(seg.surah!, seg.ayah!);
+        if (refMs != null && refMs.length != canonWords.length) {
+          DiagnosticLog.log('WordTiming',
+              'décalage durées ${seg.surah}:${seg.ayah} '
+              '(${refMs.length} vs ${canonWords.length} mots) -> sans référence');
+          refMs = null;
+        }
       }
       // Bismillah = TOUJOURS le verset 1:1 verbatim, qu'elle soit Al-Fatiha
       // elle-même ou insérée devant une autre sourate (cf. QuranApi.fetchBismillah,
@@ -1717,6 +1746,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       for (var i = 0; i < canonWords.length; i++) {
         final w = canonWords[i];
         final aw = annotated?[i];
+        final refMinFrames = refMs == null
+            ? null
+            : WordTimingService.minFramesFromMs(refMs[i]);
         out.add(RecitedWord(
           display: w,
           normalized: ArabicNormalizer.normalize(w),
@@ -1732,6 +1764,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           // vérification SÉPARÉE.
           alignTarget: null,
           expectedRules: aw != null ? RuleSymbols.rulesIn(aw) : const [],
+          refMinFrames: refMinFrames,
         ));
       }
     }
@@ -1743,6 +1776,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// annotations si besoin (idempotent, sans coût après le 1er chargement).
   Future<void> setupVerses(List<RecitationSegment> segments) async {
     await RuleAnnotationService.instance.ensureLoaded();
+    await WordTimingService.instance.ensureLoaded();
     _lastTextDiffLine.clear();
     _previewNegative.clear();
     _previewNegativeStreak.clear();
@@ -1774,7 +1808,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     if (newWords.isEmpty) return;
     state = state.copyWith(words: [...state.words, ...newWords]);
     await _verifier
-        .extendAlignmentTarget(newWords.map((w) => w.alignTarget).toList());
+        .extendAlignmentTarget(newWords.map((w) => w.alignTarget).toList(),
+            refMinFrames: _refMinFrames(newWords));
   }
 
   /// Variante verset-consciente de [extendWords] : annote les règles tajwid
@@ -1782,11 +1817,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// que [extendWords] par ailleurs (n'altère rien de la progression acquise).
   Future<void> extendVerses(List<RecitationSegment> segments) async {
     await RuleAnnotationService.instance.ensureLoaded();
+    await WordTimingService.instance.ensureLoaded();
     final newWords = _wordsFromSegments(segments);
     if (newWords.isEmpty) return;
     state = state.copyWith(words: [...state.words, ...newWords]);
     await _verifier
-        .extendAlignmentTarget(newWords.map((w) => w.alignTarget).toList());
+        .extendAlignmentTarget(newWords.map((w) => w.alignTarget).toList(),
+            refMinFrames: _refMinFrames(newWords));
   }
 
   Future<void> start() async {
@@ -1811,7 +1848,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _alignSub = _verifier.alignedWords.listen(_onAligned);
     // Forme fidèle à l'entraînement (PAS `strict`, qui fusionne des lettres
     // que le modèle a appris à distinguer — cf. normalizeTraining).
-    await _verifier.start(state.words.map((w) => w.alignTarget).toList());
+    await _verifier.start(state.words.map((w) => w.alignTarget).toList(),
+        refMinFrames: _refMinFrames(state.words));
     _myGeneration = _verifier.sessionGeneration;
   }
 
@@ -1866,6 +1904,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     await _verifier.start(
       state.words.map((w) => w.alignTarget).toList(),
       continuous: true,
+      refMinFrames: _refMinFrames(state.words),
     );
     _myGeneration = _verifier.sessionGeneration;
   }
@@ -2924,12 +2963,27 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // palliatif ») : on ne valide rien, on refuse de CONDAMNER sans preuve.
       // Même forme que le garde-fou Bismillah juste au-dessus, et symétrique
       // du principe déjà en vigueur « aucune preuve -> aucun verdict positif ».
+      // `starved` (2026-07-27) : DEUXIÈME preuve indépendante du même
+      // diagnostic, complémentaire à `free`. Mesure qui l'impose (session
+      // 11:56, mot 63 "وَمِنَ") : `entendu=""`, `free=-0,24` -- juste SOUS le
+      // seuil de confiance tolérant (-0,15), donc le garde-fou `free` seul ne
+      // tirait pas. Le mot n'était alors JAMAIS verrouillé (aucun rouge
+      // affiché) mais la SÉRIE d'aperçus négatifs stables déclenchait quand
+      // même une correction (cf. `_previewNegativeStreak` plus bas) --
+      // invisible à l'écran, 9 corrections sur 15 dans cette session sont
+      // passées par cette voie. Le décodage libre du même segment contenait
+      // pourtant le mot en entier ("وَمِنَ ٱلنَّاسِ مَن يَقُولُ...").
+      // `starved` (calculé côté Kotlin : frames attribuées < minimum requis
+      // par le CTC pour ce nombre de tokens) attrape ce cas que `free` seul
+      // manquait : la DP a physiquement trop peu de place pour ce mot, quelle
+      // que soit sa confiance sur ces quelques frames.
       final free = r.forced - r.gop;
-      if (!hasSpeech && free >= _freeConfident) {
+      if (!hasSpeech && (free >= _freeConfident || r.starved)) {
         DiagnosticLog.log(
             'GOP',
             'mot=${r.index} "${expected.display}" trou d\'alignement '
-                '(free=${free.toStringAsFixed(2)} forced=${r.forced.toStringAsFixed(2)}) '
+                '(free=${free.toStringAsFixed(2)} forced=${r.forced.toStringAsFixed(2)} '
+                'starved=${r.starved}) '
                 '-> NON JUGE : le modele est sur de ce qu\'il entend, '
                 'la DP n\'a pas su placer ce mot');
         continue;

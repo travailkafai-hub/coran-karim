@@ -123,6 +123,13 @@ class RecitedWord {
   // du récitant. Décision utilisateur : ne plus juger ces 4 mots (ni gop ni
   // texte), plutôt que de continuer à chasser un correctif d'entraînement.
   final bool isBasmala;
+  // Plancher de duree de reference (frames CTC, 80ms/frame), ou null si ce
+  // mot n'a pas de reference connue (verset hors couverture quran.com --
+  // ~44% des versets, cf. WordTimingService). Envoye a l'aligneur natif en
+  // parallele de alignTarget pour COMPLETER le plancher CTC (compte de
+  // tokens) sur les mots "etrangles"/zero-frame (2026-07-27, cf.
+  // ForcedAligner.combinedMinFrames).
+  final int? refMinFrames;
 
   const RecitedWord({
     required this.display,
@@ -136,6 +143,7 @@ class RecitedWord {
     this.heard = '',
     this.detectedRules = const {},
     this.isBasmala = false,
+    this.refMinFrames,
   }) : alignTarget = alignTarget ?? training;
 
   RecitedWord copyWith({WordStatus? status, bool? locked, String? heard,
@@ -152,6 +160,7 @@ class RecitedWord {
         heard: heard ?? this.heard,
         detectedRules: detectedRules ?? this.detectedRules,
         isBasmala: isBasmala,
+        refMinFrames: refMinFrames,
       );
 }
 

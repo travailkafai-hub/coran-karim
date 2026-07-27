@@ -20,6 +20,7 @@ class _AlignmentVerifier extends MockRecitationVerifier {
   Future<void> start(
     List<String> expectedWords, {
     bool continuous = false,
+    List<int?>? refMinFrames,
   }) async {
     _generation++;
   }

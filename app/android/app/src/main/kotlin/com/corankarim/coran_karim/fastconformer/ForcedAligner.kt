@@ -312,6 +312,16 @@ class ForcedAligner(
          *  et garder un contexte gauche PARTIEL est pire que pas de contexte
          *  (0/4 mots retrouves avec 600-1500 ms de contexte contre 2/4 sans). */
         val lastFrame: Int = -1,
+        /** VRAI si la DP a attribue MOINS de frames a ce mot que le minimum
+         *  mathematique requis par le CTC (n tokens -> au moins n frames,
+         *  cf. le commentaire complet a son point de calcul). Signal
+         *  complementaire a `free confident` (cote Dart) pour distinguer un
+         *  echec d'alignement d'une vraie faute -- ajoute 2026-07-27 apres
+         *  qu'un mot avec `actual=""` et `free=-0,24` (juste sous le seuil de
+         *  confiance) ait echappe au garde-fou existant et declenche une
+         *  correction via la serie d'apercus negatifs, sans jamais s'afficher
+         *  rouge a l'ecran. */
+        val starved: Boolean = false,
     )
 
     /**
@@ -342,6 +352,57 @@ class ForcedAligner(
         val lastFrame: Int = -1,
     )
 
+    // ── DEUX PLANCHERS, DEUX USAGES -- NE PAS LES INTERVERTIR ───────────────
+    // (asymetrie decidee le 2026-07-27 apres mesure, cf. detail ci-dessous)
+    //
+    // Les deux fonctions repondent a des questions DIFFERENTES, et un plancher
+    // plus haut y a des consequences OPPOSEES a l'ecran :
+    //
+    //   ctcMinFrames      -> "ce mot POUVAIT-il physiquement tenir ici ?"
+    //                        Sert a CONDAMNER (branche ZERO FRAME : pas la
+    //                        place = mot saute = rouge). Plancher plus haut
+    //                        => PLUS de rouge.
+    //   plausibleMinFrames -> "la DP a-t-elle laisse a ce mot de quoi etre
+    //                        decode ?" Sert a EXCUSER (mot etrangle => non
+    //                        juge). Plancher plus haut => MOINS de rouge.
+    //
+    // La duree de reference n'entre donc QUE dans le second. Raison de fond :
+    // le plancher CTC est un argument d'IMPOSSIBILITE PHYSIQUE (n tokens ne
+    // tiennent pas dans moins de n frames, indiscutable), la duree de
+    // reference n'est qu'un argument de TYPICALITE (mediane de 9 recitateurs).
+    // Condamner sur de la typicalite reviendrait a mettre au rouge un
+    // recitateur simplement plus rapide que la mediane.
+    //
+    // MESURE QUI A TRANCHE (asset app/assets/data/word_timings_ms.json,
+    // 26 879 mots) : la reference domine le plancher CTC sur 1 856 mots
+    // (6,9 %), exces median +1 frame (80 ms) mais QUEUE JUSQU'A +44 frames
+    // (3,5 s), et seuls 11 % de ces mots sont en position de waqf -- ce ne
+    // sont donc pas des artefacts de pause mais de vrais mots longs. Injectee
+    // dans la branche ZERO FRAME, cette queue aurait tranche en rouge tout
+    // trou d'alignement de moins de 3,5 s : exactement les faux rouges que ce
+    // chantier existe pour supprimer.
+
+    /** Plancher CTC MATHEMATIQUE : n tokens exigent au moins n frames, plus un
+     *  blank obligatoire entre deux tokens identiques consecutifs. Exact, local,
+     *  toujours disponible. Le SEUL admis pour condamner un mot. */
+    private fun ctcMinFrames(toks: IntArray): Int {
+        var need = toks.size
+        for (k in 1 until toks.size) if (toks[k] == toks[k - 1]) need++
+        return need
+    }
+
+    /** Plancher REALISTE (2026-07-27) = max(plancher CTC, duree de reference).
+     *  Le CTC seul sous-estime largement une recitation reelle (mesure : 6
+     *  tokens = 480 ms au plancher CTC contre ~870 ms observes), d'ou la
+     *  reference ; le maximum ne peut que le RENFORCER, jamais l'affaiblir,
+     *  meme quand la reference est absente (~44 % des versets) ou optimiste.
+     *  Reserve aux usages qui EXCUSENT -- cf. le bloc ci-dessus. */
+    private fun plausibleMinFrames(wi: Int, toks: IntArray, refMinFrames: List<Int?>?): Int {
+        val ctc = ctcMinFrames(toks)
+        val ref = refMinFrames?.getOrNull(wi) ?: return ctc
+        return maxOf(ctc, ref)
+    }
+
     /**
      * Aligne les mots attendus (tokens par mot, a partir de l'ancre [anchor],
      * indices absolus) sur [logprobs] (T frames x vocab+1). L'alignement est
@@ -366,6 +427,14 @@ class ForcedAligner(
         // sur un modele a une seule tete : `detectedRules` reste vide partout
         // et rien d'autre ne change.
         segmentRules: List<DetectedRule>? = null,
+        // Plancher de reference (frames), parallele a wordTokens, null si le
+        // mot n'a pas de duree connue (verset hors couverture quran.com, cf.
+        // WordTimingService cote Dart). Ajoute le 2026-07-27 pour COMPLETER --
+        // pas remplacer -- le plancher CTC (cf. ctcMinFrames) : voir la note
+        // juste en dessous de "DISCRIMINANT PLACE DISPONIBLE" plus bas, qui
+        // explique pourquoi la reference avait d'abord ete ecartee et
+        // pourquoi cette decision a ete corrigee.
+        refMinFrames: List<Int?>? = null,
     ): Result? {
         val t = logprobs.size
         if (t == 0 || wordTokens.isEmpty()) return null
@@ -551,12 +620,35 @@ class ForcedAligner(
                     // est LOCAL, exact, et deja disponible ici. Les durees de
                     // reference resteraient un raffinement possible pour
                     // estimer le debit reel, pas une necessite.
-                    val minFramesNeeded = run {
-                        val toks = wordTokens[wi]
-                        var need = toks.size
-                        for (k in 1 until toks.size) if (toks[k] == toks[k - 1]) need++
-                        need
-                    }
+                    //
+                    // ⚠️ CONCLUSION REVISEE DEUX FOIS (2026-07-27) -- lire les
+                    // deux etapes, elles ne disent pas la meme chose :
+                    //
+                    // 1) L'argument "pas une necessite" ci-dessus justifiait
+                    //    l'absence de reference par son COUT d'implementation
+                    //    (appel reseau, plomberie Dart->Kotlin) -- pointe a
+                    //    juste titre par l'utilisateur comme l'inverse de la
+                    //    regle du projet (choisir la solution correcte, pas la
+                    //    moins couteuse). La reference a donc ete collectee
+                    //    pour de bon : mediane sur 9 recitateurs, en LOCAL
+                    //    (benchmark/collect_word_timings.py -> asset embarque,
+                    //    aucun appel reseau au runtime).
+                    //
+                    // 2) Mais la mesure a montre qu'elle n'a PAS SA PLACE ICI,
+                    //    pour une raison de fond et non de cout : ce test-ci
+                    //    CONDAMNE (pas la place => rouge), et une duree de
+                    //    reference n'est qu'une TYPICALITE, pas une
+                    //    impossibilite physique. L'y injecter mettait au rouge
+                    //    les recitateurs plus rapides que la mediane -- queue
+                    //    mesuree jusqu'a +44 frames (3,5 s) de plancher sur
+                    //    6,9 % des mots. Detail et chiffres : bloc
+                    //    "DEUX PLANCHERS, DEUX USAGES" en tete de classe.
+                    //
+                    // => ici, plancher CTC SEUL (impossibilite physique). La
+                    //    reference sert dans l'autre sens, sur `starved` plus
+                    //    bas, ou un plancher plus haut EXCUSE au lieu de
+                    //    condamner.
+                    val minFramesNeeded = ctcMinFrames(wordTokens[wi])
                     val prevEnd = if (wi > 0) wordLastFrame[wi - 1] else -1
                     var nextStart = t
                     for (k in wi + 1 until w) {
@@ -651,6 +743,48 @@ class ForcedAligner(
                 val forced = wordForcedSum[wi] / wordFrames[wi]
                 val free = wordFreeSum[wi] / wordFrames[wi]
                 val actual = greedyDecodeRange(logprobs, wordFirstFrame[wi], wordLastFrame[wi])
+                // ── ETRANGLEMENT (2026-07-27) : meme diagnostic que le ZERO
+                // FRAME du 2026-07-27 (place disponible < minimum requis), mais
+                // pour le cas ou la DP a bien donne AU MOINS UNE frame (donc ne
+                // passe pas par la branche wordFrames==0) sans que ce soit
+                // assez pour que greedyDecodeRange y voie un token -> `actual`
+                // vide quand meme.
+                //
+                // MESURE QUI L'IMPOSE (session 11:56, mot 63 "وَمِنَ") :
+                // forced=-1,71 free=-0,24 entendu="" -- ni au plancher -20,00
+                // (pas un vrai zero-frame) ni assez confiant pour le garde-fou
+                // "trou d'alignement" du 2026-07-26 (seuil -0,15 en tolerant,
+                // ici -0,24 le rate de peu). Consequence mesuree : le mot n'est
+                // JAMAIS verrouille (lock=false sur les 4 passes) mais la SERIE
+                // d'apercus negatifs stables declenche quand meme la correction
+                // (`_previewNegativeStreak`, cote Dart) -- 9 corrections sur 15
+                // dans la session sont passees par cette voie, invisible a
+                // l'ecran (aucun rouge jamais affiche). Le decodage libre du
+                // meme segment contenait pourtant le mot entier
+                // ("وَمِنَ ٱلنَّاسِ مَن يَقُولُ...").
+                //
+                // Le signal `starved` complete `free confident` cote Dart : deux
+                // preuves independantes du meme diagnostic (DP a peu de place
+                // pour ce mot), l'une sur la confiance du modele, l'autre sur le
+                // compte de frames -- utiles ensemble car aucune des deux seule
+                // ne couvrait ce cas precis.
+                //
+                // Plancher REALISTE ici (et non le CTC seul) : c'est le sens
+                // "excuser", donc le seul ou la duree de reference est
+                // legitime -- cf. le bloc "DEUX PLANCHERS, DEUX USAGES".
+                val minNeeded = plausibleMinFrames(wi, wordTokens[wi], refMinFrames)
+                val starved = wordFrames[wi] < minNeeded
+                // Journalise UNIQUEMENT quand la reference a change le verdict
+                // (le plancher CTC seul aurait dit "pas etrangle") : volume
+                // faible, et c'est la seule ligne qui permettra de juger sur
+                // device si la reference apporte vraiment quelque chose ou si
+                // elle excuse trop.
+                if (starved && wordFrames[wi] >= ctcMinFrames(wordTokens[wi])) {
+                    DiagnosticLog.log(TAG,
+                        "ETRANGLE PAR LA REFERENCE mot=${anchor + wi} " +
+                            "frames=${wordFrames[wi]} plancher_ctc=${ctcMinFrames(wordTokens[wi])} " +
+                            "plancher_ref=$minNeeded (~${minNeeded * 80}ms) | final=$isFinal")
+                }
                 var rescoreMargin: Double? = null
                 var rescoreHeard: String? = null
                 if (isFinal && wordVariants != null && wi < wordVariants.size &&
@@ -689,7 +823,7 @@ class ForcedAligner(
                 } ?: emptyList()
                 results.add(WordResult(anchor + wi, forced - free, forced, covered, actual,
                     rescoreMargin, rescoreHeard, rulesHere,
-                    lastFrame = wordLastFrame[wi]))
+                    lastFrame = wordLastFrame[wi], starved = starved))
                 lastUsedFrame = maxOf(lastUsedFrame, wordLastFrame[wi])
             }
             return Result(anchor + frontierWordRel, results, deferredIndex,

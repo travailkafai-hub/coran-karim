@@ -25,6 +25,9 @@ class CausalAlignmentSession(
 
     private var targetTokens: List<IntArray>? = null
     private var targetVariants: List<List<Pair<String, IntArray>>>? = null
+    // Planchers de duree de reference (frames), parallele a targetTokens --
+    // cf. ForcedAligner.combinedMinFrames, WordTimingService cote Dart (2026-07-27).
+    private var targetRefMinFrames: List<Int?>? = null
     private var anchor = 0
     private var sequence = 0
     private var lastPayload: Map<String, Any>? = null
@@ -34,9 +37,11 @@ class CausalAlignmentSession(
         tokens: List<IntArray>,
         newAnchor: Int,
         variants: List<List<Pair<String, IntArray>>>? = null,
+        refMinFrames: List<Int?>? = null,
     ) {
         targetTokens = tokens
         targetVariants = variants
+        targetRefMinFrames = refMinFrames
         anchor = newAnchor.coerceIn(0, tokens.size)
         clearAudioState()
         log("cible causale : ${tokens.size} mots, ancre=$anchor")
@@ -46,6 +51,7 @@ class CausalAlignmentSession(
     fun extendTarget(
         newTokens: List<IntArray>,
         newVariants: List<List<Pair<String, IntArray>>>? = null,
+        newRefMinFrames: List<Int?>? = null,
     ) {
         val current = targetTokens
         targetTokens = if (current == null) newTokens else current + newTokens
@@ -53,6 +59,10 @@ class CausalAlignmentSession(
             val currentVariants =
                 targetVariants ?: List(current?.size ?: 0) { emptyList() }
             targetVariants = currentVariants + newVariants
+        }
+        if (newRefMinFrames != null) {
+            val currentRef = targetRefMinFrames ?: List(current?.size ?: 0) { null }
+            targetRefMinFrames = currentRef + newRefMinFrames
         }
         log("cible causale etendue : +${newTokens.size}, total=${targetTokens?.size}")
     }
@@ -88,6 +98,9 @@ class CausalAlignmentSession(
         val variantsSlice = targetVariants?.let {
             if (anchor < it.size) it.subList(anchor, minOf(it.size, end)) else null
         }
+        val refMinFramesSlice = targetRefMinFrames?.let {
+            if (anchor < it.size) it.subList(anchor, minOf(it.size, end)) else null
+        }
         val result = aligner.align(
             logprobs = logProbBuffer.toTypedArray(),
             wordTokens = slice,
@@ -95,6 +108,7 @@ class CausalAlignmentSession(
             isFinal = true,
             wordVariants = variantsSlice,
             segmentRules = emptyList(),
+            refMinFrames = refMinFramesSlice,
         ) ?: return lastPayload
 
         val coveredWords = result.words.takeWhile { it.covered }

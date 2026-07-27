@@ -216,6 +216,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     // liste vide pour un mot -> pas de rescoring sur ce mot (comportement
     // identique a avant ce champ).
     @Volatile private var alignVariants: List<List<Pair<String, IntArray>>>? = null
+    // Planchers de duree de reference (frames), PARALLELE a alignTokens (cf.
+    // ForcedAligner.combinedMinFrames, WordTimingService cote Dart). Null pour
+    // un mot -> aucune reference (verset hors couverture quran.com), le
+    // plancher CTC reste seul a s'appliquer pour ce mot.
+    @Volatile private var alignRefMinFrames: List<Int?>? = null
     @Volatile private var alignAnchor = 0
     @Volatile private var alignSeq = 0
     @Volatile private var lastAlign: Map<String, Any>? = null
@@ -238,9 +243,13 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         tokens: List<IntArray>,
         anchor: Int,
         variants: List<List<Pair<String, IntArray>>>? = null,
+        // Planchers de duree de reference (frames), paralleles a `tokens` --
+        // cf. ForcedAligner.combinedMinFrames (2026-07-27).
+        refMinFrames: List<Int?>? = null,
     ) {
         alignTokens = tokens
         alignVariants = variants
+        alignRefMinFrames = refMinFrames
         alignAnchor = anchor.coerceIn(0, tokens.size)
         lastAlign = null
         deferredOnceIndex = -1
@@ -263,12 +272,17 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     fun extendAlignmentTarget(
         newTokens: List<IntArray>,
         newVariants: List<List<Pair<String, IntArray>>>? = null,
+        newRefMinFrames: List<Int?>? = null,
     ) {
         val current = alignTokens
         alignTokens = if (current != null) current + newTokens else newTokens
         if (newVariants != null) {
             val currentV = alignVariants ?: List(current?.size ?: 0) { emptyList() }
             alignVariants = currentV + newVariants
+        }
+        if (newRefMinFrames != null) {
+            val currentR = alignRefMinFrames ?: List(current?.size ?: 0) { null }
+            alignRefMinFrames = currentR + newRefMinFrames
         }
         DiagnosticLog.log(TAG, "cible d'alignement etendue : +${newTokens.size} mots, " +
                 "total=${alignTokens?.size}, ancre inchangee=$alignAnchor")
@@ -309,8 +323,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             val variantsSlice = alignVariants?.let {
                 if (anchor < it.size) it.subList(anchor, minOf(it.size, end)) else null
             }
+            val refMinFramesSlice = alignRefMinFrames?.let {
+                if (anchor < it.size) it.subList(anchor, minOf(it.size, end)) else null
+            }
             val res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal, variantsSlice,
-                                    segmentRules) ?: return -1
+                                    segmentRules, refMinFramesSlice) ?: return -1
             val words = res.words.map {
                 mapOf(
                     "i" to it.index,
@@ -318,6 +335,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     "forced" to it.forced,
                     "covered" to it.covered,
                     "actual" to it.actual,
+                    // Mot etrangle (2026-07-27) : la DP lui a donne moins de
+                    // frames que le minimum requis par le CTC. Complete le
+                    // signal `free` cote Dart pour le garde-fou "pas de
+                    // jugement sans preuve exploitable" -- cf. WordResult.starved.
+                    "starved" to it.starved,
                 ) + (it.rescoreMargin?.let { m -> mapOf("rescoreMargin" to m) } ?: emptyMap()) +
                     (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap()) +
                     // Regles REELLEMENT detectees sur les frames de ce mot

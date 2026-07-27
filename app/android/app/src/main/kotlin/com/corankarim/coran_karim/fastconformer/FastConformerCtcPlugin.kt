@@ -332,8 +332,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     alignAnchor = anchor
                     val variants = if (rescoringEnabled) buildVariants(words) else null
                     alignVariants = variants
-                    buffered?.setAlignmentTarget(tokens, anchor, variants)
-                    causalAlignment?.setTarget(tokens, anchor, variants)
+                    // Planchers de duree de reference (frames), envoyes par Dart
+                    // (WordTimingService) en parallele de `words` -- null pour un
+                    // mot hors couverture quran.com. Cf. ForcedAligner.combinedMinFrames.
+                    val refMinFrames = call.argument<List<Int?>>("refMinFrames")
+                    buffered?.setAlignmentTarget(tokens, anchor, variants, refMinFrames)
+                    causalAlignment?.setTarget(tokens, anchor, variants, refMinFrames)
                     withContext(Dispatchers.Main) { result.success(true) }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { result.error("SET_ALIGN_TARGET_FAILED", e.message, null) }
@@ -373,8 +377,9 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         val currentV = alignVariants ?: List((alignTokens?.size ?: newTokens.size) - newTokens.size) { emptyList() }
                         alignVariants = currentV + newVariants
                     }
-                    buffered?.extendAlignmentTarget(newTokens, newVariants)
-                    causalAlignment?.extendTarget(newTokens, newVariants)
+                    val newRefMinFrames = call.argument<List<Int?>>("refMinFrames")
+                    buffered?.extendAlignmentTarget(newTokens, newVariants, newRefMinFrames)
+                    causalAlignment?.extendTarget(newTokens, newVariants, newRefMinFrames)
                     DiagnosticLog.log("FastConformerCtcPlugin",
                         "cible etendue : +${newTokens.size} mots, total=${alignTokens?.size}")
                     withContext(Dispatchers.Main) { result.success(true) }

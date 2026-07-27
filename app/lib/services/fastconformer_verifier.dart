@@ -56,6 +56,15 @@ class AlignedWord {
   /// `entendu="بِمَآ"` était indéchiffrable.
   final bool actualFromFree;
 
+  /// VRAI si la DP a attribué MOINS de frames à ce mot que le minimum
+  /// mathématique requis par le CTC (cf. ForcedAligner.WordResult.starved).
+  /// Signal COMPLÉMENTAIRE à un `free` peu confiant pour repérer un échec
+  /// d'alignement plutôt qu'une vraie faute -- ajouté 2026-07-27 après un mot
+  /// (`actual=""`, `free=-0,24`) qui échappait au garde-fou existant (seuil de
+  /// confiance non atteint) et déclenchait quand même une correction via la
+  /// série d'aperçus négatifs, sans jamais s'afficher rouge à l'écran.
+  final bool starved;
+
   const AlignedWord({
     required this.index,
     required this.gop,
@@ -66,6 +75,7 @@ class AlignedWord {
     this.rescoreHeard,
     this.detectedRules = const [],
     this.actualFromFree = false,
+    this.starved = false,
   });
 }
 
@@ -121,6 +131,7 @@ class AlignPayload {
           rescoreMargin: (w['rescoreMargin'] as num?)?.toDouble(),
           rescoreHeard: w['rescoreHeard'] as String?,
           actualFromFree: w['srcFree'] as bool? ?? false,
+          starved: w['starved'] as bool? ?? false,
           detectedRules: [
             for (final r in (w['rules'] as List? ?? const []))
               if (r is Map)
@@ -539,12 +550,17 @@ class FastConformerVerifier {
   /// que le corpus d'entraînement) et l'ancre de départ. Retourne true si
   /// l'alignement est actif (modèle chargé + tokenisation OK) — sinon le
   /// scoring Dart doit retomber sur le diff textuel historique.
-  Future<bool> setAlignmentTarget(List<String> strictWords, int anchor) async {
+  Future<bool> setAlignmentTarget(List<String> strictWords, int anchor,
+      {List<int?>? refMinFrames}) async {
     if (!_loaded && !_streamingLoaded) return false;
     try {
       final ok = await _channel.invokeMethod<bool>('setAlignmentTarget', {
         'words': strictWords,
         'anchor': anchor,
+        // Planchers de durée de référence (frames), parallèles à `words` --
+        // clé ABSENTE si aucune référence (le natif retombe alors sur le seul
+        // plancher CTC, comportement d'avant ce champ). Cf. WordTimingService.
+        if (refMinFrames != null) 'refMinFrames': refMinFrames,
       });
       return ok ?? false;
     } catch (e) {
@@ -640,11 +656,13 @@ class FastConformerVerifier {
   /// Étend la cible d'alignement avec des mots supplémentaires (formes
   /// STRICTES d'entraînement), à la SUITE de la cible actuelle — SANS toucher
   /// l'ancre. Enchaînement sur la sourate suivante sans interrompre la session.
-  Future<bool> extendAlignmentTarget(List<String> strictWords) async {
+  Future<bool> extendAlignmentTarget(List<String> strictWords,
+      {List<int?>? refMinFrames}) async {
     if (!_loaded && !_streamingLoaded) return false;
     try {
       final ok = await _channel.invokeMethod<bool>('extendAlignmentTarget', {
         'words': strictWords,
+        if (refMinFrames != null) 'refMinFrames': refMinFrames,
       });
       return ok ?? false;
     } catch (e) {
