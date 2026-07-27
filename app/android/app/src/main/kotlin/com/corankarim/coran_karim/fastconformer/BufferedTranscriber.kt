@@ -511,7 +511,18 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
      *  les jugements de cette passe sont definitifs et l'ancre native avance. */
     private fun runAlignment(logprobs: Array<FloatArray>, isFinal: Boolean, clipPath: String? = null,
                              segmentRules: List<DetectedRule> = emptyList(),
-                             segmentSamples: Int = 0): Int {
+                             segmentSamples: Int = 0,
+                             // Index ABSOLU (flux d'apres portier) de la frame 0
+                             // des `logprobs` recus ici. Ce n'est PAS `absStart` :
+                             // les logprobs sont tronques du contexte de
+                             // chevauchement avant l'alignement, donc leur frame 0
+                             // correspond a `absStart + contextStart`. Confondre
+                             // les deux decale la fenetre de secours de toute la
+                             // longueur du contexte -- 3 s, exactement ce qu'on
+                             // lui ajoute ensuite, donc une fenetre qui tombe
+                             // ENTIEREMENT avant le mot (mesure : 9 secours sur 9
+                             // a -20,00 avec entendu vide).
+                             absOrigin: Long = 0L): Int {
         val tokens = alignTokens ?: return -1
         val anchor = alignAnchor
         if (anchor >= tokens.size) return -1
@@ -619,8 +630,8 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         val f0 = if (w.firstFrame >= 0) w.firstFrame else prevLast + 1
                         val f1 = if (w.lastFrame >= 0) w.lastFrame
                                  else f0 + (SAMPLE_RATE * 2 / spfRescue)
-                        val absFrom = absStart + f0.toLong() * spfRescue
-                        val absTo = absStart + (f1 + 1).toLong() * spfRescue
+                        val absFrom = absOrigin + f0.toLong() * spfRescue
+                        val absTo = absOrigin + (f1 + 1).toLong() * spfRescue
                         val rj = rescueWord(w.index, tokens[w.index], absFrom, absTo)
                         if (rj != null && rj.gop > w.gop) {
                             patched[w.index] = rj
@@ -1365,7 +1376,8 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         val lastRel = runAlignment(alignLp, isFinal = true,
                                                      clipPath = clipPath,
                                                      segmentRules = segmentRules,
-                                                     segmentSamples = snapshot.size - contextStart)
+                                                     segmentSamples = snapshot.size - contextStart,
+                                                     absOrigin = absStart + contextStart)
                         val lastFrame = if (lastRel >= 0) lastRel + ctxFrames else lastRel
                         val consumed = if (lastFrame >= 0 && samplesPerFrame > 0) {
                             minOf(snapshot.size, (lastFrame + 1) * samplesPerFrame)
