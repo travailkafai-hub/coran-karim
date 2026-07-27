@@ -777,7 +777,20 @@ class ForcedAligner(
                             (if (fits) "LA DP A ECHOUE (le mot pouvait tenir)"
                              else "SAUTE (pas la place)") +
                             " | final=$isFinal")
-                    if (anchor + wi == forceJudgeIndex || neverBlock) {
+                    // `neverBlock` N'INTERVIENT PLUS ICI (2026-07-27, apres
+                    // mesure). Il court-circuitait la seconde chance : le mot
+                    // etait abandonne des le PREMIER echec de la DP, alors que
+                    // ce second essai reussissait souvent. Mesure : 42
+                    // « AVANCE SANS JUGER » sur une session, contre 5 avant --
+                    // et une cascade ou l'ancre rampe mot par mot
+                    // (ancre=0 frontiere=0 mots=1, puis 1, puis 2...).
+                    //
+                    // L'exigence « l'ancre ne doit pas s'arreter » etait DEJA
+                    // satisfaite par le chemin `noEvidence` : apres la seconde
+                    // chance, l'ancre avance sans juger. Le drapeau restait donc
+                    // redondant, et sa seule action nette etait de supprimer le
+                    // rattrapage.
+                    if (anchor + wi == forceJudgeIndex) {
                         // Ce mot n'a AUCUNE frame : son propre `lastFrame` reste
                         // -1, mais l'audio consomme s'arrete a la fin du mot
                         // PRECEDENT -- sinon `lastUsedFrame` restait a -1 et le

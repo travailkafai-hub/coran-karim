@@ -380,10 +380,28 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         if (tokens.isEmpty()) return null
         val ctx = (SAMPLE_RATE * RESCUE_CONTEXT_SECONDS).toInt()
         val pad = (SAMPLE_RATE * RESCUE_TAIL_SECONDS).toInt()
+        // BORNE A L'AUDIO REELLEMENT DISPONIBLE (2026-07-27, mesure device).
+        // Les mots qui declenchent le secours sont, par definition, les
+        // DERNIERS de leur segment : demander une marge droite au-dela de ce
+        // qui a ete capte faisait echouer `extract` A CHAQUE FOIS, et en
+        // silence -- zero ligne SECOURS sur une session entiere, sans le
+        // moindre message d'erreur pour le signaler.
+        val dispo = rescue.totalSamples()
         val from = maxOf(0L, absFrom - ctx)
-        val to = absTo + pad
-        val audio = rescue.extract(from, to) ?: return null
-        if (audio.size < SAMPLE_RATE / 2) return null
+        val to = minOf(dispo, absTo + pad)
+        val audio = rescue.extract(from, to)
+        if (audio == null) {
+            DiagnosticLog.log(TAG,
+                "secours mot=$wordIndex IMPOSSIBLE : fenetre [$from,$to) hors " +
+                    "anneau (dispo=$dispo)")
+            return null
+        }
+        if (audio.size < SAMPLE_RATE / 2) {
+            DiagnosticLog.log(TAG,
+                "secours mot=$wordIndex IGNORE : ${audio.size * 1000 / SAMPLE_RATE}ms " +
+                    "d'audio, trop court pour juger")
+            return null
+        }
         return try {
             val outputs = engine.computeAll(audio)
             val lp = outputs.letters
