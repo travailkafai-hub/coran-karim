@@ -130,7 +130,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // commence en plein mot est illisible, alors qu'une fin tronquee gene
         // beaucoup moins. D'ou une marge asymetrique.
         private const val RESCUE_CONTEXT_SECONDS = 3f
-        private const val RESCUE_TAIL_SECONDS = 1f
+        // 2 s et non 1 (2026-07-27) : pour un mot TRONQUE, `lastFrame` marque la
+        // fin du SEGMENT, pas la fin du mot -- le reste est au-dela de la coupe.
+        // La marge droite doit donc depasser la coupe pour que la fenetre
+        // contienne le mot ENTIER, sinon le secours ressort le meme fragment.
+        private const val RESCUE_TAIL_SECONDS = 2f
         private val OVERLAP_SAMPLES = (SAMPLE_RATE * OVERLAP_SECONDS).toInt()
 
         // ── COUPE SUR MICRO-SILENCE (2026-07-25, idee utilisateur) ──────────
@@ -276,6 +280,15 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     @Volatile private var alignAnchor = 0
     @Volatile private var alignSeq = 0
     @Volatile private var lastAlign: Map<String, Any>? = null
+    /** WordResult BRUTS du dernier alignement, et l'origine absolue de ses
+     *  frames. Conserves parce que le gel a la BORNE DURE promeut l'apercu sans
+     *  rappeler runAlignment : sans eux, ce chemin -- celui de la recitation
+     *  CONTINUE, donc celui ou tombent les problemes -- n'avait aucun moyen de
+     *  declencher le secours. Mesure : les mots 63 et 73 d'une session, tous
+     *  deux signales, tous deux juges par ce chemin, tous deux jamais secourus. */
+    @Volatile private var lastAlignWords: List<ForcedAligner.WordResult>? = null
+    @Volatile private var lastAlignOrigin = 0L
+    @Volatile private var lastAlignSpf = 0
     // Garde-fou "2 chances max" (2026-07-14, cf. ForcedAligner.MIN_FRAMES_FOR_JUDGMENT) :
     // index du mot differe par le dernier appel FINAL (segment trop court
     // apres lui pour juger equitablement), ou -1 si aucun. Repasse en
@@ -604,6 +617,21 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // deja vert ne peut donc pas devenir rouge -- sans cette regle on
             // rouvrirait la porte au « meilleur des deux verdicts », qui gonfle
             // la tolerance en silence.
+            // ── DECLENCHEUR CORRIGE (2026-07-27, apres mesure) ───────────────
+            // L'ancien (`frames==0 || starved || actual vide`) etait faux dans
+            // LES DEUX SENS, mesure sur une session de 124 mots :
+            //  - il a tire sur 6 mots ayant deja gop=0,00 et le bon texte,
+            //    parce que `starved` detecte « peu de frames », pas « mal
+            //    juge » ;
+            //  - il n'a PAS tire sur les 3 mots signales : `عَظِيمٌ`->`مٌ` et
+            //    `بِمُؤْمِنِينَ`->`بِمُ` ont un `entendu` non vide, des frames,
+            //    et ne sont pas `starved`. Le cas DOMINANT -- le mot tronque --
+            //    n'etait pas couvert.
+            // Le bon signal existait deja dans l'aligneur : `covered` est faux
+            // exactement quand l'audio n'a pas couvert le mot en entier.
+            // `starved` est retire.
+            fun besoinDeSecours(w: ForcedAligner.WordResult): Boolean =
+                w.frames == 0 || w.actual.isEmpty() || !w.covered
             val spfRescue = if (logprobs.isNotEmpty()) segmentSamples / logprobs.size else 0
             val patched = HashMap<Int, ForcedAligner.WordResult>()
             // TRACE DU DECLENCHEUR (2026-07-27) : le secours est reste
@@ -612,18 +640,25 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // qu'absent : on ne pouvait meme pas savoir OU il s'arretait. Cette
             // ligne expose ses conditions d'entree, une fois par passe finale.
             if (isFinal) {
-                val besoins = res.words.count {
-                    it.frames == 0 || it.starved || it.actual.isEmpty()
-                }
+                val besoins = res.words.count { besoinDeSecours(it) }
                 DiagnosticLog.log(TAG,
                     "secours? isFinal=$isFinal spf=$spfRescue " +
                         "segmentSamples=$segmentSamples frames=${logprobs.size} " +
                         "mots=${res.words.size} besoins=$besoins")
             }
-            if (isFinal && spfRescue > 0) {
+            // APERCUS INCLUS (idee utilisateur : « n'attends pas le jugement
+            // final, comme ca on regarde l'amelioration ») -- MAIS en excluant
+            // le mot de FRONTIERE : sur un apercu il est tronque par
+            // construction, l'audio n'est simplement pas encore arrive, et il se
+            // completera tout seul a la passe suivante. Le secourir la serait du
+            // travail pur perdu, repete toutes les ~1,5 s.
+            // En revanche, un mot que la DP ne place pas alors que l'audio l'a
+            // DEPASSE ne se reparera jamais seul : celui-la merite le secours
+            // des l'apercu.
+            if (spfRescue > 0) {
                 var prevLast = -1
                 for (w in res.words) {
-                    val besoin = w.frames == 0 || w.starved || w.actual.isEmpty()
+                    val besoin = besoinDeSecours(w) && (isFinal || w.covered)
                     if (besoin) {
                         // Fenetre absolue du mot. S'il n'a AUCUNE frame, on part
                         // de la fin du mot precedent : c'est forcement apres.
@@ -685,6 +720,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     (if (it.actualFromFree) mapOf("srcFree" to true) else emptyMap())
             }
             alignSeq++
+            lastAlignWords = res.words
+            lastAlignOrigin = absOrigin
+            lastAlignSpf = spfRescue
             lastAlign = mapOf(
                 "seq" to alignSeq,
                 "anchor" to anchor,
@@ -1165,9 +1203,60 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 val la = lastAlign
                 if (la != null && la["final"] == false) {
                     alignSeq++
+                    // ── SECOURS SUR LE CHEMIN DE LA BORNE DURE (2026-07-27) ──
+                    // Ce chemin promeut l'apercu SANS rappeler runAlignment : le
+                    // secours n'y existait donc pas. Or c'est celui de la
+                    // recitation CONTINUE. Mesure : sur une session, les mots 63
+                    // (`وَمِنَ`, entendu vide) et 73 (`بِمُؤْمِنِينَ` -> `بِمُ`)
+                    // ont tous deux ete signales apres un gel a la borne dure,
+                    // et le secours n'a jamais tourne dessus.
+                    // On rejoue donc ici la meme boucle, a partir des WordResult
+                    // conserves par le dernier alignement.
+                    val lw = lastAlignWords
+                    val patchF = HashMap<Int, ForcedAligner.WordResult>()
+                    if (lw != null && lastAlignSpf > 0) {
+                        var prevL = -1
+                        val toks = alignTokens
+                        for (w in lw) {
+                            val tk = toks?.getOrNull(w.index)
+                            if (tk != null &&
+                                (w.frames == 0 || w.actual.isEmpty() || !w.covered)) {
+                                val f0 = if (w.firstFrame >= 0) w.firstFrame else prevL + 1
+                                val f1 = if (w.lastFrame >= 0) w.lastFrame
+                                         else f0 + (SAMPLE_RATE * 2 / lastAlignSpf)
+                                val rj = rescueWord(
+                                    w.index, tk,
+                                    lastAlignOrigin + f0.toLong() * lastAlignSpf,
+                                    lastAlignOrigin + (f1 + 1).toLong() * lastAlignSpf)
+                                if (rj != null && rj.gop > w.gop) {
+                                    patchF[w.index] = rj
+                                    DiagnosticLog.log(TAG,
+                                        "SECOURS (borne dure) mot=${w.index} : gop " +
+                                            "${"%.2f".format(w.gop)} -> ${"%.2f".format(rj.gop)}, " +
+                                            "entendu \"${w.actual}\" -> \"${rj.actual}\"")
+                                }
+                            }
+                            if (w.lastFrame >= 0) prevL = w.lastFrame
+                        }
+                    }
                     lastAlign = HashMap(la).apply {
                         put("final", true)
                         put("seq", alignSeq)
+                        if (patchF.isNotEmpty()) {
+                            @Suppress("UNCHECKED_CAST")
+                            val ws = (la["words"] as? List<Map<String, Any>>)
+                            if (ws != null) {
+                                put("words", ws.map { m ->
+                                    val idx = m["i"] as? Int
+                                    val r = if (idx != null) patchF[idx] else null
+                                    if (r == null) m else HashMap(m).apply {
+                                        put("gop", r.gop); put("forced", r.forced)
+                                        put("actual", r.actual); put("starved", r.starved)
+                                        put("frames", r.frames)
+                                    }
+                                })
+                            }
+                        }
                         // Sans cette ligne le clip serait ecrit mais INVISIBLE
                         // cote Dart : ReferenceTimingExtractor construit sa
                         // liste de segments depuis `p.clipPath`, il aurait donc
