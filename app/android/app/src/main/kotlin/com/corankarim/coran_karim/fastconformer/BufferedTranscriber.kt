@@ -571,6 +571,20 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // la tolerance en silence.
             val spfRescue = if (logprobs.isNotEmpty()) segmentSamples / logprobs.size else 0
             val patched = HashMap<Int, ForcedAligner.WordResult>()
+            // TRACE DU DECLENCHEUR (2026-07-27) : le secours est reste
+            // ENTIEREMENT muet sur deux sessions -- ni verdict, ni echec, ni
+            // impossibilite. Un mecanisme inerte ET indetectable est pire
+            // qu'absent : on ne pouvait meme pas savoir OU il s'arretait. Cette
+            // ligne expose ses conditions d'entree, une fois par passe finale.
+            if (isFinal) {
+                val besoins = res.words.count {
+                    it.frames == 0 || it.starved || it.actual.isEmpty()
+                }
+                DiagnosticLog.log(TAG,
+                    "secours? isFinal=$isFinal spf=$spfRescue " +
+                        "segmentSamples=$segmentSamples frames=${logprobs.size} " +
+                        "mots=${res.words.size} besoins=$besoins")
+            }
             if (isFinal && spfRescue > 0) {
                 var prevLast = -1
                 for (w in res.words) {

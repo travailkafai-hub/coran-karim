@@ -175,6 +175,36 @@ Un `forced` proche de 0 avec un `entendu` tronqué signifie que **le modèle est
 certain** de ce qu'il a reçu : ce n'est pas une faute de prononciation, c'est un
 mot coupé. Ne jamais présenter ces cas comme des erreurs du récitant.
 
+## Règle n°2 — pas d'hypothèse tant qu'une ligne de log peut trancher
+
+Quand le log ne répond pas à la question, **la réponse n'est pas une hypothèse :
+c'est une ligne de log de plus**. Consigne explicite de l'utilisateur, donnée
+après avoir vu la scène se répéter.
+
+Ce qui l'a motivée : un mécanisme de secours est resté **entièrement muet** sur
+deux sessions — ni verdict, ni échec, ni message d'impossibilité. À chaque fois
+j'ai propose une cause plausible (fenêtre hors anneau, arithmétique des index,
+exception avalée, condition d'entrée) au lieu d'instrumenter le déclencheur.
+Trois hypothèses, trois fois faux, deux sessions perdues. Une seule ligne
+exposant les conditions d'entrée aurait tranché du premier coup.
+
+**La méthode :**
+
+1. Formuler la question en variables observables — pas « pourquoi ça ne marche
+   pas » mais « laquelle de ces quatre conditions est fausse ».
+2. Émettre **une** ligne qui les expose toutes d'un coup :
+   `secours? isFinal=… spf=… segmentSamples=… frames=… mots=… besoins=…`
+3. Une passe de test suffit alors à éliminer trois maillons sur quatre.
+
+**Corollaire, appris à ses dépens : un mécanisme qui échoue en silence est pire
+qu'absent.** Il donne l'illusion d'être en place. Tout chemin qui peut
+abandonner (fenêtre indisponible, audio trop court, exception) doit journaliser
+sa raison — sinon son absence de trace est indiscernable de son inaction.
+
+Cette règle vaut aussi pour l'analyse : quand une cause manque au tableau des
+non jugés, ne pas la ranger dans « divers ». Nommer le trou, et ajouter la trace
+qui le comblera au prochain test.
+
 ## Rationalisations à refuser
 
 | ce qu'on se dit | la réalité |
@@ -185,3 +215,5 @@ mot coupé. Ne jamais présenter ces cas comme des erreurs du récitant.
 | « ce mot est absent des clips, donc perdu » | vérifier le flux brut d'abord : 35 % de l'audio n'était pas enregistré à cause d'un chemin de gel oublié |
 | « ces confusions de lettres sont de vraies fautes » | trois d'entre elles ont disparu une fois le contexte rétabli : c'étaient des troncatures |
 | « je donne le taux d'erreurs » | donner le taux de mots **non verts**, qui inclut les non jugés |
+| « la cause est probablement X » | si une ligne de log peut trancher, l'ajouter et refaire une passe. Trois hypotheses fausses ont coûté deux sessions le 2026-07-27 |
+| « le mecanisme est en place, il ne doit pas se declencher souvent » | zero trace = indiscernable de zero execution. Instrumenter le declencheur, pas seulement le resultat |
