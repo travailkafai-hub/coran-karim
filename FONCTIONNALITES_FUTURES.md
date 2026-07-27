@@ -889,3 +889,65 @@ Piste **validée sur le principe**, non implémentée. À reprendre quand
 l'enregistrement de référence existera dans l'app. L'asset quran.com reste en
 place en attendant : il ne nuit pas (il ne sert qu'à excuser, jamais à
 condamner) et il couvre correctement les sourates courtes.
+
+---
+
+## 11. Buffer mémoire décalé « de secours » — idée utilisateur, 2026-07-27 (NON écartée)
+
+### Ce qui a été mesuré, et ce que la mesure ne dit PAS
+
+`bench_double_decoupage.py`, sur le flux brut d'une récitation continue
+(181,8 s, sourate 2) :
+
+| politique | mots en frontière | inférences |
+|---|---|---|
+| actuelle | 4 / 119 | 15 |
+| double découpage décalé | 3 / 119 | **30** |
+| chevauchant (retenu, commit cd5c0f0) | **1 / 133** | 15 |
+
+⚠️ **Ce banc a comparé une politique de REMPLACEMENT** : deux découpes qui
+tournent *toujours*, d'où les 30 inférences. **Ce n'est pas la proposition de
+l'utilisateur.** Lui décrit un **second buffer décalé de ~6 s, consulté
+UNIQUEMENT en cas de problème** (mot en frontière, zéro-frame, mot étranglé sur
+une passe finale). Le coût réel serait donc proche de 1× plus quelques
+inférences ponctuelles — pas 2×. La mesure ci-dessus ne s'applique pas à ce
+design et **ne l'invalide pas**.
+
+### L'argument de sûreté, validé par un bug réel le jour même
+
+Le chevauchement retenu modifie la **purge du buffer principal**. Une erreur
+dans ce calcul contamine donc le chemin critique — et c'est arrivé
+immédiatement (commit e12cf33) : `consumed` portant sur tout le snapshot,
+contexte compris, la purge pouvait valoir 0 et le buffer regelait son propre
+contexte en boucle (quatre gels de 3000 ms en une seconde, mesurés sur device).
+
+L'utilisateur avait anticipé ce risque avant l'implémentation (« rejouer sur le
+buffer peut causer des problèmes, c'est pour ça que je parle d'un buffer
+mémoire décalé qui ne sert qu'en cas de secours »).
+
+⇒ **Propriété structurelle du buffer de secours** : en lecture seule, jamais
+consulté par le chemin principal, il ne peut produire NI boucle de re-gel, NI
+duplication de texte, NI décalage d'ancre. Ces classes de bugs deviennent
+impossibles au lieu d'être évitées par vigilance. C'est un argument
+d'architecture, pas de préférence.
+
+### Ce qu'il resterait à mesurer avant de l'implémenter
+
+1. **Le taux de déclenchement.** Le second buffer n'est infériré que sur
+   problème : il faut donc mesurer combien de fois ça arrive *sur des passes
+   finales* (les seules qui verrouillent). Repère : session du 15:17, 175
+   `ZERO FRAME` au total mais seulement **4** sur passes finales. Si le
+   déclencheur reste aussi étroit, le surcoût est négligeable.
+2. **Le gain réel sur les mots concernés**, à mesurer sur les mêmes clips que
+   le chevauchant, pour comparer à armes égales (1/133 mots en frontière).
+3. **La règle d'arbitrage.** Ne consulter le second buffer QUE pour les mots
+   d'extrémité — jamais pour tous. Prendre « le meilleur des deux » partout
+   reviendrait à choisir systématiquement le verdict le plus indulgent, donc à
+   gonfler la tolérance en silence (cf. règle projet « pas de correctif
+   palliatif »).
+
+### Décision
+
+Piste **vivante**, à tester après le chevauchant, avec la même méthode : mesure
+hors device sur les WAV existants avant toute ligne de Kotlin. Ne pas la
+présenter comme écartée par le banc — ce banc a mesuré autre chose.
