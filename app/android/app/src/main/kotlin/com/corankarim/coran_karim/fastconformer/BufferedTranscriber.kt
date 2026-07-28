@@ -808,8 +808,23 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // Le bon signal existait deja dans l'aligneur : `covered` est faux
             // exactement quand l'audio n'a pas couvert le mot en entier.
             // `starved` est retire.
+            // ── DECLENCHEUR ELARGI AUX TRONCATURES (2026-07-28) ──────────
+            // L'ancien critere ratait le cas le plus frequent qui reste :
+            // `أَلِيمٌۢ` entendu `ۢ`, `يُخَـٰدِعُونَ` entendu `دِ`. Ces mots ont
+            // des frames, un `actual` non vide et sont `covered` -- donc hors
+            // critere -- alors que leur `normGop` est POSITIF (+0,10, +0,34) :
+            // l'alignement est bon, seul le texte decode est un fragment, et
+            // c'est ce fragment qui les fait classer « autre mot » puis plafonner
+            // a orange. Le secours repare exactement ca ailleurs dans la meme
+            // session (`شَيَـٰ` -> `شَيَـٰطِينِهِمْ`).
+            //
+            // Ce n'est devenu SUR qu'une fois le secours aligne avec ses
+            // voisins : tant qu'il alignait un mot seul, elargir le declencheur
+            // aurait multiplie les faux positifs (7 sur 33 mesures).
             fun besoinDeSecours(w: ForcedAligner.WordResult): Boolean =
-                w.frames == 0 || w.actual.isEmpty() || !w.covered
+                w.frames == 0 || w.actual.isEmpty() || !w.covered ||
+                    (w.expectedText.isNotEmpty() &&
+                        w.actual.length * 3 < w.expectedText.length)
             val spfRescue = if (logprobs.isNotEmpty()) segmentSamples / logprobs.size else 0
             // Dater AVANT de secourir : les voisins surs de cette passe doivent
             // deja etre au registre quand on calcule la fenetre. Un mot qui a
