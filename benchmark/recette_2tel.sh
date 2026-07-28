@@ -29,6 +29,9 @@ SOURATE="${1:-2}"                     # varier les passages : ajuster sur un seu
 WAV="${WAV:-}"
 DUREE="${2:-75}"
 PKG=com.corankarim.coran_karim
+# Les telephones sont branches sur le PC B : toutes les commandes passent par le
+# pilote distant. Mettre ADB=adb pour revenir a des appareils locaux.
+ADB="${ADB:-$(cd "$(dirname "$0")" && pwd)/adb_pcb.sh}"
 LOG=/sdcard/Android/data/$PKG/files/recitation_diagnostic.log
 RACINE="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$RACINE/benchmark/recettes/$(date +%Y%m%d-%H%M%S)-s$SOURATE"
@@ -36,17 +39,17 @@ OUT="$RACINE/benchmark/recettes/$(date +%Y%m%d-%H%M%S)-s$SOURATE"
 mort() { echo "ARRET : $*" >&2; exit 1; }
 
 for d in "$SAMSUNG" "$XIAOMI"; do
-  adb devices | grep -q "^$d[[:space:]]*device$" || mort "appareil $d absent (adb devices)"
+  "$ADB" devices | grep -q "^$d[[:space:]]*device$" || mort "appareil $d absent (adb devices)"
 done
 mkdir -p "$OUT"
 
 # Repère de départ : le log est cumulatif, on note sa taille pour n'extraire
 # QUE cette session à la fin (sinon on analyse la précédente sans le voir).
-AVANT=$(adb -s "$SAMSUNG" shell "wc -l < $LOG" 2>/dev/null | tr -d '\r ' || echo 0)
+AVANT=$("$ADB" -s "$SAMSUNG" shell "wc -l < $LOG" 2>/dev/null | tr -d '\r ' || echo 0)
 echo "sourate=$SOURATE duree=${DUREE}s  log a $AVANT lignes"
 
-adb -s "$SAMSUNG" shell am force-stop $PKG >/dev/null 2>&1
-adb -s "$XIAOMI"  shell am force-stop $PKG >/dev/null 2>&1
+"$ADB" -s "$SAMSUNG" shell am force-stop $PKG >/dev/null 2>&1
+"$ADB" -s "$XIAOMI"  shell am force-stop $PKG >/dev/null 2>&1
 sleep 2
 
 # L'APK est DEBOGABLE a dessein : `run-as` -- donc la recuperation des WAV de
@@ -63,15 +66,15 @@ EXTRA_WAV=""
 if [ -n "$WAV" ]; then
   [ -f "$WAV" ] || mort "WAV introuvable : $WAV"
   DIST=/sdcard/recette_source.wav
-  adb -s "$SAMSUNG" push "$WAV" "$DIST" >/dev/null || mort "push du WAV impossible"
+  "$ADB" -s "$SAMSUNG" push "$WAV" "$DIST" >/dev/null || mort "push du WAV impossible"
   EXTRA_WAV="--es wav $DIST"
   echo "source deterministe : $(basename "$WAV")"
 fi
-adb -s "$SAMSUNG" shell am start -n $PKG/.MainActivity \
+"$ADB" -s "$SAMSUNG" shell am start -n $PKG/.MainActivity \
     --es recette ecoute --ei sourate "$SOURATE" $EXTRA_WAV >/dev/null
 # Aucun tap ici : l'intent `ecoute` fait atterrir DANS la recitation deja
 # demarree (cf. KaraokeRecitationScreen.autoDemarrer).
-CENTRE=$(adb -s "$SAMSUNG" shell wm size | tr -d '\r' | sed 's/.*: //' | awk -Fx '{print int($1/2), int($2/2)}')
+CENTRE=$("$ADB" -s "$SAMSUNG" shell wm size | tr -d '\r' | sed 's/.*: //' | awk -Fx '{print int($1/2), int($2/2)}')
 
 # ATTENTE ACTIVE, pas un sleep fixe (demande utilisateur 2026-07-28 : « il ne
 # faut pas lancer l'audio tant que tu n'es pas dans la page de recitation »).
@@ -84,7 +87,7 @@ echo -n "attente de l'ouverture du micro"
 PRET=0
 for _ in $(seq 1 40); do
   sleep 1; echo -n "."
-  if adb -s "$SAMSUNG" shell "tail -n 60 $LOG" 2>/dev/null | grep -q "capture ouverte"; then
+  if "$ADB" -s "$SAMSUNG" shell "tail -n 60 $LOG" 2>/dev/null | grep -q "capture ouverte"; then
     PRET=1; break
   fi
 done
@@ -92,7 +95,7 @@ echo
 [ "$PRET" = 1 ] || mort "le micro ne s'est jamais ouvert cote juge -- rien a mesurer"
 sleep 2
 if [ -z "$WAV" ]; then
-  adb -s "$XIAOMI" shell am start -n $PKG/.MainActivity \
+  "$ADB" -s "$XIAOMI" shell am start -n $PKG/.MainActivity \
       --es recette lecture --ei sourate "$SOURATE" >/dev/null
 fi
 
@@ -103,18 +106,26 @@ sleep "$DUREE"
 # accumulee en memoire dans le fichier de log (cf. _flushTraces, appele par
 # stop()/stopContinuous). Sans lui la trace est perdue a la fermeture, et on
 # ne peut plus savoir ce qui a tenu la chaine pendant les trous.
-adb -s "$SAMSUNG" shell input tap $CENTRE >/dev/null 2>&1
+"$ADB" -s "$SAMSUNG" shell input tap $CENTRE >/dev/null 2>&1
 sleep 8
-adb -s "$XIAOMI" shell am force-stop $PKG >/dev/null 2>&1
+"$ADB" -s "$XIAOMI" shell am force-stop $PKG >/dev/null 2>&1
 sleep 2
 
-adb -s "$SAMSUNG" shell "cat $LOG" > "$OUT/full.log" 2>/dev/null
+"$ADB" -s "$SAMSUNG" shell "cat $LOG" > "$OUT/full.log" 2>/dev/null
 tail -n +"$((AVANT + 1))" "$OUT/full.log" > "$OUT/session.log"
 
-SESS=$(adb -s "$SAMSUNG" shell "run-as $PKG ls -t app_flutter/recitation_captures/" 2>/dev/null | tr -d '\r' | head -1)
+# Rapatriement des WAV : PAS de tar par la sortie standard -- elle transite par
+# SSH depuis un Windows, qui traduit les fins de ligne et corrompt le binaire
+# SANS RIEN DIRE. Un WAV corrompu ne se voit qu'a l'analyse, trop tard. On copie
+# donc d'abord hors du bac a sable, on `pull` sur le disque du PC B, puis on
+# rapatrie par scp, qui lui est binaire.
+SESS=$("$ADB" -s "$SAMSUNG" shell "run-as $PKG ls -t app_flutter/recitation_captures/" 2>/dev/null | head -1)
 if [ -n "$SESS" ]; then
-  adb -s "$SAMSUNG" shell "run-as $PKG tar cf - -C app_flutter/recitation_captures/$SESS ." > "$OUT/wav.tar" 2>/dev/null
-  mkdir -p "$OUT/wav" && tar xf "$OUT/wav.tar" -C "$OUT/wav" 2>/dev/null && rm -f "$OUT/wav.tar"
+  "$ADB" -s "$SAMSUNG" shell "run-as $PKG sh -c 'cp -r app_flutter/recitation_captures/$SESS /sdcard/recette_wav'" >/dev/null 2>&1
+  "$ADB" RECUP "$SAMSUNG" /sdcard/recette_wav "$OUT/wav" >/dev/null 2>&1
+  "$ADB" -s "$SAMSUNG" shell "rm -rf /sdcard/recette_wav" >/dev/null 2>&1
+  # `pull` d'un dossier cree un niveau supplementaire : on l'aplatit.
+  if [ -d "$OUT/wav/recette_wav" ]; then mv "$OUT/wav/recette_wav"/* "$OUT/wav/" 2>/dev/null; rmdir "$OUT/wav/recette_wav" 2>/dev/null; fi
 fi
 
 {
