@@ -756,6 +756,27 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
 
         // Meilleur decalage : on essaie chaque position candidate et on compte
         // combien de mots attendus s'y retrouvent DANS L'ORDRE.
+        // ── APPARIER LE TEXTE, PAS LES IDENTIFIANTS DE TOKENS (2026-07-28) ──
+        // L'appariement se faisait sur la suite de TOKENS : il exigeait que les
+        // identifiants du mot attendu apparaissent tels quels dans le decodage
+        // libre. Or le decoupage BPE du libre n'est presque jamais celui de la
+        // cible -- un mot code [a,b,c] peut sortir [ab,c] ou [a,bc], et aucun
+        // appariement n'a lieu.
+        //
+        // Consequence mesuree sur Maryam : les mots 46-57 echouent d'un bloc
+        // avec free = -0,06, c'est-a-dire un modele CERTAIN de ce qu'il entend.
+        // La derive est bien detectee, et pourtant ZERO resync : on comparait
+        // au mauvais niveau. Le TEXTE, lui, correspond parfaitement.
+        //
+        // On compare donc des chaines, harakat retirees -- le squelette
+        // consonantique suffit a situer, et il ne depend d'aucun decoupage.
+        fun texte(ids: List<Int>): String {
+            val sb = StringBuilder()
+            for (i in ids) if (i < engine.vocabPieces.size) sb.append(engine.vocabPieces[i])
+            return sb.toString().replace("▁", "")
+                .filter { it.code !in 0x064B..0x0652 && it.code != 0x0640 }
+        }
+        val entendu = texte(heard)
         var bestOff = -1
         var bestHits = 0
         val limit = minOf(tokens.size, anchor + MAX_RESYNC_LOOKAHEAD)
@@ -763,15 +784,28 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             var hits = 0
             var pos = 0
             for (w in off until minOf(tokens.size, off + RESYNC_WINDOW_WORDS)) {
-                val toks = tokens[w]
-                if (toks.isEmpty()) continue
-                val at = indexOfSub(heard, toks, pos)
-                if (at < 0) break            // rupture de suite : on s'arrete la
+                val attendu = texte(tokens[w].toList())
+                if (attendu.length < 2) continue   // trop court pour situer
+                val at = entendu.indexOf(attendu, pos)
+                if (at < 0) break                  // rupture de suite
                 hits++
-                pos = at + toks.size
+                pos = at + attendu.length
             }
             if (hits > bestHits) { bestHits = hits; bestOff = off }
         }
+        // TRACE OBLIGATOIRE, meme a zero appariement (2026-07-28). Deux versions
+        // du resync ont echoue en silence -- d'abord sur les identifiants de
+        // tokens, puis sur le texte -- et dans les deux cas le log ne disait
+        // RIEN : ni pourquoi, ni ce qui etait compare. On ecrit donc les deux
+        // cotes, tronques : c'est la seule ligne capable de trancher entre
+        // « le modele entend autre chose » et « ma normalisation ne correspond
+        // pas ». Sans elle, on en est reduit a supposer, ce que le projet
+        // interdit.
+        DiagnosticLog.log(TAG,
+            "resync : $bestHits mots apparies (seuil $MIN_RESYNC_HITS, ancre $anchor, " +
+                "offset $bestOff) | entendu=\"${entendu.take(60)}\" | " +
+                "attendu@ancre=\"${(anchor until minOf(tokens.size, anchor + 4))
+                    .joinToString("") { texte(tokens[it].toList()) }.take(60)}\"")
         // Exiger un appariement FRANC, et strictement en avant de l'ancre.
         return if (bestHits >= MIN_RESYNC_HITS && bestOff > anchor) bestOff else -1
     }
