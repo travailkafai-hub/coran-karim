@@ -22,6 +22,24 @@ ADB='C:\Users\kafai\platform-tools\adb.exe'
 SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=15
           -o LogLevel=ERROR)
 
+# RECUPWAV <serial> <session> <local> : sort les captures du bac a sable.
+#
+# `run-as ... cp vers /sdcard` echoue SANS MESSAGE (l'utilisateur applicatif n'a
+# pas le droit d'y ecrire), et faire transiter le tar par la sortie standard de
+# SSH le corrompt. On redirige donc l'archive vers un FICHIER sur le disque du
+# PC B -- la redirection est executee par cmd.exe, le binaire ne traverse jamais
+# SSH -- puis on rapatrie par scp.
+if [ "${1:-}" = "RECUPWAV" ]; then
+  serial="$2"; sess="$3"; local="$4"
+  dist='C:\Temp\wav_capture.tar'
+  ssh "${SSH_OPTS[@]}" "$PCB" "$ADB -s $serial exec-out run-as com.corankarim.coran_karim tar cf - -C app_flutter/recitation_captures/$sess . > \"$dist\"" >/dev/null 2>&1
+  mkdir -p "$local"
+  scp "${SSH_OPTS[@]}" -q "$PCB:C:/Temp/wav_capture.tar" "$local/w.tar" 2>/dev/null
+  [ -s "$local/w.tar" ] && tar xf "$local/w.tar" -C "$local" 2>/dev/null && rm -f "$local/w.tar"
+  ssh "${SSH_OPTS[@]}" "$PCB" "del /q \"$dist\"" >/dev/null 2>&1
+  exit 0
+fi
+
 if [ "${1:-}" = "RECUP" ]; then
   serial="$2"; dist="$3"; local="$4"
   tmp="C:\\Temp\\recup_$$"

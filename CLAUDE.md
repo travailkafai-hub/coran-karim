@@ -31,6 +31,22 @@ cadence et latence, conclure sur un log tronqué, croire les clips alors que 35 
 de l'audio n'y était pas écrit. Sans lui, ces erreurs se répètent : elles se
 sont répétées une dizaine de fois en une journée.
 
+Avant d'écrire un correctif sur la chaîne de récitation — et impérativement dès
+qu'on s'apprête à toucher un seuil, une tolérance, un critère de jugement, ou à
+ajouter un mécanisme de rattrapage : invoquer le skill `solution-de-fond`. Il
+encode le test des trois questions (est-ce que je déplace un critère
+d'acceptation ? est-ce que je mets le modèle dans les conditions où il
+RÉUSSIT ? quelle classe de correctifs je n'aurai plus jamais à écrire ?) et le
+préalable de mesure. Écrit le 2026-07-28 après trois correctifs dans la même
+séance dont **deux palliatifs**, repérés par l'utilisateur et non par l'agent.
+
+Banc de recette à deux téléphones : `./benchmark/recette_2tel.sh <sourate>
+<durée>` (une commande, aucun tap). Les téléphones sont sur un autre poste :
+`benchmark/adb_pcb.sh` pilote adb à distance, `benchmark/installer_pcb.sh`
+transfère et installe l'APK. `benchmark/verifier_erreurs.py` confronte chaque
+mot signalé au modèle sur l'audio brut — un mot que le modèle lit correctement
+est un faux positif de la chaîne, pas une faute de récitation.
+
 Dès que le même bout de code en est à sa 4ᵉ/5ᵉ version dans la session, qu'un
 symptôme déjà corrigé réapparaît, ou qu'on retombe sur une piste déjà tentée :
 invoquer le skill `recul-architectural` — arrêt du code, analyse structurelle,

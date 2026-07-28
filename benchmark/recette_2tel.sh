@@ -116,17 +116,12 @@ tail -n +"$((AVANT + 1))" "$OUT/full.log" > "$OUT/session.log"
 
 # Rapatriement des WAV : PAS de tar par la sortie standard -- elle transite par
 # SSH depuis un Windows, qui traduit les fins de ligne et corrompt le binaire
-# SANS RIEN DIRE. Un WAV corrompu ne se voit qu'a l'analyse, trop tard. On copie
-# donc d'abord hors du bac a sable, on `pull` sur le disque du PC B, puis on
-# rapatrie par scp, qui lui est binaire.
+# SANS RIEN DIRE. Un WAV corrompu ne se voit qu'a l'analyse, trop tard. Et
+# `run-as ... cp vers /sdcard` echoue lui aussi en silence (pas le droit d'y
+# ecrire). L'archive est donc redirigee vers un fichier sur le disque distant,
+# puis rapatriee par scp.
 SESS=$("$ADB" -s "$SAMSUNG" shell "run-as $PKG ls -t app_flutter/recitation_captures/" 2>/dev/null | head -1)
-if [ -n "$SESS" ]; then
-  "$ADB" -s "$SAMSUNG" shell "run-as $PKG sh -c 'cp -r app_flutter/recitation_captures/$SESS /sdcard/recette_wav'" >/dev/null 2>&1
-  "$ADB" RECUP "$SAMSUNG" /sdcard/recette_wav "$OUT/wav" >/dev/null 2>&1
-  "$ADB" -s "$SAMSUNG" shell "rm -rf /sdcard/recette_wav" >/dev/null 2>&1
-  # `pull` d'un dossier cree un niveau supplementaire : on l'aplatit.
-  if [ -d "$OUT/wav/recette_wav" ]; then mv "$OUT/wav/recette_wav"/* "$OUT/wav/" 2>/dev/null; rmdir "$OUT/wav/recette_wav" 2>/dev/null; fi
-fi
+[ -n "$SESS" ] && "$ADB" RECUPWAV "$SAMSUNG" "$SESS" "$OUT/wav" >/dev/null 2>&1
 
 {
   echo "sourate=$SOURATE duree=${DUREE}s  $(date '+%F %T')"
