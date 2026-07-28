@@ -2982,32 +2982,20 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // de fragment juste en dessous en a besoin.
       final normGopBrut = _normalizedGop(expected.training, r.gop);
 
-      // ── LA PROPORTION CÈDE DEVANT UNE PREUVE D'ALIGNEMENT FORTE ──────────
-      // (2026-07-28, mesuré sur le banc à deux téléphones.)
+      // TENTATIVE RETIREE (2026-07-28) : « la proportion cede devant une preuve
+      // d'alignement forte » -- accepter un fragment d'une lettre comme
+      // fragment legitime quand normGop depassait le seuil correct.
       //
-      // La règle de proportion protège contre « valider un mot sur une lettre ».
-      // Elle est juste tant qu'on n'a QUE le texte décodé. Mais quand
-      // l'alignement forcé dit du bien du mot, on a une preuve INDÉPENDANTE, et
-      // la refuser revient à juger sur le seul artefact.
-      //
-      // Cas qui l'impose : `يُخَـٰدِعُونَ` entendu `يُ` avec normGop = +0,93, et
-      // `أَلِيمٌۢ` entendu `ۢ` avec normGop = +0,10 puis +0,34 — tous deux très
-      // au-dessus du seuil `correct` (-0,45), tous deux plafonnés à orange par
-      // le seul fait que le décodage libre sur leurs frames est court. Le mot
-      // est bien là : le modèle le produit exactement sur l'audio brut
-      // (vérifié hors device).
-      //
-      // Ce n'est PAS la tolérance que l'utilisateur avait refusée le 2026-07-25
-      // (« un récitant qui ne dit que la moitié d'un mot était validé ») : ce
-      // cas-là a un gop MAUVAIS, et il reste refusé ici. Le discriminant est
-      // exactement la preuve acoustique, et les trois conditions le disent —
-      // l'audio couvre le mot entier, la DP lui a donné son minimum de frames,
-      // et le score dépasse le seuil de correction.
-      final preuveAlignementForte =
-          r.covered && !r.starved && normGopBrut >= _gopCorrect;
-      final isLongEnoughToBeFragment = preuveAlignementForte
-          ? actualStrict.isNotEmpty
-          : actualStrict.length >= 2 && actualStrict.length * 3 >= expected.strict.length;
+      // Ecrite, mesuree, puis RETIREE LE MEME JOUR sur rappel de l'utilisateur :
+      // c'est un CRITERE D'ACCEPTATION qu'on deplace, pas une cause qu'on
+      // traite. Le projet l'interdit (« PAS DE CORRECTIF PALLIATIF ») et la
+      // raison est nette : hors device, le modele lit CHAQUE mot correctement
+      // des qu'on lui donne une fenetre de 3-4 s. Il n'a donc pas besoin qu'on
+      // assouplisse le juge -- il a besoin qu'on lui donne les MEMES CONDITIONS
+      // qu'hors device. Relacher la regle masquerait justement la difference de
+      // conditions qu'il faut corriger.
+      final isLongEnoughToBeFragment =
+          actualStrict.length >= 2 && actualStrict.length * 3 >= expected.strict.length;
       // Suppression au milieu (2026-07-16 soir, cas réel device : attendu
       // "بَلَوْنَـٰهُمْ", entendu "بَلَهُمْ" -- le CTC glouton a avalé "وْنَ" au
       // milieu, hors des frontières de mot). Contrairement au sin/sad
