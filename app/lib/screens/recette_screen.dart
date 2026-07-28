@@ -5,6 +5,7 @@ import '../models/verse.dart';
 import '../providers/player_provider.dart';
 import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
+import '../providers/recitation_provider.dart';
 import 'karaoke_recitation_screen.dart';
 
 /// Harnais de RECETTE — écran unique, pilotable par intent, pour le banc à deux
@@ -34,7 +35,8 @@ import 'karaoke_recitation_screen.dart';
 /// le mode et la sourate explicitement, et [DiagnosticLog] les écrit — la
 /// session dit elle-même ce qu'elle teste.
 class RecetteScreen extends ConsumerStatefulWidget {
-  const RecetteScreen({super.key, this.mode, this.surah = 2, this.limite = 20});
+  const RecetteScreen(
+      {super.key, this.mode, this.surah = 2, this.limite = 20, this.wav});
 
   /// `ecoute` (l'app juge) ou `lecture` (l'app joue le récitateur).
   /// Null = l'utilisateur choisit sur place (accès manuel depuis l'accueil).
@@ -49,6 +51,15 @@ class RecetteScreen extends ConsumerStatefulWidget {
   /// compte 286 : les charger tous allongerait chaque itération sans rien
   /// apprendre de plus, et l'écran de récitation pagine de toute façon.
   final int limite;
+
+  /// WAV rejoué À LA PLACE du micro, pour une recette DÉTERMINISTE.
+  ///
+  /// Le banc à deux téléphones passe par haut-parleur → micro : chaque passe
+  /// diffère (point de départ, niveau, bruit de pièce). Mesuré : le même
+  /// binaire sur la même sourate donne 1,4 % puis 4,3 % de mots non verts, et
+  /// les passes vont de 0,0 % à 10,9 %. La variance dépasse alors l'effet
+  /// cherché, et tout « gain » annoncé serait du bruit.
+  final String? wav;
 
   @override
   ConsumerState<RecetteScreen> createState() => _RecetteScreenState();
@@ -75,6 +86,10 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
           'mode=${widget.mode ?? "manuel"}');
       // Mode imposé par l'intent : on enchaîne sans attendre un tap.
       if (widget.mode == 'ecoute') {
+        if (widget.wav != null) {
+          ref.read(recitationVerifierProvider).wavRejoue = widget.wav;
+          DiagnosticLog.log('RECETTE', 'source deterministe : ${widget.wav}');
+        }
         _ecouter();
       } else if (widget.mode == 'lecture') {
         _lire();

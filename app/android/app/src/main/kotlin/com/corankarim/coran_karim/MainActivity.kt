@@ -31,9 +31,12 @@ class MainActivity : FlutterActivity() {
                     val s = intent?.getIntExtra("sourate", 2) ?: 2
                     intent?.removeExtra("recette")
                     val n = intent?.getIntExtra("versets", 20) ?: 20
+                    val w = intent?.getStringExtra("wav")
+                    intent?.removeExtra("wav")
                     result.success(
                         if (m == null) null
-                        else mapOf("mode" to m, "sourate" to s, "versets" to n))
+                        else mapOf("mode" to m, "sourate" to s, "versets" to n,
+                                   "wav" to w))
                 } else result.notImplemented()
             }
     }

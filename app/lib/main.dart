@@ -92,7 +92,8 @@ class _PointDEntreeState extends State<_PointDEntree> {
         : RecetteScreen(
             mode: extras['mode'] as String?,
             surah: (extras['sourate'] as num?)?.toInt() ?? 2,
-            limite: (extras['versets'] as num?)?.toInt() ?? 20));
+            limite: (extras['versets'] as num?)?.toInt() ?? 20,
+            wav: extras['wav'] as String?));
   }
 
   @override

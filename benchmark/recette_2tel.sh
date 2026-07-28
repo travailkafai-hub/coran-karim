@@ -18,7 +18,15 @@ set -uo pipefail
 
 SAMSUNG="${SAMSUNG:-R3CY20XW7TD}"     # écoute et juge
 XIAOMI="${XIAOMI:-m7geugpr8x5tfec6}"  # joue le récitateur
-SOURATE="${1:-2}"                     # 2 = Al-Baqara, passage de reference de toutes les mesures
+SOURATE="${1:-2}"                     # varier les passages : ajuster sur un seul
+                                      # revient a corriger CE texte, pas la chaine
+# WAV=<chemin local> : recette DETERMINISTE -- le fichier est pousse sur le juge
+# et rejoue A LA PLACE du micro, donc le Xiaomi n'est pas utilise. Chaque passe
+# devient identique au bit pres. Mesure qui l'impose : par haut-parleur -> micro,
+# le MEME binaire sur la MEME sourate donne 1,4 % puis 4,3 % de mots non verts,
+# et les passes vont de 0,0 % a 10,9 % -- la variance du banc depasse l'effet
+# cherche, donc tout « gain » annonce serait du bruit.
+WAV="${WAV:-}"
 DUREE="${2:-75}"
 PKG=com.corankarim.coran_karim
 LOG=/sdcard/Android/data/$PKG/files/recitation_diagnostic.log
@@ -51,8 +59,16 @@ python3 "$RACINE/benchmark/ecarter_dialogue.py" "$SAMSUNG" "$XIAOMI" 2>/dev/null
 
 # L'écoute démarre EN PREMIER : le micro doit tourner avant le premier mot,
 # sinon le début de la sourate n'est jamais capté et l'ancre part déjà en retard.
+EXTRA_WAV=""
+if [ -n "$WAV" ]; then
+  [ -f "$WAV" ] || mort "WAV introuvable : $WAV"
+  DIST=/sdcard/recette_source.wav
+  adb -s "$SAMSUNG" push "$WAV" "$DIST" >/dev/null || mort "push du WAV impossible"
+  EXTRA_WAV="--es wav $DIST"
+  echo "source deterministe : $(basename "$WAV")"
+fi
 adb -s "$SAMSUNG" shell am start -n $PKG/.MainActivity \
-    --es recette ecoute --ei sourate "$SOURATE" >/dev/null
+    --es recette ecoute --ei sourate "$SOURATE" $EXTRA_WAV >/dev/null
 # Aucun tap ici : l'intent `ecoute` fait atterrir DANS la recitation deja
 # demarree (cf. KaraokeRecitationScreen.autoDemarrer).
 CENTRE=$(adb -s "$SAMSUNG" shell wm size | tr -d '\r' | sed 's/.*: //' | awk -Fx '{print int($1/2), int($2/2)}')
@@ -75,8 +91,10 @@ done
 echo
 [ "$PRET" = 1 ] || mort "le micro ne s'est jamais ouvert cote juge -- rien a mesurer"
 sleep 2
-adb -s "$XIAOMI" shell am start -n $PKG/.MainActivity \
-    --es recette lecture --ei sourate "$SOURATE" >/dev/null
+if [ -z "$WAV" ]; then
+  adb -s "$XIAOMI" shell am start -n $PKG/.MainActivity \
+      --es recette lecture --ei sourate "$SOURATE" >/dev/null
+fi
 
 echo "recitation en cours (${DUREE}s)…"
 sleep "$DUREE"

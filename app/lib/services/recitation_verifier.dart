@@ -305,6 +305,9 @@ abstract class RecitationVerifier {
   /// nombre de lignes écrites.
   Future<int> flushNativeTrace();
 
+  /// WAV rejoué à la place du micro (recette déterministe). Null = micro.
+  set wavRejoue(String? v);
+
   /// Alignement forcé ONE-SHOT sur un WAV complet (pas de streaming, pas de
   /// segmentation, `isFinal=true`). Utilisé par [ReferenceTimingExtractor]
   /// pour mesurer les durées après coup sur des clips recollés — c'est le VRAI
@@ -569,6 +572,27 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   StreamSubscription<Uint8List>? _pcmSub;
 
+  /// Chemin d'un WAV rejoue a la place du micro (recette deterministe).
+  /// Null = micro normal. Pose par l'ecran de recette via l'intent.
+  String? _wavRejoue;
+  set wavRejoue(String? v) => _wavRejoue = v;
+
+  /// Rejoue un WAV 16 kHz mono en blocs de 80 ms a la cadence TEMPS REEL --
+  /// mêmes tailles et même rythme que `record`, pour que la segmentation, les
+  /// pauses detectees et la latence soient celles d'une vraie session. Rejouer
+  /// plus vite fausserait tout ce qui depend du temps.
+  Stream<Uint8List> _fluxDepuisFichier(String chemin) async* {
+    final octets = await File(chemin).readAsBytes();
+    const enTete = 44;            // WAV canonique ecrit par WavWriter
+    const bloc = 2560;            // 1280 echantillons = 80 ms a 16 kHz 16 bits
+    for (var i = enTete; i + 2 <= octets.length; i += bloc) {
+      final fin = i + bloc <= octets.length ? i + bloc : octets.length;
+      yield Uint8List.fromList(octets.sublist(i, fin));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+    }
+    DiagnosticLog.log('ASR', 'SOURCE DETERMINISTE : fin du fichier');
+  }
+
   // Garde-fou cote app (2026-07-16, cf. bug reel constate : "j'ai fait pause
   // mais il continue") -- _recorder.pause() est un appel platform-channel
   // async qui peut mettre plusieurs secondes (jusqu'a 23,8s observe sur
@@ -705,16 +729,35 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       final hasPerm = await _recorder.hasPermission();
       DiagnosticLog.log('ASR', 'hasPermission (juste avant startStream) = $hasPerm');
 
-      // `noiseSuppress` : desactive par defaut (cf. noiseSuppressProvider pour
-      // les trois raisons mesurees). Expose pour pouvoir trancher par une
-      // comparaison A/B, pas pour etre allume a l'aveugle.
-      final stream = await _recorder.startStream(
-        RecordConfig(
-            encoder: AudioEncoder.pcm16bits,
-            sampleRate: 16000,
-            numChannels: 1,
-            noiseSuppress: _noiseSuppress),
-      );
+      // ── SOURCE DETERMINISTE POUR LA RECETTE (2026-07-28) ────────────────
+      // Le banc a deux telephones passe par haut-parleur -> micro, donc chaque
+      // passe differe : point de depart du recitateur, niveau, bruit de piece.
+      // Mesure : le MEME binaire sur la MEME sourate donne 1,4 % puis 4,3 % de
+      // mots non verts, et les passes vont de 0,0 % a 10,9 %. La variance du
+      // banc depasse l'effet qu'on cherche a mesurer -- dans ces conditions
+      // tout « gain » annonce est du bruit, et on ajuste sur la mesure au lieu
+      // de traiter une cause.
+      //
+      // En rejouant un FICHIER, chaque passe devient identique au bit pres et
+      // la seule variable est le code. Le flux emprunte EXACTEMENT le meme
+      // chemin que le micro (memes blocs de 80 ms, meme cadence temps reel,
+      // meme aval) : on ne mesure donc pas un chemin de test different.
+      final Stream<Uint8List> stream;
+      if (_wavRejoue != null) {
+        stream = _fluxDepuisFichier(_wavRejoue!);
+        DiagnosticLog.log('ASR', 'SOURCE DETERMINISTE : $_wavRejoue');
+      } else {
+        // `noiseSuppress` : desactive par defaut (cf. noiseSuppressProvider pour
+        // les trois raisons mesurees). Expose pour pouvoir trancher par une
+        // comparaison A/B, pas pour etre allume a l'aveugle.
+        stream = await _recorder.startStream(
+          RecordConfig(
+              encoder: AudioEncoder.pcm16bits,
+              sampleRate: 16000,
+              numChannels: 1,
+              noiseSuppress: _noiseSuppress),
+        );
+      }
       DiagnosticLog.log('ASR',
           'capture ouverte | suppression de bruit = $_noiseSuppress');
       DiagnosticLog.log('ASR', 'startStream() a retourné un Stream — abonnement…');
@@ -1263,6 +1306,9 @@ class MockRecitationVerifier implements RecitationVerifier {
   Future<void> setLogEnabled(bool enabled) async {}
   @override
   Future<int> flushNativeTrace() async => 0;
+
+  @override
+  set wavRejoue(String? v) {}
   @override
   set noiseSuppress(bool value) {}
   @override
