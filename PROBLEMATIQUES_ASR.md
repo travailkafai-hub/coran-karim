@@ -329,3 +329,205 @@ idéale nous est fermée aujourd'hui :
 - Whisper — hallucination sur silence (discussions dev) — https://github.com/openai/whisper/discussions/1606
 - Stateful Conformer with Cache-based Inference for Streaming ASR — https://arxiv.org/html/2312.17279v2
 - Nemotron Speech ASR (cache-aware FastConformer, streaming) — https://huggingface.co/blog/nvidia/nemotron-speech-asr-scaling-voice-agents
+
+---
+
+## 1.5 Recul architectural (2026-07-26) — le causal gèle après ~35 s sur device
+
+⚠️ **AVERTISSEMENT DE LECTURE, remarque utilisateur du 2026-07-26** : tout ce
+qui précède dans les §1.3/§2.x a été mesuré sur le modèle **NON CAUSAL**,
+jamais entraîné pour le streaming. Ces conclusions ne se transportent PAS
+telles quelles au modèle causal. Ne pas les invoquer comme « déjà tenté » sans
+vérifier sur quel modèle la mesure a été faite — c'est l'erreur commise au
+début de cette analyse.
+
+### Le symptôme, mesuré sur une récitation réelle (43,5 s, 2:1-2:4)
+
+La chaîne suit parfaitement 25 s (mots 4→19 validés, ancre 8→20), puis **plus
+rien pendant 18 s** : blocs PCM toujours reçus, inférence toujours exécutée,
+mais aucun mot confirmé — donc **ni orange, ni rouge, ni correction**. Le
+curseur gèle en silence. C'est le pire mode de défaillance possible pour cette
+app : elle ne signale même pas qu'elle a décroché.
+
+### Les trois hypothèses testées hors device, sur CE audio réel
+
+| Tentative | Hypothèse implicite | Mesure | Verdict |
+|---|---|---|---|
+| Fenêtre glissante 20 s sur les stats de normalisation | features hors distribution | 49 tokens, arrêt 34,8 s — **identique** au cumulatif, alors que les stats diffèrent bien (écart moyenne 0,70) | **REJETÉE** |
+| Remise à zéro du cache **sur silence** (RMS<0,02, ≥400 ms) | un silence = une frontière d'énoncé | WER 79 % (et 86 % avec plafond) contre 64 % | **REJETÉE, pire** |
+| Remise à zéro du cache à **intervalle fixe** | le cache sature | débloque l'émission (34,8 s → 41,5 s) mais WER erratique 50-86 % sur 11 valeurs, sans tendance | **Sans signal exploitable** |
+
+Les deux premières partagent la même hypothèse implicite — « les entrées du
+modèle sont hors distribution, il faut corriger la normalisation ou le
+contexte ». C'est le suspect n°1 au sens du skill, et la mesure l'a écartée.
+
+Le seul résultat ROBUSTE et reproductible : **ne jamais remettre le cache à
+zéro tue l'émission ; n'importe quelle remise à zéro la rétablit.** L'intervalle
+optimal, lui, n'est pas déterminable sur un seul clip de 33 mots (1 mot = 3 pt
+de WER).
+
+### La faille structurelle
+
+**Les clips d'entraînement font ≤ 20 s (`max_duration: 20.0`). La session
+d'inférence n'a AUCUNE borne.** Le cache s'accumule sur toute la session, donc
+au-delà de 20 s le modèle travaille dans un régime de longueur qu'il n'a jamais
+vu. L'ancien chemin bufférisé bornait la session par construction
+(`MAX_SEGMENT_SECONDS = 12 s`) ; le chemin causal a **supprimé cette borne sans
+la remplacer**.
+
+Ce n'est donc pas un seuil à régler, c'est une **information manquante** : la
+couche qui remet le cache à zéro n'a aucun moyen de savoir où un énoncé finit.
+Régler l'intervalle, c'est lui demander de deviner — exactement le signal
+d'alerte du skill.
+
+Et le silence n'est PAS cette information dans notre cas : en récitation, une
+pause est très souvent un **waqf** imposé au milieu d'un verset, pas une fin
+d'énoncé. D'où l'échec mesuré de la remise à zéro sur silence.
+
+### État de l'art (recherche 2026-07-26)
+
+- Le traitement long-form standard segmente **en amont par VAD**, puis traite
+  chaque segment indépendamment ([arXiv 2309.09950](https://arxiv.org/html/2309.09950)).
+- NVIDIA a publié un modèle cache-aware qui fait **ASR + détection de fin
+  d'énoncé (EOU) conjointement**, le signal EOU servant à déclencher
+  explicitement les remises à zéro du cache aux frontières de tour
+  ([NVIDIA/HF](https://huggingface.co/blog/nvidia/nemotron-speech-asr-scaling-voice-agents)).
+- Le paper de référence du Conformer stateful cache-based
+  ([arXiv 2312.17279](https://arxiv.org/html/2312.17279v2)) **ne traite pas** la
+  dégradation sur audio beaucoup plus long que les énoncés d'entraînement :
+  vérifié, aucune mention de remise à zéro, de longueur maximale de session, ni
+  du décalage durée-entraînement/durée-inférence. C'est un angle mort de la
+  littérature, pas une bêtise de notre implémentation.
+
+### Piste A (frontière de verset) — MESURÉE ET REJETÉE le 2026-07-26
+
+Idée : remettre le cache à zéro quand l'ancre d'alignement franchit une
+frontière de verset — information que l'app possède déjà, contrairement à un
+seuil de silence ou d'horloge. C'était la piste recommandée à l'issue du recul
+architectural, au motif qu'elle « donne l'information à la couche » au lieu de
+la lui faire deviner.
+
+Mesure sur l'audio réel (43,5 s, 2:1-2:4, 28 mots de référence) :
+
+| politique | resets | mots émis | WER |
+|---|---|---|---|
+| actuel (jamais remis à zéro) | 0 | 21/28 | **64 %** |
+| **piste A — frontière de verset** | 3 | 26/28 | **75 %** ❌ |
+| intervalle fixe 6 s | 6 | 26/28 | 50 % |
+
+**Rejetée** : pire que le statu quo. La remise à zéro fait bien émettre plus de
+mots (26 au lieu de 21) mais les mots gagnés sont FAUX — l'émission reprend
+sans que la reconnaissance soit correcte.
+
+### Conclusion du recul architectural : le levier applicatif est ÉPUISÉ
+
+Quatre politiques testées côté app sur le même audio réel, **quatre rejetées
+par la mesure** : fenêtre glissante de normalisation (identique), remise à zéro
+sur silence (79-86 %), à intervalle fixe (erratique 50-86 %, sans optimum sur
+11 valeurs), à la frontière de verset (75 %). Aucun réglage ne rattrape le
+statu quo de façon fiable, et le statu quo lui-même est mauvais (64 %).
+
+⇒ **Le défaut ne naît pas dans la couche applicative.** Il naît dans le
+MODÈLE : entraîné sur des clips ≤ 20 s, jamais entraîné dans le régime
+cache-aware où il est déployé (session non bornée, cache propagé sur des
+minutes). Chercher le bon endroit pour vider le cache, c'est demander à l'app
+de compenser une information que le modèle n'a jamais apprise — un palliatif au
+sens de CLAUDE.md.
+
+Ne pas relancer de 5ᵉ variante de politique de cache sans avoir d'abord traité
+le modèle (piste B : entraîner sur des sessions concaténées > 20 s). C'est la
+même leçon que le 2026-07-23 sur la segmentation : le code en place était le
+moins mauvais, et le vrai correctif était côté données.
+
+### 5ᵉ tentative (2026-07-26) — reset COMBINÉ cache+normalisation sur la politique BufferedTranscriber : REJETÉE
+
+Idée : synchroniser la remise à zéro du cache ET de la fenêtre de normalisation
+sur la politique de segmentation déjà éprouvée de l'ancien `BufferedTranscriber`
+(pause ≥450 ms après 2,5 s minimum, plafond dur 12 s), plutôt qu'un intervalle
+arbitraire.
+
+Mesure sur l'audio réel (43,5 s) : **WER = 93 %**, pire que le statu quo
+(64 %) et pire que toutes les variantes précédentes sauf la remise à zéro sur
+silence seule. 6 resets déclenchés. Hypothèse d'échec : remettre le cache ET
+la normalisation en même temps crée une DOUBLE rupture (mémoire du modèle et
+repères statistiques perdus simultanément) — plus violent que l'un ou l'autre
+isolément.
+
+**Bilan : 5 politiques de gestion du cache testées sur ce modèle causal,
+5 rejetées par la mesure** (fenêtre glissante de normalisation seule, reset
+sur silence seul, reset à intervalle fixe seul, reset à la frontière de verset
+seul, reset combiné cache+normalisation sur la politique BufferedTranscriber).
+Le levier applicatif est définitivement épuisé pour CE modèle — cf. conclusion
+déjà écrite plus haut (§ "le défaut ne naît pas dans la couche applicative").
+Ne pas tenter de 6ᵉ variante sans données nouvelles (piste B, entraînement sur
+sessions longues, ou changement de modèle de base).
+
+---
+
+## 1.6 Recul architectural (2026-07-28) — 12 faux positifs sur 12, le modèle hors de cause
+
+### Le fait qui change tout
+
+Session de 268 mots, récitation **professionnelle**, moteur GOP aux commandes
+(`[PARAMS] moteur=GOP`). 12 mots non verts. Vérification faite mot par mot en
+donnant au **modèle du device** l'audio de la session, hors device :
+
+| mot | fenêtre où le modèle le sort exactement |
+|---|---|
+| `عَظِيمٌ` | 3 s → `وَلَهُمْ عَذَابٌ عَظِيمٌ` (et PERDU sur 12 s) |
+| `مُهْتَدِينَ` | 3 s → `وَمَا كَانُوا۟ مُهْتَدِينَ` |
+| `لَذَهَبَ` | 2 s → `ٱللَّهُ لَذَهَبَ` |
+| les 9 autres | trouvés d'emblée |
+
+**12/12 produits correctement par le modèle.** Zéro faute de récitation, zéro
+limite de modèle : douze faux positifs nés du découpage et de l'alignement.
+
+### La faille centrale (nouvelle par rapport au recul du 26/07)
+
+Le **verdict est rendu au rythme de la TRANSCRIPTION**, alors que rien ne l'y
+oblige. La transcription doit être temps réel (le curseur avance) ; le jugement,
+lui, peut attendre. Deux exigences opposées se partagent la même variable —
+aucun seuil ne les départagera.
+
+Corollaire : le **2ᵉ buffer tel qu'il est construit est un palliatif dans la
+mauvaise couche**. Il tente de reconstruire mot par mot une information que la
+couche de jugement a jetée en figeant trop tôt. D'où la boucle : chaque
+correctif de fenêtre en appelle un autre.
+
+Mesure du 2ᵉ buffer sur cette session — 33 tentatives, 18 mots :
+**16 OK, 7 FAUX POSITIFS, 6 ratés, 4 indéterminés.** Un faux positif fait passer
+au VERT un mot correctement signalé (le secours ne peut que « rattraper »).
+Exemple net : mot 132 `يَعْلَمُونَ`, fenêtre décodant `وَإِذَا لَقُوا۟`
+(verset 14 au lieu de la fin du 13), rendu `gop 0,00` trois fois.
+
+### État de l'art
+
+Le nom canonique de ce qu'on a construit est **two-pass / second-pass
+rescoring**. Écart avec la littérature : la seconde passe y porte sur un
+**segment avec contexte complet**, jamais sur un mot isolé — c'est exactement
+la source des faux positifs et des ratés. Cf. arXiv 2008.13093, 2211.15432.
+Sur les frontières, arXiv 2406.02560 (label priors) donne 12-40 % — côté
+entraînement.
+
+### Pistes (arbitrage utilisateur 2026-07-28 : autonomie accordée, objectif zéro orange)
+
+- **A — Découpler jugement et transcription : juger au VERSET.** Le curseur reste
+  temps réel ; le verdict d'un mot n'est rendu qu'au bout du verset, par
+  ré-alignement du verset entier sur son audio complet. Traite la décision
+  irréversible trop tôt ET l'alignement d'un mot isolé. Supprime toute la
+  famille des correctifs de fenêtre. Coût : verdict retardé d'un verset
+  (5-15 s). Effet de bord : le souffleur ne peut plus se déclencher au mot.
+  **Recommandée.**
+- **B — Couper uniquement aux marques de waqf** (`quran_waqf.json`, déjà
+  identifié le 26/07, jamais fait). Traite la frontière au mauvais endroit,
+  rend impossible la coupe en plein mot. Coût : segments longs si le récitant
+  ne respecte pas le waqf.
+- **C — Rendre le silence au 2ᵉ buffer** (flux brut + table de correspondance
+  entre les deux horloges). **Écrite puis retirée le 2026-07-28 avant mesure**,
+  pour ne pas committer un demi-changement — À GARDER COMME PISTE À TESTER
+  (demande utilisateur). Mesuré ce jour-là : rendre le silence au modèle
+  n'améliore PAS le WER (−2,8 pt en moyenne EN FAVEUR du portier, fenêtres
+  disjointes 8/12/16/20/30 s sur audio réel). Ne se justifie donc qu'avec B,
+  où le silence devient la donnée utile (waqf).
+- **D — Label priors côté entraînement.** Seul vrai levier sur le peaky-CTC.
+  Autre chantier.

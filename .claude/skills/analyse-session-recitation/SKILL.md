@@ -78,6 +78,130 @@ Pour chaque mot qui n'est pas vert : index, texte attendu, texte entendu,
 Un mot sans cause identifiée est un **trou de diagnostic** : le dire, ne pas le
 ranger dans « divers ».
 
+## Étape 3 bis — Par quel CHEMIN le mot a-t-il été verrouillé ?
+
+Ajoutée le 2026-07-27 après une erreur d'analyse coûteuse : j'ai écrit que les
+mots non secourus avaient « `covered = true`, donc mon signal est le mauvais »
+— une **supposition**, jamais vérifiée, et **fausse**. La vraie cause était
+qu'un garde du code rendait le mécanisme mort sur le chemin majoritaire.
+
+Un mot n'est pas verrouillé par « l'app » : il l'est par **un chemin de code
+précis**, et deux chemins n'exécutent pas le même code.
+
+| chemin | ligne de log | ce qui s'y passe |
+|---|---|---|
+| gel normal | `segment FIGE … consomme=…` | `runAlignment(isFinal=true)` complet |
+| **borne dure** | `segment FIGE (borne 12s, apercu reutilise, …)` | l'**aperçu** est promu final **sans re-transcription** |
+
+**Toujours mesurer la part de trafic de chaque chemin avant d'interpréter quoi
+que ce soit.** Mesuré ce jour-là : 25 gels sur 44 à la borne dure, portant
+**218 des 245 mots (89 %)**. Un mécanisme absent du chemin borne dure ne couvre
+donc que 11 % de la récitation — indépendamment de sa qualité.
+
+```bash
+# chemin de gel qui precede le verrouillage de chaque mot
+python3 - <<'EOF'
+import re
+S=open('sess.log',encoding='utf-8',errors='replace').read().splitlines()
+for k in MOTS:
+    j=max((i for i,l in enumerate(S) if f'mot={k} ' in l),default=None)
+    g=[x for x in S[:j] if 'segment FIGE' in x][-1]
+    print(k, 'BORNE DURE' if 'apercu reutilise' in g else 'gel normal')
+EOF
+```
+
+**Comparer les taux d'échec, pas les effectifs.** Le même jour : 16 des 18 mots
+non verts venaient d'un gel à la borne dure — chiffre qui semble accablant, mais
+rapporté au trafic les deux chemins échouent à l'identique (7,3 % contre 7,4 %).
+La borne dure n'était donc **pas** la cause des erreurs ; elle était la raison
+pour laquelle le **secours** ne se déclenchait jamais. Deux conclusions
+opposées à partir du même constat brut : seul le taux tranche.
+
+**Un mécanisme qui ne laisse aucune trace n'a pas « rarement tourné » : il n'a
+pas tourné.** Avant d'expliquer pourquoi il se déclenche mal, vérifier dans le
+CODE que son garde peut être vrai. Cas réel : le secours du chemin borne dure
+était gardé par `lastAlignSpf > 0`, or `lastAlignSpf` vient d'un appel aperçu
+qui ne passe pas `segmentSamples` (valeur par défaut 0) — garde toujours faux,
+zéro exécution, et **aucune ligne de log** pour le dire. Chercher `grep -c` sur
+la ligne que le mécanisme DEVRAIT produire est le premier réflexe, avant toute
+hypothèse sur son déclencheur.
+
+## Étape 3 ter — Le 2ᵉ buffer : TOUS les secours, un par ligne
+
+Demande explicite de l'utilisateur (2026-07-28) : *« sur tous les rattrapages tu
+dois inclure ça dans ta méthode d'analyse »*. Donner « 15 rattrapages sur 35 »
+ne suffit pas — c'est un chiffre, pas un diagnostic. Chaque tentative se lit.
+
+**Tableau imposé, une ligne par TENTATIVE (pas par mot) :**
+
+```
+| mot | attendu | fenêtre mot (ms) | fenêtre extraite (ms) | largeur | n° tentative | résultat | audio de la fenêtre |
+```
+
+Les lignes viennent de deux traces jumelles, à croiser :
+
+```
+secours mot=N fenetre mot=[a,b)ms extraite=[c,d)ms dispo=Xms   ← ce qu'il a visé
+secours mot=N SANS GAIN : gop … -> …   |   SECOURS mot=N : …   ← ce qu'il a rendu
+```
+
+### La signature qui discrimine : la largeur et la RÉPÉTITION
+
+Mesure du 2026-07-28 (235 mots, moteur GOP), séparation parfaite :
+
+| forme de la fenêtre | tentatives | résultat |
+|---|---|---|
+| étroite (5,8-8,4 s), une seule tentative | 15 | **toutes rattrapées** |
+| large (9-15 s), répétée 3 à 5 fois | 15 | **toutes SANS GAIN** |
+
+**Toujours regrouper les tentatives par mot et comparer leurs bornes.** Une
+borne GAUCHE identique d'une tentative à l'autre est le symptôme central :
+
+```
+109 → [131015, 140560)  puis [131015, 141015)  puis [131015, 141015)
+132 → [165195, …) cinq fois       167 → [208438, …) quatre fois
+```
+
+Cause : un mot en échec ne s'horodate pas (cf. `wordStamps`), donc la borne
+gauche reste collée au dernier mot SÛR et seule la droite avance. La fenêtre
+grossit au lieu de glisser, et on demande à la DP de placer un mot de 0,3 s dans
+10 à 15 s d'audio. Le plafond (`RESCUE_MAX_SEARCH_SECONDS`) masque le symptôme
+sans le traiter — compter aussi les `fenetre PLAFONNEE`.
+
+### NE JAMAIS reconstituer l'audio du secours depuis les clips
+
+Erreur commise le 2026-07-28 : les clips concaténés ont été pris pour le flux
+qu'adresse le `RescueBuffer`, et les fenêtres décodées « tombaient trop tôt ».
+Conclusion invalidée par un contre-exemple du log lui-même — le mot 19, **bel et
+bien rattrapé** par l'app (`يُن → يُنفِقُونَ`), alors que la fenêtre reconstituée
+décodait des mots antérieurs. Cause : `somme(clips) = 319,0 s` pour un flux brut
+de `310,2 s`, soit ~9 s d'audio dupliqué ; la dérive s'accumule et fausse toute
+position absolue.
+
+⇒ Contrôle obligatoire AVANT d'utiliser les clips comme référence temporelle :
+`somme(clips)` doit être **inférieure** au flux brut (le portier retire du
+silence). Si elle le dépasse, il y a duplication : les positions absolues
+tirées des clips ne valent rien, et la colonne « audio de la fenêtre » s'écrit
+**(non vérifiable)** — jamais une conclusion.
+
+⇒ Le seul instrument fiable est un WAV écrit par le secours lui-même au moment
+de l'extraction. S'il n'existe pas encore, le dire comme trou de diagnostic et
+le proposer : sans lui, « pourquoi le secours échoue » restera indécidable.
+
+### Ce qu'il faut conclure, et ce qu'il ne faut pas
+
+- Un `SANS GAIN : gop -20,00 -> -20,00, entendu "" -> ""` **ne dit pas** que le
+  mot est absent de l'audio. Il dit que la DP n'a rien placé dans la fenêtre —
+  ce qui arrive aussi quand la fenêtre est mal posée ou trop large.
+- Un secours **répété sur le même mot avec le même résultat** (mesuré : mot 200
+  rattrapé cinq fois à l'identique) est du calcul perdu, à compter et à signaler.
+- Les rattrapages doivent être **listés avec leur texte** : c'est là qu'on voit
+  ce que le mécanisme sait faire (`بِ → بِمُؤْمِنِينَ`, `ص → صُمٌّ`,
+  `"" → ظُلُمَـٰتٌ`). Un compte seul ne le montre pas.
+- Compter séparément les rattrapages dus à la règle « texte complet à gop égal »
+  (`gop 0,00 -> 0,00`) : ils seraient tous perdus sans elle — 11 sur 15 le
+  2026-07-28.
+
 ## Étape 4 — Classer par MÉCANISME, pas par symptôme
 
 C'est ici que l'analyse commence. Le constat ne suffit pas : il faut la chaîne
@@ -171,7 +295,7 @@ chaque session.
 exception :**
 
 ```
-| mot | attendu | entendu | état | forced | free | cause | dans le WAV ? | mécanisme |
+| mot | attendu | entendu | état | forced | free | cause | chemin | dans le WAV ? | 2ᵉ buffer | mécanisme |
 ```
 
 - **mot** — index absolu.
@@ -181,15 +305,24 @@ exception :**
   ce qu'il a reçu, donc ce n'est PAS une faute de prononciation.
 - **cause** — la ligne de log qui l'explique (cf. Étape 3). Jamais « divers » :
   un mot sans cause est un trou de diagnostic, à nommer comme tel.
-- **dans le WAV ?** — OUI / non / *(non vérifié)*. Voir ci-dessous.
+- **chemin** — `gel normal` ou `borne dure` (cf. Étape 3 bis). Sans cette
+  colonne on attribue à l'algorithme ce qui appartient au chemin de code.
+- **dans le WAV ?** — `brut / clips`, chacun OUI / non / *(non vérifié)*, et le
+  texte réellement décodé quand il diffère de l'attendu. Voir ci-dessous.
+- **2ᵉ buffer** — ce qu'a fait le secours : `SECOURS` (rattrapé), `SANS GAIN`,
+  `IMPOSSIBLE`/`IGNORE`, ou **`non tenté`** avec la raison. « non tenté » est un
+  résultat à part entière, et le plus fréquent quand un garde est mort.
 - **mécanisme** — A, B, C (cf. Étape 4), ou « faute réelle ».
 
 **Puis, et seulement après le tableau :**
 
 1. le bilan chiffré, avec le total qui boucle (`verrouillés + non jugés = ancre`)
    et le taux de mots **non verts** ;
-2. le regroupement par mécanisme, avec ce que chacun implique ;
-3. ce qui reste inexpliqué, nommé comme tel.
+2. **le tableau du 2ᵉ buffer, une ligne par TENTATIVE de secours** (cf. Étape
+   3 ter) — jamais un simple compte, et jamais seulement les échecs : les
+   rattrapages avec leur texte montrent ce que le mécanisme sait faire ;
+3. le regroupement par mécanisme, avec ce que chacun implique ;
+4. ce qui reste inexpliqué, nommé comme tel.
 
 ### La colonne « dans le WAV ? » n'est pas optionnelle
 
@@ -201,6 +334,26 @@ tableau, décoder le flux brut et chercher le mot :
 | OUI | OUI | l'audio était là : c'est l'ALIGNEMENT qui a échoué |
 | OUI | non | perdu entre le micro et le clip |
 | non | non | limite du modèle, ou mot réellement non prononcé — à écouter |
+
+**Une recherche de sous-chaîne ne suffit PAS à écrire « non ».** Erreur commise
+le 2026-07-27 : un test `mot_normalisé in transcription` a rendu trois « non »
+dont **aucun n'était vrai**. Le modèle décode souvent le mot avec une lettre
+en moins ou une quasi-homophone :
+
+| attendu | réellement décodé | ce qu'un test naïf conclut |
+|---|---|---|
+| `قَامُوا۟` | `قَالُوا۟` (م → ل) | « absent » — faux, il est là |
+| `لَذَهَبَ` | `لَهَبَ` (ذ tombé) | « absent » — faux |
+| `ٱلْبَرْقُ` | `ٱلْبَرُْ` (ق tombé) | « absent » — faux |
+
+⇒ Dès qu'un mot ressort « non », **imprimer les fenêtres décodées de la zone**
+(repérer la zone par ses mots voisins, pas par le mot cherché) et lire le texte
+réel. Ce n'est qu'après cette lecture qu'on peut écrire « non ».
+
+⇒ Le modèle exact compte : tirer `model.onnx` **du téléphone** et vérifier que
+sa taille correspond à celle du device. Un export frère du même jour n'est pas
+le même binaire (constaté : 461 433 499 octets sur le PC contre 458 789 544 sur
+l'appareil).
 
 **Le mode change l'interprétation, le dire explicitement :**
 
@@ -224,3 +377,10 @@ colonne — jamais laisser croire qu'elle l'a été.
 | « je donne le taux d'erreurs » | donner le taux de mots **non verts**, qui inclut les non jugés |
 | « la cause est probablement X » | si une ligne de log peut trancher, l'ajouter et refaire une passe. Trois hypotheses fausses ont coûté deux sessions le 2026-07-27 |
 | « le mecanisme est en place, il ne doit pas se declencher souvent » | zero trace = indiscernable de zero execution. Instrumenter le declencheur, pas seulement le resultat |
+| « le secours a fait 15 rattrapages sur 35, je donne le taux » | un taux n'est pas un diagnostic. Une ligne par TENTATIVE : c'est la largeur et la repetition des fenetres qui separent les 15 reussites des 15 echecs (Etape 3 ter) |
+| « je reconstitue l'audio du secours en concatenant les clips » | verifie d'abord que somme(clips) < flux brut. Le 2026-07-28 les clips faisaient 319,0 s pour 310,2 s de brut : dupliques, donc toute position absolue en est faussee |
+| « SANS GAIN avec entendu vide, donc le mot n'est pas dans l'audio » | ca dit que la DP n'a rien place dans LA FENETRE. Une fenetre mal posee ou trop large donne exactement la meme ligne |
+| « mon signal de declenchement est le mauvais » | avant d'accuser le signal, verifier que le CODE peut l'atteindre. Le 2026-07-27 le garde `lastAlignSpf > 0` etait toujours faux : le signal n'a jamais ete lu |
+| « le mot n'est pas dans la transcription, donc absent du WAV » | trois « non » sur trois etaient faux : lettre tombee ou quasi-homophone. Lire les fenetres decodees de la zone |
+| « 16 echecs sur 18 viennent de ce chemin, c'est lui le coupable » | rapporter au trafic : ce chemin portait 89 % des mots et echouait au meme taux. Un effectif n'est pas un taux |
+| « j'ai le fichier du modele sur le PC, c'est le meme » | comparer la taille avec celle du device. Deux exports du meme jour different |
