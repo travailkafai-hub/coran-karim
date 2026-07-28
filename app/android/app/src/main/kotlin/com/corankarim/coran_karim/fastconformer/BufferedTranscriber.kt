@@ -325,6 +325,13 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     @Volatile private var lastAlignOrigin = 0L
     @Volatile private var lastAlignSpf = 0
 
+    /** Frames du dernier decodage ou le CTC a emis le BLANC, et l'echelle
+     *  echantillons/frame associee. C'est « la ou le MODELE ne dit rien » --
+     *  l'information dont la coupe a besoin, et que l'energie ne porte pas.
+     *  Null tant qu'aucune inference n'a tourne sur le buffer courant. */
+    @Volatile private var blancs: BooleanArray? = null
+    @Volatile private var blancsSpf = 0
+
     /**
      * Horodatage des mots dont la POSITION est sure : index du mot -> [debut,
      * fin) en echantillons ABSOLUS du flux d'apres portier -- la meme horloge
@@ -1215,6 +1222,48 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         val to = buf.size
         if (to - from < win * minRunWins) return -1
 
+        // ── COUPER OU LE MODELE NE DIT RIEN, PAS OU LE SIGNAL EST FAIBLE ──
+        // (2026-07-28, valide hors device AVANT d'ecrire cette ligne.)
+        //
+        // Mesure sur l'audio reel de deux sessions, memes cibles de coupe :
+        //     energie (RMS)      10/22 coupes en plein mot = 45,5 %
+        //     blancs du modele    6/22                     = 27,3 %
+        //
+        // Pourquoi l'energie echoue : les occlusives arabes (ب ذ ن) ont une
+        // phase peu energique AU MILIEU d'un mot -- l'energie ne porte donc pas
+        // la frontiere de mot, et la couche devine avec une grandeur qui ne
+        // contient pas l'information qu'elle cherche. Le CTC, lui, emet le
+        // BLANC exactement la ou il n'y a rien a transcrire.
+        //
+        // Repli sur l'energie si aucune inference n'a encore tourne sur ce
+        // buffer (tout debut de segment) : mieux vaut l'ancienne politique que
+        // pas de coupe du tout.
+        val bl = blancs
+        if (bl != null && blancsSpf > 0) {
+            val f0 = (from / blancsSpf).coerceIn(0, bl.size - 1)
+            val f1 = (minOf(to, bl.size * blancsSpf) / blancsSpf).coerceIn(0, bl.size)
+            val minFrames = maxOf(1, MIN_MICRO_SILENCE_MS / 80)
+            var meilleur = -1; var dist = Int.MAX_VALUE
+            var d = -1
+            var f = f0
+            while (f < f1) {
+                if (bl[f]) { if (d < 0) d = f } else {
+                    if (d >= 0 && f - d >= minFrames) {
+                        val mid = ((d + f) / 2) * blancsSpf
+                        val e = kotlin.math.abs(mid - targetOffset)
+                        if (e < dist) { dist = e; meilleur = mid }
+                    }
+                    d = -1
+                }
+                f++
+            }
+            if (d >= 0 && f1 - d >= minFrames) {
+                val mid = ((d + f1) / 2) * blancsSpf
+                if (kotlin.math.abs(mid - targetOffset) < dist) meilleur = mid
+            }
+            if (meilleur in from until to) return meilleur
+        }
+
         var best = -1
         var bestDist = Int.MAX_VALUE
         var runStart = -1
@@ -1739,6 +1788,22 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     // `covered` qui decide -- comme toujours -- si un mot est
                     // assez couvert pour etre verrouille.
                     val logprobs = outputs.letters
+                    // Masque des BLANCS, pour la politique de coupe (cf.
+                    // findCutOffset). Calcule ici parce que c'est le seul
+                    // endroit ou les logprobs existent, et il couvre tout le
+                    // buffer courant -- donc aussi la zone ou la prochaine
+                    // coupe sera cherchee.
+                    if (logprobs.isNotEmpty()) {
+                        val b = BooleanArray(logprobs.size)
+                        for (f in logprobs.indices) {
+                            var best = 0; var bv = logprobs[f][0]
+                            for (c in 1 until logprobs[f].size)
+                                if (logprobs[f][c] > bv) { bv = logprobs[f][c]; best = c }
+                            b[f] = best == engine.blank
+                        }
+                        blancs = b
+                        blancsSpf = maxOf(1, snapshot.size / logprobs.size)
+                    }
                     // Tete 2 : decodee UNE fois pour tout le segment, puis
                     // repartie par mot dans l'aligneur (recouvrement de frames).
                     // Longueur de l'audio REELLEMENT juge : `snapshot` contient
@@ -1904,6 +1969,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                                 FloatArray(0)
                             }
                             lastRunSize = samples.size
+                            // Le masque decrit le buffer AVANT purge : ses
+                            // indices ne veulent plus rien dire apres.
+                            blancs = null
                         }
                         contextSamples = consumed - purgeFrom
                         // Texte fige = frames consommees UNIQUEMENT, et a partir
