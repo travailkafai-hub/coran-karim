@@ -109,8 +109,22 @@ if [ -z "$WAV" ]; then
       --es recette lecture --ei sourate "$SOURATE" >/dev/null
 fi
 
-echo "recitation en cours (${DUREE}s)…"
-sleep "$DUREE"
+if [ -n "$WAV" ]; then
+  # En mode DETERMINISTE, on n'attend pas une duree de montre mais la FIN DU
+  # FICHIER : sinon chaque passe consomme une portion differente du meme audio
+  # (mesure : 71, 98 puis 96 mots juges sur le meme WAV), et les taux ne sont
+  # plus comparables. L'app ecrit ce marqueur quand le rejeu est epuise.
+  echo -n "rejeu du fichier"
+  for _ in $(seq 1 $((DUREE + 60))); do
+    sleep 1
+    if "$ADB" -s "$SAMSUNG" shell "tail -n 40 $LOG" 2>/dev/null | grep -q "fin du fichier"; then
+      echo " (termine)"; break
+    fi
+  done
+else
+  echo "recitation en cours (${DUREE}s)…"
+  sleep "$DUREE"
+fi
 
 # Second tap = arret de la session. C'est CE chemin qui vide la trace fine
 # accumulee en memoire dans le fichier de log (cf. _flushTraces, appele par
