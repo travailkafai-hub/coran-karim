@@ -65,8 +65,18 @@ python3 "$RACINE/benchmark/ecarter_dialogue.py" "$SAMSUNG" "$XIAOMI" 2>/dev/null
 EXTRA_WAV=""
 if [ -n "$WAV" ]; then
   [ -f "$WAV" ] || mort "WAV introuvable : $WAV"
-  DIST=/sdcard/recette_source.wav
-  "$ADB" -s "$SAMSUNG" push "$WAV" "$DIST" >/dev/null || mort "push du WAV impossible"
+  # Dossier PROPRE a l'app : depuis Android 11 (stockage cloisonne) elle ne peut
+  # pas lire un fichier arbitraire de /sdcard. Symptome constate : la source
+  # deterministe s'active (« SOURCE DETERMINISTE : ... » dans le log) mais AUCUN
+  # bloc PCM n'arrive -- echec silencieux d'ouverture.
+  DIST=/sdcard/Android/data/$PKG/files/recette_source.wav
+  # Le WAV est sur CE disque, `adb` s'execute sur le poste distant : il faut
+  # donc d'abord l'y transferer. Meme piege que l'APK -- et par chemin RELATIF
+  # au repertoire personnel, un chemin absolu Windows ne survivant pas aux
+  # echappements bash -> ssh -> cmd.
+  scp -o BatchMode=yes -o StrictHostKeyChecking=no -o LogLevel=ERROR -q \
+      "$WAV" "${PCB:-kafai@100.126.49.93}:src.wav" || mort "transfert du WAV vers le poste distant impossible"
+  "$ADB" -s "$SAMSUNG" push src.wav "$DIST" >/dev/null 2>&1 || mort "push du WAV vers le telephone impossible"
   EXTRA_WAV="--es wav $DIST"
   echo "source deterministe : $(basename "$WAV")"
 fi

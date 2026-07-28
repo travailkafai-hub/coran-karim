@@ -1219,7 +1219,25 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // buffer : elle avance avec l'audio, c'est ce qui rend la fenetre
         // glissante (cf. bloc de documentation ci-dessus).
         val from = maxOf(minKeep, targetOffset - radius)
-        val to = buf.size
+        // ── LA COUPE NE DOIT DEPENDRE QUE DU SON ────────────────────────────
+        // (2026-07-28, mesure sur rejeu deterministe.)
+        //
+        // La borne droite valait `buf.size` -- ce que le buffer contient AU
+        // MOMENT OU la decision tourne. Or ce moment depend de l'ordonnancement
+        // et de la duree de l'inference precedente, pas de l'audio. Consequence
+        // mesuree en rejouant TROIS FOIS le meme fichier, identique au bit pres :
+        //     passe 1 : 5,70  16,96  23,38  34,48  45,28  50,66  62,08
+        //     passe 2 : 5,70  17,27  23,38  33,92  36,80  48,32  50,67
+        //     passe 3 : 5,70  17,20  23,30  34,00  36,80  48,32  50,67
+        // Les coupes divergent, et leur NOMBRE change (15, 16, 15). Comme une
+        // coupe sur deux tombe en plein mot, quelques dizaines de millisecondes
+        // d'ecart changent quel mot est detruit -- d'ou des taux de 2,8 %, 3,9 %
+        // et 5,3 % sur le MEME audio.
+        //
+        // La recherche est donc bornee SYMETRIQUEMENT autour de la cible, qui
+        // est elle-meme ancree sur le debut du segment. La decision ne depend
+        // plus que du contenu : meme audio, memes coupes.
+        val to = minOf(buf.size, targetOffset + radius)
         if (to - from < win * minRunWins) return -1
 
         // ── COUPER OU LE MODELE NE DIT RIEN, PAS OU LE SIGNAL EST FAIBLE ──
