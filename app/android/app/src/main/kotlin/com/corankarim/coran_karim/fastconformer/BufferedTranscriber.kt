@@ -285,6 +285,21 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // nouvelle coupe immediate -> cascade de gels qui verrouillent un mot a
         // chaque tour meme quand le recitateur s'est TU (bug mesure sur la 1re
         // version).
+        // ELARGISSEMENT A 2,0 s : ESSAYE, MESURE, REJETE le 2026-07-28.
+        //
+        // Idee : la borne droite etant desormais ancree sur le contenu, le rayon
+        // devient le seul parametre qui decide combien de points de coupe sont
+        // candidats -- l'elargir devait rendre le choix perdu sans redevenir
+        // dependant de l'horloge. Mesure, trois passes sur le MEME fichier :
+        //     rayon 0,8 s : 7,0 / 4,2 / 4,0 %   coupes 5,7 16,3 23,4 35,4 36,8
+        //     rayon 2,0 s : 4,2 / 9,9 / 3,7 %   coupes 5,7 16,6|16,8|16,9 ...
+        // La variance REVIENT. Cause : avec plus de candidats, ce sont de
+        // minuscules differences du MASQUE DE BLANCS qui decident du gagnant --
+        // et ce masque vient de la derniere inference, dont la couverture depend
+        // encore de l'instant. Le rayon large expose donc une dependance a
+        // l'horloge que le rayon etroit masquait.
+        // On garde 0,8 s : sans reproductibilite, aucune optimisation suivante
+        // n'est demontrable.
         private const val CUT_SEARCH_RADIUS_SECONDS = 0.8f
     }
 
