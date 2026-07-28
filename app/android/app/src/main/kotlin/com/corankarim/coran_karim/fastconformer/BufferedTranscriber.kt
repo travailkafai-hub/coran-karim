@@ -472,7 +472,10 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
      * C'est ici que le secours cesse de faire confiance au placement du mot
      * qu'il repare (cf. le bloc de commentaire de [STAMP_MARGIN_SECONDS]).
      */
-    private fun fenetreDeRecherche(wordIndex: Int): Pair<Long, Long>? {
+    /** Fenetre + les deux voisins SURS qui la bornent (gauche, droite ou null). */
+    private data class Zone(val from: Long, val to: Long, val g: Int, val d: Int?)
+
+    private fun fenetreDeRecherche(wordIndex: Int): Zone? {
         val g = wordStamps.keys.filter { it < wordIndex }.maxOrNull() ?: return null
         val d = wordStamps.keys.filter { it > wordIndex }.minOrNull()
         val marge = (SAMPLE_RATE * STAMP_MARGIN_SECONDS).toLong()
@@ -487,21 +490,62 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     "${max * 1000 / SAMPLE_RATE}ms (voisins surs $g/$d)")
             to = from + max
         }
-        return from to to
+        return Zone(from, to, g, d)
+    }
+
+    /**
+     * Cible du secours : tous les mots que la fenetre couvre REELLEMENT, soit
+     * ceux compris entre les deux voisins surs qui la bornent. Repli sur le mot
+     * seul quand on n'a pas d'ancre temporelle (tout debut de recitation).
+     */
+    private fun cibleAvecVoisins(
+        z: Zone?, wordIndex: Int, toks: List<IntArray>?,
+    ): Pair<List<IntArray>, Int> {
+        val t = toks ?: return listOf(IntArray(0)) to wordIndex
+        val seul = (t.getOrNull(wordIndex) ?: IntArray(0)).let { listOf(it) to wordIndex }
+        if (z == null) return seul
+        val debut = z.g          // le voisin sur de GAUCHE ouvre la fenetre
+        val fin = (z.d ?: (wordIndex + 1)).coerceAtMost(t.size - 1)
+        if (debut > fin || debut < 0 || fin >= t.size) return seul
+        return t.subList(debut, fin + 1).toList() to debut
     }
 
     private fun secoursMeilleur(
         orig: ForcedAligner.WordResult,
         rj: ForcedAligner.WordResult,
     ): Boolean =
-        rj.gop > orig.gop ||
-            (rj.gop >= orig.gop && rj.actual.length > orig.actual.length)
+        // Garde-fou (2026-07-28) : un secours qui rend PLUSIEURS mots a place le
+        // mot vise sur l'audio de ses voisins -- mesure : le mot 151 « بهم »
+        // rendu « ويمدهم في طغيانهم », accepte parce que le gop remontait.
+        // Un rattrapage doit rendre UN mot, pas une bribe de phrase.
+        !rj.actual.trim().contains(' ') &&
+            (rj.gop > orig.gop ||
+                (rj.gop >= orig.gop && rj.actual.length > orig.actual.length))
 
+    /**
+     * @param cible sequence de mots couvrant la fenetre, et [ancreCible] l'index
+     *   absolu de son premier mot. Aligner le mot SEUL contre un audio qui en
+     *   contient plusieurs est la cause mesuree des deux modes d'echec du
+     *   secours (2026-07-28, 33 tentatives) :
+     *     - l'alignement force doit couvrir TOUTES les frames avec ce seul mot ;
+     *       si les voisins occupent l'essentiel de la fenetre son score
+     *       s'effondre -> RATE, alors que le mot est bien la (6 cas) ;
+     *     - s'il n'y a rien de mieux a faire, la DP le pose quand meme quelque
+     *       part et le gop peut sortir excellent -> FAUX POSITIF, alors qu'il
+     *       n'y est pas (7 cas). Le mot 151 l'a montre par l'absurde : rendu
+     *       « بهم » -> « ويمدهم في طغيانهم », trois mots pour un.
+     *   Avec les voisins dans la cible, la DP a de quoi couvrir les frames qui
+     *   n'appartiennent pas au mot vise, et seul celui-ci est juge. C'est aussi
+     *   ce que fait l'etat de l'art : un second passage porte sur un SEGMENT
+     *   avec contexte, jamais sur un mot isole (arXiv 2008.13093, 2211.15432).
+     */
     private fun rescueWord(
         wordIndex: Int,
         tokens: IntArray,
         absFrom: Long,
         absTo: Long,
+        cible: List<IntArray> = listOf(tokens),
+        ancreCible: Int = wordIndex,
     ): ForcedAligner.WordResult? {
         if (tokens.isEmpty()) return null
         val ctx = (SAMPLE_RATE * RESCUE_CONTEXT_SECONDS).toInt()
@@ -563,12 +607,15 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // DiagnosticLog.contexteDebut).
             DiagnosticLog.contexteDebut("secours")
             val res = try {
-                aligner.align(dpLp, listOf(tokens), wordIndex,
+                aligner.align(dpLp, cible, ancreCible,
                               forceJudgeIndex = wordIndex, isFinal = true)
             } finally {
                 DiagnosticLog.contexteFin()
             }
-            val out = res?.words?.firstOrNull()
+            // On ne retient QUE le mot vise : les voisins ne sont la que pour
+            // donner a la DP de quoi couvrir les frames qui ne lui appartiennent
+            // pas -- leur verdict n'a rien a faire ici.
+            val out = res?.words?.firstOrNull { it.index == wordIndex }
             if (out == null) {
                 // Chemin MUET corrige (2026-07-27) : la DP du secours peut ne
                 // rien rendre (align null, ou liste vide). Sans cette ligne,
@@ -805,9 +852,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         val f0 = if (w.firstFrame >= 0) w.firstFrame else prevLast + 1
                         val f1 = if (w.lastFrame >= 0) w.lastFrame
                                  else f0 + (SAMPLE_RATE * 2 / spfRescue)
-                        val absFrom = h?.first ?: (absOrigin + f0.toLong() * spfRescue)
-                        val absTo = h?.second ?: (absOrigin + (f1 + 1).toLong() * spfRescue)
-                        val rj = rescueWord(w.index, tokens[w.index], absFrom, absTo)
+                        val absFrom = h?.from ?: (absOrigin + f0.toLong() * spfRescue)
+                        val absTo = h?.to ?: (absOrigin + (f1 + 1).toLong() * spfRescue)
+                        val z = cibleAvecVoisins(h, w.index, tokens)
+                        val rj = rescueWord(w.index, tokens[w.index], absFrom, absTo,
+                                            z.first, z.second)
                         if (rj != null && secoursMeilleur(w, rj)) {
                             patched[w.index] = rj
                             DiagnosticLog.log(TAG,
@@ -1415,12 +1464,14 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                                 val f0 = if (w.firstFrame >= 0) w.firstFrame else prevL + 1
                                 val f1 = if (w.lastFrame >= 0) w.lastFrame
                                          else f0 + (SAMPLE_RATE * 2 / lastAlignSpf)
+                                val z = cibleAvecVoisins(h, w.index, toks)
                                 val rj = rescueWord(
                                     w.index, tk,
-                                    h?.first
+                                    h?.from
                                         ?: (lastAlignOrigin + f0.toLong() * lastAlignSpf),
-                                    h?.second
-                                        ?: (lastAlignOrigin + (f1 + 1).toLong() * lastAlignSpf))
+                                    h?.to
+                                        ?: (lastAlignOrigin + (f1 + 1).toLong() * lastAlignSpf),
+                                    z.first, z.second)
                                 if (rj != null && secoursMeilleur(w, rj)) {
                                     patchF[w.index] = rj
                                     DiagnosticLog.log(TAG,
