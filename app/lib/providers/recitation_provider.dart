@@ -2976,8 +2976,38 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // sur les cas réels observés : troncature légitime ("ٱلْحَمْدُ"->"مْدُ")
       // = ratio 0.44, coïncidence 1 caractère = ratio 0.14 -- un seuil à 1/3
       // sépare proprement les deux sans perdre le cas de troncature.
-      final isLongEnoughToBeFragment =
-          actualStrict.length >= 2 && actualStrict.length * 3 >= expected.strict.length;
+      // Recentré sur la ligne de base du mot (cf. _normalizedGop) : sur un mot
+      // structurellement dur (moyenne connue négative), r.gop brut serait jugé
+      // faux même parfaitement récité. Calculé ICI et non plus bas : la règle
+      // de fragment juste en dessous en a besoin.
+      final normGopBrut = _normalizedGop(expected.training, r.gop);
+
+      // ── LA PROPORTION CÈDE DEVANT UNE PREUVE D'ALIGNEMENT FORTE ──────────
+      // (2026-07-28, mesuré sur le banc à deux téléphones.)
+      //
+      // La règle de proportion protège contre « valider un mot sur une lettre ».
+      // Elle est juste tant qu'on n'a QUE le texte décodé. Mais quand
+      // l'alignement forcé dit du bien du mot, on a une preuve INDÉPENDANTE, et
+      // la refuser revient à juger sur le seul artefact.
+      //
+      // Cas qui l'impose : `يُخَـٰدِعُونَ` entendu `يُ` avec normGop = +0,93, et
+      // `أَلِيمٌۢ` entendu `ۢ` avec normGop = +0,10 puis +0,34 — tous deux très
+      // au-dessus du seuil `correct` (-0,45), tous deux plafonnés à orange par
+      // le seul fait que le décodage libre sur leurs frames est court. Le mot
+      // est bien là : le modèle le produit exactement sur l'audio brut
+      // (vérifié hors device).
+      //
+      // Ce n'est PAS la tolérance que l'utilisateur avait refusée le 2026-07-25
+      // (« un récitant qui ne dit que la moitié d'un mot était validé ») : ce
+      // cas-là a un gop MAUVAIS, et il reste refusé ici. Le discriminant est
+      // exactement la preuve acoustique, et les trois conditions le disent —
+      // l'audio couvre le mot entier, la DP lui a donné son minimum de frames,
+      // et le score dépasse le seuil de correction.
+      final preuveAlignementForte =
+          r.covered && !r.starved && normGopBrut >= _gopCorrect;
+      final isLongEnoughToBeFragment = preuveAlignementForte
+          ? actualStrict.isNotEmpty
+          : actualStrict.length >= 2 && actualStrict.length * 3 >= expected.strict.length;
       // Suppression au milieu (2026-07-16 soir, cas réel device : attendu
       // "بَلَوْنَـٰهُمْ", entendu "بَلَهُمْ" -- le CTC glouton a avalé "وْنَ" au
       // milieu, hors des frontières de mot). Contrairement au sin/sad
@@ -3004,7 +3034,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // mot structurellement dur (moyenne connue négative), r.gop brut serait
       // jugé faux même parfaitement récité -- normGop mesure l'ÉCART à ce qui
       // est normal pour CE mot, comparé aux mêmes seuils que d'habitude.
-      final normGop = _normalizedGop(expected.training, r.gop);
+      final normGop = normGopBrut;
 
       // Bismillah dont AUCUN son n'a été capté : non jugée du tout (cf. le
       // bloc « CORRECTIF RETENU » avant la boucle). Sortir AVANT la cascade
