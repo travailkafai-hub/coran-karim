@@ -43,7 +43,23 @@ import 'tajwid_rules_screen.dart';
 /// d'écoute, pas un verdict.
 class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   final List<Verse> verses;
-  const KaraokeRecitationScreen({super.key, required this.verses});
+
+  /// Démarre la récitation SANS attendre le tap d'ouverture (banc de recette à
+  /// deux téléphones, 2026-07-28).
+  ///
+  /// Pourquoi ce drapeau plutôt qu'un `input tap` dans le script : le tap est
+  /// une étape manuelle de plus à chaque itération, et il échoue en silence
+  /// (écran pas encore prêt, dialogue système par-dessus). On analyse alors une
+  /// session qui n'a jamais démarré sans que rien ne le dise. Ici le démarrage
+  /// est dans le même chemin de code que le tap — il attend que la cible
+  /// d'alignement soit prête, et il le journalise.
+  final bool autoDemarrer;
+
+  const KaraokeRecitationScreen({
+    super.key,
+    required this.verses,
+    this.autoDemarrer = false,
+  });
 
   @override
   ConsumerState<KaraokeRecitationScreen> createState() => _KaraokeRecitationScreenState();
@@ -221,6 +237,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     _pauseProfile.isGlobalStable().then((stable) {
       if (mounted) setState(() => _globalStable = stable);
     });
+    if (widget.autoDemarrer) _autoDemarrage();
     // Correction automatique (demande utilisateur 2026-07-05) : dès qu'un mot
     // est verrouillé rouge, pause + lecture réciteur + reprise, sans tap —
     // seulement si le réglage est activé (sinon comportement inchangé,
@@ -1021,6 +1038,28 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
   }
 
+  /// Attend que la session soit réellement prête, puis emprunte le MÊME chemin
+  /// que le tap. Deux conditions, pour ne pas démarrer dans le vide :
+  /// la cible d'alignement doit être chargée (`words`), et la vérification de
+  /// profil doit avoir répondu (`_hasProfile`) — sinon la session de référence
+  /// n'est pas marquée comme telle et rien n'est enregistré (bug du 2026-07-05).
+  Future<void> _autoDemarrage() async {
+    for (var i = 0; i < 60; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (!mounted) return;
+      final st = ref.read(recitationProvider);
+      if (st.words.isNotEmpty && _hasProfile != null) {
+        if (st.status == RecitationStatus.listening) return;
+        DiagnosticLog.log('RECETTE',
+            'demarrage automatique (${st.words.length} mots, profil=$_hasProfile)');
+        await _toggle(st, ref.read(recitationProvider.notifier));
+        return;
+      }
+    }
+    DiagnosticLog.log('RECETTE',
+        'demarrage automatique ABANDONNE : session pas prete apres 15 s');
+  }
+
   Future<void> _toggle(RecitationSessionState st, RecitationNotifier n) async {
     if (st.status == RecitationStatus.listening) {
       if (_manuallyPaused) setState(() => _manuallyPaused = false);
@@ -1055,7 +1094,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // 2026-07-10 d'origine : la session de référence forcée à la première
       // récitation d'un passage n'était pas un choix, alors que certains
       // préfèrent la correction automatique dès le premier essai.
-      if (_hasProfile == false && _globalStable != true) {
+      if (widget.autoDemarrer) {
+        // Banc de recette : le dialogue « référence ou correction ? » attend un
+        // tap et bloque le démarrage automatique — c'est ce qui faisait
+        // s'arrêter la session juste après `demarrage automatique` dans le log,
+        // sans rien d'autre pour le dire. Le banc impose le mode RÉFÉRENCE :
+        // c'est celui qu'on mesure (pas de correction, donc pas de recul
+        // d'ancre qui viendrait masquer un défaut d'alignement).
+        _isReferenceSession = true;
+      } else if (_hasProfile == false && _globalStable != true) {
         final wantsReference = await _askReferenceChoice();
         if (wantsReference == null) return; // dialogue annulé
         _isReferenceSession = wantsReference;
@@ -1175,6 +1222,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       setState(() => _manuallyPaused = false);
     } else {
       await verifier.pauseCapture();
+      // Un test se termine sur CE bouton bien plus souvent que sur l'arrêt :
+      // sans ce vidage, la trace fine (une ligne par bloc PCM, avec `busy=`)
+      // reste en mémoire et le log ne permet plus de savoir ce qui a tenu la
+      // chaîne. Cf. RecitationNotifier.flushTraces.
+      await ref.read(recitationProvider.notifier).flushTraces();
       setState(() => _manuallyPaused = true);
     }
   }

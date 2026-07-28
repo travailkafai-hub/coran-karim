@@ -1888,6 +1888,53 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// sont collectés ci-dessus.
   bool _referenceSession = false;
 
+  /// Relevé COMPLET des réglages, en tête de chaque session (demande
+  /// utilisateur 2026-07-28 : « je veux à chaque début de session le log de
+  /// tous les paramètres de l'app, pour savoir ce qu'on teste »).
+  ///
+  /// CE QUE ÇA A COÛTÉ DE NE PAS L'AVOIR. Une journée entière d'analyses a été
+  /// menée sur des logs `[GOP]` en croyant lire ce qui s'affichait à l'écran.
+  /// En réalité `useGopScoring` était à false : le gop tournait en parallèle et
+  /// se journalisait sans rien peindre, c'est le texte-diff qui pilotait
+  /// l'affichage — et lui restait bloqué sur `بِسْمِ ٱللَّهِ` (défaut déjà
+  /// documenté dans JudgementOptions). Le log annonçait 10 mots `correct`,
+  /// l'écran n'en montrait aucun, et rien dans le fichier ne permettait de
+  /// savoir lequel des deux moteurs était aux commandes.
+  ///
+  /// La ligne QUI COMPTE est `moteur=` : elle dit qui peint. Les autres
+  /// évitent d'attribuer à un correctif ce qui vient d'un réglage.
+  void _logParametresSession(bool referenceSession) {
+    final rules = _activeRules.isEmpty
+        ? 'aucune'
+        : '${_activeRules.length}(${_activeRules.map((r) => r.key).join(",")})';
+    DiagnosticLog.log('PARAMS', '--- debut de session ---');
+    DiagnosticLog.log(
+        'PARAMS',
+        'moteur=${_useGopScoring ? "GOP (alignement force)" : "TEXTE-DIFF"} '
+        '<- CELUI QUI PEINT L\'ECRAN | gop journalise en parallele dans les deux cas');
+    DiagnosticLog.log(
+        'PARAMS',
+        'session=${referenceSession ? "REFERENCE" : "NORMALE"} '
+        'correction=${referenceSession ? "desactivee" : "active"} '
+        'ancreSansBlocage=$referenceSession '
+        'modeConfiant=$_confidentMode');
+    DiagnosticLog.log(
+        'PARAMS',
+        'preset=${_preset.name} strictHarakat=$_strictHarakat '
+        'tolereConfusables=$_tolerateConfusables regles=$rules');
+    DiagnosticLog.log(
+        'PARAMS',
+        'seuils gop: correct=${_gopCorrect.toStringAsFixed(2)} '
+        'unclear=${_gopUnclear.toStringAsFixed(2)} '
+        'trouAlignement(free)=${_freeConfident.toStringAsFixed(2)}');
+    DiagnosticLog.log(
+        'PARAMS',
+        'cible=${state.words.length} mots '
+        'diagnostic=${DiagnosticLog.enabled} '
+        'build=${DiagnosticLog.buildTag}');
+    DiagnosticLog.log('PARAMS', '--- fin des parametres ---');
+  }
+
   Future<void> startContinuous({bool referenceSession = false}) async {
     if (state.words.isEmpty || state.isActive) return;
     _referenceSession = referenceSession;
@@ -1937,6 +1984,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // est desactivee, donc le report d'un mot non place ne sera JAMAIS rattrape
     // (demande utilisateur : « l'ancre doit faire +1 en cas d'erreur, elle ne
     // doit pas s'arreter dans ce mode »).
+    _logParametresSession(referenceSession);
     await _verifier.setNeverBlockAnchor(referenceSession);
     await _applyDiagnosticCapture();
     // Forme fidèle à l'entraînement — cible de l'alignement forcé GOP.
@@ -3417,6 +3465,31 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // On fait respecter la règle ici, dans la couche qui connaît isBasmala :
       // sauter l'ancre au premier mot NON-Bismillah. Sûr car Bismillah n'est de
       // toute façon jamais jugée.
+      //
+      // ── TENTATIVE ÉCARTÉE : « exiger une 2ᵉ passe avant de sauter » ────────
+      // Essayé le 2026-07-28, MESURÉE MAUVAISE, revenue en arrière le même
+      // jour. À ne pas refaire sans changer autre chose.
+      //
+      // Le raisonnement était : sauter dès la 1ʳᵉ passe finale sans mot aligné
+      // envoie l'ancre au-delà de la Bismillah alors que son audio n'est pas
+      // encore arrivé. Chronologie qui l'avait motivé (build causal-v1-horodatage) :
+      //   08:13:18,5  ancre sautée 0 -> 4 après une passe finale à mots=0
+      //   08:13:23-28 le récitateur dit ٱلرَّحْمَنِ ٱلرَّحِيمِ (mots 2-3), l'ancre
+      //               est déjà sur 4 (الٓمٓ) -> ZERO FRAME en boucle
+      //   08:13:38,3  الٓمٓ enfin décodé  => 20 s de curseur figé
+      //
+      // POURQUOI LA GARDE A ÉCHOUÉ (build causal-v1-bismillah-2echance) : elle
+      // était indexée sur `p.anchor`, donc elle se réarmait à CHAQUE mot de la
+      // Bismillah et le saut groupé ci-dessous ne se déclenchait plus jamais.
+      // L'ancre n'avançait plus que par le chemin natif « AVANCE SANS JUGER »,
+      // un mot par segment : 0->1 à 08:22:55, 1->2 à 08:23:13, 2->3 à 08:23:25,
+      // ~6 s chacun. Blocage de 20 s remplacé par une reptation de ~25 s.
+      //
+      // CE QUE LA MESURE A APPRIS, ET QUI RESTE VRAI : le vrai défaut n'est pas
+      // la date du saut, c'est que le saut déplace l'ancre SANS consommer
+      // l'audio des mots sautés. Le mot suivant est alors aligné contre l'audio
+      // de la Bismillah, et échoue jusqu'à ce que cet audio soit consommé.
+      // Un correctif qui ne traite que l'instant du saut ne peut pas marcher.
       if (p.words.isEmpty &&
           p.anchor >= 0 &&
           p.anchor < words.length &&
@@ -3794,6 +3867,22 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// en fin de session : c'est une écriture volumineuse, et la faire pendant la
   /// récitation fausserait la latence qu'on cherche justement à mesurer (cf.
   /// DiagnosticLog.trace).
+  /// Vidage explicite depuis l'UI, sur la **pause manuelle**.
+  ///
+  /// Pourquoi il a fallu l'ajouter (2026-07-27) : une session s'est terminée
+  /// sur `pauseCapture()` et pas sur `stop()`, donc [_flushTraces] n'a jamais
+  /// tourné. Or c'est exactement cette session qui montrait deux trous de
+  /// 11,2 s sans aucune passe de transcription -- et la seule trace capable de
+  /// dire ce qui tenait la chaîne (`feed … busy=…`, une ligne par bloc PCM)
+  /// est restée en mémoire, perdue à la fermeture. Le log ne permettait plus
+  /// que des hypothèses.
+  ///
+  /// La pause manuelle est le geste par lequel un test se termine réellement :
+  /// c'est là qu'il faut écrire, pas seulement à l'arrêt. Ne pas brancher ça
+  /// sur les pauses techniques (souffleur, lecture d'un mot) : elles sont
+  /// fréquentes et sur un chemin sensible à la latence.
+  Future<void> flushTraces() => _flushTraces();
+
   Future<void> _flushTraces() async {
     final n = DiagnosticLog.flushTrace();
     final m = await _verifier.flushNativeTrace();
