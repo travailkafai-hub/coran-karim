@@ -68,7 +68,23 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         private const val MAX_SECONDS = 180          // garde-fou memoire/latence par segment
         private const val MIN_NEW_SECONDS = 1.5f     // cadence de re-transcription du segment courant
         private const val SILENCE_RMS_THRESHOLD = 0.02f      // approx -34dBFS
-        private const val MAX_SILENCE_SAMPLES = (SAMPLE_RATE * 0.3f).toInt() // 300ms max garde par pause (dans un segment)
+        // 300 ms -> 900 ms (2026-07-28, remarque utilisateur : « le silence, c'est
+        // du temps blanc, donc il va aider a avoir plus de temps blanc pour
+        // eviter la coupe des mots »).
+        //
+        // Mesure qui la confirme, flux brut contre flux d'apres portier sur les
+        // memes sessions :
+        //     endroits ou l'on peut couper : 12 -> 11   (quasi inchange)
+        //     duree totale de silence      : 8,9 s -> 3,6 s   (-60 %)
+        // Le portier ne supprime donc presque AUCUNE occasion de couper -- il
+        // ampute chaque silence. Chaque occasion devient etroite, et la coupe
+        // tombe au ras du mot : c'est la MARGE qui manque, pas l'endroit.
+        //
+        // On garde le portier (le desactiver entierement a ete mesure desastreux
+        // pour le WER, cf. CLAUDE.md) mais on lui laisse de quoi couper au
+        // large. Le cout est borne : ce silence n'est garde qu'a l'interieur
+        // d'un segment, et une pause franche declenche de toute facon le gel.
+        private const val MAX_SILENCE_SAMPLES = (SAMPLE_RATE * 0.9f).toInt()
         // 450ms par defaut (et non 700ms) : test reel 2026-07-05 — une recitation
         // fluide ne marque jamais 700ms entre versets, le gel sur pause ne tirait
         // donc jamais et seule la borne dure (12s, deja trop long pour le modele)
@@ -536,6 +552,44 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
      * ceux compris entre les deux voisins surs qui la bornent. Repli sur le mot
      * seul quand on n'a pas d'ancre temporelle (tout debut de recitation).
      */
+    /**
+     * Fenetre et cible pour un secours ETENDU de [n] mots valides EN AMONT du
+     * mot vise (idee utilisateur 2026-07-28).
+     *
+     * Le principe : si A, B, C sont deja juges corrects et que D echoue, on ne
+     * rejuge pas D SEUL -- on rejuge C+D, puis B+C+D, puis A+B+C+D. Deux issues,
+     * et les deux sont informatives :
+     *   - le groupe passe -> D n'etait pas faux, c'est l'accrochage qui avait
+     *     lache ; les mots amont, eux, sont des ancres SURES ;
+     *   - le groupe echoue encore alors que A, B, C sont corrects -> c'est bien
+     *     D, et on le sait sans le supposer.
+     *
+     * Ce que ca traite et qu'un secours mot-a-mot ne peut pas : la DERIVE. Sur
+     * Maryam, douze mots consecutifs (46-57) echouent d'un bloc avec gop ~ -8 et
+     * free ~ -0,06 -- le modele est CERTAIN de ce qu'il entend, c'est la
+     * POSITION qui est perdue. Rejuger chacun seul ne peut rien y faire : il
+     * faut repartir d'un point connu, et les mots valides en sont un.
+     *
+     * Retourne null si on n'a pas [n] mots horodates en amont.
+     */
+    private fun cibleEtendue(
+        wordIndex: Int, toks: List<IntArray>?, n: Int,
+    ): Triple<Long, Long, Pair<List<IntArray>, Int>>? {
+        val t = toks ?: return null
+        val amont = wordStamps.keys.filter { it < wordIndex }.sortedDescending().take(n)
+        if (amont.size < n) return null
+        val debut = amont.last()
+        val d = wordStamps.keys.filter { it > wordIndex }.minOrNull()
+        if (debut < 0 || wordIndex >= t.size) return null
+        val marge = (SAMPLE_RATE * STAMP_MARGIN_SECONDS).toLong()
+        val from = maxOf(0L, wordStamps.getValue(debut).first - marge)
+        val to = if (d != null) wordStamps.getValue(d).first + marge else rescue.totalSamples()
+        if (to <= from) return null
+        val fin = (d ?: (wordIndex + 1)).coerceAtMost(t.size - 1)
+        if (debut > fin) return null
+        return Triple(from, to, t.subList(debut, fin + 1).toList() to debut)
+    }
+
     private fun cibleAvecVoisins(
         z: Zone?, wordIndex: Int, toks: List<IntArray>?,
     ): Pair<List<IntArray>, Int> {
@@ -956,8 +1010,33 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         val absFrom = h?.from ?: (absOrigin + f0.toLong() * spfRescue)
                         val absTo = h?.to ?: (absOrigin + (f1 + 1).toLong() * spfRescue)
                         val z = cibleAvecVoisins(h, w.index, tokens)
-                        val rj = rescueWord(w.index, tokens[w.index], absFrom, absTo,
+                        var rj = rescueWord(w.index, tokens[w.index], absFrom, absTo,
                                             z.first, z.second)
+                        // EXPANSION PROGRESSIVE si le premier essai ne donne
+                        // rien : on repart de plus en plus loin en amont, sur
+                        // des mots DEJA VALIDES qui servent d'ancres sures
+                        // (cf. cibleEtendue). On s'arrete des que ca passe.
+                        // UN SEUL essai elargi, pas d'incremental (demande
+                        // utilisateur 2026-07-28 : « ne pas le faire
+                        // incremental, tester une seule fois A+B+C+D en cas
+                        // d'erreur »). L'incremental multipliait les inferences
+                        // sur le chemin critique sans rien apporter : mesure sur
+                        // Maryam, il ne s'est declenche qu'UNE fois sur 15 mots
+                        // non verts.
+                        if (rj == null || !secoursMeilleur(w, rj)) {
+                            val e = cibleEtendue(w.index, tokens, 4)
+                            if (e != null) {
+                                val r2 = rescueWord(w.index, tokens[w.index],
+                                                    e.first, e.second,
+                                                    e.third.first, e.third.second)
+                                if (r2 != null && secoursMeilleur(w, r2)) {
+                                    DiagnosticLog.log(TAG,
+                                        "secours ETENDU mot=${w.index} : replace en " +
+                                            "repartant de 4 mots valides en amont")
+                                    rj = r2
+                                }
+                            }
+                        }
                         if (rj != null && secoursMeilleur(w, rj)) {
                             patched[w.index] = rj
                             DiagnosticLog.log(TAG,
@@ -1255,7 +1334,38 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         val to = minOf(buf.size, targetOffset + radius)
         if (to - from < win * minRunWins) return -1
 
-        // ── COUPER OU LE MODELE NE DIT RIEN, PAS OU LE SIGNAL EST FAIBLE ──
+        // ── D'ABORD : COUPER A UNE FIN DE MOT CONNUE (2026-07-28) ─────────
+        // L'information la plus sure n'est ni l'energie ni les blancs : c'est
+        // l'ALIGNEMENT lui-meme, qui dit ou chaque mot se termine. Couper la
+        // rend la coupe en plein mot IMPOSSIBLE par construction, au lieu de
+        // seulement moins probable.
+        //
+        // Ce que ca traite : 47,4 % des coupes tombaient en plein mot, et 19 des
+        // 22 mots non verts avaient ZERO frame -- ce sont les victimes de ces
+        // coupes. L'energie ne porte pas la frontiere de mot (les occlusives
+        // arabes ont une phase peu energique AU MILIEU d'un mot) ; les blancs du
+        // CTC s'en approchent (45,5 % -> 27,3 % en simulation) ; la fin de mot,
+        // elle, EST la frontiere.
+        //
+        // On ne retient qu'un mot COUVERT et non etrangle : sa borne droite est
+        // alors une vraie fin de mot, pas l'endroit ou la DP a manque d'audio.
+        // Repli sur les blancs, puis sur l'energie, quand aucun alignement n'est
+        // encore disponible (tout debut de segment).
+        val mots = lastAlignWords
+        if (mots != null && lastAlignSpf > 0) {
+            var meilleur = -1; var dist = Int.MAX_VALUE
+            for (w in mots) {
+                if (!w.covered || w.starved || w.lastFrame < 0) continue
+                val abs = lastAlignOrigin + (w.lastFrame + 1).toLong() * lastAlignSpf
+                val off = (abs - absStart).toInt()
+                if (off !in from until to) continue
+                val e = kotlin.math.abs(off - targetOffset)
+                if (e < dist) { dist = e; meilleur = off }
+            }
+            if (meilleur >= 0) return meilleur
+        }
+
+        // ── ENSUITE : COUPER OU LE MODELE NE DIT RIEN, PAS OU LE SIGNAL EST FAIBLE ──
         // (2026-07-28, valide hors device AVANT d'ecrire cette ligne.)
         //
         // Mesure sur l'audio reel de deux sessions, memes cibles de coupe :
