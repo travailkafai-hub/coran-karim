@@ -93,12 +93,33 @@ object DiagnosticLog {
         return n
     }
 
+    // ── CONTEXTE D'EMISSION (2026-07-27) ────────────────────────────────────
+    // Le secours rejoue le VRAI aligneur (`align(isFinal = true)`) sur une
+    // fenetre d'un seul mot. Il emet donc les memes lignes que le chemin
+    // principal -- `ZERO FRAME`, `AVANCE SANS JUGER`, `ETRANGLE PAR LA
+    // REFERENCE` -- sans rien qui permette de les distinguer.
+    //
+    // Ce que ca a coute (session du 21:19) : 24 lignes `AVANCE SANS JUGER`,
+    // dont **zero** venait du chemin principal. Compare aux 1 de la session
+    // precedente, ca ressemblait a une regression d'un facteur 24 sur l'ancre.
+    // Il n'y en avait aucune : c'etait le secours qui parlait.
+    //
+    // Marquer ICI plutot que dans ForcedAligner : un seul point de passage, et
+    // ca couvre toute ligne emise pendant le secours, d'ou qu'elle vienne.
+    // Serialise par `busy` (le secours ne tourne jamais en parallele d'une
+    // passe), donc un simple champ suffit -- pas de pile, pas de thread-local.
+    @Volatile private var contexte: String = ""
+
+    fun contexteDebut(c: String) { contexte = c }
+    fun contexteFin() { contexte = "" }
+
     @Synchronized
     fun log(tag: String, message: String) {
         // Sortie AVANT tout formatage (interpolation + SimpleDateFormat) :
         // c'est le cout dominant quand le log est verbeux.
         if (!enabled) return
-        val line = "${fmt.format(Date())} [$tag] $message"
+        val c = contexte
+        val line = "${fmt.format(Date())} [${if (c.isEmpty()) tag else "$c:$tag"}] $message"
         Log.i(TAG, line) // garde aussi la visibilite logcat habituelle
         val f = file ?: return
         try {

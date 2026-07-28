@@ -137,6 +137,25 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         private const val RESCUE_TAIL_SECONDS = 2f
         private val OVERLAP_SAMPLES = (SAMPLE_RATE * OVERLAP_SECONDS).toInt()
 
+        // ── HORODATAGE DES MOTS SURS (2026-07-27, specification utilisateur) ─
+        // La fenetre de secours etait deduite du placement de la DP. Or on ne
+        // secourt QUE des mots que la DP a mal places : la fenetre heritait de
+        // l'erreur qu'elle devait reparer. Mesure, mot 108 (`إِنَّهُمْ`) :
+        //     regardee = [141,9-147,0]s (decode VIDE) | reelle = [152-156]s
+        // -> 8 s trop tot. Les 31 « SANS GAIN -20,00 » d'une session sortent de la.
+        // On date donc les mots dont la POSITION est sure, et on borne la
+        // recherche d'un mot rate par ses VOISINS dates, jamais par lui-meme.
+        // Sur ce cas : mot 106 sur a ~152 s, mot 114 sur a ~160 s -> [152,160].
+        // Bonus structurel : les versets 12 et 13 finissent presque pareil
+        // (5 mots communs a 20 mots d'ecart) ; la borne droite interdit de
+        // valider la mauvaise occurrence, qui est apres 168 s.
+        // Marge des deux cotes (demande utilisateur) : meme un mot sur a des
+        // bornes approximatives (frames blank, coarticulation, pas de 80 ms).
+        private const val STAMP_MARGIN_SECONDS = 1f
+        // Plafond : au-dela, placer UN mot devient une recherche dans du foin.
+        // Journalise quand il mord, pour qu'une session dise s'il est trop bas.
+        private const val RESCUE_MAX_SEARCH_SECONDS = 10f
+
         // ── COUPE SUR MICRO-SILENCE (2026-07-25, idee utilisateur) ──────────
         // OBJECTIF : borner le retard de validation SANS jamais couper au
         // milieu d'un mot. Les deux tentatives precedentes echouaient parce
@@ -289,6 +308,24 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     @Volatile private var lastAlignWords: List<ForcedAligner.WordResult>? = null
     @Volatile private var lastAlignOrigin = 0L
     @Volatile private var lastAlignSpf = 0
+
+    /**
+     * Horodatage des mots dont la POSITION est sure : index du mot -> [debut,
+     * fin) en echantillons ABSOLUS du flux d'apres portier -- la meme horloge
+     * que [RescueBuffer], donc aucune conversion et aucun appariement de texte.
+     *
+     * Le critere d'entree ne juge PAS la prononciation, il juge la confiance de
+     * POSITION : `covered` (l'audio couvre le mot en entier) et `!starved` (la
+     * DP lui a donne au moins son minimum de frames). Y mettre un seuil de
+     * `gop` melangerait les deux, alors que la doctrine du projet separe
+     * justement « ou est le mot » de « est-il bien recite ».
+     *
+     * Alimente a CHAQUE passe, apercu compris : le gel a la borne dure promeut
+     * un apercu, et il porte 89 % des mots -- ne dater que les passes finales
+     * ne daterait presque rien. Le mot de frontiere s'exclut tout seul du
+     * registre (il n'est pas `covered`), ce qui est exactement voulu.
+     */
+    private val wordStamps = HashMap<Int, Pair<Long, Long>>()
     // Garde-fou "2 chances max" (2026-07-14, cf. ForcedAligner.MIN_FRAMES_FOR_JUDGMENT) :
     // index du mot differe par le dernier appel FINAL (segment trop court
     // apres lui pour juger equitablement), ou -1 si aucun. Repasse en
@@ -318,6 +355,12 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         alignAnchor = anchor.coerceIn(0, tokens.size)
         lastAlign = null
         deferredOnceIndex = -1
+        // Nouvelle cible = nouvelle recitation : les horodatages de la
+        // precedente designeraient un audio qui n'a plus rien a voir, et ils
+        // servent de BORNES au secours -- les garder l'enverrait chercher un mot
+        // dans la recitation d'avant. Purge ici et pas dans reset(), qui est
+        // appele pendant une correction ou l'horloge absolue, elle, continue.
+        wordStamps.clear()
         DiagnosticLog.log(TAG, "cible d'alignement : ${tokens.size} mots, ancre=$alignAnchor")
     }
 
@@ -384,6 +427,76 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
      * Retourne le WordResult recalcule, ou null si le secours n'a rien pu dire
      * (fenetre sortie de l'anneau, audio trop court, DP muette).
      */
+    /**
+     * Le verdict de secours remplace-t-il celui d'origine ?
+     *
+     * Regle d'origine : `gop` strictement meilleur, rien d'autre. Elle garantit
+     * qu'un mot deja vert ne peut pas devenir rouge -- invariant conserve ici.
+     *
+     * ELARGIE le 2026-07-27 (mesure device) : a gop EGAL, un texte plus long
+     * gagne. Cas qui l'a motivee, le secours avait retrouve le mot ENTIER et son
+     * resultat a ete jete :
+     *     secours mot=166 SANS GAIN : gop 0,00 -> 0,00,
+     *                     entendu "مُهْتَ" -> "مُهْتَدِينَ" (conserve l'original)
+     * A gop egal le statut Dart (vert/orange/rouge) est identique : cette
+     * branche ne peut donc pas degrader une couleur, elle ne corrige que le
+     * texte entendu -- et avec lui `covered`, qui alimente le declencheur.
+     *
+     * EFFET DE BORD ASSUME : `starved`/`noEvidence` viennent aussi du secours.
+     * Un mot NON JUGE faute de preuve peut donc devenir jugeable (et signale)
+     * si le secours, lui, a bien vu le mot en entier. C'est voulu -- un mot non
+     * juge n'est pas un mot vert -- mais ca peut faire monter le nombre de
+     * signales tout en faisant baisser les non juges.
+     */
+    /**
+     * Enregistre l'horodatage des mots surs de cette passe (cf. [wordStamps]).
+     * Une passe ulterieure, mieux informee, ecrase la precedente.
+     */
+    private fun horodater(words: List<ForcedAligner.WordResult>, absOrigin: Long, spf: Int) {
+        if (spf <= 0) return
+        for (w in words) {
+            if (!w.covered || w.starved || w.frames <= 0 ||
+                w.firstFrame < 0 || w.lastFrame < 0) continue
+            wordStamps[w.index] =
+                (absOrigin + w.firstFrame.toLong() * spf) to
+                (absOrigin + (w.lastFrame + 1).toLong() * spf)
+        }
+    }
+
+    /**
+     * Fenetre de recherche d'un mot rate, bornee par ses voisins HORODATES et
+     * elargie d'une marge de chaque cote. Retourne null s'il n'y a pas d'ancre
+     * gauche (debut de recitation) -- l'appelant retombe alors sur l'ancien
+     * calcul.
+     *
+     * C'est ici que le secours cesse de faire confiance au placement du mot
+     * qu'il repare (cf. le bloc de commentaire de [STAMP_MARGIN_SECONDS]).
+     */
+    private fun fenetreDeRecherche(wordIndex: Int): Pair<Long, Long>? {
+        val g = wordStamps.keys.filter { it < wordIndex }.maxOrNull() ?: return null
+        val d = wordStamps.keys.filter { it > wordIndex }.minOrNull()
+        val marge = (SAMPLE_RATE * STAMP_MARGIN_SECONDS).toLong()
+        val from = maxOf(0L, wordStamps.getValue(g).second - marge)
+        var to = if (d != null) wordStamps.getValue(d).first + marge else rescue.totalSamples()
+        if (to <= from) return null
+        val max = (SAMPLE_RATE * RESCUE_MAX_SEARCH_SECONDS).toLong()
+        if (to - from > max) {
+            DiagnosticLog.log(TAG,
+                "secours mot=$wordIndex fenetre PLAFONNEE : " +
+                    "${(to - from) * 1000 / SAMPLE_RATE}ms -> " +
+                    "${max * 1000 / SAMPLE_RATE}ms (voisins surs $g/$d)")
+            to = from + max
+        }
+        return from to to
+    }
+
+    private fun secoursMeilleur(
+        orig: ForcedAligner.WordResult,
+        rj: ForcedAligner.WordResult,
+    ): Boolean =
+        rj.gop > orig.gop ||
+            (rj.gop >= orig.gop && rj.actual.length > orig.actual.length)
+
     private fun rescueWord(
         wordIndex: Int,
         tokens: IntArray,
@@ -402,6 +515,15 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         val dispo = rescue.totalSamples()
         val from = maxOf(0L, absFrom - ctx)
         val to = minOf(dispo, absTo + pad)
+        // FENETRE JOURNALISEE (2026-07-27) : un secours peut repondre -20,00 et
+        // un texte vide sans qu'on sache s'il a cherche au bon endroit --
+        //     secours mot=109 SANS GAIN : gop -1,00 -> -20,00, entendu "" -> ""
+        // Sans ces bornes, distinguer « la DP n'a rien trouve » de « la fenetre
+        // tombait a cote » demande une hypothese. Avec elles, la ligne tranche.
+        DiagnosticLog.log(TAG,
+            "secours mot=$wordIndex fenetre mot=[${absFrom * 1000 / SAMPLE_RATE}," +
+                "${absTo * 1000 / SAMPLE_RATE})ms extraite=[${from * 1000 / SAMPLE_RATE}," +
+                "${to * 1000 / SAMPLE_RATE})ms dispo=${dispo * 1000 / SAMPLE_RATE}ms")
         val audio = rescue.extract(from, to)
         if (audio == null) {
             DiagnosticLog.log(TAG,
@@ -435,8 +557,17 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // rappelait jamais align() avec forceJudgeIndex -- un mot differe
             // etait donc perdu DEFINITIVEMENT pour ce clip ». Meme classe,
             // meme fichier, refaite trois mois plus tard.
-            val res = aligner.align(dpLp, listOf(tokens), wordIndex,
-                                    forceJudgeIndex = wordIndex, isFinal = true)
+            // Tout ce que l'aligneur ecrit ici sort prefixe `secours:` -- sans
+            // quoi ses lignes sont indiscernables de celles du chemin
+            // principal et faussent le comptage de l'ancre (cf.
+            // DiagnosticLog.contexteDebut).
+            DiagnosticLog.contexteDebut("secours")
+            val res = try {
+                aligner.align(dpLp, listOf(tokens), wordIndex,
+                              forceJudgeIndex = wordIndex, isFinal = true)
+            } finally {
+                DiagnosticLog.contexteFin()
+            }
             val out = res?.words?.firstOrNull()
             if (out == null) {
                 // Chemin MUET corrige (2026-07-27) : la DP du secours peut ne
@@ -633,6 +764,11 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             fun besoinDeSecours(w: ForcedAligner.WordResult): Boolean =
                 w.frames == 0 || w.actual.isEmpty() || !w.covered
             val spfRescue = if (logprobs.isNotEmpty()) segmentSamples / logprobs.size else 0
+            // Dater AVANT de secourir : les voisins surs de cette passe doivent
+            // deja etre au registre quand on calcule la fenetre. Un mot qui a
+            // besoin de secours ne s'y inscrit jamais lui-meme (il n'est ni
+            // `covered` ni non-`starved`), donc aucune auto-reference possible.
+            horodater(res.words, absOrigin, spfRescue)
             val patched = HashMap<Int, ForcedAligner.WordResult>()
             // TRACE DU DECLENCHEUR (2026-07-27) : le secours est reste
             // ENTIEREMENT muet sur deux sessions -- ni verdict, ni echec, ni
@@ -660,15 +796,19 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 for (w in res.words) {
                     val besoin = besoinDeSecours(w) && (isFinal || w.covered)
                     if (besoin) {
-                        // Fenetre absolue du mot. S'il n'a AUCUNE frame, on part
-                        // de la fin du mot precedent : c'est forcement apres.
+                        // HORODATAGE D'ABORD (cf. fenetreDeRecherche) : borner par
+                        // les voisins SURS, pas par le placement de ce mot-ci --
+                        // c'est ce placement-la qui vient d'echouer.
+                        val h = fenetreDeRecherche(w.index)
+                        // Repli (pas d'ancre gauche : tout debut de recitation) :
+                        // ancien calcul, sur les frames de la DP.
                         val f0 = if (w.firstFrame >= 0) w.firstFrame else prevLast + 1
                         val f1 = if (w.lastFrame >= 0) w.lastFrame
                                  else f0 + (SAMPLE_RATE * 2 / spfRescue)
-                        val absFrom = absOrigin + f0.toLong() * spfRescue
-                        val absTo = absOrigin + (f1 + 1).toLong() * spfRescue
+                        val absFrom = h?.first ?: (absOrigin + f0.toLong() * spfRescue)
+                        val absTo = h?.second ?: (absOrigin + (f1 + 1).toLong() * spfRescue)
                         val rj = rescueWord(w.index, tokens[w.index], absFrom, absTo)
-                        if (rj != null && rj.gop > w.gop) {
+                        if (rj != null && secoursMeilleur(w, rj)) {
                             patched[w.index] = rj
                             DiagnosticLog.log(TAG,
                                 "SECOURS mot=${w.index} : gop ${"%.2f".format(w.gop)} -> " +
@@ -720,7 +860,15 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     (if (it.actualFromFree) mapOf("srcFree" to true) else emptyMap())
             }
             alignSeq++
-            lastAlignWords = res.words
+            // Resultats DEJA SECOURUS (2026-07-27) : maintenant que l'apercu
+            // alimente `lastAlignSpf`, son secours tourne AVANT celui de la
+            // borne dure. Conserver ici les WordResult d'origine ferait rejouer
+            // la meme inference sur les memes mots a chaque promotion.
+            // En gardant les resultats patches, un mot deja rattrape ne
+            // declenche plus `besoinDeSecours` : la borne dure ne retente que
+            // ceux qui echouent ENCORE -- avec l'audio arrive entre-temps, le
+            // seul cas ou une deuxieme tentative peut reussir.
+            lastAlignWords = res.words.map { patched[it.index] ?: it }
             lastAlignOrigin = absOrigin
             lastAlignSpf = spfRescue
             lastAlign = mapOf(
@@ -1028,6 +1176,14 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // d'apres portier) : c'est ce qui garantit une echelle de temps unique
         // -- stocker le flux brut ferait diverger les deux des qu'un bloc est
         // jete, l'erreur qui avait fausse bench_double_decoupage.py.
+        //
+        // TENTATIVE ECARTEE (2026-07-28) : stocker le flux BRUT + une table de
+        // correspondance entre les deux horloges, pour rendre au secours les
+        // silences qui separent les mots. Ecartee AVANT mesure par le recul
+        // architectural du meme jour : rendre le silence au modele n'ameliore
+        // pas le WER (mesure sur l'audio reel : -2,8 pt EN FAVEUR du portier),
+        // et surtout ca ne traite pas la faille centrale -- le verdict fige
+        // trop tot. A ne reprendre qu'avec la coupe au waqf.
         if (toAppend != null) rescue.append(toAppend)
         var size: Int
         synchronized(lock) {
@@ -1125,8 +1281,37 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             pendingCommit = false
         }
 
-        if (pendingForceCommit && !busy.get()) {
+        // ── CE GEL SORT DU THREAD AUDIO (2026-07-27) ─────────────────────────
+        // Tout ce bloc tournait dans `feed()`, donc sur le thread qui livre le
+        // PCM. Tant qu'il ne faisait que promouvoir un apercu deja calcule,
+        // c'etait quasi gratuit. Depuis que le secours y tourne (garde mort
+        // corrige le meme jour), il y fait des INFERENCES ONNX : mesure sur le
+        // seul cas declenche d'une session, 383 ms de blocage du transport
+        // (21:21:18,457 -> 18,840). Un gel ou plusieurs mots ont besoin d'aide
+        // bloquerait d'autant -- exactement le probleme de latence de transport
+        // traite le matin meme.
+        //
+        // `compareAndSet` remplace `!busy.get()` : l'ancien test LISAIT l'etat
+        // sans le prendre, donc une passe normale pouvait demarrer pendant la
+        // promotion et travailler sur un buffer en cours de purge. On tient
+        // maintenant le meme verrou que le chemin normal, ce qui serialise les
+        // deux et rend cette course impossible.
+        //
+        // Effet de bord assume : `pendingCommit = true` (branche « apercu
+        // inutilisable ») est desormais pose APRES le retour de `feed()`. Le
+        // gel classique correspondant part donc au bloc suivant, ~80 ms plus
+        // tard. Le texte rendu par CET appel a `feed()` est celui d'avant la
+        // promotion -- il se corrige de lui-meme au bloc suivant.
+        if (pendingForceCommit && busy.compareAndSet(false, true)) {
             pendingForceCommit = false
+            scope.launch(Dispatchers.Default) {
+              try {
+                // Meme correctif de classloader que le chemin d'inference (cf.
+                // le commentaire detaille plus bas) : sans lui, le secours
+                // appele ici ferait un SIGABRT dans ai.onnxruntime sur un
+                // thread de Dispatchers.Default.
+                Thread.currentThread().contextClassLoader =
+                    FastConformerCtc::class.java.classLoader
             val previewText = latestText
             val covered = lastPreviewSize
             if (previewText.isNotEmpty() && covered > 0) {
@@ -1221,14 +1406,22 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                             val tk = toks?.getOrNull(w.index)
                             if (tk != null &&
                                 (w.frames == 0 || w.actual.isEmpty() || !w.covered)) {
+                                // Meme regle que le chemin normal : horodatage
+                                // d'abord, placement de la DP en repli seulement.
+                                // Les deux chemins DOIVENT calculer la fenetre de
+                                // la meme facon -- c'est leur divergence qui avait
+                                // laisse le secours mort ici pendant deux sessions.
+                                val h = fenetreDeRecherche(w.index)
                                 val f0 = if (w.firstFrame >= 0) w.firstFrame else prevL + 1
                                 val f1 = if (w.lastFrame >= 0) w.lastFrame
                                          else f0 + (SAMPLE_RATE * 2 / lastAlignSpf)
                                 val rj = rescueWord(
                                     w.index, tk,
-                                    lastAlignOrigin + f0.toLong() * lastAlignSpf,
-                                    lastAlignOrigin + (f1 + 1).toLong() * lastAlignSpf)
-                                if (rj != null && rj.gop > w.gop) {
+                                    h?.first
+                                        ?: (lastAlignOrigin + f0.toLong() * lastAlignSpf),
+                                    h?.second
+                                        ?: (lastAlignOrigin + (f1 + 1).toLong() * lastAlignSpf))
+                                if (rj != null && secoursMeilleur(w, rj)) {
                                     patchF[w.index] = rj
                                     DiagnosticLog.log(TAG,
                                         "SECOURS (borne dure) mot=${w.index} : gop " +
@@ -1291,6 +1484,15 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 // Pas d'apercu utilisable -> gel classique avec re-transcription.
                 pendingCommit = true
             }
+              } catch (e: Exception) {
+                // Sans ce filet, une exception ici laisserait `busy` a true
+                // pour toujours : plus AUCUNE passe ne repartirait, la
+                // recitation se figerait en silence.
+                DiagnosticLog.log(TAG, "echec gel a la borne dure: ${e.message}")
+              } finally {
+                busy.set(false)
+              }
+            }
         }
 
         val newSinceLast = size - lastRunSize
@@ -1332,6 +1534,13 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // precedent) -- fige ici car `contextSamples` sera reecrit par la
             // purge avant que la coroutine ne s'en serve.
             val contextStart = contextSamples
+            // Index ABSOLU (flux d'apres portier) du premier echantillon de ce
+            // snapshot -- fige ici pour la meme raison que `contextStart` :
+            // `absStart` avance a la purge. C'est l'origine des logprobs ENTIERES
+            // ; le chemin final, lui, tronque le contexte et travaille donc a
+            // `snapStart + contextStart`. Confondre les deux a deja coute trois
+            // bugs (cf. le parametre `absOrigin` de runAlignment).
+            val snapStart = absStart
             val snapshot: FloatArray
             synchronized(lock) {
                 snapshot = if (cutAt in 1 until samples.size) {
@@ -1410,27 +1619,12 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // l'appel. Ne depend que de `snapshot`, l'ordre est donc
                         // libre. Best-effort : un echec d'ecriture ne doit jamais
                         // interrompre la recitation en cours.
+                        // Le CHEMIN est calcule ici (le payload d'alignement le
+                        // porte), mais le FICHIER n'est ecrit qu'apres, une fois
+                        // `consumed` connu -- cf. le bloc "BORNE DROITE" plus bas.
                         var clipPath: String? = null
                         val dir = captureDir
-                        if (dir != null) {
-                            try {
-                                clipPath = "$dir/clip_${System.currentTimeMillis()}.wav"
-                                // SANS le contexte : deux clips consecutifs
-                                // doivent rester CONTIGUS ET SANS RECOUVREMENT
-                                // -- c'est la premisse de
-                                // ReferenceTimingExtractor, qui les concatene
-                                // par paires pour recoller les mots coupes. Y
-                                // laisser le chevauchement ferait compter deux
-                                // fois les memes 3 secondes.
-                                WavWriter.writeMono16k(clipPath,
-                                    if (contextStart in 1 until snapshot.size)
-                                        snapshot.copyOfRange(contextStart, snapshot.size)
-                                    else snapshot)
-                            } catch (e: Exception) {
-                                DiagnosticLog.log(TAG, "echec capture clip: ${e.message}")
-                                clipPath = null
-                            }
-                        }
+                        if (dir != null) clipPath = "$dir/clip_${System.currentTimeMillis()}.wav"
                         // Conversion frames -> samples DEDUITE, jamais codee en
                         // dur : le facteur de sous-echantillonnage de l'encodeur
                         // est une propriete du modele exporte ; une constante
@@ -1476,6 +1670,47 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                             // buffer ici FIGERAIT la session -- on recommitterait
                             // sans fin le meme audio sans jamais progresser.
                             snapshot.size
+                        }
+                        // ── BORNE DROITE DU CLIP (2026-07-28, mesure) ────────
+                        // Le clip s'ecrivait `snapshot.copyOfRange(contextStart,
+                        // snapshot.size)` : il retirait le contexte a GAUCHE mais
+                        // gardait tout jusqu'au bout du snapshot -- donc aussi
+                        // `conserve`, l'audio que ce segment ne juge PAS et qui
+                        // reste dans le buffer pour le segment suivant. Chaque
+                        // `conserve` etait donc ecrit DEUX FOIS.
+                        //
+                        // Verifie sur 17 clips sur 17 : `fichier - (consomme -
+                        // contexte) == conserve` au centieme de seconde ; cumul
+                        // +22,3 s pour 22,2 s de `conserve`. Rien d'aleatoire ni
+                        // de variable d'une execution a l'autre : une borne
+                        // fausse, deterministe. Total des clips 319,0 s pour
+                        // 310,2 s de flux BRUT -- des clips plus longs que le
+                        // micro, ce qui est impossible sans duplication.
+                        //
+                        // Ce que ca cassait : la premisse de
+                        // ReferenceTimingExtractor (« clips contigus et sans
+                        // recouvrement ») dont il se sert pour recoller les mots
+                        // coupes par paires, les durees apprises qui en derivent,
+                        // et toute analyse hors ligne prenant les clips comme
+                        // reference temporelle.
+                        //
+                        // Le chemin de la BORNE DURE, lui, etait deja juste : il
+                        // ecrit `covered`, la quantite reellement couverte
+                        // (mesure : +0,0 s d'ecart sur ses 18 clips).
+                        if (clipPath != null) {
+                            try {
+                                val debut = if (contextStart in 1 until snapshot.size)
+                                                contextStart else 0
+                                val fin = consumed.coerceIn(debut, snapshot.size)
+                                WavWriter.writeMono16k(clipPath,
+                                    snapshot.copyOfRange(debut, fin))
+                            } catch (e: Exception) {
+                                // Best-effort : un echec d'ecriture ne doit jamais
+                                // interrompre la recitation. `clipPath` est deja
+                                // parti dans le payload -- le fichier manquant se
+                                // verra a l'analyse, pas en pleine session.
+                                DiagnosticLog.log(TAG, "echec capture clip: ${e.message}")
+                            }
                         }
                         // CHEVAUCHEMENT (2026-07-27) : on ne purge que jusqu'a
                         // `consumed - OVERLAP`. Les OVERLAP dernieres secondes de
@@ -1547,7 +1782,29 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                             if (ctxF > 0) engine.greedyDecode(logprobs, -1, ctxF) else text
                         lastPreviewSize = snapshot.size
                         DiagnosticLog.log(TAG, "retranscription ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
-                        runAlignment(logprobs, isFinal = false, segmentRules = segmentRules)
+                        // GARDE MORT CORRIGE (2026-07-27, verifie dans le log
+                        // ET dans le code). Cet appel ne passait ni
+                        // `segmentSamples` ni `absOrigin` : leurs valeurs par
+                        // defaut valent 0, donc `spfRescue = 0`, donc
+                        // `lastAlignSpf = 0`. Or le chemin de gel a la BORNE
+                        // DURE promeut cet apercu en verdict final et garde son
+                        // secours derriere `lastAlignSpf > 0` -- condition
+                        // TOUJOURS fausse. Mesure : 0 ligne
+                        // « SECOURS (borne dure) » sur une session entiere,
+                        // alors que ce chemin portait 218 des 245 mots (89 %).
+                        // Le secours ne couvrait donc que 11 % de la recitation.
+                        //
+                        // Les logprobs passees ici sont ENTIERES (contexte
+                        // compris, contrairement au chemin final qui les
+                        // tronque) : l'origine est `snapStart`, PAS
+                        // `snapStart + contextStart`, et la duree est celle du
+                        // snapshot complet. Toute autre paire decalerait la
+                        // fenetre de secours de la longueur du contexte -- 3 s,
+                        // exactement le bug deja tombe le meme jour.
+                        runAlignment(logprobs, isFinal = false,
+                                     segmentRules = segmentRules,
+                                     segmentSamples = snapshot.size,
+                                     absOrigin = snapStart)
                     }
                 } catch (e: Exception) {
                     DiagnosticLog.log(TAG, "echec retranscription: ${e.message}")
