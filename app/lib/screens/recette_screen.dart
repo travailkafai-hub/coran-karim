@@ -97,6 +97,9 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
               // sans tap. Depuis l'accès manuel (bouton), on laisse l'écran se
               // comporter normalement.
               autoDemarrer: widget.mode == 'ecoute',
+              // Le récitateur ne dit pas la Basmala : la garder décalerait les
+              // deux téléphones de quatre mots dès le départ.
+              sansBasmala: widget.mode == 'ecoute',
             )));
   }
 

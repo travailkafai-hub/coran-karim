@@ -55,10 +55,21 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// d'alignement soit prête, et il le journalise.
   final bool autoDemarrer;
 
+  /// Retire la Basmala de la cible d'alignement (banc de recette, 2026-07-28).
+  ///
+  /// Le récitateur enregistré n'attaque PAS par la Basmala : l'audio de
+  /// Al-Baqara commence directement sur `الٓمٓ`. La garder dans la cible fait
+  /// donc démarrer les deux côtés décalés de quatre mots — mesuré : 8 rouges
+  /// consécutifs sur tout le verset 2:5 et 26 mots franchis sans verdict, alors
+  /// que le modèle lit l'audio quasi parfaitement (vérifié hors device).
+  /// On ne mesure alors plus la chaîne, on mesure un décalage de départ.
+  final bool sansBasmala;
+
   const KaraokeRecitationScreen({
     super.key,
     required this.verses,
     this.autoDemarrer = false,
+    this.sansBasmala = false,
   });
 
   @override
@@ -827,7 +838,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final segments = <RecitationSegment>[];
     var prevSurah = prevSurahBefore;
     for (final v in verses) {
-      if (_bismillahBefore(v, prevSurah)) {
+      if (!widget.sansBasmala && _bismillahBefore(v, prevSurah)) {
         parts.add(bismillahVerse.textUthmani);
         spans.addAll(tajweedSpansPerWord(
             bismillahVerse.textUthmani, bismillahVerse.textUthmaniTajweed, style));
