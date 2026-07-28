@@ -64,3 +64,4 @@ graphify-out/
 **/graphify-out/
 benchmark/.timings_cache/
 benchmark/word_timings_ref.json
+benchmark/recettes/

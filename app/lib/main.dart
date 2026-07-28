@@ -8,11 +8,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/prayer_settings_provider.dart';
+import 'screens/recette_screen.dart';
 import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_hub_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
+import 'services/reciter_download_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -21,6 +23,10 @@ void main() async {
   // Journal persistant sur le téléphone (cf. diagnostic_log.dart) — avant
   // tout le reste pour capturer même les tout premiers événements.
   await DiagnosticLog.init();
+  // Résout la racine de l'audio téléchargé. DOIT précéder toute lecture :
+  // sans ça `localPathIfPresent` renvoie toujours null et une sourate pourtant
+  // téléchargée repart en streaming, sans le moindre message d'erreur.
+  await ReciterDownloadService().ensureReady();
   // Moteur LiteRT-LM pour le Coach IA (Gemma 4 E2B, .litertlm) — moteur
   // opt-in de flutter_gemma, doit être enregistré avant tout usage.
   await FlutterGemma.initialize(inferenceEngines: [LiteRtLmEngine()]);
@@ -45,9 +51,53 @@ class CoranKarimApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const HomeScreen(),
+      home: const _PointDEntree(),
     );
   }
+}
+
+/// Aiguillage de démarrage : ouvre la RECETTE si l'app a été lancée par intent
+/// (`--es recette ecoute|lecture --ei sourate N`), l'accueil normal sinon.
+///
+/// Ajouté le 2026-07-28 pour le banc à deux téléphones : sans lui, chaque
+/// itération de test demandait la même navigation manuelle sur DEUX appareils,
+/// ce qui coûte du temps et, surtout, fait varier le protocole entre deux
+/// mesures censées être comparables.
+class _PointDEntree extends StatefulWidget {
+  const _PointDEntree();
+  @override
+  State<_PointDEntree> createState() => _PointDEntreeState();
+}
+
+class _PointDEntreeState extends State<_PointDEntree> {
+  static const _canal = MethodChannel('coran_karim/recette');
+  Widget? _ecran;
+
+  @override
+  void initState() {
+    super.initState();
+    _aiguiller();
+  }
+
+  Future<void> _aiguiller() async {
+    Map? extras;
+    try {
+      extras = await _canal.invokeMethod<Map>('lire');
+    } catch (_) {
+      // Canal absent (autre plateforme, moteur pas encore prêt) : accueil normal.
+    }
+    if (!mounted) return;
+    setState(() => _ecran = extras == null
+        ? const HomeScreen()
+        : RecetteScreen(
+            mode: extras['mode'] as String?,
+            surah: (extras['sourate'] as num?)?.toInt() ?? 2,
+            limite: (extras['versets'] as num?)?.toInt() ?? 20));
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _ecran ?? const Scaffold(body: Center(child: CircularProgressIndicator()));
 }
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -81,6 +131,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _tab, children: _screens),
+      // Accès direct à la RECETTE (2026-07-28, demande utilisateur : « simplifie
+      // l'accès pour l'IHM »). Deux téléphones à lancer à chaque itération de
+      // test : sans ce raccourci il faut refaire la même navigation des deux
+      // côtés, ce qui coûte du temps ET fait varier le protocole entre deux
+      // mesures censées être comparables. Le même écran est atteignable par
+      // intent, cf. _PointDEntree.
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const RecetteScreen())),
+        icon: const Icon(Icons.science),
+        label: const Text('Recette'),
+      ),
       bottomNavigationBar: _buildNav(),
     );
   }
