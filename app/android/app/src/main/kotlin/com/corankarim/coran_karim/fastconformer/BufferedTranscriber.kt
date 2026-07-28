@@ -1719,16 +1719,26 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     // Une seule inference ONNX : les logprobs servent au texte
                     // (greedy) ET a l'alignement force GOP (cf. runAlignment).
                     val outputs = engine.computeAll(snapshot)
-                    // Le contexte droit a nourri l'encodeur ; il ne doit entrer
-                    // NI dans le texte fige NI dans la DP -- il appartient au
-                    // segment suivant, qui le jugera avec SON propre contexte.
-                    // Meme discipline que le chevauchement de gauche.
-                    val logprobs = if (droite > 0 && outputs.letters.isNotEmpty()) {
-                        val spf = maxOf(1, snapshot.size / outputs.letters.size)
-                        val garde = (cutAt / spf).coerceIn(1, outputs.letters.size)
-                        if (garde < outputs.letters.size)
-                            outputs.letters.copyOfRange(0, garde) else outputs.letters
-                    } else outputs.letters
+                    // ── LE CONTEXTE DROIT VA AUSSI A LA DP (2026-07-28) ─────
+                    // Premiere version : on tronquait les logprobs a la coupe,
+                    // par symetrie avec le chevauchement de gauche. FAUSSE
+                    // symetrie, et la mesure l'a montre.
+                    //
+                    // Sur 12 sessions : 19 des 22 mots non verts ont ZERO frame
+                    // -- pas « trop peu », AUCUNE -- et la place reellement
+                    // disponible quand la DP echoue a une MEDIANE DE 160 ms,
+                    // soit deux frames pour un mot entier. Ces mots ne sont pas
+                    // mal places : il n'y a pas d'audio pour eux, la coupe tombe
+                    // dessus.
+                    //
+                    // A GAUCHE, tronquer est juste : ce sont des mots DEJA juges,
+                    // les laisser entrer fait re-accrocher la DP dessus (mesure
+                    // du 2026-07-27). A DROITE c'est l'inverse : cet audio
+                    // appartient a des mots PAS ENCORE juges, et c'est exactement
+                    // celui qui leur manque. On le donne donc a la DP, et c'est
+                    // `covered` qui decide -- comme toujours -- si un mot est
+                    // assez couvert pour etre verrouille.
+                    val logprobs = outputs.letters
                     // Tete 2 : decodee UNE fois pour tout le segment, puis
                     // repartie par mot dans l'aligneur (recouvrement de frames).
                     // Longueur de l'audio REELLEMENT juge : `snapshot` contient
@@ -1785,7 +1795,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // est une propriete du modele exporte ; une constante
                         // fausse ne se verrait pas et decalerait tout.
                         val samplesPerFrame =
-                            if (logprobs.isNotEmpty()) audioJuge / logprobs.size else 0
+                            if (logprobs.isNotEmpty()) snapshot.size / logprobs.size else 0
                         // ── LE CONTEXTE VA A L'ENCODEUR, PAS AU JUGE ─────────
                         // REGRESSION MESUREE (18:29-18:31, la premiere session
                         // avec chevauchement) : l'ancre n'avancait plus que d'UN
@@ -1814,7 +1824,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         val lastRel = runAlignment(alignLp, isFinal = true,
                                                      clipPath = clipPath,
                                                      segmentRules = segmentRules,
-                                                     segmentSamples = audioJuge - contextStart,
+                                                     segmentSamples = snapshot.size - contextStart,
                                                      absOrigin = absStart + contextStart)
                         val lastFrame = if (lastRel >= 0) lastRel + ctxFrames else lastRel
                         val consumed = if (lastFrame >= 0 && samplesPerFrame > 0) {
@@ -1931,7 +1941,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // une seconde fois.
                         val ctxF =
                             if (logprobs.isNotEmpty() && snapshot.isNotEmpty())
-                                contextStart / maxOf(1, audioJuge / logprobs.size)
+                                contextStart / maxOf(1, snapshot.size / logprobs.size)
                             else 0
                         latestText =
                             if (ctxF > 0) engine.greedyDecode(logprobs, -1, ctxF) else text
@@ -1958,7 +1968,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // exactement le bug deja tombe le meme jour.
                         runAlignment(logprobs, isFinal = false,
                                      segmentRules = segmentRules,
-                                     segmentSamples = audioJuge,
+                                     segmentSamples = snapshot.size,
                                      absOrigin = snapStart)
                     }
                 } catch (e: Exception) {
