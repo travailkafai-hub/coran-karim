@@ -867,3 +867,46 @@ chantier `BufferedTranscriber` que CLAUDE.md désigne déjà comme la vraie caus
 des faux rouges — et interdit de compenser par de la tolérance en aval.
 Avant tout correctif : comprendre POURQUOI `conserve` vaut 0 sur certains gels
 (gel à la borne dure ? purge ? portier ?), et mesurer hors device.
+
+### RÉFUTATION de `conserve=0` par l'intervention (2026-07-29, tard) — À LIRE AVANT DE LA REPRENDRE
+
+`conserve=0` est le meilleur discriminant jamais trouvé sur ce défaut :
+r = 0,67 sur 45 sessions, séparation SANS CHEVAUCHEMENT sur 14 (propres 6-22 %,
+décrochées 33-89 %). **Il n'est pourtant PAS la cause.**
+
+Correctif écrit et mesuré : quand le dernier mot placé touche la fin du segment,
+garder 0,6 s au lieu de purger tout (`FRONTIER_KEEP_SECONDS`, greffé sur v9).
+3 passes contre 3, départ v6, conditions strictement identiques :
+
+| référence v23 | v9 + correctif |
+|---|---|
+| 41,98 % — 89 % de `conserve=0` | 41,83 % — **11 %** |
+| 25,34 % — 35 % | 49,34 % — **18 %** |
+| 7,09 % — 11 % | 6,76 % — **0 %** |
+| médiane 25,34 %, 2 décrochages/3 | médiane 41,83 %, 2 décrochages/3 |
+
+Le correctif a fait EXACTEMENT ce qu'on attendait : `conserve=0` ramené au
+niveau des passes propres, jusqu'à zéro sur une passe. **Le décrochage n'a pas
+bougé.** `conserve=0` accompagne donc le décrochage sans le causer — les gels
+tombent en plein mot PARCE QUE l'ancre a décroché, pas l'inverse.
+
+⇒ Correctif RETIRÉ (un changement sans effet mesurable n'a pas sa place dans la
+chaîne critique). Ne pas le réécrire sans une cause nouvelle.
+
+**Leçon de méthode, la plus chère de la journée** : une corrélation parfaite sur
+14 sessions ne vaut pas causalité. Seule l'INTERVENTION tranche. Sans ce test,
+`conserve=0` aurait été consigné comme la cause et le prochain agent serait
+parti dessus.
+
+### Ce qui reste debout après NEUF hypothèses réfutées
+
+Sur le MÊME audio, le MÊME binaire, le MÊME départ, le rattrapage réussit
+parfois (7,09 %) et échoue souvent (41,98 %). Ce n'est ni le texte, ni le
+matériel, ni le modèle, ni l'audio détruit, ni la version, ni le retard de
+validation, ni l'anneau de secours, ni la désynchronisation d'ancre, ni les
+waqf. La cause est **non déterministe et interne à la chaîne** — ce qui oriente
+vers la concurrence entre le gel et l'alignement, ou un état partagé entre les
+deux, plutôt que vers les données.
+
+Piste non explorée : le récitateur qui RÉPÈTE (cf. `FONCTIONNALITES_FUTURES.md`)
+— sans objet sur ce banc (audio linéaire), mais défaut réel en usage humain.
