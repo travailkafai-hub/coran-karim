@@ -752,7 +752,15 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             if (best != prev && best != engine.blank) heard.add(best)
             prev = best
         }
-        if (heard.size < MIN_RESYNC_TOKENS) return -1
+        if (heard.size < MIN_RESYNC_TOKENS) {
+            // Trace AVANT le garde : deux versions du resync ont echoue en
+            // silence, et la trace placee APRES ne s'ecrivait jamais -- on ne
+            // savait meme pas que la fonction sortait ici.
+            DiagnosticLog.log(TAG,
+                "resync ABANDONNE : seulement ${heard.size} tokens entendus " +
+                    "(seuil $MIN_RESYNC_TOKENS) sur ${logprobs.size} frames")
+            return -1
+        }
 
         // Meilleur decalage : on essaie chaque position candidate et on compte
         // combien de mots attendus s'y retrouvent DANS L'ORDRE.
@@ -784,6 +792,18 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             var hits = 0
             var pos = 0
             for (w in off until minOf(tokens.size, off + RESYNC_WINDOW_WORDS)) {
+                // SONDE DE 4 LETTRES : ESSAYEE, MESUREE, REJETEE le 2026-07-28.
+                // Idee (utilisateur) : 3 ou 4 lettres suffisent a SITUER un mot,
+                // et exiger le mot entier est trop strict puisque le decodage
+                // libre perd parfois une lettre. Le raisonnement tient, mais la
+                // mesure le contredit sur Maryam :
+                //     mot entier : 9,18 %  -- 8 tentatives de secours
+                //     4 lettres  : 17,89 % -- 72 tentatives de secours
+                // Une sonde courte apparie trop facilement : le secours se
+                // declenche partout, chaque tentative est une inference sur le
+                // chemin critique, et l'utilisateur l'a senti comme une perte de
+                // fluidite avant meme de voir les chiffres. On garde le mot
+                // entier.
                 val attendu = texte(tokens[w].toList())
                 if (attendu.length < 2) continue   // trop court pour situer
                 val at = entendu.indexOf(attendu, pos)
@@ -1057,7 +1077,14 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // sur le chemin critique sans rien apporter : mesure sur
                         // Maryam, il ne s'est declenche qu'UNE fois sur 15 mots
                         // non verts.
-                        if (rj == null || !secoursMeilleur(w, rj)) {
+                        // ISOLATION (2026-07-28) : l'expansion est mise en
+                        // sommeil pour designer le suspect d'une regression
+                        // Al-Baqara 2,00 % -> 3,28 %. Deux changements avaient
+                        // ete faits ensemble (expansion + resync texte) ; on
+                        // n'en bouge qu'UN a la fois, c'est la seule facon
+                        // d'attribuer un effet.
+                        val expansionActive = false
+                        if (expansionActive && (rj == null || !secoursMeilleur(w, rj))) {
                             val e = cibleEtendue(w.index, tokens, 4)
                             if (e != null) {
                                 val r2 = rescueWord(w.index, tokens[w.index],
