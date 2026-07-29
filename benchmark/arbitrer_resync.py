@@ -6,17 +6,32 @@ et s'est revele une REGRESSION (8,16 % -> 13,40 % de mots non verts, meme WAV
 rejoue au bit pres) : il sautait des mots que la version precedente jugeait
 VERTS. Annule par le commit 69de15a.
 
-POURQUOI IL S'EST TROMPE. Il rejoue chaque derive sur l'audio COMPLET du
-segment, alors que la derive est detectee sur un APERCU, dont le buffer est
-partiel. Sur l'audio complet, l'offset candidat gagne ; sur le buffer partiel,
-l'ancre courante n'a simplement pas encore recu son audio -- son alignement est
-vide, et un alignement vide perd contre n'importe quel candidat.
+POURQUOI IL S'EST TROMPE -- premiere explication ECRITE ICI, ET FAUSSE. J'avais
+ecrit qu'il rejouait l'audio COMPLET du segment au lieu du buffer partiel de
+l'apercu. C'est faux : `dur` vient de `retranscription Ns`, donc de la longueur
+REELLE du buffer au moment de l'apercu (cf. la decoupe `audio[deb:fin]` plus
+bas). Le banc reproduit correctement la partialite. Note conservee parce qu'un
+post-mortem faux coute plus cher que pas de post-mortem : il oriente le
+correctif suivant vers le mauvais endroit.
 
-REGLE QU'IL FAUT EN TIRER : un banc qui ne reproduit pas la PARTIALITE de
-l'entree ne peut pas trancher un correctif qui agit sur des entrees partielles.
+LA VRAIE RAISON. Il mesurait le GAIN sans jamais mesurer le COUT. Sa question
+etait « l'offset candidat s'aligne-t-il mieux que l'ancre courante sur CE
+buffer ? » -- et la reponse est oui presque a chaque fois, puisque l'ancre
+courante n'a pas encore recu son audio. Mais deplacer l'ancre de `anc` a `off`
+ABANDONNE les mots `anc..off-1`, qui ne seront jamais juges. Le banc ne les
+comptait pas. Sur le device, ce sont eux qui ont fait la regression : 9 mots
+que la version precedente jugeait VERTS, jetes sans une ligne de log.
 
-Ce qui suit reste utile pour comparer deux positions d'ancre sur un audio
-COMPLET (passe finale). Ne jamais s'en servir pour juger un correctif d'apercu.
+REGLE QU'IL FAUT EN TIRER : un banc qui mesure le benefice d'une action doit
+mesurer AUSSI ce qu'elle detruit. Sinon toute action agressive gagne.
+
+CE QUI RESTE A FAIRE -- NON FAIT A CE JOUR (2026-07-29). Pour chaque
+deplacement candidat, il faudrait confronter les mots abandonnes a l'audio brut
+POSTERIEUR au buffer : si le recitateur les prononce ensuite, le deplacement est
+une PERTE SECHE, quel que soit le gain d'alignement. Le verdict cesserait d'etre
+« sb > sa » pour devenir « gain d'alignement ET aucun mot abandonne encore a
+venir ». Tant que ce n'est pas ecrit, LE BANC SURESTIME TOUJOURS L'INTERET DE
+DEPLACER L'ANCRE : ne pas lui faire confiance pour arbitrer un resync.
 """
 
 import json,os,re,sys,glob,wave,datetime as dt
