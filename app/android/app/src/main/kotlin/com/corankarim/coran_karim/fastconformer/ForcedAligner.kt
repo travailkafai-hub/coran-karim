@@ -784,10 +784,24 @@ class ForcedAligner(
                     }
                     val roomFrames = nextStart - prevEnd - 1
                     val fits = roomFrames >= minFramesNeeded
+                    // ⚠️ CE MESSAGE A INDUIT EN ERREUR TOUTE UNE JOURNEE
+                    // (2026-07-29). « LA DP A ECHOUE (le mot pouvait tenir) »
+                    // ne teste QUE la place en frames -- jamais si le mot est
+                    // PRESENT dans l'audio. Or dans le cas mesure, la DP
+                    // reclamait « مَّرَضٌ » (verset 10) alors que le segment
+                    // contenait « وَإِذَا قِيلَ لَهُمْ لَا تُفْسِدُوا۟ » (verset 11) :
+                    // le mot avait ete prononce DIX MOTS PLUS TOT, la DP ne
+                    // pouvait pas le placer et elle avait RAISON de ne pas le
+                    // faire. Le message accusait pourtant l'aligneur, ce qui a
+                    // oriente la recherche vers un defaut d'alignement
+                    // inexistant (waqf, tokenisation, modele, thermique...).
+                    // « place suffisante » n'est donc PAS « le mot etait la » :
+                    // c'est « rien d'autre n'occupait ces frames ».
                     DiagnosticLog.log(TAG,
                         "ZERO FRAME mot=${anchor + wi} tokens=$minFramesNeeded " +
                             "place=$roomFrames frames (~${roomFrames * 80}ms) -> " +
-                            (if (fits) "LA DP A ECHOUE (le mot pouvait tenir)"
+                            (if (fits) "AUCUNE FRAME (place libre -- le mot est " +
+                                "absent de CET audio, ou trop degrade)"
                              else "SAUTE (pas la place)") +
                             " | final=$isFinal")
                     // `neverBlock` N'INTERVIENT PLUS ICI (2026-07-27, apres

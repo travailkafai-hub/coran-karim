@@ -20,6 +20,13 @@ SAMSUNG="${SAMSUNG:-R3CY20XW7TD}"     # écoute et juge
 XIAOMI="${XIAOMI:-m7geugpr8x5tfec6}"  # joue le récitateur
 SOURATE="${1:-2}"                     # varier les passages : ajuster sur un seul
                                       # revient a corriger CE texte, pas la chaine
+# DEPART=<n> : premier verset recite ET juge (defaut 1). Ajoute le 2026-07-29
+# pour le seul test qui separe « la cause est la duree ecoulee » de « la cause
+# est le texte de ce passage » : le decrochage tombe sur le meme bloc de mots
+# (123-129 -> 177-180) dans 7 passes sur 8 et sur SIX versions de code, alors
+# que toutes demarrent au meme endroit. Si le bloc se DECALE d'autant que le
+# depart, c'est le texte ; s'il reste au meme rang de mot, c'est la duree.
+DEPART="${DEPART:-1}"
 # WAV=<chemin local> : recette DETERMINISTE -- le fichier est pousse sur le juge
 # et rejoue A LA PLACE du micro, donc le Xiaomi n'est pas utilise. Chaque passe
 # devient identique au bit pres. Mesure qui l'impose : par haut-parleur -> micro,
@@ -46,7 +53,7 @@ mkdir -p "$OUT"
 # Repère de départ : le log est cumulatif, on note sa taille pour n'extraire
 # QUE cette session à la fin (sinon on analyse la précédente sans le voir).
 AVANT=$("$ADB" -s "$SAMSUNG" shell "wc -l < $LOG" 2>/dev/null | tr -d '\r ' || echo 0)
-echo "sourate=$SOURATE duree=${DUREE}s  log a $AVANT lignes"
+echo "sourate=$SOURATE depart=v$DEPART duree=${DUREE}s  log a $AVANT lignes"
 
 "$ADB" -s "$SAMSUNG" shell am force-stop $PKG >/dev/null 2>&1
 "$ADB" -s "$XIAOMI"  shell am force-stop $PKG >/dev/null 2>&1
@@ -88,7 +95,7 @@ if [ -n "$WAV" ]; then
   echo "source deterministe : $(basename "$WAV")"
 fi
 "$ADB" -s "$SAMSUNG" shell am start -n $PKG/.MainActivity \
-    --es recette ecoute --ei sourate "$SOURATE" $EXTRA_WAV >/dev/null
+    --es recette ecoute --ei sourate "$SOURATE" --ei depart "$DEPART" $EXTRA_WAV >/dev/null
 # Aucun tap ici : l'intent `ecoute` fait atterrir DANS la recitation deja
 # demarree (cf. KaraokeRecitationScreen.autoDemarrer).
 CENTRE=$("$ADB" -s "$SAMSUNG" shell wm size | tr -d '\r' | sed 's/.*: //' | awk -Fx '{print int($1/2), int($2/2)}')
@@ -113,7 +120,7 @@ echo
 sleep 2
 if [ -z "$WAV" ]; then
   "$ADB" -s "$XIAOMI" shell am start -n $PKG/.MainActivity \
-      --es recette lecture --ei sourate "$SOURATE" >/dev/null
+      --es recette lecture --ei sourate "$SOURATE" --ei depart "$DEPART" >/dev/null
 fi
 
 if [ -n "$WAV" ]; then
@@ -169,7 +176,7 @@ if [ -n "$SESS" ]; then
 fi
 
 {
-  echo "sourate=$SOURATE duree=${DUREE}s  $(date '+%F %T')"
+  echo "sourate=$SOURATE depart=v$DEPART duree=${DUREE}s  $(date '+%F %T')"
   echo "lignes de session : $(wc -l < "$OUT/session.log")"
   grep '\[PARAMS\]' "$OUT/session.log" | sed 's/^[0-9T:.-]* //'
   echo "clips : $(ls "$OUT/wav"/clip_*.wav 2>/dev/null | wc -l)"

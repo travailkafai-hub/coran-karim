@@ -36,7 +36,12 @@ import 'karaoke_recitation_screen.dart';
 /// session dit elle-même ce qu'elle teste.
 class RecetteScreen extends ConsumerStatefulWidget {
   const RecetteScreen(
-      {super.key, this.mode, this.surah = 2, this.limite = 20, this.wav});
+      {super.key,
+      this.mode,
+      this.surah = 2,
+      this.limite = 20,
+      this.depart = 1,
+      this.wav});
 
   /// `ecoute` (l'app juge) ou `lecture` (l'app joue le récitateur).
   /// Null = l'utilisateur choisit sur place (accès manuel depuis l'accueil).
@@ -51,6 +56,25 @@ class RecetteScreen extends ConsumerStatefulWidget {
   /// compte 286 : les charger tous allongerait chaque itération sans rien
   /// apprendre de plus, et l'écran de récitation pagine de toute façon.
   final int limite;
+
+  /// PREMIER verset chargé (1 = début de la sourate, comportement historique).
+  ///
+  /// Ajouté le 2026-07-29 pour LE test que rien d'autre ne tranche (idée
+  /// utilisateur). Le décrochage tombe presque toujours sur le même bloc de
+  /// mots — 7 passes sur 8, début entre 123 et 129, fin entre 177 et 180, sur
+  /// SIX versions de code différentes. Or toutes ces passes démarrent au même
+  /// endroit : le point de départ est la seule variable jamais bougée de la
+  /// journée, alors que la version, le modèle, la température et la taille de
+  /// l'anneau de secours l'ont tous été (sans rien expliquer).
+  ///
+  ///   décrochage au MÊME rang de mot (~124)  -> la cause est la DURÉE écoulée
+  ///                                             ou le nombre de mots traités
+  ///   décrochage DÉCALÉ d'autant que le départ -> la cause est le TEXTE de ce
+  ///                                             passage (Al-Baqara v13-18)
+  ///
+  /// Deux hypothèses qu'aucune mesure existante ne sépare, tranchées par une
+  /// seule récitation.
+  final int depart;
 
   /// WAV rejoué À LA PLACE du micro, pour une recette DÉTERMINISTE.
   ///
@@ -78,11 +102,18 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
   Future<void> _charger() async {
     try {
       final tout = await QuranApi.fetchVerses(widget.surah);
-      final v = tout.length > widget.limite ? tout.sublist(0, widget.limite) : tout;
+      // `depart` est un numéro de verset (1 = premier), converti ici en index.
+      // Borné des deux côtés : un départ hors sourate doit dégrader vers une
+      // session vide et JOURNALISÉE, jamais lever une exception qui laisserait
+      // le banc croire à un échec de chargement.
+      final debut = (widget.depart - 1).clamp(0, tout.length);
+      final fin = (debut + widget.limite).clamp(debut, tout.length);
+      final v = tout.sublist(debut, fin);
       if (!mounted) return;
       setState(() => _verses = v);
       DiagnosticLog.log('RECETTE',
           'sourate=${widget.surah} versets=${v.length}/${tout.length} '
+          'depart=v${widget.depart} '
           'mode=${widget.mode ?? "manuel"}');
       // Mode imposé par l'intent : on enchaîne sans attendre un tap.
       if (widget.mode == 'ecoute') {

@@ -1043,9 +1043,30 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 // chance sans l'avoir eue.
                 deferredOnceIndex = res.deferredIndex ?: (if (realChance) -1 else deferredOnceIndex)
             }
+            // ── RETARD D'ANCRE, MESURE A CHAQUE PASSE (2026-07-29) ──────────
+            // Ce que le log ne disait PAS, et qui a coute une journee entiere :
+            // l'ancre prend jusqu'a 57 mots de retard sans qu'aucune ligne ne
+            // le signale. On ne le decouvrait qu'apres coup, en comparant deux
+            // sessions a la main, et seulement une fois le RESYNC declenche --
+            // c'est-a-dire bien trop tard pour voir le retard NAITRE.
+            //
+            // `findResyncOffset` sait pourtant deja ou en est le reciteur : il
+            // apparie le decodage libre au texte attendu. Mais son resultat
+            // n'est consomme QUE lorsque la DP a totalement echoue ; le reste
+            // du temps il est calcule puis jete. On le journalise donc ici,
+            // SANS RIEN CHANGER AU COMPORTEMENT : aucune decision ne depend de
+            // cette ligne, c'est une mesure, pas un correctif.
+            //
+            // Lecture : `retard=0` -> l'ancre suit ; `retard=12` -> le reciteur
+            // a douze mots d'avance sur ce que la chaine cherche encore. Le
+            // retard doit se voir CROITRE passe apres passe bien avant le
+            // decrochage -- si ce n'est pas le cas, l'enlisement est soudain et
+            // non progressif, ce qui oriente vers une autre cause.
+            val vu = try { findResyncOffset(logprobs, tokens, anchor) } catch (e: Exception) { -1 }
             DiagnosticLog.log(TAG, "alignement seq=$alignSeq ancre=$anchor frontiere=${res.frontier} " +
                     "final=$isFinal mots=${words.size} nouvelle_ancre=$alignAnchor " +
-                    "differe=$deferredOnceIndex derniere_frame=${res.lastFrame}")
+                    "differe=$deferredOnceIndex derniere_frame=${res.lastFrame} " +
+                    "libre=$vu retard=${if (vu > anchor) vu - anchor else 0}")
             return res.lastFrame
         } catch (e: Exception) {
             DiagnosticLog.log(TAG, "echec alignement force: ${e.message}")
