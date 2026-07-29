@@ -2976,6 +2976,24 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // sur les cas réels observés : troncature légitime ("ٱلْحَمْدُ"->"مْدُ")
       // = ratio 0.44, coïncidence 1 caractère = ratio 0.14 -- un seuil à 1/3
       // sépare proprement les deux sans perdre le cas de troncature.
+      // Recentré sur la ligne de base du mot (cf. _normalizedGop) : sur un mot
+      // structurellement dur (moyenne connue négative), r.gop brut serait jugé
+      // faux même parfaitement récité. Calculé ICI et non plus bas : la règle
+      // de fragment juste en dessous en a besoin.
+      final normGopBrut = _normalizedGop(expected.training, r.gop);
+
+      // TENTATIVE RETIREE (2026-07-28) : « la proportion cede devant une preuve
+      // d'alignement forte » -- accepter un fragment d'une lettre comme
+      // fragment legitime quand normGop depassait le seuil correct.
+      //
+      // Ecrite, mesuree, puis RETIREE LE MEME JOUR sur rappel de l'utilisateur :
+      // c'est un CRITERE D'ACCEPTATION qu'on deplace, pas une cause qu'on
+      // traite. Le projet l'interdit (« PAS DE CORRECTIF PALLIATIF ») et la
+      // raison est nette : hors device, le modele lit CHAQUE mot correctement
+      // des qu'on lui donne une fenetre de 3-4 s. Il n'a donc pas besoin qu'on
+      // assouplisse le juge -- il a besoin qu'on lui donne les MEMES CONDITIONS
+      // qu'hors device. Relacher la regle masquerait justement la difference de
+      // conditions qu'il faut corriger.
       final isLongEnoughToBeFragment =
           actualStrict.length >= 2 && actualStrict.length * 3 >= expected.strict.length;
       // Suppression au milieu (2026-07-16 soir, cas réel device : attendu
@@ -3004,7 +3022,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // mot structurellement dur (moyenne connue négative), r.gop brut serait
       // jugé faux même parfaitement récité -- normGop mesure l'ÉCART à ce qui
       // est normal pour CE mot, comparé aux mêmes seuils que d'habitude.
-      final normGop = _normalizedGop(expected.training, r.gop);
+      final normGop = normGopBrut;
 
       // Bismillah dont AUCUN son n'a été capté : non jugée du tout (cf. le
       // bloc « CORRECTIF RETENU » avant la boucle). Sortir AVANT la cascade

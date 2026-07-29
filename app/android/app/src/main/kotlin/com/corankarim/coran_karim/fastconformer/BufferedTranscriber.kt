@@ -117,6 +117,22 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         //     pas les rejuger. Ce n'est pas de la prudence, c'est structurel.
         private const val OVERLAP_SECONDS = 3f
 
+        // ── CONTEXTE DROIT (2026-07-28) ─────────────────────────────────────
+        // Le segment recevait 3 s de contexte a GAUCHE (le chevauchement) et
+        // RIEN a droite : il s'arretait net a la coupe. Le dernier mot d'un
+        // segment etait donc reconnu sans le son qui le suit, alors qu'un
+        // encodeur conformer s'appuie sur son voisinage des DEUX cotes.
+        //
+        // C'est la difference de conditions qui explique le constat central de
+        // la journee : hors device, le modele lit CHAQUE mot correctement des
+        // qu'on lui donne une fenetre ou le mot n'est pas au bord ; sur
+        // l'appareil, les mots de fin de segment sont systematiquement au bord.
+        //
+        // On ne juge PAS cet audio (il appartient au segment suivant) : il ne
+        // sert qu'a nourrir l'encodeur, exactement comme le chevauchement de
+        // gauche. Les logprobs sont tronquees avant la DP et avant le texte.
+        private const val RIGHT_CONTEXT_SECONDS = 2f
+
         // ── Resynchronisation de l'ancre (cf. findResyncOffset) ─────────────
         // Volontairement exigeante : deplacer l'ancre a tort saute des mots sans
         // les juger. Mieux vaut ne pas resynchroniser que resynchroniser faux.
@@ -771,7 +787,55 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             //
             // ON NE JUGE RIEN DES MOTS SAUTES : l'ancre saute, aucun verdict
             // n'est emis sur eux -- pas de rouge sans preuve (regle projet).
-            if (isFinal && res.words.isEmpty()) {
+            // ── LA DERIVE COMPTE AUTANT QUE LE BLOCAGE (2026-07-28) ──────
+            // Le garde `res.words.isEmpty()` ne detectait que l'echec TOTAL.
+            // Or l'ancre derive aussi -- et surtout -- quand la DP continue de
+            // placer des mots, mais les MAUVAIS. Mesure sur Ar-Rahman (55), dont
+            // le refrain revient 31 fois, donc le pire cas possible pour un
+            // aligneur : passes finales a `mots=3`, `mots=5`, `mots=7`, et
+            // pourtant
+            //     mot=36 free=-0,04 forced=-10,00
+            //     mot=37 free=-0,04 forced=-10,99
+            //     mot=38 free=-0,03 forced=-18,83
+            // ZERO RESYNC sur toute la session. Le signal est pourtant net et il
+            // ne demande aucun seuil nouveau : le modele est CERTAIN de ce qu'il
+            // entend (`free` ~ 0) et ce n'est pas ce qu'on aligne (`forced`
+            // effondre). C'est la definition meme d'etre au mauvais endroit.
+            //
+            // On reste dans la doctrine « le libre decide de la POSITION, jamais
+            // du rouge/vert » : la derive ne juge personne, elle deplace l'ancre.
+            // Volontairement exigeant -- DEUX mots au moins, et il faut qu'ils
+            // representent la moitie de la passe -- pour ne pas confondre une
+            // derive avec un mot difficile isole.
+            // `gop = forced - free`, donc `free = forced - gop`. La condition
+            // se lit : alignement effondre (gop tres negatif) ALORS QUE le
+            // modele est sur de lui (free proche de 0).
+            val derive = res.words.count { w ->
+                val free = w.forced - w.gop
+                w.gop < -3.0 && free > -0.5
+            }
+            // Seuil CALIBRE SUR LA MESURE, pas au jugé : la passe fautive
+            // d'Ar-Rahman avait 3 mots derivants sur 7, donc exiger la moitie
+            // (`derive * 2 >= size`) ne se declenchait pas -- verifie, `derive=0`
+            // sur toute la campagne. Un tiers suffit, et la conjonction reste
+            // tres selective : il faut un alignement effondre ET un modele sur
+            // de lui sur le MEME mot, ce qu'un mot simplement difficile ne
+            // produit pas (il a un `free` mauvais lui aussi).
+            // CALIBRE SUR LES LOGS, pas au juge (2026-07-28). Comptage hors
+            // device sur 8 sessions : la conjonction « alignement effondre ET
+            // modele sur de lui » n'apparait que dans 2 passes, dont une a 8
+            // mots sur 18. Elle est donc deja tres selective par elle-meme --
+            // toute exigence de proportion en plus ne fait qu'empecher le
+            // declenchement (mesure : `derive=0` sur toute une campagne avec un
+            // seuil a la moitie, puis au tiers).
+            val ancreALaDerive = derive >= 2
+            if (ancreALaDerive) {
+                DiagnosticLog.log(TAG,
+                    "ANCRE A LA DERIVE : $derive mots sur ${res.words.size} avec " +
+                        "un modele sur de lui et un alignement effondre -- " +
+                        "tentative de resynchronisation")
+            }
+            if (isFinal && (res.words.isEmpty() || ancreALaDerive)) {
                 val resync = findResyncOffset(logprobs, tokens, anchor)
                 if (resync > anchor) {
                     DiagnosticLog.log(TAG,
@@ -808,8 +872,23 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // Le bon signal existait deja dans l'aligneur : `covered` est faux
             // exactement quand l'audio n'a pas couvert le mot en entier.
             // `starved` est retire.
+            // ── DECLENCHEUR ELARGI AUX TRONCATURES (2026-07-28) ──────────
+            // L'ancien critere ratait le cas le plus frequent qui reste :
+            // `أَلِيمٌۢ` entendu `ۢ`, `يُخَـٰدِعُونَ` entendu `دِ`. Ces mots ont
+            // des frames, un `actual` non vide et sont `covered` -- donc hors
+            // critere -- alors que leur `normGop` est POSITIF (+0,10, +0,34) :
+            // l'alignement est bon, seul le texte decode est un fragment, et
+            // c'est ce fragment qui les fait classer « autre mot » puis plafonner
+            // a orange. Le secours repare exactement ca ailleurs dans la meme
+            // session (`شَيَـٰ` -> `شَيَـٰطِينِهِمْ`).
+            //
+            // Ce n'est devenu SUR qu'une fois le secours aligne avec ses
+            // voisins : tant qu'il alignait un mot seul, elargir le declencheur
+            // aurait multiplie les faux positifs (7 sur 33 mesures).
             fun besoinDeSecours(w: ForcedAligner.WordResult): Boolean =
-                w.frames == 0 || w.actual.isEmpty() || !w.covered
+                w.frames == 0 || w.actual.isEmpty() || !w.covered ||
+                    (w.expectedText.isNotEmpty() &&
+                        w.actual.length * 3 < w.expectedText.length)
             val spfRescue = if (logprobs.isNotEmpty()) segmentSamples / logprobs.size else 0
             // Dater AVANT de secourir : les voisins surs de cette passe doivent
             // deja etre au registre quand on calcule la fenetre. Un mot qui a
@@ -1593,9 +1672,18 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // bugs (cf. le parametre `absOrigin` de runAlignment).
             val snapStart = absStart
             val snapshot: FloatArray
+            // Audio SUPPLEMENTAIRE donne a l'encodeur au-dela de la coupe (cf.
+            // RIGHT_CONTEXT_SECONDS). Zero si le buffer n'a rien de plus --
+            // typiquement en fin de recitation, ou le dernier mot reste au bord
+            // faute de son suivant : la, il n'y a rien a faire de mieux.
+            var droite = 0
             synchronized(lock) {
+                if (cutAt in 1 until samples.size) {
+                    val veut = (SAMPLE_RATE * RIGHT_CONTEXT_SECONDS).toInt()
+                    droite = minOf(veut, samples.size - cutAt)
+                }
                 snapshot = if (cutAt in 1 until samples.size) {
-                    samples.copyOfRange(0, cutAt)
+                    samples.copyOfRange(0, cutAt + droite)
                 } else {
                     // Ne devrait plus jamais arriver (invalide en amont) -- mais
                     // ce repli figeait TOUT le buffer en silence : le rendre
@@ -1631,9 +1719,25 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     // Une seule inference ONNX : les logprobs servent au texte
                     // (greedy) ET a l'alignement force GOP (cf. runAlignment).
                     val outputs = engine.computeAll(snapshot)
-                    val logprobs = outputs.letters
+                    // Le contexte droit a nourri l'encodeur ; il ne doit entrer
+                    // NI dans le texte fige NI dans la DP -- il appartient au
+                    // segment suivant, qui le jugera avec SON propre contexte.
+                    // Meme discipline que le chevauchement de gauche.
+                    val logprobs = if (droite > 0 && outputs.letters.isNotEmpty()) {
+                        val spf = maxOf(1, snapshot.size / outputs.letters.size)
+                        val garde = (cutAt / spf).coerceIn(1, outputs.letters.size)
+                        if (garde < outputs.letters.size)
+                            outputs.letters.copyOfRange(0, garde) else outputs.letters
+                    } else outputs.letters
                     // Tete 2 : decodee UNE fois pour tout le segment, puis
                     // repartie par mot dans l'aligneur (recouvrement de frames).
+                    // Longueur de l'audio REELLEMENT juge : `snapshot` contient
+                    // en plus le contexte droit, mais `logprobs` en a ete
+                    // tronque. Tout ce qui met en rapport des ECHANTILLONS et
+                    // des FRAMES doit donc partir d'ici, jamais de snapshot.size
+                    // -- c'est la classe de bug des deux referentiels, deja
+                    // tombee trois fois sur ce fichier.
+                    val audioJuge = snapshot.size - droite
                     val segmentRules = engine.decodeTajwid(outputs.tajwid)
                     val text = engine.greedyDecode(logprobs)
                     val ms = (System.nanoTime() - t0) / 1_000_000
@@ -1681,7 +1785,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // est une propriete du modele exporte ; une constante
                         // fausse ne se verrait pas et decalerait tout.
                         val samplesPerFrame =
-                            if (logprobs.isNotEmpty()) snapshot.size / logprobs.size else 0
+                            if (logprobs.isNotEmpty()) audioJuge / logprobs.size else 0
                         // ── LE CONTEXTE VA A L'ENCODEUR, PAS AU JUGE ─────────
                         // REGRESSION MESUREE (18:29-18:31, la premiere session
                         // avec chevauchement) : l'ancre n'avancait plus que d'UN
@@ -1710,17 +1814,17 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         val lastRel = runAlignment(alignLp, isFinal = true,
                                                      clipPath = clipPath,
                                                      segmentRules = segmentRules,
-                                                     segmentSamples = snapshot.size - contextStart,
+                                                     segmentSamples = audioJuge - contextStart,
                                                      absOrigin = absStart + contextStart)
                         val lastFrame = if (lastRel >= 0) lastRel + ctxFrames else lastRel
                         val consumed = if (lastFrame >= 0 && samplesPerFrame > 0) {
-                            minOf(snapshot.size, (lastFrame + 1) * samplesPerFrame)
+                            minOf(audioJuge, (lastFrame + 1) * samplesPerFrame)
                         } else {
                             // Aucun mot place (ou pas de cible d'alignement) :
                             // comportement historique, on purge tout. Conserver le
                             // buffer ici FIGERAIT la session -- on recommitterait
                             // sans fin le meme audio sans jamais progresser.
-                            snapshot.size
+                            audioJuge
                         }
                         // ── BORNE DROITE DU CLIP (2026-07-28, mesure) ────────
                         // Le clip s'ecrivait `snapshot.copyOfRange(contextStart,
@@ -1750,9 +1854,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // (mesure : +0,0 s d'ecart sur ses 18 clips).
                         if (clipPath != null) {
                             try {
-                                val debut = if (contextStart in 1 until snapshot.size)
+                                val debut = if (contextStart in 1 until audioJuge)
                                                 contextStart else 0
-                                val fin = consumed.coerceIn(debut, snapshot.size)
+                                val fin = consumed.coerceIn(debut, audioJuge)
                                 WavWriter.writeMono16k(clipPath,
                                     snapshot.copyOfRange(debut, fin))
                             } catch (e: Exception) {
@@ -1797,7 +1901,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // mots du chevauchement seraient figes DEUX FOIS.
                         // (`ctxFrames` est calcule plus haut, avant l'alignement.)
                         val committedPart =
-                            if (consumed < snapshot.size || ctxFrames > 0)
+                            if (consumed < audioJuge || ctxFrames > 0)
                                 engine.greedyDecode(logprobs, lastFrame, ctxFrames)
                             else text
                         val sep = if (committedText.isEmpty()) "" else " "
@@ -1812,9 +1916,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // `wav=` permet de recaler sur le fichier capte.
                         val ageMs = System.currentTimeMillis() - segmentStartWallMs
                         segmentStartWallMs = 0L
-                        DiagnosticLog.log(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms " +
+                        DiagnosticLog.log(TAG, "segment FIGE ${audioJuge / SAMPLE_RATE}s -> ${ms}ms " +
                                 "| consomme=${consumed * 1000 / SAMPLE_RATE}ms " +
-                                "conserve=${(snapshot.size - consumed) * 1000 / SAMPLE_RATE}ms " +
+                                "conserve=${(audioJuge - consumed) * 1000 / SAMPLE_RATE}ms " +
                                 "| contexte=${contextStart * 1000 / SAMPLE_RATE}ms " +
                                 "-> garde=${contextSamples * 1000 / SAMPLE_RATE}ms " +
                                 "| VALIDATION retard=${ageMs}ms depuis le debut de cet audio" +
@@ -1827,12 +1931,12 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // une seconde fois.
                         val ctxF =
                             if (logprobs.isNotEmpty() && snapshot.isNotEmpty())
-                                contextStart / maxOf(1, snapshot.size / logprobs.size)
+                                contextStart / maxOf(1, audioJuge / logprobs.size)
                             else 0
                         latestText =
                             if (ctxF > 0) engine.greedyDecode(logprobs, -1, ctxF) else text
-                        lastPreviewSize = snapshot.size
-                        DiagnosticLog.log(TAG, "retranscription ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
+                        lastPreviewSize = audioJuge
+                        DiagnosticLog.log(TAG, "retranscription ${audioJuge / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
                         // GARDE MORT CORRIGE (2026-07-27, verifie dans le log
                         // ET dans le code). Cet appel ne passait ni
                         // `segmentSamples` ni `absOrigin` : leurs valeurs par
@@ -1854,7 +1958,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // exactement le bug deja tombe le meme jour.
                         runAlignment(logprobs, isFinal = false,
                                      segmentRules = segmentRules,
-                                     segmentSamples = snapshot.size,
+                                     segmentSamples = audioJuge,
                                      absOrigin = snapStart)
                     }
                 } catch (e: Exception) {

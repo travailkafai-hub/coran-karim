@@ -758,3 +758,57 @@ réentraînement — le vocabulaire les contient déjà.
   affiché, plus jamais muet.
 - `benchmark/ecoute/zone_blocage_228-258s.wav` — 30 s de flux brut autour du
   blocage, validé à l'oreille.
+
+### Test décisif à faire — DÉMARRER AILLEURS QUE V1 (idée utilisateur, 2026-07-29 soir)
+
+Toutes les passes de la journée démarrent au **même endroit** (Al-Baqara v1).
+Le décrochage tombe presque toujours sur le **même bloc de mots** : 7 passes sur
+8, début entre 123 et 129, fin entre 177 et 180 — sur **six versions de code
+différentes** (v1, v2, v3, v8, v9, v3-anneau120).
+
+| session | version | bloc sauté |
+|---|---|---|
+| 11:46 | causal-v1 | 124-177 |
+| 14:45 | v2-voisins | 124-180 |
+| 14:54 | v3-troncature | 129-180 |
+| 15:02 | v3-troncature | 124-180 |
+| 16:32 | v8-contexte-droit | 124-180 |
+| 18:30 | v3-anneau120 | 93-103, **124-178** |
+| 18:46 | v9-deterministe | 123-179 |
+
+**Le test** : lancer la récitation à partir du **verset 2** (ou 3, 5…) au lieu du
+verset 1, tout le reste identique.
+
+| observation | conclusion |
+|---|---|
+| le décrochage reste au **même rang de mot** (~124) | la cause est la **durée écoulée** / le nombre de mots traités, pas le texte |
+| le décrochage se **décale du même nombre de mots** que le décalage de départ | la cause est **dans le texte** de ce passage (versets 13-18) |
+
+Une seule expérience, deux hypothèses tranchées. Aucune autre mesure de la
+journée ne les sépare — et c'est la seule variable jamais bougée.
+
+**Ce qu'il faut pour le faire** : l'intent de recette n'accepte aujourd'hui que
+`--ei sourate N` (cf. `main.dart`, `recette_2tel.sh`). Ajouter un
+`--ei verset N` optionnel — modification HORS chaîne de récitation (main.dart +
+écran karaoké), donc sans effet sur ce qui est mesuré.
+
+### Ce que les logs ne permettent PAS de voir (constat utilisateur, à corriger)
+
+Après huit hypothèses réfutées, le diagnostic bute sur une limite de la trace
+elle-même : le log dit ce que la chaîne a **décidé**, jamais **pourquoi**.
+
+- `ZERO FRAME mot=124 ... LA DP A ECHOUE (le mot pouvait tenir)` : aucun score,
+  aucun candidat, aucune trace des frames examinées.
+- L'ancre prend 57 mots de retard **sans qu'aucune ligne ne le signale** — il
+  faut le reconstituer en comparant deux sessions à la main.
+- La position du **décodage libre** (qui sait où en est le récitateur à chaque
+  passe) n'est journalisée QU'au moment du resync, quand il est déjà trop tard.
+
+À tracer, à chaque alignement : position libre vs position d'ancre (voir le
+retard NAÎTRE), meilleur score de la DP pour le mot réclamé et sa position,
+contenu réel du buffer au moment de l'échec. Avec ça, une seule passe décrochée
+suffirait là où il en a fallu dix.
+
+⚠️ Contrainte : `BufferedTranscriber.kt` est l'un des trois fichiers greffés par
+`balayage_versions.sh`. Instrumenter pendant un balayage écrase les logs à
+chaque version ET fausse la comparaison. Instrumenter d'abord, balayer ensuite.
