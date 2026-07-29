@@ -670,3 +670,91 @@ Deux prédictions hors device confiantes et fausses :
 ⇒ Un banc qui ne reproduit ni la **partialité** de l'entrée ni les **refus** du
 composant réel peut classer des hypothèses, jamais valider un correctif. Le seul
 banc fiable de la journée a été le **rejeu du même WAV sur deux binaires**.
+
+---
+
+## 2026-07-29 — Le décrochage 124→180 : six hypothèses réfutées, une seule debout
+
+Séance entière consacrée à un phénomène qui rendait tout classement de versions
+impossible. À conserver surtout pour ce qu'elle **élimine** : chaque ligne du
+tableau ci-dessous a coûté une mesure, et sans trace elles seront repayées.
+
+### Le phénomène
+
+Sur 9 passes de balayage (v2, v3, v4 — 3 passes chacune, Al-Baqara, 420 s micro) :
+
+| version | passe 1 | passe 2 | passe 3 |
+|---|---|---|---|
+| v2-voisins | 6,03 % | 4,33 % | **31,17 %** (trou 124-180) |
+| v3-troncature | **29,74 %** (129-180) | **30,30 %** (124-180) | 4,76 % |
+| v4-sans-palliatif | 11,69 % | 6,06 % | 11,02 % (**ancre arrêtée à 127**) |
+
+Régime **binaire** : ~4-6 % ou ~30 %, jamais entre les deux. Le bloc de mots
+perdus est **contigu** et se termine **toujours au mot 180**. 4 passes sur 9
+touchées, sur trois versions de code différentes.
+
+### Ce qui a été RÉFUTÉ, avec la mesure
+
+| hypothèse | comment elle est tombée |
+|---|---|
+| **Throttling thermique** | Passe lancée volontairement à `Thermal Status: 3` (throttling sévère), AP 60 °C, SKIN 44 °C → **6,93 %, aucun décrochage**. Le téléphone était dans l'état exact des 4 décrochages. |
+| **Le récitateur saute du texte** | Les retranscriptions de l'app montrent une récitation **continue et correcte** (v17 puis v18 enchaînés sans trou). |
+| **La version du code** | v2, v3, v4 touchées indistinctement. Le défaut est en amont de tout ce que le balayage faisait varier. |
+| **Waqf absents du tokenizer** | Les 3 waqf autonomes `▁ۖ ▁ۗ ▁ۚ` sont **déjà dans le vocabulaire** du modèle déployé (42 tokens en contiennent un). Un réentraînement n'aurait rien ajouté. |
+| **Modèle deux têtes défaillant** | Le modèle **une tête** (`mixed-e02`, entraîné sans waqf, architecture différente) produit **exactement la même sortie** sur le même audio, jusqu'à `إِنَّرُونَ` au caractère près. |
+| **Qualité de l'audio capté** | Flux micro brut : RMS 1200-4700 sur toute la zone (aucun trou), et **validé à l'oreille par l'utilisateur**. |
+
+### Ce qui reste — le seul fait non réfuté
+
+**L'ancre a ~57 mots de retard, accumulé bien AVANT le point de blocage.**
+
+Au moment où la DP réclame en vain le mot 124 (`هُمُ`, verset 13), l'app
+transcrit correctement `ذَهَبَ ٱللَّهُ … يُبْصِرُونَ` (verset 17) puis
+`صُمٌّۢ بُكْمٌ عُمْىٌ` (verset 18). Elle entend juste et cherche 57 mots en
+arrière. Le `RESYNC` qui saute ensuite à 181 est le **rattrapage** — correct,
+mais tardif de ~9 s.
+
+Le chiffre à instruire est dans le log, ligne `segment FIGE` :
+**`VALIDATION retard=10435ms` puis `8463ms`**. L'app valide avec 8 à 10 s de
+retard sur l'audio. C'est là que se joue le décrochage, pas dans le modèle.
+
+### Défaut latent découvert au passage (réel, à corriger, mais PAS la cause)
+
+Désaccord de contrat sur les signes de waqf :
+
+| | signes `ۖ ۗ ۚ` autonomes |
+|---|---|
+| modèle (`fastconformer-ctc-dual-head`) | les **émet** comme des mots — 26 transcriptions et 8 segments figés de cette seule session en contiennent |
+| `ArabicNormalizer.splitExpectedWords` | les **filtre** délibérément (correctif du 2026-07-06, justifié à l'époque) |
+
+Les trois signes concernés sont à statut **facultatif** (`ۗ` قلى = arrêt
+préférable, `ۖ` صلى = liaison préférable, `ۚ` ج = arrêt permis) — jamais le waqf
+obligatoire `م`. Le récitateur peut donc s'arrêter ou non, le modèle émettre le
+token ou non : le décalage est **non déterministe**. À traiter **côté app**
+(accepter ou ignorer proprement ces tokens à l'alignement), jamais par un
+réentraînement — le vocabulaire les contient déjà.
+
+### Erreurs de méthode commises CE JOUR (les mêmes que la veille)
+
+1. **Quatre causes avancées avant mesure** (thermique, récitateur qui saute,
+   waqf manquants, modèle deux têtes) — toutes réfutées ensuite. Chaque fois,
+   c'est une question de l'utilisateur ou son écoute qui a recadré.
+2. **Découpage arbitraire du WAV en tranches de 5 s** pour tester le modèle :
+   produisait de la bouillie (`إِنَّرُونَ`) alors que l'app, avec SON découpage,
+   transcrit proprement le même audio. Le banc mesurait mon découpage, pas
+   l'app. *Piège déjà documenté la veille — repayé intégralement.*
+3. **Sonde thermique lisant `Cached temperatures`** au lieu de
+   `Current temperatures from HAL` : 60 échantillons identiques au centième,
+   4 °C d'écart avec le HAL. Une sonde qui ne varie jamais aurait « prouvé »
+   que la température ne joue aucun rôle. Corrigé dans
+   `benchmark/tracer_etat_telephone.sh`, piège documenté en tête du script.
+
+### Outils laissés en état de marche
+
+- `benchmark/tracer_etat_telephone.sh` — état matériel daté (statut thermique,
+  AP/SKIN/batterie via le **HAL**), sert désormais à *exclure* le matériel.
+- `benchmark/balayage_versions.sh` — corrigé (`a0c8935`) : il installait en
+  local puis récitait sur le PC B, en silence. Un échec de passe est maintenant
+  affiché, plus jamais muet.
+- `benchmark/ecoute/zone_blocage_228-258s.wav` — 30 s de flux brut autour du
+  blocage, validé à l'oreille.
