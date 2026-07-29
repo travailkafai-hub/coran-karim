@@ -951,3 +951,39 @@ d'architecture, pas de préférence.
 Piste **vivante**, à tester après le chevauchant, avec la même méthode : mesure
 hors device sur les WAV existants avant toute ligne de Kotlin. Ne pas la
 présenter comme écartée par le banc — ce banc a mesuré autre chose.
+
+## Suivre un récitateur qui RÉPÈTE (constat utilisateur, 2026-07-29)
+
+**Défaut de conception, vérifié dans le code.** `findResyncOffset`
+(`BufferedTranscriber.kt`) ne cherche la position du récitateur qu'**en avant** :
+
+```kotlin
+for (off in anchor until limit)        // anchor -> anchor+60, jamais avant
+return if (… && bestOff > anchor) …    // exige STRICTEMENT en avant
+```
+
+Or **répéter un passage est licite et courant** en récitation : on se reprend,
+on refait un verset, on médite. Aujourd'hui l'app ne peut structurellement pas
+suivre : elle attend la suite pendant que le récitateur est revenu en arrière,
+l'ancre s'enlise, et l'utilisateur voit le décrochage — pour une raison
+différente de celle traquée le 2026-07-29.
+
+**Pourquoi la contrainte existe probablement.** Le texte coranique se répète
+lui-même : `كَمَآ ءَامَنَ` apparaît DEUX FOIS dans le seul verset 2:13, à cinq
+mots d'écart, et `ٱلسُّفَهَآءُ` deux fois à quatre mots. Un algorithme qui
+chercherait en arrière sans précaution se recalerait sur la mauvaise occurrence.
+La règle « strictement en avant » protège d'un faux recul, au prix de ne jamais
+suivre un vrai.
+
+**Ce qu'une évolution doit distinguer** — rien ne les sépare aujourd'hui :
+
+| | signature attendue |
+|---|---|
+| vraie répétition du récitateur | le décodage libre recule ET RESTE en arrière sur plusieurs passes consécutives |
+| fausse détection sur texte répétitif | recul isolé, non confirmé à la passe suivante |
+
+**Mesuré sur le banc actuel : ce n'est PAS la cause du décrochage du 2026-07-29.**
+Le Redmi rejoue un enregistrement linéaire — 0 à 1 recul d'un seul mot sur trois
+sessions. Le chantier vaut pour l'USAGE RÉEL, pas pour le banc, et il faudra un
+protocole de test dédié (récitation humaine avec répétitions volontaires) pour
+le valider : le banc à deux téléphones ne peut pas le produire.
