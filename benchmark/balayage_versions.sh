@@ -34,7 +34,10 @@ CHAINE="app/android/app/src/main/kotlin/com/corankarim/coran_karim/fastconformer
 app/android/app/src/main/kotlin/com/corankarim/coran_karim/fastconformer/ForcedAligner.kt
 app/lib/providers/recitation_provider.dart"
 TAGF=app/lib/services/diagnostic_log.dart
-VERSIONS="44305da:v2-voisins
+# Surchargeable : `VERSIONS="<sha>:<nom> ..." balayage_versions.sh` permet de
+# REPRENDRE un balayage interrompu sans refaire les versions deja mesurees
+# (chaque version coute ~5 min de build + 3 x 7 min de recitation).
+VERSIONS="${VERSIONS:-44305da:v2-voisins
 a97867f:v3-troncature
 8507b0e:v4-sans-palliatif
 363a3a1:v8-contexte-droit
@@ -46,7 +49,7 @@ f2d61bc:v11-coupe-stable
 4606d64:v18-resync-texte
 69de15a:v21-sans-expansion
 305db63:v22-resync-mesure
-41df3e3:v23-sans-resync"
+41df3e3:v23-sans-resync}"
 export PATH="/media/kafai/NouveauNom/flutter/bin:$PATH"
 echo "### balayage : $(echo "$VERSIONS" | wc -l) versions x $PASSES passes MICRO | sourate $SOURATE"
 echo "### Redmi recite au haut-parleur, Samsung ecoute -- aucun rejeu de fichier"
@@ -89,4 +92,24 @@ for e in $VERSIONS; do
   done
 done
 git checkout HEAD -- $CHAINE $TAGF 2>/dev/null
-echo; echo "### termine, arbre restaure a HEAD"
+# ── L'INDEX AUSSI, PAS SEULEMENT L'ARBRE (2026-07-29, accident paye) ─────────
+# `git checkout <sha> -- <fichiers>` met a jour l'INDEX en plus du repertoire de
+# travail. Les fichiers de chaine greffes restaient donc INDEXES apres le
+# balayage, et le commit suivant les emportait -- meme un `git add` qui ne visait
+# que deux scripts de banc.
+#
+# C'est arrive : a0c8935, intitule « Banc : le balayage installait en local puis
+# recitait sur le PC B », a commite -452 lignes de BufferedTranscriber.kt et -22
+# de ForcedAligner.kt. La branche est ainsi revenue a v8 sans que personne le
+# voie, et TOUTE la soiree de mesures a tourne sur v8 sous l'etiquette v23 --
+# donc avec le resync ACTIF alors que v23 le coupe justement. Neuf hypotheses
+# ont ete explorees et refutees pour chercher la cause d'un decrochage que v23
+# avait deja corrige.
+#
+# `git checkout HEAD --` ci-dessus restaure le CONTENU mais laisse l'entree
+# indexee quand elle differe de HEAD au moment du checkout. On desindexe donc
+# explicitement.
+git restore --staged $CHAINE $TAGF 2>/dev/null
+echo; echo "### termine, arbre ET index restaures a HEAD"
+git status --porcelain $CHAINE $TAGF | grep -q . \
+  && echo "### ATTENTION : des fichiers de chaine restent modifies -- verifier avant tout commit"
