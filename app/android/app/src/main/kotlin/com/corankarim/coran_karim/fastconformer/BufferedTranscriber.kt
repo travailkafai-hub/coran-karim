@@ -736,31 +736,6 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
      *  franc. Volontairement exigeant (cf. MIN_RESYNC_HITS) : deplacer l'ancre a
      *  tort sauterait des mots sans les juger, ce qui est pire que d'attendre.
      */
-    /** Qualite d'un alignement, en log-prob moyenne par frame.
-     *
-     *  Sert a COMPARER deux positions d'ancre sur le meme audio (cf. le bloc
-     *  RESYNC), donc a remplacer un detecteur a seuils par une mesure. C'est
-     *  une moyenne PONDEREE PAR LES FRAMES, pas une moyenne des `forced` : un
-     *  mot long doit peser plus qu'un mot d'une syllabe, sinon un seul mot
-     *  court mal place suffit a renverser la comparaison.
-     *
-     *  `WordResult.forced` est deja une moyenne par frame (ForcedAligner
-     *  ligne ~894 : `wordForcedSum[wi] / wordFrames[wi]`) -- on la remultiplie
-     *  donc par `frames` pour retrouver la somme avant de repartager.
-     *
-     *  Un alignement sans aucune frame placee vaut -inf : il ne doit jamais
-     *  gagner une comparaison. */
-    private fun scoreParFrame(r: ForcedAligner.Result): Double {
-        var somme = 0.0
-        var frames = 0
-        for (w in r.words) {
-            if (w.frames <= 0) continue
-            somme += w.forced * w.frames
-            frames += w.frames
-        }
-        return if (frames == 0) Double.NEGATIVE_INFINITY else somme / frames
-    }
-
     private fun findResyncOffset(
         logprobs: Array<FloatArray>,
         tokens: List<IntArray>,
@@ -990,67 +965,17 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         "un modele sur de lui et un alignement effondre -- " +
                         "tentative de resynchronisation")
             }
-            // ── LE GARDE `isFinal` A ETE RETIRE ICI (2026-07-29) ─────────────
-            // Il rendait tout ce bloc INATTEIGNABLE la ou il servait. Mesure sur
-            // les 5 sessions Maryam : 100 % des detections de derive tombent sur
-            // une passe d'apercu (`final=false`), et aucune passe finale ne
-            // repasse jamais a ces ancres (elles sautent 23 -> 38 -> 58 -> 67).
-            // Le correctif n'a donc JAMAIS tourne une seule fois, pendant que le
-            // reciteur prenait 5 a 14 mots d'avance sur l'ancre.
-            //
-            // Deplacer l'ancre sur un apercu est sans danger POUR LE JUGEMENT :
-            // un apercu ne verrouille aucun mot, ce chemin ne fait que reposer
-            // l'ancre et rendre -1.
-            if (res.words.isEmpty() || ancreALaDerive) {
+            if (isFinal && (res.words.isEmpty() || ancreALaDerive)) {
                 val resync = findResyncOffset(logprobs, tokens, anchor)
                 if (resync > anchor) {
-                    // ── ON MESURE, ON NE DEVINE PLUS (2026-07-29) ────────────
-                    // Le detecteur ci-dessus est un empilement de seuils
-                    // (gop < -3, free > -0,5, derive >= 2) : il DEVINE que
-                    // l'ancre a derive. Banc `benchmark/arbitrer_resync.py` sur
-                    // les 25 derives reellement journalisees : 10 d'entre elles
-                    // sont de FAUSSES alertes (typiquement les « 59 -> 60 »
-                    // d'Al-Baqara, un saut d'un seul mot). Les suivre en aveugle
-                    // aurait fait sauter des mots dans 40 % des cas.
-                    //
-                    // On aligne donc AUX DEUX POSITIONS sur les MEMES log-probs
-                    // et on garde la meilleure. Aucun seuil n'est introduit : la
-                    // couche mesure au lieu de supposer. Le detecteur redevient
-                    // un simple declencheur d'examen -- qu'il se trompe n'a plus
-                    // d'importance, c'est la comparaison qui tranche.
-                    //
-                    // Cout : UNE passe de DP de plus sur des log-probs deja
-                    // calculees (l'alignement a l'ancre courante, lui, est deja
-                    // fait -- c'est `res`). Aucune inference supplementaire.
-                    // Variantes et regles ne sont pas passees : elles sont
-                    // indexees sur l'ancre courante, et cet alignement est
-                    // exploratoire (isFinal=false, forceJudgeIndex=-1) -- il ne
-                    // verrouille rien.
-                    val finCand = minOf(tokens.size, resync + maxAlignWords)
-                    val resCand = aligner.align(logprobs, tokens.subList(resync, finCand),
-                                                resync, -1, false, null, null, null,
-                                                neverBlockAnchor)
-                    val scoreIci = scoreParFrame(res)
-                    val scoreLa = if (resCand == null) Double.NEGATIVE_INFINITY
-                                  else scoreParFrame(resCand)
-                    if (scoreLa <= scoreIci) {
-                        DiagnosticLog.log(TAG,
-                            "RESYNC REFUSE par la mesure : ancre $anchor (score/frame " +
-                                "${"%.2f".format(scoreIci)}) vaut mieux que l'offset " +
-                                "$resync (${"%.2f".format(scoreLa)}) -- fausse alerte " +
-                                "du detecteur, aucun mot saute")
-                    } else {
-                        DiagnosticLog.log(TAG,
-                            "RESYNC : le decodage libre situe le reciteur au mot $resync " +
-                                "et la MESURE le confirme (score/frame " +
-                                "${"%.2f".format(scoreIci)} -> ${"%.2f".format(scoreLa)}) " +
-                                "-> ancre deplacee (+${resync - anchor} mots sautes, " +
-                                "AUCUN juge)")
-                        alignAnchor = resync
-                        deferredOnceIndex = -1
-                        lastAlign = null
-                        return -1
-                    }
+                    DiagnosticLog.log(TAG,
+                        "RESYNC : la DP n'a rien place a l'ancre $anchor, le decodage " +
+                            "libre situe le recitateur au mot $resync -> ancre deplacee " +
+                            "(+${resync - anchor} mots sautes, AUCUN juge)")
+                    alignAnchor = resync
+                    deferredOnceIndex = -1
+                    lastAlign = null
+                    return -1
                 }
             }
             // ── SECOURS PAR LE SECOND BUFFER (2026-07-27) ────────────────────
