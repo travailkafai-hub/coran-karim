@@ -74,7 +74,7 @@ class DiagnosticLog {
   /// rappeler le binaire, sinon un log tiré hors contexte ne dit plus lequel.
   static String get buildTag => _kBuildTag;
 
-  static const String _kBuildTag = 'causal-v21-sans-expansion';
+  static const String _kBuildTag = 'causal-v23-sans-resync';
   static const String _kBuildTimestamp =
       String.fromEnvironment('BUILD_TS', defaultValue: '');
 

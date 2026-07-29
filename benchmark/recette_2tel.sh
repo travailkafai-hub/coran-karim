@@ -70,13 +70,20 @@ if [ -n "$WAV" ]; then
   # deterministe s'active (« SOURCE DETERMINISTE : ... » dans le log) mais AUCUN
   # bloc PCM n'arrive -- echec silencieux d'ouverture.
   DIST=/sdcard/Android/data/$PKG/files/recette_source.wav
-  # Le WAV est sur CE disque, `adb` s'execute sur le poste distant : il faut
-  # donc d'abord l'y transferer. Meme piege que l'APK -- et par chemin RELATIF
-  # au repertoire personnel, un chemin absolu Windows ne survivant pas aux
-  # echappements bash -> ssh -> cmd.
-  scp -o BatchMode=yes -o StrictHostKeyChecking=no -o LogLevel=ERROR -q \
-      "$WAV" "${PCB:-kafai@100.126.49.93}:src.wav" || mort "transfert du WAV vers le poste distant impossible"
-  "$ADB" -s "$SAMSUNG" push src.wav "$DIST" >/dev/null 2>&1 || mort "push du WAV vers le telephone impossible"
+  # Deux cas, selon ou sont branches les telephones (cf. ADB plus haut).
+  if [ "$ADB" = "adb" ]; then
+    # Telephones sur CE poste : `adb push` lit directement le fichier local.
+    "$ADB" -s "$SAMSUNG" push "$WAV" "$DIST" >/dev/null 2>&1 \
+      || mort "push du WAV vers le telephone impossible"
+  else
+    # Telephones sur le poste distant : `adb` s'y execute, il faut donc d'abord
+    # y transferer le WAV. Meme piege que l'APK -- et par chemin RELATIF au
+    # repertoire personnel, un chemin absolu Windows ne survivant pas aux
+    # echappements bash -> ssh -> cmd.
+    scp -o BatchMode=yes -o StrictHostKeyChecking=no -o LogLevel=ERROR -q \
+        "$WAV" "${PCB:-kafai@100.126.49.93}:src.wav" || mort "transfert du WAV vers le poste distant impossible"
+    "$ADB" -s "$SAMSUNG" push src.wav "$DIST" >/dev/null 2>&1 || mort "push du WAV vers le telephone impossible"
+  fi
   EXTRA_WAV="--es wav $DIST"
   echo "source deterministe : $(basename "$WAV")"
 fi
@@ -145,7 +152,21 @@ tail -n +"$((AVANT + 1))" "$OUT/full.log" > "$OUT/session.log"
 # ecrire). L'archive est donc redirigee vers un fichier sur le disque distant,
 # puis rapatriee par scp.
 SESS=$("$ADB" -s "$SAMSUNG" shell "run-as $PKG ls -t app_flutter/recitation_captures/" 2>/dev/null | head -1)
-[ -n "$SESS" ] && "$ADB" RECUPWAV "$SAMSUNG" "$SESS" "$OUT/wav" >/dev/null 2>&1
+SESS=$(printf '%s' "$SESS" | tr -d '\r')
+if [ -n "$SESS" ]; then
+  if [ "$ADB" = "adb" ]; then
+    # Telephones sur CE poste : ni SSH ni Windows sur le chemin, donc aucune
+    # traduction de fins de ligne a craindre -- le tar peut passer directement
+    # par la sortie standard d'`exec-out` (binaire, contrairement a `shell`).
+    mkdir -p "$OUT/wav"
+    adb -s "$SAMSUNG" exec-out "run-as $PKG tar cf - -C app_flutter/recitation_captures/$SESS ." \
+      > "$OUT/wav/w.tar" 2>/dev/null
+    [ -s "$OUT/wav/w.tar" ] && tar xf "$OUT/wav/w.tar" -C "$OUT/wav" 2>/dev/null
+    rm -f "$OUT/wav/w.tar"
+  else
+    "$ADB" RECUPWAV "$SAMSUNG" "$SESS" "$OUT/wav" >/dev/null 2>&1
+  fi
+fi
 
 {
   echo "sourate=$SOURATE duree=${DUREE}s  $(date '+%F %T')"

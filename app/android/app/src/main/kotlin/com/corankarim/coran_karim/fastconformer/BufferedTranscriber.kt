@@ -152,6 +152,30 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // ── Resynchronisation de l'ancre (cf. findResyncOffset) ─────────────
         // Volontairement exigeante : deplacer l'ancre a tort saute des mots sans
         // les juger. Mieux vaut ne pas resynchroniser que resynchroniser faux.
+        //
+        // INTERRUPTEUR DE MESURE (2026-07-29, accord utilisateur). Le resync est
+        // suspecte d'etre la cause des mots sautes de v21 : sur la passe
+        // 20260729-015425-s2 il a deplace l'ancre de 60 a 74 puis de 74 a 87,
+        // soit 9 mots perdus sur les 15 non verts de la passe. Sa preuve
+        // d'entree (« la DP n'a rien place ») est AMBIGUE : elle vaut aussi bien
+        // « le recitateur est plus loin » que « l'audio de ce mot est arrive
+        // coupe », et il tranche toujours en avancant, sans marche arriere.
+        //
+        // On ne construit pas un resync « plus prudent » -- ce serait demander a
+        // cette couche de deviner mieux ce qu'elle ne peut pas savoir, et ce
+        // serait le 3e correctif de la famille apres v19 (sonde 4 lettres,
+        // rejetee : 9,18 % -> 17,89 %) et v22 (arbitrage par la mesure, annule :
+        // 8,16 % -> 13,40 %). On MESURE d'abord s'il merite d'exister.
+        //
+        // Protocole : meme WAV rejoue au bit pres, avec et sans. Reference deja
+        // acquise -- v21 AVEC resync sur le flux de Maryam = 8,16 %
+        // (benchmark/recettes/20260729-025035-s19).
+        // EFFET DE BORD ASSUME (arbitre par l'utilisateur) : sans resync, une
+        // vraie derive n'est plus rattrapee ; les mots concernes restent NON
+        // JUGES au lieu d'etre SAUTES. On echange une facon de perdre des mots
+        // contre une autre -- mais la premiere est visible dans les logs.
+        private const val RESYNC_ACTIF = false
+
         private const val MIN_RESYNC_TOKENS = 6   // segment trop court -> on ne tente rien
         private const val MIN_RESYNC_HITS = 3     // 3 mots attendus retrouves D'AFFILEE
         private const val RESYNC_WINDOW_WORDS = 6 // fenetre d'appariement
@@ -965,7 +989,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         "un modele sur de lui et un alignement effondre -- " +
                         "tentative de resynchronisation")
             }
-            if (isFinal && (res.words.isEmpty() || ancreALaDerive)) {
+            if (RESYNC_ACTIF && isFinal && (res.words.isEmpty() || ancreALaDerive)) {
                 val resync = findResyncOffset(logprobs, tokens, anchor)
                 if (resync > anchor) {
                     DiagnosticLog.log(TAG,
