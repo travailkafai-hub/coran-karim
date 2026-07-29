@@ -68,23 +68,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         private const val MAX_SECONDS = 180          // garde-fou memoire/latence par segment
         private const val MIN_NEW_SECONDS = 1.5f     // cadence de re-transcription du segment courant
         private const val SILENCE_RMS_THRESHOLD = 0.02f      // approx -34dBFS
-        // 300 ms -> 900 ms (2026-07-28, remarque utilisateur : « le silence, c'est
-        // du temps blanc, donc il va aider a avoir plus de temps blanc pour
-        // eviter la coupe des mots »).
-        //
-        // Mesure qui la confirme, flux brut contre flux d'apres portier sur les
-        // memes sessions :
-        //     endroits ou l'on peut couper : 12 -> 11   (quasi inchange)
-        //     duree totale de silence      : 8,9 s -> 3,6 s   (-60 %)
-        // Le portier ne supprime donc presque AUCUNE occasion de couper -- il
-        // ampute chaque silence. Chaque occasion devient etroite, et la coupe
-        // tombe au ras du mot : c'est la MARGE qui manque, pas l'endroit.
-        //
-        // On garde le portier (le desactiver entierement a ete mesure desastreux
-        // pour le WER, cf. CLAUDE.md) mais on lui laisse de quoi couper au
-        // large. Le cout est borne : ce silence n'est garde qu'a l'interieur
-        // d'un segment, et une pause franche declenche de toute facon le gel.
-        private const val MAX_SILENCE_SAMPLES = (SAMPLE_RATE * 0.9f).toInt()
+        private const val MAX_SILENCE_SAMPLES = (SAMPLE_RATE * 0.3f).toInt() // 300ms max garde par pause (dans un segment)
         // 450ms par defaut (et non 700ms) : test reel 2026-07-05 — une recitation
         // fluide ne marque jamais 700ms entre versets, le gel sur pause ne tirait
         // donc jamais et seule la borne dure (12s, deja trop long pour le modele)
@@ -133,49 +117,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         //     pas les rejuger. Ce n'est pas de la prudence, c'est structurel.
         private const val OVERLAP_SECONDS = 3f
 
-        // ── CONTEXTE DROIT (2026-07-28) ─────────────────────────────────────
-        // Le segment recevait 3 s de contexte a GAUCHE (le chevauchement) et
-        // RIEN a droite : il s'arretait net a la coupe. Le dernier mot d'un
-        // segment etait donc reconnu sans le son qui le suit, alors qu'un
-        // encodeur conformer s'appuie sur son voisinage des DEUX cotes.
-        //
-        // C'est la difference de conditions qui explique le constat central de
-        // la journee : hors device, le modele lit CHAQUE mot correctement des
-        // qu'on lui donne une fenetre ou le mot n'est pas au bord ; sur
-        // l'appareil, les mots de fin de segment sont systematiquement au bord.
-        //
-        // On ne juge PAS cet audio (il appartient au segment suivant) : il ne
-        // sert qu'a nourrir l'encodeur, exactement comme le chevauchement de
-        // gauche. Les logprobs sont tronquees avant la DP et avant le texte.
-        private const val RIGHT_CONTEXT_SECONDS = 2f
-
         // ── Resynchronisation de l'ancre (cf. findResyncOffset) ─────────────
         // Volontairement exigeante : deplacer l'ancre a tort saute des mots sans
         // les juger. Mieux vaut ne pas resynchroniser que resynchroniser faux.
-        //
-        // INTERRUPTEUR DE MESURE (2026-07-29, accord utilisateur). Le resync est
-        // suspecte d'etre la cause des mots sautes de v21 : sur la passe
-        // 20260729-015425-s2 il a deplace l'ancre de 60 a 74 puis de 74 a 87,
-        // soit 9 mots perdus sur les 15 non verts de la passe. Sa preuve
-        // d'entree (« la DP n'a rien place ») est AMBIGUE : elle vaut aussi bien
-        // « le recitateur est plus loin » que « l'audio de ce mot est arrive
-        // coupe », et il tranche toujours en avancant, sans marche arriere.
-        //
-        // On ne construit pas un resync « plus prudent » -- ce serait demander a
-        // cette couche de deviner mieux ce qu'elle ne peut pas savoir, et ce
-        // serait le 3e correctif de la famille apres v19 (sonde 4 lettres,
-        // rejetee : 9,18 % -> 17,89 %) et v22 (arbitrage par la mesure, annule :
-        // 8,16 % -> 13,40 %). On MESURE d'abord s'il merite d'exister.
-        //
-        // Protocole : meme WAV rejoue au bit pres, avec et sans. Reference deja
-        // acquise -- v21 AVEC resync sur le flux de Maryam = 8,16 %
-        // (benchmark/recettes/20260729-025035-s19).
-        // EFFET DE BORD ASSUME (arbitre par l'utilisateur) : sans resync, une
-        // vraie derive n'est plus rattrapee ; les mots concernes restent NON
-        // JUGES au lieu d'etre SAUTES. On echange une facon de perdre des mots
-        // contre une autre -- mais la premiere est visible dans les logs.
-        private const val RESYNC_ACTIF = false
-
         private const val MIN_RESYNC_TOKENS = 6   // segment trop court -> on ne tente rien
         private const val MIN_RESYNC_HITS = 3     // 3 mots attendus retrouves D'AFFILEE
         private const val RESYNC_WINDOW_WORDS = 6 // fenetre d'appariement
@@ -325,21 +269,6 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // nouvelle coupe immediate -> cascade de gels qui verrouillent un mot a
         // chaque tour meme quand le recitateur s'est TU (bug mesure sur la 1re
         // version).
-        // ELARGISSEMENT A 2,0 s : ESSAYE, MESURE, REJETE le 2026-07-28.
-        //
-        // Idee : la borne droite etant desormais ancree sur le contenu, le rayon
-        // devient le seul parametre qui decide combien de points de coupe sont
-        // candidats -- l'elargir devait rendre le choix perdu sans redevenir
-        // dependant de l'horloge. Mesure, trois passes sur le MEME fichier :
-        //     rayon 0,8 s : 7,0 / 4,2 / 4,0 %   coupes 5,7 16,3 23,4 35,4 36,8
-        //     rayon 2,0 s : 4,2 / 9,9 / 3,7 %   coupes 5,7 16,6|16,8|16,9 ...
-        // La variance REVIENT. Cause : avec plus de candidats, ce sont de
-        // minuscules differences du MASQUE DE BLANCS qui decident du gagnant --
-        // et ce masque vient de la derniere inference, dont la couverture depend
-        // encore de l'instant. Le rayon large expose donc une dependance a
-        // l'horloge que le rayon etroit masquait.
-        // On garde 0,8 s : sans reproductibilite, aucune optimisation suivante
-        // n'est demontrable.
         private const val CUT_SEARCH_RADIUS_SECONDS = 0.8f
     }
 
@@ -379,13 +308,6 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
     @Volatile private var lastAlignWords: List<ForcedAligner.WordResult>? = null
     @Volatile private var lastAlignOrigin = 0L
     @Volatile private var lastAlignSpf = 0
-
-    /** Frames du dernier decodage ou le CTC a emis le BLANC, et l'echelle
-     *  echantillons/frame associee. C'est « la ou le MODELE ne dit rien » --
-     *  l'information dont la coupe a besoin, et que l'energie ne porte pas.
-     *  Null tant qu'aucune inference n'a tourne sur le buffer courant. */
-    @Volatile private var blancs: BooleanArray? = null
-    @Volatile private var blancsSpf = 0
 
     /**
      * Horodatage des mots dont la POSITION est sure : index du mot -> [debut,
@@ -576,44 +498,6 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
      * ceux compris entre les deux voisins surs qui la bornent. Repli sur le mot
      * seul quand on n'a pas d'ancre temporelle (tout debut de recitation).
      */
-    /**
-     * Fenetre et cible pour un secours ETENDU de [n] mots valides EN AMONT du
-     * mot vise (idee utilisateur 2026-07-28).
-     *
-     * Le principe : si A, B, C sont deja juges corrects et que D echoue, on ne
-     * rejuge pas D SEUL -- on rejuge C+D, puis B+C+D, puis A+B+C+D. Deux issues,
-     * et les deux sont informatives :
-     *   - le groupe passe -> D n'etait pas faux, c'est l'accrochage qui avait
-     *     lache ; les mots amont, eux, sont des ancres SURES ;
-     *   - le groupe echoue encore alors que A, B, C sont corrects -> c'est bien
-     *     D, et on le sait sans le supposer.
-     *
-     * Ce que ca traite et qu'un secours mot-a-mot ne peut pas : la DERIVE. Sur
-     * Maryam, douze mots consecutifs (46-57) echouent d'un bloc avec gop ~ -8 et
-     * free ~ -0,06 -- le modele est CERTAIN de ce qu'il entend, c'est la
-     * POSITION qui est perdue. Rejuger chacun seul ne peut rien y faire : il
-     * faut repartir d'un point connu, et les mots valides en sont un.
-     *
-     * Retourne null si on n'a pas [n] mots horodates en amont.
-     */
-    private fun cibleEtendue(
-        wordIndex: Int, toks: List<IntArray>?, n: Int,
-    ): Triple<Long, Long, Pair<List<IntArray>, Int>>? {
-        val t = toks ?: return null
-        val amont = wordStamps.keys.filter { it < wordIndex }.sortedDescending().take(n)
-        if (amont.size < n) return null
-        val debut = amont.last()
-        val d = wordStamps.keys.filter { it > wordIndex }.minOrNull()
-        if (debut < 0 || wordIndex >= t.size) return null
-        val marge = (SAMPLE_RATE * STAMP_MARGIN_SECONDS).toLong()
-        val from = maxOf(0L, wordStamps.getValue(debut).first - marge)
-        val to = if (d != null) wordStamps.getValue(d).first + marge else rescue.totalSamples()
-        if (to <= from) return null
-        val fin = (d ?: (wordIndex + 1)).coerceAtMost(t.size - 1)
-        if (debut > fin) return null
-        return Triple(from, to, t.subList(debut, fin + 1).toList() to debut)
-    }
-
     private fun cibleAvecVoisins(
         z: Zone?, wordIndex: Int, toks: List<IntArray>?,
     ): Pair<List<IntArray>, Int> {
@@ -776,39 +660,10 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             if (best != prev && best != engine.blank) heard.add(best)
             prev = best
         }
-        if (heard.size < MIN_RESYNC_TOKENS) {
-            // Trace AVANT le garde : deux versions du resync ont echoue en
-            // silence, et la trace placee APRES ne s'ecrivait jamais -- on ne
-            // savait meme pas que la fonction sortait ici.
-            DiagnosticLog.log(TAG,
-                "resync ABANDONNE : seulement ${heard.size} tokens entendus " +
-                    "(seuil $MIN_RESYNC_TOKENS) sur ${logprobs.size} frames")
-            return -1
-        }
+        if (heard.size < MIN_RESYNC_TOKENS) return -1
 
         // Meilleur decalage : on essaie chaque position candidate et on compte
         // combien de mots attendus s'y retrouvent DANS L'ORDRE.
-        // ── APPARIER LE TEXTE, PAS LES IDENTIFIANTS DE TOKENS (2026-07-28) ──
-        // L'appariement se faisait sur la suite de TOKENS : il exigeait que les
-        // identifiants du mot attendu apparaissent tels quels dans le decodage
-        // libre. Or le decoupage BPE du libre n'est presque jamais celui de la
-        // cible -- un mot code [a,b,c] peut sortir [ab,c] ou [a,bc], et aucun
-        // appariement n'a lieu.
-        //
-        // Consequence mesuree sur Maryam : les mots 46-57 echouent d'un bloc
-        // avec free = -0,06, c'est-a-dire un modele CERTAIN de ce qu'il entend.
-        // La derive est bien detectee, et pourtant ZERO resync : on comparait
-        // au mauvais niveau. Le TEXTE, lui, correspond parfaitement.
-        //
-        // On compare donc des chaines, harakat retirees -- le squelette
-        // consonantique suffit a situer, et il ne depend d'aucun decoupage.
-        fun texte(ids: List<Int>): String {
-            val sb = StringBuilder()
-            for (i in ids) if (i < engine.vocabPieces.size) sb.append(engine.vocabPieces[i])
-            return sb.toString().replace("▁", "")
-                .filter { it.code !in 0x064B..0x0652 && it.code != 0x0640 }
-        }
-        val entendu = texte(heard)
         var bestOff = -1
         var bestHits = 0
         val limit = minOf(tokens.size, anchor + MAX_RESYNC_LOOKAHEAD)
@@ -816,40 +671,15 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             var hits = 0
             var pos = 0
             for (w in off until minOf(tokens.size, off + RESYNC_WINDOW_WORDS)) {
-                // SONDE DE 4 LETTRES : ESSAYEE, MESUREE, REJETEE le 2026-07-28.
-                // Idee (utilisateur) : 3 ou 4 lettres suffisent a SITUER un mot,
-                // et exiger le mot entier est trop strict puisque le decodage
-                // libre perd parfois une lettre. Le raisonnement tient, mais la
-                // mesure le contredit sur Maryam :
-                //     mot entier : 9,18 %  -- 8 tentatives de secours
-                //     4 lettres  : 17,89 % -- 72 tentatives de secours
-                // Une sonde courte apparie trop facilement : le secours se
-                // declenche partout, chaque tentative est une inference sur le
-                // chemin critique, et l'utilisateur l'a senti comme une perte de
-                // fluidite avant meme de voir les chiffres. On garde le mot
-                // entier.
-                val attendu = texte(tokens[w].toList())
-                if (attendu.length < 2) continue   // trop court pour situer
-                val at = entendu.indexOf(attendu, pos)
-                if (at < 0) break                  // rupture de suite
+                val toks = tokens[w]
+                if (toks.isEmpty()) continue
+                val at = indexOfSub(heard, toks, pos)
+                if (at < 0) break            // rupture de suite : on s'arrete la
                 hits++
-                pos = at + attendu.length
+                pos = at + toks.size
             }
             if (hits > bestHits) { bestHits = hits; bestOff = off }
         }
-        // TRACE OBLIGATOIRE, meme a zero appariement (2026-07-28). Deux versions
-        // du resync ont echoue en silence -- d'abord sur les identifiants de
-        // tokens, puis sur le texte -- et dans les deux cas le log ne disait
-        // RIEN : ni pourquoi, ni ce qui etait compare. On ecrit donc les deux
-        // cotes, tronques : c'est la seule ligne capable de trancher entre
-        // « le modele entend autre chose » et « ma normalisation ne correspond
-        // pas ». Sans elle, on en est reduit a supposer, ce que le projet
-        // interdit.
-        DiagnosticLog.log(TAG,
-            "resync : $bestHits mots apparies (seuil $MIN_RESYNC_HITS, ancre $anchor, " +
-                "offset $bestOff) | entendu=\"${entendu.take(60)}\" | " +
-                "attendu@ancre=\"${(anchor until minOf(tokens.size, anchor + 4))
-                    .joinToString("") { texte(tokens[it].toList()) }.take(60)}\"")
         // Exiger un appariement FRANC, et strictement en avant de l'ancre.
         return if (bestHits >= MIN_RESYNC_HITS && bestOff > anchor) bestOff else -1
     }
@@ -941,55 +771,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             //
             // ON NE JUGE RIEN DES MOTS SAUTES : l'ancre saute, aucun verdict
             // n'est emis sur eux -- pas de rouge sans preuve (regle projet).
-            // ── LA DERIVE COMPTE AUTANT QUE LE BLOCAGE (2026-07-28) ──────
-            // Le garde `res.words.isEmpty()` ne detectait que l'echec TOTAL.
-            // Or l'ancre derive aussi -- et surtout -- quand la DP continue de
-            // placer des mots, mais les MAUVAIS. Mesure sur Ar-Rahman (55), dont
-            // le refrain revient 31 fois, donc le pire cas possible pour un
-            // aligneur : passes finales a `mots=3`, `mots=5`, `mots=7`, et
-            // pourtant
-            //     mot=36 free=-0,04 forced=-10,00
-            //     mot=37 free=-0,04 forced=-10,99
-            //     mot=38 free=-0,03 forced=-18,83
-            // ZERO RESYNC sur toute la session. Le signal est pourtant net et il
-            // ne demande aucun seuil nouveau : le modele est CERTAIN de ce qu'il
-            // entend (`free` ~ 0) et ce n'est pas ce qu'on aligne (`forced`
-            // effondre). C'est la definition meme d'etre au mauvais endroit.
-            //
-            // On reste dans la doctrine « le libre decide de la POSITION, jamais
-            // du rouge/vert » : la derive ne juge personne, elle deplace l'ancre.
-            // Volontairement exigeant -- DEUX mots au moins, et il faut qu'ils
-            // representent la moitie de la passe -- pour ne pas confondre une
-            // derive avec un mot difficile isole.
-            // `gop = forced - free`, donc `free = forced - gop`. La condition
-            // se lit : alignement effondre (gop tres negatif) ALORS QUE le
-            // modele est sur de lui (free proche de 0).
-            val derive = res.words.count { w ->
-                val free = w.forced - w.gop
-                w.gop < -3.0 && free > -0.5
-            }
-            // Seuil CALIBRE SUR LA MESURE, pas au jugé : la passe fautive
-            // d'Ar-Rahman avait 3 mots derivants sur 7, donc exiger la moitie
-            // (`derive * 2 >= size`) ne se declenchait pas -- verifie, `derive=0`
-            // sur toute la campagne. Un tiers suffit, et la conjonction reste
-            // tres selective : il faut un alignement effondre ET un modele sur
-            // de lui sur le MEME mot, ce qu'un mot simplement difficile ne
-            // produit pas (il a un `free` mauvais lui aussi).
-            // CALIBRE SUR LES LOGS, pas au juge (2026-07-28). Comptage hors
-            // device sur 8 sessions : la conjonction « alignement effondre ET
-            // modele sur de lui » n'apparait que dans 2 passes, dont une a 8
-            // mots sur 18. Elle est donc deja tres selective par elle-meme --
-            // toute exigence de proportion en plus ne fait qu'empecher le
-            // declenchement (mesure : `derive=0` sur toute une campagne avec un
-            // seuil a la moitie, puis au tiers).
-            val ancreALaDerive = derive >= 2
-            if (ancreALaDerive) {
-                DiagnosticLog.log(TAG,
-                    "ANCRE A LA DERIVE : $derive mots sur ${res.words.size} avec " +
-                        "un modele sur de lui et un alignement effondre -- " +
-                        "tentative de resynchronisation")
-            }
-            if (RESYNC_ACTIF && isFinal && (res.words.isEmpty() || ancreALaDerive)) {
+            if (isFinal && res.words.isEmpty()) {
                 val resync = findResyncOffset(logprobs, tokens, anchor)
                 if (resync > anchor) {
                     DiagnosticLog.log(TAG,
@@ -1026,23 +808,8 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // Le bon signal existait deja dans l'aligneur : `covered` est faux
             // exactement quand l'audio n'a pas couvert le mot en entier.
             // `starved` est retire.
-            // ── DECLENCHEUR ELARGI AUX TRONCATURES (2026-07-28) ──────────
-            // L'ancien critere ratait le cas le plus frequent qui reste :
-            // `أَلِيمٌۢ` entendu `ۢ`, `يُخَـٰدِعُونَ` entendu `دِ`. Ces mots ont
-            // des frames, un `actual` non vide et sont `covered` -- donc hors
-            // critere -- alors que leur `normGop` est POSITIF (+0,10, +0,34) :
-            // l'alignement est bon, seul le texte decode est un fragment, et
-            // c'est ce fragment qui les fait classer « autre mot » puis plafonner
-            // a orange. Le secours repare exactement ca ailleurs dans la meme
-            // session (`شَيَـٰ` -> `شَيَـٰطِينِهِمْ`).
-            //
-            // Ce n'est devenu SUR qu'une fois le secours aligne avec ses
-            // voisins : tant qu'il alignait un mot seul, elargir le declencheur
-            // aurait multiplie les faux positifs (7 sur 33 mesures).
             fun besoinDeSecours(w: ForcedAligner.WordResult): Boolean =
-                w.frames == 0 || w.actual.isEmpty() || !w.covered ||
-                    (w.expectedText.isNotEmpty() &&
-                        w.actual.length * 3 < w.expectedText.length)
+                w.frames == 0 || w.actual.isEmpty() || !w.covered
             val spfRescue = if (logprobs.isNotEmpty()) segmentSamples / logprobs.size else 0
             // Dater AVANT de secourir : les voisins surs de cette passe doivent
             // deja etre au registre quand on calcule la fenetre. Un mot qui a
@@ -1088,40 +855,8 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         val absFrom = h?.from ?: (absOrigin + f0.toLong() * spfRescue)
                         val absTo = h?.to ?: (absOrigin + (f1 + 1).toLong() * spfRescue)
                         val z = cibleAvecVoisins(h, w.index, tokens)
-                        var rj = rescueWord(w.index, tokens[w.index], absFrom, absTo,
+                        val rj = rescueWord(w.index, tokens[w.index], absFrom, absTo,
                                             z.first, z.second)
-                        // EXPANSION PROGRESSIVE si le premier essai ne donne
-                        // rien : on repart de plus en plus loin en amont, sur
-                        // des mots DEJA VALIDES qui servent d'ancres sures
-                        // (cf. cibleEtendue). On s'arrete des que ca passe.
-                        // UN SEUL essai elargi, pas d'incremental (demande
-                        // utilisateur 2026-07-28 : « ne pas le faire
-                        // incremental, tester une seule fois A+B+C+D en cas
-                        // d'erreur »). L'incremental multipliait les inferences
-                        // sur le chemin critique sans rien apporter : mesure sur
-                        // Maryam, il ne s'est declenche qu'UNE fois sur 15 mots
-                        // non verts.
-                        // ISOLATION (2026-07-28) : l'expansion est mise en
-                        // sommeil pour designer le suspect d'une regression
-                        // Al-Baqara 2,00 % -> 3,28 %. Deux changements avaient
-                        // ete faits ensemble (expansion + resync texte) ; on
-                        // n'en bouge qu'UN a la fois, c'est la seule facon
-                        // d'attribuer un effet.
-                        val expansionActive = false
-                        if (expansionActive && (rj == null || !secoursMeilleur(w, rj))) {
-                            val e = cibleEtendue(w.index, tokens, 4)
-                            if (e != null) {
-                                val r2 = rescueWord(w.index, tokens[w.index],
-                                                    e.first, e.second,
-                                                    e.third.first, e.third.second)
-                                if (r2 != null && secoursMeilleur(w, r2)) {
-                                    DiagnosticLog.log(TAG,
-                                        "secours ETENDU mot=${w.index} : replace en " +
-                                            "repartant de 4 mots valides en amont")
-                                    rj = r2
-                                }
-                            }
-                        }
                         if (rj != null && secoursMeilleur(w, rj)) {
                             patched[w.index] = rj
                             DiagnosticLog.log(TAG,
@@ -1398,99 +1133,8 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
         // buffer : elle avance avec l'audio, c'est ce qui rend la fenetre
         // glissante (cf. bloc de documentation ci-dessus).
         val from = maxOf(minKeep, targetOffset - radius)
-        // ── LA COUPE NE DOIT DEPENDRE QUE DU SON ────────────────────────────
-        // (2026-07-28, mesure sur rejeu deterministe.)
-        //
-        // La borne droite valait `buf.size` -- ce que le buffer contient AU
-        // MOMENT OU la decision tourne. Or ce moment depend de l'ordonnancement
-        // et de la duree de l'inference precedente, pas de l'audio. Consequence
-        // mesuree en rejouant TROIS FOIS le meme fichier, identique au bit pres :
-        //     passe 1 : 5,70  16,96  23,38  34,48  45,28  50,66  62,08
-        //     passe 2 : 5,70  17,27  23,38  33,92  36,80  48,32  50,67
-        //     passe 3 : 5,70  17,20  23,30  34,00  36,80  48,32  50,67
-        // Les coupes divergent, et leur NOMBRE change (15, 16, 15). Comme une
-        // coupe sur deux tombe en plein mot, quelques dizaines de millisecondes
-        // d'ecart changent quel mot est detruit -- d'ou des taux de 2,8 %, 3,9 %
-        // et 5,3 % sur le MEME audio.
-        //
-        // La recherche est donc bornee SYMETRIQUEMENT autour de la cible, qui
-        // est elle-meme ancree sur le debut du segment. La decision ne depend
-        // plus que du contenu : meme audio, memes coupes.
-        val to = minOf(buf.size, targetOffset + radius)
+        val to = buf.size
         if (to - from < win * minRunWins) return -1
-
-        // ── D'ABORD : COUPER A UNE FIN DE MOT CONNUE (2026-07-28) ─────────
-        // L'information la plus sure n'est ni l'energie ni les blancs : c'est
-        // l'ALIGNEMENT lui-meme, qui dit ou chaque mot se termine. Couper la
-        // rend la coupe en plein mot IMPOSSIBLE par construction, au lieu de
-        // seulement moins probable.
-        //
-        // Ce que ca traite : 47,4 % des coupes tombaient en plein mot, et 19 des
-        // 22 mots non verts avaient ZERO frame -- ce sont les victimes de ces
-        // coupes. L'energie ne porte pas la frontiere de mot (les occlusives
-        // arabes ont une phase peu energique AU MILIEU d'un mot) ; les blancs du
-        // CTC s'en approchent (45,5 % -> 27,3 % en simulation) ; la fin de mot,
-        // elle, EST la frontiere.
-        //
-        // On ne retient qu'un mot COUVERT et non etrangle : sa borne droite est
-        // alors une vraie fin de mot, pas l'endroit ou la DP a manque d'audio.
-        // Repli sur les blancs, puis sur l'energie, quand aucun alignement n'est
-        // encore disponible (tout debut de segment).
-        val mots = lastAlignWords
-        if (mots != null && lastAlignSpf > 0) {
-            var meilleur = -1; var dist = Int.MAX_VALUE
-            for (w in mots) {
-                if (!w.covered || w.starved || w.lastFrame < 0) continue
-                val abs = lastAlignOrigin + (w.lastFrame + 1).toLong() * lastAlignSpf
-                val off = (abs - absStart).toInt()
-                if (off !in from until to) continue
-                val e = kotlin.math.abs(off - targetOffset)
-                if (e < dist) { dist = e; meilleur = off }
-            }
-            if (meilleur >= 0) return meilleur
-        }
-
-        // ── ENSUITE : COUPER OU LE MODELE NE DIT RIEN, PAS OU LE SIGNAL EST FAIBLE ──
-        // (2026-07-28, valide hors device AVANT d'ecrire cette ligne.)
-        //
-        // Mesure sur l'audio reel de deux sessions, memes cibles de coupe :
-        //     energie (RMS)      10/22 coupes en plein mot = 45,5 %
-        //     blancs du modele    6/22                     = 27,3 %
-        //
-        // Pourquoi l'energie echoue : les occlusives arabes (ب ذ ن) ont une
-        // phase peu energique AU MILIEU d'un mot -- l'energie ne porte donc pas
-        // la frontiere de mot, et la couche devine avec une grandeur qui ne
-        // contient pas l'information qu'elle cherche. Le CTC, lui, emet le
-        // BLANC exactement la ou il n'y a rien a transcrire.
-        //
-        // Repli sur l'energie si aucune inference n'a encore tourne sur ce
-        // buffer (tout debut de segment) : mieux vaut l'ancienne politique que
-        // pas de coupe du tout.
-        val bl = blancs
-        if (bl != null && blancsSpf > 0) {
-            val f0 = (from / blancsSpf).coerceIn(0, bl.size - 1)
-            val f1 = (minOf(to, bl.size * blancsSpf) / blancsSpf).coerceIn(0, bl.size)
-            val minFrames = maxOf(1, MIN_MICRO_SILENCE_MS / 80)
-            var meilleur = -1; var dist = Int.MAX_VALUE
-            var d = -1
-            var f = f0
-            while (f < f1) {
-                if (bl[f]) { if (d < 0) d = f } else {
-                    if (d >= 0 && f - d >= minFrames) {
-                        val mid = ((d + f) / 2) * blancsSpf
-                        val e = kotlin.math.abs(mid - targetOffset)
-                        if (e < dist) { dist = e; meilleur = mid }
-                    }
-                    d = -1
-                }
-                f++
-            }
-            if (d >= 0 && f1 - d >= minFrames) {
-                val mid = ((d + f1) / 2) * blancsSpf
-                if (kotlin.math.abs(mid - targetOffset) < dist) meilleur = mid
-            }
-            if (meilleur in from until to) return meilleur
-        }
 
         var best = -1
         var bestDist = Int.MAX_VALUE
@@ -1949,18 +1593,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             // bugs (cf. le parametre `absOrigin` de runAlignment).
             val snapStart = absStart
             val snapshot: FloatArray
-            // Audio SUPPLEMENTAIRE donne a l'encodeur au-dela de la coupe (cf.
-            // RIGHT_CONTEXT_SECONDS). Zero si le buffer n'a rien de plus --
-            // typiquement en fin de recitation, ou le dernier mot reste au bord
-            // faute de son suivant : la, il n'y a rien a faire de mieux.
-            var droite = 0
             synchronized(lock) {
-                if (cutAt in 1 until samples.size) {
-                    val veut = (SAMPLE_RATE * RIGHT_CONTEXT_SECONDS).toInt()
-                    droite = minOf(veut, samples.size - cutAt)
-                }
                 snapshot = if (cutAt in 1 until samples.size) {
-                    samples.copyOfRange(0, cutAt + droite)
+                    samples.copyOfRange(0, cutAt)
                 } else {
                     // Ne devrait plus jamais arriver (invalide en amont) -- mais
                     // ce repli figeait TOUT le buffer en silence : le rendre
@@ -1996,51 +1631,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                     // Une seule inference ONNX : les logprobs servent au texte
                     // (greedy) ET a l'alignement force GOP (cf. runAlignment).
                     val outputs = engine.computeAll(snapshot)
-                    // ── LE CONTEXTE DROIT VA AUSSI A LA DP (2026-07-28) ─────
-                    // Premiere version : on tronquait les logprobs a la coupe,
-                    // par symetrie avec le chevauchement de gauche. FAUSSE
-                    // symetrie, et la mesure l'a montre.
-                    //
-                    // Sur 12 sessions : 19 des 22 mots non verts ont ZERO frame
-                    // -- pas « trop peu », AUCUNE -- et la place reellement
-                    // disponible quand la DP echoue a une MEDIANE DE 160 ms,
-                    // soit deux frames pour un mot entier. Ces mots ne sont pas
-                    // mal places : il n'y a pas d'audio pour eux, la coupe tombe
-                    // dessus.
-                    //
-                    // A GAUCHE, tronquer est juste : ce sont des mots DEJA juges,
-                    // les laisser entrer fait re-accrocher la DP dessus (mesure
-                    // du 2026-07-27). A DROITE c'est l'inverse : cet audio
-                    // appartient a des mots PAS ENCORE juges, et c'est exactement
-                    // celui qui leur manque. On le donne donc a la DP, et c'est
-                    // `covered` qui decide -- comme toujours -- si un mot est
-                    // assez couvert pour etre verrouille.
                     val logprobs = outputs.letters
-                    // Masque des BLANCS, pour la politique de coupe (cf.
-                    // findCutOffset). Calcule ici parce que c'est le seul
-                    // endroit ou les logprobs existent, et il couvre tout le
-                    // buffer courant -- donc aussi la zone ou la prochaine
-                    // coupe sera cherchee.
-                    if (logprobs.isNotEmpty()) {
-                        val b = BooleanArray(logprobs.size)
-                        for (f in logprobs.indices) {
-                            var best = 0; var bv = logprobs[f][0]
-                            for (c in 1 until logprobs[f].size)
-                                if (logprobs[f][c] > bv) { bv = logprobs[f][c]; best = c }
-                            b[f] = best == engine.blank
-                        }
-                        blancs = b
-                        blancsSpf = maxOf(1, snapshot.size / logprobs.size)
-                    }
                     // Tete 2 : decodee UNE fois pour tout le segment, puis
                     // repartie par mot dans l'aligneur (recouvrement de frames).
-                    // Longueur de l'audio REELLEMENT juge : `snapshot` contient
-                    // en plus le contexte droit, mais `logprobs` en a ete
-                    // tronque. Tout ce qui met en rapport des ECHANTILLONS et
-                    // des FRAMES doit donc partir d'ici, jamais de snapshot.size
-                    // -- c'est la classe de bug des deux referentiels, deja
-                    // tombee trois fois sur ce fichier.
-                    val audioJuge = snapshot.size - droite
                     val segmentRules = engine.decodeTajwid(outputs.tajwid)
                     val text = engine.greedyDecode(logprobs)
                     val ms = (System.nanoTime() - t0) / 1_000_000
@@ -2121,13 +1714,13 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                                                      absOrigin = absStart + contextStart)
                         val lastFrame = if (lastRel >= 0) lastRel + ctxFrames else lastRel
                         val consumed = if (lastFrame >= 0 && samplesPerFrame > 0) {
-                            minOf(audioJuge, (lastFrame + 1) * samplesPerFrame)
+                            minOf(snapshot.size, (lastFrame + 1) * samplesPerFrame)
                         } else {
                             // Aucun mot place (ou pas de cible d'alignement) :
                             // comportement historique, on purge tout. Conserver le
                             // buffer ici FIGERAIT la session -- on recommitterait
                             // sans fin le meme audio sans jamais progresser.
-                            audioJuge
+                            snapshot.size
                         }
                         // ── BORNE DROITE DU CLIP (2026-07-28, mesure) ────────
                         // Le clip s'ecrivait `snapshot.copyOfRange(contextStart,
@@ -2157,9 +1750,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // (mesure : +0,0 s d'ecart sur ses 18 clips).
                         if (clipPath != null) {
                             try {
-                                val debut = if (contextStart in 1 until audioJuge)
+                                val debut = if (contextStart in 1 until snapshot.size)
                                                 contextStart else 0
-                                val fin = consumed.coerceIn(debut, audioJuge)
+                                val fin = consumed.coerceIn(debut, snapshot.size)
                                 WavWriter.writeMono16k(clipPath,
                                     snapshot.copyOfRange(debut, fin))
                             } catch (e: Exception) {
@@ -2197,9 +1790,6 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                                 FloatArray(0)
                             }
                             lastRunSize = samples.size
-                            // Le masque decrit le buffer AVANT purge : ses
-                            // indices ne veulent plus rien dire apres.
-                            blancs = null
                         }
                         contextSamples = consumed - purgeFrom
                         // Texte fige = frames consommees UNIQUEMENT, et a partir
@@ -2207,7 +1797,7 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // mots du chevauchement seraient figes DEUX FOIS.
                         // (`ctxFrames` est calcule plus haut, avant l'alignement.)
                         val committedPart =
-                            if (consumed < audioJuge || ctxFrames > 0)
+                            if (consumed < snapshot.size || ctxFrames > 0)
                                 engine.greedyDecode(logprobs, lastFrame, ctxFrames)
                             else text
                         val sep = if (committedText.isEmpty()) "" else " "
@@ -2222,9 +1812,9 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                         // `wav=` permet de recaler sur le fichier capte.
                         val ageMs = System.currentTimeMillis() - segmentStartWallMs
                         segmentStartWallMs = 0L
-                        DiagnosticLog.log(TAG, "segment FIGE ${audioJuge / SAMPLE_RATE}s -> ${ms}ms " +
+                        DiagnosticLog.log(TAG, "segment FIGE ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms " +
                                 "| consomme=${consumed * 1000 / SAMPLE_RATE}ms " +
-                                "conserve=${(audioJuge - consumed) * 1000 / SAMPLE_RATE}ms " +
+                                "conserve=${(snapshot.size - consumed) * 1000 / SAMPLE_RATE}ms " +
                                 "| contexte=${contextStart * 1000 / SAMPLE_RATE}ms " +
                                 "-> garde=${contextSamples * 1000 / SAMPLE_RATE}ms " +
                                 "| VALIDATION retard=${ageMs}ms depuis le debut de cet audio" +
@@ -2241,8 +1831,8 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                             else 0
                         latestText =
                             if (ctxF > 0) engine.greedyDecode(logprobs, -1, ctxF) else text
-                        lastPreviewSize = audioJuge
-                        DiagnosticLog.log(TAG, "retranscription ${audioJuge / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
+                        lastPreviewSize = snapshot.size
+                        DiagnosticLog.log(TAG, "retranscription ${snapshot.size / SAMPLE_RATE}s -> ${ms}ms : \"${text.take(80)}\"")
                         // GARDE MORT CORRIGE (2026-07-27, verifie dans le log
                         // ET dans le code). Cet appel ne passait ni
                         // `segmentSamples` ni `absOrigin` : leurs valeurs par

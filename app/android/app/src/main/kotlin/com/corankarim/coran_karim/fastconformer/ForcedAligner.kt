@@ -273,19 +273,6 @@ class ForcedAligner(
         val forced: Double,
         val covered: Boolean,
         val actual: String,
-        /** Texte ATTENDU, detokenise avec le MEME vocabulaire que [actual] --
-         *  donc directement comparable a lui.
-         *
-         *  Ajoute le 2026-07-28 pour rendre la TRONCATURE detectable cote
-         *  BufferedTranscriber. Mesure qui l'impose : `أَلِيمٌۢ` sort en orange
-         *  avec un `normGop` POSITIF (+0,10 puis +0,34, tres au-dessus du seuil
-         *  correct de -0,45) -- l'alignement est bon, seul le texte decode sur
-         *  ses frames est un fragment (`ۢ`), ce qui suffit a le classer
-         *  « autre mot ». Le secours sait reparer exactement ca, mais son
-         *  declencheur ne le voyait pas : le mot est `covered` et son `actual`
-         *  n'est pas vide. Sans le texte attendu cote natif, impossible de dire
-         *  « ce qu'on a entendu est bien plus court que ce qu'on cherchait ». */
-        val expectedText: String = "",
         val rescoreMargin: Double? = null,
         val rescoreHeard: String? = null,
         /** Regles de tajwid REELLEMENT detectees sur les frames de ce mot par la
@@ -973,7 +960,6 @@ class ForcedAligner(
                     it.frame >= wordFirstFrame[wi] && it.frame <= wordLastFrame[wi]
                 } ?: emptyList()
                 results.add(WordResult(anchor + wi, forced - free, forced, covered, actual,
-                    tokensToText(wordTokens[wi]),
                     rescoreMargin, rescoreHeard, rulesHere,
                     lastFrame = wordLastFrame[wi], starved = starved,
                     frames = wordFrames[wi], firstFrame = wordFirstFrame[wi]))
@@ -1217,14 +1203,6 @@ class ForcedAligner(
             fi = lastHit + 1
         }
         return spans
-    }
-
-    /** Detokenise la cible d'un mot -- meme vocabulaire que greedyDecodeRange,
-     *  donc comparable caractere pour caractere a `actual`. */
-    private fun tokensToText(t: IntArray): String {
-        val sb = StringBuilder()
-        for (id in t) if (id < vocab.size) sb.append(vocab[id])
-        return sb.toString().replace('▁', ' ').trim()
     }
 
     /** Detokenise une plage d'indices dans un tableau de tokens LIBRES (deja

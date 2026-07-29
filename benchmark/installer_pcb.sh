@@ -17,12 +17,17 @@ APK="${1:-app/build/app/outputs/flutter-apk/app-debug.apk}"
 [ -f "$APK" ] || { echo "APK introuvable : $APK" >&2; exit 1; }
 
 echo "transfert de l'APK ($(du -h "$APK" | cut -f1))…"
-scp "${SSH_OPTS[@]}" -q "$APK" "$PCB:neuf.apk" || { echo "transfert ECHOUE" >&2; exit 1; }
+# Nom horodate : un ancien `neuf.apk` peut rester verrouille sur le poste
+# distant (vu le 2026-07-29 -- `scp: dest open "neuf.apk": Failure`, alors que
+# la suppression a distance semblait avoir reussi). Cibler un nom neuf a chaque
+# appel evite de dependre d'une suppression fiable.
+DIST_APK="apk_$$.apk"
+scp "${SSH_OPTS[@]}" -q "$APK" "$PCB:$DIST_APK" || { echo "transfert ECHOUE" >&2; exit 1; }
 
 rc=0
 for S in ${SERIALS:-R3CY20XW7TD m7geugpr8x5tfec6}; do
   printf "%-18s " "$S"
-  out=$(ssh "${SSH_OPTS[@]}" "$PCB" "$ADB -s $S install -r neuf.apk" 2>&1 | tr -d '\r' | tail -1)
+  out=$(ssh "${SSH_OPTS[@]}" "$PCB" "$ADB -s $S install -r $DIST_APK" 2>&1 | tr -d '\r' | tail -1)
   echo "$out"
   case "$out" in *Success*) ;; *) rc=1 ;; esac
 done
