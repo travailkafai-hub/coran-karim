@@ -15,18 +15,42 @@ commises ce jour-là, pas des précautions théoriques.
 L'utilisateur l'a redemandé deux fois : *« il y a aussi les non jugés à blanc,
 il ne faut pas les exclure quand je te demande d'analyser »*.
 
-Un mot peut ne pas être vert de **trois** façons, et un compte rendu qui n'en
+Un mot peut ne pas être vert de **quatre** façons, et un compte rendu qui n'en
 présente qu'une est faux :
 
 | état | visible à l'écran | où le lire |
 |---|---|---|
 | signalé (rouge/orange) | cadre coloré | `[GOP] … -> WordStatus.error/unclear (lock=true)` |
 | **non jugé** | **aucun cadre** | absent des lignes `lock=true` |
+| **sauté par un déplacement d'ancre** | **aucun cadre** | **AUCUNE ligne du tout** |
 | jamais atteint | gris | au-delà de l'ancre max |
 
 Le total doit **toujours** boucler : `verrouillés + non jugés = ancre max`.
 Annoncer « 2,8 % d'erreurs » alors que 7,4 % des mots ne sont pas verts, c'est
 donner le chiffre flatteur.
+
+**Le mot SAUTÉ est le plus dangereux des quatre, parce qu'il ne laisse aucune
+trace.** Quand l'ancre saute (resync, `AVANCE SANS JUGER`, recul annulé), les
+mots enjambés n'ont ni ligne `[GOP]`, ni ligne `NON JUGÉ` : ils sortent du
+**dénominateur** au lieu de compter comme échec. Compter « non verts / mots
+jugés » fait alors *baisser* le taux à chaque mot perdu — plus le correctif
+casse, meilleur il paraît.
+
+Cas réel (2026-07-29). Un correctif de resync mesuré sur le même WAV rejoué au
+bit près :
+
+| compte | v21 (avant) | v22 (correctif) |
+|---|---|---|
+| non verts / mots **jugés** | 7,22 % | **3,45 %** ← moitié moins, faux |
+| non verts / **ancre max** | 8,16 % | **13,40 %** ← la vérité |
+
+Le correctif sautait 9 mots que la version précédente jugeait **verts**. Lu sur
+le premier compte il divisait les erreurs par deux ; lu correctement il les
+multipliait par 1,6. Il a été annulé.
+
+⇒ Toujours compter sur `ancre max`, jamais sur le nombre de mots jugés. Et
+lister explicitement les indices manquants (`[k for k in range(ancre_max) if k
+not in vus]`) — c'est la seule façon de VOIR un mot dont rien ne parle.
 
 ## Étape 1 — Récupérer et ISOLER la bonne session
 
