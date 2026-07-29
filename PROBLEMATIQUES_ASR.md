@@ -629,9 +629,22 @@ Ne verrouiller un mot que lorsque K aperçus successifs lui donnent le même
 verdict. *Traite* la même cause, mais supprime aussi le besoin même de « passe
 finale ». *Rend impossible* : toute la classe « le verdict dépend du moment où
 le segment a été figé ». *Coût* : refonte de la logique de verrouillage, Kotlin
-et Dart. *Mesure* : simulable hors device sur les logs existants (les aperçus
-successifs y sont tous). *Effet de bord* : latence de verrouillage augmentée de
-K aperçus (~1,7 s par aperçu).
+et Dart. *Effet de bord* : latence de verrouillage augmentée de K aperçus
+(~1,7 s par aperçu).
+
+*Mesure* — **correction du 2026-07-29, la première version de cette fiche
+affirmait « simulable hors device sur les logs existants (les aperçus
+successifs y sont tous) ». C'est FAUX, vérifié sur 5 sessions** : 58 à 70
+alignements d'aperçu n'y laissent que **0 à 10** verdicts par mot
+(`lock=false`). Les verdicts d'aperçu ne sont pas journalisés, donc l'accord
+entre aperçus successifs est invisible hors device.
+⇒ La piste B exige d'abord **une passe d'instrumentation** : journaliser le
+verdict de chaque mot à CHAQUE aperçu. C'est un changement de *journalisation*,
+sans effet sur le comportement — donc mesurable et sans risque, mais ce n'est
+pas gratuit et ça doit être fait AVANT de juger la piste.
+⇒ Leçon générale : une piste dont on annonce le moyen de validation sans
+l'avoir vérifié n'est pas une piste, c'est une intuition. Vérifier que la
+donnée existe fait partie de la proposition.
 
 **C. Second buffer décalé** (idée utilisateur, jamais testée).
 Un deuxième buffer décalé d'une demi-fenêtre : tout mot coupé dans l'un est
