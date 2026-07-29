@@ -1,14 +1,24 @@
-"""LA REGLE « ne rien deviner » vaut-elle mieux que le detecteur a seuils ?
+"""⚠️ CE BANC A PRODUIT UNE PREDICTION FAUSSE — LIRE AVANT DE S'EN SERVIR.
 
-Pour CHAQUE derive detectee par l'app dans TOUTES les sessions du depot :
-  1. on reconstruit l'audio exact du segment (flux brut + horodatage),
-  2. on calcule l'offset propose par le decodage libre (algorithme du device),
-  3. on aligne aux DEUX positions et on compare les scores,
-  4. on compte les decisions que la comparaison aurait prises.
+Le 2026-07-29 il a predit 15 deplacements d'ancre utiles (+6,78 de score par
+frame). Le correctif construit sur cette prediction a ete mesure sur le device
+et s'est revele une REGRESSION (8,16 % -> 13,40 % de mots non verts, meme WAV
+rejoue au bit pres) : il sautait des mots que la version precedente jugeait
+VERTS. Annule par le commit 69de15a.
 
-Le detecteur a seuils dit « derive » a chaque fois. La regle par comparaison,
-elle, peut dire non. On mesure donc combien de ses « non » sont justifies.
+POURQUOI IL S'EST TROMPE. Il rejoue chaque derive sur l'audio COMPLET du
+segment, alors que la derive est detectee sur un APERCU, dont le buffer est
+partiel. Sur l'audio complet, l'offset candidat gagne ; sur le buffer partiel,
+l'ancre courante n'a simplement pas encore recu son audio -- son alignement est
+vide, et un alignement vide perd contre n'importe quel candidat.
+
+REGLE QU'IL FAUT EN TIRER : un banc qui ne reproduit pas la PARTIALITE de
+l'entree ne peut pas trancher un correctif qui agit sur des entrees partielles.
+
+Ce qui suit reste utile pour comparer deux positions d'ancre sur un audio
+COMPLET (passe finale). Ne jamais s'en servir pour juger un correctif d'apercu.
 """
+
 import json,os,re,sys,glob,wave,datetime as dt
 import numpy as np
 sys.path.insert(0,"benchmark"); sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
