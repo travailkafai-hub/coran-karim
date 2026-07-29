@@ -531,3 +531,129 @@ entraînement.
   où le silence devient la donnée utile (waqf).
 - **D — Label priors côté entraînement.** Seul vrai levier sur le peaky-CTC.
   Autre chantier.
+
+---
+
+## §1.7 — Recul architectural du 2026-07-29 : l'ancre qui décroche
+
+Déclenché **automatiquement** par `.claude/hooks/detect-boucle.py` (28 éditions
+de `BufferedTranscriber.kt` dans la session). Ce n'était pas un faux positif :
+trois mécanismes différents avaient été proposés pour le **même** symptôme en
+une seule séance, dont un implémenté puis annulé.
+
+### Phase 1 — Les tentatives, et ce que chacune a vraiment mesuré
+
+| tentative | hypothèse implicite | mesuré | verdict |
+|---|---|---|---|
+| Normalisation NFC du vocabulaire (ordre shadda/fatha) | la cible est mal tokenisée, donc mal alignée | 5,5 % des mots du Coran mal découpés, mais **0 % de gain** en fenêtres 4/6/8/60 s | défaut réel, **sans effet** sur le symptôme |
+| Resync sur aperçu (retrait du garde `isFinal`) | l'ancre est en retard, il faut la pousser en avant | même WAV, deux binaires : **8,16 % → 13,40 %** | **régression**, annulé (`69de15a`) |
+| Garder l'audio au lieu de tout purger | l'audio détruit est la perte | déjà tenté le 2026-07-27 : **blocage en boucle**, 4 gels de 3000 ms en 1 s | mort-né, écarté avant d'écrire une ligne |
+| Promouvoir l'aperçu au gel normal | l'information est trouvée puis jetée | non mesuré — arrêté par le hook | **à arbitrer** |
+
+**Hypothèse implicite partagée par les deux premières** : « le défaut est dans
+la façon dont on *cherche* la position ». Elle est fausse. Les aperçus
+**trouvent** la position ; c'est la façon dont on *valide* qui la perd.
+
+### Phase 2 — Le besoin, sans vocabulaire technique
+
+Pendant que quelqu'un récite sans s'arrêter, l'application doit dire, mot par
+mot et sans retard visible, lesquels sont justes — et ne jamais déclarer faux
+un mot correctement prononcé.
+
+- **Besoin** : suivre une récitation continue, verdict par mot, sans faux rouge.
+- **Contrainte réelle** : hors ligne, sur téléphone, en temps réel.
+- **Choix hérité pris pour une contrainte** : « un verdict ne peut naître que
+  d'une passe finale recalculée sur un segment figé ». Rien ne l'impose.
+
+### Phase 3 — La couche où le défaut NAÎT
+
+Ce n'est ni le modèle, ni l'aligneur, ni la coupe.
+
+Mesure (`benchmark/audio_detruit.py`, 75 sessions) : **100 gels où la passe
+finale ne place aucun mot**, **825 s d'audio détruites**, et **635 mots que les
+aperçus avaient déjà placés dans cet audio**.
+
+Cas type, session déterministe Maryam `025035-s19` :
+
+```
+seq=57  ancre=47  final=false  mots=11      <- l'aperçu place 11 mots
+seq=58  ancre=47  final=true   mots=1  derniere_frame=-1
+segment FIGE 10s | consomme=10520ms conserve=0ms
+```
+
+Conséquence, mesurée seconde par seconde (`benchmark/ancre_vs_realite.py`) :
+l'ancre se bloque à 48 pendant que le récitateur atteint 90 — **42 mots de
+retard**.
+
+**Faille structurelle** : *décision irréversible prise trop tôt*. Le résultat
+d'aperçu est écrasé par une passe finale recalculée, puis l'audio est purgé.
+Deux destructions successives d'une information qui existait.
+
+**Faille structurelle n°2** : *objectifs contradictoires sur une même variable*.
+`consumed` arbitre seule « ne pas perdre d'audio » et « ne pas boucler ». Aucune
+valeur ne satisfait les deux — il faut deux mécanismes.
+
+### Phase 4 — État de l'art
+
+Le problème a un nom : en ASR streaming on distingue **PARTIAL** (affiché,
+instable) et **FINAL** (validé). Le FINAL n'est pas un recalcul : il est émis
+**quand les hypothèses successives convergent sur un préfixe commun**
+(*stable-prefix rule*). L'instabilité des partiels s'appelle le *flickering*,
+et se traite par reranking en faveur du préfixe stable — sans toucher au
+décodage.
+
+- Flickering Reduction with Partial Hypothesis Reranking for Streaming ASR —
+  https://www.bruguier.com/pub/deflickering.pdf
+- Analyzing the Quality and Stability of a Streaming End-to-End On-Device
+  Speech Recognizer — https://arxiv.org/pdf/2006.01416
+
+**L'app fait l'inverse de la recette canonique** : son « final » est un
+alignement neuf sur un buffer neuf, qui écrase l'accord des aperçus au lieu de
+s'appuyer dessus.
+
+### Phase 5 — Pistes à arbitrer
+
+**A. Promouvoir le dernier aperçu qui a placé des mots** (recommandée).
+Quand la passe finale ne place rien, réutiliser le dernier aperçu utile au lieu
+de le jeter. *Traite* la destruction de la Phase 3. *Rend impossible* : perdre
+un mot que l'app avait déjà trouvé. *Coût* : un champ mémorisé, le mécanisme de
+promotion **existe déjà et tourne en production** sur le chemin de la borne
+dure (`apercu reutilise`). Ne touche ni à la purge, ni à un seuil, ni à un
+critère. *Mesure* : rejeu du même WAV sur les deux binaires. *Effet de bord* :
+un aperçu est calculé sur moins d'audio — verdict potentiellement moins sûr que
+celui d'une vraie passe finale. À borner (n'accepter que si l'aperçu a placé au
+moins N mots ?) — **à arbitrer**.
+
+**B. Verdict par préfixe stable** (l'état de l'art, plus ambitieux).
+Ne verrouiller un mot que lorsque K aperçus successifs lui donnent le même
+verdict. *Traite* la même cause, mais supprime aussi le besoin même de « passe
+finale ». *Rend impossible* : toute la classe « le verdict dépend du moment où
+le segment a été figé ». *Coût* : refonte de la logique de verrouillage, Kotlin
+et Dart. *Mesure* : simulable hors device sur les logs existants (les aperçus
+successifs y sont tous). *Effet de bord* : latence de verrouillage augmentée de
+K aperçus (~1,7 s par aperçu).
+
+**C. Second buffer décalé** (idée utilisateur, jamais testée).
+Un deuxième buffer décalé d'une demi-fenêtre : tout mot coupé dans l'un est
+entier dans l'autre. *Traite* la coupe, pas la validation — **complémentaire**
+de A/B, pas concurrent. *Mesuré* : 81 % des mots enjambés sont présents dans le
+flux brut, dans une plage contiguë (`benchmark/mots_enjambes.py`). *Coût* :
+doublement du coût d'inférence — à vérifier sur le budget temps réel.
+
+**D. Ne rien changer.** Coût du statu quo : 8 à 13 % de mots non verts sur
+récitation continue, dont l'écrasante majorité sont des faux positifs. Tenable
+seulement si la cible n'est plus « suivre une récitation continue ».
+
+### Ce que la séance a coûté, et pourquoi
+
+Deux prédictions hors device confiantes et fausses :
+
+1. mon Viterbi de banc **place les mots sans contrainte de qualité** — il ne
+   peut structurellement jamais signaler un zéro-frame, donc son « 0 % hors
+   device » ne prouvait rien ;
+2. `arbitrer_resync.py` rejouait les dérives sur l'audio **complet** du segment
+   alors qu'elles sont détectées sur un **aperçu partiel**.
+
+⇒ Un banc qui ne reproduit ni la **partialité** de l'entrée ni les **refus** du
+composant réel peut classer des hypothèses, jamais valider un correctif. Le seul
+banc fiable de la journée a été le **rejeu du même WAV sur deux binaires**.
