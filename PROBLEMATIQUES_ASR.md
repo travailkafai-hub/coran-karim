@@ -812,3 +812,58 @@ suffirait là où il en a fallu dix.
 ⚠️ Contrainte : `BufferedTranscriber.kt` est l'un des trois fichiers greffés par
 `balayage_versions.sh`. Instrumenter pendant un balayage écrase les logs à
 chaque version ET fausse la comparaison. Instrumenter d'abord, balayer ensuite.
+
+### 2026-07-29 (soir) — LE DISCRIMINANT : `conserve=0`, l'audio non gardé entre deux segments
+
+Après sept hypothèses réfutées, un indicateur sépare enfin les passes propres
+des passes décrochées — **sans aucun chevauchement sur 14 sessions**, et avec
+**r = 0,67 sur 45 sessions** :
+
+| taux de non-verts | % de segments figés à `conserve=0` |
+|---|---|
+| 4,33 % | 14 % |
+| 4,76 % | 20 % |
+| 5,17 % | 6 % |
+| 6,03 % | 22 % |
+| 6,06 % | 14 % |
+| 6,93 % | 7 % |
+| 7,09 % | 11 % |
+| 25,34 % | 35 % |
+| 29,74 % | 33 % |
+| 30,30 % | 35 % |
+| 31,17 % | 43 % |
+| **41,98 %** | **89 %** |
+
+Propres : moyenne **21 %**. Décrochées : moyenne **42 %**. Frontière nette
+entre 22 % et 33 %.
+
+**Ce que `conserve=0` signifie** : le gel n'a gardé AUCUN audio pour le segment
+suivant. Le mot à cheval sur la frontière n'existe alors entier **nulle part** —
+ni dans le segment qui finit, ni dans celui qui commence.
+
+**Chaîne causale complète, chaque maillon mesuré :**
+
+1. gel avec `conserve=0` → le mot de frontière est perdu ;
+2. la DP ne peut pas le placer → `ZERO FRAME` avec « place libre » ;
+3. l'ancre reste dessus et le cherche dans les segments SUIVANTS, où il ne sera
+   jamais (vérifié : la DP réclamait « مَّرَضٌ » du verset 10 pendant que le
+   segment contenait le verset 11) ;
+4. la 2ᵉ chance n'avance l'ancre que de **+1 mot par gel**, contre 3-4 mots
+   prononcés → le retard croît mécaniquement (mesuré : 6, 12, 23, 29, 40, 45, 55) ;
+5. le resync tranche enfin et abandonne le bloc entier, **jamais jugé**.
+
+**Pourquoi c'est aléatoire** : `conserve` dépend de l'endroit où tombe la coupe,
+donc du rythme du récitateur et du portier RMS — variable d'une passe à l'autre
+sur le même audio et le même binaire. D'où « une passe sur trois », sans lien
+avec la version du code.
+
+⚠️ Ce qui NE discrimine PAS (vérifié, à ne pas re-tester) : le retard de
+validation (~9 s des deux côtés), la désynchronisation ancre/verrous (la passe
+PROPRE en compte le PLUS : 124 occurrences contre 22), le throttling, le
+modèle, les waqf, la version du code, l'anneau de secours.
+
+**Piste de fond** : la cause est la coupe qui ne conserve rien. C'est le
+chantier `BufferedTranscriber` que CLAUDE.md désigne déjà comme la vraie cause
+des faux rouges — et interdit de compenser par de la tolérance en aval.
+Avant tout correctif : comprendre POURQUOI `conserve` vaut 0 sur certains gels
+(gel à la borne dure ? purge ? portier ?), et mesurer hors device.
