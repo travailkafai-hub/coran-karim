@@ -309,6 +309,27 @@ class AligneurForce(
     ): Boolean {
         if (attestes.isEmpty()) return false
         if (attestes.containsKey(indexAbsolu)) return false
+
+        // TEST DIRECT : les frames de ce mot appartiennent-elles a un AUTRE mot
+        // que le decodage libre a effectivement entendu ?
+        //
+        // C'est la formulation exacte du defaut que l'utilisateur a nomme le
+        // 2026-07-30 : « le GOP forced condamne alors que le free est
+        // confiant ». Un `free` proche de 0 veut dire que le modele SAIT ce
+        // qu'il entend ; si ce qu'il entend est un autre mot attendu, alors le
+        // mot juge n'est pas la -- c'est une erreur de POSITION, pas de
+        // prononciation, et aucun verdict ne peut en sortir.
+        //
+        // Preuve, meme session : mot 172 f37 gop=-14,18 entendu="ٱلْبَرْء",
+        // c'est-a-dire l'audio du mot 170. La version precedente ne testait que
+        // les bornes des voisins attestes les plus PROCHES ; quand ceux-la
+        // manquaient dans le bloc, elle ne voyait rien.
+        for ((autre, plage) in attestes) {
+            if (autre == indexAbsolu) continue
+            if (premiere <= plage.last && derniere >= plage.first) return true
+        }
+
+        // Repli : le mot deborde-t-il de l'espace laisse libre par ses voisins ?
         val gauche = attestes.filterKeys { it < indexAbsolu }.maxByOrNull { it.key }
         val droite = attestes.filterKeys { it > indexAbsolu }.minByOrNull { it.key }
         if (gauche == null && droite == null) return false
