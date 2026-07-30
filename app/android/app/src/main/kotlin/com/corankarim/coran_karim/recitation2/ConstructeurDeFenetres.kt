@@ -116,17 +116,46 @@ data class Fenetre(
  *    couche G, sans jamais compter deux fois la meme.
  */
 class ConstructeurDeFenetres(
-    /** Silence minimal qui vaut frontiere d'enonce. 0,5 s est la valeur mesuree
-     *  la meilleure (14,86 % contre 16,22 % a 0,3 s) ; ce n'est pas un reglage
-     *  a retoucher sans refaire la mesure ci-dessus. */
-    private val pauseMinSecondes: Double = 0.5,
-    private val seuilRmsSilence: Float = 0.02f,
+    /**
+     * Silence minimal qui vaut frontiere d'enonce.
+     *
+     * VALEUR MESUREE, et elle ne se lit PAS seule : elle forme un couple avec
+     * [seuilRmsSilence]. Balayage sur le flux brut de reference, tout le reste
+     * identique (mots non verts) :
+     *
+     *     pause  rms    blocs   non verts
+     *     0,30   0,01     39     73,56 %
+     *     0,35   0,01     39     73,56 %
+     *     0,30   0,02     60      3,39 %
+     *     0,35   0,02     53     65,76 %
+     *     0,30   0,03    127      4,41 %
+     *     0,35   0,03    104      2,71 %
+     *     0,35   0,035   112      4,41 %
+     *     0,40   0,03    102      2,03 %   <- retenu
+     *     0,45   0,03    102      2,03 %   <- meme resultat : vrai PLATEAU
+     *
+     * Ce qui pilote le taux n'est ni la pause ni le RMS pris isolement, c'est le
+     * NOMBRE DE BLOCS qu'ils produisent ensemble : trop peu (39) et les blocs
+     * sortent du domaine du modele, trop (127) et chaque frontiere est une
+     * occasion de se tromper. L'optimum est un plateau, pas un pic -- 0,40 et
+     * 0,45 donnent le meme chiffre, ce qui est le seul reglage acceptable.
+     */
+    private val pauseMinSecondes: Double = 0.40,
+    /** Cf. [pauseMinSecondes] : les deux se lisent ensemble. 0,02 etait herite
+     *  du portier RMS de la v1, ou il servait a JETER de l'audio ; ici il sert a
+     *  DETECTER une frontiere, ce n'est pas le meme role et pas la meme valeur. */
+    private val seuilRmsSilence: Float = 0.03f,
     /** Garde-fou, pas une politique : les clips d'entrainement font <= 20 s
      *  (`max_duration: 20.0`). Au-dela le modele travaille dans un regime de
      *  longueur qu'il n'a JAMAIS vu -- c'est ce qui explique les 54 % du
      *  fichier entier. Si le recitateur enchaine sans pause, on coupe au plus
-     *  bas RMS disponible plutot que de sortir du domaine. */
-    private val maxBlocSecondes: Double = 18.0,
+     *  bas RMS disponible plutot que de sortir du domaine.
+     *
+     *  MESURE : a 18 s ce garde-fou coupait en pleine parole et faisait passer
+     *  le taux de 11,86 % a 51,53 %. Il est porte a 30 s -- avec le reglage
+     *  retenu il ne se declenche JAMAIS (102 blocs de ~3,7 s en moyenne). S'il
+     *  se declenche, c'est un symptome a instruire, pas un reglage a baisser. */
+    private val maxBlocSecondes: Double = 30.0,
     /** Un enonce plus court que ca n'est pas un enonce : c'est une respiration
      *  entre deux silences. On l'agrege au suivant. */
     private val minBlocSecondes: Double = 0.8,

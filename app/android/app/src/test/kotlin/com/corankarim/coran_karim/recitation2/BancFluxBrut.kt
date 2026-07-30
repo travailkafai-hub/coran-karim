@@ -68,9 +68,11 @@ class BancFluxBrut {
         val pause = System.getProperty("pauseMin")?.toDouble() ?: 0.5
         val maxBloc = System.getProperty("maxBloc")?.toDouble() ?: 18.0
         val fusion = System.getProperty("fusion")?.toBoolean() ?: true
-        println("[banc] pauseMin=$pause maxBloc=$maxBloc fusion=$fusion")
+        val rms = System.getProperty("seuilRms")?.toFloat() ?: 0.02f
+        println("[banc] pauseMin=$pause maxBloc=$maxBloc fusion=$fusion rms=$rms")
         val constructeur = ConstructeurDeFenetres(
-            pauseMinSecondes = pause, maxBlocSecondes = maxBloc, fusionner = fusion,
+            pauseMinSecondes = pause, seuilRmsSilence = rms,
+            maxBlocSecondes = maxBloc, fusionner = fusion,
         )
         val sortie = StringBuilder()
         var n = 0

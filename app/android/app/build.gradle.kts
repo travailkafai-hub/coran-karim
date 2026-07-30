@@ -80,7 +80,7 @@ tasks.withType<Test> {
     // Les workers de test ne HERITENT PAS des -D de la ligne de commande : sans
     // ce relais, un balayage de parametres rend trois fois le meme chiffre et
     // on croit que le parametre n'a aucun effet. Piege paye le 2026-07-30.
-    for (k in listOf("pauseMin", "maxBloc", "fusion")) {
+    for (k in listOf("pauseMin", "maxBloc", "fusion", "seuilRms")) {
         System.getProperty(k)?.let { systemProperty(k, it) }
     }
 }
