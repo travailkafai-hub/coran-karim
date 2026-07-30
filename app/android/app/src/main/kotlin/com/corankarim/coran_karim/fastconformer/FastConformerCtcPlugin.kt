@@ -53,6 +53,16 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     // Dictionnaire mot->tokens precalcule (cf. loadModel) -- null si absent.
     @Volatile private var wordTokenLookup: Map<String, IntArray>? = null
     private var fingerprint: VoiceFingerprint? = null
+    // ── CHAINE v2, BRANCHEE EN PARALLELE (2026-07-30) ────────────────────────
+    // Elle tourne EN PLUS de la v1, sur le meme PCM, et rend ses verdicts a
+    // part. C'est le motif que le projet utilise deja pour comparer deux
+    // moteurs (`useGopScoring` : les deux calculent, un seul peint l'ecran) --
+    // la v1 ne peut donc pas regresser du fait de son branchement.
+    // Mesure de reference (banc, flux brut du 2026-07-30) : v1 10,10 % de mots
+    // non verts, v2 2,03 %.
+    @Volatile private var v2Actif = false
+    private var v2Chaine: com.corankarim.coran_karim.recitation2.ChaineRecitation? = null
+    @Volatile private var v2Mots: List<String> = emptyList()
     private val scope = CoroutineScope(Dispatchers.Default)
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -308,11 +318,16 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // la partie figee (append-only) au lieu de re-aligner du mot 0.
                     // "align" : dernier resultat d'alignement force GOP (nullable,
                     // deduplique cote Dart par son champ "seq").
+                    // La v2 recoit LE MEME audio, en parallele, et rend ses
+                    // propres changements de statut. Aucun etat partage avec la
+                    // v1 : si elle echoue, la v1 continue exactement comme
+                    // avant (le catch est local).
+                    val v2 = if (v2Actif) alimenterV2(current, samples) else null
                     val payload = mapOf(
                         "committed" to buffered!!.committed,
                         "preview" to buffered!!.preview,
                         "align" to buffered!!.alignmentPayload(),
-                    )
+                    ) + (v2?.let { mapOf("v2" to it) } ?: emptyMap())
                     withContext(Dispatchers.Main) { result.success(payload) }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { result.error("FEED_BUFFERED_FAILED", e.message, null) }
@@ -533,6 +548,24 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // Interrupteur du diagnostic natif (cf. DiagnosticLog.enabled).
             // Pilote par le meme reglage utilisateur que le cote Dart, pour que
             // "diagnostic desactive" veuille dire la MEME chose des deux cotes.
+            // Active/desactive la chaine v2 en parallele de la v1. Tant que
+            // c'est faux, RIEN de la v2 ne s'execute -- pas de cout, pas de
+            // risque.
+            "v2SetEnabled" -> {
+                v2Actif = call.argument<Boolean>("enabled") ?: false
+                if (!v2Actif) v2Chaine = null
+                DiagnosticLog.log(TAG, "[v2] chaine parallele " +
+                    if (v2Actif) "ACTIVE" else "desactivee")
+                result.success(null)
+            }
+            // Texte attendu de la v2. Separe de setAlignmentTarget : la v2
+            // travaille sur des MOTS, la v1 sur des tokens deja calcules.
+            "v2SetTarget" -> {
+                v2Mots = call.argument<List<String>>("mots") ?: emptyList()
+                v2Chaine = null // recree au prochain bloc audio, avec la cible
+                DiagnosticLog.log(TAG, "[v2] cible = ${v2Mots.size} mots")
+                result.success(null)
+            }
             // ── CHAINE v2 (package recitation2) — BANC SUR AUDIO REEL ────────
             // Rejoue un WAV complet dans la chaine v2, bloc de 80 ms par bloc de
             // 80 ms, avec le VRAI modele. C'est le banc 1/2/4 de
@@ -569,7 +602,10 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
                         tokeniser = { mot -> tk.tokenizeWord(mot) },
                         constructeur = com.corankarim.coran_karim.recitation2
-                            .ConstructeurDeFenetres(fenetreSecondes = fenetreS, pasSecondes = pasS),
+                            .ConstructeurDeFenetres(
+                                pauseMinSecondes = fenetreS,
+                                maxBlocSecondes = pasS,
+                            ),
                         localisateur = com.corankarim.coran_karim.recitation2
                             .Localisateur(moteur.vocabPieces, moteur.blank),
                         aligneur = com.corankarim.coran_karim.recitation2
@@ -603,6 +639,23 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                             "free" to (obs.lastOrNull { it.interieur }?.free?.toDouble()),
                             "forced" to (obs.lastOrNull { it.interieur }?.forced?.toDouble()),
                             "entendu" to (obs.lastOrNull { it.interieur }?.entendu ?: ""),
+                            // TOUTES les observations, pas seulement la derniere.
+                            // Sans ca on ne peut pas distinguer « la preuve
+                            // n'existe pas » de « la preuve existe et la regle
+                            // de decision l'a ratee » -- c'est exactement le
+                            // trou qui a rendu la piste "prefixe stable"
+                            // invalidable hors device le 2026-07-29.
+                            "obs" to obs.map { o ->
+                                mapOf(
+                                    "f" to o.fenetreId,
+                                    "gop" to o.gop.toDouble(),
+                                    "free" to o.free.toDouble(),
+                                    "int" to o.interieur,
+                                    "sc" to o.sansCreneau,
+                                    "fr" to o.frames,
+                                    "e" to o.entendu,
+                                )
+                            },
                         )
                     }
                     val payload = mapOf(
@@ -702,6 +755,43 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         val tok = tokenizer ?: return words.map { emptyList() }
         return words.map { w ->
             ConfusableVariants.variantsOf(w).map { v -> v to tok.tokenizeVariantQuiet(v) }
+        }
+    }
+
+    /**
+     * Alimente la chaine v2 et rend les mots dont le STATUT A CHANGE.
+     *
+     * Tout est enferme dans un try/catch : la v2 est en observation, elle ne
+     * doit sous aucun pretexte faire tomber la chaine qui peint l'ecran.
+     */
+    private fun alimenterV2(moteur: FastConformerCtc, samples: FloatArray):
+        List<Map<String, Any?>>? {
+        if (v2Mots.isEmpty()) return null
+        return try {
+            var chaine = v2Chaine
+            if (chaine == null) {
+                val tk = CtcTokenizer(moteur.vocabPieces, wordTokenLookup)
+                chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
+                    front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
+                    tokeniser = { mot -> tk.tokenizeWord(mot) },
+                    localisateur = com.corankarim.coran_karim.recitation2
+                        .Localisateur(moteur.vocabPieces, moteur.blank),
+                    aligneur = com.corankarim.coran_karim.recitation2
+                        .AligneurForce(moteur.vocabPieces, moteur.blank),
+                    journal = { l -> DiagnosticLog.log(TAG, l) },
+                )
+                chaine.definirTexte(v2Mots)
+                v2Chaine = chaine
+            }
+            chaine.alimenter(samples).map { c ->
+                mapOf(
+                    "i" to c.motIndex,
+                    "statut" to nomStatut(c.statut),
+                )
+            }
+        } catch (e: Exception) {
+            DiagnosticLog.log(TAG, "[v2] echec (la v1 continue) : ${e.message}")
+            null
         }
     }
 

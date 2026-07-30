@@ -171,6 +171,22 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   StreamSubscription<({String committed, String preview})>? _structSub;
   StreamSubscription<AlignPayload>? _alignSub;
 
+  // ── CHAINE v2, BRANCHÉE EN PARALLÈLE (2026-07-30) ────────────────────────
+  // La v2 tourne EN PLUS de la v1, sur le même audio, et rend des STATUTS
+  // (pas des scores) : c'est elle qui a la couche de décision, pas Dart.
+  // Mesure de référence sur le même flux brut (banc `BancFluxBrut`, récitation
+  // professionnelle de 379,8 s) : v1 10,10 % de mots non verts, v2 2,03 %.
+  //
+  // Motif volontairement identique à `useGopScoring` : les deux moteurs
+  // calculent, un seul peint l'écran. La v1 ne peut donc pas régresser du fait
+  // du branchement, et une session compare les deux sur le MÊME audio.
+  StreamSubscription<List<({int index, String statut})>>? _v2Sub;
+
+  /// La v2 pilote-t-elle l'affichage ? Quand c'est faux, elle tourne quand même
+  /// et ses verdicts sont journalisés — exactement comme le double moteur GOP /
+  /// text-diff. Le passer à false suffit à revenir au comportement v1.
+  static const bool _v2PiloteAffichage = true;
+
   // Correction automatique (demande utilisateur 2026-07-05) : émis UNE fois
   // par mot, exactement au moment où il est verrouillé rouge pour la première
   // fois (les mots verrouillés ne sont plus jamais rejugés, donc pas de risque
@@ -1864,10 +1880,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         .listen((lvl) => state = state.copyWith(soundLevel: lvl));
     _rawSub = _verifier.rawTranscript.listen(_onRawSegment);
     _alignSub = _verifier.alignedWords.listen(_onAligned);
+    _v2Sub = _verifier.v2Statuses.listen(_onV2);
     // Forme fidèle à l'entraînement (PAS `strict`, qui fusionne des lettres
     // que le modèle a appris à distinguer — cf. normalizeTraining).
-    await _verifier.start(state.words.map((w) => w.alignTarget).toList(),
-        refMinFrames: _refMinFrames(state.words));
+    final cible = state.words.map((w) => w.alignTarget).toList();
+    await _verifier.v2Activer(true, cible);
+    await _verifier.start(cible, refMinFrames: _refMinFrames(state.words));
     _myGeneration = _verifier.sessionGeneration;
   }
 
@@ -1971,6 +1989,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _structSub = _verifier.structuredTranscript.listen(_onStructured);
     _pendingSub = _verifier.pendingSegments.listen(_onPendingChanged);
     _alignSub = _verifier.alignedWords.listen(_onAligned);
+    _v2Sub = _verifier.v2Statuses.listen(_onV2);
     // ── Diagnostic : WAV + journal, ICI et pas dans un écran (2026-07-25) ──
     // Avant, la capture des WAV était activée par KaraokeRecitationScreen
     // uniquement. Conséquence mesurée le 2026-07-25 : deux tests de suite
@@ -1988,6 +2007,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     await _verifier.setNeverBlockAnchor(referenceSession);
     await _applyDiagnosticCapture();
     // Forme fidèle à l'entraînement — cible de l'alignement forcé GOP.
+    // La v2 reçoit LA MÊME cible : sans cet appel elle ne s'active jamais et
+    // la session mesure la v1 en croyant mesurer la v2 (constaté le
+    // 2026-07-30 : 0 ligne [V2] dans une session étiquetée v2).
+    await _verifier.v2Activer(
+        true, state.words.map((w) => w.alignTarget).toList());
     await _verifier.start(
       state.words.map((w) => w.alignTarget).toList(),
       continuous: true,
@@ -2755,6 +2779,39 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// arrière, redémarrage de segment) deviennent sans objet ici : la position
   /// de chaque mot est déterminée acoustiquement par la DP, plus par une
   /// correspondance de chaînes.
+  /// Verdicts de la chaîne v2 : des STATUTS déjà décidés, pas des scores.
+  ///
+  /// Aucun seuil n'est appliqué ici — la v2 porte sa propre couche de décision
+  /// (deux preuves indépendantes, monotonie, aucun verdict sans preuve
+  /// acoustique). Dart ne fait que peindre.
+  ///
+  /// `omis` n'est PAS une couleur : c'est « le récitateur est passé outre, et
+  /// on peut le prouver ». Il est rendu comme `skipped`, jamais comme `error` —
+  /// condamner un mot non prononcé serait un verdict sans preuve.
+  void _onV2(List<({int index, String statut})> changements) {
+    for (final c in changements) {
+      DiagnosticLog.log('V2', 'mot=${c.index} -> ${c.statut}');
+    }
+    if (!_v2PiloteAffichage) return;
+    final words = [...state.words];
+    var touche = false;
+    for (final c in changements) {
+      if (c.index < 0 || c.index >= words.length) continue;
+      final definitif = c.statut.startsWith('definitif:');
+      final WordStatus? statut = switch (c.statut) {
+        'definitif:vert' || 'provisoire:vert' => WordStatus.correct,
+        'definitif:orange' || 'provisoire:orange' => WordStatus.unclear,
+        'definitif:rouge' || 'provisoire:rouge' => WordStatus.error,
+        'omis' => WordStatus.skipped,
+        _ => null, // `inconnu` : aucune preuve, donc aucune couleur
+      };
+      if (statut == null) continue;
+      _judge(words, c.index, statut, lock: definitif || c.statut == 'omis');
+      touche = true;
+    }
+    if (touche) state = state.copyWith(words: words);
+  }
+
   void _onAligned(AlignPayload p) {
     // Tourne TOUJOURS (calcule + logue [GOP]), même si useGopScoring=false --
     // demande utilisateur 2026-07-20 : comparer les deux méthodes en
@@ -3916,6 +3973,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _structSub?.cancel();
     _pendingSub?.cancel();
     _alignSub?.cancel();
+    _v2Sub?.cancel();
     // Mode continu : ce chemin ne passe PAS par stop(), il lui faut son propre
     // flush (idempotent, no-op si rien n'a change).
     unawaited(WordDurationStore.instance.flush());
@@ -3947,6 +4005,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       _rawSub?.cancel();
       _structSub?.cancel();
       _alignSub?.cancel();
+    _v2Sub?.cancel();
       // Ecriture GROUPEE des durees apprises pendant la session : `record()`
       // est appele sur chaque mot valide (des dizaines par session), on ne veut
       // pas un acces disque par mot. Sans effet si rien n'a change.
@@ -4123,6 +4182,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _structSub?.cancel();
     _pendingSub?.cancel();
     _alignSub?.cancel();
+    _v2Sub?.cancel();
     _detectingTargetFallbackTimer?.cancel();
     _wordFailedCtrl.close();
 

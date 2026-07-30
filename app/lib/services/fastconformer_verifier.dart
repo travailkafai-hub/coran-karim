@@ -502,7 +502,11 @@ class FastConformerVerifier {
 
   /// Flux causal principal : texte append-only, alignement forcé et compteurs
   /// de cache proviennent de la même inférence ONNX.
-  Future<({String committed, String preview, AlignPayload? align})?>
+  /// Même forme de retour que [feedBufferedAudio] (champ `v2` toujours vide
+  /// ici) : les deux chemins sont choisis par un ternaire côté appelant, leurs
+  /// types doivent donc coïncider.
+  Future<({String committed, String preview, AlignPayload? align,
+           List<({int index, String statut})> v2})?>
       feedCausalAudio(Uint8List pcm16) async {
     if (!_streamingLoaded) return null;
     try {
@@ -513,6 +517,7 @@ class FastConformerVerifier {
         committed: raw['committed'] as String? ?? '',
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
+        v2: const <({int index, String statut})>[],
       );
     } catch (e) {
       debugPrint('[FastConformer] Échec feedCausalAudio : $e');
@@ -535,22 +540,48 @@ class FastConformerVerifier {
   /// susceptible de changer à chaque re-transcription). Le scoring s'ancre sur
   /// la partie figée — re-partir du mot 0 à chaque passe calait dès que le
   /// début du texte était perdu par une re-transcription.
-  Future<({String committed, String preview, AlignPayload? align})?>
+  /// [v2] : changements de statut rendus par la chaîne v2, quand elle tourne
+  /// en parallèle (`v2SetEnabled`). Vide sinon — la v1 ne change pas d'un iota.
+  Future<({String committed, String preview, AlignPayload? align,
+           List<({int index, String statut})> v2})?>
       feedBufferedAudio(Uint8List pcm16) async {
     if (!_loaded) return null;
     try {
       final raw = await _channel
           .invokeMapMethod<String, dynamic>('feedBufferedAudio', {'pcm16': pcm16});
       if (raw == null) return null;
+      final v2 = <({int index, String statut})>[];
+      for (final m in ((raw['v2'] as List?) ?? const []).cast<Map>()) {
+        v2.add((index: m['i'] as int, statut: m['statut'] as String));
+      }
       return (
         committed: raw['committed'] as String? ?? '',
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
+        v2: v2,
       );
     } catch (e) {
       debugPrint('[FastConformer] Échec feedBufferedAudio : $e');
       return null;
     }
+  }
+
+  /// Active la chaîne v2 EN PARALLÈLE de la v1 (mesure de référence :
+  /// v1 10,10 % de mots non verts, v2 2,03 % sur le même flux brut).
+  Future<void> v2SetEnabled(bool enabled) async {
+    if (!_loaded) return;
+    try {
+      await _channel.invokeMethod('v2SetEnabled', {'enabled': enabled});
+    } catch (_) {}
+  }
+
+  /// Texte attendu de la v2 (des MOTS, pas des tokens : la v2 tokenise
+  /// elle-même, et génère au passage les écritures équivalentes).
+  Future<void> v2SetTarget(List<String> mots) async {
+    if (!_loaded) return;
+    try {
+      await _channel.invokeMethod('v2SetTarget', {'mots': mots});
+    } catch (_) {}
   }
 
   Future<void> resetBuffered() async {

@@ -248,6 +248,16 @@ abstract class RecitationVerifier {
   /// plus que de repli.
   Stream<AlignPayload> get alignedWords;
 
+  /// Verdicts de la chaîne v2 (branchée en parallèle de la v1) : des STATUTS
+  /// déjà décidés, pas des scores — la couche de décision vit côté natif.
+  /// Vide par défaut : une implémentation qui ne porte pas la v2 n'a rien à
+  /// faire de plus.
+  Stream<List<({int index, String statut})>> get v2Statuses =>
+      const Stream.empty();
+
+  /// Active la v2 sur [mots]. No-op par défaut.
+  Future<void> v2Activer(bool actif, List<String> mots) async {}
+
   /// Vrai si l'alignement forcé est actif pour la session courante (cible
   /// déclarée + modèle chargé). Faux → le scoring doit retomber sur le diff
   /// textuel historique.
@@ -443,6 +453,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   final _structCtrl =
       StreamController<({String committed, String preview})>.broadcast();
   final _alignCtrl = StreamController<AlignPayload>.broadcast();
+  /// Flux SÉPARÉ de la v2 : aucune couche du chemin v1 ne le lit.
+  final _v2Ctrl =
+      StreamController<List<({int index, String statut})>>.broadcast();
   final AudioRecorder _recorder;
   Timer? _levelTimer;
 
@@ -955,6 +968,21 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       _lastAlignSeq = align.seq;
       _alignCtrl.add(align);
     }
+    // Chaîne v2, quand elle tourne en parallèle : ses changements de statut
+    // partent sur un flux SÉPARÉ. Rien de ce qui précède n'en dépend — si la
+    // v2 est éteinte ou tombe, la v1 se comporte exactement comme avant.
+    final v2 = parts?.v2;
+    if (v2 != null && v2.isNotEmpty) _v2Ctrl.add(v2);
+  }
+
+  /// Changements de statut de la chaîne v2 (branchée en parallèle de la v1).
+  /// Mesure de référence sur le même flux brut : v1 10,10 % de mots non verts,
+  /// v2 2,03 %.
+  Stream<List<({int index, String statut})>> get v2Statuses => _v2Ctrl.stream;
+
+  Future<void> v2Activer(bool actif, List<String> mots) async {
+    await _fastConformer.v2SetTarget(mots);
+    await _fastConformer.v2SetEnabled(actif);
   }
 
   /// Niveau approx (RMS -> pseudo-dBFS -> [0,1]) pour l'animation du halo,
@@ -1283,6 +1311,13 @@ class MockRecitationVerifier implements RecitationVerifier {
   String? get lastAudioPath => null;
   @override
   Stream<AlignPayload> get alignedWords => const Stream.empty();
+
+  @override
+  Stream<List<({int index, String statut})>> get v2Statuses =>
+      const Stream.empty();
+
+  @override
+  Future<void> v2Activer(bool actif, List<String> mots) async {}
   @override
   bool get alignmentActive => false;
   @override

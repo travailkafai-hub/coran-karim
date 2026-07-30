@@ -45,7 +45,12 @@ OUT="$RACINE/benchmark/recettes/$(date +%Y%m%d-%H%M%S)-s$SOURATE"
 
 mort() { echo "ARRET : $*" >&2; exit 1; }
 
-for d in "$SAMSUNG" "$XIAOMI"; do
+# En mode DETERMINISTE (WAV=...), le Xiaomi n'est pas utilise : le fichier est
+# rejoue a la place du micro sur le juge. Exiger sa presence empechait la seule
+# mesure possible quand un seul telephone est branche (2026-07-30).
+REQUIS=("$SAMSUNG")
+[ -z "$WAV" ] && REQUIS+=("$XIAOMI")
+for d in "${REQUIS[@]}"; do
   "$ADB" devices | grep -q "^$d[[:space:]]*device$" || mort "appareil $d absent (adb devices)"
 done
 mkdir -p "$OUT"
@@ -111,7 +116,12 @@ echo -n "attente de l'ouverture du micro"
 PRET=0
 for _ in $(seq 1 40); do
   sleep 1; echo -n "."
-  if "$ADB" -s "$SAMSUNG" shell "tail -n 60 $LOG" 2>/dev/null | grep -q "capture ouverte"; then
+  # 400 et non 60 : depuis que la chaine v2 journalise ses blocs, le marqueur
+  # « capture ouverte » sort de la fenetre en une fraction de seconde et le banc
+  # concluait « le micro ne s'est jamais ouvert » alors que la session tournait
+  # (constate le 2026-07-30). Une detection de demarrage ne doit pas dependre du
+  # DEBIT du journal.
+  if "$ADB" -s "$SAMSUNG" shell "tail -n 400 $LOG" 2>/dev/null | grep -q "capture ouverte"; then
     PRET=1; break
   fi
 done
@@ -131,7 +141,7 @@ if [ -n "$WAV" ]; then
   echo -n "rejeu du fichier"
   for _ in $(seq 1 $((DUREE + 60))); do
     sleep 1
-    if "$ADB" -s "$SAMSUNG" shell "tail -n 40 $LOG" 2>/dev/null | grep -q "fin du fichier"; then
+    if "$ADB" -s "$SAMSUNG" shell "tail -n 400 $LOG" 2>/dev/null | grep -q "fin du fichier"; then
       echo " (termine)"; break
     fi
   done
