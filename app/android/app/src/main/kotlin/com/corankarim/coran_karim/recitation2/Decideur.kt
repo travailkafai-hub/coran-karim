@@ -94,8 +94,25 @@ class Decideur(
             // FUSION qui les tronquait (« ٱلْبَرْ » pour « ٱلْبَرْقُ »). La 2e
             // fenetre apportait une preuve SYSTEMATIQUEMENT moins bonne, et
             // faisait perdre l'accord.
-            val nette = votantes.lastOrNull()
-            if (nette != null && nette.atteste && couleur(nette) == Couleur.VERT) {
+            // L'ATTESTATION VAUT AUSSI AU BORD. Un mot au bord d'un bloc est
+            // suspect parce qu'il pourrait etre TRONQUE ; mais si le decodage
+            // libre l'a emis ENTIER, il ne l'est pas -- l'attestation repond
+            // deja a la question que la marge posait.
+            // Mesure : le mot 67 etait lu gop=0,00 avec son texte EXACT et
+            // ressortait quand meme `Omis`, faute d'observation interieure.
+            //
+            // Remarque de methode (utilisateur, 2026-07-30) : ce changement,
+            // MESURE SEUL, ne bouge pas le taux. Il est garde quand meme --
+            // « une amelioration non mesuree + une autre, ca peut marcher ».
+            // La regle « un changement sans effet mesurable n'a pas sa place
+            // dans la chaine critique » vient du retrait de
+            // FRONTIER_KEEP_SECONDS (2026-07-29), ou l'hypothese avait ete
+            // REFUTEE en plus d'etre sans effet. Ce n'est pas le cas ici : la
+            // justification tient, seul le gain immediat manque.
+            val nette = registre.observations(i).lastOrNull {
+                it.atteste && !it.sansCreneau && it.entendu.isNotBlank()
+            }
+            if (nette != null && couleur(nette) == Couleur.VERT) {
                 definitifs[i] = Couleur.VERT
                 out[i] = Statut.Definitif(Couleur.VERT)
                 continue
