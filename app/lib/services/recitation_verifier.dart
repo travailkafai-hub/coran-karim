@@ -252,7 +252,7 @@ abstract class RecitationVerifier {
   /// déjà décidés, pas des scores — la couche de décision vit côté natif.
   /// Vide par défaut : une implémentation qui ne porte pas la v2 n'a rien à
   /// faire de plus.
-  Stream<List<({int index, String statut})>> get v2Statuses =>
+  Stream<List<({int index, String statut, String trace})>> get v2Statuses =>
       const Stream.empty();
 
   /// Active la v2 sur [mots]. No-op par défaut.
@@ -455,7 +455,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   final _alignCtrl = StreamController<AlignPayload>.broadcast();
   /// Flux SÉPARÉ de la v2 : aucune couche du chemin v1 ne le lit.
   final _v2Ctrl =
-      StreamController<List<({int index, String statut})>>.broadcast();
+      StreamController<List<({int index, String statut, String trace})>>.broadcast();
   final AudioRecorder _recorder;
   Timer? _levelTimer;
 
@@ -978,7 +978,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// Changements de statut de la chaîne v2 (branchée en parallèle de la v1).
   /// Mesure de référence sur le même flux brut : v1 10,10 % de mots non verts,
   /// v2 2,03 %.
-  Stream<List<({int index, String statut})>> get v2Statuses => _v2Ctrl.stream;
+  Stream<List<({int index, String statut, String trace})>> get v2Statuses => _v2Ctrl.stream;
 
   Future<void> v2Activer(bool actif, List<String> mots) async {
     await _fastConformer.v2SetTarget(mots);
@@ -1313,7 +1313,7 @@ class MockRecitationVerifier implements RecitationVerifier {
   Stream<AlignPayload> get alignedWords => const Stream.empty();
 
   @override
-  Stream<List<({int index, String statut})>> get v2Statuses =>
+  Stream<List<({int index, String statut, String trace})>> get v2Statuses =>
       const Stream.empty();
 
   @override

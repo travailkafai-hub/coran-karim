@@ -506,7 +506,7 @@ class FastConformerVerifier {
   /// ici) : les deux chemins sont choisis par un ternaire côté appelant, leurs
   /// types doivent donc coïncider.
   Future<({String committed, String preview, AlignPayload? align,
-           List<({int index, String statut})> v2})?>
+           List<({int index, String statut, String trace})> v2})?>
       feedCausalAudio(Uint8List pcm16) async {
     if (!_streamingLoaded) return null;
     try {
@@ -517,7 +517,7 @@ class FastConformerVerifier {
         committed: raw['committed'] as String? ?? '',
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
-        v2: const <({int index, String statut})>[],
+        v2: const <({int index, String statut, String trace})>[],
       );
     } catch (e) {
       debugPrint('[FastConformer] Échec feedCausalAudio : $e');
@@ -543,16 +543,29 @@ class FastConformerVerifier {
   /// [v2] : changements de statut rendus par la chaîne v2, quand elle tourne
   /// en parallèle (`v2SetEnabled`). Vide sinon — la v1 ne change pas d'un iota.
   Future<({String committed, String preview, AlignPayload? align,
-           List<({int index, String statut})> v2})?>
+           List<({int index, String statut, String trace})> v2})?>
       feedBufferedAudio(Uint8List pcm16) async {
     if (!_loaded) return null;
     try {
       final raw = await _channel
           .invokeMapMethod<String, dynamic>('feedBufferedAudio', {'pcm16': pcm16});
       if (raw == null) return null;
-      final v2 = <({int index, String statut})>[];
+      final v2 = <({int index, String statut, String trace})>[];
       for (final m in ((raw['v2'] as List?) ?? const []).cast<Map>()) {
-        v2.add((index: m['i'] as int, statut: m['statut'] as String));
+        // La trace porte les TROIS scores. Un `gop` effondré avec un `free`
+        // proche de 0 veut dire mauvaise POSITION, pas mauvaise prononciation :
+        // sans les trois, le log fait chercher au mauvais endroit.
+        String f(Object? v) =>
+            v == null ? '-' : (v as num).toDouble().toStringAsFixed(2);
+        v2.add((
+          index: m['i'] as int,
+          statut: m['statut'] as String,
+          trace: 'gop=${f(m['gop'])} forced=${f(m['forced'])} '
+              'free=${f(m['free'])} frames=${m['frames']} '
+              '${(m['interieur'] as bool?) ?? false ? 'INT' : 'bord'}'
+              '${(m['sansCreneau'] as bool?) ?? false ? '/sansCreneau' : ''} '
+              'obs=${m['nbObs']} entendu="${m['entendu']}"',
+        ));
       }
       return (
         committed: raw['committed'] as String? ?? '',

@@ -64,12 +64,37 @@ class Localisateur(
         val confiance: Float,
         val recul: Boolean,
         val attestes: Map<Int, IntRange>,
+        /**
+         * Mots dont le decodage libre a emis le texte EXACT, harakat comprises.
+         *
+         * [attestes] sert a LOCALISER : il compare des mots normalises (sans
+         * harakat), parce que les harakat sont peu fiables pour retrouver une
+         * position. Mais un appariement normalise NE PROUVE PAS que le mot est
+         * juste -- deux mots qui ne different que par une harakat s'y
+         * confondent.
+         *
+         * DEFAUT TROUVE PAR L'UTILISATEUR EN SE SERVANT DE L'APP (2026-07-30) :
+         * « j'ai fait des fautes deliberees, il les colorie [vert] alors que le
+         * texte entendu en bas montre bien que j'ai mal dit le mot ». Le
+         * decodage libre entendait la faute, l'attestation normalisee la
+         * gommait, et la regle « atteste + vert => definitif » verrouillait un
+         * vert sur UNE seule observation.
+         *
+         * Normaliser pour TROUVER, comparer exactement pour CONFIRMER.
+         */
+        val attestesExacts: Set<Int>,
     )
 
+    /**
+     * @param framesMinParMot minimum PHYSIQUE de frames pour un mot donne
+     *   (n tokens => n frames). Sert a savoir combien de mots peuvent tenir
+     *   dans l'audio libre en tete de bloc -- rien de plus.
+     */
     fun localiser(
         logprobs: Array<FloatArray>,
         motsAttendus: List<String>,
         dernierVerrouille: Int,
+        framesMinParMot: ((Int) -> Int)? = null,
     ): Bande? {
         if (motsAttendus.isEmpty() || logprobs.isEmpty()) return null
         val entendusAvecFrames = Decodage.motsAvecFrames(logprobs, pieces, blank)
@@ -88,6 +113,16 @@ class Localisateur(
         val (score, _, attestes) =
             apparier(entendus, attendus, min, entendusAvecFrames, max)
         if (score < minAppariements || attestes.isEmpty()) return null
+        // Attestation EXACTE : le texte brut entendu est-il, caractere pour
+        // caractere, le mot attendu ? C'est la seule qui vaut preuve.
+        val exacts = HashSet<Int>()
+        for ((idx, plage) in attestes) {
+            val brut = entendusAvecFrames.firstOrNull {
+                it.first.premiereFrame == plage.first &&
+                    it.first.derniereFrame == plage.last
+            }?.first?.texte ?: continue
+            if (brut == motsAttendus[idx]) exacts.add(idx)
+        }
 
         // ── LA CORRECTION DU 2026-07-30, ET LA MESURE QUI L'IMPOSE ──────────
         //
@@ -108,14 +143,46 @@ class Localisateur(
         // La regle est donc : on ne demande a la DP QUE ce que le decodage
         // libre atteste. `margeAval` etait une marge inventee -- exactement le
         // genre de constante que ce projet paye a chaque fois.
-        val i0 = attestes.keys.min()
+        var i0 = attestes.keys.min()
         val i1 = attestes.keys.max()
+
+        // ── EXTENSION VERS L'ARRIERE : l'audio libre EN TETE de bloc ────────
+        //
+        // La bande allait du PREMIER au DERNIER mot atteste. Un mot dont le
+        // decodage libre ne dit rien -- parce qu'il tombe au tout debut du bloc,
+        // ou parce que le modele l'a mal lu -- n'entrait donc PAS dans la bande,
+        // alors que SON AUDIO ETAIT DANS LE BLOC. Il n'avait aucune chance
+        // d'etre juge la, et les blocs suivants le posaient sur l'audio du
+        // voisin (correctement rejete par `sansCreneau`) : il finissait `omis`.
+        //
+        // MESURE QUI L'IMPOSE (2026-07-30, roles des telephones permutes) :
+        // deux blocs de mots consecutifs perdus, 150-156 et 201-205, tous avec
+        // `bord/sansCreneau`, `entendu=""` et `free` entre -0,01 et -0,22 -- le
+        // modele etait CERTAIN, ces mots n'etaient simplement pas dans la
+        // bande. Meme signature que le bloc 68-75 de Yusuf.
+        //
+        // Le critere est le meme que celui de `sansCreneau`, pris a l'envers :
+        // s'il reste des frames LIBRES avant le premier mot atteste, les mots
+        // qui le precedent peuvent y tenir -- autant qu'elles en portent, pas
+        // un de plus. Aucune marge inventee.
+        if (framesMinParMot != null) {
+            var libres = attestes[i0]!!.first
+            var candidat = i0 - 1
+            while (candidat >= 0 && candidat > dernierVerrouille) {
+                val besoin = framesMinParMot(candidat)
+                if (besoin <= 0 || besoin > libres) break
+                libres -= besoin
+                i0 = candidat
+                candidat--
+            }
+        }
         return Bande(
             i0 = i0,
             i1 = i1,
             confiance = score.toFloat() / entendus.size,
             recul = i0 < depart,
             attestes = attestes,
+            attestesExacts = exacts,
         )
     }
 

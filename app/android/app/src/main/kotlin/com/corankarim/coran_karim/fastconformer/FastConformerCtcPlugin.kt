@@ -288,7 +288,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         withContext(Dispatchers.Main) { result.error("NOT_LOADED", "loadModel() n'a pas ete appele", null) }
                         return@launch
                     }
-                    if (buffered == null) {
+                    // ── v1 COUPEE QUAND LA v2 PILOTE (2026-07-30) ──────────
+                    // Les deux moteurs tournaient sur le meme audio : le
+                    // telephone faisait le travail DEUX FOIS. Mesure : sur le
+                    // Redmi, les seules passes v1 prenaient 1167 ms en mediane
+                    // (2015 ms au pire), et l'affichage devenait lourd.
+                    // La v1 reste entierement presente et redevient active des
+                    // que `v2SetEnabled(false)` -- c'est toujours le filet de
+                    // securite, il ne consomme simplement plus rien tant que la
+                    // v2 fait mieux (2,03 % contre 10,10 %).
+                    val v1Coupee = v2Actif && v2Mots.isNotEmpty()
+                    if (buffered == null && !v1Coupee) {
                         buffered = BufferedTranscriber(current)
                         pendingCommitSilenceMs?.let { buffered!!.setCommitSilenceMs(it) }
                         buffered!!.setNeverBlockAnchor(pendingNeverBlockAnchor)
@@ -308,11 +318,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // le natif redecoupe a la granularite d'origine, et le
                     // comportement reste bit pour bit celui d'avant.
                     val block = 1280 // 80 ms a 16 kHz, la taille livree par le micro
-                    var off = 0
-                    while (off < samples.size) {
-                        val end = minOf(off + block, samples.size)
-                        buffered!!.feed(samples.copyOfRange(off, end), scope)
-                        off = end
+                    if (!v1Coupee) {
+                        var off = 0
+                        while (off < samples.size) {
+                            val end = minOf(off + block, samples.size)
+                            buffered!!.feed(samples.copyOfRange(off, end), scope)
+                            off = end
+                        }
                     }
                     // Parties figee/apercu separees : le scoring Dart s'ancre sur
                     // la partie figee (append-only) au lieu de re-aligner du mot 0.
@@ -324,9 +336,9 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // avant (le catch est local).
                     val v2 = if (v2Actif) alimenterV2(current, samples) else null
                     val payload = mapOf(
-                        "committed" to buffered!!.committed,
-                        "preview" to buffered!!.preview,
-                        "align" to buffered!!.alignmentPayload(),
+                        "committed" to (buffered?.committed ?: ""),
+                        "preview" to (buffered?.preview ?: ""),
+                        "align" to buffered?.alignmentPayload(),
                     ) + (v2?.let { mapOf("v2" to it) } ?: emptyMap())
                     withContext(Dispatchers.Main) { result.success(payload) }
                 } catch (e: Exception) {
@@ -784,9 +796,26 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 v2Chaine = chaine
             }
             chaine.alimenter(samples).map { c ->
+                // Les SCORES accompagnent le statut. Sans eux, le log dit ce que
+                // la chaine a DECIDE et jamais POURQUOI -- c'est exactement le
+                // manque qui a rendu le bloc de 8 mots omis de Yusuf
+                // indiagnosticable le 2026-07-30. On remonte la derniere
+                // observation VOTANTE, et a defaut la derniere tout court (un
+                // mot `omis` n'en a aucune qui vote : savoir ce qu'il avait
+                // quand meme est precisement l'information utile).
+                val obs = chaine.preuves.observationsVotantes(c.motIndex).lastOrNull()
+                    ?: chaine.preuves.observations(c.motIndex).lastOrNull()
                 mapOf(
                     "i" to c.motIndex,
                     "statut" to nomStatut(c.statut),
+                    "gop" to obs?.gop?.toDouble(),
+                    "forced" to obs?.forced?.toDouble(),
+                    "free" to obs?.free?.toDouble(),
+                    "frames" to (obs?.frames ?: 0),
+                    "entendu" to (obs?.entendu ?: ""),
+                    "interieur" to (obs?.interieur ?: false),
+                    "sansCreneau" to (obs?.sansCreneau ?: false),
+                    "nbObs" to chaine.preuves.observations(c.motIndex).size,
                 )
             }
         } catch (e: Exception) {

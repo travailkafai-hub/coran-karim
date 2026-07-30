@@ -68,10 +68,12 @@ class BancFluxBrut {
         val pause = System.getProperty("pauseMin")?.toDouble() ?: 0.5
         val maxBloc = System.getProperty("maxBloc")?.toDouble() ?: 18.0
         val fusion = System.getProperty("fusion")?.toBoolean() ?: true
-        val rms = System.getProperty("seuilRms")?.toFloat() ?: 0.02f
-        println("[banc] pauseMin=$pause maxBloc=$maxBloc fusion=$fusion rms=$rms")
+        val rms = System.getProperty("seuilRms")?.toFloat() ?: 0.03f
+        val adaptatif = System.getProperty("adaptatif")?.toBoolean() ?: true
+        println("[banc] pauseMin=$pause maxBloc=$maxBloc fusion=$fusion rms=$rms adaptatif=$adaptatif")
         val constructeur = ConstructeurDeFenetres(
             pauseMinSecondes = pause, seuilRmsSilence = rms,
+            seuilAdaptatif = adaptatif,
             maxBlocSecondes = maxBloc, fusionner = fusion,
         )
         val sortie = StringBuilder()
@@ -102,6 +104,11 @@ class BancFluxBrut {
      * projet a mesurees separables par rescoring (80,8 % sur 854 clips).
      */
     private val confusables = listOf(
+        // Famille jim/ha/kha : meme squelette graphique, sons proches. C'est LA
+        // paire signalee par l'utilisateur apres son propre test (« mon cas
+        // c'etait remplacer jim par ha ») -- elle manquait a cette liste, donc
+        // le banc ne testait pas le cas qu'il avait sous les yeux.
+        'ج' to 'ح', 'ح' to 'خ', 'ج' to 'خ',
         'ص' to 'س', 'ط' to 'ت', 'ض' to 'د', 'ذ' to 'ز',
         'ح' to 'ه', 'ق' to 'ك', 'ع' to 'ء',
     )
@@ -116,6 +123,26 @@ class BancFluxBrut {
      * l'obtient sans nouvelle session, donc sur le MEME audio que la mesure de
      * faux positifs.
      */
+    /**
+     * Fausse une HARAKAT (fatha/damma/kasra) -- le cas signale par
+     * l'utilisateur en se servant de l'app : « j'ai fait des fautes deliberees,
+     * il les colorie [vert] alors que le texte entendu en bas montre bien que
+     * j'ai mal dit le mot ».
+     *
+     * C'est le cas le plus dur : le projet a mesure que le gop y est faible
+     * (-0,16 a -0,90 sur fautes deliberees) et que le rescoring de variantes y
+     * est au niveau du hasard (49,6 % sur 954 clips). Un banc qui ne teste que
+     * les substitutions de LETTRES ne dit donc rien de ce cas.
+     */
+    private fun fausserHarakat(mot: String): String? {
+        val paires = listOf('َ' to 'ُ', 'ُ' to 'ِ', 'ِ' to 'َ')
+        for ((a, b) in paires) {
+            val i = mot.indexOf(a)
+            if (i >= 0) return mot.substring(0, i) + b + mot.substring(i + 1)
+        }
+        return null
+    }
+
     private fun fausser(mot: String): String? {
         for ((a, b) in confusables) {
             val i = mot.indexOf(a)
@@ -135,13 +162,17 @@ class BancFluxBrut {
         // -DfautesTous=N : on FAUSSE un mot attendu sur N (substitution de
         // lettre confusable). Mesure alors la DETECTION, pas les faux positifs.
         val fautesTous = System.getProperty("fautesTous")?.toInt() ?: 0
+        // -DtypeFaute=harakat : substitution de VOYELLE au lieu de lettre.
+        val harakat = System.getProperty("typeFaute") == "harakat"
         val fautes = HashSet<Int>()
         val mots = if (fautesTous <= 0) motsVrais else motsVrais.mapIndexed { i, m ->
             if (i > 0 && i % fautesTous == 0) {
-                val f = fausser(m)
+                val f = if (harakat) fausserHarakat(m) else fausser(m)
                 if (f != null) { fautes.add(i); f } else m
             } else m
         }
+        if (fautes.isNotEmpty()) println("[banc] type de faute : " +
+            if (harakat) "HARAKAT" else "lettre confusable")
         if (fautes.isNotEmpty()) println("[banc] ${fautes.size} mots FAUSSES sur ${mots.size}")
         val pieces = File(racine, "pieces.txt").readLines()
         val blank = pieces.size
@@ -199,7 +230,10 @@ class BancFluxBrut {
             val lp = lireLogprobs(f)
             fenetresVues++
 
-            val bande = localisateur.localiser(lp, mots, dernierDefinitif) ?: continue
+            val bande = localisateur.localiser(
+                lp, mots, dernierDefinitif,
+                framesMinParMot = { i -> tokensAttendus.getOrNull(i)?.size ?: 0 },
+            ) ?: continue
             val res = aligneur.aligner(
                 lp, tokensAttendus.subList(bande.i0, bande.i1 + 1), bande.i0,
                 bordGaucheEstDebutDeSession = debut == 0L,
@@ -213,7 +247,7 @@ class BancFluxBrut {
                         forced = m.forced, free = m.free, entendu = m.entendu,
                         frames = m.frames, interieur = m.interieur && !m.sansCreneau,
                         couvert = m.couvert, sansCreneau = m.sansCreneau,
-                        atteste = bande.attestes.containsKey(m.index),
+                        atteste = bande.attestesExacts.contains(m.index),
                         fenetrePleine = true, debutAbs = -1, finAbs = -1,
                     )
                 )

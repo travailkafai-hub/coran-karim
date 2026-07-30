@@ -180,7 +180,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // Motif volontairement identique à `useGopScoring` : les deux moteurs
   // calculent, un seul peint l'écran. La v1 ne peut donc pas régresser du fait
   // du branchement, et une session compare les deux sur le MÊME audio.
-  StreamSubscription<List<({int index, String statut})>>? _v2Sub;
+  StreamSubscription<List<({int index, String statut, String trace})>>? _v2Sub;
 
   /// La v2 pilote-t-elle l'affichage ? Quand c'est faux, elle tourne quand même
   /// et ses verdicts sont journalisés — exactement comme le double moteur GOP /
@@ -2788,9 +2788,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// `omis` n'est PAS une couleur : c'est « le récitateur est passé outre, et
   /// on peut le prouver ». Il est rendu comme `skipped`, jamais comme `error` —
   /// condamner un mot non prononcé serait un verdict sans preuve.
-  void _onV2(List<({int index, String statut})> changements) {
+  void _onV2(List<({int index, String statut, String trace})> changements) {
     for (final c in changements) {
-      DiagnosticLog.log('V2', 'mot=${c.index} -> ${c.statut}');
+      DiagnosticLog.log('V2',
+          'mot=${c.index} "${state.words.length > c.index ? state.words[c.index].display : "?"}" '
+          '-> ${c.statut} | ${c.trace}');
     }
     if (!_v2PiloteAffichage) return;
     final words = [...state.words];

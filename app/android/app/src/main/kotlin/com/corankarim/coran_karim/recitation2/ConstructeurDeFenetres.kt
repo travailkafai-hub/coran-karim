@@ -143,8 +143,47 @@ class ConstructeurDeFenetres(
     private val pauseMinSecondes: Double = 0.40,
     /** Cf. [pauseMinSecondes] : les deux se lisent ensemble. 0,02 etait herite
      *  du portier RMS de la v1, ou il servait a JETER de l'audio ; ici il sert a
-     *  DETECTER une frontiere, ce n'est pas le meme role et pas la meme valeur. */
+     *  DETECTER une frontiere, ce n'est pas le meme role et pas la meme valeur.
+     *
+     *  N'est plus utilise que comme valeur de DEMARRAGE et comme repli, depuis
+     *  que le seuil est adaptatif (cf. [seuilAdaptatif]). */
     private val seuilRmsSilence: Float = 0.03f,
+    /**
+     * SEUIL ADAPTATIF — le seuil de silence suit le NIVEAU DE LA VOIX.
+     *
+     * ── LA MESURE QUI L'IMPOSE (2026-07-30) ─────────────────────────────────
+     * Meme recitation, meme code, on change SEULEMENT le gain du signal (ce que
+     * fait une voix plus douce, ou un micro plus loin) :
+     *
+     *     gain x0,4   287 blocs   15,93 % de mots non verts
+     *     gain x0,7   145 blocs    5,08 %
+     *     gain x1,0   102 blocs    2,03 %   <- le reglage
+     *     gain x1,5    49 blocs   65,76 %
+     *     gain x2,5    39 blocs   73,22 %
+     *
+     * +50 % de volume et la chaine s'effondre. Un seuil ABSOLU sur un signal
+     * dont le niveau depend de la voix et de la distance au micro ne peut pas
+     * marcher : c'est le defaut que le projet avait deja nomme pour le portier
+     * de la v1 (« voix douce / micro eloigne -> debut de mot classe silence »),
+     * jamais corrige.
+     *
+     * ── LA VALEUR, DERIVEE ET NON REGLEE ────────────────────────────────────
+     * Sur la recitation de reference, le seuil qui marche (0,03) vaut
+     * exactement 0,344 x le percentile 75 des RMS de bloc. Le p75 est un
+     * estimateur du NIVEAU DE PAROLE ; le rapport, lui, est invariant au gain.
+     * On garde donc le rapport et on recalcule le niveau en continu.
+     *
+     * Pourquoi un rapport au niveau de parole plutot qu'un percentile fixe :
+     * un percentile suppose que la PROPORTION de silence est la meme chez tous
+     * les recitateurs. Elle ne l'est pas -- quelqu'un qui respire plus souvent
+     * en aurait plus. Le contraste parole/silence, lui, est une propriete de la
+     * voix et du micro, bien plus stable.
+     */
+    private val seuilAdaptatif: Boolean = true,
+    /** Fenetre glissante d'estimation du niveau de parole. 30 s : assez long
+     *  pour contenir de la parole meme pendant une longue pause, assez court
+     *  pour suivre un recitateur qui s'eloigne du micro en cours de session. */
+    private val fenetreNiveauSecondes: Double = 30.0,
     /** Garde-fou, pas une politique : les clips d'entrainement font <= 20 s
      *  (`max_duration: 20.0`). Au-dela le modele travaille dans un regime de
      *  longueur qu'il n'a JAMAIS vu -- c'est ce qui explique les 54 % du
@@ -200,6 +239,29 @@ class ConstructeurDeFenetres(
 
     private val enAttente = ArrayList<Float>(bloc)
 
+    // ── Estimation continue du niveau de parole (cf. seuilAdaptatif) ────────
+    private val tailleNiveau = (fenetreNiveauSecondes * Horloge.TAUX / bloc).toInt()
+    private val niveaux = FloatArray(tailleNiveau)
+    private var niveauxRemplis = 0
+    private var niveauxPos = 0
+    private val tri = FloatArray(tailleNiveau)
+
+    /** Seuil courant : rapport fixe au niveau de parole observe, ou la valeur
+     *  de demarrage tant qu'on n'a pas assez de signal pour l'estimer. */
+    private fun seuilCourant(): Float {
+        if (!seuilAdaptatif || niveauxRemplis < MIN_BLOCS_NIVEAU) return seuilRmsSilence
+        System.arraycopy(niveaux, 0, tri, 0, niveauxRemplis)
+        java.util.Arrays.sort(tri, 0, niveauxRemplis)
+        val p75 = tri[(niveauxRemplis * 75) / 100]
+        return (RAPPORT_SEUIL_NIVEAU * p75).coerceIn(SEUIL_MIN, SEUIL_MAX)
+    }
+
+    private fun noterNiveau(r: Float) {
+        niveaux[niveauxPos] = r
+        niveauxPos = (niveauxPos + 1) % tailleNiveau
+        if (niveauxRemplis < tailleNiveau) niveauxRemplis++
+    }
+
     val positionTravail: Long get() = travailBase + travailTaille
 
     fun alimenter(echantillons: FloatArray): List<Fenetre> {
@@ -220,8 +282,10 @@ class ConstructeurDeFenetres(
         val r = rms(b)
 
         if (r < minRmsDepuisCoupe) { minRmsDepuisCoupe = r; posMinRms = posBloc }
+        val seuil = seuilCourant()
+        noterNiveau(r)
 
-        if (r < seuilRmsSilence) {
+        if (r < seuil) {
             if (runSilence == 0) debutSilence = posBloc
             runSilence++
         } else {
@@ -350,6 +414,19 @@ class ConstructeurDeFenetres(
         if (travailTaille + besoin > travail.size) {
             travail = travail.copyOf(maxOf(travail.size * 2, travailTaille + besoin))
         }
+    }
+
+    private companion object {
+        /** 0,344 = 0,03 / p75 mesure sur la recitation de reference. Ce n'est
+         *  pas un reglage : c'est le rapport qui reproduit exactement le seuil
+         *  valide, rendu invariant au gain. */
+        const val RAPPORT_SEUIL_NIVEAU = 0.344f
+        /** Bornes de securite : une piece totalement silencieuse ou saturee ne
+         *  doit pas produire un seuil absurde. */
+        const val SEUIL_MIN = 0.004f
+        const val SEUIL_MAX = 0.20f
+        /** 2 s de signal avant d'oser estimer un niveau. */
+        const val MIN_BLOCS_NIVEAU = 25
     }
 
     private fun rms(b: FloatArray): Float {

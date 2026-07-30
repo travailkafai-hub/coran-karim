@@ -113,7 +113,10 @@ class ChaineRecitation(
         val logprobs = front.logprobs(fenetre.echantillons)
         if (logprobs.isEmpty()) return
 
-        val bande = localisateur.localiser(logprobs, motsAttendus, dernierDefinitif)
+        val bande = localisateur.localiser(
+            logprobs, motsAttendus, dernierDefinitif,
+            framesMinParMot = { i -> tokensAttendus.getOrNull(i)?.size ?: 0 },
+        )
         if (bande == null) {
             // Resultat legitime : la fenetre ne dit rien de la position. Aucun
             // jugement n'en sort — regle "aucun verdict sans preuve acoustique".
@@ -149,7 +152,9 @@ class ChaineRecitation(
                     interieur = m.interieur && !m.sansCreneau,
                     couvert = m.couvert,
                     sansCreneau = m.sansCreneau,
-                    atteste = bande.attestes.containsKey(m.index),
+                    // ATTESTATION EXACTE, pas normalisee : c'est elle qui a le
+                    // droit de verrouiller un vert sur une seule observation.
+                    atteste = bande.attestesExacts.contains(m.index),
                     fenetrePleine = fenetre.pleine,
                     debutAbs = debutAbs,
                     finAbs = finAbs,
