@@ -1,0 +1,6020 @@
+{
+ "per_commit": {
+  "cde1472": {
+   "date": "2026-07-30",
+   "sujet": "On test-1-gop: v29-libre-conseil : presentDansLibre en CONSEIL (topologie mot + penalite silence) - NON MESURE",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "db98d26": {
+   "date": "2026-07-30",
+   "sujet": "CHUNKWISE + rattrapage borne, sur branche d'experimentation (NON MESURE)",
+   "const_add": [
+    "CHUNKWISE_ACTIF",
+    "RATTRAPAGE_GELS_IMMOBILES",
+    "RATTRAPAGE_SAUT_MAX",
+    "RESCUE_RING_SECONDS",
+    "SHIFTED_OFFSET_SECONDS",
+    "SHIFTED_SEGMENT_SECONDS",
+    "centre",
+    "debut",
+    "dispo",
+    "enjambes",
+    "etatFinal",
+    "etatHerite",
+    "etatTaille",
+    "fin",
+    "k",
+    "off",
+    "oldest",
+    "r3",
+    "rescue",
+    "saut",
+    "sd",
+    "seg",
+    "vu"
+   ],
+   "const_del": [
+    "rescue"
+   ],
+   "fun_add": [
+    "segmentDecale"
+   ],
+   "fun_del": []
+  },
+  "e735f99": {
+   "date": "2026-07-30",
+   "sujet": "Le log du secours donne les TROIS scores, et le superviseur devient obligatoire",
+   "const_add": [
+    "res",
+    "res0"
+   ],
+   "const_del": [
+    "res"
+   ],
+   "fun_add": [
+    "trio"
+   ],
+   "fun_del": []
+  },
+  "bca8706": {
+   "date": "2026-07-29",
+   "sujet": "v24 : la chaine consolidee, et le decrochage disparait (mediane 25,34 % -> 11,78 %)",
+   "const_add": [
+    "MAX_SILENCE_SAMPLES",
+    "RESYNC_ACTIF",
+    "abs",
+    "amont",
+    "at",
+    "attendu",
+    "b",
+    "best",
+    "bl",
+    "d",
+    "debut",
+    "e",
+    "entendu",
+    "expansionActive",
+    "f",
+    "f0",
+    "f1",
+    "fin",
+    "from",
+    "logprobs",
+    "marge",
+    "meilleur",
+    "mid",
+    "minFrames",
+    "mots",
+    "off",
+    "r2",
+    "rj",
+    "sb",
+    "t",
+    "to"
+   ],
+   "const_del": [
+    "MAX_SILENCE_SAMPLES",
+    "at",
+    "garde",
+    "logprobs",
+    "rj",
+    "spf",
+    "to",
+    "toks"
+   ],
+   "fun_add": [
+    "cibleEtendue",
+    "texte"
+   ],
+   "fun_del": []
+  },
+  "6dc9759": {
+   "date": "2026-07-29",
+   "sujet": "Consigne : l'app ne sait pas suivre un reciteur qui REPETE",
+   "const_add": [],
+   "const_del": [
+    "vu"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "bb388c0": {
+   "date": "2026-07-29",
+   "sujet": "Le decrochage n'est pas dans le texte : il est dans un rattrapage qui echoue",
+   "const_add": [
+    "vu"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "d709c7d": {
+   "date": "2026-07-29",
+   "sujet": "Le decrochage tombe au MEME endroit sur six versions -- et l'anneau n'y est pour rien",
+   "const_add": [
+    "RIGHT_CONTEXT_SECONDS",
+    "ancreALaDerive",
+    "audioJuge",
+    "debut",
+    "derive",
+    "droite",
+    "expectedText",
+    "fin",
+    "free",
+    "garde",
+    "logprobs",
+    "sb",
+    "spf",
+    "veut"
+   ],
+   "const_del": [
+    "debut",
+    "fin",
+    "logprobs"
+   ],
+   "fun_add": [
+    "tokensToText"
+   ],
+   "fun_del": []
+  },
+  "a0c8935": {
+   "date": "2026-07-29",
+   "sujet": "Banc : le balayage installait en local puis recitait sur le PC B, sans le dire",
+   "const_add": [
+    "MAX_SILENCE_SAMPLES",
+    "at",
+    "debut",
+    "fin",
+    "rj",
+    "to",
+    "toks"
+   ],
+   "const_del": [
+    "MAX_SILENCE_SAMPLES",
+    "RESYNC_ACTIF",
+    "RIGHT_CONTEXT_SECONDS",
+    "abs",
+    "amont",
+    "ancreALaDerive",
+    "at",
+    "attendu",
+    "audioJuge",
+    "b",
+    "best",
+    "bl",
+    "d",
+    "debut",
+    "derive",
+    "droite",
+    "e",
+    "entendu",
+    "expansionActive",
+    "expectedText",
+    "f",
+    "f0",
+    "f1",
+    "fin",
+    "free",
+    "from",
+    "marge",
+    "meilleur",
+    "mid",
+    "minFrames",
+    "mots",
+    "off",
+    "r2",
+    "rj",
+    "sb",
+    "t",
+    "to",
+    "veut"
+   ],
+   "fun_add": [],
+   "fun_del": [
+    "cibleEtendue",
+    "texte",
+    "tokensToText"
+   ]
+  },
+  "41df3e3": {
+   "date": "2026-07-29",
+   "sujet": "v23 : le resync est coupe, et la mesure lui donne tort (8,16 % -> 6,12 %)",
+   "const_add": [
+    "RESYNC_ACTIF"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "69de15a": {
+   "date": "2026-07-29",
+   "sujet": "Retour arriere : le resync sur apercu JETTE des mots corrects (mesure)",
+   "const_add": [],
+   "const_del": [
+    "finCand",
+    "frames",
+    "resCand",
+    "scoreIci",
+    "scoreLa",
+    "somme"
+   ],
+   "fun_add": [],
+   "fun_del": [
+    "scoreParFrame"
+   ]
+  },
+  "305db63": {
+   "date": "2026-07-29",
+   "sujet": "Le resync ne devine plus : il aligne aux deux ancres et garde la meilleure",
+   "const_add": [
+    "finCand",
+    "frames",
+    "resCand",
+    "scoreIci",
+    "scoreLa",
+    "somme"
+   ],
+   "const_del": [],
+   "fun_add": [
+    "scoreParFrame"
+   ],
+   "fun_del": []
+  },
+  "6d99166": {
+   "date": "2026-07-29",
+   "sujet": "Sonde de 4 lettres rejetee, expansion mise en sommeil : le secours coute plus qu'il ne rapporte quand il se declenche trop",
+   "const_add": [
+    "expansionActive"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "4606d64": {
+   "date": "2026-07-29",
+   "sujet": "Le resync comparait des identifiants de tokens : il compare desormais du TEXTE",
+   "const_add": [
+    "at",
+    "attendu",
+    "entendu",
+    "sb"
+   ],
+   "const_del": [
+    "at",
+    "toks"
+   ],
+   "fun_add": [
+    "texte"
+   ],
+   "fun_del": []
+  },
+  "6d07754": {
+   "date": "2026-07-29",
+   "sujet": "Secours etendu aux mots valides en amont -- et ce qu'il ne peut PAS reparer",
+   "const_add": [
+    "MAX_SILENCE_SAMPLES",
+    "abs",
+    "amont",
+    "d",
+    "debut",
+    "e",
+    "fin",
+    "from",
+    "marge",
+    "meilleur",
+    "mots",
+    "off",
+    "r2",
+    "rj",
+    "t",
+    "to"
+   ],
+   "const_del": [
+    "MAX_SILENCE_SAMPLES",
+    "rj"
+   ],
+   "fun_add": [
+    "cibleEtendue"
+   ],
+   "fun_del": []
+  },
+  "36c03d0": {
+   "date": "2026-07-29",
+   "sujet": "Rayon de coupe elargi a 2 s : essaye, mesure, rejete",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "f2d61bc": {
+   "date": "2026-07-28",
+   "sujet": "La coupe ne depend plus de l'horloge -- mais le taux n'y gagne pas",
+   "const_add": [
+    "to"
+   ],
+   "const_del": [
+    "to"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "a786239": {
+   "date": "2026-07-28",
+   "sujet": "Couper la ou le MODELE ne dit rien, pas la ou le signal est faible",
+   "const_add": [
+    "b",
+    "best",
+    "bl",
+    "d",
+    "e",
+    "f",
+    "f0",
+    "f1",
+    "meilleur",
+    "mid",
+    "minFrames"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "6ae0884": {
+   "date": "2026-07-28",
+   "sujet": "Le contexte droit va AUSSI a la DP : les mots de fin de segment n'avaient pas d'audio",
+   "const_add": [
+    "logprobs"
+   ],
+   "const_del": [
+    "garde",
+    "logprobs",
+    "spf"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "b72b05b": {
+   "date": "2026-07-28",
+   "sujet": "Recette DETERMINISTE : rejouer un WAV a la place du micro",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "363a3a1": {
+   "date": "2026-07-28",
+   "sujet": "Contexte des DEUX cotes pour l'encodeur, jugement seulement au centre",
+   "const_add": [
+    "RIGHT_CONTEXT_SECONDS",
+    "ancreALaDerive",
+    "audioJuge",
+    "debut",
+    "derive",
+    "droite",
+    "fin",
+    "free",
+    "garde",
+    "logprobs",
+    "spf",
+    "veut"
+   ],
+   "const_del": [
+    "debut",
+    "fin",
+    "logprobs"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "8507b0e": {
+   "date": "2026-07-28",
+   "sujet": "Retire le palliatif : on ne deplace pas le critere d'acceptation",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "a54cfe2": {
+   "date": "2026-07-28",
+   "sujet": "La regle de proportion cede devant une preuve d'alignement forte",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "a97867f": {
+   "date": "2026-07-28",
+   "sujet": "Le secours voit enfin les mots TRONQUES, pas seulement les mots absents",
+   "const_add": [
+    "expectedText",
+    "sb"
+   ],
+   "const_del": [],
+   "fun_add": [
+    "tokensToText"
+   ],
+   "fun_del": []
+  },
+  "44305da": {
+   "date": "2026-07-28",
+   "sujet": "Le secours aligne le mot AVEC SES VOISINS, plus jamais seul",
+   "const_add": [
+    "absFrom",
+    "absTo",
+    "debut",
+    "fin",
+    "out",
+    "rj",
+    "seul",
+    "t",
+    "z"
+   ],
+   "const_del": [
+    "absFrom",
+    "absTo",
+    "out",
+    "rj"
+   ],
+   "fun_add": [
+    "cibleAvecVoisins",
+    "fenetreDeRecherche"
+   ],
+   "fun_del": [
+    "fenetreDeRecherche"
+   ]
+  },
+  "8cd6a06": {
+   "date": "2026-07-28",
+   "sujet": "Chaque session dit desormais ce qu'elle teste, et vide sa trace fine",
+   "const_add": [
+    "_logParametresSession",
+    "flushTraces"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "10dd819": {
+   "date": "2026-07-28",
+   "sujet": "Sort le gel a la borne dure du thread audio, et cesse d'ecrire l'audio deux fois",
+   "const_add": [
+    "RESCUE_MAX_SEARCH_SECONDS",
+    "STAMP_MARGIN_SECONDS",
+    "absFrom",
+    "absTo",
+    "c",
+    "d",
+    "debut",
+    "fin",
+    "from",
+    "g",
+    "h",
+    "line",
+    "marge",
+    "max",
+    "res",
+    "snapStart",
+    "to",
+    "wordStamps"
+   ],
+   "const_del": [
+    "absFrom",
+    "absTo",
+    "line",
+    "res"
+   ],
+   "fun_add": [
+    "contexteDebut",
+    "contexteFin",
+    "fenetreDeRecherche",
+    "horodater",
+    "secoursMeilleur"
+   ],
+   "fun_del": []
+  },
+  "c0935dd": {
+   "date": "2026-07-27",
+   "sujet": "Le secours vise enfin les bons mots, et couvre le chemin de la recitation continue",
+   "const_add": [
+    "RESCUE_TAIL_SECONDS",
+    "besoin",
+    "besoins",
+    "f0",
+    "f1",
+    "idx",
+    "lw",
+    "patchF",
+    "prevL",
+    "r",
+    "rj",
+    "tk",
+    "toks",
+    "ws"
+   ],
+   "const_del": [
+    "RESCUE_TAIL_SECONDS",
+    "besoin",
+    "besoins"
+   ],
+   "fun_add": [
+    "besoinDeSecours"
+   ],
+   "fun_del": []
+  },
+  "84778b6": {
+   "date": "2026-07-27",
+   "sujet": "La fenetre de secours tombait 3 s avant le mot : origine absolue corrigee",
+   "const_add": [
+    "absFrom",
+    "absTo"
+   ],
+   "const_del": [
+    "absFrom",
+    "absTo"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "5740cee": {
+   "date": "2026-07-27",
+   "sujet": "Le secours produisait toujours une liste vide : forceJudgeIndex manquant",
+   "const_add": [
+    "out",
+    "res"
+   ],
+   "const_del": [
+    "res"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "f00f53c": {
+   "date": "2026-07-27",
+   "sujet": "Regle \"pas d'hypothese tant qu'une ligne de log peut trancher\" + trace du declencheur",
+   "const_add": [
+    "besoins"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "3f5fa4c": {
+   "date": "2026-07-27",
+   "sujet": "Corrige deux bugs qui rendaient le secours muet et multipliaient les non juges",
+   "const_add": [
+    "audio",
+    "dispo",
+    "to"
+   ],
+   "const_del": [
+    "audio",
+    "to"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "488d969": {
+   "date": "2026-07-27",
+   "sujet": "Buffer de secours en lecture seule : rejuge un mot non place, avec contexte",
+   "const_add": [
+    "RESCUE_CONTEXT_SECONDS",
+    "RESCUE_TAIL_SECONDS",
+    "absFrom",
+    "absTo",
+    "audio",
+    "besoin",
+    "ctx",
+    "ctxFrames",
+    "dpLp",
+    "dst",
+    "f0",
+    "f1",
+    "firstFrame",
+    "from",
+    "it",
+    "k",
+    "lp",
+    "n",
+    "oldest",
+    "out",
+    "outputs",
+    "pad",
+    "patched",
+    "pos",
+    "prevLast",
+    "res",
+    "rescue",
+    "ring",
+    "rj",
+    "spf",
+    "spfRescue",
+    "src",
+    "to",
+    "words"
+   ],
+   "const_del": [
+    "words"
+   ],
+   "fun_add": [
+    "append",
+    "extract",
+    "rescueWord",
+    "reset",
+    "totalSamples"
+   ],
+   "fun_del": []
+  },
+  "eb231af": {
+   "date": "2026-07-27",
+   "sujet": "L'ancre ne cale plus : resynchronisation par le decodage libre, et +1 en mode reference",
+   "const_add": [
+    "MAX_RESYNC_LOOKAHEAD",
+    "MIN_RESYNC_HITS",
+    "MIN_RESYNC_TOKENS",
+    "RESYNC_WINDOW_WORDS",
+    "at",
+    "best",
+    "bestHits",
+    "bestOff",
+    "bv",
+    "heard",
+    "hits",
+    "limit",
+    "pos",
+    "prev",
+    "resync",
+    "setNeverBlockAnchor",
+    "toks",
+    "v"
+   ],
+   "const_del": [],
+   "fun_add": [
+    "findResyncOffset",
+    "indexOfSub",
+    "setNeverBlockAnchor"
+   ],
+   "fun_del": []
+  },
+  "e5c8011": {
+   "date": "2026-07-27",
+   "sujet": "Les bornes de segment portent sur l'audio NOUVEAU, pas sur le contexte",
+   "const_add": [
+    "minKeep",
+    "newSeconds",
+    "targetOffset"
+   ],
+   "const_del": [
+    "minKeep",
+    "targetOffset"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "aba4feb": {
+   "date": "2026-07-27",
+   "sujet": "Le contexte du chevauchement va a l'encodeur, jamais au juge",
+   "const_add": [
+    "alignLp",
+    "ctxFrames",
+    "from",
+    "lastFrame",
+    "lastRel",
+    "to"
+   ],
+   "const_del": [
+    "ctxFrames",
+    "lastFrame"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "e12cf33": {
+   "date": "2026-07-27",
+   "sujet": "Corrige la boucle de re-gel introduite par le chevauchement",
+   "const_add": [
+    "purgeF",
+    "purgeFrom"
+   ],
+   "const_del": [
+    "purgeF",
+    "purgeFrom"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "cd5c0f0": {
+   "date": "2026-07-27",
+   "sujet": "Segments chevauchants : 3 s de contexte pour ne plus commencer en plein mot",
+   "const_add": [
+    "OVERLAP_SAMPLES",
+    "OVERLAP_SECONDS",
+    "contextStart",
+    "ctxF",
+    "ctxFrames",
+    "ids",
+    "purgeF",
+    "purgeFrom",
+    "start"
+   ],
+   "const_del": [
+    "ids"
+   ],
+   "fun_add": [
+    "greedyDecode"
+   ],
+   "fun_del": [
+    "greedyDecode"
+   ]
+  },
+  "03f9a42": {
+   "date": "2026-07-27",
+   "sujet": "Enregistre le clip du gel a la borne dure : 35 % de l'audio n'existait dans aucun fichier",
+   "const_add": [
+    "dirF",
+    "extrait",
+    "forcedClipPath",
+    "p"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "f7db06a": {
+   "date": "2026-07-27",
+   "sujet": "Enregistre le flux micro BRUT : les decisions du portier RMS etaient inverifiables",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "ac4397f": {
+   "date": "2026-07-27",
+   "sujet": "Groupe le transport PCM : supprime la file d'attente qui grossissait sans borne",
+   "const_add": [
+    "_feedInFlight",
+    "_pumpFeed",
+    "block",
+    "end",
+    "off"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "ec8ec43": {
+   "date": "2026-07-27",
+   "sujet": "Deduit les durees par mot sur le telephone, en fin de session de reference",
+   "const_add": [
+    "_noiseSuppress",
+    "_referenceSession",
+    "alignFile",
+    "referenceSegments",
+    "startContinuous"
+   ],
+   "const_del": [
+    "startContinuous"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "b3cf46b": {
+   "date": "2026-07-27",
+   "sujet": "Corrige la regression du matin : l'ancre ne peut plus bloquer sur un mot non place",
+   "const_add": [
+    "noEvidence"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "d34fa35": {
+   "date": "2026-07-27",
+   "sujet": "Ferme la derniere fuite d'ecriture qui echappait a l'interrupteur de diagnostic",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "73325d8": {
+   "date": "2026-07-27",
+   "sujet": "Trace fine du pipeline audio, accumulee en memoire pour ne pas fausser la mesure",
+   "const_add": [
+    "TRACE_MAX",
+    "_flushTraces",
+    "_pcmQueued",
+    "f",
+    "flushNativeTrace",
+    "ms",
+    "n",
+    "resetNativeTrace",
+    "t0",
+    "tCoroutine",
+    "traceBuf",
+    "traceT0"
+   ],
+   "const_del": [
+    "t0"
+   ],
+   "fun_add": [
+    "flushTrace",
+    "trace",
+    "traceReset"
+   ],
+   "fun_del": []
+  },
+  "f972a8a": {
+   "date": "2026-07-27",
+   "sujet": "Journalise les bornes de frames : le compte de frames non-blank n'est pas une duree",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "b68ef31": {
+   "date": "2026-07-27",
+   "sujet": "Apprend la duree des mots dans la voix du recitateur et s'en sert au lieu de quran.com",
+   "const_add": [
+    "frames"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "3f75b94": {
+   "date": "2026-07-27",
+   "sujet": "Journalise la duree reelle par mot, pour mesurer le gain d'un plancher \"voix propre\"",
+   "const_add": [
+    "c",
+    "r",
+    "sb"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "f634f92": {
+   "date": "2026-07-27",
+   "sujet": "Cesse de condamner un mot quand c'est la DP qui a echoue",
+   "const_add": [
+    "_refMinFrames",
+    "_startStreamingCapture",
+    "ctc",
+    "currentR",
+    "currentRef",
+    "extendAlignmentTarget",
+    "minFramesNeeded",
+    "minNeeded",
+    "need",
+    "newRefMinFrames",
+    "ref",
+    "refMinFrames",
+    "refMinFramesSlice",
+    "replaceAlignmentTarget",
+    "setAlignmentTarget",
+    "start",
+    "starved",
+    "targetRefMinFrames"
+   ],
+   "const_del": [
+    "_startStreamingCapture",
+    "extendAlignmentTarget",
+    "minFramesNeeded",
+    "need",
+    "replaceAlignmentTarget",
+    "setAlignmentTarget",
+    "start",
+    "toks"
+   ],
+   "fun_add": [
+    "ctcMinFrames",
+    "plausibleMinFrames"
+   ],
+   "fun_del": []
+  },
+  "39a2b5d": {
+   "date": "2026-07-27",
+   "sujet": "Distingue \"la DP a echoue\" de \"mot saute\" par la place reellement disponible",
+   "const_add": [
+    "fits",
+    "minFramesNeeded",
+    "need",
+    "nextStart",
+    "prevEnd",
+    "roomFrames",
+    "toks"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "827be11": {
+   "date": "2026-07-27",
+   "sujet": "Mesure les mots en frontiere avant de decider d'un second decodage",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "c2cc4de": {
+   "date": "2026-07-26",
+   "sujet": "Ne juge plus un mot quand le modele est sur de ce qu'il entend (trou d'alignement)",
+   "const_add": [
+    "_freeConfident",
+    "_kFreeConfidentStrict",
+    "_kFreeConfidentTolerant"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "028be10": {
+   "date": "2026-07-26",
+   "sujet": "Retire la validation groupee par GOP : mesuree sans aucun gain",
+   "const_add": [],
+   "const_del": [
+    "fastRun"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "33378dd": {
+   "date": "2026-07-26",
+   "sujet": "Bascule sur le repli bufferise : garde le modele causal, abandonne le cache-aware",
+   "const_add": [
+    "_kCausalStreamingEnabled"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "b9bf09d": {
+   "date": "2026-07-26",
+   "sujet": "Fiabilise la capture WAV de diagnostic et cesse de juger la Bismillah sans preuve",
+   "const_add": [
+    "_closeStaleContinuousCapture",
+    "_closeStreamingWavCapture",
+    "_openStreamingWavCapture",
+    "setClipCapture"
+   ],
+   "const_del": [
+    "setClipCapture"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "85b337c": {
+   "date": "2026-07-26",
+   "sujet": "feat: ajoute le compte à rebours avant récitation",
+   "const_add": [
+    "ensureContinuousModelLoaded"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "5d70d32": {
+   "date": "2026-07-26",
+   "sujet": "fix: recalcule le score après un recul",
+   "const_add": [
+    "correctDelta"
+   ],
+   "const_del": [
+    "errorDelta"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "52b03e0": {
+   "date": "2026-07-26",
+   "sujet": "fix: resynchronise la reprise après correction",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "d535b1b": {
+   "date": "2026-07-26",
+   "sujet": "feat: active le modèle causal dans le flux continu",
+   "const_add": [
+    "_continuousFeedTail",
+    "_kAsrVersion",
+    "_processContinuousChunk",
+    "_usingCausalStreaming",
+    "resetBuffer"
+   ],
+   "const_del": [
+    "_kAsrVersion",
+    "resetBuffer"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "f74ded8": {
+   "date": "2026-07-26",
+   "sujet": "feat: porte le moteur Android sur le causal stateful",
+   "const_add": [
+    "EXPECTED_INPUT_NAMES",
+    "MAX_ALIGN_WORDS",
+    "TAG",
+    "aligner",
+    "alignment",
+    "anchor",
+    "audioBuf",
+    "blank",
+    "cacheLastChannel",
+    "cacheLastTime",
+    "cacheLength",
+    "causalAlignment",
+    "config",
+    "configPath",
+    "coveredWords",
+    "ctcState",
+    "current",
+    "currentLogProbs",
+    "currentStreaming",
+    "currentVariants",
+    "emittedLogProbs",
+    "end",
+    "inferenceCount",
+    "lastConsumedFrame",
+    "lastPayload",
+    "lengthBuf",
+    "log",
+    "logProbBuffer",
+    "logProbs",
+    "melWindow",
+    "message",
+    "missing",
+    "newLogProbs",
+    "newStreaming",
+    "nextWindowEndFrame",
+    "output",
+    "payload",
+    "payloadAnchor",
+    "pcm16",
+    "product",
+    "result",
+    "sequence",
+    "slice",
+    "targetTokens",
+    "targetVariants",
+    "text",
+    "tokens",
+    "variantsSlice",
+    "vocabPieces",
+    "wordTokensPath"
+   ],
+   "const_del": [
+    "CACHE_LEN",
+    "CHUNK_FRAMES",
+    "D_MODEL",
+    "NUM_LAYERS",
+    "PRE_CACHE_FRAMES",
+    "TIME_CACHE",
+    "WINDOW_FRAMES",
+    "audioBuf",
+    "best",
+    "bestVal",
+    "cacheLastChannel",
+    "cacheLastTime",
+    "decodedIds",
+    "lengthBuf",
+    "melWindow",
+    "missing",
+    "nextWindowEndFrame",
+    "prevTokenForCollapse",
+    "text"
+   ],
+   "fun_add": [
+    "List",
+    "clearAudioState",
+    "extendTarget",
+    "feed",
+    "feedAudio",
+    "payload",
+    "reset",
+    "runInference",
+    "setAnchor",
+    "setTarget"
+   ],
+   "fun_del": [
+    "appendGreedyDecode",
+    "feedAudio",
+    "runInference"
+   ]
+  },
+  "6a09ff8": {
+   "date": "2026-07-26",
+   "sujet": "feat: verrouille le contrat du modèle causal",
+   "const_add": [
+    "EXPECTED_ATTENTION_CONTEXT",
+    "EXPECTED_CHANNEL_CACHE_SHAPE",
+    "EXPECTED_INPUT_FRAMES",
+    "EXPECTED_PRE_ENCODE_CACHE_FRAMES",
+    "EXPECTED_SHIFT_FRAMES",
+    "EXPECTED_SOURCE_NEMO",
+    "EXPECTED_SUBSAMPLING_FACTOR",
+    "EXPECTED_TIME_CACHE_SHAPE",
+    "EXPECTED_VALID_OUTPUT_FRAMES",
+    "EXPECTED_WINDOW_STRIDE_MS",
+    "SCHEMA_VERSION",
+    "attentionContextSize",
+    "cacheLastChannelShape",
+    "cacheLastTimeShape",
+    "channelCacheFrames",
+    "hasTajwidHead",
+    "inputFrames",
+    "lookaheadMs",
+    "modelDimension",
+    "numLayers",
+    "preEncodeCacheFrames",
+    "schemaVersion",
+    "shiftFrames",
+    "sourceNemo",
+    "subsamplingFactor",
+    "timeCacheFrames",
+    "validOutputFrames",
+    "value",
+    "windowStrideMs"
+   ],
+   "const_del": [],
+   "fun_add": [
+    "JSONArray",
+    "fromJson"
+   ],
+   "fun_del": []
+  },
+  "a293172": {
+   "date": "2026-07-26",
+   "sujet": "feat: maintient le décodage CTC entre les chunks",
+   "const_add": [
+    "bestId",
+    "bestScore",
+    "blankId",
+    "decodedIds",
+    "emittedIds",
+    "previousTokenId"
+   ],
+   "const_del": [],
+   "fun_add": [
+    "appendArgmax",
+    "appendLogProbs",
+    "appendToken",
+    "reset"
+   ],
+   "fun_del": []
+  },
+  "6cf960c": {
+   "date": "2026-07-26",
+   "sujet": "feat: bascule l'app sur le modele causal sans tajwid",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "1accd18": {
+   "date": "2026-07-26",
+   "sujet": "fix: preserve les diagnostics de recitation",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "c9b6aa7": {
+   "date": "2026-07-25",
+   "sujet": "Valide les mots par GROUPE quand le GOP est bon, au lieu de carver mot par mot",
+   "const_add": [
+    "fastRun"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "196bff1": {
+   "date": "2026-07-25",
+   "sujet": "Rend la correction immediate : 15,9 s -> 0,003 s avant le retour de l'ancre",
+   "const_add": [
+    "MAX_TARGET_SECONDS",
+    "TARGET_SECONDS",
+    "_kPreviewsBeforeCorrection",
+    "pauseCaptureForPlayback",
+    "pauseCaptureSoft",
+    "resumeCaptureAfterPlayback",
+    "resumeCaptureSoft"
+   ],
+   "const_del": [
+    "MAX_TARGET_SECONDS",
+    "TARGET_SECONDS"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "08556f8": {
+   "date": "2026-07-25",
+   "sujet": "Corrige la chaine de recitation : course de gel, purge de l'audio consomme, verdicts sans preuve",
+   "const_add": [
+    "CUT_SEARCH_RADIUS_SECONDS",
+    "FINE_WINDOW_MS",
+    "MAX_TARGET_SECONDS",
+    "MIN_MICRO_SILENCE_MS",
+    "MIN_TARGET_SECONDS",
+    "TARGET_SECONDS",
+    "_applyDiagnosticCapture",
+    "actualFromFree",
+    "ageMs",
+    "best",
+    "bestDist",
+    "committedPart",
+    "consumed",
+    "cut",
+    "cutAt",
+    "dist",
+    "end",
+    "ensureModelLoaded",
+    "forceIdx",
+    "frame",
+    "from",
+    "i",
+    "ids",
+    "lastFrame",
+    "mid",
+    "minKeep",
+    "minRunWins",
+    "n",
+    "plannedSamples",
+    "radius",
+    "realChance",
+    "runStart",
+    "samplesPerFrame",
+    "sep",
+    "setLogEnabled",
+    "silent",
+    "skip",
+    "sum",
+    "target",
+    "targetOffset",
+    "to",
+    "tokens",
+    "win"
+   ],
+   "const_del": [
+    "forceIdx",
+    "ids",
+    "sep",
+    "tokens"
+   ],
+   "fun_add": [
+    "findCutOffset",
+    "greedyDecode",
+    "rmsAt",
+    "targetSeconds"
+   ],
+   "fun_del": [
+    "greedyDecode"
+   ]
+  },
+  "d06c6ee": {
+   "date": "2026-07-24",
+   "sujet": "Corrige la perte d'audio dans BufferedTranscriber et le verrou premature des mots en recouvrement",
+   "const_add": [
+    "clipsDir",
+    "diagDir",
+    "diagPath",
+    "lastEndFrame",
+    "nFrames",
+    "overlapPath",
+    "samplesBeforeTrim",
+    "tailCut"
+   ],
+   "const_del": [
+    "nFrames"
+   ],
+   "fun_add": [
+    "dir"
+   ],
+   "fun_del": []
+  },
+  "58db2fa": {
+   "date": "2026-07-23",
+   "sujet": "Branche de test 2-GOP : moteur ASR à l'état c9c531f (2 têtes + segmentation recouvrement 2s)",
+   "const_add": [
+    "OVERLAP_SECONDS",
+    "_kTajwidGopRealized",
+    "_neighborTajwidGopFromState",
+    "_tajwidExplainsMismatch",
+    "b",
+    "best",
+    "cut",
+    "drop",
+    "endFrame",
+    "fFrom",
+    "fTo",
+    "first",
+    "gopForRule",
+    "keep",
+    "keepSamples",
+    "kept",
+    "lastCoveredFrame",
+    "m",
+    "margins",
+    "max",
+    "merge",
+    "n",
+    "nCls",
+    "overlapStartFrame",
+    "perFrame",
+    "prev",
+    "prevHead",
+    "realized",
+    "res",
+    "resFrames",
+    "resSamples",
+    "rest",
+    "row",
+    "sizeSeconds",
+    "startFrame",
+    "tajwidGop",
+    "usedPreview",
+    "whole"
+   ],
+   "const_del": [
+    "res",
+    "sep",
+    "sizeSeconds"
+   ],
+   "fun_add": [
+    "appendMergingOverlap"
+   ],
+   "fun_del": []
+  },
+  "5ca97e9": {
+   "date": "2026-07-23",
+   "sujet": "Corrige un crash natif JNI (SIGABRT) sur le thread du pool de coroutines",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "8193111": {
+   "date": "2026-07-23",
+   "sujet": "Branche de test : moteur ASR à l'état 5d97e09 (1 GOP + tête tajwid séparée)",
+   "const_add": [
+    "TAJWID_OUTPUT",
+    "_gopWordBaseline",
+    "_hasRuleHead",
+    "_normalizedGop",
+    "_realignFromFullText",
+    "_useGopScoring",
+    "applyGopWordBaseline",
+    "best",
+    "bestVal",
+    "detectedRules",
+    "hasRuleHead",
+    "hasTajwid",
+    "hasTajwidHead",
+    "letters",
+    "logprobs",
+    "out",
+    "outputs",
+    "prev",
+    "res",
+    "ruleNames",
+    "rulesHere",
+    "rulesPath",
+    "segmentRules",
+    "tajwid",
+    "tajwidBlank",
+    "tajwidNames",
+    "unrealizedRulesFor"
+   ],
+   "const_del": [
+    "_realignFromFullText",
+    "logprobs",
+    "res",
+    "unrealizedRulesFor"
+   ],
+   "fun_add": [
+    "computeAll",
+    "computeLogProbs",
+    "decodeTajwid",
+    "runAlignment"
+   ],
+   "fun_del": [
+    "computeLogProbs",
+    "runAlignment"
+   ]
+  },
+  "4b42b4a": {
+   "date": "2026-07-23",
+   "sujet": "Revert ciblé du moteur ASR vers l'état avant les 2 GOP (a2d3054), test isolé",
+   "const_add": [
+    "_realignFromFullText",
+    "logprobs",
+    "res",
+    "sep",
+    "sizeSeconds",
+    "unrealizedRulesFor"
+   ],
+   "const_del": [
+    "OVERLAP_SECONDS",
+    "TAJWID_OUTPUT",
+    "_gopWordBaseline",
+    "_hasRuleHead",
+    "_kTajwidGopRealized",
+    "_neighborTajwidGopFromState",
+    "_normalizedGop",
+    "_realignFromFullText",
+    "_tajwidExplainsMismatch",
+    "_useGopScoring",
+    "applyGopWordBaseline",
+    "b",
+    "best",
+    "bestVal",
+    "cut",
+    "detectedRules",
+    "drop",
+    "endFrame",
+    "fFrom",
+    "fTo",
+    "first",
+    "gopForRule",
+    "hasRuleHead",
+    "hasTajwid",
+    "hasTajwidHead",
+    "keep",
+    "keepSamples",
+    "kept",
+    "lastCoveredFrame",
+    "letters",
+    "logprobs",
+    "m",
+    "margins",
+    "max",
+    "merge",
+    "n",
+    "nCls",
+    "out",
+    "outputs",
+    "overlapStartFrame",
+    "perFrame",
+    "prev",
+    "prevHead",
+    "realized",
+    "res",
+    "resFrames",
+    "resSamples",
+    "rest",
+    "row",
+    "ruleNames",
+    "rulesHere",
+    "rulesPath",
+    "segmentRules",
+    "sizeSeconds",
+    "startFrame",
+    "tajwid",
+    "tajwidBlank",
+    "tajwidGop",
+    "tajwidNames",
+    "unrealizedRulesFor",
+    "usedPreview",
+    "whole"
+   ],
+   "fun_add": [
+    "computeLogProbs",
+    "runAlignment"
+   ],
+   "fun_del": [
+    "appendMergingOverlap",
+    "computeAll",
+    "computeLogProbs",
+    "decodeTajwid",
+    "runAlignment"
+   ]
+  },
+  "24d7521": {
+   "date": "2026-07-23",
+   "sujet": "Réorganise les mindmaps par langue (ar/en/fr) au lieu d'un dossier plat",
+   "const_add": [
+    "OVERLAP_SECONDS",
+    "TAJWID_OUTPUT",
+    "_gopWordBaseline",
+    "_hasRuleHead",
+    "_kTajwidGopRealized",
+    "_neighborTajwidGopFromState",
+    "_normalizedGop",
+    "_realignFromFullText",
+    "_tajwidExplainsMismatch",
+    "_useGopScoring",
+    "applyGopWordBaseline",
+    "b",
+    "best",
+    "bestVal",
+    "cut",
+    "detectedRules",
+    "drop",
+    "endFrame",
+    "fFrom",
+    "fTo",
+    "first",
+    "gopForRule",
+    "hasRuleHead",
+    "hasTajwid",
+    "hasTajwidHead",
+    "keep",
+    "keepSamples",
+    "kept",
+    "lastCoveredFrame",
+    "letters",
+    "logprobs",
+    "m",
+    "margins",
+    "max",
+    "merge",
+    "n",
+    "nCls",
+    "out",
+    "outputs",
+    "overlapStartFrame",
+    "perFrame",
+    "prev",
+    "prevHead",
+    "realized",
+    "res",
+    "resFrames",
+    "resSamples",
+    "rest",
+    "row",
+    "ruleNames",
+    "rulesHere",
+    "rulesPath",
+    "segmentRules",
+    "sizeSeconds",
+    "startFrame",
+    "tajwid",
+    "tajwidBlank",
+    "tajwidGop",
+    "tajwidNames",
+    "unrealizedRulesFor",
+    "usedPreview",
+    "whole"
+   ],
+   "const_del": [
+    "_realignFromFullText",
+    "logprobs",
+    "res",
+    "sep",
+    "sizeSeconds",
+    "unrealizedRulesFor"
+   ],
+   "fun_add": [
+    "appendMergingOverlap",
+    "computeAll",
+    "computeLogProbs",
+    "decodeTajwid",
+    "runAlignment"
+   ],
+   "fun_del": [
+    "computeLogProbs",
+    "runAlignment"
+   ]
+  },
+  "f94a890": {
+   "date": "2026-07-23",
+   "sujet": "Revert ASR+coach vers l'état avant les 2 GOP (a2d3054), pour test comparatif",
+   "const_add": [
+    "_realignFromFullText",
+    "logprobs",
+    "res",
+    "unrealizedRulesFor"
+   ],
+   "const_del": [
+    "TAJWID_OUTPUT",
+    "_gopWordBaseline",
+    "_hasRuleHead",
+    "_normalizedGop",
+    "_realignFromFullText",
+    "_useGopScoring",
+    "applyGopWordBaseline",
+    "best",
+    "bestVal",
+    "detectedRules",
+    "hasRuleHead",
+    "hasTajwid",
+    "hasTajwidHead",
+    "letters",
+    "logprobs",
+    "out",
+    "outputs",
+    "prev",
+    "res",
+    "ruleNames",
+    "rulesHere",
+    "rulesPath",
+    "segmentRules",
+    "tajwid",
+    "tajwidBlank",
+    "tajwidNames",
+    "unrealizedRulesFor"
+   ],
+   "fun_add": [
+    "computeLogProbs",
+    "runAlignment"
+   ],
+   "fun_del": [
+    "computeAll",
+    "computeLogProbs",
+    "decodeTajwid",
+    "runAlignment"
+   ]
+  },
+  "ed2ca8a": {
+   "date": "2026-07-23",
+   "sujet": "Revert temporaire ASR vers l'état 2-GOP (5d97e09), pour test isolé avant segmentation",
+   "const_add": [
+    "res",
+    "sep",
+    "sizeSeconds"
+   ],
+   "const_del": [
+    "OVERLAP_SECONDS",
+    "_kTajwidGopRealized",
+    "_neighborTajwidGopFromState",
+    "_tajwidExplainsMismatch",
+    "b",
+    "best",
+    "cut",
+    "drop",
+    "endFrame",
+    "fFrom",
+    "fTo",
+    "first",
+    "gopForRule",
+    "keep",
+    "keepSamples",
+    "kept",
+    "lastCoveredFrame",
+    "m",
+    "margins",
+    "max",
+    "merge",
+    "n",
+    "nCls",
+    "overlapStartFrame",
+    "perFrame",
+    "prev",
+    "prevHead",
+    "realized",
+    "res",
+    "resFrames",
+    "resSamples",
+    "rest",
+    "row",
+    "sizeSeconds",
+    "startFrame",
+    "tajwidGop",
+    "usedPreview",
+    "whole"
+   ],
+   "fun_add": [],
+   "fun_del": [
+    "appendMergingOverlap"
+   ]
+  },
+  "d671c33": {
+   "date": "2026-07-23",
+   "sujet": "Diagnostique et corrige les blocages d'ancre sur récitation hésitante",
+   "const_add": [
+    "OVERLAP_SECONDS",
+    "_kTajwidGopRealized",
+    "_neighborTajwidGopFromState",
+    "_tajwidExplainsMismatch",
+    "b",
+    "best",
+    "cut",
+    "drop",
+    "endFrame",
+    "fFrom",
+    "fTo",
+    "first",
+    "gopForRule",
+    "keep",
+    "keepSamples",
+    "kept",
+    "lastCoveredFrame",
+    "m",
+    "margins",
+    "max",
+    "merge",
+    "n",
+    "nCls",
+    "overlapStartFrame",
+    "perFrame",
+    "prev",
+    "prevHead",
+    "realized",
+    "res",
+    "resFrames",
+    "resSamples",
+    "rest",
+    "row",
+    "sizeSeconds",
+    "startFrame",
+    "tajwidGop",
+    "usedPreview",
+    "whole"
+   ],
+   "const_del": [
+    "res",
+    "sep",
+    "sizeSeconds"
+   ],
+   "fun_add": [
+    "appendMergingOverlap"
+   ],
+   "fun_del": []
+  },
+  "5d97e09": {
+   "date": "2026-07-23",
+   "sujet": "Fiabilise le jugement tajwid : 2 têtes branchées, GOP dépiégé, stats honnêtes",
+   "const_add": [
+    "TAJWID_OUTPUT",
+    "_gopWordBaseline",
+    "_hasRuleHead",
+    "_normalizedGop",
+    "_realignFromFullText",
+    "_useGopScoring",
+    "applyGopWordBaseline",
+    "best",
+    "bestVal",
+    "detectedRules",
+    "hasRuleHead",
+    "hasTajwid",
+    "hasTajwidHead",
+    "letters",
+    "logprobs",
+    "out",
+    "outputs",
+    "prev",
+    "res",
+    "ruleNames",
+    "rulesHere",
+    "rulesPath",
+    "segmentRules",
+    "tajwid",
+    "tajwidBlank",
+    "tajwidNames",
+    "unrealizedRulesFor"
+   ],
+   "const_del": [
+    "_realignFromFullText",
+    "logprobs",
+    "res",
+    "unrealizedRulesFor"
+   ],
+   "fun_add": [
+    "computeAll",
+    "computeLogProbs",
+    "decodeTajwid",
+    "runAlignment"
+   ],
+   "fun_del": [
+    "computeLogProbs",
+    "runAlignment"
+   ]
+  },
+  "a2d3054": {
+   "date": "2026-07-20",
+   "sujet": "Renforce le correctif GOP : renormalisation pré-softmax + exclusion du chadda nu",
+   "const_add": [
+    "bareShaddaTokens",
+    "expectedTok",
+    "logNorm",
+    "lp",
+    "maxKept",
+    "nll",
+    "nllExpected",
+    "scoringLp",
+    "sumExp"
+   ],
+   "const_del": [
+    "lp",
+    "nll",
+    "nllExpected"
+   ],
+   "fun_add": [
+    "stripRuleSymbolMass"
+   ],
+   "fun_del": []
+  },
+  "64215d0": {
+   "date": "2026-07-20",
+   "sujet": "Corrige la pénalité systématique des symboles de règles dans le GOP (Kotlin)",
+   "const_add": [
+    "mx",
+    "ruleSymbolTokens"
+   ],
+   "const_del": [
+    "mx"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "746df89": {
+   "date": "2026-07-20",
+   "sujet": "Le mode tajwid vérifie enfin le tajwid (règle attendue vs règle réalisée)",
+   "const_add": [
+    "unrealizedRulesFor"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "dd8f757": {
+   "date": "2026-07-20",
+   "sujet": "Sépare prononciation et tajwid : l'alignement forcé repasse sur le texte nu",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "db43917": {
+   "date": "2026-07-20",
+   "sujet": "Traces de diagnostic récitation : mode, changements de mode, ancre",
+   "const_add": [
+    "_judgementLogged",
+    "_lastSensitivity",
+    "_modeTag"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "cc94417": {
+   "date": "2026-07-20",
+   "sujet": "Cartes mentales des 114 sourates + erreurs catégorisées par type (+ refonte Invocations/Rites de l'agent parallèle)",
+   "const_add": [],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "8f8c00a": {
+   "date": "2026-07-20",
+   "sujet": "Règles tajwid : le garde-fou passe d'un blocage à un plafond",
+   "const_add": [
+    "applyRuleReliability"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "08efcc9": {
+   "date": "2026-07-19",
+   "sujet": "Déploie le modèle stage1b-260h dans le cœur ASR + câble les modes de jugement",
+   "const_add": [
+    "_differsOnlyByConfusables",
+    "_sameConfusableClass",
+    "_strictHarakat",
+    "_tolerateConfusables",
+    "_wordsFromSegments",
+    "_wordsFromText",
+    "_wordsFromVerses",
+    "applyJudgementOptions",
+    "extendVerses",
+    "setupVerses",
+    "shownRulesFor",
+    "subs"
+   ],
+   "const_del": [],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "548fe14": {
+   "date": "2026-07-19",
+   "sujet": "Coran 100% local (fini le \"Connexion requise\" hors-ligne), rescoring NLL diagnostique, corrections \"Suivre une prière\"",
+   "const_add": [
+    "CONFUSIONS",
+    "HARAKAT",
+    "RESCORE_PAD_FRAMES",
+    "_appPaused",
+    "_armDetectingTargetFallbackTimer",
+    "_beginFatihaPhase",
+    "_beginIdentifiedTargetPhase",
+    "_beginTargetDetection",
+    "_beginTargetPhase",
+    "_checkLeftFatihaViaShazam",
+    "_confidentMode",
+    "_detectWordsConsumed",
+    "_dynamicTargetDiscovery",
+    "_ensureFatihaWords",
+    "_enterPrayerStandby",
+    "_fatihaScanStart",
+    "_fetchingFatiha",
+    "_hasTakbir",
+    "_isSubsequenceInOrder",
+    "_lastDetectingTargetPreviewTokens",
+    "_lastDetectingTargetProbe",
+    "_lastWords",
+    "_leftFatihaCheckInFlight",
+    "_looksLikeFatihaEnd",
+    "_looksLikeFatihaStart",
+    "_maybeResyncPosition",
+    "_resumeContinuationIfAvailable",
+    "_resyncInFlight",
+    "_stablePreviewPrefix",
+    "_standbyScanStart",
+    "_stripBismillahPrefix",
+    "_stripFatihaTailPrefix",
+    "_takbirArmed",
+    "_takbirScannedCommittedLen",
+    "_targetDetectScanStart",
+    "_targetLookupInFlight",
+    "_targetTrackingScanStart",
+    "_tryIdentifyTargetTwoStep",
+    "acc",
+    "anchor",
+    "bestNll",
+    "bestText",
+    "ch",
+    "cur",
+    "currentV",
+    "cut",
+    "enabled",
+    "end",
+    "i",
+    "lp",
+    "m",
+    "matched",
+    "maxJudgedIndex",
+    "n",
+    "nTok",
+    "negInf",
+    "newAnchor",
+    "newVariants",
+    "nll",
+    "nllExpected",
+    "offset",
+    "out",
+    "prev",
+    "replaceAlignmentTarget",
+    "res",
+    "rescoreHeard",
+    "rescoreMargin",
+    "resetTrackingToStart",
+    "rf",
+    "rt",
+    "s",
+    "setRescoringEnabled",
+    "slice",
+    "spans",
+    "stableCount",
+    "startPrayerFollow",
+    "tLen",
+    "tmp",
+    "tok",
+    "total",
+    "variants",
+    "variantsSlice"
+   ],
+   "const_del": [
+    "res",
+    "slice",
+    "spans"
+   ],
+   "fun_add": [
+    "buildVariants",
+    "ctcForwardNll",
+    "emit",
+    "extendAlignmentTarget",
+    "logAdd",
+    "setAlignmentTarget",
+    "tokenizeVariantQuiet",
+    "variantsOf"
+   ],
+   "fun_del": [
+    "extendAlignmentTarget",
+    "setAlignmentTarget"
+   ]
+  },
+  "3fb04c3": {
+   "date": "2026-07-16",
+   "sujet": "Corrige la troncature per-mot via validation globale (idée utilisateur)",
+   "const_add": [
+    "attested",
+    "corrected",
+    "fi",
+    "firstHit",
+    "framesSinceLast",
+    "free",
+    "id",
+    "j",
+    "lastHit",
+    "lastTok",
+    "limit",
+    "matched",
+    "probe",
+    "sb",
+    "spans",
+    "target",
+    "wi"
+   ],
+   "const_del": [
+    "attested",
+    "framesSinceLast",
+    "free",
+    "lastTok",
+    "target"
+   ],
+   "fun_add": [
+    "decodeFreeSpan",
+    "wordSpansFromFree"
+   ],
+   "fun_del": []
+  },
+  "3316e65": {
+   "date": "2026-07-16",
+   "sujet": "Corrige 8/10 findings de la revue de code (2 restants documentés délibérément)",
+   "const_add": [
+    "_generation",
+    "_myGeneration",
+    "_sessionLock",
+    "_startLocked",
+    "deferred",
+    "res",
+    "retried",
+    "sessionGeneration",
+    "slice",
+    "start",
+    "stopIfCurrentSession"
+   ],
+   "const_del": [
+    "res",
+    "start"
+   ],
+   "fun_add": [],
+   "fun_del": []
+  },
+  "fc506f6": {
+   "date": "2026-07-16",
+   "sujet": "Corrige la cécité aux erreurs de prononciation (cause racine : token parasite)",
+   "const_add": [
+    "FREE_MATCH_LOOKAHEAD",
+    "MIN_FRAMES_FOR_JUDGMENT",
+    "RETRY_STALL_MIN_FRAMES",
+    "actual",
+    "attested",
+    "covered",
+    "deferredIndex",
+    "fi",
+    "forceIdx",
+    "forced",
+    "framesSinceLast",
+    "framesSincePrev",
+    "free",
+    "frontierTok",
+    "frontierWordRel",
+    "ids",
+    "j",
+    "lastHit",
+    "lastTok",
+    "lastUsedFrame",
+    "limit",
+    "lp",
+    "matched",
+    "mx",
+    "path",
+    "prevLastFrame",
+    "probe",
+    "res",
+    "results",
+    "si",
+    "siCur",
+    "target",
+    "tokIdx",
+    "wIdx",
+    "wordFirstFrame",
+    "wordForcedSum",
+    "wordFrames",
+    "wordFreeSum",
+    "wordLastFrame"
+   ],
+   "const_del": [
+    "actual",
+    "covered",
+    "forced",
+    "free",
+    "frontierTok",
+    "frontierWordRel",
+    "lp",
+    "mx",
+    "path",
+    "res",
+    "results",
+    "si",
+    "siCur",
+    "tokIdx",
+    "wIdx",
+    "wordFirstFrame",
+    "wordForcedSum",
+    "wordFrames",
+    "wordFreeSum",
+    "wordLastFrame"
+   ],
+   "fun_add": [
+    "buildFrom",
+    "coveredWordsFromFree",
+    "greedyDecodeRange",
+    "greedyTokenIds"
+   ],
+   "fun_del": [
+    "greedyDecodeRange"
+   ]
+  },
+  "9024fb6": {
+   "date": "2026-07-12",
+   "sujet": "Correctifs récitation (perf, sensibilité, référence globale), cascade offline, mini-LoRA v1 (PC-side)",
+   "const_add": [
+    "buf",
+    "byteRate",
+    "clamped",
+    "clipPath",
+    "dataSize",
+    "dir",
+    "sampleRate",
+    "setClipCapture"
+   ],
+   "const_del": [],
+   "fun_add": [
+    "runAlignment",
+    "setClipCapture",
+    "writeMono16k"
+   ],
+   "fun_del": [
+    "runAlignment"
+   ]
+  },
+  "fc6d731": {
+   "date": "2026-07-12",
+   "sujet": "Refonte ASR (GOP forced-alignment), récitation continue, cascade d'explications offline",
+   "const_add": [
+    "TAG",
+    "_alignmentActive",
+    "_gopCorrect",
+    "_gopUnclear",
+    "_kAsrVersion",
+    "_kGopCorrectDefault",
+    "_kGopCorrectStrict",
+    "_kGopCorrectTolerant",
+    "_kGopUnclearDefault",
+    "_kGopUnclearStrict",
+    "_kGopUnclearTolerant",
+    "_lastAlignSeq",
+    "_lerp",
+    "_onAligned",
+    "_startStreamingCapture",
+    "actual",
+    "alignFile",
+    "aligner",
+    "alignmentActive",
+    "anchor",
+    "arr",
+    "best",
+    "bestEnd",
+    "bestVal",
+    "blank",
+    "blankId",
+    "bp",
+    "correct",
+    "covered",
+    "cur",
+    "current",
+    "empty",
+    "extendAlignmentTarget",
+    "extendWords",
+    "f",
+    "file",
+    "flat",
+    "fmt",
+    "forced",
+    "frame",
+    "free",
+    "from",
+    "frontier",
+    "frontierTok",
+    "frontierWordRel",
+    "gop",
+    "id",
+    "ids",
+    "index",
+    "json",
+    "keys",
+    "la",
+    "laAnchor",
+    "len",
+    "line",
+    "logprobs",
+    "lookupHits",
+    "lookupMisses",
+    "lp",
+    "map",
+    "matched",
+    "maxAlignWords",
+    "maxLen",
+    "maxPieceLen",
+    "mx",
+    "n",
+    "negInf",
+    "newTokens",
+    "normalizeTraining",
+    "owner",
+    "path",
+    "payload",
+    "pcm",
+    "pieceToId",
+    "pos",
+    "prev",
+    "prevBest",
+    "res",
+    "results",
+    "s",
+    "sb",
+    "setAlignmentAnchor",
+    "setAlignmentTarget",
+    "setSensitivity",
+    "si",
+    "siCur",
+    "slice",
+    "t",
+    "target",
+    "text",
+    "tmp",
+    "tokIdx",
+    "tokenizer",
+    "tokens",
+    "vocab",
+    "vocabPieces",
+    "w",
+    "wIdx",
+    "wavPath",
+    "word",
+    "wordFirstFrame",
+    "wordForcedSum",
+    "wordFrames",
+    "wordFreeSum",
+    "wordLastFrame",
+    "wordTokensPath",
+    "words",
+    "wordsList"
+   ],
+   "const_del": [
+    "_kAsrVersion",
+    "_startStreamingCapture",
+    "text"
+   ],
+   "fun_add": [
+    "align",
+    "alignmentPayload",
+    "computeLogProbs",
+    "emit",
+    "extendAlignmentTarget",
+    "greedyDecode",
+    "greedyDecodeRange",
+    "loadWordTokenLookup",
+    "log",
+    "runAlignment",
+    "setAlignmentAnchor",
+    "setAlignmentTarget",
+    "setFile",
+    "tokenizeWord",
+    "tokenizeWordGreedy",
+    "transcribe"
+   ],
+   "fun_del": [
+    "greedyDecode",
+    "transcribe"
+   ]
+  },
+  "e800305": {
+   "date": "2026-07-11",
+   "sujet": "Commit initial — Coran Karim",
+   "const_add": [
+    "CACHE_LEN",
+    "CENTER_PAD",
+    "CHUNK_FRAMES",
+    "DEFAULT_COMMIT_SILENCE_MS",
+    "D_MODEL",
+    "FMAX",
+    "FMIN",
+    "HOP",
+    "HOP_LENGTH",
+    "HOP_PUBLIC",
+    "LOG_ZERO_GUARD",
+    "MAX_SECONDS",
+    "MAX_SEGMENT_SECONDS",
+    "MAX_SILENCE_SAMPLES",
+    "MIN_COMMIT_SECONDS",
+    "MIN_NEW_SECONDS",
+    "MIN_TRACKED_PAUSE_MS",
+    "NORM_EPS",
+    "NUM_LAYERS",
+    "N_FFT",
+    "N_MELS",
+    "N_MELS_PUBLIC",
+    "PREEMPH",
+    "PREEMPH_PUBLIC",
+    "PRE_CACHE_FRAMES",
+    "SAMPLE_RATE",
+    "SILENCE_RMS_THRESHOLD",
+    "TAG",
+    "TIME_CACHE",
+    "WINDOW_FRAMES",
+    "WIN_LENGTH",
+    "WIN_PAD_SAMPLES",
+    "_alignChunk",
+    "_anchorExp",
+    "_beginSegment",
+    "_chunkCount",
+    "_cleanup",
+    "_collapseVariants",
+    "_continuous",
+    "_cutAndRestart",
+    "_deleteQuiet",
+    "_drainQueue",
+    "_draining",
+    "_endingContinuous",
+    "_enqueueIfValid",
+    "_estimatePcmLevel",
+    "_finish",
+    "_hasClosingPhrase",
+    "_judge",
+    "_kAlignLookahead",
+    "_kAsrVersion",
+    "_kBackToleranceWindow",
+    "_kLookahead",
+    "_kMaxSegmentMs",
+    "_kMinSegmentMs",
+    "_kSilenceCutMs",
+    "_kSilenceDbfs",
+    "_kSimThreshold",
+    "_kUnclearSimThreshold",
+    "_levenshtein",
+    "_loaded",
+    "_matchesRecentPast",
+    "_onPendingChanged",
+    "_onRawSegment",
+    "_onStructured",
+    "_onToken",
+    "_prevCommitted",
+    "_realignFromFullText",
+    "_saveStableCopy",
+    "_sessionEnding",
+    "_splitNorm",
+    "_splitStrict",
+    "_startStreamingCapture",
+    "_stopping",
+    "_streamingLoaded",
+    "_transcribeAndEmit",
+    "acc",
+    "an",
+    "arr",
+    "audioBuf",
+    "avgCost",
+    "best",
+    "bestIdx",
+    "bestRec",
+    "bestSim",
+    "bestVal",
+    "blankId",
+    "bn",
+    "buf",
+    "bufGlobalStart",
+    "buffered",
+    "busy",
+    "bytes",
+    "c",
+    "cacheChBuf",
+    "cacheLastChannel",
+    "cacheLastChannelLen",
+    "cacheLastTime",
+    "cacheLenBuf",
+    "cacheTBuf",
+    "chunkId",
+    "chunkSize",
+    "clamped",
+    "committed",
+    "committing",
+    "consumed",
+    "correct",
+    "cost",
+    "covered",
+    "current",
+    "d",
+    "dataOffset",
+    "dataSize",
+    "decodedIds",
+    "dispose",
+    "disposeStreaming",
+    "drop",
+    "embedding",
+    "embeddings",
+    "engine",
+    "enorm",
+    "ensureLoaded",
+    "ensureStreamingLoaded",
+    "env",
+    "errorDelta",
+    "errors",
+    "even",
+    "evenFft",
+    "expIdx",
+    "f",
+    "fSp",
+    "fb",
+    "fbRow",
+    "fdiff",
+    "feats",
+    "feedAudioChunk",
+    "fftFreqs",
+    "fingerprint",
+    "fp",
+    "frame",
+    "frames",
+    "framesComputed",
+    "globalStart",
+    "hannWindow",
+    "hi",
+    "hzPts",
+    "i",
+    "ids",
+    "idx",
+    "im",
+    "imOdd",
+    "inferenceCount",
+    "inputs",
+    "isSilence",
+    "json",
+    "keepFromGlobal",
+    "l",
+    "lastAudioPath",
+    "lengthBuf",
+    "lm",
+    "lo",
+    "localStart",
+    "lock",
+    "logMel",
+    "logprobs",
+    "logstep",
+    "markWordCorrected",
+    "matchesTolerant",
+    "maxMel",
+    "mean",
+    "mel",
+    "melFilterbank",
+    "melPts",
+    "melWindow",
+    "minLogHz",
+    "minLogMel",
+    "minMel",
+    "missing",
+    "modelPath",
+    "ms",
+    "n",
+    "nFrames",
+    "nFreqs",
+    "nMels",
+    "nSamples",
+    "newSinceLast",
+    "nextCacheCh",
+    "nextCacheLen",
+    "nextCacheT",
+    "nextWindowEndFrame",
+    "norm",
+    "normSq",
+    "normalize",
+    "normalizeStrict",
+    "odd",
+    "oddFft",
+    "offset",
+    "old",
+    "oldLen",
+    "out",
+    "outPath",
+    "pad",
+    "padded",
+    "paddedBuf",
+    "paddedTotalLen",
+    "pauseCapture",
+    "pauseSamples",
+    "payload",
+    "pcm",
+    "pcm16",
+    "pointer",
+    "power",
+    "prev",
+    "prevRawSample",
+    "prevTokenForCollapse",
+    "preview",
+    "previewText",
+    "re",
+    "reOdd",
+    "reach",
+    "recIdx",
+    "refPath",
+    "reference",
+    "reset",
+    "resetBuffer",
+    "resetBuffered",
+    "resetStreaming",
+    "resumeCapture",
+    "retainedSilenceSamples",
+    "rewindAndUnlock",
+    "rewindRangeEnd",
+    "rms",
+    "row",
+    "s",
+    "sample",
+    "samples",
+    "sb",
+    "scope",
+    "sep",
+    "session",
+    "sessionPausesMs",
+    "setup",
+    "shouldRun",
+    "sim",
+    "similarity",
+    "size",
+    "sizeSeconds",
+    "snapshot",
+    "spec",
+    "splitExpectedWords",
+    "start",
+    "startContinuous",
+    "statCount",
+    "statSum",
+    "statSumSq",
+    "std",
+    "stop",
+    "stopContinuous",
+    "streaming",
+    "sumSq",
+    "t",
+    "t0",
+    "ta",
+    "tb",
+    "text",
+    "theta",
+    "toAppend",
+    "tokNorm",
+    "tokStrict",
+    "transcribe",
+    "u",
+    "unclear",
+    "v",
+    "variance",
+    "vocab",
+    "vocabPath",
+    "wavPath",
+    "winPad",
+    "x"
+   ],
+   "const_del": [],
+   "fun_add": [
+    "appendGreedyDecode",
+    "appendPreemphasized",
+    "buildHannWindow",
+    "buildMelFilterbank",
+    "close",
+    "compactBuffer",
+    "compute",
+    "computeEmbedding",
+    "detokenize",
+    "dot",
+    "dtwSimilarity",
+    "feed",
+    "feedAudio",
+    "fft",
+    "flatten4D",
+    "frameLogMel",
+    "getSessionPausesMs",
+    "greedyDecode",
+    "hzToMel",
+    "load",
+    "loadVocab",
+    "melToHz",
+    "normalizeRows",
+    "onAttachedToEngine",
+    "onDetachedFromEngine",
+    "onMethodCall",
+    "paddedEndForFrame",
+    "pcm16ToFloat",
+    "readMono16kFloat",
+    "reset",
+    "runInference",
+    "save",
+    "seedCenterPad",
+    "setCommitSilenceMs",
+    "transcribe"
+   ],
+   "fun_del": []
+  }
+ },
+ "const_hist": {
+  "etatHerite": [
+   "db98d26"
+  ],
+  "RESCUE_RING_SECONDS": [
+   "db98d26"
+  ],
+  "oldest": [
+   "db98d26",
+   "488d969"
+  ],
+  "dispo": [
+   "db98d26",
+   "3f5fa4c"
+  ],
+  "centre": [
+   "db98d26"
+  ],
+  "RATTRAPAGE_GELS_IMMOBILES": [
+   "db98d26"
+  ],
+  "off": [
+   "db98d26",
+   "bca8706",
+   "a0c8935",
+   "6d07754",
+   "ac4397f"
+  ],
+  "RATTRAPAGE_SAUT_MAX": [
+   "db98d26"
+  ],
+  "enjambes": [
+   "db98d26"
+  ],
+  "SHIFTED_OFFSET_SECONDS": [
+   "db98d26"
+  ],
+  "k": [
+   "db98d26",
+   "488d969"
+  ],
+  "r3": [
+   "db98d26"
+  ],
+  "fin": [
+   "db98d26",
+   "bca8706",
+   "d709c7d",
+   "a0c8935",
+   "6d07754",
+   "363a3a1",
+   "44305da",
+   "10dd819"
+  ],
+  "sd": [
+   "db98d26"
+  ],
+  "saut": [
+   "db98d26"
+  ],
+  "etatTaille": [
+   "db98d26"
+  ],
+  "CHUNKWISE_ACTIF": [
+   "db98d26"
+  ],
+  "SHIFTED_SEGMENT_SECONDS": [
+   "db98d26"
+  ],
+  "rescue": [
+   "db98d26",
+   "488d969"
+  ],
+  "seg": [
+   "db98d26"
+  ],
+  "vu": [
+   "db98d26",
+   "6dc9759",
+   "bb388c0"
+  ],
+  "debut": [
+   "db98d26",
+   "bca8706",
+   "d709c7d",
+   "a0c8935",
+   "6d07754",
+   "363a3a1",
+   "44305da",
+   "10dd819"
+  ],
+  "etatFinal": [
+   "db98d26"
+  ],
+  "res0": [
+   "e735f99"
+  ],
+  "res": [
+   "e735f99",
+   "10dd819",
+   "5740cee",
+   "488d969",
+   "58db2fa",
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "ed2ca8a",
+   "d671c33",
+   "5d97e09",
+   "548fe14",
+   "3316e65",
+   "fc506f6",
+   "fc6d731"
+  ],
+  "expansionActive": [
+   "bca8706",
+   "a0c8935",
+   "6d99166"
+  ],
+  "RESYNC_ACTIF": [
+   "bca8706",
+   "a0c8935",
+   "41df3e3"
+  ],
+  "d": [
+   "bca8706",
+   "a0c8935",
+   "6d07754",
+   "a786239",
+   "10dd819",
+   "e800305"
+  ],
+  "MAX_SILENCE_SAMPLES": [
+   "bca8706",
+   "a0c8935",
+   "6d07754",
+   "e800305"
+  ],
+  "best": [
+   "bca8706",
+   "a0c8935",
+   "a786239",
+   "eb231af",
+   "f74ded8",
+   "08556f8",
+   "58db2fa",
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "ed2ca8a",
+   "d671c33",
+   "5d97e09",
+   "fc6d731",
+   "e800305"
+  ],
+  "e": [
+   "bca8706",
+   "a0c8935",
+   "6d07754",
+   "a786239"
+  ],
+  "f1": [
+   "bca8706",
+   "a0c8935",
+   "a786239",
+   "c0935dd",
+   "488d969"
+  ],
+  "mid": [
+   "bca8706",
+   "a0c8935",
+   "a786239",
+   "08556f8"
+  ],
+  "meilleur": [
+   "bca8706",
+   "a0c8935",
+   "6d07754",
+   "a786239"
+  ],
+  "sb": [
+   "bca8706",
+   "d709c7d",
+   "a0c8935",
+   "4606d64",
+   "a97867f",
+   "3f75b94",
+   "3fb04c3",
+   "fc6d731",
+   "e800305"
+  ],
+  "minFrames": [
+   "bca8706",
+   "a0c8935",
+   "a786239"
+  ],
+  "logprobs": [
+   "bca8706",
+   "d709c7d",
+   "6ae0884",
+   "363a3a1",
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09",
+   "fc6d731",
+   "e800305"
+  ],
+  "marge": [
+   "bca8706",
+   "a0c8935",
+   "6d07754",
+   "10dd819"
+  ],
+  "f": [
+   "bca8706",
+   "a0c8935",
+   "a786239",
+   "73325d8",
+   "fc6d731",
+   "e800305"
+  ],
+  "r2": [
+   "bca8706",
+   "a0c8935",
+   "6d07754"
+  ],
+  "b": [
+   "bca8706",
+   "a0c8935",
+   "a786239",
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "amont": [
+   "bca8706",
+   "a0c8935",
+   "6d07754"
+  ],
+  "mots": [
+   "bca8706",
+   "a0c8935",
+   "6d07754"
+  ],
+  "entendu": [
+   "bca8706",
+   "a0c8935",
+   "4606d64"
+  ],
+  "spf": [
+   "bca8706",
+   "d709c7d",
+   "6ae0884",
+   "363a3a1",
+   "488d969"
+  ],
+  "abs": [
+   "bca8706",
+   "a0c8935",
+   "6d07754"
+  ],
+  "toks": [
+   "bca8706",
+   "a0c8935",
+   "4606d64",
+   "c0935dd",
+   "eb231af",
+   "f634f92",
+   "39a2b5d"
+  ],
+  "at": [
+   "bca8706",
+   "a0c8935",
+   "4606d64",
+   "eb231af"
+  ],
+  "to": [
+   "bca8706",
+   "a0c8935",
+   "6d07754",
+   "f2d61bc",
+   "10dd819",
+   "3f5fa4c",
+   "488d969",
+   "aba4feb",
+   "08556f8"
+  ],
+  "rj": [
+   "bca8706",
+   "a0c8935",
+   "6d07754",
+   "44305da",
+   "c0935dd",
+   "488d969"
+  ],
+  "attendu": [
+   "bca8706",
+   "a0c8935",
+   "4606d64"
+  ],
+  "t": [
+   "bca8706",
+   "a0c8935",
+   "6d07754",
+   "44305da",
+   "fc6d731",
+   "e800305"
+  ],
+  "garde": [
+   "bca8706",
+   "d709c7d",
+   "6ae0884",
+   "363a3a1"
+  ],
+  "from": [
+   "bca8706",
+   "a0c8935",
+   "6d07754",
+   "10dd819",
+   "488d969",
+   "aba4feb",
+   "08556f8",
+   "fc6d731"
+  ],
+  "f0": [
+   "bca8706",
+   "a0c8935",
+   "a786239",
+   "c0935dd",
+   "488d969"
+  ],
+  "bl": [
+   "bca8706",
+   "a0c8935",
+   "a786239"
+  ],
+  "veut": [
+   "d709c7d",
+   "a0c8935",
+   "363a3a1"
+  ],
+  "free": [
+   "d709c7d",
+   "a0c8935",
+   "363a3a1",
+   "3fb04c3",
+   "fc506f6",
+   "fc6d731"
+  ],
+  "expectedText": [
+   "d709c7d",
+   "a0c8935",
+   "a97867f"
+  ],
+  "ancreALaDerive": [
+   "d709c7d",
+   "a0c8935",
+   "363a3a1"
+  ],
+  "droite": [
+   "d709c7d",
+   "a0c8935",
+   "363a3a1"
+  ],
+  "RIGHT_CONTEXT_SECONDS": [
+   "d709c7d",
+   "a0c8935",
+   "363a3a1"
+  ],
+  "audioJuge": [
+   "d709c7d",
+   "a0c8935",
+   "363a3a1"
+  ],
+  "derive": [
+   "d709c7d",
+   "a0c8935",
+   "363a3a1"
+  ],
+  "scoreLa": [
+   "69de15a",
+   "305db63"
+  ],
+  "frames": [
+   "69de15a",
+   "305db63",
+   "b68ef31",
+   "e800305"
+  ],
+  "resCand": [
+   "69de15a",
+   "305db63"
+  ],
+  "somme": [
+   "69de15a",
+   "305db63"
+  ],
+  "finCand": [
+   "69de15a",
+   "305db63"
+  ],
+  "scoreIci": [
+   "69de15a",
+   "305db63"
+  ],
+  "seul": [
+   "44305da"
+  ],
+  "absFrom": [
+   "44305da",
+   "10dd819",
+   "84778b6",
+   "488d969"
+  ],
+  "out": [
+   "44305da",
+   "5740cee",
+   "488d969",
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09",
+   "548fe14",
+   "e800305"
+  ],
+  "z": [
+   "44305da"
+  ],
+  "absTo": [
+   "44305da",
+   "10dd819",
+   "84778b6",
+   "488d969"
+  ],
+  "_logParametresSession": [
+   "8cd6a06"
+  ],
+  "flushTraces": [
+   "8cd6a06"
+  ],
+  "snapStart": [
+   "10dd819"
+  ],
+  "line": [
+   "10dd819",
+   "fc6d731"
+  ],
+  "c": [
+   "10dd819",
+   "3f75b94",
+   "e800305"
+  ],
+  "g": [
+   "10dd819"
+  ],
+  "wordStamps": [
+   "10dd819"
+  ],
+  "RESCUE_MAX_SEARCH_SECONDS": [
+   "10dd819"
+  ],
+  "max": [
+   "10dd819",
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "h": [
+   "10dd819"
+  ],
+  "STAMP_MARGIN_SECONDS": [
+   "10dd819"
+  ],
+  "RESCUE_TAIL_SECONDS": [
+   "c0935dd",
+   "488d969"
+  ],
+  "prevL": [
+   "c0935dd"
+  ],
+  "r": [
+   "c0935dd",
+   "3f75b94"
+  ],
+  "besoin": [
+   "c0935dd",
+   "488d969"
+  ],
+  "ws": [
+   "c0935dd"
+  ],
+  "besoins": [
+   "c0935dd",
+   "f00f53c"
+  ],
+  "patchF": [
+   "c0935dd"
+  ],
+  "lw": [
+   "c0935dd"
+  ],
+  "idx": [
+   "c0935dd",
+   "e800305"
+  ],
+  "tk": [
+   "c0935dd"
+  ],
+  "audio": [
+   "3f5fa4c",
+   "488d969"
+  ],
+  "RESCUE_CONTEXT_SECONDS": [
+   "488d969"
+  ],
+  "dst": [
+   "488d969"
+  ],
+  "dpLp": [
+   "488d969"
+  ],
+  "it": [
+   "488d969"
+  ],
+  "ctx": [
+   "488d969"
+  ],
+  "words": [
+   "488d969",
+   "fc6d731"
+  ],
+  "outputs": [
+   "488d969",
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "pad": [
+   "488d969",
+   "e800305"
+  ],
+  "pos": [
+   "488d969",
+   "eb231af",
+   "fc6d731"
+  ],
+  "n": [
+   "488d969",
+   "73325d8",
+   "08556f8",
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33",
+   "548fe14",
+   "fc6d731",
+   "e800305"
+  ],
+  "patched": [
+   "488d969"
+  ],
+  "firstFrame": [
+   "488d969"
+  ],
+  "spfRescue": [
+   "488d969"
+  ],
+  "prevLast": [
+   "488d969"
+  ],
+  "src": [
+   "488d969"
+  ],
+  "ctxFrames": [
+   "488d969",
+   "aba4feb",
+   "cd5c0f0"
+  ],
+  "ring": [
+   "488d969"
+  ],
+  "lp": [
+   "488d969",
+   "a2d3054",
+   "548fe14",
+   "fc506f6",
+   "fc6d731"
+  ],
+  "v": [
+   "eb231af",
+   "e800305"
+  ],
+  "MIN_RESYNC_HITS": [
+   "eb231af"
+  ],
+  "prev": [
+   "eb231af",
+   "58db2fa",
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "ed2ca8a",
+   "d671c33",
+   "5d97e09",
+   "548fe14",
+   "fc6d731",
+   "e800305"
+  ],
+  "resync": [
+   "eb231af"
+  ],
+  "bv": [
+   "eb231af"
+  ],
+  "limit": [
+   "eb231af",
+   "3fb04c3",
+   "fc506f6"
+  ],
+  "heard": [
+   "eb231af"
+  ],
+  "bestHits": [
+   "eb231af"
+  ],
+  "setNeverBlockAnchor": [
+   "eb231af"
+  ],
+  "bestOff": [
+   "eb231af"
+  ],
+  "hits": [
+   "eb231af"
+  ],
+  "RESYNC_WINDOW_WORDS": [
+   "eb231af"
+  ],
+  "MIN_RESYNC_TOKENS": [
+   "eb231af"
+  ],
+  "MAX_RESYNC_LOOKAHEAD": [
+   "eb231af"
+  ],
+  "newSeconds": [
+   "e5c8011"
+  ],
+  "minKeep": [
+   "e5c8011",
+   "08556f8"
+  ],
+  "targetOffset": [
+   "e5c8011",
+   "08556f8"
+  ],
+  "lastFrame": [
+   "aba4feb",
+   "08556f8"
+  ],
+  "lastRel": [
+   "aba4feb"
+  ],
+  "alignLp": [
+   "aba4feb"
+  ],
+  "purgeFrom": [
+   "e12cf33",
+   "cd5c0f0"
+  ],
+  "purgeF": [
+   "e12cf33",
+   "cd5c0f0"
+  ],
+  "OVERLAP_SECONDS": [
+   "cd5c0f0",
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "OVERLAP_SAMPLES": [
+   "cd5c0f0"
+  ],
+  "ids": [
+   "cd5c0f0",
+   "08556f8",
+   "fc506f6",
+   "fc6d731",
+   "e800305"
+  ],
+  "start": [
+   "cd5c0f0",
+   "f634f92",
+   "3316e65",
+   "e800305"
+  ],
+  "contextStart": [
+   "cd5c0f0"
+  ],
+  "ctxF": [
+   "cd5c0f0"
+  ],
+  "extrait": [
+   "03f9a42"
+  ],
+  "dirF": [
+   "03f9a42"
+  ],
+  "p": [
+   "03f9a42"
+  ],
+  "forcedClipPath": [
+   "03f9a42"
+  ],
+  "block": [
+   "ac4397f"
+  ],
+  "_pumpFeed": [
+   "ac4397f"
+  ],
+  "end": [
+   "ac4397f",
+   "f74ded8",
+   "08556f8",
+   "548fe14"
+  ],
+  "_feedInFlight": [
+   "ac4397f"
+  ],
+  "alignFile": [
+   "ec8ec43",
+   "fc6d731"
+  ],
+  "_referenceSession": [
+   "ec8ec43"
+  ],
+  "startContinuous": [
+   "ec8ec43",
+   "e800305"
+  ],
+  "_noiseSuppress": [
+   "ec8ec43"
+  ],
+  "referenceSegments": [
+   "ec8ec43"
+  ],
+  "noEvidence": [
+   "b3cf46b"
+  ],
+  "tCoroutine": [
+   "73325d8"
+  ],
+  "resetNativeTrace": [
+   "73325d8"
+  ],
+  "TRACE_MAX": [
+   "73325d8"
+  ],
+  "flushNativeTrace": [
+   "73325d8"
+  ],
+  "ms": [
+   "73325d8",
+   "e800305"
+  ],
+  "t0": [
+   "73325d8",
+   "e800305"
+  ],
+  "_flushTraces": [
+   "73325d8"
+  ],
+  "traceT0": [
+   "73325d8"
+  ],
+  "traceBuf": [
+   "73325d8"
+  ],
+  "_pcmQueued": [
+   "73325d8"
+  ],
+  "refMinFramesSlice": [
+   "f634f92"
+  ],
+  "currentR": [
+   "f634f92"
+  ],
+  "ctc": [
+   "f634f92"
+  ],
+  "newRefMinFrames": [
+   "f634f92"
+  ],
+  "need": [
+   "f634f92",
+   "39a2b5d"
+  ],
+  "setAlignmentTarget": [
+   "f634f92",
+   "fc6d731"
+  ],
+  "ref": [
+   "f634f92"
+  ],
+  "currentRef": [
+   "f634f92"
+  ],
+  "_refMinFrames": [
+   "f634f92"
+  ],
+  "replaceAlignmentTarget": [
+   "f634f92",
+   "548fe14"
+  ],
+  "minNeeded": [
+   "f634f92"
+  ],
+  "minFramesNeeded": [
+   "f634f92",
+   "39a2b5d"
+  ],
+  "_startStreamingCapture": [
+   "f634f92",
+   "fc6d731",
+   "e800305"
+  ],
+  "extendAlignmentTarget": [
+   "f634f92",
+   "fc6d731"
+  ],
+  "refMinFrames": [
+   "f634f92"
+  ],
+  "starved": [
+   "f634f92"
+  ],
+  "targetRefMinFrames": [
+   "f634f92"
+  ],
+  "fits": [
+   "39a2b5d"
+  ],
+  "prevEnd": [
+   "39a2b5d"
+  ],
+  "roomFrames": [
+   "39a2b5d"
+  ],
+  "nextStart": [
+   "39a2b5d"
+  ],
+  "_kFreeConfidentTolerant": [
+   "c2cc4de"
+  ],
+  "_freeConfident": [
+   "c2cc4de"
+  ],
+  "_kFreeConfidentStrict": [
+   "c2cc4de"
+  ],
+  "fastRun": [
+   "028be10",
+   "c9b6aa7"
+  ],
+  "_kCausalStreamingEnabled": [
+   "33378dd"
+  ],
+  "setClipCapture": [
+   "b9bf09d",
+   "9024fb6"
+  ],
+  "_openStreamingWavCapture": [
+   "b9bf09d"
+  ],
+  "_closeStreamingWavCapture": [
+   "b9bf09d"
+  ],
+  "_closeStaleContinuousCapture": [
+   "b9bf09d"
+  ],
+  "ensureContinuousModelLoaded": [
+   "85b337c"
+  ],
+  "correctDelta": [
+   "5d70d32"
+  ],
+  "errorDelta": [
+   "5d70d32",
+   "e800305"
+  ],
+  "resetBuffer": [
+   "d535b1b",
+   "e800305"
+  ],
+  "_usingCausalStreaming": [
+   "d535b1b"
+  ],
+  "_kAsrVersion": [
+   "d535b1b",
+   "fc6d731",
+   "e800305"
+  ],
+  "_processContinuousChunk": [
+   "d535b1b"
+  ],
+  "_continuousFeedTail": [
+   "d535b1b"
+  ],
+  "log": [
+   "f74ded8"
+  ],
+  "variantsSlice": [
+   "f74ded8",
+   "548fe14"
+  ],
+  "cacheLength": [
+   "f74ded8"
+  ],
+  "payloadAnchor": [
+   "f74ded8"
+  ],
+  "currentLogProbs": [
+   "f74ded8"
+  ],
+  "targetTokens": [
+   "f74ded8"
+  ],
+  "lastPayload": [
+   "f74ded8"
+  ],
+  "configPath": [
+   "f74ded8"
+  ],
+  "causalAlignment": [
+   "f74ded8"
+  ],
+  "sequence": [
+   "f74ded8"
+  ],
+  "aligner": [
+   "f74ded8",
+   "fc6d731"
+  ],
+  "targetVariants": [
+   "f74ded8"
+  ],
+  "WINDOW_FRAMES": [
+   "f74ded8",
+   "e800305"
+  ],
+  "nextWindowEndFrame": [
+   "f74ded8",
+   "e800305"
+  ],
+  "currentStreaming": [
+   "f74ded8"
+  ],
+  "lengthBuf": [
+   "f74ded8",
+   "e800305"
+  ],
+  "bestVal": [
+   "f74ded8",
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09",
+   "fc6d731",
+   "e800305"
+  ],
+  "config": [
+   "f74ded8"
+  ],
+  "NUM_LAYERS": [
+   "f74ded8",
+   "e800305"
+  ],
+  "blank": [
+   "f74ded8",
+   "fc6d731"
+  ],
+  "TAG": [
+   "f74ded8",
+   "fc6d731",
+   "e800305"
+  ],
+  "missing": [
+   "f74ded8",
+   "e800305"
+  ],
+  "anchor": [
+   "f74ded8",
+   "548fe14",
+   "fc6d731"
+  ],
+  "cacheLastTime": [
+   "f74ded8",
+   "e800305"
+  ],
+  "logProbs": [
+   "f74ded8"
+  ],
+  "prevTokenForCollapse": [
+   "f74ded8",
+   "e800305"
+  ],
+  "CHUNK_FRAMES": [
+   "f74ded8",
+   "e800305"
+  ],
+  "audioBuf": [
+   "f74ded8",
+   "e800305"
+  ],
+  "currentVariants": [
+   "f74ded8"
+  ],
+  "result": [
+   "f74ded8"
+  ],
+  "EXPECTED_INPUT_NAMES": [
+   "f74ded8"
+  ],
+  "newLogProbs": [
+   "f74ded8"
+  ],
+  "CACHE_LEN": [
+   "f74ded8",
+   "e800305"
+  ],
+  "output": [
+   "f74ded8"
+  ],
+  "pcm16": [
+   "f74ded8",
+   "e800305"
+  ],
+  "payload": [
+   "f74ded8",
+   "fc6d731",
+   "e800305"
+  ],
+  "wordTokensPath": [
+   "f74ded8",
+   "fc6d731"
+  ],
+  "lastConsumedFrame": [
+   "f74ded8"
+  ],
+  "cacheLastChannel": [
+   "f74ded8",
+   "e800305"
+  ],
+  "logProbBuffer": [
+   "f74ded8"
+  ],
+  "message": [
+   "f74ded8"
+  ],
+  "MAX_ALIGN_WORDS": [
+   "f74ded8"
+  ],
+  "product": [
+   "f74ded8"
+  ],
+  "current": [
+   "f74ded8",
+   "fc6d731",
+   "e800305"
+  ],
+  "coveredWords": [
+   "f74ded8"
+  ],
+  "newStreaming": [
+   "f74ded8"
+  ],
+  "text": [
+   "f74ded8",
+   "fc6d731",
+   "e800305"
+  ],
+  "PRE_CACHE_FRAMES": [
+   "f74ded8",
+   "e800305"
+  ],
+  "TIME_CACHE": [
+   "f74ded8",
+   "e800305"
+  ],
+  "decodedIds": [
+   "f74ded8",
+   "a293172",
+   "e800305"
+  ],
+  "ctcState": [
+   "f74ded8"
+  ],
+  "melWindow": [
+   "f74ded8",
+   "e800305"
+  ],
+  "vocabPieces": [
+   "f74ded8",
+   "fc6d731"
+  ],
+  "alignment": [
+   "f74ded8"
+  ],
+  "tokens": [
+   "f74ded8",
+   "08556f8",
+   "fc6d731"
+  ],
+  "inferenceCount": [
+   "f74ded8",
+   "e800305"
+  ],
+  "D_MODEL": [
+   "f74ded8",
+   "e800305"
+  ],
+  "emittedLogProbs": [
+   "f74ded8"
+  ],
+  "slice": [
+   "f74ded8",
+   "548fe14",
+   "3316e65",
+   "fc6d731"
+  ],
+  "channelCacheFrames": [
+   "6a09ff8"
+  ],
+  "lookaheadMs": [
+   "6a09ff8"
+  ],
+  "modelDimension": [
+   "6a09ff8"
+  ],
+  "value": [
+   "6a09ff8"
+  ],
+  "EXPECTED_VALID_OUTPUT_FRAMES": [
+   "6a09ff8"
+  ],
+  "shiftFrames": [
+   "6a09ff8"
+  ],
+  "hasTajwidHead": [
+   "6a09ff8",
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "EXPECTED_CHANNEL_CACHE_SHAPE": [
+   "6a09ff8"
+  ],
+  "sourceNemo": [
+   "6a09ff8"
+  ],
+  "subsamplingFactor": [
+   "6a09ff8"
+  ],
+  "validOutputFrames": [
+   "6a09ff8"
+  ],
+  "timeCacheFrames": [
+   "6a09ff8"
+  ],
+  "EXPECTED_INPUT_FRAMES": [
+   "6a09ff8"
+  ],
+  "EXPECTED_SHIFT_FRAMES": [
+   "6a09ff8"
+  ],
+  "SCHEMA_VERSION": [
+   "6a09ff8"
+  ],
+  "EXPECTED_TIME_CACHE_SHAPE": [
+   "6a09ff8"
+  ],
+  "schemaVersion": [
+   "6a09ff8"
+  ],
+  "inputFrames": [
+   "6a09ff8"
+  ],
+  "preEncodeCacheFrames": [
+   "6a09ff8"
+  ],
+  "EXPECTED_ATTENTION_CONTEXT": [
+   "6a09ff8"
+  ],
+  "EXPECTED_SUBSAMPLING_FACTOR": [
+   "6a09ff8"
+  ],
+  "EXPECTED_PRE_ENCODE_CACHE_FRAMES": [
+   "6a09ff8"
+  ],
+  "cacheLastChannelShape": [
+   "6a09ff8"
+  ],
+  "EXPECTED_SOURCE_NEMO": [
+   "6a09ff8"
+  ],
+  "numLayers": [
+   "6a09ff8"
+  ],
+  "EXPECTED_WINDOW_STRIDE_MS": [
+   "6a09ff8"
+  ],
+  "attentionContextSize": [
+   "6a09ff8"
+  ],
+  "windowStrideMs": [
+   "6a09ff8"
+  ],
+  "cacheLastTimeShape": [
+   "6a09ff8"
+  ],
+  "bestId": [
+   "a293172"
+  ],
+  "emittedIds": [
+   "a293172"
+  ],
+  "previousTokenId": [
+   "a293172"
+  ],
+  "blankId": [
+   "a293172",
+   "fc6d731",
+   "e800305"
+  ],
+  "bestScore": [
+   "a293172"
+  ],
+  "MAX_TARGET_SECONDS": [
+   "196bff1",
+   "08556f8"
+  ],
+  "resumeCaptureSoft": [
+   "196bff1"
+  ],
+  "TARGET_SECONDS": [
+   "196bff1",
+   "08556f8"
+  ],
+  "resumeCaptureAfterPlayback": [
+   "196bff1"
+  ],
+  "pauseCaptureForPlayback": [
+   "196bff1"
+  ],
+  "_kPreviewsBeforeCorrection": [
+   "196bff1"
+  ],
+  "pauseCaptureSoft": [
+   "196bff1"
+  ],
+  "MIN_MICRO_SILENCE_MS": [
+   "08556f8"
+  ],
+  "CUT_SEARCH_RADIUS_SECONDS": [
+   "08556f8"
+  ],
+  "cutAt": [
+   "08556f8"
+  ],
+  "target": [
+   "08556f8",
+   "3fb04c3",
+   "fc506f6",
+   "fc6d731"
+  ],
+  "samplesPerFrame": [
+   "08556f8"
+  ],
+  "consumed": [
+   "08556f8",
+   "e800305"
+  ],
+  "_applyDiagnosticCapture": [
+   "08556f8"
+  ],
+  "realChance": [
+   "08556f8"
+  ],
+  "plannedSamples": [
+   "08556f8"
+  ],
+  "forceIdx": [
+   "08556f8",
+   "fc506f6"
+  ],
+  "setLogEnabled": [
+   "08556f8"
+  ],
+  "silent": [
+   "08556f8"
+  ],
+  "frame": [
+   "08556f8",
+   "fc6d731",
+   "e800305"
+  ],
+  "skip": [
+   "08556f8"
+  ],
+  "MIN_TARGET_SECONDS": [
+   "08556f8"
+  ],
+  "radius": [
+   "08556f8"
+  ],
+  "sum": [
+   "08556f8"
+  ],
+  "minRunWins": [
+   "08556f8"
+  ],
+  "committedPart": [
+   "08556f8"
+  ],
+  "FINE_WINDOW_MS": [
+   "08556f8"
+  ],
+  "bestDist": [
+   "08556f8"
+  ],
+  "ageMs": [
+   "08556f8"
+  ],
+  "cut": [
+   "08556f8",
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33",
+   "548fe14"
+  ],
+  "sep": [
+   "08556f8",
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33",
+   "e800305"
+  ],
+  "ensureModelLoaded": [
+   "08556f8"
+  ],
+  "i": [
+   "08556f8",
+   "548fe14",
+   "e800305"
+  ],
+  "runStart": [
+   "08556f8"
+  ],
+  "dist": [
+   "08556f8"
+  ],
+  "win": [
+   "08556f8"
+  ],
+  "actualFromFree": [
+   "08556f8"
+  ],
+  "diagPath": [
+   "d06c6ee"
+  ],
+  "diagDir": [
+   "d06c6ee"
+  ],
+  "overlapPath": [
+   "d06c6ee"
+  ],
+  "clipsDir": [
+   "d06c6ee"
+  ],
+  "nFrames": [
+   "d06c6ee",
+   "e800305"
+  ],
+  "samplesBeforeTrim": [
+   "d06c6ee"
+  ],
+  "tailCut": [
+   "d06c6ee"
+  ],
+  "lastEndFrame": [
+   "d06c6ee"
+  ],
+  "overlapStartFrame": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "sizeSeconds": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33",
+   "e800305"
+  ],
+  "resFrames": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "_kTajwidGopRealized": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "keep": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "row": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33",
+   "e800305"
+  ],
+  "fTo": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "rest": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "_tajwidExplainsMismatch": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "_neighborTajwidGopFromState": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "lastCoveredFrame": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "startFrame": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "first": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "whole": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "resSamples": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "usedPreview": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "m": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33",
+   "548fe14"
+  ],
+  "perFrame": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "fFrom": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "tajwidGop": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "merge": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "keepSamples": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "nCls": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "realized": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "gopForRule": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "kept": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "endFrame": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "margins": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "prevHead": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "drop": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33",
+   "e800305"
+  ],
+  "tajwidBlank": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "unrealizedRulesFor": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09",
+   "746df89"
+  ],
+  "TAJWID_OUTPUT": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "_gopWordBaseline": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "_realignFromFullText": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09",
+   "e800305"
+  ],
+  "rulesHere": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "tajwid": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "ruleNames": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "hasTajwid": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "_normalizedGop": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "hasRuleHead": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "_useGopScoring": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "applyGopWordBaseline": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "_hasRuleHead": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "segmentRules": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "letters": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "tajwidNames": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "detectedRules": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "rulesPath": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "expectedTok": [
+   "a2d3054"
+  ],
+  "nll": [
+   "a2d3054",
+   "548fe14"
+  ],
+  "bareShaddaTokens": [
+   "a2d3054"
+  ],
+  "nllExpected": [
+   "a2d3054",
+   "548fe14"
+  ],
+  "scoringLp": [
+   "a2d3054"
+  ],
+  "sumExp": [
+   "a2d3054"
+  ],
+  "logNorm": [
+   "a2d3054"
+  ],
+  "maxKept": [
+   "a2d3054"
+  ],
+  "mx": [
+   "64215d0",
+   "fc506f6",
+   "fc6d731"
+  ],
+  "ruleSymbolTokens": [
+   "64215d0"
+  ],
+  "_judgementLogged": [
+   "db43917"
+  ],
+  "_modeTag": [
+   "db43917"
+  ],
+  "_lastSensitivity": [
+   "db43917"
+  ],
+  "applyRuleReliability": [
+   "8f8c00a"
+  ],
+  "_wordsFromText": [
+   "08efcc9"
+  ],
+  "extendVerses": [
+   "08efcc9"
+  ],
+  "_differsOnlyByConfusables": [
+   "08efcc9"
+  ],
+  "_sameConfusableClass": [
+   "08efcc9"
+  ],
+  "_wordsFromVerses": [
+   "08efcc9"
+  ],
+  "shownRulesFor": [
+   "08efcc9"
+  ],
+  "applyJudgementOptions": [
+   "08efcc9"
+  ],
+  "_strictHarakat": [
+   "08efcc9"
+  ],
+  "subs": [
+   "08efcc9"
+  ],
+  "setupVerses": [
+   "08efcc9"
+  ],
+  "_tolerateConfusables": [
+   "08efcc9"
+  ],
+  "_wordsFromSegments": [
+   "08efcc9"
+  ],
+  "_fetchingFatiha": [
+   "548fe14"
+  ],
+  "resetTrackingToStart": [
+   "548fe14"
+  ],
+  "_checkLeftFatihaViaShazam": [
+   "548fe14"
+  ],
+  "stableCount": [
+   "548fe14"
+  ],
+  "_detectWordsConsumed": [
+   "548fe14"
+  ],
+  "_standbyScanStart": [
+   "548fe14"
+  ],
+  "bestNll": [
+   "548fe14"
+  ],
+  "tLen": [
+   "548fe14"
+  ],
+  "_lastDetectingTargetPreviewTokens": [
+   "548fe14"
+  ],
+  "_beginTargetPhase": [
+   "548fe14"
+  ],
+  "offset": [
+   "548fe14",
+   "e800305"
+  ],
+  "_dynamicTargetDiscovery": [
+   "548fe14"
+  ],
+  "HARAKAT": [
+   "548fe14"
+  ],
+  "_beginFatihaPhase": [
+   "548fe14"
+  ],
+  "bestText": [
+   "548fe14"
+  ],
+  "_leftFatihaCheckInFlight": [
+   "548fe14"
+  ],
+  "_looksLikeFatihaStart": [
+   "548fe14"
+  ],
+  "rt": [
+   "548fe14"
+  ],
+  "_stripFatihaTailPrefix": [
+   "548fe14"
+  ],
+  "tmp": [
+   "548fe14",
+   "fc6d731"
+  ],
+  "_armDetectingTargetFallbackTimer": [
+   "548fe14"
+  ],
+  "_fatihaScanStart": [
+   "548fe14"
+  ],
+  "_ensureFatihaWords": [
+   "548fe14"
+  ],
+  "spans": [
+   "548fe14",
+   "3fb04c3"
+  ],
+  "_maybeResyncPosition": [
+   "548fe14"
+  ],
+  "total": [
+   "548fe14"
+  ],
+  "_enterPrayerStandby": [
+   "548fe14"
+  ],
+  "_targetDetectScanStart": [
+   "548fe14"
+  ],
+  "_resyncInFlight": [
+   "548fe14"
+  ],
+  "_stripBismillahPrefix": [
+   "548fe14"
+  ],
+  "_stablePreviewPrefix": [
+   "548fe14"
+  ],
+  "_hasTakbir": [
+   "548fe14"
+  ],
+  "_isSubsequenceInOrder": [
+   "548fe14"
+  ],
+  "currentV": [
+   "548fe14"
+  ],
+  "enabled": [
+   "548fe14"
+  ],
+  "rescoreHeard": [
+   "548fe14"
+  ],
+  "startPrayerFollow": [
+   "548fe14"
+  ],
+  "rf": [
+   "548fe14"
+  ],
+  "_beginIdentifiedTargetPhase": [
+   "548fe14"
+  ],
+  "rescoreMargin": [
+   "548fe14"
+  ],
+  "_takbirScannedCommittedLen": [
+   "548fe14"
+  ],
+  "_lastDetectingTargetProbe": [
+   "548fe14"
+  ],
+  "_tryIdentifyTargetTwoStep": [
+   "548fe14"
+  ],
+  "newVariants": [
+   "548fe14"
+  ],
+  "_appPaused": [
+   "548fe14"
+  ],
+  "negInf": [
+   "548fe14",
+   "fc6d731"
+  ],
+  "_resumeContinuationIfAvailable": [
+   "548fe14"
+  ],
+  "_looksLikeFatihaEnd": [
+   "548fe14"
+  ],
+  "newAnchor": [
+   "548fe14"
+  ],
+  "nTok": [
+   "548fe14"
+  ],
+  "_beginTargetDetection": [
+   "548fe14"
+  ],
+  "acc": [
+   "548fe14",
+   "e800305"
+  ],
+  "ch": [
+   "548fe14"
+  ],
+  "s": [
+   "548fe14",
+   "fc6d731",
+   "e800305"
+  ],
+  "variants": [
+   "548fe14"
+  ],
+  "maxJudgedIndex": [
+   "548fe14"
+  ],
+  "cur": [
+   "548fe14",
+   "fc6d731"
+  ],
+  "CONFUSIONS": [
+   "548fe14"
+  ],
+  "_targetLookupInFlight": [
+   "548fe14"
+  ],
+  "RESCORE_PAD_FRAMES": [
+   "548fe14"
+  ],
+  "setRescoringEnabled": [
+   "548fe14"
+  ],
+  "_confidentMode": [
+   "548fe14"
+  ],
+  "_lastWords": [
+   "548fe14"
+  ],
+  "tok": [
+   "548fe14"
+  ],
+  "_targetTrackingScanStart": [
+   "548fe14"
+  ],
+  "matched": [
+   "548fe14",
+   "3fb04c3",
+   "fc506f6",
+   "fc6d731"
+  ],
+  "_takbirArmed": [
+   "548fe14"
+  ],
+  "wi": [
+   "3fb04c3"
+  ],
+  "framesSinceLast": [
+   "3fb04c3",
+   "fc506f6"
+  ],
+  "j": [
+   "3fb04c3",
+   "fc506f6"
+  ],
+  "attested": [
+   "3fb04c3",
+   "fc506f6"
+  ],
+  "id": [
+   "3fb04c3",
+   "fc6d731"
+  ],
+  "firstHit": [
+   "3fb04c3"
+  ],
+  "fi": [
+   "3fb04c3",
+   "fc506f6"
+  ],
+  "lastTok": [
+   "3fb04c3",
+   "fc506f6"
+  ],
+  "probe": [
+   "3fb04c3",
+   "fc506f6"
+  ],
+  "lastHit": [
+   "3fb04c3",
+   "fc506f6"
+  ],
+  "corrected": [
+   "3fb04c3"
+  ],
+  "_sessionLock": [
+   "3316e65"
+  ],
+  "stopIfCurrentSession": [
+   "3316e65"
+  ],
+  "_generation": [
+   "3316e65"
+  ],
+  "_startLocked": [
+   "3316e65"
+  ],
+  "_myGeneration": [
+   "3316e65"
+  ],
+  "retried": [
+   "3316e65"
+  ],
+  "deferred": [
+   "3316e65"
+  ],
+  "sessionGeneration": [
+   "3316e65"
+  ],
+  "wIdx": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "frontierTok": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "wordLastFrame": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "FREE_MATCH_LOOKAHEAD": [
+   "fc506f6"
+  ],
+  "prevLastFrame": [
+   "fc506f6"
+  ],
+  "siCur": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "forced": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "si": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "path": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "deferredIndex": [
+   "fc506f6"
+  ],
+  "wordFrames": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "frontierWordRel": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "covered": [
+   "fc506f6",
+   "fc6d731",
+   "e800305"
+  ],
+  "MIN_FRAMES_FOR_JUDGMENT": [
+   "fc506f6"
+  ],
+  "wordFreeSum": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "RETRY_STALL_MIN_FRAMES": [
+   "fc506f6"
+  ],
+  "tokIdx": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "wordFirstFrame": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "lastUsedFrame": [
+   "fc506f6"
+  ],
+  "actual": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "wordForcedSum": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "results": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "framesSincePrev": [
+   "fc506f6"
+  ],
+  "dataSize": [
+   "9024fb6",
+   "e800305"
+  ],
+  "buf": [
+   "9024fb6",
+   "e800305"
+  ],
+  "clamped": [
+   "9024fb6",
+   "e800305"
+  ],
+  "sampleRate": [
+   "9024fb6"
+  ],
+  "clipPath": [
+   "9024fb6"
+  ],
+  "dir": [
+   "9024fb6"
+  ],
+  "byteRate": [
+   "9024fb6"
+  ],
+  "_gopUnclear": [
+   "fc6d731"
+  ],
+  "_kGopUnclearStrict": [
+   "fc6d731"
+  ],
+  "keys": [
+   "fc6d731"
+  ],
+  "_kGopUnclearDefault": [
+   "fc6d731"
+  ],
+  "word": [
+   "fc6d731"
+  ],
+  "file": [
+   "fc6d731"
+  ],
+  "owner": [
+   "fc6d731"
+  ],
+  "flat": [
+   "fc6d731"
+  ],
+  "wavPath": [
+   "fc6d731",
+   "e800305"
+  ],
+  "maxLen": [
+   "fc6d731"
+  ],
+  "json": [
+   "fc6d731",
+   "e800305"
+  ],
+  "newTokens": [
+   "fc6d731"
+  ],
+  "alignmentActive": [
+   "fc6d731"
+  ],
+  "_lerp": [
+   "fc6d731"
+  ],
+  "lookupMisses": [
+   "fc6d731"
+  ],
+  "wordsList": [
+   "fc6d731"
+  ],
+  "gop": [
+   "fc6d731"
+  ],
+  "bestEnd": [
+   "fc6d731"
+  ],
+  "_alignmentActive": [
+   "fc6d731"
+  ],
+  "_kGopCorrectDefault": [
+   "fc6d731"
+  ],
+  "pcm": [
+   "fc6d731",
+   "e800305"
+  ],
+  "maxPieceLen": [
+   "fc6d731"
+  ],
+  "_kGopUnclearTolerant": [
+   "fc6d731"
+  ],
+  "fmt": [
+   "fc6d731"
+  ],
+  "bp": [
+   "fc6d731"
+  ],
+  "frontier": [
+   "fc6d731"
+  ],
+  "setAlignmentAnchor": [
+   "fc6d731"
+  ],
+  "arr": [
+   "fc6d731",
+   "e800305"
+  ],
+  "_gopCorrect": [
+   "fc6d731"
+  ],
+  "laAnchor": [
+   "fc6d731"
+  ],
+  "tokenizer": [
+   "fc6d731"
+  ],
+  "_kGopCorrectTolerant": [
+   "fc6d731"
+  ],
+  "index": [
+   "fc6d731"
+  ],
+  "vocab": [
+   "fc6d731",
+   "e800305"
+  ],
+  "setSensitivity": [
+   "fc6d731"
+  ],
+  "w": [
+   "fc6d731"
+  ],
+  "len": [
+   "fc6d731"
+  ],
+  "empty": [
+   "fc6d731"
+  ],
+  "pieceToId": [
+   "fc6d731"
+  ],
+  "maxAlignWords": [
+   "fc6d731"
+  ],
+  "normalizeTraining": [
+   "fc6d731"
+  ],
+  "la": [
+   "fc6d731"
+  ],
+  "extendWords": [
+   "fc6d731"
+  ],
+  "_onAligned": [
+   "fc6d731"
+  ],
+  "prevBest": [
+   "fc6d731"
+  ],
+  "_lastAlignSeq": [
+   "fc6d731"
+  ],
+  "map": [
+   "fc6d731"
+  ],
+  "_kGopCorrectStrict": [
+   "fc6d731"
+  ],
+  "lookupHits": [
+   "fc6d731"
+  ],
+  "correct": [
+   "fc6d731",
+   "e800305"
+  ],
+  "tokNorm": [
+   "e800305"
+  ],
+  "theta": [
+   "e800305"
+  ],
+  "chunkSize": [
+   "e800305"
+  ],
+  "_stopping": [
+   "e800305"
+  ],
+  "padded": [
+   "e800305"
+  ],
+  "oldLen": [
+   "e800305"
+  ],
+  "feedAudioChunk": [
+   "e800305"
+  ],
+  "ensureStreamingLoaded": [
+   "e800305"
+  ],
+  "an": [
+   "e800305"
+  ],
+  "markWordCorrected": [
+   "e800305"
+  ],
+  "_beginSegment": [
+   "e800305"
+  ],
+  "power": [
+   "e800305"
+  ],
+  "ensureLoaded": [
+   "e800305"
+  ],
+  "_kLookahead": [
+   "e800305"
+  ],
+  "matchesTolerant": [
+   "e800305"
+  ],
+  "x": [
+   "e800305"
+  ],
+  "rewindAndUnlock": [
+   "e800305"
+  ],
+  "_endingContinuous": [
+   "e800305"
+  ],
+  "_splitNorm": [
+   "e800305"
+  ],
+  "_levenshtein": [
+   "e800305"
+  ],
+  "vocabPath": [
+   "e800305"
+  ],
+  "errors": [
+   "e800305"
+  ],
+  "shouldRun": [
+   "e800305"
+  ],
+  "logMel": [
+   "e800305"
+  ],
+  "samples": [
+   "e800305"
+  ],
+  "odd": [
+   "e800305"
+  ],
+  "fbRow": [
+   "e800305"
+  ],
+  "snapshot": [
+   "e800305"
+  ],
+  "nextCacheT": [
+   "e800305"
+  ],
+  "framesComputed": [
+   "e800305"
+  ],
+  "localStart": [
+   "e800305"
+  ],
+  "cacheLenBuf": [
+   "e800305"
+  ],
+  "_hasClosingPhrase": [
+   "e800305"
+  ],
+  "old": [
+   "e800305"
+  ],
+  "_draining": [
+   "e800305"
+  ],
+  "MAX_SEGMENT_SECONDS": [
+   "e800305"
+  ],
+  "inputs": [
+   "e800305"
+  ],
+  "CENTER_PAD": [
+   "e800305"
+  ],
+  "PREEMPH_PUBLIC": [
+   "e800305"
+  ],
+  "paddedBuf": [
+   "e800305"
+  ],
+  "_kSimThreshold": [
+   "e800305"
+  ],
+  "_kBackToleranceWindow": [
+   "e800305"
+  ],
+  "re": [
+   "e800305"
+  ],
+  "rms": [
+   "e800305"
+  ],
+  "embedding": [
+   "e800305"
+  ],
+  "cacheTBuf": [
+   "e800305"
+  ],
+  "LOG_ZERO_GUARD": [
+   "e800305"
+  ],
+  "size": [
+   "e800305"
+  ],
+  "nMels": [
+   "e800305"
+  ],
+  "MIN_COMMIT_SECONDS": [
+   "e800305"
+  ],
+  "nextCacheLen": [
+   "e800305"
+  ],
+  "_matchesRecentPast": [
+   "e800305"
+  ],
+  "N_MELS_PUBLIC": [
+   "e800305"
+  ],
+  "_continuous": [
+   "e800305"
+  ],
+  "disposeStreaming": [
+   "e800305"
+  ],
+  "MIN_NEW_SECONDS": [
+   "e800305"
+  ],
+  "_transcribeAndEmit": [
+   "e800305"
+  ],
+  "nSamples": [
+   "e800305"
+  ],
+  "fb": [
+   "e800305"
+  ],
+  "bufGlobalStart": [
+   "e800305"
+  ],
+  "hannWindow": [
+   "e800305"
+  ],
+  "_kUnclearSimThreshold": [
+   "e800305"
+  ],
+  "HOP_LENGTH": [
+   "e800305"
+  ],
+  "recIdx": [
+   "e800305"
+  ],
+  "NORM_EPS": [
+   "e800305"
+  ],
+  "_onPendingChanged": [
+   "e800305"
+  ],
+  "reach": [
+   "e800305"
+  ],
+  "resetStreaming": [
+   "e800305"
+  ],
+  "committed": [
+   "e800305"
+  ],
+  "_kSilenceCutMs": [
+   "e800305"
+  ],
+  "_cleanup": [
+   "e800305"
+  ],
+  "lo": [
+   "e800305"
+  ],
+  "HOP": [
+   "e800305"
+  ],
+  "evenFft": [
+   "e800305"
+  ],
+  "_streamingLoaded": [
+   "e800305"
+  ],
+  "_chunkCount": [
+   "e800305"
+  ],
+  "winPad": [
+   "e800305"
+  ],
+  "splitExpectedWords": [
+   "e800305"
+  ],
+  "tokStrict": [
+   "e800305"
+  ],
+  "bestIdx": [
+   "e800305"
+  ],
+  "reOdd": [
+   "e800305"
+  ],
+  "imOdd": [
+   "e800305"
+  ],
+  "SAMPLE_RATE": [
+   "e800305"
+  ],
+  "paddedTotalLen": [
+   "e800305"
+  ],
+  "hzPts": [
+   "e800305"
+  ],
+  "statCount": [
+   "e800305"
+  ],
+  "scope": [
+   "e800305"
+  ],
+  "engine": [
+   "e800305"
+  ],
+  "retainedSilenceSamples": [
+   "e800305"
+  ],
+  "cost": [
+   "e800305"
+  ],
+  "_deleteQuiet": [
+   "e800305"
+  ],
+  "mel": [
+   "e800305"
+  ],
+  "keepFromGlobal": [
+   "e800305"
+  ],
+  "fdiff": [
+   "e800305"
+  ],
+  "tb": [
+   "e800305"
+  ],
+  "resumeCapture": [
+   "e800305"
+  ],
+  "newSinceLast": [
+   "e800305"
+  ],
+  "mean": [
+   "e800305"
+  ],
+  "minLogMel": [
+   "e800305"
+  ],
+  "dispose": [
+   "e800305"
+  ],
+  "_estimatePcmLevel": [
+   "e800305"
+  ],
+  "_enqueueIfValid": [
+   "e800305"
+  ],
+  "prevRawSample": [
+   "e800305"
+  ],
+  "statSumSq": [
+   "e800305"
+  ],
+  "_finish": [
+   "e800305"
+  ],
+  "lock": [
+   "e800305"
+  ],
+  "stopContinuous": [
+   "e800305"
+  ],
+  "embeddings": [
+   "e800305"
+  ],
+  "_kAlignLookahead": [
+   "e800305"
+  ],
+  "resetBuffered": [
+   "e800305"
+  ],
+  "even": [
+   "e800305"
+  ],
+  "chunkId": [
+   "e800305"
+  ],
+  "norm": [
+   "e800305"
+  ],
+  "N_MELS": [
+   "e800305"
+  ],
+  "lastAudioPath": [
+   "e800305"
+  ],
+  "_splitStrict": [
+   "e800305"
+  ],
+  "minLogHz": [
+   "e800305"
+  ],
+  "avgCost": [
+   "e800305"
+  ],
+  "_onStructured": [
+   "e800305"
+  ],
+  "rewindRangeEnd": [
+   "e800305"
+  ],
+  "cacheLastChannelLen": [
+   "e800305"
+  ],
+  "normalizeStrict": [
+   "e800305"
+  ],
+  "toAppend": [
+   "e800305"
+  ],
+  "nFreqs": [
+   "e800305"
+  ],
+  "nextCacheCh": [
+   "e800305"
+  ],
+  "_kMinSegmentMs": [
+   "e800305"
+  ],
+  "session": [
+   "e800305"
+  ],
+  "sample": [
+   "e800305"
+  ],
+  "previewText": [
+   "e800305"
+  ],
+  "logstep": [
+   "e800305"
+  ],
+  "cacheChBuf": [
+   "e800305"
+  ],
+  "spec": [
+   "e800305"
+  ],
+  "expIdx": [
+   "e800305"
+  ],
+  "_drainQueue": [
+   "e800305"
+  ],
+  "_cutAndRestart": [
+   "e800305"
+  ],
+  "N_FFT": [
+   "e800305"
+  ],
+  "PREEMPH": [
+   "e800305"
+  ],
+  "_kMaxSegmentMs": [
+   "e800305"
+  ],
+  "busy": [
+   "e800305"
+  ],
+  "DEFAULT_COMMIT_SILENCE_MS": [
+   "e800305"
+  ],
+  "fSp": [
+   "e800305"
+  ],
+  "pauseCapture": [
+   "e800305"
+  ],
+  "preview": [
+   "e800305"
+  ],
+  "minMel": [
+   "e800305"
+  ],
+  "normSq": [
+   "e800305"
+  ],
+  "refPath": [
+   "e800305"
+  ],
+  "env": [
+   "e800305"
+  ],
+  "MAX_SECONDS": [
+   "e800305"
+  ],
+  "statSum": [
+   "e800305"
+  ],
+  "HOP_PUBLIC": [
+   "e800305"
+  ],
+  "variance": [
+   "e800305"
+  ],
+  "WIN_LENGTH": [
+   "e800305"
+  ],
+  "fftFreqs": [
+   "e800305"
+  ],
+  "_prevCommitted": [
+   "e800305"
+  ],
+  "SILENCE_RMS_THRESHOLD": [
+   "e800305"
+  ],
+  "std": [
+   "e800305"
+  ],
+  "maxMel": [
+   "e800305"
+  ],
+  "WIN_PAD_SAMPLES": [
+   "e800305"
+  ],
+  "FMIN": [
+   "e800305"
+  ],
+  "dataOffset": [
+   "e800305"
+  ],
+  "globalStart": [
+   "e800305"
+  ],
+  "isSilence": [
+   "e800305"
+  ],
+  "committing": [
+   "e800305"
+  ],
+  "similarity": [
+   "e800305"
+  ],
+  "MIN_TRACKED_PAUSE_MS": [
+   "e800305"
+  ],
+  "pointer": [
+   "e800305"
+  ],
+  "_loaded": [
+   "e800305"
+  ],
+  "normalize": [
+   "e800305"
+  ],
+  "pauseSamples": [
+   "e800305"
+  ],
+  "lm": [
+   "e800305"
+  ],
+  "bn": [
+   "e800305"
+  ],
+  "_kSilenceDbfs": [
+   "e800305"
+  ],
+  "stop": [
+   "e800305"
+  ],
+  "streaming": [
+   "e800305"
+  ],
+  "sessionPausesMs": [
+   "e800305"
+  ],
+  "l": [
+   "e800305"
+  ],
+  "oddFft": [
+   "e800305"
+  ],
+  "_alignChunk": [
+   "e800305"
+  ],
+  "enorm": [
+   "e800305"
+  ],
+  "bestRec": [
+   "e800305"
+  ],
+  "_sessionEnding": [
+   "e800305"
+  ],
+  "reset": [
+   "e800305"
+  ],
+  "feats": [
+   "e800305"
+  ],
+  "_onRawSegment": [
+   "e800305"
+  ],
+  "sumSq": [
+   "e800305"
+  ],
+  "_collapseVariants": [
+   "e800305"
+  ],
+  "_judge": [
+   "e800305"
+  ],
+  "modelPath": [
+   "e800305"
+  ],
+  "melFilterbank": [
+   "e800305"
+  ],
+  "_saveStableCopy": [
+   "e800305"
+  ],
+  "fp": [
+   "e800305"
+  ],
+  "u": [
+   "e800305"
+  ],
+  "fingerprint": [
+   "e800305"
+  ],
+  "setup": [
+   "e800305"
+  ],
+  "bestSim": [
+   "e800305"
+  ],
+  "FMAX": [
+   "e800305"
+  ],
+  "outPath": [
+   "e800305"
+  ],
+  "ta": [
+   "e800305"
+  ],
+  "sim": [
+   "e800305"
+  ],
+  "im": [
+   "e800305"
+  ],
+  "buffered": [
+   "e800305"
+  ],
+  "_onToken": [
+   "e800305"
+  ],
+  "transcribe": [
+   "e800305"
+  ],
+  "reference": [
+   "e800305"
+  ],
+  "hi": [
+   "e800305"
+  ],
+  "bytes": [
+   "e800305"
+  ],
+  "melPts": [
+   "e800305"
+  ],
+  "unclear": [
+   "e800305"
+  ],
+  "_anchorExp": [
+   "e800305"
+  ]
+ },
+ "fun_hist": {
+  "segmentDecale": [
+   "db98d26"
+  ],
+  "trio": [
+   "e735f99"
+  ],
+  "texte": [
+   "bca8706",
+   "a0c8935",
+   "4606d64"
+  ],
+  "cibleEtendue": [
+   "bca8706",
+   "a0c8935",
+   "6d07754"
+  ],
+  "tokensToText": [
+   "d709c7d",
+   "a0c8935",
+   "a97867f"
+  ],
+  "scoreParFrame": [
+   "69de15a",
+   "305db63"
+  ],
+  "cibleAvecVoisins": [
+   "44305da"
+  ],
+  "fenetreDeRecherche": [
+   "44305da",
+   "10dd819"
+  ],
+  "horodater": [
+   "10dd819"
+  ],
+  "contexteFin": [
+   "10dd819"
+  ],
+  "secoursMeilleur": [
+   "10dd819"
+  ],
+  "contexteDebut": [
+   "10dd819"
+  ],
+  "besoinDeSecours": [
+   "c0935dd"
+  ],
+  "extract": [
+   "488d969"
+  ],
+  "totalSamples": [
+   "488d969"
+  ],
+  "reset": [
+   "488d969",
+   "f74ded8",
+   "a293172",
+   "e800305"
+  ],
+  "rescueWord": [
+   "488d969"
+  ],
+  "append": [
+   "488d969"
+  ],
+  "findResyncOffset": [
+   "eb231af"
+  ],
+  "setNeverBlockAnchor": [
+   "eb231af"
+  ],
+  "indexOfSub": [
+   "eb231af"
+  ],
+  "greedyDecode": [
+   "cd5c0f0",
+   "08556f8",
+   "fc6d731",
+   "e800305"
+  ],
+  "traceReset": [
+   "73325d8"
+  ],
+  "trace": [
+   "73325d8"
+  ],
+  "flushTrace": [
+   "73325d8"
+  ],
+  "ctcMinFrames": [
+   "f634f92"
+  ],
+  "plausibleMinFrames": [
+   "f634f92"
+  ],
+  "feed": [
+   "f74ded8",
+   "e800305"
+  ],
+  "setAnchor": [
+   "f74ded8"
+  ],
+  "appendGreedyDecode": [
+   "f74ded8",
+   "e800305"
+  ],
+  "feedAudio": [
+   "f74ded8",
+   "e800305"
+  ],
+  "payload": [
+   "f74ded8"
+  ],
+  "extendTarget": [
+   "f74ded8"
+  ],
+  "runInference": [
+   "f74ded8",
+   "e800305"
+  ],
+  "List": [
+   "f74ded8"
+  ],
+  "clearAudioState": [
+   "f74ded8"
+  ],
+  "setTarget": [
+   "f74ded8"
+  ],
+  "fromJson": [
+   "6a09ff8"
+  ],
+  "JSONArray": [
+   "6a09ff8"
+  ],
+  "appendLogProbs": [
+   "a293172"
+  ],
+  "appendToken": [
+   "a293172"
+  ],
+  "appendArgmax": [
+   "a293172"
+  ],
+  "targetSeconds": [
+   "08556f8"
+  ],
+  "findCutOffset": [
+   "08556f8"
+  ],
+  "rmsAt": [
+   "08556f8"
+  ],
+  "dir": [
+   "d06c6ee"
+  ],
+  "appendMergingOverlap": [
+   "58db2fa",
+   "4b42b4a",
+   "24d7521",
+   "ed2ca8a",
+   "d671c33"
+  ],
+  "decodeTajwid": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "computeLogProbs": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09",
+   "fc6d731"
+  ],
+  "computeAll": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09"
+  ],
+  "runAlignment": [
+   "8193111",
+   "4b42b4a",
+   "24d7521",
+   "f94a890",
+   "5d97e09",
+   "9024fb6",
+   "fc6d731"
+  ],
+  "stripRuleSymbolMass": [
+   "a2d3054"
+  ],
+  "tokenizeVariantQuiet": [
+   "548fe14"
+  ],
+  "ctcForwardNll": [
+   "548fe14"
+  ],
+  "extendAlignmentTarget": [
+   "548fe14",
+   "fc6d731"
+  ],
+  "emit": [
+   "548fe14",
+   "fc6d731"
+  ],
+  "variantsOf": [
+   "548fe14"
+  ],
+  "setAlignmentTarget": [
+   "548fe14",
+   "fc6d731"
+  ],
+  "buildVariants": [
+   "548fe14"
+  ],
+  "logAdd": [
+   "548fe14"
+  ],
+  "wordSpansFromFree": [
+   "3fb04c3"
+  ],
+  "decodeFreeSpan": [
+   "3fb04c3"
+  ],
+  "greedyTokenIds": [
+   "fc506f6"
+  ],
+  "buildFrom": [
+   "fc506f6"
+  ],
+  "coveredWordsFromFree": [
+   "fc506f6"
+  ],
+  "greedyDecodeRange": [
+   "fc506f6",
+   "fc6d731"
+  ],
+  "writeMono16k": [
+   "9024fb6"
+  ],
+  "setClipCapture": [
+   "9024fb6"
+  ],
+  "log": [
+   "fc6d731"
+  ],
+  "setAlignmentAnchor": [
+   "fc6d731"
+  ],
+  "alignmentPayload": [
+   "fc6d731"
+  ],
+  "loadWordTokenLookup": [
+   "fc6d731"
+  ],
+  "transcribe": [
+   "fc6d731",
+   "e800305"
+  ],
+  "tokenizeWordGreedy": [
+   "fc6d731"
+  ],
+  "align": [
+   "fc6d731"
+  ],
+  "setFile": [
+   "fc6d731"
+  ],
+  "tokenizeWord": [
+   "fc6d731"
+  ],
+  "onDetachedFromEngine": [
+   "e800305"
+  ],
+  "flatten4D": [
+   "e800305"
+  ],
+  "compactBuffer": [
+   "e800305"
+  ],
+  "onMethodCall": [
+   "e800305"
+  ],
+  "getSessionPausesMs": [
+   "e800305"
+  ],
+  "paddedEndForFrame": [
+   "e800305"
+  ],
+  "buildHannWindow": [
+   "e800305"
+  ],
+  "onAttachedToEngine": [
+   "e800305"
+  ],
+  "load": [
+   "e800305"
+  ],
+  "dot": [
+   "e800305"
+  ],
+  "compute": [
+   "e800305"
+  ],
+  "dtwSimilarity": [
+   "e800305"
+  ],
+  "close": [
+   "e800305"
+  ],
+  "appendPreemphasized": [
+   "e800305"
+  ],
+  "detokenize": [
+   "e800305"
+  ],
+  "fft": [
+   "e800305"
+  ],
+  "hzToMel": [
+   "e800305"
+  ],
+  "save": [
+   "e800305"
+  ],
+  "seedCenterPad": [
+   "e800305"
+  ],
+  "pcm16ToFloat": [
+   "e800305"
+  ],
+  "computeEmbedding": [
+   "e800305"
+  ],
+  "normalizeRows": [
+   "e800305"
+  ],
+  "setCommitSilenceMs": [
+   "e800305"
+  ],
+  "frameLogMel": [
+   "e800305"
+  ],
+  "buildMelFilterbank": [
+   "e800305"
+  ],
+  "loadVocab": [
+   "e800305"
+  ],
+  "melToHz": [
+   "e800305"
+  ],
+  "readMono16kFloat": [
+   "e800305"
+  ]
+ }
+}

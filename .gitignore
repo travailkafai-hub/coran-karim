@@ -59,9 +59,37 @@ scratch_screens/
 .DS_Store
 Thumbs.db
 
-# Sortie generee par graphify (graphe de connaissance) — jamais versionnee
-graphify-out/
-**/graphify-out/
+# Sortie generee par graphify (graphe de connaissance).
+#
+# REVISION 2026-07-30 (decision utilisateur). La regle etait « jamais
+# versionnee » tant que le graphe etait un artefact jetable. Il ne l'est plus :
+# il encode les 184 commits, les diffs reels des 91 qui touchent la chaine, et
+# surtout les 14 pistes MORTES avec la mesure qui les tue. Le perdre, c'est
+# repayer ces mesures -- exactement ce qui est arrive NEUF fois
+# (piege_9_versions_perdues). Et il ne se regenere pas d'un bouton : sa couche
+# semantique a ete ecrite a la main, pas derivee du code.
+#
+# On versionne donc le DURABLE et on ignore le REGENERABLE :
+graphify-out/*
+# (pas de `**/graphify-out/*` ici : la negation `!graphify-out/...` ci-dessous
+#  ne peut pas contrebalancer un motif plus general qui matche aussi le fichier.
+#  Les graphes d'autres sous-dossiers restent couverts par la ligne suivante.)
+*/**/graphify-out/*
+# (PIEGE : gitignore n'admet PAS de commentaire en fin de ligne -- le texte
+#  serait lu comme faisant partie du motif, et la negation ne matcherait plus
+#  rien. Un commentaire = une ligne a lui seul.)
+# le graphe lui-meme
+!graphify-out/graph.json
+# ancien graphe couvrant toute l'app, jamais ecrase (regle projet)
+!graphify-out/graph_ancien_tout_app.json
+!graphify-out/GRAPH_REPORT.md
+!graphify-out/manifest.json
+!graphify-out/git_history_all_branches.md
+!graphify-out/git_recitation_chain_diffs.md
+!graphify-out/git_versions_summary.md
+# Restent ignores : cache/ et graph.html (regenerables depuis le .json), et
+# graph_avant_v2.json -- une fois graph.json versionne, c'est git qui garde
+# l'etat precedent, en mieux.
 benchmark/.timings_cache/
 benchmark/word_timings_ref.json
 benchmark/recettes/
