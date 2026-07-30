@@ -185,6 +185,60 @@ class ChaineRecitationTest {
         assertTrue("aucun mot repete ne doit devenir rouge, rouges = $rouges", rouges.isEmpty())
     }
 
+    /**
+     * SOCLE n°1 — la fonction meme de l'app. Un palliatif allant dans l'autre
+     * sens a deja ete ecrit puis refuse ([MORT] mort_relachement_proportion) :
+     * "un recitateur ne disant que la MOITIE d'un mot etait alors valide,
+     * precisement ce que l'app existe pour detecter".
+     *
+     * En v2 ce n'est pas une regle de jugement, c'est une consequence : un
+     * fragment ne peut pas etre INTERIEUR a une fenetre avec ses deux marges,
+     * donc il ne vote pas ; et la ou il vote, l'alignement doit expliquer les
+     * tokens manquants avec des frames qui ne les contiennent pas.
+     */
+    @Test
+    fun `un mot dit a MOITIE ne passe jamais vert`() {
+        val tronque = texte.toMutableList()
+        tronque[6] = "st" // il ne dit que "st" au lieu de "stu"
+        val piecesEtendues = Synthese.vocabulaire(texte + tronque)
+        val blank2 = piecesEtendues.size
+        val tok2 = Synthese.tokeniseur(piecesEtendues)
+        val c = ChaineRecitation(
+            front = FauxFront(piecesEtendues),
+            tokeniser = tok2,
+            constructeur = ConstructeurDeFenetres(6.0, 1.5, 2.0),
+            localisateur = Localisateur(piecesEtendues, blank2),
+            aligneur = AligneurForce(piecesEtendues, blank2),
+            decideur = Decideur(),
+        ).also { it.definirTexte(texte) }
+
+        jouer(c, avecQueue(Synthese.pcm(tronque, tok2, blank2, 3, 3)))
+
+        val s = c.statuts[6]
+        assertFalse(
+            "le mot dit a moitie ne doit JAMAIS etre vert (statut=$s)\n${c.tracerMot(6)}",
+            s is Statut.Definitif && s.couleur == Couleur.VERT
+        )
+    }
+
+    /**
+     * SOCLE n°1 — "aucun rouge sans preuve". Un mot que le recitateur saute
+     * n'est pas une faute de prononciation : il n'y a AUCUNE preuve acoustique
+     * a son sujet. Il doit ressortir `Omis`, jamais `Definitif(ROUGE)`.
+     */
+    @Test
+    fun `un mot saute ressort OMIS et jamais ROUGE`() {
+        val c = chaine()
+        val prononce = texte.toMutableList().also { it.removeAt(5) } // il saute le mot 5
+        jouer(c, avecQueue(Synthese.pcm(prononce, tok, blank, 3, 3)))
+
+        val s = c.statuts[5]
+        assertFalse(
+            "un mot saute ne doit pas etre condamne (statut=$s)\n${c.tracerMot(5)}",
+            s is Statut.Definitif && s.couleur == Couleur.ROUGE
+        )
+    }
+
     @Test
     fun `aucun audio n'est detruit - toute preuve reste reextractible`() {
         val brut = FluxBrut(secondesEnMemoire = 120)

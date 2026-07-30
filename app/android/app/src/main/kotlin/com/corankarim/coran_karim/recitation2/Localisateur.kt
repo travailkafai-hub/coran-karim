@@ -48,8 +48,18 @@ class Localisateur(
      * @param confiance appariements / mots entendus, dans [0,1]
      * @param recul vrai si la bande part EN ARRIERE du dernier mot verrouille
      *   (le recitateur repete) — journalise, jamais silencieux.
+     * @param attestes index de mot attendu -> plage de frames ou le DECODAGE
+     *   LIBRE l'a effectivement entendu. C'est la seule preuve positive qu'un
+     *   mot a ete PRONONCE ; l'alignement force, lui, place toujours tous les
+     *   mots qu'on lui donne, prononces ou non.
      */
-    data class Bande(val i0: Int, val i1: Int, val confiance: Float, val recul: Boolean)
+    data class Bande(
+        val i0: Int,
+        val i1: Int,
+        val confiance: Float,
+        val recul: Boolean,
+        val attestes: Map<Int, IntRange>,
+    )
 
     fun localiser(
         logprobs: Array<FloatArray>,
@@ -57,10 +67,11 @@ class Localisateur(
         dernierVerrouille: Int,
     ): Bande? {
         if (motsAttendus.isEmpty() || logprobs.isEmpty()) return null
-        val entendus = Decodage.mots(logprobs, pieces, blank)
-            .map { NormalisationComparaison.normaliser(it) }
-            .filter { it.isNotEmpty() }
-        if (entendus.isEmpty()) return null
+        val entendusAvecFrames = Decodage.motsAvecFrames(logprobs, pieces, blank)
+            .map { it to NormalisationComparaison.normaliser(it.texte) }
+            .filter { it.second.isNotEmpty() }
+        if (entendusAvecFrames.isEmpty()) return null
+        val entendus = entendusAvecFrames.map { it.second }
 
         val attendus = motsAttendus.map { NormalisationComparaison.normaliser(it) }
         val depart = (dernierVerrouille + 1).coerceIn(0, motsAttendus.size - 1)
@@ -71,9 +82,10 @@ class Localisateur(
         var meilleurScore = 0
         var meilleurFin = -1
         var meilleureDistance = Int.MAX_VALUE
+        var meilleursAttestes: Map<Int, IntRange> = emptyMap()
 
         for (s in min..max) {
-            val (score, fin) = apparier(entendus, attendus, s)
+            val (score, fin, attestes) = apparier(entendus, attendus, s, entendusAvecFrames)
             if (score < minAppariements) continue
             val distance = kotlin.math.abs(s - depart)
             // Depart le mieux apparie ; a egalite, le plus proche de la position
@@ -86,6 +98,7 @@ class Localisateur(
                 meilleurDebut = s
                 meilleurFin = fin
                 meilleureDistance = distance
+                meilleursAttestes = attestes
             }
         }
         if (meilleurDebut < 0) return null
@@ -96,6 +109,7 @@ class Localisateur(
             i1 = maxOf(i1, meilleurDebut),
             confiance = meilleurScore.toFloat() / entendus.size,
             recul = meilleurDebut < depart,
+            attestes = meilleursAttestes,
         )
     }
 
@@ -104,14 +118,21 @@ class Localisateur(
      * dans `attendus` a partir de [depart], en autorisant des sauts des deux
      * cotes (le modele peut avaler un mot, le recitateur peut en ajouter un).
      *
-     * @return (nombre d'appariements, index attendu du dernier apparie)
+     * @return (nombre d'appariements, index attendu du dernier apparie,
+     *   index attendu -> plage de frames ou il a ete entendu)
      */
-    private fun apparier(entendus: List<String>, attendus: List<String>, depart: Int): Pair<Int, Int> {
+    private fun apparier(
+        entendus: List<String>,
+        attendus: List<String>,
+        depart: Int,
+        avecFrames: List<Pair<Decodage.MotEntendu, String>>,
+    ): Triple<Int, Int, Map<Int, IntRange>> {
         var i = depart
         var score = 0
         var dernier = depart
         var sautsEntendus = 0
-        for (mot in entendus) {
+        val attestes = HashMap<Int, IntRange>()
+        for ((rang, mot) in entendus.withIndex()) {
             var trouve = -1
             var j = i
             val limite = minOf(attendus.size - 1, i + 2) // un mot attendu saute au plus 2 fois
@@ -124,12 +145,14 @@ class Localisateur(
                 dernier = trouve
                 i = trouve + 1
                 sautsEntendus = 0
+                val f = avecFrames[rang].first
+                attestes[trouve] = f.premiereFrame..f.derniereFrame
             } else {
                 sautsEntendus++
                 if (sautsEntendus > 3) break // le decodage a decroche du texte attendu
             }
         }
-        return score to dernier
+        return Triple(score, dernier, attestes)
     }
 
     /** Egalite exacte apres normalisation, ou prefixe long (>= 3 lettres) —

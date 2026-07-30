@@ -43,6 +43,55 @@ object Decodage {
     fun mots(logprobs: Array<FloatArray>, pieces: List<String>, blank: Int): List<String> =
         texte(logprobs, pieces, blank).split(' ').filter { it.isNotBlank() }
 
+    /** Un mot entendu, AVEC les frames ou il a ete emis. */
+    data class MotEntendu(val texte: String, val premiereFrame: Int, val derniereFrame: Int)
+
+    /**
+     * Mots entendus et leur position en frames.
+     *
+     * Les frames sont indispensables : c'est avec elles qu'on sait quel audio
+     * est deja REVENDIQUE par un mot attendu, donc quel audio reste libre. Sans
+     * cette information, l'alignement force place un mot ABSENT sur les frames
+     * de son voisin et produit un verdict rouge sur un audio qui ne le contient
+     * pas — defaut trouve par le banc le 2026-07-30.
+     */
+    fun motsAvecFrames(
+        logprobs: Array<FloatArray>,
+        pieces: List<String>,
+        blank: Int,
+    ): List<MotEntendu> {
+        val out = ArrayList<MotEntendu>()
+        val courant = StringBuilder()
+        var debut = -1
+        var fin = -1
+        var prec = -1
+        for (t in logprobs.indices) {
+            val m = argmax(logprobs[t])
+            if (m != prec && m != blank && m < pieces.size) {
+                val piece = pieces[m]
+                if (piece.startsWith("▁")) {
+                    if (courant.isNotEmpty()) out.add(MotEntendu(courant.toString(), debut, fin))
+                    courant.setLength(0)
+                    courant.append(piece.removePrefix("▁"))
+                    debut = t
+                } else {
+                    if (courant.isEmpty()) debut = t
+                    courant.append(piece)
+                }
+            }
+            // La plage doit couvrir la REPETITION du token, pas seulement la
+            // frame de son emission. Sans ca, la fin d'un mot est sous-estimee
+            // de toute la duree de son dernier token — et l'audio qu'il occupe
+            // reellement apparait comme "libre", ce qui redonne un creneau
+            // fictif au mot suivant (defaut trouve en instrumentant le banc le
+            // 2026-07-30 : un mot saute restait juge rouge).
+            if (m != blank && m < pieces.size && courant.isNotEmpty()) fin = t
+            prec = m
+        }
+        if (courant.isNotEmpty()) out.add(MotEntendu(courant.toString(), debut, fin))
+        return out.filter { it.texte.isNotBlank() }
+    }
+
     fun argmax(frame: FloatArray): Int {
         var best = 0
         var v = frame[0]

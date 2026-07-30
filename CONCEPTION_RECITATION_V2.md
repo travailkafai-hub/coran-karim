@@ -428,6 +428,45 @@ Ils sont listés ici pour être **arbitrés**, pas assumés.
 
 ---
 
+---
+
+## Journal — ce que le banc a trouvé, et que la conception n'avait pas vu
+
+Écrit au fil de l'implémentation (2026-07-30). **Aucun de ces trois défauts
+n'avait été anticipé** ; tous ont été trouvés par un test JVM en quelques
+secondes, avant tout déploiement. C'est le retour sur investissement direct de
+l'invariant n°2 (pureté des couches ⇒ le banc appelle le code de l'app).
+
+| # | ce que le banc a montré | où le défaut NAÎT | traitement |
+|---|---|---|---|
+| 1 | le **tout premier mot** d'une session n'était jamais intérieur, donc jamais verrouillé, donc déclaré `Omis` — alors qu'il était parfaitement aligné (gop 0,00 sur trois fenêtres) | couche E : la marge gauche écarte une **troncature**, pas un **bord**. Au début de session il n'y a rien à tronquer | `bordGaucheEstDebutDeSession` : la marge gauche ne s'applique pas au vrai début de l'audio |
+| 2 | les **2-3 derniers mots** n'obtenaient jamais leur 2ᵉ preuve | couche B : la grille de fenêtres est pilotée par la **croissance** du flux de travail, et le portier gelait ce flux 0,3 s après le dernier mot | le silence conservé n'est pas un réglage : c'est `lookahead + pas` = **2,6 s**, dérivé. Plus `terminer()`, qui émet une dernière fenêtre hors grille quand le récitateur se tait |
+| 3 | un mot que le récitateur **saute** ressortait `Definitif(ROUGE)`, avec `gop = −11,99` et **`free = −0,01`** | couche E : la DP est obligée de placer tous les mots qu'on lui donne. Elle avait volé 3 frames au voisin | `sansCreneau` : on compare la plage alignée du mot à l'audio laissé **libre** par ses voisins attestés au décodage libre. Géométrie, pas seuil |
+
+Le défaut n°3 est le plus grave des trois : c'est le socle n°1 (« dire vrai »)
+qui tombait — un rouge définitif sur un audio qui ne contient pas le mot. Il est
+aussi la démonstration exacte du `[PIEGE] gop_vs_free` du graphe : *un gop
+effondré avec un free proche de 0 signifie mauvaise **position**, pas mauvaise
+prononciation*. La v1 traitait ce cas par des rustines de jugement ; ici il est
+traité par la géométrie des créneaux, en amont du jugement.
+
+Un quatrième défaut a été trouvé **dans le banc lui-même** : relire le registre
+de preuves avec un `Decideur` neuf ne reproduit pas ce qu'a vu l'utilisateur (la
+couche G est *stateful* par contrat — un définitif ne bouge plus). Un mot
+verrouillé VERT ressortait « rouge provisoire » à la relecture. Les tests lisent
+désormais `ChaineRecitation.statuts`, jamais un décideur rejoué.
+
+### État de la mesure
+
+| niveau du socle | mesuré ? | comment |
+|---|---|---|
+| 1 — dire vrai | **oui**, hors device | 21 tests JVM : pas de verdict sans preuve intérieure, monotonie, demi-mot jamais vert, mot sauté jamais rouge |
+| 2 — suivre | **oui**, hors device | ancre max, ≥ 2 fenêtres intérieures par mot, récitateur qui répète, audio jamais détruit |
+| 3 — streaming | **partiellement** | le calendrier de verrouillage est vérifié **constant** ; le coût d'inférence réel reste **non mesuré** (il faut le device) |
+| 4 — taux | **non** | rien n'a encore tourné sur audio réel ni sur téléphone |
+
+---
+
 ## Ce que j'attends comme arbitrage
 
 | # | question | ma recommandation |

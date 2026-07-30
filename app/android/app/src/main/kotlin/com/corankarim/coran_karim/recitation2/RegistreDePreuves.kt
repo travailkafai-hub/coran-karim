@@ -43,8 +43,13 @@ class RegistreDePreuves {
         val free: Float,
         val entendu: String,
         val frames: Int,
+        /** A le droit de VOTER : entierement dans la fenetre, ET pose sur un
+         *  audio qui lui appartient (cf. [sansCreneau]). */
         val interieur: Boolean,
         val couvert: Boolean,
+        /** L'alignement force a du poser ce mot sur l'audio d'un voisin —
+         *  il n'a donc AUCUNE preuve acoustique propre. Cf. AligneurForce. */
+        val sansCreneau: Boolean = false,
         val fenetrePleine: Boolean,
         val debutAbs: Long,
         val finAbs: Long,

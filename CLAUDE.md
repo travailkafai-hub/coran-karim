@@ -50,6 +50,23 @@ ai marre de tes corrections qui cassent beaucoup de choses » — l'agent qui é
 un correctif est le plus mal placé pour en constater les dégâts, il cherche la
 confirmation de son hypothèse et non la régression qu'il vient d'introduire.
 Le superviseur est le contrôle **derrière** l'agent, pas devant.
+Il commence désormais par **interroger le graphe** (`GRAPHE_RECITATION.md`) :
+un mécanisme déjà mesuré perdant (`[MORT]`) réintroduit sans cause nouvelle
+**nommée** est un refus bloquant, comme un correctif dont le graphe dit que le
+symptôme naît dans une couche plus haute (palliatif).
+
+Le hook `.claude/hooks/exige-superviseur.py` rend l'obligation réelle en
+bloquant le gel de version tant qu'aucune **preuve** ne date d'après la
+modification. Deux natures de preuve depuis le 2026-07-30 :
+- fichier de la chaîne **live** (celle qui peint l'écran) → **recette à deux
+  téléphones**, comme avant ;
+- fichier **non branché** (`recitation2/`, bancs) → **tests JVM au vert**. Le
+  hook a été écrit pendant la phase où l'on retouchait sans fin une chaîne déjà
+  branchée ; exiger une recette d'un code que rien n'appelle n'ajoute aucune
+  sécurité et pousse à accumuler du travail non commité — précisément ce qui a
+  fait perdre neuf versions mesurées, dont la meilleure du projet.
+  ⚠️ Le jour où la v2 est branchée à l'écran, elle sort de `HORS_LIGNE` et
+  repasse à la recette.
 
 Banc de recette à deux téléphones : `./benchmark/recette_2tel.sh <sourate>
 <durée>` (une commande, aucun tap). Les téléphones sont sur un autre poste :

@@ -74,7 +74,13 @@ class DiagnosticLog {
   /// rappeler le binaire, sinon un log tiré hors contexte ne dit plus lequel.
   static String get buildTag => _kBuildTag;
 
-  static const String _kBuildTag = 'v24-log-trio-secours';
+  // Binaire de la branche `recitation-v2` : base v24 (e735f99) + le coeur de la
+  // chaine v2 COMPILE MAIS NON BRANCHE (package recitation2, accessible par le
+  // seul banc `v2AnalyserWav`). La chaine qui peint l'ecran est donc toujours
+  // la v1, a l'identique -- ce tag sert precisement a le prouver : une mesure
+  // sous ce tag doit reproduire la v24, sinon l'ajout du code v2 a eu un effet
+  // qu'il ne devait pas avoir.
+  static const String _kBuildTag = 'v24-base-v2-non-branchee';
   static const String _kBuildTimestamp =
       String.fromEnvironment('BUILD_TS', defaultValue: '');
 

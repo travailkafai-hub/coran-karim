@@ -533,6 +533,95 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // Interrupteur du diagnostic natif (cf. DiagnosticLog.enabled).
             // Pilote par le meme reglage utilisateur que le cote Dart, pour que
             // "diagnostic desactive" veuille dire la MEME chose des deux cotes.
+            // ── CHAINE v2 (package recitation2) — BANC SUR AUDIO REEL ────────
+            // Rejoue un WAV complet dans la chaine v2, bloc de 80 ms par bloc de
+            // 80 ms, avec le VRAI modele. C'est le banc 1/2/4 de
+            // CONCEPTION_RECITATION_V2.md, et il n'existe qu'ici : reimplementer
+            // la politique de fenetrage en Python a produit, deux jours de suite,
+            // des predictions confiantes et fausses ("le banc mesurait mon
+            // decoupage, pas l'app"). Ici le banc APPELLE le code de l'app.
+            //
+            // Ne touche a rien du chemin v1 : aucun etat partage, aucune
+            // instance commune. Les deux chaines peuvent coexister le temps de
+            // la comparaison a WAV identique.
+            "v2AnalyserWav" -> scope.launch {
+                try {
+                    val moteur = engine
+                    if (moteur == null) {
+                        withContext(Dispatchers.Main) {
+                            result.error("NOT_LOADED", "loadModel() n'a pas ete appele", null)
+                        }
+                        return@launch
+                    }
+                    val wavPath = call.argument<String>("wavPath")!!
+                    val mots = call.argument<List<String>>("mots")!!
+                    val fenetreS = call.argument<Double>("fenetreSecondes") ?: 6.0
+                    val pasS = call.argument<Double>("pasSecondes") ?: 1.5
+
+                    // Tokenizer LOCAL, jamais l'instance partagee `tokenizer` :
+                    // la v2 ne doit ecrire aucun etat lu par la v1, sinon la
+                    // comparaison a WAV identique (banc 4) mesurerait les deux
+                    // chaines en interaction. Meme construction, meme
+                    // dictionnaire precalcule -- seule la duree de vie change.
+                    val tk = CtcTokenizer(moteur.vocabPieces, wordTokenLookup)
+                    val journal = ArrayList<String>()
+                    val chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
+                        front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
+                        tokeniser = { mot -> tk.tokenizeWord(mot) },
+                        constructeur = com.corankarim.coran_karim.recitation2
+                            .ConstructeurDeFenetres(fenetreSecondes = fenetreS, pasSecondes = pasS),
+                        localisateur = com.corankarim.coran_karim.recitation2
+                            .Localisateur(moteur.vocabPieces, moteur.blank),
+                        aligneur = com.corankarim.coran_karim.recitation2
+                            .AligneurForce(moteur.vocabPieces, moteur.blank),
+                        journal = { l -> journal.add(l) },
+                    )
+                    chaine.definirTexte(mots)
+
+                    val pcm = WavReader.readMono16kFloat(wavPath)
+                    val bloc = com.corankarim.coran_karim.recitation2.Horloge.ECH_PAR_FRAME
+                    val debut = System.currentTimeMillis()
+                    var i = 0
+                    while (i < pcm.size) {
+                        val fin = minOf(i + bloc, pcm.size)
+                        chaine.alimenter(pcm.copyOfRange(i, fin))
+                        i = fin
+                    }
+                    chaine.terminer()
+                    val duree = System.currentTimeMillis() - debut
+
+                    val statuts = chaine.statuts
+                    val motsSortie = mots.indices.map { idx ->
+                        val obs = chaine.preuves.observations(idx)
+                        mapOf(
+                            "i" to idx,
+                            "mot" to mots[idx],
+                            "statut" to nomStatut(statuts[idx]),
+                            "observations" to obs.size,
+                            "interieures" to obs.count { it.interieur },
+                            "gop" to (obs.lastOrNull { it.interieur }?.gop?.toDouble()),
+                            "free" to (obs.lastOrNull { it.interieur }?.free?.toDouble()),
+                            "forced" to (obs.lastOrNull { it.interieur }?.forced?.toDouble()),
+                            "entendu" to (obs.lastOrNull { it.interieur }?.entendu ?: ""),
+                        )
+                    }
+                    val payload = mapOf(
+                        "dureeAudioMs" to (pcm.size * 1000L / 16000),
+                        "dureeCalculMs" to duree,
+                        "indexMaxVotant" to chaine.preuves.indexMaxVotant(),
+                        "observations" to chaine.preuves.total(),
+                        "mots" to motsSortie,
+                        "journal" to journal,
+                    )
+                    DiagnosticLog.log(TAG, "[v2] banc WAV : ${pcm.size / 16000}s audio, " +
+                        "${duree}ms calcul, ancre max ${chaine.preuves.indexMaxVotant()}")
+                    withContext(Dispatchers.Main) { result.success(payload) }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        result.error("V2_WAV_FAILED", e.message, null)
+                    }
+                }
+            }
             "setLogEnabled" -> {
                 DiagnosticLog.enabled = call.argument<Boolean>("enabled") ?: true
                 result.success(null)
@@ -614,6 +703,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         return words.map { w ->
             ConfusableVariants.variantsOf(w).map { v -> v to tok.tokenizeVariantQuiet(v) }
         }
+    }
+
+    /** Nom lisible d'un statut v2 pour le payload Dart. `null` = jamais observe
+     *  — c'est une reponse legitime, pas une erreur (aucun verdict par defaut). */
+    private fun nomStatut(s: com.corankarim.coran_karim.recitation2.Statut?): String = when (s) {
+        null, is com.corankarim.coran_karim.recitation2.Statut.Inconnu -> "inconnu"
+        is com.corankarim.coran_karim.recitation2.Statut.Provisoire ->
+            "provisoire:${s.couleur.name.lowercase()}"
+        is com.corankarim.coran_karim.recitation2.Statut.Definitif ->
+            "definitif:${s.couleur.name.lowercase()}"
+        is com.corankarim.coran_karim.recitation2.Statut.Omis -> "omis"
     }
 
     /** PCM16 little-endian (format `AudioEncoder.pcm16bits` du package `record`) -> float [-1,1]. */

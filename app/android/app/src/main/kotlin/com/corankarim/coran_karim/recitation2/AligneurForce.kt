@@ -67,6 +67,27 @@ class AligneurForce(
         val entendu: String,
         val interieur: Boolean,
         val couvert: Boolean,
+        /**
+         * Le mot n'a PAS DE CRENEAU : l'alignement force a du le poser sur de
+         * l'audio deja revendique par un mot voisin reellement entendu.
+         *
+         * Ce champ existe a cause d'un defaut trouve par le banc le 2026-07-30 :
+         * un mot que le recitateur SAUTE ressortait `Definitif(ROUGE)` avec
+         * `gop = -11,99` et `free = -0,01`. Le modele etait CERTAIN de ce qu'il
+         * entendait ; c'est juste que le mot n'y etait pas. La DP est obligee de
+         * placer tous les mots qu'on lui donne : elle avait vole 3 frames au
+         * voisin. Un rouge sur un audio qui ne contient pas le mot viole la
+         * regle projet "aucun verdict sans preuve acoustique", et c'est le plus
+         * grave des defauts possibles (l'app dit FAUX).
+         *
+         * Le discriminant n'est pas un seuil : c'est une GEOMETRIE. Un mot
+         * reellement saute n'a pas de place entre ses voisins entendus ; un mot
+         * SUBSTITUE, lui, occupe un vrai creneau — le recitateur y a dit quelque
+         * chose. On compare donc la plage alignee du mot a l'audio laisse libre
+         * par ses voisins attestes au decodage LIBRE. Aucune duree de reference,
+         * aucune tolerance.
+         */
+        val sansCreneau: Boolean,
     )
 
     data class Resultat(
@@ -95,6 +116,7 @@ class AligneurForce(
         tokensParMot: List<IntArray>,
         indexPremierMot: Int,
         bordGaucheEstDebutDeSession: Boolean = false,
+        attestes: Map<Int, IntRange> = emptyMap(),
     ): Resultat? {
         val t = logprobs.size
         if (t == 0 || tokensParMot.isEmpty()) return null
@@ -179,6 +201,13 @@ class AligneurForce(
             val interieur = n > 0 &&
                 premiere[w] >= margeG &&
                 derniere[w] <= t - 1 - margeDroiteFrames
+            val sansCreneau = n > 0 && sansCreneau(
+                indexAbsolu = indexPremierMot + w,
+                premiere = premiere[w],
+                derniere = derniere[w],
+                attestes = attestes,
+                nbFrames = t,
+            )
             out.add(
                 MotAligne(
                     index = indexPremierMot + w,
@@ -193,10 +222,41 @@ class AligneurForce(
                     } else "",
                     interieur = interieur,
                     couvert = n >= framesMinimales(listOf(mots[w])),
+                    sansCreneau = sansCreneau,
                 )
             )
         }
         return Resultat(out, tronquee)
+    }
+
+    /**
+     * Le mot a-t-il eu un creneau a lui ?
+     *
+     * Un mot ATTESTE par le decodage libre en a un par definition. Sinon, on
+     * regarde l'audio laisse libre entre son voisin atteste de gauche et celui
+     * de droite : si la plage que la DP lui a attribuee deborde de cet
+     * intervalle, c'est qu'elle a pris des frames appartenant a un mot
+     * reellement entendu — le mot n'a pas ete prononce ici, il a ete POSE ici.
+     *
+     * Sans voisin atteste d'un cote, on ne conclut pas (retourne false) :
+     * l'absence d'information n'est pas une preuve, dans un sens comme dans
+     * l'autre.
+     */
+    private fun sansCreneau(
+        indexAbsolu: Int,
+        premiere: Int,
+        derniere: Int,
+        attestes: Map<Int, IntRange>,
+        nbFrames: Int,
+    ): Boolean {
+        if (attestes.isEmpty()) return false
+        if (attestes.containsKey(indexAbsolu)) return false
+        val gauche = attestes.filterKeys { it < indexAbsolu }.maxByOrNull { it.key }
+        val droite = attestes.filterKeys { it > indexAbsolu }.minByOrNull { it.key }
+        if (gauche == null && droite == null) return false
+        val borneG = gauche?.value?.last ?: -1
+        val borneD = droite?.value?.first ?: nbFrames
+        return premiere <= borneG || derniere >= borneD
     }
 
     /**

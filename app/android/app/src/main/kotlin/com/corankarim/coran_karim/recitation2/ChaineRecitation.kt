@@ -124,6 +124,7 @@ class ChaineRecitation(
         val res = aligneur.aligner(
             logprobs, tokens, bande.i0,
             bordGaucheEstDebutDeSession = fenetre.travailDebut == 0L,
+            attestes = bande.attestes,
         ) ?: return
 
         for (m in res.mots) {
@@ -138,8 +139,9 @@ class ChaineRecitation(
                     free = m.free,
                     entendu = m.entendu,
                     frames = m.frames,
-                    interieur = m.interieur,
+                    interieur = m.interieur && !m.sansCreneau,
                     couvert = m.couvert,
+                    sansCreneau = m.sansCreneau,
                     fenetrePleine = fenetre.pleine,
                     debutAbs = debutAbs,
                     finAbs = finAbs,

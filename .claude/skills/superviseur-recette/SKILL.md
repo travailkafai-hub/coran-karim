@@ -1,6 +1,6 @@
 ---
 name: superviseur-recette
-description: Superviseur de développement — passe DERRIÈRE l'agent après toute modification de la chaîne de récitation pour vérifier que le socle tient : le récitateur récite, l'app contrôle en streaming et dit vrai. Porte la vision globale que l'agent perd quand il corrige un défaut précis. À relancer systématiquement après chaque correctif, sans attendre qu'on le demande.
+description: Superviseur de développement — passe DERRIÈRE l'agent après toute modification de la chaîne de récitation pour vérifier que le socle tient : le récitateur récite, l'app contrôle en streaming et dit vrai. Interroge d'abord le GRAPHE (pistes [MORT], [PIEGE], couche où le symptôme naît, couplage invisible entre commits) avant de lire le diff. Porte la vision globale que l'agent perd quand il corrige un défaut précis. À relancer systématiquement après chaque correctif, sans attendre qu'on le demande.
 ---
 
 # Superviseur — le socle, c'est réciter et contrôler
@@ -104,6 +104,81 @@ niveau supérieur est un faux gain, à rejeter sans discussion.
 
 ## COMMENT SUPERVISER
 
+### a0) INTERROGER LE GRAPHE — le tout premier geste, avant de lire le diff
+
+*Ajouté le 2026-07-30 : ce skill a été écrit AVANT que le graphe existe. Sans
+cette étape, le superviseur ne pouvait vérifier qu'une chose — que le correctif
+ne casse rien **aujourd'hui**. Il ne pouvait pas voir qu'il avait déjà été
+mesuré perdant **hier**.*
+
+Le graphe (`GRAPHE_RECITATION.md`, `graphify-out/graph.json`) encode
+**184 commits, les diffs réels des 91 qui touchent cette chaîne, et 63 corps de
+message portant des mesures chiffrées**. C'est la seule source du projet qui
+dise ce qui a été *mesuré*, pas ce qui a été *espéré*.
+
+**Trois questions, dans cet ordre, sur CHAQUE mécanisme introduit ou retiré :**
+
+```bash
+graphify query "MORT <le mécanisme introduit>"      # a-t-il déjà été mesuré perdant ?
+graphify query "PIEGE <la couche touchée>"          # erreur déjà commise ici ?
+graphify query "SYMPTOME <le défaut corrigé>"       # dans quelle couche NAÎT-il ?
+graphify path "<la variable touchée>" "⑥ Jugement et affichage (Dart)"
+```
+
+⚠️ **La traversée apparie sur le vocabulaire des libellés** : une question posée
+avec des mots absents du graphe remonte du bruit, ce qui se lit à tort comme
+« rien de connu là-dessus ». Quand le sujet est un mécanisme et non une phrase,
+la lecture **exhaustive** est plus sûre et coûte deux secondes :
+
+```bash
+python3 - <<'EOF'
+import json
+g = json.load(open('graphify-out/graph.json'))
+for n in g['nodes']:
+    if n['label'].startswith(('[MORT]', '[PIEGE]', '[SYMPTOME]', '[EN ATTENTE]')):
+        print(n['label'], '\n   ', n.get('rationale'), '\n')
+EOF
+```
+
+**Ce que le superviseur en fait — trois verdicts possibles :**
+
+| ce que le graphe dit | verdict |
+|---|---|
+| le mécanisme est un nœud `[MORT]` | **BLOQUANT.** Le correctif est refusé, sauf si l'agent produit une **cause nouvelle** (autre modèle, autre régime) et la nomme. « Cette fois c'est différent » n'est pas une cause nouvelle. |
+| le symptôme corrigé NAÎT dans une couche plus haute que celle modifiée | **BLOQUANT** — c'est la définition d'un palliatif (règle projet). |
+| le mécanisme est `[EN ATTENTE]` | recevable : citer le commit et ce que sa mesure disait, et dire ce qui a changé depuis. |
+
+**Vérifier aussi le couplage invisible**, la question qui a motivé la
+construction du graphe (*« entre plusieurs commits il y a parfois le même
+fonctionnement, et une petite fonctionnalité ou variable qui touche à plusieurs
+couches »*) : les arêtes `commit ↔ commit` (`semantically_similar_to`, 843
+arêtes) relient **deux commits qui touchent le même symbole même si rien ne le
+dit**. C'est ce couplage-là qui produit les régressions en cascade.
+
+```bash
+python3 - <<'EOF'
+import json
+SYMB = "runAlignment"          # <- le symbole touché par le correctif
+g = json.load(open('graphify-out/graph.json'))
+lab = {n['id']: n['label'] for n in g['nodes']}
+for e in g['links']:
+    if SYMB in (e.get('source_location') or ''):
+        print(lab.get(e['source'], e['source']), '<->', lab.get(e['target'], e['target']))
+EOF
+```
+
+Les points chauds connus, à traiter comme des zones à risque **même si le diff
+paraît anodin** : `runAlignment` (réécrit **7×**), `OVERLAP_SECONDS` (**6×**),
+`computeLogProbs` (6×), `appendMergingOverlap` (5×), `MAX_SILENCE_SAMPLES` (4×),
+`RESYNC_ACTIF` (3×), `RIGHT_CONTEXT_SECONDS` (3×). Un code qui n'a jamais
+convergé en sept tentatives ne converge pas à la huitième par chance : exiger
+que le correctif dise **quelle classe de défauts il supprime**, pas quel cas il
+règle.
+
+**Après une mesure, le graphe se met à jour.** Une piste nouvellement réfutée
+qui ne devient pas un nœud `[MORT]` avec son chiffre sera repayée — c'est
+exactement ce qui est arrivé neuf fois (`piege_9_versions_perdues`).
+
 ### a) Revue du code — avant toute mesure
 
 1. **Relire le diff en entier**, pas seulement les lignes ajoutées.
@@ -165,6 +240,10 @@ Un correctif ne se juge jamais seul.
 
 ## CE QUE LE SUPERVISEUR REFUSE
 
+- **un mécanisme que le graphe porte déjà en `[MORT]`, réintroduit sans cause
+  nouvelle nommée** — c'est le refus n°1 depuis le 2026-07-30 ;
+- **un correctif dont le graphe dit que le symptôme naît dans une couche plus
+  haute** que celle touchée (palliatif) ;
 - un effet indistinguable de l'étendue du banc (±4 points) présenté comme un
   gain ;
 - un gain de taux accompagné d'une dégradation d'un niveau 1-2-3 ;
@@ -179,6 +258,8 @@ Un correctif ne se juge jamais seul.
 
 | ce qu'on se dit | la réalité |
 |---|---|
+| « le graphe ne dit rien là-dessus » | la traversée apparie sur le VOCABULAIRE des libellés : une question mal formulée remonte du bruit, jamais « rien ». Relire les nœuds à préfixe en entier avant de conclure |
+| « c'était mesuré sur l'ancien modèle, donc ça ne compte pas » | vrai parfois (avertissement §1.5 : les mesures pré-causal ne se transportent pas), mais c'est une CAUSE NOUVELLE à écrire, pas un droit de passage |
 | « le taux a baissé, c'est bon » | vérifier 1-2-3 d'abord : un taux qui baisse parce que des mots ont quitté le dénominateur est un faux gain |
 | « je n'ai touché qu'à l'aligneur » | le coach, les jeux et le tajwid partagent le découpage des mots |
 | « c'est un petit changement » | le plus gros dégât de la journée est venu d'un commit intitulé « Banc : … » |
