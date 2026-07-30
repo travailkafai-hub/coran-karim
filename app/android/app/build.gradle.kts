@@ -72,3 +72,15 @@ dependencies {
 flutter {
     source = "../.."
 }
+
+// Sorties des bancs (println) visibles dans la console : sans ca, un banc qui
+// tourne 20 s ne rend aucun chiffre et il faut passer par les fichiers XML.
+tasks.withType<Test> {
+    testLogging { showStandardStreams = true }
+    // Les workers de test ne HERITENT PAS des -D de la ligne de commande : sans
+    // ce relais, un balayage de parametres rend trois fois le meme chiffre et
+    // on croit que le parametre n'a aucun effet. Piege paye le 2026-07-30.
+    for (k in listOf("pauseMin", "maxBloc", "fusion")) {
+        System.getProperty(k)?.let { systemProperty(k, it) }
+    }
+}

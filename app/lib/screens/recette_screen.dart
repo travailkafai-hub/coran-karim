@@ -6,6 +6,12 @@ import '../providers/player_provider.dart';
 import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
 import '../providers/recitation_provider.dart';
+import '../services/fastconformer_verifier.dart';
+// ArabicNormalizer vit dans recitation_verifier.dart : c'est le MEME
+// decoupage de mots que la v1, sinon les deux mesures porteraient sur des
+// cibles differentes et ne seraient pas comparables.
+import '../services/recitation_verifier.dart';
+import '../services/recitation_v2_bench.dart';
 import 'karaoke_recitation_screen.dart';
 
 /// Harnais de RECETTE — écran unique, pilotable par intent, pour le banc à deux
@@ -124,11 +130,61 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
         _ecouter();
       } else if (widget.mode == 'lecture') {
         _lire();
+      } else if (widget.mode == 'v2') {
+        _bancV2(v);
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _erreur = '$e');
       DiagnosticLog.log('RECETTE', 'chargement sourate ${widget.surah} echoue : $e');
+    }
+  }
+
+  /// BANC de la chaîne v2 sur un WAV réel (`--es recette v2 --es wav <chemin>`).
+  ///
+  /// Ne démarre AUCUNE capture et ne touche à rien de la v1 : on rejoue un
+  /// fichier dans la chaîne v2 avec le vrai modèle, et on écrit le compte rendu
+  /// dans le log de diagnostic. C'est la seule façon d'obtenir un chiffre v2
+  /// sur du vrai audio sans brancher la v2 à l'écran — donc sans pouvoir
+  /// dégrader ce que l'utilisateur voit.
+  ///
+  /// Le texte attendu est découpé par `ArabicNormalizer.splitExpectedWords`,
+  /// EXACTEMENT comme la v1 : sans ça les deux mesures porteraient sur des
+  /// cibles différentes et ne seraient pas comparables.
+  Future<void> _bancV2(List<Verse> verses) async {
+    final wav = widget.wav;
+    if (wav == null) {
+      DiagnosticLog.log('RECETTE-V2', 'aucun WAV fourni (--es wav <chemin>)');
+      return;
+    }
+    final mots = <String>[];
+    for (final v in verses) {
+      mots.addAll(ArabicNormalizer.splitExpectedWords(v.textUthmani));
+    }
+    DiagnosticLog.log('RECETTE-V2',
+        'cible=${mots.length} mots  wav=$wav');
+    final pret = await FastConformerVerifier().ensureLoaded();
+    if (!pret) {
+      DiagnosticLog.log('RECETTE-V2', 'modele non deploye : rien a mesurer');
+      return;
+    }
+    try {
+      final r = await RecitationV2Bench.analyserWav(wavPath: wav, mots: mots);
+      if (r == null) {
+        DiagnosticLog.log('RECETTE-V2', 'le banc n\'a rien rendu');
+        return;
+      }
+      for (final ligne in r.compteRendu.split('\n')) {
+        if (ligne.trim().isNotEmpty) DiagnosticLog.log('RECETTE-V2', ligne);
+      }
+      // Le journal par fenêtre : c'est lui qui dit POURQUOI, pas seulement ce
+      // que la chaîne a décidé — le manque exact relevé sur les logs v1.
+      for (final ligne in r.journal) {
+        DiagnosticLog.log('RECETTE-V2', ligne);
+      }
+      DiagnosticLog.log('RECETTE-V2', 'FIN DU BANC');
+    } catch (e) {
+      DiagnosticLog.log('RECETTE-V2', 'echec du banc : $e');
     }
   }
 

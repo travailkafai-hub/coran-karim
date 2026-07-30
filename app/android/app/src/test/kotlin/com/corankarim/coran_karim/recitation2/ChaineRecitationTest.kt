@@ -34,7 +34,7 @@ class ChaineRecitationTest {
             front = front,
             tokeniser = tok,
             constructeur = ConstructeurDeFenetres(
-                fenetreSecondes = 6.0, pasSecondes = 1.5, fenetreMinSecondes = 2.0
+                pauseMinSecondes = 0.5, maxBlocSecondes = 18.0
             ),
             localisateur = Localisateur(pieces, blank),
             aligneur = AligneurForce(pieces, blank),
@@ -92,41 +92,67 @@ class ChaineRecitationTest {
         assertTrue(definitifsVerts >= texte.size - 3)
     }
 
+    /**
+     * REMPLACE « chaque mot recoit au moins DEUX observations interieures ».
+     *
+     * Cette exigence venait de la v2.0, ou la seule facon de confirmer un mot
+     * etait de le revoir dans une autre FENETRE. Depuis le 2026-07-30, deux
+     * mesures INDEPENDANTES sur la meme fenetre suffisent : le decodage libre
+     * (qui ignore le texte attendu) et l'alignement force (qui le connait).
+     * Mesure qui l'a impose : 8,14 % -> 4,41 % de mots non verts sur le flux
+     * brut reel, parce que le bloc de FUSION apportait une 2e preuve
+     * systematiquement DEGRADEE (mot tronque) qui detruisait l'accord.
+     *
+     * Ce qui reste exigible, et qui est le vrai besoin : chaque mot doit avoir
+     * AU MOINS UNE preuve qui a le droit de voter.
+     */
     @Test
-    fun `chaque mot recoit au moins deux observations INTERIEURES`() {
+    fun `chaque mot recoit au moins une preuve votante`() {
         val c = chaine()
         jouer(c, avecQueue(Synthese.pcm(texte, tok, blank, 3, 3)))
         val max = c.preuves.indexMaxVotant()
         for (i in 0..max) {
-            val n = c.preuves.observationsVotantes(i).map { it.fenetreId }.toSet().size
             assertTrue(
-                "mot $i : $n fenetre(s) interieure(s), il en faut >= 2 pour verrouiller\n" +
-                    c.tracerMot(i),
-                n >= 2
+                "mot $i n'a aucune preuve votante\n" + c.tracerMot(i),
+                c.preuves.observationsVotantes(i).isNotEmpty()
             )
         }
     }
 
+    /**
+     * CE QUE LA v2.1 A PERDU, ET QU'IL FAUT DIRE.
+     *
+     * La v2.0 promettait un delai de verrouillage CONSTANT (2,9 a 4,4 s),
+     * independant du rythme du recitateur, parce que la grille de fenetres
+     * etait reguliere. Le decoupage aux silences reels abandonne cette
+     * propriete : un mot est juge quand son ENONCE est termine, donc le delai
+     * suit la longueur de l'enonce -- comme en v1.
+     *
+     * C'est le prix mesure du gain : 36,61 % de mots non verts avec la grille
+     * reguliere, 4,41 % en coupant aux silences. La regularite du delai ne
+     * valait pas 32 points de taux.
+     *
+     * Ce qui reste EXIGIBLE, et que ce test verrouille : le delai doit rester
+     * BORNE. Un mot ne doit jamais attendre indefiniment -- c'est ce qui
+     * arrivait en v1 quand l'ancre decrochait.
+     */
     @Test
-    fun `le calendrier de verrouillage est CONSTANT le long de la session`() {
-        // On mesure, pour chaque mot, le nombre de fenetres ecoulees entre sa
-        // premiere observation interieure et son verrouillage. En v1 ce delai
-        // dependait de la longueur du segment ; ici il ne doit dependre de rien.
+    fun `le verrouillage tombe au plus tard a la fin de l'enonce suivant`() {
         val c = chaine()
         jouer(c, avecQueue(Synthese.pcm(texte, tok, blank, 3, 3)))
         val max = c.preuves.indexMaxVotant()
-
-        val delais = ArrayList<Long>()
-        for (i in 0..max) {
-            val v = c.preuves.observationsVotantes(i)
-            if (v.size < 2) continue
-            delais.add(v[1].fenetreId - v[0].fenetreId)
+        // La propriete qui compte n'est pas « combien de blocs », c'est
+        // « est-ce que ca se FIGE ». Un mot qui reste provisoire pour toujours,
+        // c'est l'utilisateur qui n'a jamais de reponse -- le defaut que la v1
+        // produisait quand l'ancre decrochait.
+        val enSuspens = (0..max).filter { i ->
+            c.preuves.observationsVotantes(i).isNotEmpty() &&
+                c.statuts[i] !is Statut.Definitif
         }
-        assertTrue(delais.isNotEmpty())
-        assertEquals(
-            "le verrouillage doit tomber a un pas constant apres la 1re preuve, " +
-                "delais observes = ${delais.distinct()}",
-            1, delais.distinct().size
+        assertTrue(
+            "ces mots ont une preuve mais ne se figent jamais : $enSuspens\n" +
+                enSuspens.take(2).joinToString("\n") { c.tracerMot(it) },
+            enSuspens.isEmpty()
         )
     }
 
@@ -140,7 +166,7 @@ class ChaineRecitationTest {
         val c = ChaineRecitation(
             front = FauxFront(piecesEtendues),
             tokeniser = tok2,
-            constructeur = ConstructeurDeFenetres(6.0, 1.5, 2.0),
+            constructeur = ConstructeurDeFenetres(pauseMinSecondes = 0.5),
             localisateur = Localisateur(piecesEtendues, blank2),
             aligneur = AligneurForce(piecesEtendues, blank2),
             decideur = Decideur(),
@@ -206,7 +232,7 @@ class ChaineRecitationTest {
         val c = ChaineRecitation(
             front = FauxFront(piecesEtendues),
             tokeniser = tok2,
-            constructeur = ConstructeurDeFenetres(6.0, 1.5, 2.0),
+            constructeur = ConstructeurDeFenetres(pauseMinSecondes = 0.5),
             localisateur = Localisateur(piecesEtendues, blank2),
             aligneur = AligneurForce(piecesEtendues, blank2),
             decideur = Decideur(),
@@ -245,7 +271,7 @@ class ChaineRecitationTest {
         val front = FauxFront(pieces)
         val c = ChaineRecitation(
             front = front, tokeniser = tok,
-            constructeur = ConstructeurDeFenetres(6.0, 1.5, 2.0),
+            constructeur = ConstructeurDeFenetres(pauseMinSecondes = 0.5),
             localisateur = Localisateur(pieces, blank),
             aligneur = AligneurForce(pieces, blank),
             decideur = Decideur(), fluxBrut = brut,

@@ -142,6 +142,7 @@ class ChaineRecitation(
                     interieur = m.interieur && !m.sansCreneau,
                     couvert = m.couvert,
                     sansCreneau = m.sansCreneau,
+                    atteste = bande.attestes.containsKey(m.index),
                     fenetrePleine = fenetre.pleine,
                     debutAbs = debutAbs,
                     finAbs = finAbs,

@@ -3,26 +3,17 @@ package com.corankarim.coran_karim.recitation2
 import kotlin.math.sqrt
 
 /**
- * Correspondance entre l'horloge de TRAVAIL (audio effectivement donne au
- * modele, silence compresse) et l'horloge BRUTE (indices absolus de [FluxBrut]).
+ * Correspondance entre l'horloge de TRAVAIL et l'horloge BRUTE.
  *
- * Elle existe parce que le portier de silence est conserve — le desactiver est
- * [MORT] (WER 70,2 % contre 22,8 %) et lui rendre le silence n'aide pas
- * (mesure du 2026-07-28 : -2,8 pt EN FAVEUR du portier). Mais il ne DETRUIT
- * plus : ce qu'il ecarte est simplement absent du flux de travail, et cette
- * table dit exactement ou. Toute frame de logprobs est donc reconvertible en
- * position dans le flux brut, ou la preuve acoustique existe toujours.
- *
- * C'est la piste C du 2026-07-28 ("rendre le silence au 2e buffer : flux brut +
- * table de correspondance entre les deux horloges"), ecrite puis retiree avant
- * mesure, conservee a la demande de l'utilisateur.
+ * Depuis la v2.1 elle est l'IDENTITE : le flux de travail EST le flux brut,
+ * rien n'est ecarte (cf. [ConstructeurDeFenetres]). L'objet est conserve parce
+ * qu'il porte le contrat — toute frame de logprobs doit rester convertible en
+ * position dans le flux brut, ou la preuve acoustique existe. Le jour ou une
+ * couche recommencerait a jeter de l'audio, c'est ici que ca devrait se voir.
  */
 class Correspondance(private val segments: List<Segment>) {
-    /** Un morceau contigu d'audio garde : `longueur` echantillons a partir de
-     *  `travailDebut` cote travail, `absDebut` cote brut. */
     data class Segment(val travailDebut: Long, val absDebut: Long, val longueur: Int)
 
-    /** @return l'indice absolu correspondant a [travailIdx], ou -1 hors couverture. */
     fun versAbsolu(travailIdx: Long): Long {
         for (s in segments) {
             if (travailIdx >= s.travailDebut && travailIdx < s.travailDebut + s.longueur) {
@@ -46,14 +37,13 @@ class Correspondance(private val segments: List<Segment>) {
 }
 
 /**
- * Une fenetre d'analyse. Objet IMMUABLE : c'est l'unite d'entree des couches
- * pures C/D/E.
+ * Un bloc d'analyse. Objet IMMUABLE : l'unite d'entree des couches pures C/D/E.
  *
- * @param pleine vrai des que la fenetre a la duree nominale W. Les toutes
- *   premieres fenetres d'une session sont plus courtes (l'audio n'existe pas
- *   encore) — elles restent dans le domaine des clips d'entrainement, mais le
- *   registre de preuves garde l'information pour que rien ne se decide sur un
- *   regime different sans qu'on puisse le voir.
+ * @param pleine vrai si le bloc est delimite des DEUX cotes par un silence reel
+ *   du recitateur — c'est-a-dire s'il ressemble a un clip d'entrainement.
+ * @param fusion vrai si le bloc regroupe plusieurs enonces : c'est la 2e
+ *   observation, obtenue avec un contexte different, qui permet a la couche G
+ *   de confirmer sans compter deux fois la meme preuve.
  */
 data class Fenetre(
     val id: Long,
@@ -61,11 +51,11 @@ data class Fenetre(
     val echantillons: FloatArray,
     val correspondance: Correspondance,
     val pleine: Boolean,
+    val fusion: Boolean = false,
 ) {
     val travailFin: Long get() = travailDebut + echantillons.size
     val dureeSecondes: Double get() = echantillons.size.toDouble() / Horloge.TAUX
 
-    /** Indice absolu (flux brut) de la frame de logprobs [frame]. */
     fun absoluDeFrame(frame: Int): Long =
         correspondance.versAbsolu(travailDebut + Horloge.frameVersEch(frame))
 
@@ -74,236 +64,263 @@ data class Fenetre(
 }
 
 /**
- * COUCHE B — CONSTRUCTEUR DE FENETRES.
+ * COUCHE B — DECOUPAGE AUX SILENCES REELS DU RECITATEUR.
  *
- * CONTRAT :
- *  - duree CONSTANTE `W` en regime etabli, toutes fenetres confondues ;
- *  - pas d'emission constant `hop < W` : les fenetres SE RECOUVRENT ;
- *  - la correspondance travail <-> brut est publiee avec chaque fenetre.
+ * ── CE QUI A CHANGE LE 2026-07-30, ET LA MESURE QUI L'IMPOSE ────────────────
  *
- * POURQUOI C'EST LA PIECE CENTRALE DE LA v2 :
+ * La v2.0 emettait des fenetres de DUREE CONSTANTE (6 s, pas 1,5 s) sur un flux
+ * dont un portier RMS avait retire le silence. Raisonnement : une longueur
+ * constante empeche la normalisation `per_feature` de deriver. Le raisonnement
+ * etait faux, et une seule mesure l'a montre.
  *
- * 1. Constat n°1 du graphe — la normalisation `per_feature` ne derive pas
- *    parce que le buffer est LONG, elle derive parce que sa longueur VARIE.
- *    En rendant cette longueur constante, la normalisation est tiree de la meme
- *    duree a chaque passe. Le gel, la borne dure 12 s, `findCutOffset`,
- *    `targetSeconds` n'ont plus de raison d'exister : ils etaient le
- *    contournement de cette derive, jamais une fonctionnalite voulue.
+ * MEME AUDIO (flux brut d'une recitation professionnelle, 379,8 s, 296 mots),
+ * MEME modele causal du telephone, seule la POLITIQUE DE DECOUPAGE change --
+ * erreur mot du decodage libre :
  *
- * 2. Il n'y a plus de COUPE, donc plus de coupe en plein mot (47,4 % des coupes
- *    mesurees en v1), plus de `conserve=0`, plus de mot de frontiere qui
- *    n'existe entier NULLE PART. Un mot est entierement contenu, avec son
- *    contexte des deux cotes, dans au moins une fenetre.
+ *   fichier entier, aucune coupe .................... 54,05 %  (202 mots lus)
+ *   clips du portier RMS recolles (44 blocs) ........ 29,05 %  (269 mots lus)
+ *   regroupes ~18 s ................................. 39,19 %  (244 mots lus)
+ *   COUPE AUX SILENCES REELS, pause >= 0,5 s ........ 14,86 %  (307 mots lus)
+ *                                    lettres seules :  7,43 %
  *
- * 3. Ce n'est PAS la [MORT] "fenetre glissante naive" (WER > 100 %) : celle-la
- *    echouait en COUSANT du texte decode d'une fenetre a l'autre, d'ou la
- *    duplication. Ici aucun texte n'est cousu — le texte attendu est connu, on
- *    ne fait qu'ALIGNER dessus. La duplication est un defaut de couture, pas
- *    d'alignement.
+ * Ce n'est donc pas la LONGUEUR du bloc qui compte, c'est le fait que ses
+ * bornes tombent la ou le recitateur se tait. Un bloc delimite par des silences
+ * reels EST un clip d'entrainement ; un bloc de 6 s qui commence et finit en
+ * plein mot est hors domaine, quelle que soit sa regularite.
  *
- * GARANTIE D'INTERIORITE, chiffree : un mot de duree `d` est interieur a au
- * moins une fenetre des que `hop <= W - d - margeGauche - margeDroite`, avec
- * margeDroite >= 1,04 s (lookahead causal). Avec W = 6 s et d <= 1,5 s :
- * hop <= 3,2 s. Le reglage propose (hop = 1,5 s) donne 4 fenetres contenant
- * chaque mot, dont >= 2 ou il est interieur — donc K = 2 observations
- * concordantes sont disponibles a un `hop` d'intervalle, pas plus.
+ * Preuve directe que la v2.0 se coupait de cette information : rejouee sur le
+ * flux BRUT au lieu des clips recolles, elle rendait EXACTEMENT le meme taux
+ * (108/295 = 36,61 %) -- son propre portier reconstruisait le meme flux mutile.
  *
- * W et hop sont les DEUX SEULS parametres de segmentation restants, et ils sont
- * fixes par le banc 1 (couverture interieure), jamais regles en cours de route.
+ * ── ET LE NOEUD [MORT] "COUPER A CHAQUE PAUSE" (WER 103,5 %) ? ──────────────
+ *
+ * Il ne s'applique pas ici, et la difference n'est pas rhetorique :
+ *   1. il a ete mesure le 2026-07-23 sur le modele NON CAUSAL, avant le
+ *      fine-tune streaming. L'avertissement du §1.5 est explicite : les mesures
+ *      pre-causal ne se transportent pas. La mesure ci-dessus est faite sur le
+ *      modele du telephone, aujourd'hui ;
+ *   2. en v1, couper FIGEAIT du texte : chaque coupe pouvait dupliquer ou
+ *      perdre des mots, et c'est ce qui produisait le WER > 100 %. Ici une
+ *      coupe ne fige rien du tout : elle delimite une FENETRE D'ANALYSE. Le
+ *      texte attendu est connu, on ne coud aucune transcription.
+ *
+ * ── CONTRAT ────────────────────────────────────────────────────────────────
+ *  - le flux de travail EST le flux brut : plus rien n'est jete. Le silence
+ *    n'est pas du bruit a supprimer, c'est le SEPARATEUR qui porte toute
+ *    l'information de decoupage, et c'est aussi le contexte droit dont le
+ *    modele causal a besoin (1,04 s de lookahead) ;
+ *  - un bloc va d'un milieu de silence au milieu du silence suivant : ses deux
+ *    bords sont donc dans du silence, jamais en plein mot ;
+ *  - chaque enonce est analyse DEUX fois — seul, puis fusionne avec le suivant.
+ *    Deux contextes differents, donc deux preuves independantes au sens de la
+ *    couche G, sans jamais compter deux fois la meme.
  */
 class ConstructeurDeFenetres(
-    private val fenetreSecondes: Double = 6.0,
-    private val pasSecondes: Double = 1.5,
-    private val fenetreMinSecondes: Double = 2.0,
+    /** Silence minimal qui vaut frontiere d'enonce. 0,5 s est la valeur mesuree
+     *  la meilleure (14,86 % contre 16,22 % a 0,3 s) ; ce n'est pas un reglage
+     *  a retoucher sans refaire la mesure ci-dessus. */
+    private val pauseMinSecondes: Double = 0.5,
     private val seuilRmsSilence: Float = 0.02f,
-    /**
-     * Silence conserve apres une plage de parole. **Ce n'est pas un seuil
-     * empirique : c'est une valeur DERIVEE, et sa derivation est le resultat de
-     * mesure le plus utile de la journee du 2026-07-30.**
-     *
-     * Pour que le DERNIER mot dit avant une pause obtienne ses K=2 observations
-     * interieures, le flux de TRAVAIL doit encore avancer, apres ce mot, de :
-     *   - un lookahead (1,04 s) pour que la 1re observation soit interieure ;
-     *   - un pas de grille pour que la 2e vienne d'une fenetre DISTINCTE.
-     * En deca, le mot reste provisoire pour toujours : la grille de fenetres est
-     * pilotee par la croissance du flux de travail, et un portier qui gele ce
-     * flux gele aussi la validation.
-     *
-     * Defaut trouve PAR LE BANC (les 2-3 derniers mots d'une recitation
-     * n'obtenaient jamais leur 2e preuve), pas par une intuition. En v1 la
-     * constante equivalente valait 0,3 s ; la piste [EN ATTENTE]
-     * `MAX_SILENCE_SAMPLES 0,3 -> 0,9 s` (`6d07754`) allait dans le bon sens
-     * sans pouvoir dire POURQUOI 0,9 — la reponse est `lookahead + pas`.
-     *
-     * A confronter au reel dans le banc 1 : garder plus de silence met plus de
-     * silence dans la fenetre d'analyse. La mesure du 2026-07-28 dit que rendre
-     * TOUT le silence au modele degrade (-2,8 pt en faveur du portier) ; un
-     * plafond derive n'est pas la meme chose que pas de plafond, mais ca reste
-     * a verifier sur audio reel avant device.
-     */
-    private val silenceGardeSecondes: Double =
-        (Horloge.LOOKAHEAD_FRAMES * Horloge.MS_PAR_FRAME) / 1000.0 + pasSecondes + 0.06,
+    /** Garde-fou, pas une politique : les clips d'entrainement font <= 20 s
+     *  (`max_duration: 20.0`). Au-dela le modele travaille dans un regime de
+     *  longueur qu'il n'a JAMAIS vu -- c'est ce qui explique les 54 % du
+     *  fichier entier. Si le recitateur enchaine sans pause, on coupe au plus
+     *  bas RMS disponible plutot que de sortir du domaine. */
+    private val maxBlocSecondes: Double = 18.0,
+    /** Un enonce plus court que ca n'est pas un enonce : c'est une respiration
+     *  entre deux silences. On l'agrege au suivant. */
+    private val minBlocSecondes: Double = 0.8,
+    private val fusionner: Boolean = true,
 ) {
-    private val w = Horloge.secondesVersEch(fenetreSecondes)
-    private val pas = Horloge.secondesVersEch(pasSecondes)
-    private val wMin = Horloge.secondesVersEch(fenetreMinSecondes)
-    private val silenceGarde = Horloge.secondesVersEch(silenceGardeSecondes)
-    private val bloc = Horloge.ECH_PAR_FRAME // 80 ms, la granularite du portier
+    private val bloc = Horloge.ECH_PAR_FRAME // 80 ms, granularite de la detection
+    private val pauseMinBlocs = (pauseMinSecondes * Horloge.TAUX / bloc).toInt()
+    private val maxEch = Horloge.secondesVersEch(maxBlocSecondes)
+    /**
+     * Contexte droit exige par le modele causal : 13 frames de sortie = 1,04 s.
+     *
+     * Un bloc doit contenir AU MOINS ca apres sa derniere parole, sinon son
+     * dernier mot n'est jamais « interieur », donc jamais votant, donc declare
+     * `Omis` -- ALORS QU'IL EST LU PARFAITEMENT. Mesure du 2026-07-30 :
+     *     mot 67  أَلَآ         f15 bord gop=0,00 entendu="أَلَآ"        -> Omis
+     *     mot 287 مُتَشَـٰبِهًا  f58 bord gop=0,00 entendu="مُتَشَـٰبِهًا"  -> Omis
+     * Une pause de 0,3 s ne fournit que 4 frames ; il en faut 13. On retarde
+     * donc la fermeture du bloc jusqu'a les avoir, quitte a empieter sur le
+     * debut de l'enonce suivant -- les blocs se recouvrent deja, c'est sans
+     * consequence.
+     */
+    private val lookaheadEch =
+        Horloge.frameVersEch(Horloge.LOOKAHEAD_FRAMES + 1).toInt()
+    private val minEch = Horloge.secondesVersEch(minBlocSecondes)
 
-    /** Flux de travail : l'audio effectivement donne au modele. */
-    private var travail = FloatArray(w * 4)
+    private var travail = FloatArray(Horloge.TAUX * 30)
     private var travailTaille = 0
-    private var travailBase = 0L // indice travail absolu du 1er echantillon encore stocke
+    private var travailBase = 0L
 
-    private val segments = ArrayList<Correspondance.Segment>()
-    private var absRecus = 0L
-    private var enSilence = false
-    private var silenceGardeRestant = 0
-
-    private var prochaineEmission = -1L
+    private var derniereCoupe = 0L        // debut du bloc en cours
+    private var avantDerniereCoupe = -1L  // pour le bloc de fusion
+    private var runSilence = 0            // blocs de 80 ms de silence consecutifs
+    private var debutSilence = -1L        // ou commence le silence en cours
+    private var vuDeLaParole = false
+    /** Coupe decidee mais PAS ENCORE emise : on attend d'avoir capte un
+     *  lookahead complet apres la derniere parole (cf. [lookaheadEch]). */
+    private var coupeEnAttente = -1L
+    private var prochainDebutEnAttente = -1L
     private var idSuivant = 0L
+    private var minRmsDepuisCoupe = Float.MAX_VALUE
+    private var posMinRms = -1L
 
     private val enAttente = ArrayList<Float>(bloc)
 
-    /** Nombre total d'echantillons ecrits dans le flux de travail. */
     val positionTravail: Long get() = travailBase + travailTaille
 
-    /**
-     * @param echantillons PCM 16 kHz mono [-1,1], taille quelconque.
-     * @return les fenetres devenues disponibles (0, 1 ou plusieurs).
-     */
     fun alimenter(echantillons: FloatArray): List<Fenetre> {
         val sorties = ArrayList<Fenetre>()
         for (v in echantillons) {
             enAttente.add(v)
             if (enAttente.size == bloc) {
-                traiterBloc(enAttente.toFloatArray())
+                sorties.addAll(traiterBloc(enAttente.toFloatArray()))
                 enAttente.clear()
-                sorties.addAll(emettre())
             }
         }
         return sorties
     }
 
-    private fun traiterBloc(b: FloatArray) {
-        val rms = rms(b)
-        val absDebutBloc = absRecus
-        absRecus += b.size
+    private fun traiterBloc(b: FloatArray): List<Fenetre> {
+        val posBloc = positionTravail
+        ajouter(b)
+        val r = rms(b)
 
-        if (rms < seuilRmsSilence) {
-            if (!enSilence) {
-                enSilence = true
-                silenceGardeRestant = silenceGarde
-            }
-            if (silenceGardeRestant <= 0) return // ecarte du TRAVAIL, jamais detruit (cf. FluxBrut)
-            val garde = minOf(silenceGardeRestant, b.size)
-            silenceGardeRestant -= garde
-            ajouterAuTravail(b.copyOfRange(0, garde), absDebutBloc)
+        if (r < minRmsDepuisCoupe) { minRmsDepuisCoupe = r; posMinRms = posBloc }
+
+        if (r < seuilRmsSilence) {
+            if (runSilence == 0) debutSilence = posBloc
+            runSilence++
         } else {
-            enSilence = false
-            silenceGardeRestant = 0
-            ajouterAuTravail(b, absDebutBloc)
+            // LA PAROLE REPREND. Si le silence qu'on vient de quitter etait
+            // assez long, il separait deux enonces : on ferme le bloc ICI.
+            //
+            // ── CORRECTION DU 2026-07-30, ET LA MESURE QUI L'IMPOSE ─────────
+            // La version precedente coupait au MILIEU du silence. Consequence :
+            // chaque bloc ne gardait qu'une demi-pause a droite (~0,15 s a
+            // pause=0,3 s), alors que le modele causal exige 1,04 s d'audio
+            // POSTERIEUR pour qu'une frame soit dans ses conditions
+            // d'entrainement. Le dernier mot de chaque enonce etait donc
+            // toujours « au bord », donc jamais votant, donc declare `Omis` --
+            // ALORS QU'IL ETAIT LU PARFAITEMENT :
+            //     mot 67  أَلَآ      f15 bord gop=0,00 entendu="أَلَآ"  -> Omis
+            //     mot 204 تَتَّقُونَ  f45 bord gop=0,00 entendu="تَتَّقُونَ" -> Omis
+            //
+            // Le bloc va donc du DEBUT du silence precedent a la FIN du silence
+            // courant : il contient les deux pauses ENTIERES, et les blocs se
+            // recouvrent exactement sur les silences. Aucun mot n'est plus au
+            // bord de quoi que ce soit -- ce sont les silences qui le sont.
+            if (vuDeLaParole && runSilence >= pauseMinBlocs && coupeEnAttente < 0) {
+                // On NE COUPE PAS tout de suite : il faut encore capter un
+                // lookahead complet apres la derniere parole (cf. lookaheadEch).
+                coupeEnAttente = posBloc + lookaheadEch
+                prochainDebutEnAttente = debutSilence
+            }
+            runSilence = 0
+            vuDeLaParole = true
         }
+
+        // La coupe differee est-elle mure ? (assez de contexte droit capte)
+        if (coupeEnAttente in 1..positionTravail) {
+            val out = couper(coupeEnAttente, prochainDebutEnAttente)
+            coupeEnAttente = -1
+            prochainDebutEnAttente = -1
+            if (out.isNotEmpty()) return out
+        }
+
+        // GARDE-FOU de domaine : jamais de bloc plus long que les clips
+        // d'entrainement. On coupe alors au point le plus SILENCIEUX vu depuis
+        // la derniere coupe -- le moins mauvais endroit, pas un endroit choisi.
+        if (positionTravail - derniereCoupe >= maxEch) {
+            val cible = if (posMinRms > derniereCoupe + minEch) posMinRms else positionTravail
+            return couper(cible, cible)
+        }
+        return emptyList()
     }
 
-    private fun ajouterAuTravail(b: FloatArray, absDebut: Long) {
-        val posTravail = positionTravail
-        val dernier = segments.lastOrNull()
-        // Contigu des DEUX cotes => on prolonge le segment, sinon on en ouvre un.
-        if (dernier != null &&
-            dernier.travailDebut + dernier.longueur == posTravail &&
-            dernier.absDebut + dernier.longueur == absDebut
+    /**
+     * @param finBloc fin du bloc qu'on ferme (inclut le silence en entier)
+     * @param prochainDebut debut du bloc suivant -- plus petit que [finBloc]
+     *   quand les deux se recouvrent sur le silence, ce qui est le cas normal.
+     */
+    private fun couper(finBloc: Long, prochainDebut: Long): List<Fenetre> {
+        val position = finBloc
+        if (position - derniereCoupe < minEch) return emptyList()
+        val out = ArrayList<Fenetre>(2)
+        out.add(bloquer(derniereCoupe, position, fusion = false))
+        // 2e observation : le meme enonce vu AVEC le precedent. Contexte
+        // different, normalisation differente, donc preuve independante.
+        if (fusionner && avantDerniereCoupe >= 0 &&
+            position - avantDerniereCoupe <= maxEch
         ) {
-            segments[segments.size - 1] = dernier.copy(longueur = dernier.longueur + b.size)
-        } else {
-            segments.add(Correspondance.Segment(posTravail, absDebut, b.size))
+            out.add(bloquer(avantDerniereCoupe, position, fusion = true))
         }
+        avantDerniereCoupe = derniereCoupe
+        derniereCoupe = if (prochainDebut in derniereCoupe until position) {
+            prochainDebut
+        } else {
+            position
+        }
+        minRmsDepuisCoupe = Float.MAX_VALUE
+        posMinRms = -1
+        return out
+    }
 
+    private fun bloquer(debut: Long, fin: Long, fusion: Boolean): Fenetre {
+        val d = maxOf(debut, travailBase)
+        val depart = (d - travailBase).toInt()
+        val taille = (fin - d).toInt().coerceAtMost(travailTaille - depart)
+        return Fenetre(
+            id = idSuivant++,
+            travailDebut = d,
+            echantillons = travail.copyOfRange(depart, depart + taille),
+            correspondance = Correspondance(
+                listOf(Correspondance.Segment(d, d, taille))
+            ),
+            pleine = true,
+            fusion = fusion,
+        )
+    }
+
+    /**
+     * FIN DE SESSION : ferme le bloc en cours.
+     *
+     * Sans cet appel, le dernier enonce n'est jamais analyse : la coupe est
+     * declenchee par un silence, et le silence final peut ne jamais atteindre
+     * la duree requise si la capture s'arrete avec le recitateur.
+     */
+    fun terminer(): List<Fenetre> {
+        if (enAttente.isNotEmpty()) {
+            ajouter(enAttente.toFloatArray())
+            enAttente.clear()
+        }
+        coupeEnAttente = -1
+        return couper(positionTravail, positionTravail)
+    }
+
+    private fun ajouter(b: FloatArray) {
         if (travailTaille + b.size > travail.size) compacter(b.size)
         System.arraycopy(b, 0, travail, travailTaille, b.size)
         travailTaille += b.size
-
-        if (prochaineEmission < 0) prochaineEmission = wMin.toLong()
     }
 
-    /** Ne garde en memoire de travail que ce qu'une fenetre future peut encore
-     *  demander (W + un pas de marge). Le flux BRUT, lui, n'est jamais rogne. */
+    /** Ne garde que ce qu'un bloc futur peut encore demander (deux blocs max,
+     *  pour la fusion). Le flux BRUT, lui, n'est jamais rogne (cf. FluxBrut). */
     private fun compacter(besoin: Int) {
-        val aGarder = minOf(travailTaille, w + pas)
-        val depart = travailTaille - aGarder
+        val plusAncienUtile = if (avantDerniereCoupe >= 0) avantDerniereCoupe else derniereCoupe
+        val depart = (plusAncienUtile - travailBase).toInt().coerceIn(0, travailTaille)
         if (depart > 0) {
-            System.arraycopy(travail, depart, travail, 0, aGarder)
+            System.arraycopy(travail, depart, travail, 0, travailTaille - depart)
             travailBase += depart
-            travailTaille = aGarder
+            travailTaille -= depart
         }
         if (travailTaille + besoin > travail.size) {
             travail = travail.copyOf(maxOf(travail.size * 2, travailTaille + besoin))
         }
-        // Segments devenus inutiles cote travail : on les laisse, ils servent la
-        // reconversion vers le flux brut (preuve) longtemps apres la fenetre.
-    }
-
-    /**
-     * FIN DE SESSION — emet une derniere fenetre calee sur la fin reelle de
-     * l'audio, hors grille.
-     *
-     * Pourquoi c'est necessaire, et pourquoi ce n'est pas un artifice : la
-     * grille est pilotee par la CROISSANCE du flux de travail. Quand le
-     * recitateur s'arrete, le flux cesse de croitre et plus aucune fenetre
-     * n'est emise — le dernier mot resterait provisoire pour toujours. Cette
-     * fenetre-ci a un bord gauche ET un bord droit differents de la derniere
-     * fenetre de grille : c'est une analyse DISTINCTE (autre normalisation,
-     * autre contexte), donc une preuve independante au sens de la couche G, pas
-     * la meme preuve comptee deux fois.
-     */
-    fun terminer(): List<Fenetre> {
-        if (enAttente.isNotEmpty()) {
-            traiterBloc(enAttente.toFloatArray())
-            enAttente.clear()
-        }
-        val out = ArrayList<Fenetre>(emettre())
-        val fin = positionTravail
-        val dejaEmise = prochaineEmission - pas
-        if (fin - dejaEmise >= Horloge.secondesVersEch(0.3)) {
-            val debut = maxOf(travailBase, fin - w)
-            val taille = (fin - debut).toInt()
-            if (taille >= wMin) {
-                val depart = (debut - travailBase).toInt()
-                out.add(
-                    Fenetre(
-                        id = idSuivant++,
-                        travailDebut = debut,
-                        echantillons = travail.copyOfRange(depart, depart + taille),
-                        correspondance = Correspondance(segments).restreindre(debut, fin),
-                        pleine = taille >= w,
-                    )
-                )
-            }
-        }
-        return out
-    }
-
-    private fun emettre(): List<Fenetre> {
-        val out = ArrayList<Fenetre>()
-        while (prochaineEmission in 1..positionTravail) {
-            val fin = prochaineEmission
-            val debut = maxOf(travailBase, fin - w)
-            val taille = (fin - debut).toInt()
-            if (taille < wMin) break
-            val depart = (debut - travailBase).toInt()
-            val ech = travail.copyOfRange(depart, depart + taille)
-            out.add(
-                Fenetre(
-                    id = idSuivant++,
-                    travailDebut = debut,
-                    echantillons = ech,
-                    correspondance = Correspondance(segments).restreindre(debut, fin),
-                    pleine = taille >= w,
-                )
-            )
-            prochaineEmission = fin + pas
-        }
-        return out
     }
 
     private fun rms(b: FloatArray): Float {

@@ -61,21 +61,33 @@ object Synthese {
      * mot est suivi de [framesBlanc] frames de blanc (le modele CTC emet du
      * blanc entre les mots).
      */
+    /**
+     * @param pauseTousLes place une VRAIE pause (silence, RMS nul) tous les N
+     *   mots. Depuis le 2026-07-30 le decoupage se fait aux silences reels du
+     *   recitateur : un banc sans silence ne peut donc rien exercer du tout.
+     * @param pauseSecondes duree de cette pause.
+     */
     fun pcm(
         motsPrononces: List<String>,
         tokeniser: (String) -> IntArray,
         blank: Int,
         framesParToken: Int = 2,
         framesBlanc: Int = 2,
+        pauseTousLes: Int = 4,
+        pauseSecondes: Double = 0.7,
     ): FloatArray {
         val frames = ArrayList<Int>()
-        for (m in motsPrononces) {
+        val pauseFrames = (pauseSecondes * 1000 / Horloge.MS_PAR_FRAME).toInt()
+        motsPrononces.forEachIndexed { idx, m ->
             for (tk in tokeniser(m)) repeat(framesParToken) { frames.add(tk) }
             repeat(framesBlanc) { frames.add(blank) }
+            if (pauseTousLes > 0 && (idx + 1) % pauseTousLes == 0) {
+                repeat(pauseFrames) { frames.add(-1) }  // -1 = silence reel
+            }
         }
         val out = FloatArray(frames.size * Horloge.ECH_PAR_FRAME)
         frames.forEachIndexed { i, id ->
-            val v = valeurPourId(id)
+            val v = if (id < 0) 0f else valeurPourId(id)
             java.util.Arrays.fill(
                 out, i * Horloge.ECH_PAR_FRAME, (i + 1) * Horloge.ECH_PAR_FRAME, v
             )

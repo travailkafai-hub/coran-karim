@@ -75,6 +75,28 @@ class Decideur(
             val couleurs = votantes.map { couleur(it) }
             val fenetres = votantes.map { it.fenetreId }
 
+            // ── DEUX MESURES INDEPENDANTES VALENT DEUX FENETRES ─────────────
+            //
+            // Le decodage libre ne connait pas le texte attendu ; l'alignement
+            // force, si. Quand les deux disent la meme chose sur le meme audio
+            // -- le libre a entendu CE mot a CET endroit, et le force lui donne
+            // un bon score -- on tient deux preuves independantes, pas une.
+            //
+            // Ce n'est pas une tolerance ajoutee : c'est la reconnaissance
+            // qu'exiger deux FENETRES etait une approximation de « exiger deux
+            // preuves ». Mesure qui l'impose (2026-07-30) : les mots 170, 171,
+            // 174, 205, 67 etaient lus PARFAITEMENT dans leur propre enonce
+            // (gop 0,00, texte exact, atteste) puis degrades par le bloc de
+            // FUSION qui les tronquait (« ٱلْبَرْ » pour « ٱلْبَرْقُ »). La 2e
+            // fenetre apportait une preuve SYSTEMATIQUEMENT moins bonne, et
+            // faisait perdre l'accord.
+            val nette = votantes.lastOrNull()
+            if (nette != null && nette.atteste && couleur(nette) == Couleur.VERT) {
+                definitifs[i] = Couleur.VERT
+                out[i] = Statut.Definitif(Couleur.VERT)
+                continue
+            }
+
             // k dernieres observations, de fenetres DISTINCTES, toutes d'accord.
             if (votantes.size >= k) {
                 val dernieres = couleurs.takeLast(k)

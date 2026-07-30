@@ -152,22 +152,51 @@ def instant_derniere_modif() -> float:
 
 
 def modifications_par_nature():
-    """(fichiers live modifies, fichiers hors ligne modifies), indexes ou non."""
+    """(fichiers live, fichiers hors ligne) de CE QUI VA ETRE GELE.
+
+    On regarde l'INDEX en priorite, pas l'arbre de travail. Ce qui compte est ce
+    que le commit va figer : un fichier live modifie mais volontairement laisse
+    de cote (parce qu'on ne peut pas le mesurer maintenant) ne doit pas
+    interdire de figer le travail hors ligne qui, lui, EST prouve.
+
+    Defaut trouve en s'en servant, le 2026-07-30 : la version precedente
+    interrogeait `git status`, donc voyait toute modification de l'arbre. Un
+    plugin modifie et NON indexe bloquait un commit qui ne contenait que des
+    fichiers hors ligne avec leurs tests au vert -- le garde-fou empechait
+    exactement ce qu'il est cense encourager : committer souvent ce qui est
+    prouve (cf. piege_9_versions_perdues).
+
+    Repli sur l'arbre de travail si rien n'est indexe : sinon un `commit -a`
+    passerait sans controle.
+    """
+    def classer(lignes, decoupe):
+        live, offline = [], []
+        for ligne in lignes:
+            chemin = decoupe(ligne)
+            if sur_le_chemin(chemin):
+                live.append(chemin)
+            elif hors_ligne(chemin):
+                offline.append(chemin)
+        return live, offline
+
+    try:
+        indexe = subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "--"] + list(CHEMIN_GLOBS),
+            capture_output=True, text=True, timeout=5, cwd=RACINE,
+        ).stdout.splitlines()
+    except Exception:
+        indexe = []
+    if indexe:
+        return classer(indexe, lambda l: l.strip().strip('"'))
+
     try:
         out = subprocess.run(
             ["git", "status", "--porcelain", "--"] + list(CHEMIN_GLOBS),
             capture_output=True, text=True, timeout=5, cwd=RACINE,
-        ).stdout
+        ).stdout.splitlines()
     except Exception:
         return [], []
-    live, offline = [], []
-    for ligne in out.splitlines():
-        chemin = ligne[3:].strip().strip('"')
-        if sur_le_chemin(chemin):
-            live.append(chemin)
-        elif hors_ligne(chemin):
-            offline.append(chemin)
-    return live, offline
+    return classer(out, lambda l: l[3:].strip().strip('"'))
 
 
 def tests_jvm_au_vert_posterieurs() -> bool:

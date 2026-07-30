@@ -50,6 +50,11 @@ class RegistreDePreuves {
         /** L'alignement force a du poser ce mot sur l'audio d'un voisin —
          *  il n'a donc AUCUNE preuve acoustique propre. Cf. AligneurForce. */
         val sansCreneau: Boolean = false,
+        /** Le DECODAGE LIBRE a entendu ce mot, a cet endroit, sans qu'on le lui
+         *  demande. C'est une mesure INDEPENDANTE de l'alignement force : le
+         *  decodage libre ne connait pas le texte attendu. Deux mesures
+         *  independantes qui concordent valent mieux que deux fois la meme. */
+        val atteste: Boolean = false,
         val fenetrePleine: Boolean,
         val debutAbs: Long,
         val finAbs: Long,

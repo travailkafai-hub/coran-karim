@@ -22,14 +22,19 @@ class RecitationV2Bench {
   /// [mots] : le texte attendu, déjà normalisé comme le corpus d'entraînement
   /// (`ArabicNormalizer.normalizeTraining`, jamais `normalizeStrict`).
   ///
-  /// [fenetreSecondes] / [pasSecondes] : les **deux seuls** paramètres de
-  /// segmentation de la v2. Ils se fixent par le balayage du banc 1
-  /// (couverture intérieure), pas par un réglage en cours de session.
+  /// [fenetreSecondes] = pause minimale valant frontière d'énoncé,
+  /// [pasSecondes] = longueur maximale d'un bloc (garde-fou de domaine).
+  /// Mesuré sur le flux brut d'une récitation professionnelle : couper aux
+  /// silences réels donne 14,86 % d'erreur mot contre 29 à 54 % pour tous les
+  /// découpages à longueur imposée. Ce ne sont pas des réglages à retoucher
+  /// sans refaire cette mesure.
   static Future<RapportV2?> analyserWav({
     required String wavPath,
     required List<String> mots,
-    double fenetreSecondes = 6.0,
-    double pasSecondes = 1.5,
+    /// Silence minimal qui vaut frontière d'énoncé (mesuré : 0,5 s).
+    double fenetreSecondes = 0.5,
+    /// Garde-fou de domaine : les clips d'entraînement font ≤ 20 s.
+    double pasSecondes = 18.0,
   }) async {
     final res = await _channel.invokeMapMethod<String, dynamic>(
       'v2AnalyserWav',
@@ -45,6 +50,30 @@ class RecitationV2Bench {
   }
 }
 
+/// Une observation d'un mot par UNE fenêtre. La liste complète est
+/// indispensable : sans elle on ne peut pas distinguer « la preuve n'existe
+/// pas » de « la preuve existe et la règle de décision l'a ratée ». C'est
+/// exactement le trou qui a rendu la piste « préfixe stable » invalidable hors
+/// device le 2026-07-29 (58 à 70 aperçus ne laissaient que 0 à 10 verdicts).
+class ObsV2 {
+  ObsV2(this.fenetre, this.gop, this.free, this.interieur, this.sansCreneau,
+      this.frames, this.entendu);
+  final int fenetre;
+  final double gop;
+  final double free;
+  final bool interieur;
+  final bool sansCreneau;
+  final int frames;
+  final String entendu;
+
+  bool estVert(double seuil) => gop >= seuil;
+
+  @override
+  String toString() => 'f$fenetre ${interieur ? "INT" : "bord"}'
+      '${sansCreneau ? "/sansCreneau" : ""} gop=${gop.toStringAsFixed(2)} '
+      'free=${free.toStringAsFixed(2)} fr=$frames "$entendu"';
+}
+
 class MotV2 {
   MotV2({
     required this.index,
@@ -56,6 +85,7 @@ class MotV2 {
     required this.free,
     required this.forced,
     required this.entendu,
+    required this.obs,
   });
 
   final int index;
@@ -75,6 +105,20 @@ class MotV2 {
   final double? free;
   final double? forced;
   final String entendu;
+  final List<ObsV2> obs;
+
+  /// Le verdict que donnerait la DERNIÈRE observation intérieure — c'est-à-dire
+  /// si l'on ne verrouillait jamais. Séparer ce chiffre du taux verrouillé
+  /// répond à UNE question et une seule : la règle de verrouillage fige-t-elle
+  /// des erreurs précoces, ou la preuve est-elle fausse de bout en bout ?
+  ObsV2? get dernierAvis =>
+      obs.where((o) => o.interieur).isEmpty ? null : obs.lastWhere((o) => o.interieur);
+
+  /// Existe-t-il AU MOINS UNE fenêtre qui lit ce mot correctement ? C'est la
+  /// borne haute de ce que la preuve acoustique permet : si elle est atteinte,
+  /// tout écart restant est imputable à la règle de décision, pas au modèle.
+  bool meilleurAvisVert(double seuil) =>
+      obs.any((o) => o.interieur && o.gop >= seuil);
 
   bool get estVert => statut.endsWith(':vert');
   bool get estDefinitif => statut.startsWith('definitif:');
@@ -125,6 +169,18 @@ class RapportV2 {
         free: (m['free'] as num?)?.toDouble(),
         forced: (m['forced'] as num?)?.toDouble(),
         entendu: (m['entendu'] as String?) ?? '',
+        obs: [
+          for (final o in ((m['obs'] as List?) ?? const []).cast<Map>())
+            ObsV2(
+              (o['f'] as num).toInt(),
+              (o['gop'] as num).toDouble(),
+              (o['free'] as num).toDouble(),
+              o['int'] as bool,
+              (o['sc'] as bool?) ?? false,
+              (o['fr'] as num).toInt(),
+              (o['e'] as String?) ?? '',
+            ),
+        ],
       ));
     }
     return RapportV2(
@@ -158,8 +214,36 @@ class RapportV2 {
           '$observations observations')
       ..writeln('[v2] non verts : ${nonVerts.length} / ${indexMaxVotant + 1} '
           '(${(100 * nonVerts.length / (indexMaxVotant + 1)).toStringAsFixed(2)} %)');
+    // LES TROIS TAUX, qui répondent à trois questions différentes. Les publier
+    // ensemble est le seul moyen d'attribuer un écart à la bonne couche.
+    final n = indexMaxVotant + 1;
+    final sansVerrou = mots
+        .where((m) => m.index <= indexMaxVotant)
+        .where((m) {
+          final d = m.dernierAvis;
+          return d == null || d.gop < -0.45;
+        })
+        .length;
+    final borneHaute = mots
+        .where((m) => m.index <= indexMaxVotant)
+        .where((m) => !m.meilleurAvisVert(-0.45))
+        .length;
+    b
+      ..writeln('[v2] TAUX VERROUILLE   : ${nonVerts.length}/$n = '
+          '${(100 * nonVerts.length / n).toStringAsFixed(2)} %  '
+          '(la règle des K fenêtres concordantes)')
+      ..writeln('[v2] TAUX DERNIER AVIS : $sansVerrou/$n = '
+          '${(100 * sansVerrou / n).toStringAsFixed(2)} %  '
+          '(si on ne verrouillait jamais)')
+      ..writeln('[v2] BORNE HAUTE PREUVE: $borneHaute/$n = '
+          '${(100 * borneHaute / n).toStringAsFixed(2)} %  '
+          '(mots qu\'AUCUNE fenêtre ne lit juste — imputable au modèle/à '
+          'l\'alignement, plus à la décision)');
     for (final m in nonVerts) {
       b.writeln(m.ligne);
+      for (final o in m.obs) {
+        b.writeln('        $o');
+      }
     }
     return b.toString();
   }

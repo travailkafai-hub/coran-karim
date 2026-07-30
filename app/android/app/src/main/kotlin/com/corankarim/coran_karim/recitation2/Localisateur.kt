@@ -38,7 +38,12 @@ class Localisateur(
     private val pieces: List<String>,
     private val blank: Int,
     private val reculMax: Int = 12,
-    private val avanceMax: Int = 24,
+    /** Doit couvrir le PLUS LONG bloc possible. Avec un decoupage aux silences
+     *  reels un bloc peut porter 40 mots et plus ; une avance de 24 tronquait
+     *  la region de recherche et l'ancre decrochait au mot 82 (mesure du
+     *  2026-07-30). Ce n'est pas un seuil de tolerance : c'est la taille de la
+     *  fenetre de recherche, elle doit juste etre assez grande. */
+    private val avanceMax: Int = 80,
     private val margeAval: Int = 3,
     private val minAppariements: Int = 2,
 ) {
@@ -78,45 +83,59 @@ class Localisateur(
         val min = (depart - reculMax).coerceAtLeast(0)
         val max = (depart + avanceMax).coerceAtMost(motsAttendus.size - 1)
 
-        var meilleurDebut = -1
-        var meilleurScore = 0
-        var meilleurFin = -1
-        var meilleureDistance = Int.MAX_VALUE
-        var meilleursAttestes: Map<Int, IntRange> = emptyMap()
+        // UNE seule LCS sur toute la region : elle trouve d'elle-meme la
+        // correspondance, il n'y a pas de « point de depart » a balayer.
+        val (score, _, attestes) =
+            apparier(entendus, attendus, min, entendusAvecFrames, max)
+        if (score < minAppariements || attestes.isEmpty()) return null
 
-        for (s in min..max) {
-            val (score, fin, attestes) = apparier(entendus, attendus, s, entendusAvecFrames)
-            if (score < minAppariements) continue
-            val distance = kotlin.math.abs(s - depart)
-            // Depart le mieux apparie ; a egalite, le plus proche de la position
-            // connue ; a egalite encore, l'AVANT (continuite de recitation).
-            val meilleur = score > meilleurScore ||
-                (score == meilleurScore && distance < meilleureDistance) ||
-                (score == meilleurScore && distance == meilleureDistance && s > meilleurDebut)
-            if (meilleur) {
-                meilleurScore = score
-                meilleurDebut = s
-                meilleurFin = fin
-                meilleureDistance = distance
-                meilleursAttestes = attestes
-            }
-        }
-        if (meilleurDebut < 0) return null
-
-        val i1 = (meilleurFin + margeAval).coerceAtMost(motsAttendus.size - 1)
+        // ── LA CORRECTION DU 2026-07-30, ET LA MESURE QUI L'IMPOSE ──────────
+        //
+        // La bande partait du point de DEPART DU BALAYAGE (`s`), pas du premier
+        // mot reellement ATTESTE. Un bloc qui contenait les mots 12 a 25 se
+        // voyait donc reclamer les mots 0 a 25 : l'alignement force devait
+        // placer douze mots absents, il les entassait sur les premieres frames,
+        // et le chemin de Viterbi etait corrompu sur TOUT le bloc.
+        //
+        // Preuve directe, meme mot, meme session :
+        //     f0 (18,00 s)  mot 2  gop= 0,00   entendu="كَفَرُوا۟"
+        //     f2 (13,52 s)  mot 2  gop=-21,84  entendu=""      bande=0..25
+        // Le modele lit parfaitement ; c'est la bande qui etait fausse.
+        //
+        // Les degats croissent avec la longueur du bloc : 36,61 % de non-verts
+        // avec des fenetres de 6 s, 80,00 % avec des blocs de 18 s.
+        //
+        // La regle est donc : on ne demande a la DP QUE ce que le decodage
+        // libre atteste. `margeAval` etait une marge inventee -- exactement le
+        // genre de constante que ce projet paye a chaque fois.
+        val i0 = attestes.keys.min()
+        val i1 = attestes.keys.max()
         return Bande(
-            i0 = meilleurDebut,
-            i1 = maxOf(i1, meilleurDebut),
-            confiance = meilleurScore.toFloat() / entendus.size,
-            recul = meilleurDebut < depart,
-            attestes = meilleursAttestes,
+            i0 = i0,
+            i1 = i1,
+            confiance = score.toFloat() / entendus.size,
+            recul = i0 < depart,
+            attestes = attestes,
         )
     }
 
     /**
-     * Appariement glouton dans l'ordre : combien de mots entendus retrouve-t-on
-     * dans `attendus` a partir de [depart], en autorisant des sauts des deux
-     * cotes (le modele peut avaler un mot, le recitateur peut en ajouter un).
+     * Appariement par ALIGNEMENT (plus longue sous-sequence commune), pas par
+     * balayage glouton.
+     *
+     * CE QUI A CHANGE LE 2026-07-30, ET POURQUOI. La version precedente
+     * avancait mot par mot et ABANDONNAIT apres 3 mots entendus non reconnus
+     * d'affilee. Ce « 3 » etait un seuil que rien ne justifiait, et il a coute
+     * exactement ce que coutent les seuils inventes : sur des blocs longs
+     * (decoupage aux silences reels, ~40 mots par bloc), trois substitutions
+     * groupees suffisaient a faire decrocher l'appariement, l'ancre restait
+     * bloquee au mot 82 sur 295, et 153 observations seulement etaient
+     * produites au lieu de 1440.
+     *
+     * Une LCS n'a besoin d'aucun seuil : les insertions (le modele entend un
+     * mot de trop) et les suppressions (il en avale un) sont des trous du
+     * chemin, pas des motifs d'abandon. Le cout est |entendus| x |region|,
+     * soit quelques milliers de cases -- negligeable devant une inference.
      *
      * @return (nombre d'appariements, index attendu du dernier apparie,
      *   index attendu -> plage de frames ou il a ete entendu)
@@ -126,33 +145,36 @@ class Localisateur(
         attendus: List<String>,
         depart: Int,
         avecFrames: List<Pair<Decodage.MotEntendu, String>>,
+        fin: Int,
     ): Triple<Int, Int, Map<Int, IntRange>> {
-        var i = depart
-        var score = 0
-        var dernier = depart
-        var sautsEntendus = 0
-        val attestes = HashMap<Int, IntRange>()
-        for ((rang, mot) in entendus.withIndex()) {
-            var trouve = -1
-            var j = i
-            val limite = minOf(attendus.size - 1, i + 2) // un mot attendu saute au plus 2 fois
-            while (j <= limite) {
-                if (correspond(mot, attendus[j])) { trouve = j; break }
-                j++
-            }
-            if (trouve >= 0) {
-                score++
-                dernier = trouve
-                i = trouve + 1
-                sautsEntendus = 0
-                val f = avecFrames[rang].first
-                attestes[trouve] = f.premiereFrame..f.derniereFrame
-            } else {
-                sautsEntendus++
-                if (sautsEntendus > 3) break // le decodage a decroche du texte attendu
+        val n = entendus.size
+        val m = fin - depart + 1
+        if (n == 0 || m <= 0) return Triple(0, depart, emptyMap())
+
+        val dp = Array(n + 1) { IntArray(m + 1) }
+        for (i in n - 1 downTo 0) {
+            for (j in m - 1 downTo 0) {
+                dp[i][j] = if (correspond(entendus[i], attendus[depart + j])) {
+                    dp[i + 1][j + 1] + 1
+                } else {
+                    maxOf(dp[i + 1][j], dp[i][j + 1])
+                }
             }
         }
-        return Triple(score, dernier, attestes)
+
+        val attestes = HashMap<Int, IntRange>()
+        var dernier = depart
+        var i = 0
+        var j = 0
+        while (i < n && j < m) {
+            if (correspond(entendus[i], attendus[depart + j])) {
+                val f = avecFrames[i].first
+                attestes[depart + j] = f.premiereFrame..f.derniereFrame
+                dernier = depart + j
+                i++; j++
+            } else if (dp[i + 1][j] >= dp[i][j + 1]) i++ else j++
+        }
+        return Triple(dp[0][0], dernier, attestes)
     }
 
     /** Egalite exacte apres normalisation, ou prefixe long (>= 3 lettres) —

@@ -80,7 +80,7 @@ class DiagnosticLog {
   // la v1, a l'identique -- ce tag sert precisement a le prouver : une mesure
   // sous ce tag doit reproduire la v24, sinon l'ajout du code v2 a eu un effet
   // qu'il ne devait pas avoir.
-  static const String _kBuildTag = 'v24-base-v2-non-branchee';
+  static const String _kBuildTag = 'v24-base-v2-banc-wav';
   static const String _kBuildTimestamp =
       String.fromEnvironment('BUILD_TS', defaultValue: '');
 
