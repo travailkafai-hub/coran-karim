@@ -66,9 +66,19 @@ object Orthographe {
         // 1) alif suscrit ecrit en alif plein  (فِرَٰشًا -> فِرَاشًا)
         if (mot.indexOf(ALIF_SUSCRIT) >= 0) {
             out.add(mot.replace(ALIF_SUSCRIT.toString(), "ا"))
-            // 2) ... ou simplement absent (certaines editions ne le notent pas)
-            out.add(mot.replace(ALIF_SUSCRIT.toString(), ""))
         }
+        // ── VARIANTE RETIREE LE 2026-07-30, ET POURQUOI ────────────────────
+        // La version precedente generait aussi le mot avec l'alif suscrit
+        // SUPPRIME, au motif que « certaines editions ne le notent pas ». C'est
+        // faux du point de vue du SON : sans lui, la voyelle est BREVE. Cette
+        // variante ne decrivait donc pas la meme prononciation -- elle
+        // blanchissait un madd raccourci, c'est-a-dire une vraie faute de
+        // tajwid, et exactement le genre de mot que l'application existe pour
+        // signaler.
+        // Trouve en repondant a la question « est-ce qu'on ne casse pas la
+        // detection ? », pas par une mesure : aucune session de test ne
+        // contenait de madd raccourci. Une variante ne rentre ici que si elle
+        // se prononce STRICTEMENT pareil.
         // 3) alif wasla ecrit en alif simple  (ٱلصَّوَٰعِقِ -> الصَّوَٰعِقِ)
         if (mot.indexOf(ALIF_WASLA) >= 0) {
             out.add(mot.replace(ALIF_WASLA.toString(), "ا"))

@@ -96,12 +96,53 @@ class BancFluxBrut {
         })
     }
 
+    /**
+     * Paires de lettres CONFUSABLES : elles changent le son, donc une
+     * substitution est une VRAIE faute de prononciation. Ce sont celles que le
+     * projet a mesurees separables par rescoring (80,8 % sur 854 clips).
+     */
+    private val confusables = listOf(
+        'ص' to 'س', 'ط' to 'ت', 'ض' to 'د', 'ذ' to 'ز',
+        'ح' to 'ه', 'ق' to 'ك', 'ع' to 'ء',
+    )
+
+    /**
+     * Remplace une lettre du mot ATTENDU par sa confusable.
+     *
+     * On altere la CIBLE, pas l'audio : l'app doit donc constater que ce qui
+     * est dit n'est pas ce qui est attendu -- exactement ce qu'elle vit quand
+     * le recitateur se trompe. Le protocole du projet (« reciter en
+     * substituant 1 mot sur 5 ») teste la meme chose avec un humain ; ici on
+     * l'obtient sans nouvelle session, donc sur le MEME audio que la mesure de
+     * faux positifs.
+     */
+    private fun fausser(mot: String): String? {
+        for ((a, b) in confusables) {
+            val i = mot.indexOf(a)
+            if (i >= 0) return mot.substring(0, i) + b + mot.substring(i + 1)
+            val j = mot.indexOf(b)
+            if (j >= 0) return mot.substring(0, j) + a + mot.substring(j + 1)
+        }
+        return null
+    }
+
     @Test
     fun juger() {
         assumeTrue("logprobs absents (lancer la phase blocs puis le script python)",
             dossierLogprobs.isDirectory && blocsFichier.exists() && cible.exists())
 
-        val mots = motsAttendus()
+        val motsVrais = motsAttendus()
+        // -DfautesTous=N : on FAUSSE un mot attendu sur N (substitution de
+        // lettre confusable). Mesure alors la DETECTION, pas les faux positifs.
+        val fautesTous = System.getProperty("fautesTous")?.toInt() ?: 0
+        val fautes = HashSet<Int>()
+        val mots = if (fautesTous <= 0) motsVrais else motsVrais.mapIndexed { i, m ->
+            if (i > 0 && i % fautesTous == 0) {
+                val f = fausser(m)
+                if (f != null) { fautes.add(i); f } else m
+            } else m
+        }
+        if (fautes.isNotEmpty()) println("[banc] ${fautes.size} mots FAUSSES sur ${mots.size}")
         val pieces = File(racine, "pieces.txt").readLines()
         val blank = pieces.size
 
@@ -204,6 +245,33 @@ class BancFluxBrut {
                 }
             }
             if (registre.observationsVotantes(i).none { it.gop >= -0.45f }) borneHaute++
+        }
+        if (fautes.isNotEmpty()) {
+            // DETECTION : parmi les mots FAUSSES, combien sont signales ?
+            // COLLATERAL : parmi les mots INTACTS, combien deviennent non verts ?
+            // Les deux chiffres se lisent ENSEMBLE : une detection de 100 %
+            // obtenue en signalant tout le monde ne vaut rien.
+            var detectees = 0
+            var fautesVues = 0
+            var collateral = 0
+            var intactsVus = 0
+            for (i in 0..max) {
+                val st = statuts[i]
+                val vert = (st is Statut.Definitif && st.couleur == Couleur.VERT) ||
+                    (st is Statut.Provisoire && st.couleur == Couleur.VERT)
+                if (fautes.contains(i)) {
+                    fautesVues++
+                    if (!vert) detectees++
+                    else println(String.format("  RATEE  %4d %-18s -> %s", i, mots[i], st))
+                } else {
+                    intactsVus++
+                    if (!vert) collateral++
+                }
+            }
+            println("[banc] DETECTION  : $detectees/$fautesVues fautes signalees = " +
+                String.format("%.1f", 100.0 * detectees / maxOf(1, fautesVues)) + " %")
+            println("[banc] COLLATERAL : $collateral/$intactsVus mots intacts non verts = " +
+                String.format("%.2f", 100.0 * collateral / maxOf(1, intactsVus)) + " %")
         }
         println("[banc] $fenetresVues blocs, ${registre.total()} observations, ancre max $max")
         println("[banc] NON VERTS      : $nonVerts/$n = " +

@@ -48,8 +48,14 @@ mort() { echo "ARRET : $*" >&2; exit 1; }
 # En mode DETERMINISTE (WAV=...), le Xiaomi n'est pas utilise : le fichier est
 # rejoue a la place du micro sur le juge. Exiger sa presence empechait la seule
 # mesure possible quand un seul telephone est branche (2026-07-30).
+# SOLO=1 : c'est un HUMAIN qui recite devant le micro du juge. Le Xiaomi n'est
+# alors ni requis ni lance. Ajoute le 2026-07-30 -- c'est le seul protocole qui
+# teste la vraie chaine de capture (voix reelle, distance reelle, bruit de piece
+# reel) ; le rejeu d'un fichier ne la teste pas, et le haut-parleur du Xiaomi
+# n'est qu'une approximation de plus.
+SOLO="${SOLO:-}"
 REQUIS=("$SAMSUNG")
-[ -z "$WAV" ] && REQUIS+=("$XIAOMI")
+[ -z "$WAV" ] && [ -z "$SOLO" ] && REQUIS+=("$XIAOMI")
 for d in "${REQUIS[@]}"; do
   "$ADB" devices | grep -q "^$d[[:space:]]*device$" || mort "appareil $d absent (adb devices)"
 done
@@ -61,7 +67,7 @@ AVANT=$("$ADB" -s "$SAMSUNG" shell "wc -l < $LOG" 2>/dev/null | tr -d '\r ' || e
 echo "sourate=$SOURATE depart=v$DEPART duree=${DUREE}s  log a $AVANT lignes"
 
 "$ADB" -s "$SAMSUNG" shell am force-stop $PKG >/dev/null 2>&1
-"$ADB" -s "$XIAOMI"  shell am force-stop $PKG >/dev/null 2>&1
+[ -z "$SOLO" ] && "$ADB" -s "$XIAOMI"  shell am force-stop $PKG >/dev/null 2>&1
 sleep 2
 
 # L'APK est DEBOGABLE a dessein : `run-as` -- donc la recuperation des WAV de
@@ -70,7 +76,7 @@ sleep 2
 # avertissement de compatibilite par-dessus l'app. On l'ecarte plutot que de
 # renoncer a l'audio, qui est le seul juge de paix entre « faute de recitation »
 # et « defaut d'architecture ».
-python3 "$RACINE/benchmark/ecarter_dialogue.py" "$SAMSUNG" "$XIAOMI" 2>/dev/null || true
+if [ -n "$SOLO" ]; then python3 "$RACINE/benchmark/ecarter_dialogue.py" "$SAMSUNG" 2>/dev/null || true; else python3 "$RACINE/benchmark/ecarter_dialogue.py" "$SAMSUNG" "$XIAOMI" 2>/dev/null || true; fi
 
 # L'écoute démarre EN PREMIER : le micro doit tourner avant le premier mot,
 # sinon le début de la sourate n'est jamais capté et l'ancre part déjà en retard.
@@ -128,9 +134,13 @@ done
 echo
 [ "$PRET" = 1 ] || mort "le micro ne s'est jamais ouvert cote juge -- rien a mesurer"
 sleep 2
-if [ -z "$WAV" ]; then
+if [ -z "$WAV" ] && [ -z "$SOLO" ]; then
   "$ADB" -s "$XIAOMI" shell am start -n $PKG/.MainActivity \
       --es recette lecture --ei sourate "$SOURATE" --ei depart "$DEPART" >/dev/null
+fi
+if [ -n "$SOLO" ]; then
+  echo ">>> RECITE MAINTENANT (sourate $SOURATE a partir du verset $DEPART)."
+  echo ">>> Le micro est ouvert, tu as ${DUREE}s."
 fi
 
 if [ -n "$WAV" ]; then
@@ -156,7 +166,7 @@ fi
 # ne peut plus savoir ce qui a tenu la chaine pendant les trous.
 "$ADB" -s "$SAMSUNG" shell input tap $CENTRE >/dev/null 2>&1
 sleep 8
-"$ADB" -s "$XIAOMI" shell am force-stop $PKG >/dev/null 2>&1
+[ -z "$SOLO" ] && "$ADB" -s "$XIAOMI" shell am force-stop $PKG >/dev/null 2>&1
 sleep 2
 
 "$ADB" -s "$SAMSUNG" shell "cat $LOG" > "$OUT/full.log" 2>/dev/null
