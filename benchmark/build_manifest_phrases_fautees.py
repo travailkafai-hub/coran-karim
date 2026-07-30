@@ -56,7 +56,10 @@ def main():
     p.add_argument("--phrases", default=str(BASE / "data/tts_phrases_concat"))
     p.add_argument("--repetitions", type=int, default=5,
                    help="repetitions des phrases fautees, comme les mots isoles")
+    p.add_argument("--part-val", type=float, default=0.15,
+                   help="phrases mises de cote pour mesurer la reecriture canonique")
     p.add_argument("--sortie", default=str(DUAL / "train_manifest_phrases.jsonl"))
+    p.add_argument("--sortie-val", default=str(DUAL / "val_phrases_fautees.jsonl"))
     args = p.parse_args()
 
     ecartes = set()
@@ -79,11 +82,25 @@ def main():
         garde.append(d)
     print(f"{retire} entrees retirees du manifeste source ({len(garde)} restantes)")
 
-    phrases = Path(args.phrases)
+    # ABSOLU, toujours. NeMo lit le manifeste depuis le repertoire de travail
+    # du training (la racine du depot), pas depuis benchmark/ : un chemin
+    # relatif y devient introuvable et le run meurt en plein milieu de la
+    # premiere epoch, dans un worker DataLoader (donc avec une trace peu
+    # lisible). Attrape par le test a blanc du 2026-07-31.
+    phrases = Path(args.phrases).resolve()
     ajoutees = 0
+    # Tenues A L'ECART de l'entrainement : c'est le SEUL jeu sur lequel on
+    # pourra dire si la reecriture canonique a recule. Mesurer ce recul sur des
+    # phrases vues a l'entrainement ne prouverait rien.
+    val = []
+    lignes_phr = ([json.loads(l) for l in open(phrases / "manifest.jsonl", encoding="utf-8")]
+                  if (phrases / "manifest.jsonl").exists() else [])
+    n_val = int(len(lignes_phr) * args.part_val)
     if (phrases / "manifest.jsonl").exists():
-        for l in open(phrases / "manifest.jsonl", encoding="utf-8"):
-            r = json.loads(l)
+        for idx, r in enumerate(lignes_phr):
+            if idx < n_val:
+                val.append(r)
+                continue
             for clip, texte in ((r["clip_faute"], r["text"]),
                                 (r["clip_correct"], r["correct_text"])):
                 chemin = phrases / "wav" / clip
@@ -99,15 +116,35 @@ def main():
                                   "text": texte, "text_tajwid": None})
                     ajoutees += 1
     print(f"{ajoutees} entrees de phrases a faute ajoutees "
-          f"({args.repetitions} repetitions)")
+          f"({args.repetitions} repetitions), {len(val)} phrases tenues a l'ecart")
+    if val:
+        with open(args.sortie_val, "w", encoding="utf-8") as g:
+            for r in val:
+                r["_dossier"] = str(phrases)
+                g.write(json.dumps(r, ensure_ascii=False) + "\n")
+        print(f"  jeu de validation -> {args.sortie_val}")
 
     with open(args.sortie, "w", encoding="utf-8") as g:
         for d in garde:
             g.write(json.dumps(d, ensure_ascii=False) + "\n")
     familles["faute EN PHRASE (nouveau)"] = ajoutees
+    # En HEURES, pas en nombre d'entrees : c'est ce que le modele voit
+    # reellement, et les deux comptes different beaucoup (une faute isolee dure
+    # 1,7 s, un verset 10,4 s). Le plan de composition est exprime en heures.
+    heures = Counter()
+    for d in garde:
+        p_ = d["audio_filepath"]
+        k = ("faute EN PHRASE (nouveau)" if "tts_concat" in p_ or "tts_phrases_concat" in p_
+             else "faute mot isole" if "tts_augmentation" in p_
+             else "MSA (arabic_speech_corpus)" if "arabic_speech_corpus" in p_
+             else "Coran recite")
+        heures[k] += float(d.get("duration", 0) or 0)
+    tot_h = sum(heures.values()) or 1
     print(f"\n{len(garde)} entrees -> {args.sortie}")
+    print(f"  {'famille':32} {'entrees':>8} {'%ent':>6} {'heures':>8} {'%h':>6}")
     for k, v in familles.most_common():
-        print(f"  {k:32} {v:7d}  {100*v/len(garde):5.1f} %")
+        print(f"  {k:32} {v:8d} {100*v/len(garde):5.1f}% "
+              f"{heures[k]/3600:8.1f} {100*heures[k]/tot_h:5.1f}%")
 
 
 if __name__ == "__main__":

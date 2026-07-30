@@ -767,6 +767,101 @@ reconnecté au moment de l'écriture) ; pas de recalibration automatique si le
 modèle change (la table est liée au checkpoint piste 3 précis qui l'a
 produite -- à regénérer si le modèle déployé change).
 
+## 5septies. Le corpus de fautes n'a pas de CONTEXTE — mesures et plan (2026-07-31)
+
+**Cause racine du fait qu'une vraie faute passe au vert dans l'app.** Le
+manifeste `nemo_manifests_dual` contient 81 380 entrées de fautes délibérées,
+mais seulement **16 276 clips distincts**, répétés ~5 fois, et **tous des mots
+isolés** (durée médiane 1,71 s, 1 mot, maximum 1) contre 10,40 s et 9 mots pour
+le Coran récité. Le modèle n'a donc jamais vu une **phrase** contenant une
+faute : il a appris deux régimes disjoints — court = fidèle, long = canonique.
+Vérifié sur 12 modèles sur 12.
+
+### Audibilité du corpus — première vérification, jamais faite jusqu'ici
+
+Critère : sur l'audio du clip, `logP(texte étiquette) > logP(texte canonique)`
+par alignement forcé. L'alignement forcé n'a rien à réécrire, contrairement au
+décodage libre — c'est ce qui le rend insensible au biais canonique du modèle.
+
+| lot | audible | note |
+|---|---|---|
+| `tts_augmentation` (celui de l'entraînement) | **17 078 / 18 195 = 93,9 %** | ت→ط 99 %, د→ض 99 %, ك→ق 98 %, harakat 84-93 % |
+| `tts_paired` (autre script) | 4 077 / 5 339 = 76,4 % | non utilisé à l'entraînement |
+
+⚠️ **Le QA d'origine ne pouvait pas voir ce défaut** : `qa_tts_paired.py`
+accepte jusqu'à `CER_REJECT = 0,5` contre le texte demandé, or une réécriture
+canonique à une lettre près fait CER 0,17. Il rendait 94 % de clips « OK » sans
+jamais mesurer l'audibilité. Sa branche `OK_BIAIS_CANONIQUE` va plus loin :
+quand l'ASR entend le canonique, elle **suppose** le biais de l'ASR et garde le
+clip (77 cas, effet borné, mais c'est une supposition non vérifiée inscrite
+dans un outil de qualité).
+
+### Rendement de XTTS selon ce qu'on lui demande
+
+| demandé à XTTS | fautes audibles |
+|---|---|
+| 1 mot isolé | **93,9 %** |
+| phrase 2-3 mots | 29 % |
+| phrase 3-6 mots | 10 % |
+| **assemblage de mots synthétisés seuls** (4-8 mots) | 42 %, 57 % au critère à deux faces |
+
+Le TTS a le **même réflexe canonique que l'ASR** : plus il a de contexte, plus
+il corrige le texte qu'on lui donne. La substitution l'atteint pourtant bien
+(10 séquences de tokens sur 10 diffèrent après le tokenizer XTTS, et le
+nettoyeur conserve les harakat) — c'est le modèle acoustique qui corrige.
+
+⇒ **Solution retenue : fabriquer le contexte par assemblage.** Chaque mot est
+synthétisé seul (régime fidèle), le clip du mot fauté est **contrôlé**, puis les
+mots sont mis bout à bout. La version correcte est assemblée par le **même
+chemin à partir des mêmes clips**, à un mot près : sans cette symétrie on
+entraînerait un détecteur de montage. Distinct du montage audio mort, qui
+remplaçait une frame de 80 ms **dans** un mot ; sa note de décès autorisait
+explicitement le mot entier.
+
+### Deux pistes réfutées le même jour — gardées comme telles
+
+| piste | mesure qui la tue |
+|---|---|
+| `gop` recalculé en **fenêtre étroite** | séparation +0,682 contre +3,595 en fenêtre large, 0/4. Privé de contexte, `free` s'effondre autant que `forced` |
+| **Deux passes** (localiser avec contexte, entendre sans) | détecte 100 % mais signale **97-99 % des mots corrects** ; aucun seuil sur le CER ne sépare (médiane 1,000 des deux côtés). L'extraction plafonne à 20 % de mots exacts sur de l'audio **correct**, après calibration du décalage (−4 frames) et de l'étendue (mi-chemin entre voisins). Raison structurelle : le modèle est causal avec 5,6 s de contexte gauche, qu'un extrait découpé en plein flux n'a pas |
+
+### Coût à l'EXÉCUTION — la question qui tranche l'architecture
+
+| | surcoût sur téléphone |
+|---|---|
+| **3 têtes** | **< 1 %** — l'encodeur porte 94,9 % des paramètres et tourne **une fois** ; une tête est une couche linéaire (512→19 = ~10 k paramètres) |
+| deux passes | **~3×** le calcul ASR — 25 extraits par bloc de 10 s, chacun avec son invocation ONNX et son mel |
+
+### Composition proposée, par étape
+
+**Étape 1 — encodeur + tête lettres** (la seule où la composition est un arbitrage) :
+
+| | aujourd'hui | proposé | pourquoi |
+|---|---|---|---|
+| Coran récité | 77,0 % (260,0 h) | 60 % | le défaut est un **excès** d'a priori canonique — en rajouter l'aggrave |
+| fautes **en phrase** | 0 % | 15 % | le régime entièrement absent |
+| fautes mot isolé | 12,9 % (43,4 h) | 15 % | rend le modèle fidèle à courte portée, 93,9 % sont bonnes |
+| MSA hors Coran | 10,1 % (34,1 h) | 10 % | empêche l'encodeur de supposer que tout est du Coran |
+
+Le point n'est pas le 60 % : c'est que les fautes passent de **12,9 % toutes
+isolées** à **30 % dont la moitié en phrase**.
+
+**Étapes 2 et 3 — têtes, encodeur GELÉ.** Chaque tête a son propre jeu de
+données, et le gel garantit qu'elles **ne peuvent pas abîmer la transcription**.
+La tête « écart au canonique » va à 50/50 fauté/correct : une tête de
+classification a besoin des deux classes à parité, et une classe jamais vue ne
+sera jamais signalée.
+
+**Garde-fous de l'étape 1** (une case qui se dégrade annule le run) : erreur mot
+sur Coran propre ≤ 7,77 %, faux positifs de la chaîne ≤ 2,03 %, invariance au
+gain conservée, et **recul de la réécriture canonique** mesuré sur des phrases
+tenues à l'écart de l'entraînement (15 %).
+
+Outils : `controle_paires_fautees.py`, `assainir_corpus_fautes.py`,
+`generate_phrases_concat.py` (passe 1), `assembler_phrases_fautees.py`
+(passe 2), `build_manifest_phrases_fautees.py`.
+
+
 ## 6. Critères de succès / d'arrêt
 
 - **Succès tête stricte** : ≥ epoch14 sur détection lettre/harakat ET

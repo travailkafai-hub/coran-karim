@@ -146,6 +146,9 @@ def main():
     p.add_argument("--mots-min", type=int, default=4)
     p.add_argument("--mots-max", type=int, default=10)
     p.add_argument("--saute", type=int, default=0, help="phrases sources a ignorer")
+    p.add_argument("--debut", type=int, default=0,
+                   help="decalage de numerotation, pour completer un lot existant "
+                        "sans ecraser ses clips")
     p.add_argument("--sortie", default=str(OUT_DIR))
     args = p.parse_args()
 
@@ -174,7 +177,7 @@ def main():
             texte, "ar", gpt, spk, temperature=0.75, enable_text_splitting=False)
         return reechantillonner(np.asarray(w["wav"], dtype=np.float32))
 
-    plan = open(sortie / "plan.jsonl", "w", encoding="utf-8")
+    plan = open(sortie / "plan.jsonl", "a" if args.debut else "w", encoding="utf-8")
     n, vus, t0 = 0, 0, time.time()
     for phrase in phrases_sources(args.mots_min, args.mots_max):
         if n >= args.n:
@@ -196,11 +199,12 @@ def main():
         i, faute, kind, detail = choix
         v = noms[n % len(noms)]
         try:
+            ident = f"p{args.debut + n:06d}"
             for k, m in enumerate(mots):
-                ecrire_wav(sortie / "mots" / f"p{n:06d}_m{k:02d}.wav", dire(m, v))
-            ecrire_wav(sortie / "mots" / f"p{n:06d}_faute.wav", dire(faute, v))
+                ecrire_wav(sortie / "mots" / f"{ident}_m{k:02d}.wav", dire(m, v))
+            ecrire_wav(sortie / "mots" / f"{ident}_faute.wav", dire(faute, v))
             plan.write(json.dumps({
-                "id": f"p{n:06d}",
+                "id": ident,
                 "mots": mots,
                 "mot_index": i,
                 "mot_correct": mots[i],
