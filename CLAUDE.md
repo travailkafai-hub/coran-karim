@@ -40,6 +40,17 @@ RÉUSSIT ? quelle classe de correctifs je n'aurai plus jamais à écrire ?) et l
 préalable de mesure. Écrit le 2026-07-28 après trois correctifs dans la même
 séance dont **deux palliatifs**, repérés par l'utilisateur et non par l'agent.
 
+**APRÈS chaque modification de la chaîne de récitation — sans exception et sans
+attendre qu'on le demande : invoquer le skill `superviseur-recette`.** Il
+contrôle que l'application fait toujours ce pour quoi elle existe (l'ancre suit
+le récitateur, aucun verdict sans preuve acoustique, aucun audio détruit, temps
+réel tenu) AVANT de parler de taux. Un gain de taux obtenu en dégradant l'un de
+ces points est un faux gain, à rejeter. Consigne utilisateur 2026-07-30 : « j'en
+ai marre de tes corrections qui cassent beaucoup de choses » — l'agent qui écrit
+un correctif est le plus mal placé pour en constater les dégâts, il cherche la
+confirmation de son hypothèse et non la régression qu'il vient d'introduire.
+Le superviseur est le contrôle **derrière** l'agent, pas devant.
+
 Banc de recette à deux téléphones : `./benchmark/recette_2tel.sh <sourate>
 <durée>` (une commande, aucun tap). Les téléphones sont sur un autre poste :
 `benchmark/adb_pcb.sh` pilote adb à distance, `benchmark/installer_pcb.sh`

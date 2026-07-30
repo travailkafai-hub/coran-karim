@@ -913,9 +913,59 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
             val refMinFramesSlice = alignRefMinFrames?.let {
                 if (anchor < it.size) it.subList(anchor, minOf(it.size, end)) else null
             }
-            val res = aligner.align(logprobs, slice, anchor, forceIdx, isFinal, variantsSlice,
+            val res0 = aligner.align(logprobs, slice, anchor, forceIdx, isFinal, variantsSlice,
                                     segmentRules, refMinFramesSlice,
                                     neverBlockAnchor) ?: return -1
+            // ── LE SECOURS N'A RIEN A RATTRAPER SI LE MOT N'EXISTE MEME PAS
+            //    DANS res.words (2026-07-29) ───────────────────────────────────
+            //
+            // LE DEFAUT MESURE. Le contrat "2 chances" (cf. Result.deferredIndex,
+            // ForcedAligner.kt) exige que l'APPELANT repasse `deferredIndex` en
+            // `forceJudgeIndex` au PROCHAIN appel FINAL. Mais `deferredOnceIndex`
+            // n'est ecrit QUE dans le bloc `if (isFinal) { ... }` plus bas, APRES
+            // avoir calcule `res` -- donc au tout PREMIER appel final d'un
+            // segment, `forceIdx` ci-dessus vaut encore la valeur laissee par le
+            // segment PRECEDENT (souvent -1, en tout debut de session). Si ce
+            // premier appel final echoue A NOUVEAU sur le meme mot (ZERO FRAME),
+            // il repart en `deferredIndex` -- mais AUCUN "prochain appel final"
+            // n'aura jamais lieu sur CE segment : il gele ici. Le mot ne rejoint
+            // donc jamais `res.words`, meme pas avec `noEvidence=true`. Et le
+            // secours (cf. le bloc `for (w in res.words) { ... }`) est incapable
+            // de rattraper un mot qui n'existe pas dans la liste qu'il parcourt --
+            // pas "inutile", litteralement RIEN A ITERER.
+            //
+            // MESURE (2026-07-29, v24, depart=v6) : mot=0 ("إِنَّ") relance a
+            // CHAQUE alignement d'un segment gele a 2-3 s (portier RMS, pause
+            // precoce en debut de session) -- jusqu'a 10 tentatives, `place`
+            // grandissant a chaque fois (20 -> 176 frames), sans jamais dire
+            // "2e chance epuisee". Le segment se fige quand meme (commit via
+            // `greedyDecode`, non aligne aux mots) et produit un texte casse
+            // ("ٱلَّذِينَ يُعْسُكِ") ou vide (""), qui corrompt l'ancre pour les
+            // MOTS SUIVANTS (verifie : 9 mots consecutifs en echec juste apres,
+            // alors que le meme audio decode PARFAITEMENT hors ligne des le
+            // mot 4 avec un peu plus de contexte).
+            //
+            // LE CORRECTIF. Si CET appel final laisse encore un mot differe,
+            // c'est que le "prochain appel final" promis par le contrat n'aura
+            // jamais lieu (le segment va figer). On honore donc le contrat
+            // IMMEDIATEMENT : un second appel, synchrone, avec
+            // forceJudgeIndex = ce differe. `align()` est une fonction pure de
+            // ses parametres (verifie : aucun etat de classe mutable pertinent,
+            // seuls `lookupHits`/`lookupMisses` sont des compteurs diagnostiques)
+            // -- rejouer le meme segment avec un forceIdx different est sans
+            // risque. Cout : un second passage DP, uniquement dans ce cas rare
+            // (mesure ailleurs : 4 zero-frames sur passe finale par session).
+            //
+            // CE QUE CA NE FAIT PAS : ca n'ajoute AUCUNE tolerance de jugement.
+            // Le mot peut toujours finir `noEvidence=true` (pas de rouge sans
+            // preuve, regle projet) si le secours echoue aussi -- mais il existe
+            // enfin dans `res.words`, donc le secours a une chance reelle de le
+            // rattraper au lieu d'etre structurellement aveugle au cas.
+            val res = if (isFinal && res0.deferredIndex != null && forceIdx != res0.deferredIndex) {
+                aligner.align(logprobs, slice, anchor, res0.deferredIndex, isFinal,
+                              variantsSlice, segmentRules, refMinFramesSlice,
+                              neverBlockAnchor) ?: res0
+            } else res0
             // ── RESYNCHRONISATION DE L'ANCRE (2026-07-27) ────────────────────
             // LE DEFAUT QU'ELLE TRAITE. Quand la DP ne place PAS un mot, l'ancre
             // reste dessus. Le recitateur, lui, continue. Trois consequences
@@ -1122,21 +1172,35 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                                 }
                             }
                         }
+                        // TROIS SCORES, PAS UN (2026-07-30, demande utilisateur).
+                        // Ces lignes ne journalisaient que le `gop`. Or le gop
+                        // seul ne permet PAS de diagnostiquer un secours : gop =
+                        // forced - free, donc un gop qui bouge peut venir d'un
+                        // `forced` qui s'ameliore (le mot colle mieux a la cible,
+                        // ce qu'on cherche) OU d'un `free` qui se degrade (le
+                        // modele devient moins sur de lui, ce qui ne vaut rien).
+                        // Sans les trois, l'analyse mot par mot du 2e buffer est
+                        // impossible -- constate en construisant le tableau des
+                        // non verts : la colonne « nouveau free » restait « n.d. ».
+                        // `free` est calcule comme cote Dart : forced - gop.
+                        fun trio(x: ForcedAligner.WordResult) =
+                            "gop=${"%.2f".format(x.gop)} " +
+                                "forced=${"%.2f".format(x.forced)} " +
+                                "free=${"%.2f".format(x.forced - x.gop)}"
                         if (rj != null && secoursMeilleur(w, rj)) {
                             patched[w.index] = rj
                             DiagnosticLog.log(TAG,
-                                "SECOURS mot=${w.index} : gop ${"%.2f".format(w.gop)} -> " +
-                                    "${"%.2f".format(rj.gop)}, entendu \"${w.actual}\" -> " +
-                                    "\"${rj.actual}\"")
+                                "SECOURS mot=${w.index} RATTRAPE : ${trio(w)} -> ${trio(rj)}" +
+                                    " | entendu \"${w.actual}\" -> \"${rj.actual}\"")
                         } else if (rj != null) {
                             // Second chemin MUET corrige : le secours a bien
                             // repondu, mais son verdict n'ameliore pas. Le
                             // taire rendait « secours inefficace » et « secours
                             // jamais appele » indiscernables.
                             DiagnosticLog.log(TAG,
-                                "secours mot=${w.index} SANS GAIN : gop " +
-                                    "${"%.2f".format(w.gop)} -> ${"%.2f".format(rj.gop)}, " +
-                                    "entendu \"${w.actual}\" -> \"${rj.actual}\" (conserve l'original)")
+                                "secours mot=${w.index} SANS GAIN : ${trio(w)} -> ${trio(rj)}" +
+                                    " | entendu \"${w.actual}\" -> \"${rj.actual}\"" +
+                                    " (conserve l'original)")
                         }
                     }
                     if (w.lastFrame >= 0) prevLast = w.lastFrame
@@ -1830,10 +1894,20 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                                     z.first, z.second)
                                 if (rj != null && secoursMeilleur(w, rj)) {
                                     patchF[w.index] = rj
+                                    // Trois scores, cf. le meme correctif sur le
+                                    // chemin normal : le gop seul ne dit pas si
+                                    // l'amelioration vient du `forced` (le mot
+                                    // colle mieux a la cible) ou d'un `free` qui
+                                    // se degrade (le modele doute davantage).
                                     DiagnosticLog.log(TAG,
-                                        "SECOURS (borne dure) mot=${w.index} : gop " +
-                                            "${"%.2f".format(w.gop)} -> ${"%.2f".format(rj.gop)}, " +
-                                            "entendu \"${w.actual}\" -> \"${rj.actual}\"")
+                                        "SECOURS (borne dure) mot=${w.index} RATTRAPE : " +
+                                            "gop=${"%.2f".format(w.gop)} " +
+                                            "forced=${"%.2f".format(w.forced)} " +
+                                            "free=${"%.2f".format(w.forced - w.gop)} -> " +
+                                            "gop=${"%.2f".format(rj.gop)} " +
+                                            "forced=${"%.2f".format(rj.forced)} " +
+                                            "free=${"%.2f".format(rj.forced - rj.gop)}" +
+                                            " | entendu \"${w.actual}\" -> \"${rj.actual}\"")
                                 }
                             }
                             if (w.lastFrame >= 0) prevL = w.lastFrame
