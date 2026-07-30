@@ -117,6 +117,10 @@ class AligneurForce(
         indexPremierMot: Int,
         bordGaucheEstDebutDeSession: Boolean = false,
         attestes: Map<Int, IntRange> = emptyMap(),
+        /** Ecritures EQUIVALENTES de chaque mot (cf. [Orthographe]), parallele
+         *  a [tokensParMot]. Le score retenu est le meilleur des ecritures :
+         *  deux graphies du meme son sont la meme cible acoustique. */
+        variantesParMot: List<List<IntArray>> = emptyList(),
     ): Resultat? {
         val t = logprobs.size
         if (t == 0 || tokensParMot.isEmpty()) return null
@@ -195,8 +199,20 @@ class AligneurForce(
         val out = ArrayList<MotAligne>(mots.size)
         for (w in mots.indices) {
             val n = nb[w]
-            val f = if (n > 0) (sommeForced[w] / n).toFloat() else 0f
+            var f = if (n > 0) (sommeForced[w] / n).toFloat() else 0f
             val fr = if (n > 0) (sommeFree[w] / n).toFloat() else 0f
+
+            // ECRITURES EQUIVALENTES : sur les MEMES frames, on rescore les
+            // graphies qui se prononcent identiquement et on garde la
+            // meilleure. Ce n'est pas une tolerance -- le critere ne bouge pas,
+            // c'est la cible qui cesse d'exiger une distinction inaudible.
+            if (n > 0 && w < variantesParMot.size) {
+                for (v in variantesParMot[w]) {
+                    if (v.isEmpty()) continue
+                    val alt = forwardMoyen(logprobs, premiere[w], derniere[w], v)
+                    if (alt > f) f = alt
+                }
+            }
             val margeG = if (bordGaucheEstDebutDeSession) 0 else margeGaucheFrames
             val interieur = n > 0 &&
                 premiere[w] >= margeG &&
@@ -227,6 +243,48 @@ class AligneurForce(
             )
         }
         return Resultat(out, tronquee)
+    }
+
+    /**
+     * Forward CTC (log-somme) d'une sequence de tokens sur [de..a], ramene a
+     * une moyenne PAR FRAME pour etre comparable au `forced` du chemin Viterbi.
+     *
+     * Second treillis, minuscule et local : a ne pas confondre avec celui
+     * d'[aligner] -- meme piege qu'en v1, ou `ctcForwardNll` cohabitait avec la
+     * DP principale.
+     */
+    private fun forwardMoyen(
+        logprobs: Array<FloatArray>, de: Int, a: Int, tokens: IntArray,
+    ): Float {
+        if (de < 0 || a < de || tokens.isEmpty()) return neginf
+        val l = 2 * tokens.size + 1
+        val s = IntArray(l) { if (it % 2 == 0) blank else tokens[it / 2] }
+        var prev = FloatArray(l) { neginf }
+        prev[0] = logprobs[de][blank]
+        if (l > 1) prev[1] = logprobs[de][s[1]]
+        for (t in de + 1..a) {
+            val cur = FloatArray(l) { neginf }
+            val lp = logprobs[t]
+            for (i in 0 until l) {
+                var acc = prev[i]
+                if (i >= 1) acc = logSomme(acc, prev[i - 1])
+                if (i >= 2 && s[i] != blank && s[i] != s[i - 2]) {
+                    acc = logSomme(acc, prev[i - 2])
+                }
+                if (acc > neginf) cur[i] = acc + lp[s[i]]
+            }
+            prev = cur
+        }
+        val fin = logSomme(prev[l - 1], if (l >= 2) prev[l - 2] else neginf)
+        val n = (a - de + 1).coerceAtLeast(1)
+        return fin / n
+    }
+
+    private fun logSomme(a: Float, b: Float): Float {
+        if (a <= neginf) return b
+        if (b <= neginf) return a
+        val m = maxOf(a, b)
+        return m + kotlin.math.ln(1.0 + kotlin.math.exp((-kotlin.math.abs(a - b)).toDouble())).toFloat()
     }
 
     /**

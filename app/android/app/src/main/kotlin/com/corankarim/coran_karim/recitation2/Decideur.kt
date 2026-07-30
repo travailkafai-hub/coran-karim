@@ -57,6 +57,10 @@ class Decideur(
     private val seuilDouteux: Float = -1.60f,
     private val k: Int = 2,
     private val motsPosterieursPourOmission: Int = 3,
+    /** De combien de mots la recitation doit avoir depasse un mot avant qu'on
+     *  accepte de le condamner. Ce n'est pas une tolerance sur le critere :
+     *  c'est le refus de conclure tant que la preuve peut encore arriver. */
+    private val depassement: Int = 3,
 ) {
     private val definitifs = HashMap<Int, Couleur>()
     private val omis = HashSet<Int>()
@@ -102,9 +106,33 @@ class Decideur(
                 val dernieres = couleurs.takeLast(k)
                 val idsDistincts = fenetres.takeLast(k).toSet().size == k
                 if (idsDistincts && dernieres.all { it == dernieres.first() }) {
-                    definitifs[i] = dernieres.first()
-                    out[i] = Statut.Definitif(dernieres.first())
-                    continue
+                    // ── UN NON-VERT NE SE FIGE QUE QUAND LE RECITATEUR EST
+                    //    PASSE A LA SUITE ────────────────────────────────────
+                    //
+                    // La conception d'origine posait trois conditions au
+                    // verrouillage ; la troisieme -- « au moins un mot
+                    // posterieur a recu des frames » -- n'avait jamais ete
+                    // implementee. Elle manquait, et ca se voit :
+                    //     mot 171 f36 gop=-12,66  f37 gop=-18,34  -> ROUGE fige
+                    //             f39 gop=  0,00 entendu="يَخْطَفُ"  (trop tard)
+                    //     mot 172 f36 gop=-11,14  f37 gop=-14,18  -> ROUGE fige
+                    //             f39 gop= -4,20 entendu correct
+                    // Les deux premieres observations avaient `free` proche de
+                    // 0 et `entendu` vide : signature de MAUVAISE POSITION, pas
+                    // de mauvaise prononciation ([PIEGE] gop_vs_free). La
+                    // monotonie figeait donc une erreur de position.
+                    //
+                    // Un VERT reste immediat : il est deja atteste deux fois, et
+                    // faire attendre un mot juste degrade le temps reel pour
+                    // rien. Un NON-VERT, lui, accuse quelqu'un : il attend que
+                    // le mot ne puisse plus etre reobserve.
+                    val couleurRetenue = dernieres.first()
+                    val recitateurPasse = registre.indexMaxVotant() >= i + depassement
+                    if (couleurRetenue == Couleur.VERT || recitateurPasse) {
+                        definitifs[i] = couleurRetenue
+                        out[i] = Statut.Definitif(couleurRetenue)
+                        continue
+                    }
                 }
             }
             out[i] = Statut.Provisoire(couleurs.last())

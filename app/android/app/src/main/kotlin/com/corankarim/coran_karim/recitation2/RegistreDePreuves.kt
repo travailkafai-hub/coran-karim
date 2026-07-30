@@ -68,9 +68,33 @@ class RegistreDePreuves {
 
     fun observations(motIndex: Int): List<Observation> = parMot[motIndex] ?: emptyList()
 
-    /** Observations qui ont le droit de VOTER (cf. AligneurForce.interieur). */
+    /**
+     * Observations qui ont le droit de VOTER.
+     *
+     * Deux conditions, et la seconde est la regle la plus dure du projet.
+     *
+     * 1. INTERIEURE : le mot est entierement dans le bloc, avec ses marges, et
+     *    l'alignement ne l'a pas pose sur l'audio d'un voisin.
+     *
+     * 2. `entendu` NON VIDE. Un `entendu` vide veut dire que les frames
+     *    attribuees au mot n'emettent RIEN : la DP l'a pose sur du silence ou
+     *    sur une transition. On ne peut pas conclure la-dessus -- ni « bien
+     *    prononce », ni « mal prononce ». C'est litteralement le controle
+     *    BLOQUANT du superviseur : « un mot verrouille error avec entendu=""
+     *    condamne l'utilisateur sur du vide ».
+     *
+     *    Ce n'est PAS une tolerance : une faute de prononciation produit un
+     *    AUTRE mot, pas rien. Une observation vide n'est donc jamais la preuve
+     *    d'une faute -- au mieux la preuve d'une mauvaise position
+     *    ([PIEGE] gop_vs_free), au pire d'un mot non prononce, et ce dernier cas
+     *    a son propre statut (`Omis`), qui repose sur une preuve POSITIVE.
+     *
+     *    Mesure qui l'impose (2026-07-30) : les mots 171 et 172 etaient figes
+     *    ROUGE par deux blocs a `entendu=""` et `free` proche de 0, alors que le
+     *    bloc suivant les lisait parfaitement (`gop=0,00`, texte exact).
+     */
     fun observationsVotantes(motIndex: Int): List<Observation> =
-        observations(motIndex).filter { it.interieur }
+        observations(motIndex).filter { it.interieur && it.entendu.isNotBlank() }
 
     val motsObserves: Set<Int> get() = parMot.keys
 

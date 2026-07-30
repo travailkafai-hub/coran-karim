@@ -113,7 +113,34 @@ class BancFluxBrut {
             if (p.size == 2) tokens[p[0]] = p[1].split(",").filter { it.isNotBlank() }
                 .map { it.toInt() }.toIntArray()
         }
-        val tokensAttendus = mots.map { tokens[it] ?: IntArray(0) }
+        // Repli glouton, comme CtcTokenizer cote app : le dictionnaire
+        // precalcule ne contient QUE les mots canoniques du Coran, donc aucune
+        // ecriture equivalente. Sans ce repli, les variantes etaient toutes
+        // filtrees et la mesure ne bougeait pas d'un centieme -- ce qui se lit
+        // a tort comme « la piste ne sert a rien ».
+        val parPiece = pieces.withIndex().associate { (i, p) -> p to i }
+        val maxPiece = pieces.maxOf { it.length }
+        fun greedy(mot: String): IntArray {
+            val cible = "\u2581" + mot
+            val ids = ArrayList<Int>(cible.length)
+            var pos = 0
+            while (pos < cible.length) {
+                var len = minOf(maxPiece, cible.length - pos)
+                var trouve = false
+                while (len >= 1) {
+                    val id = parPiece[cible.substring(pos, pos + len)]
+                    if (id != null) { ids.add(id); pos += len; trouve = true; break }
+                    len--
+                }
+                if (!trouve) pos++
+            }
+            return ids.toIntArray()
+        }
+        val tokensAttendus = mots.map { tokens[it] ?: greedy(it) }
+        val variantes = mots.map { m ->
+            Orthographe.variantes(m).drop(1)
+                .map { v -> tokens[v] ?: greedy(v) }.filter { it.isNotEmpty() }
+        }
 
         var dernierDefinitif = -1
         var statuts: Map<Int, Statut> = emptyMap()
@@ -134,6 +161,7 @@ class BancFluxBrut {
                 lp, tokensAttendus.subList(bande.i0, bande.i1 + 1), bande.i0,
                 bordGaucheEstDebutDeSession = debut == 0L,
                 attestes = bande.attestes,
+                variantesParMot = variantes.subList(bande.i0, bande.i1 + 1),
             ) ?: continue
             for (m in res.mots) {
                 registre.ajouter(

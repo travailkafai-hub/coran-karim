@@ -35,6 +35,7 @@ class ChaineRecitation(
 ) {
     private var motsAttendus: List<String> = emptyList()
     private var tokensAttendus: List<IntArray> = emptyList()
+    private var variantesAttendues: List<List<IntArray>> = emptyList()
     private val registre = RegistreDePreuves()
     private var statutsCourants: Map<Int, Statut> = emptyMap()
 
@@ -47,6 +48,11 @@ class ChaineRecitation(
     fun definirTexte(mots: List<String>) {
         motsAttendus = mots
         tokensAttendus = mots.map(tokeniser)
+        // Ecritures equivalentes (cf. Orthographe) : la premiere entree est le
+        // mot canonique, deja couvert par la DP -- on ne garde que les autres.
+        variantesAttendues = mots.map { m ->
+            Orthographe.variantes(m).drop(1).map(tokeniser).filter { it.isNotEmpty() }
+        }
         decideur.reinitialiser()
         dernierDefinitif = -1
         statutsCourants = emptyMap()
@@ -125,6 +131,7 @@ class ChaineRecitation(
             logprobs, tokens, bande.i0,
             bordGaucheEstDebutDeSession = fenetre.travailDebut == 0L,
             attestes = bande.attestes,
+            variantesParMot = variantesAttendues.subList(bande.i0, bande.i1 + 1),
         ) ?: return
 
         for (m in res.mots) {
