@@ -564,6 +564,7 @@ class FastConformerVerifier {
               'free=${f(m['free'])} frames=${m['frames']} '
               '${(m['interieur'] as bool?) ?? false ? 'INT' : 'bord'}'
               '${(m['sansCreneau'] as bool?) ?? false ? '/sansCreneau' : ''} '
+              'margeL=${f(m['margeL'])} margeH=${f(m['margeH'])} '
               'obs=${m['nbObs']} entendu="${m['entendu']}"',
         ));
       }

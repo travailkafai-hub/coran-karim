@@ -88,6 +88,50 @@ class AligneurForce(
          * aucune tolerance.
          */
         val sansCreneau: Boolean,
+        /**
+         * `forced(mot attendu) - forced(meilleure confusion de LETTRE)`, sur les
+         * MEMES frames. Null si le mot n'a aucune confusion possible.
+         *
+         * POURQUOI CE SIGNAL EXISTE, alors que le `gop` est deja la. Le `gop` se
+         * compare a `free`, un maximum sur les 1025 classes : une borne si lache
+         * que TOUS les mots corrects s'y ecrasent a exactement 0,000. Mesure du
+         * 2026-07-31 sur audio reellement faute (189 phrases tenues a l'ecart),
+         * detection a 2 % de collateral :
+         *
+         *     gop = forced - free            (ce que faisait la v2)     9 %
+         *     forced - forced(confusion)                               24 %
+         *     idem, variantes de LETTRE seules                         30 %
+         *
+         * Et surtout, la mediane d'un mot CORRECT passe de 0,000 a +1,79 : le
+         * seuil cesse d'etre un reglage (-0,45 / -1,60) pour devenir ZERO, la
+         * frontiere naturelle d'un rapport de vraisemblance. Positif = l'audio
+         * prefere le mot attendu ; negatif = il prefere la confusion.
+         *
+         * L'IDEE N'EST PAS NEUVE DANS CE PROJET : elle est ecrite dans
+         * ForcedAligner.WordResult.rescoreMargin depuis le 2026-07-19, validee
+         * hors device, et jamais branchee -- « ne participe PAS au verdict tant
+         * que le seuil n'est pas calibre sur device ». C'est cette calibration
+         * qui manquait ; le 2026-07-31 l'a faite, et la reponse est zero.
+         *
+         * ⚠️ Les 80,8 % annonces en 2026-07-19 valaient sur des clips de mot
+         * ISOLE. En contexte de phrase, meme regle, meme modele : 24-30 %. Les
+         * deux chiffres sont vrais, ils ne mesurent pas la meme chose.
+         */
+        val margeLettres: Float? = null,
+        /**
+         * Idem contre les substitutions de HARAKAT. Mesure 2026-07-31 : 7,9 % de
+         * detection, a peine au-dessus du hasard -- deja constate en 2026-07-19
+         * (49,6 %, « quasi hasard »). JOURNALISE, ne tranche pas seul, et
+         * surtout PAS fusionne avec [margeLettres] : l'union des deux jeux de
+         * candidats fait tomber la detection de 30 % a 21 %.
+         *
+         * ⚠️ Ce « quasi hasard » vaut POUR CE MODELE, qui n'a jamais ete
+         * entraine a distinguer deux harakat sur le meme squelette consonantique
+         * -- pas pour la harakat en general. A REMESURER apres tout entrainement
+         * qui touche a ca (contrastif, tete dediee). Une piste mesuree perdante
+         * dans un contexte ne l'est pas dans tous.
+         */
+        val margeHarakat: Float? = null,
     )
 
     data class Resultat(
@@ -121,6 +165,12 @@ class AligneurForce(
          *  a [tokensParMot]. Le score retenu est le meilleur des ecritures :
          *  deux graphies du meme son sont la meme cible acoustique. */
         variantesParMot: List<List<IntArray>> = emptyList(),
+        /** CONCURRENTES de chaque mot — a ne pas confondre avec
+         *  [variantesParMot]. Celles-la se prononcent AUTREMENT : leur score ne
+         *  remplace jamais celui du mot attendu, il lui est SOUSTRAIT pour
+         *  produire [MotAligne.margeLettres] / [MotAligne.margeHarakat]. */
+        confusionsLettresParMot: List<List<IntArray>> = emptyList(),
+        confusionsHarakatParMot: List<List<IntArray>> = emptyList(),
     ): Resultat? {
         val t = logprobs.size
         if (t == 0 || tokensParMot.isEmpty()) return null
@@ -213,6 +263,25 @@ class AligneurForce(
                     if (alt > f) f = alt
                 }
             }
+            // CONCURRENTES : meme fenetre de frames, mais leur score est
+            // SOUSTRAIT au lieu de remplacer. `f` est deja le meilleur des
+            // ecritures equivalentes ci-dessus, donc la marge compare bien
+            // « ce qui se prononce comme attendu » a « ce qui se prononce
+            // autrement ». Cout : un treillis minuscule par candidat, sur les
+            // seules frames du mot -- aucune passe d'encodeur supplementaire.
+            fun marge(cands: List<List<IntArray>>): Float? {
+                if (n <= 0 || w >= cands.size) return null
+                var meilleur = neginf
+                for (c in cands[w]) {
+                    if (c.isEmpty()) continue
+                    val s = forwardMoyen(logprobs, premiere[w], derniere[w], c)
+                    if (s > meilleur) meilleur = s
+                }
+                return if (meilleur <= neginf) null else f - meilleur
+            }
+            val margeL = marge(confusionsLettresParMot)
+            val margeH = marge(confusionsHarakatParMot)
+
             val margeG = if (bordGaucheEstDebutDeSession) 0 else margeGaucheFrames
             val interieur = n > 0 &&
                 premiere[w] >= margeG &&
@@ -239,6 +308,8 @@ class AligneurForce(
                     interieur = interieur,
                     couvert = n >= framesMinimales(listOf(mots[w])),
                     sansCreneau = sansCreneau,
+                    margeLettres = margeL,
+                    margeHarakat = margeH,
                 )
             )
         }

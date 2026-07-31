@@ -55,6 +55,11 @@ sealed class Statut {
 class Decideur(
     private val seuilCorrect: Float = -0.45f,
     private val seuilDouteux: Float = -1.60f,
+    /** Frontiere de la marge de confusion. ZERO n'est pas un reglage : c'est le
+     *  point ou l'audio cesse de preferer le mot attendu et se met a preferer
+     *  une confusion. Expose pour que la recette puisse le balayer, pas pour
+     *  qu'on l'ajuste a l'oeil. */
+    private val seuilMargeRouge: Float = 0f,
     private val k: Int = 2,
     private val motsPosterieursPourOmission: Int = 3,
     /** De combien de mots la recitation doit avoir depasse un mot avant qu'on
@@ -112,7 +117,20 @@ class Decideur(
             val nette = registre.observations(i).lastOrNull {
                 it.atteste && !it.sansCreneau && it.entendu.isNotBlank()
             }
-            if (nette != null && couleur(nette) == Couleur.VERT) {
+            // REGRESSION MESUREE LE 2026-07-31, recette s2 : en laissant la
+            // marge de confusion peser ici, les mots qu'elle fait sortir du
+            // vert ne se verrouillent plus, restent provisoires, et la logique
+            // d'omission les ramasse. Resultat : `omis` 5 -> 13, dont le mot
+            // 205 `ٱلَّذِى` ENTENDU IDENTIQUE, gop 0,00, declare NON PRONONCE.
+            // Les faux positifs de la marge devenaient donc INVISIBLES : ils ne
+            // s'affichaient pas en rouge, ils se deguisaient en « vous n'avez
+            // pas dit ce mot » -- le pire verdict possible, et indiscernable
+            // d'un vrai saut dans le log.
+            // La regle `nette` repose sur DEUX mesures independantes qui
+            // concordent (decodage libre + alignement force) ; la marge est une
+            // TROISIEME question, elle n'a pas a annuler cette preuve. Elle
+            // garde tout son effet par le chemin normal a deux fenetres.
+            if (nette != null && couleurSansMarge(nette) == Couleur.VERT) {
                 definitifs[i] = Couleur.VERT
                 out[i] = Statut.Definitif(Couleur.VERT)
                 continue
@@ -174,7 +192,45 @@ class Decideur(
         return out
     }
 
+    /**
+     * Deux questions, pas une.
+     *
+     * `gop = forced - free` demande « le modele est-il sur de ce qu'il
+     * entend ? ». `free` etant un maximum sur les 1025 classes, c'est une borne
+     * si lache que TOUS les mots corrects s'y ecrasent a exactement 0,000 --
+     * d'ou [seuilCorrect] et [seuilDouteux], regles a la main. Pire : quand le
+     * modele est CONVAINCU du canonique alors que le recitateur a dit autre
+     * chose, `forced == free`, donc `gop = 0`, donc VERT A TORT. C'est
+     * exactement ce que l'utilisateur constatait en faisant des fautes
+     * deliberees.
+     *
+     * [margeLettres] demande autre chose : « l'audio prefere-t-il le mot
+     * attendu, ou sa confusion la plus plausible ? ». Deux hypotheses
+     * CONTRAINTES, donc comparables, et une frontiere naturelle : ZERO.
+     * [seuilMargeRouge] est expose pour que la recette puisse le balayer, mais
+     * sa valeur par defaut n'est pas un reglage.
+     *
+     * Mesure 2026-07-31, audio reellement faute, 189 phrases tenues a l'ecart,
+     * detection a 2 % de collateral : gop 9 %, marge de lettre 30 %.
+     *
+     * ON AJOUTE, ON NE REMPLACE PAS. Le gop voit des choses que la marge ne
+     * peut pas voir : un mot saute, un mot completement autre -- la marge ne
+     * compare qu'a une vingtaine de confusions a une lettre. Consequence
+     * assumee : les faux positifs des deux mecanismes s'additionnent, le
+     * collateral passe d'environ 2 % a ~4 %. C'est le prix de la detection, et
+     * il doit etre lu sur la recette, pas suppose.
+     */
+    /** La couleur SANS la marge de confusion — c'est-a-dire la regle d'avant.
+     *  Sert au verrouillage par preuves concordantes, que la marge ne doit pas
+     *  pouvoir annuler (cf. la regression du 2026-07-31 documentee plus haut). */
+    fun couleurSansMarge(o: RegistreDePreuves.Observation): Couleur = when {
+        o.gop >= seuilCorrect -> Couleur.VERT
+        o.gop >= seuilDouteux -> Couleur.ORANGE
+        else -> Couleur.ROUGE
+    }
+
     fun couleur(o: RegistreDePreuves.Observation): Couleur = when {
+        o.margeLettres != null && o.margeLettres < seuilMargeRouge -> Couleur.ROUGE
         o.gop >= seuilCorrect -> Couleur.VERT
         o.gop >= seuilDouteux -> Couleur.ORANGE
         else -> Couleur.ROUGE

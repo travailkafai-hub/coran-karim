@@ -613,6 +613,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     val chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
                         front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
                         tokeniser = { mot -> tk.tokenizeWord(mot) },
+                    // Tokenisation SILENCIEUSE : une confusion est un mot
+                    // volontairement hors-Coran, quasi jamais dans le
+                    // dictionnaire precalcule -- logger chaque repli en ferait
+                    // des milliers par sourate.
+                    tokeniserConfusion = { mot -> tk.tokenizeVariantQuiet(mot) },
+                    confusionsLettres = { mot -> ConfusableVariants.lettresOf(mot) },
+                    confusionsHarakat = { mot -> ConfusableVariants.harakatOf(mot) },
                         constructeur = com.corankarim.coran_karim.recitation2
                             .ConstructeurDeFenetres(
                                 pauseMinSecondes = fenetreS,
@@ -786,6 +793,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
                     front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
                     tokeniser = { mot -> tk.tokenizeWord(mot) },
+                    // Tokenisation SILENCIEUSE : une confusion est un mot
+                    // volontairement hors-Coran, quasi jamais dans le
+                    // dictionnaire precalcule -- logger chaque repli en ferait
+                    // des milliers par sourate.
+                    tokeniserConfusion = { mot -> tk.tokenizeVariantQuiet(mot) },
+                    confusionsLettres = { mot -> ConfusableVariants.lettresOf(mot) },
+                    confusionsHarakat = { mot -> ConfusableVariants.harakatOf(mot) },
                     localisateur = com.corankarim.coran_karim.recitation2
                         .Localisateur(moteur.vocabPieces, moteur.blank),
                     aligneur = com.corankarim.coran_karim.recitation2
@@ -815,6 +829,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     "entendu" to (obs?.entendu ?: ""),
                     "interieur" to (obs?.interieur ?: false),
                     "sansCreneau" to (obs?.sansCreneau ?: false),
+                    // SANS CETTE TRACE, la marge est indiscernable d'un
+                    // mecanisme qui n'a pas tourne — regle du superviseur, et
+                    // lacune reellement payee le 2026-07-31 : impossible de
+                    // dire, log en main, lesquels des 18 mots non verts elle
+                    // avait touches.
+                    "margeL" to obs?.margeLettres?.toDouble(),
+                    "margeH" to obs?.margeHarakat?.toDouble(),
                     "nbObs" to chaine.preuves.observations(c.motIndex).size,
                 )
             }

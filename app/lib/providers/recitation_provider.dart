@@ -2789,6 +2789,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// on peut le prouver ». Il est rendu comme `skipped`, jamais comme `error` —
   /// condamner un mot non prononcé serait un verdict sans preuve.
   void _onV2(List<({int index, String statut, String trace})> changements) {
+    var dernierJuge = -1;
     for (final c in changements) {
       DiagnosticLog.log('V2',
           'mot=${c.index} "${state.words.length > c.index ? state.words[c.index].display : "?"}" '
@@ -2809,9 +2810,57 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       };
       if (statut == null) continue;
       _judge(words, c.index, statut, lock: definitif || c.statut == 'omis');
+      if (c.index > dernierJuge) dernierJuge = c.index;
       touche = true;
     }
-    if (touche) state = state.copyWith(words: words);
+    if (touche) {
+      // AVANCER LE MOT COURANT — sans ça l'écran ne défile plus.
+      //
+      // RÉGRESSION TROUVÉE PAR L'UTILISATEUR le 2026-07-31 : « l'affichage se
+      // bloque au verset 18, normalement c'est dynamique pour recharger la
+      // suite ». Elle ne datait PAS du correctif du jour : le défilement suit
+      // le mot marqué `WordStatus.current`
+      // (karaoke_recitation_screen.dart, `indexWhere(... == current)`), or
+      // c'est la v1 qui le posait sur son ancre. Depuis que la v1 est coupée
+      // quand la v2 pilote (cd131a9), plus personne ne le posait : l'écran
+      // restait figé là où la v1 s'était arrêtée.
+      //
+      // MÊME FAMILLE QUE LES CLIPS AUDIO PERDUS : couper la v1 a emporté
+      // plusieurs choses qu'elle portait SEULE, et dont l'inventaire n'avait
+      // pas été fait. Le symptôme ne ressemble pas à une erreur — rien ne
+      // plante, l'écran cesse simplement de suivre.
+      // PREMIER CORRECTIF, INSUFFISANT (2026-07-31) : il ne posait `current`
+      // que si le mot `dernierJuge + 1` etait encore `pending`. Or la v2 juge
+      // par BANDES et RECULE quand le recitateur repete — ce mot est donc
+      // tres souvent deja juge. Aucun mot ne recevait alors `current`,
+      // `indexWhere` rendait -1, et l'ecran restait fige exactement comme
+      // avant. Signale par l'utilisateur : « ta correction de suivi d'ecran ne
+      // marche pas, toujours bloque ».
+      // On cherche donc le premier mot ENCORE NON JUGE a partir de la, ce qui
+      // est la definition de « la ou en est le recitateur ». Et si tout est
+      // juge jusqu'au bout, on se rabat sur le dernier mot juge : l'ecran doit
+      // suivre meme en fin de sourate.
+      var cible = -1;
+      for (var i = dernierJuge + 1; i < words.length; i++) {
+        if (words[i].status == WordStatus.pending) { cible = i; break; }
+      }
+      // Pas de repli sur le dernier mot juge : un mot qui porte deja un
+      // verdict ne peut pas devenir `current` sans ecraser sa couleur. En fin
+      // de sourate il n'y a donc plus rien a suivre, et c'est correct.
+      if (cible >= 0) {
+        for (var i = 0; i < words.length; i++) {
+          if (i != cible && words[i].status == WordStatus.current) {
+            words[i] = words[i].copyWith(status: WordStatus.pending);
+          }
+        }
+        // `current` n'ecrase JAMAIS un verdict : un mot vert/rouge/orange garde
+        // sa couleur, il est seulement suivi par le defilement.
+        if (words[cible].status == WordStatus.pending) {
+          words[cible] = words[cible].copyWith(status: WordStatus.current);
+        }
+      }
+      state = state.copyWith(words: words);
+    }
   }
 
   void _onAligned(AlignPayload p) {

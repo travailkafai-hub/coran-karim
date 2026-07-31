@@ -55,6 +55,16 @@ class RegistreDePreuves {
          *  decodage libre ne connait pas le texte attendu. Deux mesures
          *  independantes qui concordent valent mieux que deux fois la meme. */
         val atteste: Boolean = false,
+        /** `forced(attendu) - forced(meilleure confusion de LETTRE)` sur les
+         *  memes frames. Positif : l'audio prefere le mot attendu. Negatif : il
+         *  prefere une confusion. Null : le mot n'a aucune confusion possible.
+         *  Cf. AligneurForce.MotAligne.margeLettres pour la mesure qui l'impose
+         *  (detection a 2 % de collateral : 9 % avec le gop, 30 % avec ceci). */
+        val margeLettres: Float? = null,
+        /** Idem pour les harakat — JOURNALISE seulement sur le modele actuel
+         *  (7,9 %, quasi hasard). A remesurer apres tout entrainement qui
+         *  cherche a les distinguer. */
+        val margeHarakat: Float? = null,
         val fenetrePleine: Boolean,
         val debutAbs: Long,
         val finAbs: Long,

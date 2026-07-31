@@ -26,6 +26,19 @@ package com.corankarim.coran_karim.recitation2
 class ChaineRecitation(
     private val front: FrontAcoustique,
     private val tokeniser: (String) -> IntArray,
+    /** Tokenise une CONFUSION generee (mot volontairement hors-Coran). Separe de
+     *  [tokeniser] parce que ces mots ne sont presque jamais dans le
+     *  dictionnaire precalcule : logger chaque repli en ferait des milliers par
+     *  sourate (piege deja documente dans CtcTokenizer.tokenizeVariantQuiet).
+     *  Par defaut on retombe sur [tokeniser] — les tests JVM n'ont pas besoin
+     *  de la distinction. */
+    private val tokeniserConfusion: (String) -> IntArray = tokeniser,
+    /** Confusions de LETTRE d'un mot. Injectee plutot qu'importee : le paquet
+     *  recitation2 ne doit pas dependre de `fastconformer`. */
+    private val confusionsLettres: (String) -> List<String> = { emptyList() },
+    /** Confusions de HARAKAT. Signal faible sur le modele actuel (7,9 %), tenu
+     *  SEPARE des lettres : leur union fait tomber la detection de 30 a 21 %. */
+    private val confusionsHarakat: (String) -> List<String> = { emptyList() },
     private val constructeur: ConstructeurDeFenetres = ConstructeurDeFenetres(),
     private val localisateur: Localisateur = Localisateur(front.pieces, front.blank),
     private val aligneur: AligneurForce = AligneurForce(front.pieces, front.blank),
@@ -36,6 +49,8 @@ class ChaineRecitation(
     private var motsAttendus: List<String> = emptyList()
     private var tokensAttendus: List<IntArray> = emptyList()
     private var variantesAttendues: List<List<IntArray>> = emptyList()
+    private var confusionsLettresAttendues: List<List<IntArray>> = emptyList()
+    private var confusionsHarakatAttendues: List<List<IntArray>> = emptyList()
     private val registre = RegistreDePreuves()
     private var statutsCourants: Map<Int, Statut> = emptyMap()
 
@@ -52,6 +67,17 @@ class ChaineRecitation(
         // mot canonique, deja couvert par la DP -- on ne garde que les autres.
         variantesAttendues = mots.map { m ->
             Orthographe.variantes(m).drop(1).map(tokeniser).filter { it.isNotEmpty() }
+        }
+        // CONCURRENTES : elles se prononcent AUTREMENT. Leur score sert a
+        // repondre « l'audio prefere-t-il le mot attendu ou sa confusion la plus
+        // plausible ? » -- une question a frontiere naturelle (zero), la ou le
+        // gop contre le decodage libre ecrase tous les mots corrects a 0,000 et
+        // impose des seuils regles a la main.
+        confusionsLettresAttendues = mots.map { m ->
+            confusionsLettres(m).map(tokeniserConfusion).filter { it.isNotEmpty() }
+        }
+        confusionsHarakatAttendues = mots.map { m ->
+            confusionsHarakat(m).map(tokeniserConfusion).filter { it.isNotEmpty() }
         }
         decideur.reinitialiser()
         dernierDefinitif = -1
@@ -135,6 +161,10 @@ class ChaineRecitation(
             bordGaucheEstDebutDeSession = fenetre.travailDebut == 0L,
             attestes = bande.attestes,
             variantesParMot = variantesAttendues.subList(bande.i0, bande.i1 + 1),
+            confusionsLettresParMot =
+                confusionsLettresAttendues.subList(bande.i0, bande.i1 + 1),
+            confusionsHarakatParMot =
+                confusionsHarakatAttendues.subList(bande.i0, bande.i1 + 1),
         ) ?: return
 
         for (m in res.mots) {
@@ -148,6 +178,8 @@ class ChaineRecitation(
                     forced = m.forced,
                     free = m.free,
                     entendu = m.entendu,
+                    margeLettres = m.margeLettres,
+                    margeHarakat = m.margeHarakat,
                     frames = m.frames,
                     interieur = m.interieur && !m.sansCreneau,
                     couvert = m.couvert,
