@@ -202,6 +202,25 @@ class ChaineRecitation(
                 confusionsHarakatAttendues.subList(bande.i0, bande.i1 + 1),
         ) ?: return
 
+        // ON REMONTE LA FRONTIERE DU DERNIER MOT SUR AU CONSTRUCTEUR.
+        //
+        // Inversion de l'ordre : au lieu de couper puis aligner, on aligne puis
+        // on coupe a une frontiere CONNUE. L'energie ne porte pas cette
+        // information -- une occlusive arabe a une phase peu energique au
+        // MILIEU d'un mot -- et le projet l'a mesure : 47,4 % des coupes
+        // tombaient en plein mot, et 19 des 22 mots non verts en etaient les
+        // victimes.
+        //
+        // On ne remonte QUE des mots INTERIEURS : un mot du bord peut etre
+        // tronque, sa `derniereFrame` ne serait pas sa vraie fin. Et on garde
+        // une marge d'une frame, l'alignement CTC etant peaky (il marque le pic
+        // du token, pas l'etendue du son) -- c'est ce defaut qui a tue le
+        // montage audio dans ce projet.
+        res.mots.lastOrNull { it.interieur && it.frames > 0 }?.let { dernier ->
+            val fin = fenetre.absoluDeFrame(dernier.derniereFrame + 1)
+            if (fin > 0) constructeur.frontiereMotSure(fin)
+        }
+
         for (m in res.mots) {
             val debutAbs = if (m.frames > 0) fenetre.absoluDeFrame(m.premiereFrame) else -1L
             val finAbs = if (m.frames > 0) fenetre.absoluDeFrame(m.derniereFrame) else -1L

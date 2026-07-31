@@ -261,6 +261,33 @@ class ConstructeurDeFenetres(
     private val apercuEch: Long = if (apercuSecondes > 0)
         Horloge.secondesVersEch(apercuSecondes).toLong() else 0L
     private var dernierApercu: Long = 0L
+
+    /**
+     * Fin ABSOLUE du dernier mot dont l'alignement est sûr, renseignée par la
+     * couche au-dessus (cf. [frontiereMotSure]).
+     *
+     * POURQUOI CE RETOUR D'INFORMATION. La coupe était décidée sur l'ÉNERGIE,
+     * or l'énergie ne porte pas la frontière de mot : une occlusive arabe
+     * (ب ذ ن ق ت) a une phase peu énergique AU MILIEU d'un mot, acoustiquement
+     * identique à une pause. Mesure du projet (2026-07-28) : **47,4 % des
+     * coupes tombaient en plein mot**, et 19 des 22 mots non verts étaient les
+     * victimes de ces coupes.
+     *
+     * L'information existe pourtant déjà dans la chaîne : l'alignement forcé
+     * rend `premiereFrame`/`derniereFrame` de chaque mot. On INVERSE donc
+     * l'ordre — au lieu de couper puis aligner, on aligne puis on coupe à la
+     * frontière connue. C'est ce que la littérature appelle une segmentation
+     * *word-boundary-aware* (WhisperAlign : « partitionner l'audio en segments
+     * respectant strictement les frontières de mots »).
+     *
+     * ⚠️ RÉSERVE : l'alignement CTC est *peaky* — il marque la frame où le
+     * token culmine, pas l'étendue du son. La frontière peut donc être décalée
+     * de quelques frames. C'est le défaut qui a tué le montage audio dans ce
+     * projet. On garde une marge, et on ne s'en sert QUE quand aucun vrai
+     * silence n'a été trouvé — jamais à la place d'un silence réel, qui reste
+     * la meilleure frontière possible.
+     */
+    private var finDernierMotSur: Long = -1L
     /** Un apercu plus court que ceci ne rend aucune frame utilisable : il faut
      *  au moins le lookahead du modele, plus de quoi couvrir un mot. */
     /** Longueur FIXE de la fenetre glissante d'apercu. Assez pour donner au
@@ -410,7 +437,16 @@ class ConstructeurDeFenetres(
         // d'entrainement. On coupe alors au point le plus SILENCIEUX vu depuis
         // la derniere coupe -- le moins mauvais endroit, pas un endroit choisi.
         if (positionTravail - derniereCoupe >= maxEch) {
-            val cible = if (posMinRms > derniereCoupe + minEch) posMinRms else positionTravail
+            // PRIORITÉ À LA FRONTIÈRE DE MOT quand elle est disponible et
+            // utilisable : c'est la seule grandeur qui porte réellement
+            // l'information cherchée. L'énergie reste le repli — mieux vaut
+            // l'ancienne politique que pas de coupe.
+            val frontiere = finDernierMotSur
+            val cible = when {
+                frontiere > derniereCoupe + minEch && frontiere <= positionTravail -> frontiere
+                posMinRms > derniereCoupe + minEch -> posMinRms
+                else -> positionTravail
+            }
             return couper(cible, cible)
         }
         return emptyList()
@@ -443,6 +479,13 @@ class ConstructeurDeFenetres(
         minRmsDepuisCoupe = Float.MAX_VALUE
         posMinRms = -1
         return out
+    }
+
+    /** Renseigné par [ChaineRecitation] après chaque alignement : fin absolue
+     *  du dernier mot ENTIÈREMENT contenu dans la fenêtre. Cf.
+     *  [finDernierMotSur] pour la mesure qui impose ce retour d'information. */
+    fun frontiereMotSure(finAbsolue: Long) {
+        if (finAbsolue > finDernierMotSur) finDernierMotSur = finAbsolue
     }
 
     private fun bloquer(debut: Long, fin: Long, fusion: Boolean,
