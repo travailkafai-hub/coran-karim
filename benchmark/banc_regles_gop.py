@@ -89,6 +89,49 @@ def fauter(mot, rng):
     return rng.choice(alt) if alt else None
 
 
+def trois_gop(sp, lp, span, texte):
+    """Les trois regles, sur le MEME span et les MEMES logprobs.
+
+    Definie au niveau du module et non dans un banc : elle est le coeur de la
+    comparaison, et deux definitions divergeraient. Rend (A, B, C) ou None si
+    le mot n'a pas pu etre aligne.
+    """
+    if span is None:
+        return None
+    f0, f1 = span
+    tr = lp[f0:f1]
+    n = max(1, f1 - f0)
+    idm = sp.encode(texte)
+    vv = viterbi_force(tr, idm)
+    if vv is None:
+        return None
+    lab, _ = vv
+    forced_v = float(tr[np.arange(len(lab)), lab].mean())
+    forced_f = score_force(tr, idm) / n
+    free = float(tr.max(axis=1).mean())
+    alt = max((score_force(tr, sp.encode(a)) / n for a in alternatives(texte)),
+              default=NEG)
+    return forced_v - free, forced_f - free, forced_f - alt
+
+
+def spans_mots(sp, lp, mots):
+    """Alignement force de la cible entiere -> frames de chaque mot."""
+    ids, bornes = [], []
+    for m in mots:
+        d0 = len(ids)
+        ids += sp.encode(m)
+        bornes.append((d0, len(ids)))
+    v = viterbi_force(lp, ids)
+    if v is None:
+        return None
+    _, tok = v
+    out = []
+    for (a, b) in bornes:
+        f = np.where((tok >= a) & (tok < b))[0]
+        out.append((int(f[0]), int(f[-1]) + 1) if len(f) else None)
+    return out
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--flux", default="/tmp/claude-1000/brut.wav")
@@ -142,23 +185,7 @@ def main():
     n_places = n_total = 0
 
     def scores(lp, spans, i, texte):
-        s = spans[i]
-        if s is None:
-            return None
-        f0, f1 = s
-        tr = lp[f0:f1]
-        n = max(1, f1 - f0)
-        idm = sp.encode(texte)
-        vv = viterbi_force(tr, idm)
-        if vv is None:
-            return None
-        lab, _ = vv
-        forced_v = float(tr[np.arange(len(lab)), lab].mean())
-        forced_f = score_force(tr, idm) / n
-        free = float(tr.max(axis=1).mean())
-        alt = max((score_force(tr, sp.encode(a)) / n for a in alternatives(texte)),
-                  default=NEG)
-        return forced_v - free, forced_f - free, forced_f - alt
+        return trois_gop(sp, lp, spans[i], texte)
 
     for nom, pcm, mots in items:
         lp = logprobs_flux(sess, pcm)
