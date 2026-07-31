@@ -52,6 +52,20 @@ data class Fenetre(
     val correspondance: Correspondance,
     val pleine: Boolean,
     val fusion: Boolean = false,
+    /**
+     * Fenetre APERCU : coupee en pleine parole, sans le silence de droite.
+     *
+     * MESURE QUI IMPOSE DE LA DISTINGUER (2026-07-31) : avec des apercus toutes
+     * les 2 s, 113 mots non verts dont **95 % dans 3 BLOCS CONSECUTIFS**
+     * (103-138, 144-209, 219-223), 66 avec `entendu` vide et 51 avec `free`
+     * proche de 0. Ce n'est pas un verrouillage hatif -- celui-la donnerait des
+     * erreurs EPARSES. C'est la signature d'une BANDE PARTIE AU MAUVAIS
+     * ENDROIT : le modele entend parfaitement, on lui demande les mauvais mots,
+     * pendant 66 mots d'affilee.
+     * Cause : le dernier mot d'un apercu est coupe, il sort en fragment, et la
+     * LCS de localisation s'appuie dessus pour poser la bande.
+     */
+    val apercu: Boolean = false,
 ) {
     val travailFin: Long get() = travailDebut + echantillons.size
     val dureeSecondes: Double get() = echantillons.size.toDouble() / Horloge.TAUX
@@ -198,6 +212,31 @@ class ConstructeurDeFenetres(
     /** Un enonce plus court que ca n'est pas un enonce : c'est une respiration
      *  entre deux silences. On l'agrege au suivant. */
     private val minBlocSecondes: Double = 0.8,
+    /**
+     * APERCU PERIODIQUE — cadence a laquelle on emet une fenetre NON FINALE,
+     * sans attendre le silence qui ferme le bloc. 0 = desactive (comportement
+     * d'avant).
+     *
+     * MESURE QUI L'IMPOSE (2026-07-31, meme sourate, meme modele, meme audio) :
+     *                     rafales  mots/rafale  attente entre rafales  >5 s
+     *   v1 (27/07)           98         2             1,7 s            9
+     *   v2 par blocs         28         8            10,2 s           23
+     * Les mots sortent UN PAR UN des deux cotes : la « validation groupee »
+     * n'est pas plusieurs mots simultanes, c'est une longue ATTENTE suivie
+     * d'une rafale. La v2 attend 6x plus longtemps que la v1.
+     *
+     * L'apercu ne change RIEN au jugement : le Decideur exige deux
+     * observations de fenetres DISTINCTES pour verrouiller, et l'aligneur
+     * refuse deja de juger un mot situe dans le dernier lookahead. Un apercu
+     * apporte donc une PREMIERE observation plus tot, jamais un verrou hatif --
+     * c'est la difference avec la v1, dont le defaut mesure etait justement de
+     * verrouiller sur un apercu ([PIEGE] verrou_sur_apercu).
+     *
+     * COUT : l'apercu retraite l'audio depuis la derniere coupe. C'est la
+     * pathologie de la v1 (21 s traitees pour 7 s de parole) -- bornee ici par
+     * la cadence ET par maxBloc. A surveiller sur le temps reel.
+     */
+    private val apercuSecondes: Double = 0.0,
     private val fusionner: Boolean = true,
 ) {
     private val bloc = Horloge.ECH_PAR_FRAME // 80 ms, granularite de la detection
@@ -219,6 +258,17 @@ class ConstructeurDeFenetres(
     private val lookaheadEch =
         Horloge.frameVersEch(Horloge.LOOKAHEAD_FRAMES + 1).toInt()
     private val minEch = Horloge.secondesVersEch(minBlocSecondes)
+    private val apercuEch: Long = if (apercuSecondes > 0)
+        Horloge.secondesVersEch(apercuSecondes).toLong() else 0L
+    private var dernierApercu: Long = 0L
+    /** Un apercu plus court que ceci ne rend aucune frame utilisable : il faut
+     *  au moins le lookahead du modele, plus de quoi couvrir un mot. */
+    /** Longueur FIXE de la fenetre glissante d'apercu. Assez pour donner au
+     *  modele son contexte gauche (5,6 s) plus de quoi juger quelques mots ;
+     *  pas plus, sinon on retombe sur la fenetre qui grossit. */
+    private val fenetreApercuEch: Long = Horloge.secondesVersEch(9.0).toLong()
+    private val apercuMinEch: Long =
+        Horloge.secondesVersEch(Horloge.LOOKAHEAD_FRAMES * 0.08 + 2.0).toLong()
 
     private var travail = FloatArray(Horloge.TAUX * 30)
     private var travailTaille = 0
@@ -325,6 +375,37 @@ class ConstructeurDeFenetres(
             if (out.isNotEmpty()) return out
         }
 
+        // APERCU : une fenetre NON FINALE sur le bloc en cours, pour que les
+        // mots deja prononces recoivent leur premiere observation sans
+        // attendre le silence. Emis seulement s'il y a de quoi juger (minEch)
+        // et si la cadence est ecoulee.
+        // MESURE QUI IMPOSE `apercuMinEch` ET NON `minEch` (2026-07-31) :
+        // autoriser l'apercu des 0,8 s a produit 975 fenetres au lieu de ~30,
+        // TOUTES avec `bande=inconnue entendu=""`. Un bloc de 0,8 s est plus
+        // court que le lookahead du modele causal (1,04 s) : il ne rend AUCUNE
+        // frame de sortie exploitable. La chaine a ete inondee de fenetres
+        // vides et n'a plus rien localise du tout.
+        if (apercuEch > 0 &&
+            positionTravail - derniereCoupe >= apercuMinEch &&
+            positionTravail - dernierApercu >= apercuEch) {
+            dernierApercu = positionTravail
+            // CURSEUR GLISSANT, PAS FENETRE QUI GROSSIT (idee utilisateur,
+            // 2026-07-31). Les quatre essais precedents partaient tous de
+            // `derniereCoupe` : la fenetre grossissait jusqu'a 30 s et etait
+            // RELOCALISEE ENTIEREMENT toutes les 3 s. La LCS de localisation
+            // devait alors reapparier des dizaines de mots a chaque fois, et
+            // c'est la qu'elle decrochait -- 95 % des erreurs en blocs
+            // consecutifs.
+            // Ici la fenetre a une LONGUEUR FIXE et AVANCE. Chaque appel
+            // reappariee toujours le meme nombre de mots, et un mot coupe au
+            // bord n'est pas juge : il le sera au passage suivant, quand le
+            // curseur l'aura amene au centre (l'aligneur refuse deja de juger
+            // un mot situe dans le dernier lookahead).
+            val debutApercu = maxOf(derniereCoupe, positionTravail - fenetreApercuEch)
+            return listOf(bloquer(debutApercu, positionTravail,
+                                  fusion = false, apercu = true))
+        }
+
         // GARDE-FOU de domaine : jamais de bloc plus long que les clips
         // d'entrainement. On coupe alors au point le plus SILENCIEUX vu depuis
         // la derniere coupe -- le moins mauvais endroit, pas un endroit choisi.
@@ -352,6 +433,7 @@ class ConstructeurDeFenetres(
         ) {
             out.add(bloquer(avantDerniereCoupe, position, fusion = true))
         }
+        dernierApercu = position          // l'apercu repart de la nouvelle coupe
         avantDerniereCoupe = derniereCoupe
         derniereCoupe = if (prochainDebut in derniereCoupe until position) {
             prochainDebut
@@ -363,7 +445,8 @@ class ConstructeurDeFenetres(
         return out
     }
 
-    private fun bloquer(debut: Long, fin: Long, fusion: Boolean): Fenetre {
+    private fun bloquer(debut: Long, fin: Long, fusion: Boolean,
+                        apercu: Boolean = false): Fenetre {
         val d = maxOf(debut, travailBase)
         val depart = (d - travailBase).toInt()
         val taille = (fin - d).toInt().coerceAtMost(travailTaille - depart)
@@ -376,6 +459,7 @@ class ConstructeurDeFenetres(
             ),
             pleine = true,
             fusion = fusion,
+            apercu = apercu,
         )
     }
 

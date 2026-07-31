@@ -58,6 +58,17 @@ class ChaineRecitation(
      *  jamais interdire un recul (le recitateur a le droit de repeter). */
     private var dernierDefinitif = -1
 
+    /** Derniere bande etablie par une fenetre FERMEE sur un silence. Les
+     *  apercus la reutilisent au lieu d'en calculer une sur un audio tronque
+     *  (cf. la mesure dans [traiter]). */
+    private var derniereBande: Localisateur.Bande? = null
+
+    /** De combien de mots un apercu regarde AU-DELA de la derniere bande sure.
+     *  Assez pour couvrir ce qui vient d'etre dit entre deux apercus (3 s de
+     *  recitation posee), pas assez pour que la DP ait a placer des mots
+     *  lointains -- c'est cet entassement qui corrompait la bande. */
+    private val motsEnAvanceApercu = 6
+
     data class Changement(val motIndex: Int, val statut: Statut)
 
     fun definirTexte(mots: List<String>) {
@@ -139,8 +150,32 @@ class ChaineRecitation(
         val logprobs = front.logprobs(fenetre.echantillons)
         if (logprobs.isEmpty()) return
 
+        // LE LOCALISATEUR NE VOIT PAS LA QUEUE TRONQUEE DE L'APERCU.
+        //
+        // TROIS ESSAIS ONT ECHOUE EN AGISSANT SUR LA BANDE (2026-07-31) :
+        //   apercu 2 s, bande libre     :  2,2 s / 52,44 %
+        //   apercu 3 s, bande figee     : 11,1 s /  3,29 %
+        //   apercu 3 s, ancre + 6 mots  :  8,5 s / 46,52 %
+        //   (reference sans apercu      : 10,2 s /  2,61 %)
+        // Tous traitaient le SYMPTOME (la bande decroche) au lieu de la cause.
+        //
+        // LA CAUSE, MESUREE : 95 % des erreurs etaient dans trois blocs
+        // CONSECUTIFS, avec `entendu` vide et `free` proche de 0 -- le modele
+        // entend bien, on lui demande les mauvais mots. Un apercu est coupe EN
+        // PLEINE PAROLE : son dernier mot sort en FRAGMENT, et c'est ce
+        // fragment que la LCS de localisation prend pour un mot atteste.
+        //
+        // On cache donc simplement cette queue au localisateur. Le jugement,
+        // lui, garde toutes les frames : l'aligneur a deja sa propre marge
+        // droite et sait ne pas juger un mot du bord. Le localisateur, non --
+        // c'est la qu'il manquait quelque chose.
+        val pourLocaliser = if (fenetre.apercu &&
+            logprobs.size > Horloge.LOOKAHEAD_FRAMES * 2) {
+            logprobs.copyOfRange(0, logprobs.size - Horloge.LOOKAHEAD_FRAMES)
+        } else logprobs
+
         val bande = localisateur.localiser(
-            logprobs, motsAttendus, dernierDefinitif,
+            pourLocaliser, motsAttendus, dernierDefinitif,
             framesMinParMot = { i -> tokensAttendus.getOrNull(i)?.size ?: 0 },
         )
         if (bande == null) {

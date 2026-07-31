@@ -793,6 +793,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
                     front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
                     tokeniser = { mot -> tk.tokenizeWord(mot) },
+                    // CURSEUR GLISSANT toutes les 3 s -- fenetre de LONGUEUR
+                    // FIXE qui avance, pas une fenetre qui grossit depuis la
+                    // derniere coupe. Les quatre essais precedents partaient
+                    // tous de `derniereCoupe` et relocalisaient jusqu'a 30 s
+                    // toutes les 3 s : c'est la que la LCS decrochait.
+                    constructeur = com.corankarim.coran_karim.recitation2
+                        .ConstructeurDeFenetres(apercuSecondes = 3.0),
                     // Tokenisation SILENCIEUSE : une confusion est un mot
                     // volontairement hors-Coran, quasi jamais dans le
                     // dictionnaire precalcule -- logger chaque repli en ferait
