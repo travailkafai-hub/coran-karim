@@ -141,7 +141,7 @@ VOIX = {
 }
 
 
-def phrases_sources(mini=3, maxi=6):
+def phrases_sources(mini=3, maxi=6, fragments=True):
     """Versets COURTS ET SIMPLES -- consigne utilisateur 2026-07-30 : « choisis
     des phrases simples, la tu choisis toute la phrase compliquee a prononcer ».
 
@@ -152,7 +152,17 @@ def phrases_sources(mini=3, maxi=6):
     synthetise -- 3 a 6 mots, pas 12.
 
     Toujours au moins 3 mots : c'est le CONTEXTE qui manque au corpus existant,
-    un mot de plus ne suffirait pas."""
+    un mot de plus ne suffirait pas.
+
+    FENETRES GLISSANTES (2026-07-31, apres EPUISEMENT du vivier). Le Coran ne
+    contient que 6 062 versets DISTINCTS, dont 2 341 seulement font 4 a 10 mots
+    -- tous consommes en une soiree. Ca ne s'est pas vu par une erreur mais par
+    un « 0 phrases planifiees », qui a fait demarrer l'etape suivante sur un
+    corpus incomplet. On decoupe donc aussi les versets LONGS en fenetres de
+    `maxi` mots : le fragment reste une suite de mots coraniques reels, et comme
+    chaque mot est de toute facon synthetise SEUL puis assemble, la coupure au
+    bord du fragment n'a aucun effet acoustique. Vivier porte de 2 341 a
+    ~17 000 phrases."""
     vus = set()
     for ligne in open(SOURCE_MANIFEST, encoding="utf-8"):
         try:
@@ -160,10 +170,17 @@ def phrases_sources(mini=3, maxi=6):
         except Exception:
             continue
         t = d.get("text", "").strip()
-        n = len(t.split())
-        if mini <= n <= maxi and t not in vus:
-            vus.add(t)
-            yield t
+        mots = t.split()
+        if mini <= len(mots) <= maxi:
+            if t not in vus:
+                vus.add(t)
+                yield t
+        elif fragments and len(mots) > maxi:
+            for k in range(0, len(mots) - mini + 1, max(1, maxi // 2)):
+                f = " ".join(mots[k:k + maxi])
+                if len(f.split()) >= mini and f not in vus:
+                    vus.add(f)
+                    yield f
 
 
 def fauter(phrase, rng):
