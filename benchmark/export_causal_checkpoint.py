@@ -25,9 +25,22 @@ import torch, numpy as np
 import nemo.collections.asr as nemo_asr
 from pathlib import Path
 
+import argparse
+
 BASE_DIR = Path(__file__).parent
-NEMO_PATH = BASE_DIR / "models" / "fastconformer-streaming-causal-v1-lr3e4" / "causal-final.nemo"
-DEPLOY_DIR = BASE_DIR / "models" / "fastconformer-streaming-causal-v1-lr3e4" / "deploy" / "fastconformer-ctc-causal-v1"
+# Les chemins restent ceux du run d'origine PAR DEFAUT (c'est ce modele qui est
+# deploye), mais deviennent surchargeables : chaque nouveau run doit pouvoir
+# etre exporte sans editer ce fichier, sinon on finit par exporter un
+# checkpoint en croyant en exporter un autre.
+_ap = argparse.ArgumentParser()
+_ap.add_argument("--nemo", default=str(
+    BASE_DIR / "models" / "fastconformer-streaming-causal-v1-lr3e4" / "causal-final.nemo"))
+_ap.add_argument("--deploy", default=str(
+    BASE_DIR / "models" / "fastconformer-streaming-causal-v1-lr3e4" / "deploy"
+    / "fastconformer-ctc-causal-v1"))
+_args, _ = _ap.parse_known_args()
+NEMO_PATH = Path(_args.nemo)
+DEPLOY_DIR = Path(_args.deploy)
 OUT_ONNX = DEPLOY_DIR / "model.onnx"
 OUT_VOCAB = DEPLOY_DIR / "vocab.json"
 VAL_MANIFEST = BASE_DIR / "nemo_manifests_dual" / "val_manifest.jsonl"
