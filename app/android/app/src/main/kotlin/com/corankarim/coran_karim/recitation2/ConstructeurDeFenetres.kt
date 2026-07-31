@@ -469,7 +469,21 @@ class ConstructeurDeFenetres(
         ) {
             out.add(bloquer(avantDerniereCoupe, position, fusion = true))
         }
-        dernierApercu = position          // l'apercu repart de la nouvelle coupe
+        // NE PAS reinitialiser `dernierApercu` ici : la cadence d'apercu doit
+        // etre INDEPENDANTE des coupes.
+        //
+        // MESURE QUI L'IMPOSE (2026-07-31) : en repartant de chaque coupe, deux
+        // passes sur le MEME audio produisaient 159 et 170 fenetres. Les
+        // fenetres ne tombaient donc pas aux memes endroits, et un mot juge au
+        // CENTRE dans une passe se retrouvait au BORD dans l'autre -- ou il est
+        // mal juge. C'est la source du bruit qui a rendu le banc inutilisable :
+        // 2,37 %, 3,05 % et 4,41 % mesures sur la meme configuration a un
+        // changement favorable pres, tous indiscernables.
+        //
+        // Avec une cadence sur l'horloge absolue, le decoupage devient
+        // reproductible et un ecart d'un demi-point redevient interpretable.
+        // Le projet paie ce defaut depuis longtemps : « une passe n'est pas une
+        // mesure » etait un contournement, pas une fatalite.
         avantDerniereCoupe = derniereCoupe
         derniereCoupe = if (prochainDebut in derniereCoupe until position) {
             prochainDebut
