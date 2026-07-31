@@ -31,6 +31,26 @@ data class DetectedRule(val ruleId: Int, val frame: Int, val prob: Float)
 class CtcOutputs(
     val letters: Array<FloatArray>,
     val tajwid: Array<FloatArray>?,
+    /**
+     * Etat interne de l'encodeur, (frames, 512). Null si le modele charge ne
+     * l'expose pas -- l'export deploye historiquement n'a qu'une sortie.
+     *
+     * CE N'EST PAS UNE TETE, c'est une PRISE : ces 512 dimensions sont
+     * calculees de toute facon, et etaient jusqu'ici jetees apres leur
+     * projection sur les 1025 classes de lettres. On ne calcule rien de plus,
+     * on rend visible ce qui existait deja.
+     *
+     * POURQUOI ON EN A BESOIN (mesure du 2026-07-31, audio reellement faute,
+     * 189 phrases tenues a l'ecart, detection a 2 % de collateral) :
+     *   regle ecrite a la main sur les logprobs      27 %
+     *   tete entrainee sur les MEMES logprobs        26 %
+     *   tete entrainee sur l'ETAT DE L'ENCODEUR      31 %
+     * Une tete sur les logprobs ne fait pas mieux que la formule : ce n'etait
+     * donc pas la formule qui etait mauvaise, c'est que les logprobs ont deja
+     * JETE l'information. Ils sont une projection apprise pour TRANSCRIRE, pas
+     * pour juger une deviation.
+     */
+    val etatEncodeur: Array<FloatArray>? = null,
 )
 
 class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? = null) {
@@ -62,6 +82,13 @@ class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? 
 
     /** Le modele charge expose-t-il une tete tajwid exploitable ? */
     val hasTajwid: Boolean get() = hasTajwidHead
+
+    private val hasEncoderState: Boolean =
+        session.outputNames.contains(ENCODER_STATE_OUTPUT)
+
+    /** Le modele charge expose-t-il l'etat de l'encodeur ? Permet a la chaine de
+     *  se rabattre sur la regle ecrite a la main quand ce n'est pas le cas. */
+    val exposeEtatEncodeur: Boolean get() = hasEncoderState
 
     /** Pieces BPE du vocabulaire — pour le tokenizer/aligneur force (cf. ForcedAligner.kt). */
     val vocabPieces: List<String> get() = vocab
@@ -148,8 +175,16 @@ class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? 
                         (results.get(TAJWID_OUTPUT).get().value
                             as Array<Array<FloatArray>>)[0]
                     } else null
+                    // Meme recuperation PAR NOM que la tete tajwid : robuste a
+                    // un reordonnancement des sorties, et absente sans erreur
+                    // sur les modeles a une seule sortie.
+                    val etat: Array<FloatArray>? = if (hasEncoderState) {
+                        @Suppress("UNCHECKED_CAST")
+                        (results.get(ENCODER_STATE_OUTPUT).get().value
+                            as Array<Array<FloatArray>>)[0]
+                    } else null
                     // .value materialise deja des copies JVM -> survit au close().
-                    return CtcOutputs(letters, tajwid)
+                    return CtcOutputs(letters, tajwid, etat)
                 }
             }
         }
@@ -201,5 +236,6 @@ class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? 
          *  garde son nom historique "logprobs" -> un modele a deux tetes reste
          *  lisible par du code qui n'en attend qu'une. */
         const val TAJWID_OUTPUT = "tajwid_logprobs"
+        const val ENCODER_STATE_OUTPUT = "encoder_state"
     }
 }

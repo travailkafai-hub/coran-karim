@@ -35,6 +35,21 @@ import com.corankarim.coran_karim.fastconformer.FastConformerCtc
  *     ort.InferenceSession('<model.onnx>').get_inputs()])"
  */
 interface FrontAcoustique {
+    /**
+     * Logprobs ET etat de l'encodeur en UN SEUL appel au modele.
+     *
+     * Deux methodes separees feraient tourner l'encodeur DEUX FOIS par
+     * fenetre -- inacceptable, et d'autant plus avec le curseur glissant qui
+     * emet une fenetre toutes les 3 s.
+     *
+     * L'etat est null quand le modele charge ne l'expose pas : l'export
+     * deploye historiquement n'a qu'une sortie, et la chaine doit continuer de
+     * fonctionner dessus. C'est aussi ce qui permet aux bancs JVM de ne rien
+     * implementer de plus.
+     */
+    fun sorties(echantillons: FloatArray): Pair<Array<FloatArray>, Array<FloatArray>?> =
+        Pair(logprobs(echantillons), null)
+
     /** Pieces BPE du vocabulaire, index = id de token. */
     val pieces: List<String>
 
@@ -51,4 +66,14 @@ class FrontOnnx(private val moteur: FastConformerCtc) : FrontAcoustique {
     override val blank: Int get() = moteur.blank
     override fun logprobs(echantillons: FloatArray): Array<FloatArray> =
         moteur.computeLogProbs(echantillons)
+
+    /** Un seul passage du modele, deux sorties recuperees. */
+    override fun sorties(echantillons: FloatArray):
+        Pair<Array<FloatArray>, Array<FloatArray>?> {
+        val o = moteur.computeAll(echantillons)
+        return Pair(o.letters, o.etatEncodeur)
+    }
+
+    /** Le modele charge expose-t-il l'etat de l'encodeur ? */
+    val exposeEtat: Boolean get() = moteur.exposeEtatEncodeur
 }
