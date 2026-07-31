@@ -799,7 +799,35 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // tous de `derniereCoupe` et relocalisaient jusqu'a 30 s
                     // toutes les 3 s : c'est la que la LCS decrochait.
                     constructeur = com.corankarim.coran_karim.recitation2
-                        .ConstructeurDeFenetres(apercuSecondes = 3.0),
+                        .ConstructeurDeFenetres(
+                            apercuSecondes = 3.0,
+                            // SEUIL DE PAUSE REMESURE (2026-07-31).
+                            // WhisperX ne cherche pas un VRAI silence mais la
+                            // « region la moins active en parole » -- critere
+                            // bien plus permissif que nos 0,40 s.
+                            // La falaise documentee (0,30 s -> 3,39 % ;
+                            // 0,35 s -> 65,76 %) a ete mesuree dans l'ANCIENNE
+                            // architecture, ou toute la justesse dependait de
+                            // l'endroit de la coupe. Depuis qu'on coupe aux
+                            // frontieres de mots et qu'on juge au centre d'un
+                            // curseur, couper mal coute beaucoup moins cher :
+                            // une mesure faite avant un changement
+                            // d'architecture ne se transporte pas.
+                            //
+                            // MESURE (2026-07-31, recette scriptee, meme
+                            // sourate/modele/recitateur, seul le seuil change) :
+                            //   pause 0,40 s -> 2,37 % | attente 3,1 s | >5 s 11
+                            //   pause 0,25 s -> 3,73 % | attente 3,2 s | >5 s 14
+                            // HYPOTHESE REFUTEE : la falaise tient MALGRE le
+                            // changement d'architecture. On perd sur les deux
+                            // axes -- le taux depasse le plafond de 3,5 % ET
+                            // l'attente empire. Surtout, couper plus souvent ne
+                            // rend PAS plus reactif : le seuil de pause n'est
+                            // donc plus le facteur limitant. Les 3,1 s sont le
+                            // plancher de l'architecture a curseur (1,04 s de
+                            // lookahead + cadence 3 s + inference).
+                            // NE PAS RETENTER sans changer autre chose.
+                            pauseMinSecondes = 0.40),
                     // Tokenisation SILENCIEUSE : une confusion est un mot
                     // volontairement hors-Coran, quasi jamais dans le
                     // dictionnaire precalcule -- logger chaque repli en ferait
