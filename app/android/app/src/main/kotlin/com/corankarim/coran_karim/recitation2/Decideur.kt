@@ -70,6 +70,11 @@ class Decideur(
     private val definitifs = HashMap<Int, Couleur>()
     private val omis = HashSet<Int>()
 
+    /** Meilleure couleur PROVISOIRE vue pour chaque mot. Cf. le bloc « SENS
+     *  UNIQUE » : un provisoire ne se degrade jamais, une fenetre qui tronque
+     *  un mot n'ayant pas a ecraser celle qui l'avait entendu entier. */
+    private val meilleurProvisoire = HashMap<Int, Couleur>()
+
     /** @return statut courant de chaque mot ayant au moins une observation. */
     fun statuts(registre: RegistreDePreuves, nbMots: Int): Map<Int, Statut> {
         val out = HashMap<Int, Statut>()
@@ -170,7 +175,43 @@ class Decideur(
                     }
                 }
             }
-            out[i] = Statut.Provisoire(couleurs.last())
+            // ── SENS UNIQUE : UN PROVISOIRE NE SE DEGRADE JAMAIS ────────────
+            //
+            // Decision utilisateur du 2026-07-31 : « je veux implementer un
+            // seul sens, meme sur les jugements partiels avant le definitif ».
+            //
+            // MESURE QUI LA MOTIVE. Le code portait deja le constat, avec les
+            // numeros : « les mots 170, 171, 174, 205, 67 etaient lus
+            // PARFAITEMENT dans leur propre enonce (gop 0,00, texte exact,
+            // atteste) puis DEGRADES par le bloc de FUSION qui les tronquait
+            // (ٱلْبَرْ pour ٱلْبَرْقُ) ». Le mot 170 est ressorti orange dans la
+            // recette du 2026-07-31 avec exactement la meme troncature --
+            // ٱلْبَرْقُ entendu ٱلْبَرْءُ. Sept jours, meme defaut.
+            //
+            // Le CURSEUR GLISSANT aggrave le probleme : il produit une fenetre
+            // toutes les 3 s au lieu d'une par silence, donc beaucoup plus
+            // d'occasions qu'une fenetre defavorable arrive APRES une bonne.
+            //
+            // Une observation qui TRONQUE un mot n'apporte pas une information
+            // meilleure que celle qui l'avait entendu ENTIER : elle en apporte
+            // une MOINS BONNE. La laisser ecraser la premiere revient a
+            // preferer la pire preuve disponible.
+            //
+            // ⚠️ CE QUE CA COUTE, ET C'EST ASSUME : un mot reellement mal
+            // prononce qui recevrait UNE observation verte par accident
+            // resterait vert jusqu'a son verrouillage. Le garde-fou est que ces
+            // observations sont deja filtrees (interieures, avec creneau) et
+            // que le VERROUILLAGE, lui, exige toujours deux fenetres
+            // distinctes concordantes -- le sens unique ne touche QUE
+            // l'affichage provisoire, jamais le verdict definitif.
+            val rang = { c: Couleur -> when (c) {
+                Couleur.VERT -> 2; Couleur.ORANGE -> 1; Couleur.ROUGE -> 0 } }
+            val nouvelle = couleurs.last()
+            val gardee = meilleurProvisoire[i]
+            val retenue = if (gardee == null || rang(nouvelle) > rang(gardee))
+                nouvelle else gardee
+            meilleurProvisoire[i] = retenue
+            out[i] = Statut.Provisoire(retenue)
         }
 
         // OMISSION : preuve POSITIVE que le recitateur est passe outre — au
@@ -185,6 +226,49 @@ class Decideur(
             }
             val posterieurs = definitifsTries.count { it > i }
             if (posterieurs >= motsPosterieursPourOmission) {
+                // ── SECOURS : AVANT DE DIRE « PAS PRONONCE », REGARDER L'AUDIO ──
+                //
+                // MESURE QUI L'IMPOSE (2026-07-31, deux recettes confrontees au
+                // WAV par verifier_non_verts_v2.py) : des mots declares `Omis`
+                // sont BEL ET BIEN dans l'audio --
+                //   mot 228 « وَإِن »  -> le WAV dit « وَإِن كُنتُمْ فِى رَ »
+                //   mot 205 « ٱلَّذِى » -> « ٱلَّذِى جَعَلَ لَكُمُ ٱلْأَرْضَ »
+                //   mot 220 « رِزْقًا » -> « رِزْقًا لَّكُمْ فَلَا »
+                //   mot  67 « أَلَآ »  -> « أَلَآ », gop 0,00, texte EXACT
+                // `Omis` est le verdict le plus grave que l'app puisse rendre :
+                // elle affirme que le recitateur n'a pas dit un mot qu'il a dit.
+                // La regle projet « aucun verdict sans preuve » vaut donc aussi
+                // dans ce sens-la. Le critere d'omission etait purement
+                // POSITIONNEL -- trois mots plus loin sont juges, donc celui-ci
+                // est perdu -- sans jamais regarder l'audio du mot lui-meme.
+                //
+                // NE COUTE QUE SUR LES MOTS CONDAMNES (3 a 7 sur 295), jamais
+                // sur les autres : on est deja dans la branche d'omission.
+                //
+                // ── POURQUOI VERT, ET NON `couleur(preuve)` ──────────────────
+                // Premiere version : selectionner sur `atteste` puis juger sur
+                // le gop. INCOHERENT, releve par l'utilisateur -- on retient un
+                // mot PARCE QU'IL EST PROUVE, puis on le colorie orange en
+                // contredisant cette preuve.
+                // Or `atteste` est DEJA l'attestation EXACTE
+                // (`bande.attestesExacts`, cf. ChaineRecitation) : le decodage
+                // LIBRE a emis ce mot, a cet endroit, sans qu'on le lui
+                // demande, et son texte coincide exactement. C'est une mesure
+                // INDEPENDANTE de l'alignement force, et c'est la preuve la
+                // plus forte dont la chaine dispose. Il n'y a plus rien a
+                // juger : le mot est vert.
+                // ⚠️ EXACTE et non normalisee : le graphe porte deja
+                // [PIEGE] attestation_normalisee -- « normaliser pour TROUVER,
+                // comparer exactement pour CONFIRMER ». Un fragment
+                // (ٱلْبَرْقُ entendu ٱلْبَرْءُ) ne doit PAS declencher ce secours.
+                val preuve = registre.observations(i).lastOrNull {
+                    it.atteste && it.entendu.isNotBlank() && !it.sansCreneau
+                }
+                if (preuve != null) {
+                    definitifs[i] = Couleur.VERT
+                    out[i] = Statut.Definitif(Couleur.VERT)
+                    continue
+                }
                 omis.add(i)
                 out[i] = Statut.Omis
             }
@@ -239,5 +323,6 @@ class Decideur(
     fun reinitialiser() {
         definitifs.clear()
         omis.clear()
+        meilleurProvisoire.clear()
     }
 }
