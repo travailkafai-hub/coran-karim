@@ -328,4 +328,41 @@ class BancFluxBrut {
             return Array(t) { FloatArray(v) { fb.get() } }
         }
     }
+
+    /**
+     * CALIBRAGE — derive le rapport de pause depuis la recitation de reference,
+     * exactement comme 0,344 a ete derive pour le seuil RMS.
+     *
+     * Ce banc ne verifie pas un comportement : il MESURE une constante, et il
+     * montre la distribution qui la fonde. Si cette distribution n'est pas
+     * separee en deux populations, aucun rapport ne sauvera le reglage -- et
+     * c'est une conclusion aussi utile que la constante elle-meme.
+     */
+    @Test
+    fun calibrage() {
+        assumeTrue("flux brut absent", wav.exists())
+        val pcm = lireWav(wav)
+        val c = Calibrage()
+        c.alimenter(pcm)
+        val r = c.resultat()
+        println("[calib] ${"%.1f".format(r.secondes)} s, ${r.blocs} blocs, fiable=${r.fiable}")
+        if (!r.fiable) { println("[calib] ${r.pourquoi}"); return }
+        println("[calib] niveau de parole (p75 rms) = ${"%.4f".format(r.niveauParole)}" +
+                "  -> seuil silence ${"%.4f".format(r.seuilRms)}" +
+                (if (r.seuilRmsBorne) "  (BORNE ATTEINTE)" else ""))
+        println("[calib] ${r.silences.size} silences ; percentiles (s) :")
+        for (p in intArrayOf(10, 25, 50, 75, 90, 95)) {
+            println("           p$p = ${"%.3f".format(r.percentile(p))}")
+        }
+        println("[calib] separation p90/p25 = ${"%.2f".format(r.separation)}" +
+                (if (r.separation < 2.0) "   <- FAIBLE : aucun seuil ne separe proprement"
+                 else "   <- deux populations distinctes"))
+        for (cible in doubleArrayOf(0.35, 0.40, 0.45)) {
+            println("[calib] pour obtenir pause=$cible il faudrait rapport (sur p90) = " +
+                    "${"%.3f".format(cible / r.percentile(90))}")
+        }
+        println("[calib] avec le rapport actuel (${Calibrage.RAPPORT_PAUSE}) -> pause " +
+                "${"%.3f".format(r.pause)}" + (if (r.pauseBornee) "  (BORNE ATTEINTE)" else ""))
+    }
+
 }

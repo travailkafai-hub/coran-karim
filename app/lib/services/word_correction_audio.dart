@@ -7,6 +7,7 @@ import '../models/reciter.dart';
 import '../models/verse.dart';
 import 'diagnostic_log.dart';
 import 'quran_api.dart';
+import 'reciter_download_service.dart';
 
 /// Lecteur audio DÉDIÉ à la correction automatique (demande utilisateur
 /// 2026-07-05) — volontairement séparé du lecteur principal (`AudioPlayerService`,
@@ -65,17 +66,52 @@ class WordCorrectionAudio {
     int wordsBefore = 1,
     int wordsAfter = 0,
   }) async {
-    _urlCache[verse.surahNumber] ??=
-        await QuranApi.fetchSurahAudioUrls(reciter.id, verse.surahNumber);
-    final url = _urlCache[verse.surahNumber]?[verse.key];
-    if (url == null) return;
-
     final segKey = '${reciter.id}:${verse.key}';
+    // ── AUDIO TÉLÉCHARGÉ D'ABORD (2026-08-01) ─────────────────────────────
+    // AVANT : ce service appelait `fetchSurahAudioUrls` (RÉSEAU) en tout
+    // premier et abandonnait en silence sur `url == null` -- même quand le
+    // récitateur avait DÉJÀ téléchargé la sourate. Symptôme rapporté par
+    // l'utilisateur : « les deux corrections sont activées, je fais des
+    // erreurs, je n'entends aucun audio » -- aucune erreur affichée, aucune
+    // trace, d'où l'impression que « les audios ne sont plus là ».
+    // Le lecteur du Mushaf (`audio_player_service.dart`) consultait pourtant
+    // déjà `ReciterDownloadService.localPathIfPresent` ; ce service, lui, ne
+    // connaissait que son propre cache MÉMOIRE de session (`_fileCache`,
+    // rempli par `prefetch`), perdu à chaque redémarrage.
+    // Demande explicite : « favoriser les audios qui sont en local au lieu de
+    // chercher par API ».
+    final telecharge = ReciterDownloadService().localPathIfPresent(reciter.id, verse);
+    String? url;
+    if (telecharge == null) {
+      _urlCache[verse.surahNumber] ??=
+          await QuranApi.fetchSurahAudioUrls(reciter.id, verse.surahNumber);
+      url = _urlCache[verse.surahNumber]?[verse.key];
+      if (url == null) {
+        // Journalisé : cet abandon était MUET, ce qui rendait la panne
+        // indiagnosticable côté utilisateur comme côté log.
+        DiagnosticLog.log('Correction-Audio',
+            'ABANDON verset=${verse.key} : aucun fichier local ET aucune URL '
+            '(réseau indisponible ou récitateur ${reciter.id} sans audio) '
+            '-> pas de correction audible');
+        return;
+      }
+    }
+
     final segments = _segmentsCache[segKey] ??=
         await QuranApi.fetchAyahSegments(reciter.id, verse.key);
     // Pas de timing dispo pour ce récitateur/verset -> on abandonne plutôt
     // que de rejouer tout le verset par défaut (contredirait la demande).
-    if (segments.isEmpty) return;
+    // Journalisé depuis le 2026-08-01 : SECOND point d'abandon muet, et
+    // second appel réseau -- avoir le MP3 en local ne suffit donc pas encore,
+    // il faut aussi ces timings (mis en cache mémoire seulement). Si cette
+    // ligne apparaît souvent dans les logs, c'est ici qu'il faudra
+    // persister/embarquer les segments.
+    if (segments.isEmpty) {
+      DiagnosticLog.log('Correction-Audio',
+          'ABANDON verset=${verse.key} : timings mot-à-mot indisponibles '
+          '(récitateur ${reciter.id}) -> pas de correction audible');
+      return;
+    }
 
     final fromIdx =
         (errorWordIndex - wordsBefore).clamp(0, errorWordIndex);
@@ -86,17 +122,20 @@ class WordCorrectionAudio {
         orElse: () => segments.last);
     final startMs = startSeg[2];
     final endMs = endSeg[3];
-    // Local si déjà précaché (cf. `prefetch`) -- sinon streaming direct
-    // (comportement d'avant ce correctif) : ne JAMAIS attendre un
-    // téléchargement ici, ce serait aussi lent que l'ancien chemin.
-    final localPath = _fileCache[segKey];
-    final source = localPath != null ? DeviceFileSource(localPath) : UrlSource(url);
+    // Priorité : (1) sourate TÉLÉCHARGÉE par l'utilisateur, (2) précache
+    // mémoire de la session (cf. `prefetch`), (3) streaming direct.
+    // (1) est nouveau (2026-08-01) -- cf. commentaire en tête de fonction.
+    // Ne JAMAIS attendre un téléchargement ici, ce serait aussi lent que
+    // l'ancien chemin.
+    final localPath = telecharge ?? _fileCache[segKey];
+    final source =
+        localPath != null ? DeviceFileSource(localPath) : UrlSource(url!);
     DiagnosticLog.log('Correction-Audio', 'verset=${verse.key} '
         'errorWordIndex=$errorWordIndex (mot attendu local) '
         'fromIdx=$fromIdx toIdx=$toIdx '
         'startSeg=$startSeg endSeg=$endSeg '
         'startMs=$startMs endMs=$endMs '
-        'source=${localPath != null ? "local($localPath)" : "url($url)"}');
+        'source=${telecharge != null ? "telecharge($telecharge)" : localPath != null ? "precache($localPath)" : "url($url)"}');
 
     final completer = Completer<void>();
     late final StreamSubscription posSub;

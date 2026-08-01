@@ -62,8 +62,17 @@ class JudgementOptionsNotifier extends StateNotifier<JudgementOptions> {
     final raw = prefs.getString(_kPrefJudgement);
     if (raw != null && mounted) {
       try {
+        // `useGopScoring` FORCÉ à true (2026-08-01) : son toggle a été retiré
+        // de l'IHM (le gop est désormais le moteur, décision utilisateur) --
+        // un état persisté à `false` par une session ANTÉRIEURE resterait
+        // sinon indélébile, l'utilisateur n'ayant plus aucun moyen de
+        // revenir. Trouvé par le superviseur avant recette, pas en usage.
+        // Le repli automatique vers le texte-diff quand l'alignement natif
+        // est indisponible n'est PAS concerné (il ne passe pas par ce flag,
+        // cf. `!_verifier.alignmentActive` dans recitation_provider.dart).
         state = JudgementOptions.fromJson(
-            jsonDecode(raw) as Map<String, dynamic>);
+                jsonDecode(raw) as Map<String, dynamic>)
+            .copyWith(useGopScoring: true);
       } catch (_) {
         // JSON corrompu (ex. après une migration de version) -> retombe sur
         // le défaut plutôt que de crasher l'app au démarrage.

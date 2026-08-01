@@ -3,6 +3,7 @@ import '../models/verse.dart';
 import '../models/reciter.dart';
 import '../models/player_state_model.dart';
 import 'quran_api.dart';
+import 'reciter_download_service.dart';
 
 /// Singleton audio service wrapping audioplayers.
 /// Manages one AudioPlayer instance for the whole app lifetime.
@@ -29,6 +30,20 @@ class AudioPlayerService {
   }
 
   Future<bool> playVerse(Verse verse, Reciter reciter) async {
+    // Sourate téléchargée : on ne touche AUCUNEMENT au réseau -- ni pour
+    // l'audio, ni pour la liste d'URLs (`preloadSurah` est lui aussi un appel
+    // HTTP). C'est ce qui supprime la fenêtre pendant laquelle un appui sur
+    // pause restait sans effet : diagnostic du 2026-07-28, la lecture était
+    // 100 % en streaming (`UrlSource`), donc chaque `play()` traversait deux
+    // aller-retours réseau pendant lesquels `togglePlayPause` ne faisait rien
+    // (statut `loading`) et une lecture en vol pouvait démarrer APRÈS le pause.
+    // En local la lecture démarre immédiatement, la fenêtre disparaît.
+    final local =
+        ReciterDownloadService().localPathIfPresent(reciter.id, verse);
+    if (local != null) {
+      await _player.play(DeviceFileSource(local));
+      return true;
+    }
     await preloadSurah(reciter.id, verse.surahNumber);
     final url = _urlCache[verse.surahNumber]?[verse.key];
     if (url == null) return false;

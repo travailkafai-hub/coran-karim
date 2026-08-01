@@ -14,6 +14,18 @@ class VerseTile extends StatelessWidget {
   final VoidCallback? onTap;
   final void Function(int wordIndex)? onWordTap;
   final double textScale;
+  // Mode Kindle (2026-08-01) : le curseur de lecture ET le surlignage de
+  // sélection utilisaient tous deux du bleu (readingCursorBg/Border,
+  // green50/green100) -- couleurs héritées du thème normal, jamais pensées
+  // pour un mode explicitement "sans lumière bleue". Signalé par
+  // l'utilisateur après une 1ère version du mode Kindle qui ne touchait que
+  // le fond de page, pas ces surlignages.
+  final bool kindleMode;
+  // Plage de mots (2026-08-01, mode Kindle : verset scindé entre deux pages,
+  // cf. mushaf_screen.dart) -- null = verset entier (partout ailleurs). Le
+  // badge de numéro ne s'affiche que sur la page qui contient le 1er mot.
+  final int? wordStart;
+  final int? wordEnd;
 
   const VerseTile({
     super.key,
@@ -24,6 +36,9 @@ class VerseTile extends StatelessWidget {
     this.onTap,
     this.onWordTap,
     this.textScale = 1.0,
+    this.kindleMode = false,
+    this.wordStart,
+    this.wordEnd,
   });
 
   @override
@@ -35,15 +50,23 @@ class VerseTile extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
           color: isPlayingCursor
-              ? AppColors.readingCursorBg
+              ? (kindleMode ? AppColors.kindleBgDeep : AppColors.readingCursorBg)
               : isActive
-                  ? AppColors.green50
+                  ? (kindleMode
+                      ? AppColors.kindleBgDeep.withAlpha(140)
+                      : AppColors.green50)
                   : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: isPlayingCursor
-              ? Border.all(color: AppColors.readingCursorBorder, width: 1.5)
+              ? Border.all(
+                  color: kindleMode ? AppColors.kindleAccent : AppColors.readingCursorBorder,
+                  width: 1.5)
               : isActive
-                  ? Border.all(color: AppColors.green100, width: 1)
+                  ? Border.all(
+                      color: kindleMode
+                          ? AppColors.kindleAccent.withAlpha(120)
+                          : AppColors.green100,
+                      width: 1)
                   : null,
         ),
         child: Padding(
@@ -51,27 +74,37 @@ class VerseTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Arabic verse text + verse number badge
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _VerseNumberBadge(verse.ayahNumber),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TajweedText(
-                      textUthmani: verse.textUthmani,
-                      textUthmaniTajweed: verse.textUthmaniTajweed,
-                      fontSize: 26 * textScale,
-                      lineHeight: 2.1,
-                      onWordTap: onWordTap,
-                    ),
-                  ),
-                ],
+              // Arabic verse text + verse number badge -- le badge est
+              // EMBARQUÉ dans le texte (TajweedText.leading), pas dans un Row
+              // à côté (cf. commentaire du champ `leading` dans
+              // tajweed_text.dart : un Row réservait sa colonne sur TOUTES
+              // les lignes du paragraphe, pas seulement la 1ère -- signalé
+              // par l'utilisateur, "la zone où y'a le chiffre verset n'est
+              // pas utilisée quand y'a pas de chiffre, ça reste du vide").
+              TajweedText(
+                textUthmani: verse.textUthmani,
+                textUthmaniTajweed: verse.textUthmaniTajweed,
+                fontSize: 26 * textScale,
+                lineHeight: 2.1,
+                onWordTap: onWordTap,
+                wordStart: wordStart,
+                wordEnd: wordEnd,
+                // Le badge ne doit apparaître qu'une fois, sur la portion qui
+                // contient le tout 1er mot du verset (l'autre moitié, sur la
+                // page suivante, n'en a pas -- ce n'est pas "un nouveau
+                // verset qui commence").
+                leading: (wordStart == null || wordStart == 0)
+                    ? _VerseNumberBadge(verse.ayahNumber, kindleMode: kindleMode)
+                    : null,
               ),
               // French translation (optional) -- jamais en mode arabe : la
               // règle du duo (REFONTE_IHM.md §7bis) interdit toute traduction
-              // affichée à côté du Coran quand l'app est en arabe.
+              // affichée à côté du Coran quand l'app est en arabe. Jamais non
+              // plus sur un verset scindé (mode Kindle) -- éviter qu'elle
+              // apparaisse sur la mauvaise moitié ou en double.
               if (showTranslation &&
+                  wordStart == null &&
+                  wordEnd == null &&
                   verse.translationFr != null &&
                   Localizations.localeOf(context).languageCode != 'ar')
                 Padding(
@@ -80,7 +113,7 @@ class VerseTile extends StatelessWidget {
                     _stripHtml(verse.translationFr!),
                     style: GoogleFonts.manrope(
                       fontSize: 13,
-                      color: AppColors.inkLight,
+                      color: kindleMode ? AppColors.kindleInkSoft : AppColors.inkLight,
                       height: 1.5,
                     ),
                   ),
@@ -98,7 +131,8 @@ class VerseTile extends StatelessWidget {
 
 class _VerseNumberBadge extends StatelessWidget {
   final int number;
-  const _VerseNumberBadge(this.number);
+  final bool kindleMode;
+  const _VerseNumberBadge(this.number, {this.kindleMode = false});
 
   // Convert to Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩)
   static String _toArabicIndic(int n) {
@@ -108,17 +142,21 @@ class _VerseNumberBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Chiffres arabo-indiens (٠١٢٣) seulement en locale arabe -- demande
+    // utilisateur 2026-08-01 : chiffres occidentaux (1,2,3) en français/
+    // anglais, garder les chiffres indiens seulement en mode arabe.
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     return SizedBox(
       width: 38,
       height: 38,
       child: CustomPaint(
-        painter: const _OctagonBadgePainter(),
+        painter: _OctagonBadgePainter(kindleMode: kindleMode),
         child: Center(
           child: Text(
-            _toArabicIndic(number),
+            isArabic ? _toArabicIndic(number) : '$number',
             style: GoogleFonts.amiri(
               fontSize: 14,
-              color: AppColors.brass,
+              color: kindleMode ? AppColors.kindleAccent : AppColors.brass,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -136,7 +174,8 @@ class _VerseNumberBadge extends StatelessWidget {
 // élément ajouté entre chaque verset, juste ce repère existant qui devient
 // cohérent avec le reste de l'habillage graphique.
 class _OctagonBadgePainter extends CustomPainter {
-  const _OctagonBadgePainter();
+  final bool kindleMode;
+  const _OctagonBadgePainter({this.kindleMode = false});
 
   static Path _octagonPath(Size size) {
     final cx = size.width / 2;
@@ -159,16 +198,18 @@ class _OctagonBadgePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final path = _octagonPath(size);
-    canvas.drawPath(path, Paint()..color = AppColors.cream200);
+    canvas.drawPath(
+        path, Paint()..color = kindleMode ? AppColors.kindleBgDeep : AppColors.cream200);
     canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
-        ..color = AppColors.brass,
+        ..color = kindleMode ? AppColors.kindleAccent : AppColors.brass,
     );
   }
 
   @override
-  bool shouldRepaint(covariant _OctagonBadgePainter oldDelegate) => false;
+  bool shouldRepaint(covariant _OctagonBadgePainter oldDelegate) =>
+      oldDelegate.kindleMode != kindleMode;
 }

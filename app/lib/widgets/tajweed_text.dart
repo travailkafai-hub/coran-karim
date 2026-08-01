@@ -304,6 +304,20 @@ class TajweedText extends StatelessWidget {
   final double fontSize;
   final double lineHeight;
   final void Function(int wordIndex)? onWordTap;
+  // Badge de numéro de verset (2026-08-01) : EMBARQUÉ dans le flux du texte
+  // via WidgetSpan plutôt que placé à côté dans un Row -- un Row réserve sa
+  // colonne sur TOUTES les lignes du paragraphe, pas seulement la 1ère
+  // (signalé par l'utilisateur : la colonne du badge reste vide sur chaque
+  // ligne de continuation, et le texte n'en profite jamais). En WidgetSpan,
+  // le badge ne prend de la place QUE sur sa propre ligne -- les lignes
+  // suivantes utilisent toute la largeur, comme un vrai paragraphe imprimé.
+  final Widget? leading;
+  // Plage de mots à afficher (2026-08-01, mode Kindle : un verset trop long
+  // pour une page est scindé au niveau du MOT, pas visuellement -- cf.
+  // mushaf_screen.dart `_kindleWordLineBreaks`). null = tout le verset
+  // (comportement historique, utilisé partout ailleurs dans l'app).
+  final int? wordStart;
+  final int? wordEnd;
 
   const TajweedText({
     super.key,
@@ -312,6 +326,9 @@ class TajweedText extends StatelessWidget {
     this.fontSize = 26,
     this.lineHeight = 2.1,
     this.onWordTap,
+    this.leading,
+    this.wordStart,
+    this.wordEnd,
   });
 
   @override
@@ -331,15 +348,29 @@ class TajweedText extends StatelessWidget {
     return _buildTajweedRichText(base);
   }
 
+  // Cf. commentaire du champ `leading` : embarqué en tête du flux de texte
+  // (donc à droite en RTL) via WidgetSpan, pas dans un Row à côté -- ne
+  // réserve de la place que sur SA propre ligne.
+  List<InlineSpan> _leadingSpans() => leading == null
+      ? const []
+      : [
+          WidgetSpan(alignment: PlaceholderAlignment.middle, child: leading!),
+          const TextSpan(text: '  '),
+        ];
+
   Widget _buildTajweedRichText(TextStyle base) {
     // tajweedSpansPerWord() reconstruit chaque mot depuis textUthmani (le
     // texte canonique) et n'emprunte que la couleur au champ tajwid --
     // jamais ses propres caractères (cf. commentaire de la fonction).
-    final wordSpans = tajweedSpansPerWord(textUthmani, textUthmaniTajweed, base);
-    final children = <TextSpan>[];
+    final allWordSpans = tajweedSpansPerWord(textUthmani, textUthmaniTajweed, base);
+    final start = wordStart ?? 0;
+    final end = wordEnd ?? allWordSpans.length;
+    final wordSpans = allWordSpans.sublist(start, end);
+    final children = <InlineSpan>[..._leadingSpans()];
     for (var i = 0; i < wordSpans.length; i++) {
+      final wordIndex = start + i; // index RÉEL dans le verset, pas dans la plage
       final recognizer = onWordTap != null
-          ? (TapGestureRecognizer()..onTap = () => onWordTap!(i))
+          ? (TapGestureRecognizer()..onTap = () => onWordTap!(wordIndex))
           : null;
       for (final s in wordSpans[i]) {
         children.add(TextSpan(text: s.text, style: s.style, recognizer: recognizer));
@@ -350,6 +381,15 @@ class TajweedText extends StatelessWidget {
     }
     return RichText(
       textDirection: TextDirection.rtl,
+      // Sans ça (défaut = start), chaque ligne s'arrête dès que le mot
+      // suivant ne rentre plus, sans étirer l'espacement pour rejoindre le
+      // bord opposé -- ça donnait des lignes visiblement courtes malgré une
+      // largeur disponible bien plus grande (signalé par l'utilisateur
+      // 2026-08-01, vérifié par un cadre de debug : le conteneur occupait
+      // déjà toute la largeur, seul le texte ne la remplissait pas). justify
+      // étire l'espacement inter-mots des lignes non-finales pour toucher
+      // les deux bords, comme un vrai Mushaf imprimé.
+      textAlign: TextAlign.justify,
       text: TextSpan(children: children, style: base),
     );
   }
@@ -366,20 +406,25 @@ class TajweedText extends StatelessWidget {
     // Même filtre que tajweedSpansPerWord/ArabicNormalizer.splitExpectedWords
     // (cf. commentaire ci-dessus) : sans lui, une marque décorative isolée
     // (ex. "۞") décale l'index passé à onWordTap par rapport à RecitedWord.
-    final words = textUthmani
+    final allWords = textUthmani
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty && ArabicNormalizer.normalize(w).isNotEmpty)
         .toList();
+    final start = wordStart ?? 0;
+    final end = wordEnd ?? allWords.length;
+    final words = allWords.sublist(start, end);
     return RichText(
       textDirection: TextDirection.rtl,
+      textAlign: TextAlign.justify, // cf. commentaire dans _buildTajweedRichText
       text: TextSpan(
         children: [
+          ..._leadingSpans(),
           for (int i = 0; i < words.length; i++)
             TextSpan(
               text: i < words.length - 1 ? '${words[i]} ' : words[i],
               style: base,
               recognizer: TapGestureRecognizer()
-                ..onTap = () => onWordTap!(i),
+                ..onTap = () => onWordTap!(start + i),
             ),
         ],
       ),

@@ -21,8 +21,15 @@ class _IndexedVerse {
   final int surah;
   final int ayah;
   final List<String> words;
+  // Position du premier mot de ce verset dans la séquence aplatie de TOUT le
+  // Coran (`_flatWords`) -- permet de retrouver le verset qui contient une
+  // position donnée par recherche dichotomique (cf. `_verseAtPos`).
+  final int startPos;
   const _IndexedVerse(
-      {required this.surah, required this.ayah, required this.words});
+      {required this.surah,
+      required this.ayah,
+      required this.words,
+      required this.startPos});
 }
 
 class _ScoredVerse {
@@ -48,7 +55,30 @@ class QuranVerseLocatorService {
   static final instance = QuranVerseLocatorService._();
 
   List<_IndexedVerse>? _verses;
-  Map<String, List<int>>? _wordIndex;
+  // Séquence aplatie de tous les mots du Coran, dans l'ordre -- support de
+  // l'index combinatoire ci-dessous et de `_verseAtPos`.
+  List<String>? _flatWords;
+  // Index combinatoire (2026-08-02, principe repris de l'algo Shazam --
+  // constellation de landmarks + hash de PAIRES, cf. discussion utilisateur) :
+  // clé = paire de mots (mot_i, mot_i+k) pour k=1..[_kMaxPairGap], valeur =
+  // positions (dans `_flatWords`) où cette paire apparaît. Remplace l'ancien
+  // index mot-isolé (`_wordIndex`) -- une paire porte déjà une preuve
+  // d'adjacence approchée, ce que le mot isolé ne donnait pas (d'où le veto
+  // séparé `_hasBigramSupport`, devenu inutile, cf. plus bas).
+  Map<String, List<int>>? _pairIndex;
+
+  // Écart maximal entre les deux mots d'une paire indexée -- assez grand pour
+  // survivre à 1-3 mots perdus/mal transcrits par l'ASR entre deux mots
+  // effectivement reconnus, assez petit pour que la paire reste une preuve
+  // d'adjacence réelle (pas juste "les deux mots existent quelque part").
+  static const _kMaxPairGap = 4;
+  // Filtre de rareté (équivalent du seuil >400 occurrences mot-isolé
+  // d'origine, mais sur des paires -- donc un seuil bien plus bas) : une
+  // paire qui apparaît dans trop d'endroits différents du Coran n'aide pas à
+  // localiser, elle ajoute seulement du bruit au vote de décalage ci-dessous.
+  static const _kMaxPairOccurrences = 60;
+
+  String _pairKey(String a, String b, int k) => '$a$b$k';
 
   Future<void> _ensureLoaded() async {
     if (_verses != null) return;
@@ -56,22 +86,46 @@ class QuranVerseLocatorService {
         await rootBundle.loadString('assets/data/quran_search_index.json');
     final data = jsonDecode(raw) as Map<String, dynamic>;
     final list = data['verses'] as List;
-    final verses = <_IndexedVerse>[
-      for (final v in list)
-        _IndexedVerse(
-          surah: v['s'] as int,
-          ayah: v['a'] as int,
-          words: (v['w'] as List).cast<String>(),
-        ),
-    ];
-    final idx = <String, List<int>>{};
-    for (var i = 0; i < verses.length; i++) {
-      for (final w in verses[i].words.toSet()) {
-        idx.putIfAbsent(w, () => []).add(i);
+    final verses = <_IndexedVerse>[];
+    final flat = <String>[];
+    for (final v in list) {
+      final words = (v['w'] as List).cast<String>();
+      verses.add(_IndexedVerse(
+        surah: v['s'] as int,
+        ayah: v['a'] as int,
+        words: words,
+        startPos: flat.length,
+      ));
+      flat.addAll(words);
+    }
+    final pairIndex = <String, List<int>>{};
+    for (var i = 0; i < flat.length; i++) {
+      final maxK = (flat.length - 1 - i).clamp(0, _kMaxPairGap);
+      for (var k = 1; k <= maxK; k++) {
+        final key = _pairKey(flat[i], flat[i + k], k);
+        pairIndex.putIfAbsent(key, () => []).add(i);
       }
     }
+    pairIndex.removeWhere((_, positions) => positions.length > _kMaxPairOccurrences);
     _verses = verses;
-    _wordIndex = idx;
+    _flatWords = flat;
+    _pairIndex = pairIndex;
+  }
+
+  /// Verset qui contient la position [pos] de `_flatWords` (recherche
+  /// dichotomique sur `startPos`, croissant par construction).
+  _IndexedVerse _verseAtPos(int pos) {
+    final verses = _verses!;
+    var lo = 0, hi = verses.length - 1;
+    while (lo < hi) {
+      final mid = (lo + hi + 1) >> 1;
+      if (verses[mid].startPos <= pos) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return verses[lo];
   }
 
   /// Cœur commun de [locate]/[locateTopMatches] : classe TOUS les candidats
@@ -82,6 +136,26 @@ class QuranVerseLocatorService {
   /// (33:4) était probablement aussi parmi les candidats, juste pas en
   /// première position -- [locate] seul n'exposait aucun moyen d'essayer le
   /// suivant).
+  /// Classe TOUS les candidats par score décroissant -- réécrit le 2026-08-02
+  /// autour du principe de l'algo Shazam (Avery Wang, 2003) : hachage
+  /// combinatoire de PAIRES + vote de décalage, à la place du comptage de
+  /// mots isolés + fraction de recouvrement ordonné (`_orderedOverlap`,
+  /// gardée plus bas en commentaire) + veto bigramme séparé
+  /// (`_hasBigramSupport`, idem).
+  ///
+  /// Principe : pour chaque paire `(mot_i, mot_i+k)` de la requête retrouvée
+  /// dans l'index à la position `p`, le décalage `p - i` est un VOTE pour "la
+  /// requête s'aligne sur le Coran à partir de la position `p - 0`". Un vrai
+  /// passage récité fait converger un grand nombre de votes sur EXACTEMENT le
+  /// même décalage (les positions sont des index de texte, pas des timestamps
+  /// audio -- pas besoin de tolérance, l'égalité stricte suffit et c'est plus
+  /// fort que Shazam sur ce point précis). Une coïncidence de mots épars (ex.
+  /// "ما جعل الله" trouvé à tort dans 50:26, cf. SUIVI_PRIERE.md §3.19) ne
+  /// peut pas produire ce pic : ses quelques paires matchées, quand il y en a,
+  /// tombent sur des décalages différents. Ça supprime par construction le
+  /// besoin d'un veto bigramme séparé (une paire non trouvée dans l'index ne
+  /// vote simplement pas) et le filtre de fréquence se fait sur les PAIRES
+  /// (au chargement, `_kMaxPairOccurrences`) plutôt que sur les mots isolés.
   Future<List<_ScoredVerse>> _rankCandidates(String heardText) async {
     await _ensureLoaded();
     final queryWords = ArabicNormalizer.normalize(heardText)
@@ -91,67 +165,55 @@ class QuranVerseLocatorService {
     debugPrint('[Shazam] entendu="$heardText" -> mots normalisés=$queryWords');
     // Seuil abaissé de 4 à 2 (demande utilisateur 2026-07-18 : "même avec
     // deux mots c'était suffisant pour moi") -- la protection contre les faux
-    // positifs vient du filtre de rareté (mots >400 occurrences ignorés,
-    // ci-dessous) et de l'exigence d'ordre dans la fenêtre, pas d'un nombre
-    // minimal arbitraire de mots.
+    // positifs vient maintenant du vote de décalage lui-même, pas d'un
+    // nombre minimal arbitraire de mots.
     if (queryWords.length < 2) {
       debugPrint('[Shazam] abandon -- moins de 2 mots utilisables');
       return const [];
     }
 
-    final verses = _verses!;
-    final wordIndex = _wordIndex!;
+    final pairIndex = _pairIndex!;
+    final flatWords = _flatWords!;
 
-    // 1. Mots-candidats : on ignore les mots trop fréquents (plus de 400
-    // occurrences dans tout le Coran, ex. "من"/"في"/"الله") -- ils
-    // n'aident pas à localiser, juste à faire du bruit dans le score.
-    final hits = <int, int>{};
-    for (final qw in queryWords.toSet()) {
-      final positions = wordIndex[qw];
-      if (positions == null || positions.length > 400) continue;
-      for (final vi in positions) {
-        hits[vi] = (hits[vi] ?? 0) + 1;
+    final offsetVotes = <int, int>{};
+    var pairsTried = 0;
+    for (var i = 0; i < queryWords.length; i++) {
+      final maxK = (queryWords.length - 1 - i).clamp(0, _kMaxPairGap);
+      for (var k = 1; k <= maxK; k++) {
+        pairsTried++;
+        final key = _pairKey(queryWords[i], queryWords[i + k], k);
+        final positions = pairIndex[key];
+        if (positions == null) continue;
+        for (final p in positions) {
+          final offset = p - i;
+          offsetVotes[offset] = (offsetVotes[offset] ?? 0) + 1;
+        }
       }
     }
-    debugPrint('[Shazam] mots-candidats retenus (fréquence <= 400) : '
-        '${hits.length} versets touchés');
-    if (hits.isEmpty) {
-      debugPrint('[Shazam] abandon -- aucun mot de la requête ne matche '
-          'un mot du Coran (tous absents ou trop fréquents)');
+    debugPrint('[Shazam] $pairsTried paire(s) testée(s), '
+        '${offsetVotes.length} décalage(s) distinct(s) trouvé(s)');
+    if (offsetVotes.isEmpty) {
+      debugPrint('[Shazam] abandon -- aucune paire de la requête ne matche '
+          'une paire du Coran (toutes absentes ou trop fréquentes)');
       return const [];
     }
 
-    final ranked = hits.entries.toList()
+    final rankedOffsets = offsetVotes.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final topCandidates = ranked.take(40).map((e) => e.key);
 
+    // Un seul candidat par verset (le décalage gagnant de ce verset) -- parmi
+    // les meilleurs décalages, pas la peine d'en explorer plus qu'une
+    // dizaine, le signal est déjà trié par force de vote décroissante.
     final scored = <_ScoredVerse>[];
-    for (final vi in topCandidates) {
-      // Remonte jusqu'à 3 versets en arrière (même sourate) pour couvrir le
-      // cas où le mot-candidat trouvé n'est pas le tout premier mot entendu.
-      var start = vi;
-      var back = 0;
-      while (back < 3 && start > 0 && verses[start - 1].surah == verses[vi].surah) {
-        start--;
-        back++;
-      }
-      final window = <String>[];
-      for (var k = start;
-          k < verses.length && window.length < queryWords.length + 15;
-          k++) {
-        if (verses[k].surah != verses[vi].surah) break;
-        window.addAll(verses[k].words);
-      }
-      if (!_hasBigramSupport(queryWords, window)) {
-        // Aucun appui bigramme : mots isolés éventuellement bien placés dans
-        // l'ordre, mais jamais réellement côte à côte -- signature d'une
-        // coïncidence (cf. commentaire _hasBigramSupport), pas d'un vrai
-        // passage récité. Écarté avant même de calculer un score qui
-        // pourrait sembler haut à tort.
-        continue;
-      }
-      final score = _orderedOverlap(queryWords, window);
-      scored.add(_ScoredVerse(verses[vi], score));
+    final seenVerse = <String>{};
+    for (final e in rankedOffsets.take(10)) {
+      final offset = e.key;
+      if (offset < 0 || offset >= flatWords.length) continue;
+      final verse = _verseAtPos(offset);
+      final verseKey = '${verse.surah}:${verse.ayah}';
+      if (!seenVerse.add(verseKey)) continue;
+      final score = e.value / pairsTried;
+      scored.add(_ScoredVerse(verse, score));
     }
     scored.sort((a, b) => b.score.compareTo(a.score));
     return scored;
@@ -283,23 +345,20 @@ class QuranVerseLocatorService {
     return words.take(count).toList();
   }
 
-  /// Garde-fou complémentaire à [_orderedOverlap] (2026-07-19, cf. §3.19 du
-  /// journal SUIVI_PRIERE.md) : [_orderedOverlap] est volontairement
-  /// TOLÉRANT (sous-séquence, les mots n'ont pas besoin d'être collés) --
-  /// exactement ce qui a laissé passer "ما جعل الله" (3 mots communs mais
-  /// épars) scorer haut sur 50:26 alors que le vrai verset était 33:4. Un
-  /// vrai passage réellement récité doit contenir au moins DEUX mots de la
-  /// requête D'AFFILÉE quelque part dans le candidat -- une coïncidence de
-  /// mots isolés dispersés dans l'ordre ne le garantit presque jamais. Ne
-  /// remplace PAS le score (les seuils 0.45/0.70 restent calibrés dessus),
-  /// filtre juste les candidats qui n'ont AUCUN appui bigramme.
-  bool _hasBigramSupport(List<String> query, List<String> window) {
-    for (var i = 0; i < query.length - 1; i++) {
-      final a = query[i], b = query[i + 1];
-      for (var j = 0; j < window.length - 1; j++) {
-        if (window[j] == a && window[j + 1] == b) return true;
-      }
-    }
-    return false;
-  }
+  // ANCIEN garde-fou (2026-07-19, cf. §3.19 du journal SUIVI_PRIERE.md),
+  // devenu inutile depuis le passage au hachage combinatoire de paires +
+  // vote de décalage (`_rankCandidates`, 2026-08-02) : une paire qui ne
+  // matche aucune entrée de `_pairIndex` ne vote simplement pas, ce qui
+  // filtre déjà les mots isolés dispersés sans veto séparé. Gardé en
+  // commentaire, pas supprimé (convention projet) :
+  //
+  // bool _hasBigramSupport(List<String> query, List<String> window) {
+  //   for (var i = 0; i < query.length - 1; i++) {
+  //     final a = query[i], b = query[i + 1];
+  //     for (var j = 0; j < window.length - 1; j++) {
+  //       if (window[j] == a && window[j + 1] == b) return true;
+  //     }
+  //   }
+  //   return false;
+  // }
 }

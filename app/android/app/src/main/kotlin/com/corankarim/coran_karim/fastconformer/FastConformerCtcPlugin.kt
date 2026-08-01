@@ -24,6 +24,11 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private var streaming: FastConformerStreamingSession? = null
     private var causalAlignment: CausalAlignmentSession? = null
     private var buffered: BufferedTranscriber? = null
+    /** Etat du calibrage en cours (cf. "calibrageDemarrer"). Volontairement
+     *  independant du moteur ASR : calibrer ne demande AUCUN modele, on mesure
+     *  du RMS et des durees de silence. L'ecran doit donc fonctionner meme si
+     *  le modele n'est pas charge. */
+    @Volatile private var calibrage: com.corankarim.coran_karim.recitation2.Calibrage? = null
     // Seuil personnalise recu AVANT la creation (lazy) du BufferedTranscriber —
     // applique des sa construction, sinon un setCommitSilenceMs appele avant le
     // premier bloc audio serait perdu.
@@ -93,6 +98,134 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 val path = call.argument<String>("path")
                 if (path != null) DiagnosticLog.setFile(path)
                 result.success(null)
+            }
+            // ── CALIBRAGE ────────────────────────────────────────────────────
+            // Le calcul reste en Kotlin, dans la classe Calibrage, et l'ecran
+            // Flutter ne fait que l'alimenter et afficher. Refaire l'estimation
+            // en Dart aurait duplique une logique de seuil dans deux langages --
+            // ce que le projet a deja paye deux fois (« le banc mesurait mon
+            // decoupage, pas l'app »). Ici il n'y a qu'une implementation, et
+            // c'est la meme que le banc JVM mesure.
+            "calibrageDemarrer" -> {
+                // `cumuler` = garder les sessions precedentes. Demande
+                // utilisateur : l'estimateur des silences est pauvre en donnees
+                // (une minute n'en contient qu'une quarantaine), enchainer
+                // plusieurs sessions le stabilise.
+                val cumuler = call.argument<Boolean>("cumuler") ?: false
+                if (!cumuler || calibrage == null) {
+                    calibrage = com.corankarim.coran_karim.recitation2.Calibrage()
+                }
+                DiagnosticLog.log(
+                    "CALIB",
+                    "demarrage cumuler=$cumuler sessions=${calibrage?.sessions ?: 0} " +
+                        "silences deja cumules=${calibrage?.silencesCumulesCount ?: 0}"
+                )
+                result.success(null)
+            }
+            // Cloture la session en cours : elle derive SON propre niveau de
+            // parole avant d'en extraire ses silences. Deux sessions a des
+            // distances differentes du micro n'ont pas le meme niveau ; un p75
+            // commun serait trop haut pour l'une et trop bas pour l'autre.
+            "calibrageCloturerSession" -> {
+                val c = calibrage
+                if (c == null) {
+                    result.error("CALIBRAGE", "calibrage non demarre", null)
+                } else {
+                    val n = c.cloturerSession()
+                    DiagnosticLog.log(
+                        "CALIB",
+                        "session ${c.sessions} close : +$n silences, " +
+                            "total=${c.silencesCumulesCount} sur " +
+                            "${"%.1f".format(c.secondesTotales)} s"
+                    )
+                    result.success(mapOf(
+                        "sessions" to c.sessions,
+                        "silences" to c.silencesCumulesCount,
+                        "secondes" to c.secondesTotales,
+                        "apportes" to n,
+                    ))
+                }
+            }
+            "calibrageAlimenter" -> {
+                val c = calibrage
+                if (c == null) {
+                    result.error("CALIBRAGE", "calibrage non demarre", null)
+                } else {
+                    // PCM16 BRUT, exactement le format que la chaine de
+                    // recitation recoit du paquet `record` (pcm16bits, 16 kHz,
+                    // mono). Calibrer sur une AUTRE source aurait mesure autre
+                    // chose que ce que la chaine verra -- et c'est precisement
+                    // l'erreur qui a fait rendre une mesure vide au premier
+                    // essai : l'ecran utilisait AudioRecorderPlugin, qui n'est
+                    // enregistre nulle part (MainActivity n'ajoute que ce
+                    // plugin-ci), donc `stop()` rendait une liste VIDE sans la
+                    // moindre erreur.
+                    //
+                    // Envoi par blocs au fil de l'eau plutot qu'en un bloc
+                    // final : une minute de recitation ferait 2 Mo sur le canal.
+                    val pcm16 = call.argument<ByteArray>("pcm16")
+                    if (pcm16 == null) {
+                        result.error("CALIBRAGE", "pcm16 manquant", null)
+                    } else {
+                        c.alimenter(pcm16ToFloat(pcm16))
+                        result.success(c.secondes)
+                    }
+                }
+            }
+            "calibrageResultat" -> {
+                val c = calibrage
+                if (c == null) {
+                    result.error("CALIBRAGE", "calibrage non demarre", null)
+                } else {
+                    val r = c.resultat()
+                    // TRACE PERSISTANTE — sans elle le calibrage ne laisse
+                    // AUCUNE trace recuperable par `adb pull`, contrairement au
+                    // reste de la chaine. Constate le 2026-07-31 : demande de
+                    // « recuperer le log du calibrage », rien a rendre.
+                    // On journalise la DISTRIBUTION, pas seulement la valeur :
+                    // c'est elle qui dit si le reglage tient.
+                    DiagnosticLog.log(
+                        "CALIB",
+                        "resultat fiable=${r.fiable} ${"%.1f".format(r.secondes)}s " +
+                            "blocs=${r.blocs} silences=${r.silences.size} " +
+                            "niveau=${"%.4f".format(r.niveauParole)} " +
+                            "seuilRms=${"%.4f".format(r.seuilRms)}" +
+                            (if (r.seuilRmsBorne) "(BORNE)" else "") +
+                            " p10=${"%.2f".format(r.percentile(10))}" +
+                            " p25=${"%.2f".format(r.percentile(25))}" +
+                            " p50=${"%.2f".format(r.percentile(50))}" +
+                            " p75=${"%.2f".format(r.percentile(75))}" +
+                            " p90=${"%.2f".format(r.percentile(90))}" +
+                            " p95=${"%.2f".format(r.percentile(95))}" +
+                            " separation=${"%.2f".format(r.separation)}" +
+                            " -> pause=${"%.3f".format(r.pause)}" +
+                            (if (r.pauseBornee) "(BORNE)" else "") +
+                            (if (r.pourquoi != null) " | ${r.pourquoi}" else "")
+                    )
+                    result.success(
+                        mapOf(
+                            "secondes" to r.secondes,
+                            "blocs" to r.blocs,
+                            "niveauParole" to r.niveauParole.toDouble(),
+                            "seuilRms" to r.seuilRms.toDouble(),
+                            "seuilRmsBorne" to r.seuilRmsBorne,
+                            "nbSilences" to r.silences.size,
+                            "p10" to r.percentile(10), "p25" to r.percentile(25),
+                            "p50" to r.percentile(50), "p75" to r.percentile(75),
+                            "p90" to r.percentile(90), "p95" to r.percentile(95),
+                            "separation" to r.separation,
+                            "pause" to r.pause,
+                            "pauseBornee" to r.pauseBornee,
+                            "fiable" to r.fiable,
+                            "pourquoi" to r.pourquoi,
+                            // Les reglages actuellement en vigueur, pour que
+                            // l'ecran montre l'ECART et non un chiffre isole.
+                            "pauseActuelle" to 0.35,
+                            "rapportPause" to
+                                com.corankarim.coran_karim.recitation2.Calibrage.RAPPORT_PAUSE,
+                        )
+                    )
+                }
             }
             "loadModel" -> scope.launch {
                 try {
@@ -335,11 +468,27 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // v1 : si elle echoue, la v1 continue exactement comme
                     // avant (le catch est local).
                     val v2 = if (v2Actif) alimenterV2(current, samples) else null
+                    // DECROCHAGE : champ SEPARE du flux des statuts (2026-08-01).
+                    // Volontairement pas un element de la liste "v2" : celle-ci
+                    // ne transporte que des verdicts par mot attendu, et y
+                    // glisser une entree d'un autre genre (index -1 ou statut
+                    // inconnu du parseur) risquerait de casser sa lecture cote
+                    // Dart. Ici, une cle a part que l'ancien code ignore.
+                    val decrochage = v2Chaine?.decrochage == true
+                    val motDecrochage = v2Chaine?.motDuDecrochage ?: -1
+                    if (decrochage) v2Chaine?.accuserDecrochage()
                     val payload = mapOf(
                         "committed" to (buffered?.committed ?: ""),
                         "preview" to (buffered?.preview ?: ""),
                         "align" to buffered?.alignmentPayload(),
-                    ) + (v2?.let { mapOf("v2" to it) } ?: emptyMap())
+                    ) + (v2?.let { mapOf("v2" to it) } ?: emptyMap()) +
+                        (if (decrochage) mapOf(
+                            "v2Decrochage" to true,
+                            // Mot a partir duquel reprendre : le dernier
+                            // DEFINITIF, pas le pointeur (reste a 0 quand rien
+                            // n'a pu etre juge -- mesure 2026-08-01).
+                            "v2DecrochageMot" to motDecrochage,
+                        ) else emptyMap())
                     withContext(Dispatchers.Main) { result.success(payload) }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { result.error("FEED_BUFFERED_FAILED", e.message, null) }

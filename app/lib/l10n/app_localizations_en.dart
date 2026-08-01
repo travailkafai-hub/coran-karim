@@ -337,6 +337,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get readingSettingsSpeedFast => 'Fast';
 
   @override
+  String get readingSettingsKindleSection => 'KINDLE MODE';
+
+  @override
+  String get readingSettingsKindleDescription =>
+      'Restful, low blue light theme with page-based navigation, like an e-reader.';
+
+  @override
+  String get readingSettingsKindleToggle => 'Enable Kindle mode';
+
+  @override
+  String get readingSettingsKindleAutoTurn => 'Turn pages automatically';
+
+  @override
+  String readingSettingsKindleSpeed(int seconds) {
+    return 'Speed: ${seconds}s / page';
+  }
+
+  @override
   String get coachExplanationListen => 'Listen';
 
   @override
@@ -1181,13 +1199,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reciterSelectStreamingNote =>
-      'Built-in reciters — available via streaming. Offline download coming soon.';
+      'Built-in reciters. Playback streams over the internet by default; download a surah to listen offline.';
 
   @override
   String get reciterSelectOfflineTitle => 'Offline download';
 
   @override
-  String get reciterSelectOfflineSubtitle => 'Available in an upcoming update.';
+  String get reciterSelectOfflineSubtitle =>
+      'Download surah by surah from each reciter\'s icon.';
 
   @override
   String get voiceCalibTitle => 'Voice calibration';
@@ -1559,4 +1578,61 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsDiagnosticSubtitleOff =>
       'Off — nothing is written while reciting';
+
+  @override
+  String get reciterDownloadsTitle => 'Offline download';
+
+  @override
+  String reciterDownloadAll(String size) {
+    return 'Download all ($size)';
+  }
+
+  @override
+  String get reciterDownloadStop => 'Stop';
+
+  @override
+  String get reciterDeleteAllTitle => 'Delete downloads';
+
+  @override
+  String get reciterDeleteAllBody =>
+      'All downloaded audio for this reciter will be erased from the device. Playback will go back to streaming.';
+
+  @override
+  String get reciterDeleteAllConfirm => 'Delete';
+
+  @override
+  String reciterStorageUsed(String size, String done, String total) {
+    return '$size on this device • $done/$total surahs offline';
+  }
+
+  @override
+  String get reciterDownloadFailed =>
+      'Download failed — check your connection. Files already downloaded are kept.';
+
+  @override
+  String reciterDownloadingProgress(String done, String total) {
+    return 'Downloading… $done/$total verses';
+  }
+
+  @override
+  String get reciterSurahOffline => 'Available offline';
+
+  @override
+  String get reciterVersesShort => 'verses';
+
+  @override
+  String get reciterBadgeOfflineFull => 'Offline';
+
+  @override
+  String reciterBadgeOfflinePartial(String done, String total) {
+    return 'Offline · $done/$total';
+  }
+
+  @override
+  String get reciterBadgeOnline => 'Internet';
+
+  @override
+  String reciterSelectStorageTotal(String size) {
+    return '$size used on this device';
+  }
 }

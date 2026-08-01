@@ -200,9 +200,16 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     final rst = ref.watch(recitationProvider);
 
     ref.listen<RecitationSessionState>(recitationProvider, (prev, next) {
+      // _phase peut déjà valoir `processing` ici : le bloc juste en dessous le
+      // fait passer de `listening` à `processing` dès que rst.status devient
+      // `processing`, AVANT que ce listener ne voie le `finished` qui suit.
+      // Se limiter à `listening` laissait alors ce `finished` sans effet --
+      // le tour restait bloqué sur le spinner "Analyse en cours" pour
+      // toujours (constaté sur device 2026-08-01). `_handledThisSession`
+      // reste la seule garde nécessaire contre un double déclenchement.
       if (next.status == RecitationStatus.finished &&
           prev?.status != RecitationStatus.finished &&
-          _phase == _RoundPhase.listening) {
+          (_phase == _RoundPhase.listening || _phase == _RoundPhase.processing)) {
         _onRoundFinished(next);
       }
     });

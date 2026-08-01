@@ -153,8 +153,27 @@ class ConstructeurDeFenetres(
      * sortent du domaine du modele, trop (127) et chaque frontiere est une
      * occasion de se tromper. L'optimum est un plateau, pas un pic -- 0,40 et
      * 0,45 donnent le meme chiffre, ce qui est le seul reglage acceptable.
+     *
+     * ── 2026-07-31 : PASSAGE A 0,35, demande utilisateur, A MESURER SUR DEVICE ──
+     * Le tableau ci-dessus reste vrai et n'est pas efface : il donne 0,35 a
+     * 2,71 % contre 2,03 % pour 0,40. MAIS il a ete etabli HORS DEVICE, et cet
+     * ecart de 0,68 point est INDISCERNABLE du bruit du banc reel -- deux passes
+     * identiques ont donne 2,03 % et 2,71 % le meme soir, sur le meme audio et le
+     * meme binaire. Le projet a deja paye deux fois une prediction hors device
+     * confiante et fausse (cf. memoire "les bancs hors ligne doivent reproduire
+     * l'entree partielle").
+     * Ce que le balayage ne peut PAS voir et qui motive l'essai : il compare des
+     * taux a decoupage fige, alors que sur device la pause gouverne aussi QUAND
+     * la fenetre part, donc la reactivite. 104 blocs contre 102 : le cout attendu
+     * est faible.
+     * 0,25 a ete essaye et REJETE (echec constate par l'utilisateur) -- ne pas y
+     * revenir sans cause nouvelle nommee.
+     * ⚠️ Si la recette device confirme une degradation reelle (hors bruit), la
+     * valeur revient a 0,40 : le plateau 0,40-0,45 est la seule zone ou deux
+     * reglages voisins donnent le MEME chiffre, ce qui est la vraie preuve de
+     * robustesse, alors que 0,35 est un bord de plateau.
      */
-    private val pauseMinSecondes: Double = 0.40,
+    private val pauseMinSecondes: Double = 0.35,
     /** Cf. [pauseMinSecondes] : les deux se lisent ensemble. 0,02 etait herite
      *  du portier RMS de la v1, ou il servait a JETER de l'audio ; ici il sert a
      *  DETECTER une frontiere, ce n'est pas le meme role et pas la meme valeur.

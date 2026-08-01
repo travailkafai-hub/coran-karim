@@ -47,8 +47,18 @@ class PlayerStateModel {
     return null;
   }
 
+  /// Sentinelle « argument non fourni », pour les champs NULLABLES.
+  ///
+  /// Sans elle, `error: error ?? this.error` rendait `error` et `currentVerse`
+  /// **impossibles à effacer** : le `error: null` de `PlayerNotifier.play()`
+  /// ne remettait rien à zéro, donc un « Audio introuvable » survenu une fois
+  /// collait pour toute la vie de l'app et faussait ensuite tout diagnostic de
+  /// l'état du lecteur (constaté 2026-07-28). Les champs non-nullables gardent
+  /// le `??`, qui est correct pour eux.
+  static const _unset = Object();
+
   PlayerStateModel copyWith({
-    Verse? currentVerse,
+    Object? currentVerse = _unset,
     List<Verse>? playlist,
     int? currentIndex,
     PlayerStatus? status,
@@ -59,9 +69,11 @@ class PlayerStateModel {
     Reciter? reciter,
     Duration? position,
     Duration? duration,
-    String? error,
+    Object? error = _unset,
   }) => PlayerStateModel(
-    currentVerse: currentVerse ?? this.currentVerse,
+    currentVerse: identical(currentVerse, _unset)
+        ? this.currentVerse
+        : currentVerse as Verse?,
     playlist: playlist ?? this.playlist,
     currentIndex: currentIndex ?? this.currentIndex,
     status: status ?? this.status,
@@ -72,6 +84,6 @@ class PlayerStateModel {
     reciter: reciter ?? this.reciter,
     position: position ?? this.position,
     duration: duration ?? this.duration,
-    error: error ?? this.error,
+    error: identical(error, _unset) ? this.error : error as String?,
   );
 }

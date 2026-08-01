@@ -233,6 +233,13 @@ abstract class RecitationVerifier {
   /// Nombre de segments audio en attente/en cours de transcription (mode continu).
   Stream<int> get pendingSegments;
 
+  /// Le récitateur s'est écarté du texte attendu (2026-08-01, chaîne v2).
+  /// Distinct de tout verdict par mot : ici ce n'est pas un mot qui est faux,
+  /// c'est la récitation qui a quitté le texte. Ne s'émet jamais sur un
+  /// simple silence. La valeur portée est le dernier mot DÉFINITIF au moment
+  /// du décrochage (-1 si aucun) : c'est de là qu'il faut reprendre.
+  Stream<int> get decrochage;
+
   /// Chemin d'un WAV stable (survit à la transcription, contrairement aux
   /// segments temporaires normalement supprimés aussitôt) contenant le DERNIER
   /// enregistrement transcrit — utilisé pour l'empreinte vocale (comparaison
@@ -454,6 +461,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       StreamController<({String committed, String preview})>.broadcast();
   final _alignCtrl = StreamController<AlignPayload>.broadcast();
   /// Flux SÉPARÉ de la v2 : aucune couche du chemin v1 ne le lit.
+  final _decrochageCtrl = StreamController<int>.broadcast();
   final _v2Ctrl =
       StreamController<List<({int index, String statut, String trace})>>.broadcast();
   final AudioRecorder _recorder;
@@ -973,12 +981,22 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     // v2 est éteinte ou tombe, la v1 se comporte exactement comme avant.
     final v2 = parts?.v2;
     if (v2 != null && v2.isNotEmpty) _v2Ctrl.add(v2);
+    // DÉCROCHAGE (2026-08-01) : flux à part, pour la même raison que côté
+    // Kotlin -- ce n'est pas un verdict sur un mot attendu, c'est un constat
+    // sur la récitation entière. Rien de ce qui précède n'en dépend.
+    if (parts?.v2Decrochage == true) {
+      _decrochageCtrl.add(parts!.v2DecrochageMot);
+    }
   }
 
   /// Changements de statut de la chaîne v2 (branchée en parallèle de la v1).
   /// Mesure de référence sur le même flux brut : v1 10,10 % de mots non verts,
   /// v2 2,03 %.
   Stream<List<({int index, String statut, String trace})>> get v2Statuses => _v2Ctrl.stream;
+
+  /// Le récitateur s'est écarté du texte (chaîne v2). Flux SÉPARÉ de
+  /// [v2Statuses] : celui-ci parle de la récitation, pas d'un mot.
+  Stream<int> get decrochage => _decrochageCtrl.stream;
 
   Future<void> v2Activer(bool actif, List<String> mots) async {
     await _fastConformer.v2SetTarget(mots);
@@ -1307,6 +1325,8 @@ class MockRecitationVerifier implements RecitationVerifier {
       const Stream.empty();
   @override
   Stream<int> get pendingSegments => const Stream.empty();
+  @override
+  Stream<int> get decrochage => const Stream.empty(); // pas de v2 en mock
   @override
   String? get lastAudioPath => null;
   @override

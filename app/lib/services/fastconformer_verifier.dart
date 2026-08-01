@@ -506,7 +506,8 @@ class FastConformerVerifier {
   /// ici) : les deux chemins sont choisis par un ternaire côté appelant, leurs
   /// types doivent donc coïncider.
   Future<({String committed, String preview, AlignPayload? align,
-           List<({int index, String statut, String trace})> v2})?>
+           List<({int index, String statut, String trace})> v2,
+           bool v2Decrochage, int v2DecrochageMot})?>
       feedCausalAudio(Uint8List pcm16) async {
     if (!_streamingLoaded) return null;
     try {
@@ -518,6 +519,8 @@ class FastConformerVerifier {
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
         v2: const <({int index, String statut, String trace})>[],
+        v2Decrochage: false, // la v2 ne tourne pas sur ce chemin
+        v2DecrochageMot: -1,
       );
     } catch (e) {
       debugPrint('[FastConformer] Échec feedCausalAudio : $e');
@@ -542,8 +545,13 @@ class FastConformerVerifier {
   /// début du texte était perdu par une re-transcription.
   /// [v2] : changements de statut rendus par la chaîne v2, quand elle tourne
   /// en parallèle (`v2SetEnabled`). Vide sinon — la v1 ne change pas d'un iota.
+  /// [v2Decrochage] : la chaîne v2 signale que le récitateur s'est écarté du
+  /// texte attendu (plusieurs fenêtres consécutives où le décodage libre
+  /// entend quelque chose qui ne se localise nulle part). Champ SÉPARÉ des
+  /// statuts par mot -- cf. le commentaire côté Kotlin.
   Future<({String committed, String preview, AlignPayload? align,
-           List<({int index, String statut, String trace})> v2})?>
+           List<({int index, String statut, String trace})> v2,
+           bool v2Decrochage, int v2DecrochageMot})?>
       feedBufferedAudio(Uint8List pcm16) async {
     if (!_loaded) return null;
     try {
@@ -573,6 +581,8 @@ class FastConformerVerifier {
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
         v2: v2,
+        v2Decrochage: (raw['v2Decrochage'] as bool?) ?? false,
+        v2DecrochageMot: (raw['v2DecrochageMot'] as int?) ?? -1,
       );
     } catch (e) {
       debugPrint('[FastConformer] Échec feedBufferedAudio : $e');

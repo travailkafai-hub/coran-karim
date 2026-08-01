@@ -34,7 +34,9 @@ class _ReadingSettingsSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
     final scale = ref.watch(textScaleProvider);
-    final speed = ref.watch(autoScrollSpeedProvider);
+    final kindleMode = ref.watch(kindleModeProvider);
+    final kindleAutoTurn = ref.watch(kindleAutoTurnProvider);
+    final kindlePageSeconds = ref.watch(kindlePageSecondsProvider);
     final playerState = ref.watch(playerProvider);
     final repeatMode = playerState.repeatMode;
     final repeatCount = playerState.repeatCount;
@@ -105,53 +107,16 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-            Text(
-              t.readingSettingsAutoScrollSection,
-              style: GoogleFonts.manrope(
-                fontSize: 10.5,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w700,
-                color: AppColors.inkLight,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              t.readingSettingsAutoScrollDescription,
-              style: GoogleFonts.manrope(
-                fontSize: 12,
-                height: 1.4,
-                color: AppColors.inkLight,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in AutoScrollSpeed.values)
-                  ChoiceChip(
-                    label: Text(_speedLabel(t, s)),
-                    selected: speed == s,
-                    selectedColor: AppColors.green700,
-                    labelStyle: GoogleFonts.manrope(
-                      fontWeight: FontWeight.w600,
-                      color: speed == s ? AppColors.cream : AppColors.ink,
-                    ),
-                    backgroundColor: AppColors.cream200,
-                    onSelected: (_) {
-                      ref.read(autoScrollSpeedProvider.notifier).state = s;
-                      Navigator.of(context).pop();
-                    },
-                  ),
-              ],
-            ),
-            // Vitesse de lecture (audio) -- regroupee ici avec le defilement
-            // et la repetition (retour utilisateur 2026-07-19 : "répétition
-            // et vitesse seront dans la partie lecture"), retiree des
-            // Reglages globaux. DIFFERENTE du "defilement automatique"
-            // ci-dessus (celui-la fait scroller le TEXTE, celle-ci change la
-            // vitesse de l'AUDIO du reciteur).
+            // Défilement automatique (off/slow/normal/fast) RETIRÉ
+            // 2026-08-01 (demande utilisateur : "plus raison d'être" une fois
+            // le mode Kindle en place, qui couvre ce besoin -- cf. §Kindle
+            // plus bas, tournage de page automatique).
+            //
+            // Vitesse de lecture (audio) -- curseur plutôt que des puces
+            // fixes (demande utilisateur 2026-08-01 : "un curseur avec les
+            // choix, ça optimise l'espace"). DIFFÉRENTE de l'ancien
+            // "défilement automatique" (qui faisait scroller le TEXTE) :
+            // celle-ci change la vitesse de l'AUDIO du réciteur.
             const SizedBox(height: 20),
             Text(
               t.readingSettingsPlaybackSpeedSection,
@@ -162,32 +127,24 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                 color: AppColors.inkLight,
               ),
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final s in speedOptions)
-                  ChoiceChip(
-                    label: Text('${s}×'),
-                    selected: playbackSpeed == s,
-                    selectedColor: AppColors.green700,
-                    labelStyle: GoogleFonts.manrope(
-                      fontWeight: FontWeight.w600,
-                      color: playbackSpeed == s ? AppColors.cream : AppColors.ink,
-                    ),
-                    backgroundColor: AppColors.cream200,
-                    onSelected: (_) =>
-                        ref.read(playerProvider.notifier).setSpeed(s),
-                  ),
-              ],
+            const SizedBox(height: 6),
+            Text(
+              '${playbackSpeed.toStringAsFixed(2)}×',
+              style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight),
             ),
-            // Répétition / boucles -- regroupees ici avec le defilement
-            // (retour utilisateur 2026-07-19 : "rajoute via reglage les
-            // modes de lecture le defilement les repetitions les boucles"),
-            // au lieu de rester uniquement dans l'ecran Reglages global,
-            // loin de la lecture en cours.
-            const SizedBox(height: 20),
+            Slider(
+              value: playbackSpeed,
+              min: speedOptions.first,
+              max: speedOptions.last,
+              divisions: 6, // pas de 0.25 entre 0.5 et 2.0
+              activeColor: AppColors.green700,
+              onChanged: (v) => ref.read(playerProvider.notifier).setSpeed(v),
+            ),
+            // Répétition / boucles -- curseur pour le nombre de répétitions
+            // (même raison que ci-dessus), "Illimité"/"Sourate entière"
+            // restent des puces car ce ne sont pas des points sur une échelle
+            // numérique continue.
+            const SizedBox(height: 12),
             Text(
               t.readingSettingsRepeatSection,
               style: GoogleFonts.manrope(
@@ -206,37 +163,135 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                 color: AppColors.inkLight,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
+            Text(
+              repeatMode == RepeatMode.off
+                  ? t.readingSettingsRepeatOff
+                  : repeatMode == RepeatMode.surah
+                      ? t.readingSettingsRepeatSurah
+                      : repeatCount == 0
+                          ? t.readingSettingsRepeatVerseInfinite
+                          : t.readingSettingsRepeatVerseCount(repeatCount),
+              style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight),
+            ),
+            Slider(
+              value: (repeatMode == RepeatMode.verse ? repeatCount : 0)
+                  .clamp(0, 20)
+                  .toDouble(),
+              min: 0,
+              max: 20,
+              divisions: 20,
+              activeColor: AppColors.green700,
+              onChanged: (v) {
+                final notifier = ref.read(playerProvider.notifier);
+                notifier.setRepeatMode(v == 0 ? RepeatMode.off : RepeatMode.verse);
+                notifier.setRepeatCount(v.round());
+              },
+            ),
+            const SizedBox(height: 6),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final (mode, count, label) in [
-                  (RepeatMode.off, 0, t.readingSettingsRepeatOff),
-                  (RepeatMode.verse, 3, t.readingSettingsRepeatVerseCount(3)),
-                  (RepeatMode.verse, 5, t.readingSettingsRepeatVerseCount(5)),
-                  (RepeatMode.verse, 10, t.readingSettingsRepeatVerseCount(10)),
-                  (RepeatMode.verse, 0, t.readingSettingsRepeatVerseInfinite),
-                  (RepeatMode.surah, 0, t.readingSettingsRepeatSurah),
-                ])
-                  ChoiceChip(
-                    label: Text(label),
-                    selected: repeatMode == mode &&
-                        (mode != RepeatMode.verse || repeatCount == count),
-                    selectedColor: AppColors.green700,
-                    labelStyle: GoogleFonts.manrope(
-                      fontWeight: FontWeight.w600,
-                      color: repeatMode == mode ? AppColors.cream : AppColors.ink,
-                    ),
-                    backgroundColor: AppColors.cream200,
-                    onSelected: (_) {
-                      final notifier = ref.read(playerProvider.notifier);
-                      notifier.setRepeatMode(mode);
-                      notifier.setRepeatCount(count);
-                    },
+                ChoiceChip(
+                  label: Text(t.readingSettingsRepeatVerseInfinite),
+                  selected: repeatMode == RepeatMode.verse && repeatCount == 0,
+                  selectedColor: AppColors.green700,
+                  labelStyle: GoogleFonts.manrope(
+                    fontWeight: FontWeight.w600,
+                    color: repeatMode == RepeatMode.verse && repeatCount == 0
+                        ? AppColors.cream
+                        : AppColors.ink,
                   ),
+                  backgroundColor: AppColors.cream200,
+                  onSelected: (_) {
+                    final notifier = ref.read(playerProvider.notifier);
+                    notifier.setRepeatMode(RepeatMode.verse);
+                    notifier.setRepeatCount(0);
+                  },
+                ),
+                ChoiceChip(
+                  label: Text(t.readingSettingsRepeatSurah),
+                  selected: repeatMode == RepeatMode.surah,
+                  selectedColor: AppColors.green700,
+                  labelStyle: GoogleFonts.manrope(
+                    fontWeight: FontWeight.w600,
+                    color: repeatMode == RepeatMode.surah
+                        ? AppColors.cream
+                        : AppColors.ink,
+                  ),
+                  backgroundColor: AppColors.cream200,
+                  onSelected: (_) {
+                    final notifier = ref.read(playerProvider.notifier);
+                    notifier.setRepeatMode(RepeatMode.surah);
+                    notifier.setRepeatCount(0);
+                  },
+                ),
               ],
             ),
+            // Mode Kindle (demande utilisateur 2026-08-01) : thème repos-yeux
+            // + navigation par pages, regroupé ici avec les autres réglages
+            // de lecture -- même logique que le défilement et la répétition
+            // ci-dessus (§ commentaires 2026-07-19/20).
+            const SizedBox(height: 20),
+            Text(
+              t.readingSettingsKindleSection,
+              style: GoogleFonts.manrope(
+                fontSize: 10.5,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkLight,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              t.readingSettingsKindleDescription,
+              style: GoogleFonts.manrope(
+                fontSize: 12,
+                height: 1.4,
+                color: AppColors.inkLight,
+              ),
+            ),
+            const SizedBox(height: 6),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                t.readingSettingsKindleToggle,
+                style: GoogleFonts.manrope(
+                    fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.ink),
+              ),
+              value: kindleMode,
+              activeColor: AppColors.kindleAccent,
+              onChanged: (v) => ref.read(kindleModeProvider.notifier).set(v),
+            ),
+            if (kindleMode) ...[
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  t.readingSettingsKindleAutoTurn,
+                  style: GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink),
+                ),
+                value: kindleAutoTurn,
+                activeColor: AppColors.kindleAccent,
+                onChanged: (v) =>
+                    ref.read(kindleAutoTurnProvider.notifier).state = v,
+              ),
+              if (kindleAutoTurn) ...[
+                Text(
+                  t.readingSettingsKindleSpeed(kindlePageSeconds.round()),
+                  style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight),
+                ),
+                Slider(
+                  value: kindlePageSeconds,
+                  min: kKindlePageSecondsMin,
+                  max: kKindlePageSecondsMax,
+                  divisions: (kKindlePageSecondsMax - kKindlePageSecondsMin).round(),
+                  activeColor: AppColors.kindleAccent,
+                  onChanged: (v) =>
+                      ref.read(kindlePageSecondsProvider.notifier).set(v),
+                ),
+              ],
+            ],
               ],
             ),
           ),
@@ -244,11 +299,4 @@ class _ReadingSettingsSheet extends ConsumerWidget {
       ),
     );
   }
-
-  String _speedLabel(AppLocalizations t, AutoScrollSpeed s) => switch (s) {
-        AutoScrollSpeed.off => t.readingSettingsSpeedOff,
-        AutoScrollSpeed.slow => t.readingSettingsSpeedSlow,
-        AutoScrollSpeed.normal => t.readingSettingsSpeedNormal,
-        AutoScrollSpeed.fast => t.readingSettingsSpeedFast,
-      };
 }

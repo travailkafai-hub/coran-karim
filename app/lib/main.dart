@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/prayer_settings_provider.dart';
+import 'screens/calibrage_screen.dart';
 import 'screens/recette_screen.dart';
 import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
@@ -139,11 +140,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // côtés, ce qui coûte du temps ET fait varier le protocole entre deux
       // mesures censées être comparables. Le même écran est atteignable par
       // intent, cf. _PointDEntree.
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const RecetteScreen())),
-        icon: const Icon(Icons.science),
-        label: const Text('Recette'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Calibrage : mesure les seuils de decoupage sur la voix du
+          // recitateur. Meme raison que le raccourci Recette ci-dessous -- il
+          // se lance a chaque changement de voix ou de telephone, et une
+          // navigation longue ferait varier le protocole entre deux mesures
+          // censees etre comparables.
+          FloatingActionButton.small(
+            heroTag: 'calibrage',
+            onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CalibrageScreen())),
+            tooltip: 'Calibrage du découpage',
+            child: const Icon(Icons.tune),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'recette',
+            onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const RecetteScreen())),
+            icon: const Icon(Icons.science),
+            label: const Text('Recette'),
+          ),
+        ],
       ),
       bottomNavigationBar: _buildNav(),
     );

@@ -42,14 +42,23 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
   // ── Playback ──────────────────────────────────────────────────────────────
 
-  Future<void> play(Verse verse, List<Verse> playlist, {Reciter? reciter}) async {
+  // `auto: true` = enchaînement automatique interne (verset suivant en
+  // lecture continue/répétition, cf. _advance) -- PAS un tap utilisateur. Sans
+  // ce paramètre, chaque changement de verset repassait par
+  // `PlayerStatus.loading` un court instant, ce qui faisait clignoter l'icône
+  // play/pause (isPlaying devient faux le temps du "loading") à chaque
+  // verset -- symptôme utilisateur "flash de changement d'état" 2026-08-01.
+  // On garde `playing` pendant la transition auto ; un tap manuel garde le
+  // passage par `loading` (légitime, la lecture vient tout juste de démarrer).
+  Future<void> play(Verse verse, List<Verse> playlist,
+      {Reciter? reciter, bool auto = false}) async {
     final rc = reciter ?? state.reciter;
     final idx = playlist.indexWhere((v) => v.key == verse.key);
     state = state.copyWith(
       currentVerse: verse,
       playlist: playlist,
       currentIndex: idx < 0 ? 0 : idx,
-      status: PlayerStatus.loading,
+      status: auto ? PlayerStatus.playing : PlayerStatus.loading,
       reciter: rc,
       position: Duration.zero,
       duration: Duration.zero,
@@ -138,13 +147,23 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   // ── Internal ──────────────────────────────────────────────────────────────
 
   void _onComplete() {
+    // `onPlayerComplete` arrive AUSSI quand l'utilisateur vient de mettre en
+    // pause ou d'arrêter dans les derniers instants du verset : sans ce
+    // garde-fou, la pause était immédiatement suivie d'une relance automatique
+    // -- l'audio repartait tout seul (bug constaté 2026-07-28). On ne
+    // poursuit que si la lecture était réellement en cours ; le plugin laisse
+    // le statut à `playing` en fin de piste (l'événement `completed` n'est pas
+    // écouté), donc l'enchaînement normal passe bien ce test.
+    if (state.status != PlayerStatus.playing) return;
+    final current = state.currentVerse;
+    if (current == null) return; // `state.currentVerse!` levait ici
     switch (state.repeatMode) {
       case RepeatMode.verse:
         final done = state.repeatDone + 1;
         final limit = state.repeatCount; // 0 = infinite
         if (limit == 0 || done < limit) {
           state = state.copyWith(repeatDone: done, position: Duration.zero);
-          _svc.playVerse(state.currentVerse!, state.reciter);
+          _svc.playVerse(current, state.reciter);
         } else {
           // Repeat done → advance to next
           state = state.copyWith(repeatDone: 0);
@@ -160,9 +179,9 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   void _advance({bool loop = false}) {
     final next = state.currentIndex + 1;
     if (next < state.playlist.length) {
-      play(state.playlist[next], state.playlist);
+      play(state.playlist[next], state.playlist, auto: true);
     } else if (loop) {
-      play(state.playlist[0], state.playlist);
+      play(state.playlist[0], state.playlist, auto: true);
     } else {
       state = state.copyWith(status: PlayerStatus.idle);
     }

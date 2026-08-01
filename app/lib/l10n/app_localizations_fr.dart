@@ -340,6 +340,25 @@ class AppLocalizationsFr extends AppLocalizations {
   String get readingSettingsSpeedFast => 'Rapide';
 
   @override
+  String get readingSettingsKindleSection => 'MODE KINDLE';
+
+  @override
+  String get readingSettingsKindleDescription =>
+      'Thème reposant, sans lumière bleue : navigation par pages, comme une liseuse.';
+
+  @override
+  String get readingSettingsKindleToggle => 'Activer le mode Kindle';
+
+  @override
+  String get readingSettingsKindleAutoTurn =>
+      'Tourner les pages automatiquement';
+
+  @override
+  String readingSettingsKindleSpeed(int seconds) {
+    return 'Vitesse : $seconds s / page';
+  }
+
+  @override
   String get coachExplanationListen => 'Écouter';
 
   @override
@@ -1192,14 +1211,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get reciterSelectStreamingNote =>
-      'Réciteurs intégrés — disponibles en streaming. Téléchargement hors-ligne disponible prochainement.';
+      'Récitateurs intégrés. Par défaut la lecture passe par internet ; télécharge une sourate pour l\'écouter hors-ligne.';
 
   @override
   String get reciterSelectOfflineTitle => 'Téléchargement hors-ligne';
 
   @override
   String get reciterSelectOfflineSubtitle =>
-      'Disponible dans une prochaine mise à jour.';
+      'Télécharge sourate par sourate depuis l\'icône de chaque récitateur.';
 
   @override
   String get voiceCalibTitle => 'Calibration voix';
@@ -1575,4 +1594,61 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get settingsDiagnosticSubtitleOff =>
       'Désactivé — aucune écriture pendant la récitation';
+
+  @override
+  String get reciterDownloadsTitle => 'Téléchargement hors-ligne';
+
+  @override
+  String reciterDownloadAll(String size) {
+    return 'Tout télécharger ($size)';
+  }
+
+  @override
+  String get reciterDownloadStop => 'Arrêter';
+
+  @override
+  String get reciterDeleteAllTitle => 'Supprimer les téléchargements';
+
+  @override
+  String get reciterDeleteAllBody =>
+      'Tout l\'audio téléchargé pour ce récitateur sera effacé de l\'appareil. La lecture repassera par internet.';
+
+  @override
+  String get reciterDeleteAllConfirm => 'Supprimer';
+
+  @override
+  String reciterStorageUsed(String size, String done, String total) {
+    return '$size sur cet appareil • $done/$total sourates hors-ligne';
+  }
+
+  @override
+  String get reciterDownloadFailed =>
+      'Échec du téléchargement — vérifie ta connexion. Ce qui est déjà téléchargé est conservé.';
+
+  @override
+  String reciterDownloadingProgress(String done, String total) {
+    return 'Téléchargement… $done/$total versets';
+  }
+
+  @override
+  String get reciterSurahOffline => 'Disponible hors-ligne';
+
+  @override
+  String get reciterVersesShort => 'versets';
+
+  @override
+  String get reciterBadgeOfflineFull => 'Hors-ligne';
+
+  @override
+  String reciterBadgeOfflinePartial(String done, String total) {
+    return 'Hors-ligne · $done/$total';
+  }
+
+  @override
+  String get reciterBadgeOnline => 'Internet';
+
+  @override
+  String reciterSelectStorageTotal(String size) {
+    return '$size utilisés sur cet appareil';
+  }
 }

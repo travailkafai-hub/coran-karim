@@ -181,11 +181,16 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // calculent, un seul peint l'écran. La v1 ne peut donc pas régresser du fait
   // du branchement, et une session compare les deux sur le MÊME audio.
   StreamSubscription<List<({int index, String statut, String trace})>>? _v2Sub;
+  StreamSubscription<int>? _decrochageSub;
 
   /// La v2 pilote-t-elle l'affichage ? Quand c'est faux, elle tourne quand même
   /// et ses verdicts sont journalisés — exactement comme le double moteur GOP /
   /// text-diff. Le passer à false suffit à revenir au comportement v1.
   static const bool _v2PiloteAffichage = true;
+
+  /// Exposé pour que l'écran sache si l'ancre v1 a encore un sens (elle est
+  /// figée quand la v2 pilote : la v1 ne décode plus).
+  bool get v2PiloteAffichage => _v2PiloteAffichage;
 
   // Correction automatique (demande utilisateur 2026-07-05) : émis UNE fois
   // par mot, exactement au moment où il est verrouillé rouge pour la première
@@ -194,6 +199,55 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // réciteur + reprise, sans aucune interaction manuelle.
   final _wordFailedCtrl = StreamController<int>.broadcast();
   Stream<int> get wordFailed => _wordFailedCtrl.stream;
+
+  // ── DÉCROCHAGE : le récitateur dit AUTRE CHOSE (2026-08-01) ───────────────
+  // MÉCANISME ENTIÈREMENT NEUF, volontairement isolé (demande utilisateur :
+  // « éviter de toucher les fonctions qui sont appelées par un autre mode...
+  // ça c'est un fonctionnement nouveau »). Il n'écrit RIEN dans `state.words`,
+  // n'appelle NI `_judge` NI `_realignFromFullText` : il se contente
+  // d'observer et de signaler. Coach, suivi de prière et jeux ne peuvent donc
+  // pas régresser à cause de lui.
+  //
+  // LE TROU QU'IL COMBLE. L'alignement forcé doit placer chaque mot ATTENDU
+  // quelque part sur l'audio : il sait dire « ce mot attendu n'y est pas »
+  // (`omis`), jamais « ce que j'entends n'est pas dans le texte ». Et le
+  // diff textuel (`_realignFromFullText`) s'ARRÊTE (`break`) au premier mot
+  // non apparié. Résultat mesuré sur la session de l'utilisateur : on peut
+  // réciter n'importe quoi puis reprendre le texte, tout repasse au vert --
+  // exactement ce que ce mode existe pour détecter.
+  //
+  // RÈGLE (formulée par l'utilisateur) : « tout ce que le modèle reçoit, il
+  // va le juger, du coup on va rien perdre ; une fois qu'on détecte deux mots
+  // qui ne collent pas avec le mot qui suit, c'est que le récitateur déraille
+  // de la récitation. »
+  final _decrochageCtrl = StreamController<int>.broadcast();
+  /// Émis (avec la position de l'ancre) quand [_kMotsHorsTexteAvantDecrochage]
+  /// mots CONSÉCUTIFS décodés ne correspondent à aucun mot attendu autour de
+  /// l'ancre. L'écran de récitation s'y abonne pour reprendre la main.
+  Stream<int> get decrochageDetecte => _decrochageCtrl.stream;
+  /// Relaie le décrochage signalé par la chaîne v2 (le récitateur s'est
+  /// écarté du texte attendu). Le DÉTECTEUR vit dans la v2, en Kotlin, là où
+  /// le décodage libre existe -- une première version tentait de le refaire
+  /// ici, à partir du texte de la v1 : inopérante, la v1 étant coupée dès que
+  /// la v2 pilote (`FastConformerCtcPlugin.kt`, `v1Coupee`).
+  void _onDecrochageV2(int dernierDefinitif) {
+    // Le suivi de prière enchaîne des formules hors texte (takbir, du'a) :
+    // ce mode ne doit JAMAIS être interrompu là-dessus.
+    if (_confidentMode) return;
+    if (state.status != RecitationStatus.listening) return;
+    // Reprendre au mot SUIVANT le dernier validé, pas au pointeur : quand la
+    // v2 n'a rien pu juger, le pointeur reste à 0 -- il pointait alors sur la
+    // Bismillah, où `_verseContaining` rend null, donc aucun audio ne partait
+    // (mesure 2026-08-01 : `ancre=0 "بِسْمِ"`, aucune correction audible).
+    final reprise = dernierDefinitif >= 0
+        ? (dernierDefinitif + 1).clamp(0, state.words.length - 1)
+        : state.pointer;
+    DiagnosticLog.log('Decrochage',
+        'signalé par la v2 -- dernierDefinitif=$dernierDefinitif '
+        'reprise=$reprise '
+        '"${reprise < state.words.length ? state.words[reprise].display : "?"}"');
+    _decrochageCtrl.add(reprise);
+  }
 
   // ── Alignement ANCRÉ (mode continu) ────────────────────────────────────────
   // Les segments figés (committed) sont append-only : on les aligne UNE fois,
@@ -750,30 +804,21 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   String _lastDetectingTargetProbe = '';
   static const _kDetectingTargetSilenceFallbackDelay = Duration(seconds: 5);
 
-  // ── Identification en DEUX temps (demande utilisateur 2026-07-19, "il faut
-  // afficher le premier puis le confirmer ; sinon recherche 4-6 mots suivant,
-  // je trouve actuellement la méthode lourde") ──────────────────────────────
-  // Remplace le rescoring de la requête ENTIÈRE accumulée depuis la fin
-  // d'Al-Fatiha (qui grossit sans cesse pendant `detectingTarget`, cf.
-  // commentaire "PAS de plafond _kRecentWindowWords ICI" plus bas) par deux
-  // fenêtres FIXES et COURTES : une première fenêtre donne un candidat
-  // PROVISOIRE, la fenêtre suivante CONFIRME (ou non) contre la vraie
-  // continuation du texte. Avantages sur l'ancienne approche : (a) un bon
-  // match sur les 6 premiers mots n'est plus dilué par du bruit ASR
-  // accumulé sur les mots suivants (le score ne porte que sur une fenêtre à
-  // la fois, jamais sur la requête complète) ; (b) coût de calcul borné par
-  // fenêtre au lieu de re-scorer une chaîne qui grossit sans cesse à chaque
-  // appel (~80-100ms) tant que `detectingTarget` dure.
-  QuranMatch? _provisionalMatch;
-  int _detectWordsConsumed = 0;
-  static const _kProvisionalWindowWords = 6;
-  static const _kConfirmWindowWords = 6;
-  // Seuil plus bas que _kMinIdentifyConfidence (0.70, cf. plus bas) : ce
-  // candidat n'est PAS encore accepté, seulement retenu pour être testé par
-  // la fenêtre de confirmation suivante -- la vraie protection contre les
-  // faux positifs vient de cette confirmation, pas de ce premier seuil.
-  static const _kProvisionalMinConfidence = 0.5;
-  static const _kConfirmMinConfidence = 0.55;
+  // ── Identification en DEUX temps -- REMPLACÉE le 2026-08-02 (cf.
+  // `_tryIdentifyTarget` plus bas) par le nouveau scoring
+  // `QuranVerseLocatorService` (hachage de paires + vote de décalage, style
+  // Shazam) : ce scoring ne se dilue plus quand la requête grossit, donc le
+  // découpage en deux fenêtres fixes ci-dessous (qui existait PRÉCISÉMENT
+  // pour contourner cette dilution) n'est plus nécessaire. Champs et
+  // constantes gardés en commentaire (convention projet, cf. `_tryIdentifyTargetTwoStep`
+  // plus bas pour le corps de la méthode) :
+  //
+  // QuranMatch? _provisionalMatch;
+  // int _detectWordsConsumed = 0;
+  // static const _kProvisionalWindowWords = 6;
+  // static const _kConfirmWindowWords = 6;
+  // static const _kProvisionalMinConfidence = 0.5;
+  // static const _kConfirmMinConfidence = 0.55;
 
   // ── Filtrage "mots sûrs / mots douteux" (demande utilisateur 2026-07-19,
   // "avec une boucle, si on trouve pas il recommence en gardant les mots
@@ -1146,11 +1191,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // lente, ex. ouverture par lettres disjointes mal transcrite).
     _lastDetectingTargetProbe = '';
     _lastDetectingTargetPreviewTokens = [];
-    // Identification en deux temps (cf. _tryIdentifyTargetTwoStep) : repartir
-    // à zéro à chaque nouvelle entrée en détection (nouveau rak'ah) -- sinon
-    // un candidat provisoire d'un cycle précédent pourrait survivre à tort.
-    _provisionalMatch = null;
-    _detectWordsConsumed = 0;
+    // Plus de candidat provisoire à réinitialiser depuis le passage au
+    // scoring par vote de décalage (cf. _tryIdentifyTarget) -- chaque appel
+    // rescore le texte "sûr" accumulé depuis `_targetDetectScanStart`
+    // (réinitialisé juste au-dessus), rien à repartir à zéro ici.
     _armDetectingTargetFallbackTimer();
     state = state.copyWith(
       words: const [],
@@ -1250,9 +1294,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// détection -- sont marqués `skipped`, jamais jugés faux) et bascule en
   /// suivi actif. Retourne `false` (rejeté, RIEN commité) si la phase a déjà
   /// changé entre-temps ou si le fetch échoue -- appelée par
-  /// `_tryIdentifyTargetTwoStep` UNE FOIS le candidat déjà confirmé (plus de
-  /// garde-fou de confiance/plausibilité ici, la confirmation par
-  /// continuation en tient lieu).
+  /// `_tryIdentifyTarget` UNE FOIS le candidat déjà accepté (plus de
+  /// garde-fou de confiance/plausibilité ici, le seuil + l'unicité du
+  /// candidat dans `_tryIdentifyTarget` en tiennent lieu).
   Future<bool> _beginIdentifiedTargetPhase(QuranMatch match) async {
     if (state.prayerPhase != PrayerPhase.detectingTarget) return false;
     List<Verse> verses;
@@ -1387,87 +1431,143 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   //   }
   // }
 
-  /// Identification en DEUX temps (cf. commentaire des champs
-  /// `_provisionalMatch`/`_detectWordsConsumed`) : une première fenêtre FIXE
-  /// de [_kProvisionalWindowWords] mots donne un candidat PROVISOIRE (seuil
-  /// bas, `_kProvisionalMinConfidence`) ; la fenêtre SUIVANTE de
-  /// [_kConfirmWindowWords] mots est comparée à la VRAIE continuation du
-  /// candidat dans le texte du Coran (pas un rescoring de la requête
-  /// cumulée) -- confirmée seulement si elle colle (`_kConfirmMinConfidence`).
-  /// Sur échec de confirmation, la fenêtre ratée devient la NOUVELLE première
-  /// fenêtre d'un nouvel essai (rien n'est réessayé deux fois, "recherche 4-6
-  /// mots suivant" -- demande utilisateur).
-  Future<void> _tryIdentifyTargetTwoStep(String cleanedProbe) async {
+  /// Identification (Shazam) pendant [PrayerPhase.detectingTarget] --
+  /// réécrite le 2026-08-02 autour du nouveau scoring par vote de décalage
+  /// (`QuranVerseLocatorService._rankCandidates`, principe Shazam : hachage
+  /// combinatoire de paires + vote sur le décalage d'alignement). REMPLACE
+  /// `_tryIdentifyTargetTwoStep` (gardée plus bas en commentaire) : ce
+  /// scoring ne se dilue plus quand la requête grossit (vote de décalage, pas
+  /// fraction sur la longueur totale de la requête), donc plus besoin de
+  /// fenêtres fixes ni de bookkeeping de consommation -- on rescore
+  /// simplement le texte "sûr" accumulé depuis le début à CHAQUE nouveau
+  /// texte reconnu (appelé par `_onStructured`, cf. `probeChanged`).
+  ///
+  /// Décision utilisateur (2026-08-02) : dès qu'UN SEUL candidat dépasse le
+  /// seuil de confiance -- même dès le tout premier appel, sans attendre
+  /// confirmation sur une fenêtre supplémentaire -- il est accepté
+  /// IMMÉDIATEMENT. S'il reste plusieurs candidats au-dessus du seuil
+  /// (ambigu), on attend le prochain texte reconnu pour les départager,
+  /// plutôt que de trancher au hasard entre eux.
+  ///
+  /// ⚠️ `_kMinIdentifyConfidence` (0.70) date de l'ANCIEN scoring
+  /// (fraction de recouvrement ordonné) -- le nouveau score (fraction de
+  /// PAIRES votant pour le décalage gagnant) n'a pas la même distribution de
+  /// valeurs typiques. Valeur reprise telle quelle faute de mesure device
+  /// disponible au moment de l'écriture ; à RECALIBRER sur de vrais logs
+  /// avant de considérer ce chantier validé (cf. SUIVI_PRIERE.md §4).
+  Future<void> _tryIdentifyTarget(String cleanedProbe) async {
     if (_targetLookupInFlight) return;
-    final allWords = cleanedProbe
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .toList();
     _targetLookupInFlight = true;
     try {
-      if (_provisionalMatch == null) {
-        final remaining = allWords.skip(_detectWordsConsumed).toList();
-        if (remaining.length < _kProvisionalWindowWords) return;
-        final windowWords = remaining.take(_kProvisionalWindowWords).toList();
-        final matches = await QuranVerseLocatorService.instance.locateTopMatches(
-            windowWords.join(' '),
-            minScore: _kProvisionalMinConfidence);
-        QuranMatch? picked;
-        for (final m in matches) {
-          if (m.surahNumber == 1) continue; // bismillah/fin Fatiha résiduelle
-          picked = m;
-          break;
-        }
-        // Avance TOUJOURS (trouvé ou pas) -- ne jamais retenter la MÊME
-        // fenêtre indéfiniment, cf. "sinon recherche 4-6 mots suivant".
-        _detectWordsConsumed += _kProvisionalWindowWords;
-        if (picked != null) {
-          _provisionalMatch = picked;
-          DiagnosticLog.log('Prière', 'candidat PROVISOIRE ${picked.surahNumber}:'
-              '${picked.ayahNumber} (confiance ${picked.confidence.toStringAsFixed(2)}) '
-              '-- en attente de confirmation');
-        } else {
-          debugPrint('[Prière] aucun candidat sur cette fenêtre de '
-              '$_kProvisionalWindowWords mots -- fenêtre suivante');
-        }
+      final matches = await QuranVerseLocatorService.instance.locateTopMatches(
+          cleanedProbe,
+          minScore: _kMinIdentifyConfidence);
+      if (state.prayerPhase != PrayerPhase.detectingTarget) return;
+      // Bismillah/fin d'Al-Fatiha résiduelle (cf. §3.6 du journal) : jamais
+      // un candidat exploitable à ce stade, quel que soit son score.
+      final candidates = matches.where((m) => m.surahNumber != 1).toList();
+      if (candidates.isEmpty) {
+        debugPrint('[Prière] aucun candidat exploitable -- '
+            'nouvelle tentative au prochain texte reconnu');
         return;
       }
-
-      // Un candidat provisoire existe déjà -- chercher la fenêtre de
-      // CONFIRMATION (mots reconnus JUSTE APRÈS la fenêtre provisoire).
-      final remaining = allWords.skip(_detectWordsConsumed).toList();
-      if (remaining.length < _kConfirmWindowWords) return;
-      final confirmWindow = remaining.take(_kConfirmWindowWords).toList();
-      final provisional = _provisionalMatch!;
-      final continuation = await QuranVerseLocatorService.instance
-          .continuationWords(provisional.surahNumber, provisional.ayahNumber,
-              _kConfirmWindowWords + 15); // marge -- offset exact dans le verset inconnu
-      final score = QuranVerseLocatorService.instance
-          .scoreWordWindows(confirmWindow, continuation);
-      if (score >= _kConfirmMinConfidence) {
-        DiagnosticLog.log('Prière', 'candidat ${provisional.surahNumber}:'
-            '${provisional.ayahNumber} CONFIRMÉ (score continuation '
-            '${score.toStringAsFixed(2)})');
-        _provisionalMatch = null;
-        _detectWordsConsumed = 0;
-        await _beginIdentifiedTargetPhase(provisional);
-      } else {
-        DiagnosticLog.log('Prière', 'confirmation échouée pour '
-            '${provisional.surahNumber}:${provisional.ayahNumber} '
-            '(score ${score.toStringAsFixed(2)} < $_kConfirmMinConfidence) -- '
-            'la fenêtre de confirmation devient le nouvel essai');
-        // NE PAS avancer _detectWordsConsumed ici : au prochain appel,
-        // `remaining` (donc `confirmWindow` et la suite) redevient la
-        // PREMIÈRE fenêtre d'un nouvel essai -- rien n'est perdu, rien n'est
-        // réessayé deux fois.
-        _provisionalMatch = null;
+      if (candidates.length > 1) {
+        debugPrint('[Prière] ${candidates.length} candidats encore ambigus '
+            '(${candidates.map((m) => "${m.surahNumber}:${m.ayahNumber}="
+                "${m.confidence.toStringAsFixed(2)}").join(", ")}) -- '
+            'attente de texte supplémentaire pour départager');
+        return;
       }
+      final only = candidates.single;
+      DiagnosticLog.log('Prière', 'candidat unique ${only.surahNumber}:'
+          '${only.ayahNumber} (confiance ${only.confidence.toStringAsFixed(2)}) '
+          '-- accepté immédiatement, sans fenêtre de confirmation');
+      await _beginIdentifiedTargetPhase(only);
     } catch (e) {
-      debugPrint('[Prière] échec identification en deux temps : $e');
+      debugPrint('[Prière] échec identification : $e');
     } finally {
       _targetLookupInFlight = false;
     }
   }
+
+  // ANCIENNE APPROCHE "deux temps" (2026-07-19, demande utilisateur "il faut
+  // afficher le premier puis le confirmer ; sinon recherche 4-6 mots suivant,
+  // je trouve actuellement la méthode lourde") -- REMPLACÉE le 2026-08-02
+  // par `_tryIdentifyTarget` ci-dessus (cf. commentaire des champs
+  // `_provisionalMatch`/`_detectWordsConsumed`, plus haut, pour le pourquoi).
+  // Gardée en commentaire, pas supprimée (convention projet) :
+  //
+  // Future<void> _tryIdentifyTargetTwoStep(String cleanedProbe) async {
+  //   if (_targetLookupInFlight) return;
+  //   final allWords = cleanedProbe
+  //       .split(RegExp(r'\s+'))
+  //       .where((w) => w.isNotEmpty)
+  //       .toList();
+  //   _targetLookupInFlight = true;
+  //   try {
+  //     if (_provisionalMatch == null) {
+  //       final remaining = allWords.skip(_detectWordsConsumed).toList();
+  //       if (remaining.length < _kProvisionalWindowWords) return;
+  //       final windowWords = remaining.take(_kProvisionalWindowWords).toList();
+  //       final matches = await QuranVerseLocatorService.instance.locateTopMatches(
+  //           windowWords.join(' '),
+  //           minScore: _kProvisionalMinConfidence);
+  //       QuranMatch? picked;
+  //       for (final m in matches) {
+  //         if (m.surahNumber == 1) continue; // bismillah/fin Fatiha résiduelle
+  //         picked = m;
+  //         break;
+  //       }
+  //       // Avance TOUJOURS (trouvé ou pas) -- ne jamais retenter la MÊME
+  //       // fenêtre indéfiniment, cf. "sinon recherche 4-6 mots suivant".
+  //       _detectWordsConsumed += _kProvisionalWindowWords;
+  //       if (picked != null) {
+  //         _provisionalMatch = picked;
+  //         DiagnosticLog.log('Prière', 'candidat PROVISOIRE ${picked.surahNumber}:'
+  //             '${picked.ayahNumber} (confiance ${picked.confidence.toStringAsFixed(2)}) '
+  //             '-- en attente de confirmation');
+  //       } else {
+  //         debugPrint('[Prière] aucun candidat sur cette fenêtre de '
+  //             '$_kProvisionalWindowWords mots -- fenêtre suivante');
+  //       }
+  //       return;
+  //     }
+  //
+  //     // Un candidat provisoire existe déjà -- chercher la fenêtre de
+  //     // CONFIRMATION (mots reconnus JUSTE APRÈS la fenêtre provisoire).
+  //     final remaining = allWords.skip(_detectWordsConsumed).toList();
+  //     if (remaining.length < _kConfirmWindowWords) return;
+  //     final confirmWindow = remaining.take(_kConfirmWindowWords).toList();
+  //     final provisional = _provisionalMatch!;
+  //     final continuation = await QuranVerseLocatorService.instance
+  //         .continuationWords(provisional.surahNumber, provisional.ayahNumber,
+  //             _kConfirmWindowWords + 15); // marge -- offset exact dans le verset inconnu
+  //     final score = QuranVerseLocatorService.instance
+  //         .scoreWordWindows(confirmWindow, continuation);
+  //     if (score >= _kConfirmMinConfidence) {
+  //       DiagnosticLog.log('Prière', 'candidat ${provisional.surahNumber}:'
+  //           '${provisional.ayahNumber} CONFIRMÉ (score continuation '
+  //           '${score.toStringAsFixed(2)})');
+  //       _provisionalMatch = null;
+  //       _detectWordsConsumed = 0;
+  //       await _beginIdentifiedTargetPhase(provisional);
+  //     } else {
+  //       DiagnosticLog.log('Prière', 'confirmation échouée pour '
+  //           '${provisional.surahNumber}:${provisional.ayahNumber} '
+  //           '(score ${score.toStringAsFixed(2)} < $_kConfirmMinConfidence) -- '
+  //           'la fenêtre de confirmation devient le nouvel essai');
+  //       // NE PAS avancer _detectWordsConsumed ici : au prochain appel,
+  //       // `remaining` (donc `confirmWindow` et la suite) redevient la
+  //       // PREMIÈRE fenêtre d'un nouvel essai -- rien n'est perdu, rien n'est
+  //       // réessayé deux fois.
+  //       _provisionalMatch = null;
+  //     }
+  //   } catch (e) {
+  //     debugPrint('[Prière] échec identification en deux temps : $e');
+  //   } finally {
+  //     _targetLookupInFlight = false;
+  //   }
+  // }
 
   bool _leftFatihaCheckInFlight = false;
 
@@ -1881,6 +1981,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _rawSub = _verifier.rawTranscript.listen(_onRawSegment);
     _alignSub = _verifier.alignedWords.listen(_onAligned);
     _v2Sub = _verifier.v2Statuses.listen(_onV2);
+    // `cancel()` AVANT de réabonner : ce bloc existe sur DEUX chemins de
+    // démarrage (start / startContinuous). Sans ça, un écran rouvert cumulait
+    // les abonnements -- mesure 2026-08-01 : le même décrochage arrivait TROIS
+    // fois en 5 ms, donc trois corrections enchaînées et l'ancre reculait de
+    // trois crans (7 -> 6 -> 5 -> 4).
+    _decrochageSub?.cancel();
+    _decrochageSub = _verifier.decrochage.listen(_onDecrochageV2);
     // Forme fidèle à l'entraînement (PAS `strict`, qui fusionne des lettres
     // que le modèle a appris à distinguer — cf. normalizeTraining).
     final cible = state.words.map((w) => w.alignTarget).toList();
@@ -1990,6 +2097,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _pendingSub = _verifier.pendingSegments.listen(_onPendingChanged);
     _alignSub = _verifier.alignedWords.listen(_onAligned);
     _v2Sub = _verifier.v2Statuses.listen(_onV2);
+    // `cancel()` AVANT de réabonner : ce bloc existe sur DEUX chemins de
+    // démarrage (start / startContinuous). Sans ça, un écran rouvert cumulait
+    // les abonnements -- mesure 2026-08-01 : le même décrochage arrivait TROIS
+    // fois en 5 ms, donc trois corrections enchaînées et l'ancre reculait de
+    // trois crans (7 -> 6 -> 5 -> 4).
+    _decrochageSub?.cancel();
+    _decrochageSub = _verifier.decrochage.listen(_onDecrochageV2);
     // ── Diagnostic : WAV + journal, ICI et pas dans un écran (2026-07-25) ──
     // Avant, la capture des WAV était activée par KaraokeRecitationScreen
     // uniquement. Conséquence mesurée le 2026-07-25 : deux tests de suite
@@ -2595,7 +2709,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
             // deux strips doit suivre l'ordre réel du texte.
             final probe = _stripBismillahPrefix(_stripFatihaTailPrefix(rawProbe));
             if (probe != null && probe.isNotEmpty) {
-              unawaited(_tryIdentifyTargetTwoStep(probe));
+              unawaited(_tryIdentifyTarget(probe));
             }
           }
         } else if (state.prayerPhase == PrayerPhase.fatiha) {
@@ -3237,7 +3351,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         // Sans aucun son, il n'y a rien à calibrer : la seule réponse honnête
         // est « pas prononcé ».
         judged = WordStatus.error;
-      } else if (state.prayerPhase == PrayerPhase.fatiha || expected.isBasmala) {
+      } else if (state.prayerPhase == PrayerPhase.fatiha) {
         // Demande utilisateur 2026-07-19 : "je ne veux pas de correction
         // dans la récitation de Al-Hamdo [Al-Fatiha], elle est très connue
         // et rare, les erreurs dans cette sourate c'est juste du bruit" --
@@ -3258,6 +3372,26 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         // structurellement mal calibré dessus quelle que soit la méthode
         // d'entraînement (3 pistes testées le même soir, même échec). Ce
         // n'est pas une faute du récitant, ne pas la lui reprocher.
+        //
+        // ⚠️ RETIRÉ DE CETTE CONDITION LE 2026-08-01 (demande utilisateur :
+        // « débloque la Bismillah, elle ne va pas nous bloquer avec cette
+        // règle »). Le raisonnement ci-dessus (mauvaise calibration du modèle
+        // sur la Bismillah) RESTE VRAI et n'est pas contesté -- mais c'était
+        // un palliatif à un défaut qui vient d'être corrigé à sa source : un
+        // mot mal jugé ne BLOQUE plus la récitation (il faut désormais deux
+        // mots consécutifs en échec, ou un silence, cf.
+        // karaoke_recitation_screen.dart::_onWordFailed). La conséquence
+        // qu'on redoutait -- « interrompre le récitateur sur un artefact de
+        // calibration » -- ne peut donc plus se produire, et faire passer ces
+        // 4 mots en vert QUOI QU'IL ARRIVE était le pire des deux maux (un
+        // vert franc sur un mot réellement mal prononcé). La Bismillah est
+        // maintenant jugée comme le reste : elle peut se colorer, sans jamais
+        // interrompre à elle seule.
+        // Les autres garde-fous propres à la Bismillah (plancher de durée,
+        // ancre, règles tajwid non couvertes) restent en place plus bas :
+        // ils évitent des artefacts connus sans jamais forcer un verdict.
+        // `PrayerPhase.fatiha` garde son laisser-passer (demande distincte du
+        // 2026-07-19, non remise en cause ici).
         judged = WordStatus.correct;
         // (Bug corrigé 2026-07-16, revue de code, Finding #9 : `hasSpeech` ne
         // protégeait QUE la branche `correct` ci-dessous -- un mot jamais
@@ -4025,6 +4159,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _pendingSub?.cancel();
     _alignSub?.cancel();
     _v2Sub?.cancel();
+    _decrochageSub?.cancel();
     // Mode continu : ce chemin ne passe PAS par stop(), il lui faut son propre
     // flush (idempotent, no-op si rien n'a change).
     unawaited(WordDurationStore.instance.flush());
@@ -4057,6 +4192,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       _structSub?.cancel();
       _alignSub?.cancel();
     _v2Sub?.cancel();
+    _decrochageSub?.cancel();
       // Ecriture GROUPEE des durees apprises pendant la session : `record()`
       // est appele sur chaque mot valide (des dizaines par session), on ne veut
       // pas un acces disque par mot. Sans effet si rien n'a change.
@@ -4234,8 +4370,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _pendingSub?.cancel();
     _alignSub?.cancel();
     _v2Sub?.cancel();
+    _decrochageSub?.cancel();
     _detectingTargetFallbackTimer?.cancel();
     _wordFailedCtrl.close();
+    _decrochageCtrl.close();
 
     // Bug corrigé 2026-07-16 — FUITE DE SESSION. Ce dispose n'annulait que les
     // abonnements Dart : le MICRO continuait d'enregistrer et le

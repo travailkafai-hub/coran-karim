@@ -656,6 +656,36 @@ abstract class AppLocalizations {
   /// **'Rapide'**
   String get readingSettingsSpeedFast;
 
+  /// Titre de section : mode de lecture façon liseuse
+  ///
+  /// In fr, this message translates to:
+  /// **'MODE KINDLE'**
+  String get readingSettingsKindleSection;
+
+  /// Description du mode Kindle
+  ///
+  /// In fr, this message translates to:
+  /// **'Thème reposant, sans lumière bleue : navigation par pages, comme une liseuse.'**
+  String get readingSettingsKindleDescription;
+
+  /// Interrupteur d'activation du mode Kindle
+  ///
+  /// In fr, this message translates to:
+  /// **'Activer le mode Kindle'**
+  String get readingSettingsKindleToggle;
+
+  /// Interrupteur du tournage de page automatique en mode Kindle
+  ///
+  /// In fr, this message translates to:
+  /// **'Tourner les pages automatiquement'**
+  String get readingSettingsKindleAutoTurn;
+
+  /// Jauge de vitesse du tournage de page automatique
+  ///
+  /// In fr, this message translates to:
+  /// **'Vitesse : {seconds} s / page'**
+  String readingSettingsKindleSpeed(int seconds);
+
   /// Tooltip : lire l'explication à voix haute
   ///
   /// In fr, this message translates to:
@@ -2063,7 +2093,7 @@ abstract class AppLocalizations {
   /// Note en haut de l'écran de choix du récitateur
   ///
   /// In fr, this message translates to:
-  /// **'Réciteurs intégrés — disponibles en streaming. Téléchargement hors-ligne disponible prochainement.'**
+  /// **'Récitateurs intégrés. Par défaut la lecture passe par internet ; télécharge une sourate pour l\'écouter hors-ligne.'**
   String get reciterSelectStreamingNote;
 
   /// Titre du bandeau "à venir" de téléchargement hors-ligne
@@ -2075,7 +2105,7 @@ abstract class AppLocalizations {
   /// Sous-titre du bandeau "à venir" de téléchargement hors-ligne
   ///
   /// In fr, this message translates to:
-  /// **'Disponible dans une prochaine mise à jour.'**
+  /// **'Télécharge sourate par sourate depuis l\'icône de chaque récitateur.'**
   String get reciterSelectOfflineSubtitle;
 
   /// Titre de l'écran de calibration voix
@@ -2640,6 +2670,96 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Désactivé — aucune écriture pendant la récitation'**
   String get settingsDiagnosticSubtitleOff;
+
+  /// Titre de l'ecran de gestion des telechargements
+  ///
+  /// In fr, this message translates to:
+  /// **'Téléchargement hors-ligne'**
+  String get reciterDownloadsTitle;
+
+  /// Bouton pour telecharger les 114 sourates
+  ///
+  /// In fr, this message translates to:
+  /// **'Tout télécharger ({size})'**
+  String reciterDownloadAll(String size);
+
+  /// Bouton pour interrompre le telechargement en cours
+  ///
+  /// In fr, this message translates to:
+  /// **'Arrêter'**
+  String get reciterDownloadStop;
+
+  /// Titre du dialogue de suppression des telechargements
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer les téléchargements'**
+  String get reciterDeleteAllTitle;
+
+  /// Corps du dialogue de suppression
+  ///
+  /// In fr, this message translates to:
+  /// **'Tout l\'audio téléchargé pour ce récitateur sera effacé de l\'appareil. La lecture repassera par internet.'**
+  String get reciterDeleteAllBody;
+
+  /// Bouton de confirmation de suppression
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer'**
+  String get reciterDeleteAllConfirm;
+
+  /// Entete de l'ecran de gestion : espace occupe et sourates hors-ligne
+  ///
+  /// In fr, this message translates to:
+  /// **'{size} sur cet appareil • {done}/{total} sourates hors-ligne'**
+  String reciterStorageUsed(String size, String done, String total);
+
+  /// Message d'echec de telechargement
+  ///
+  /// In fr, this message translates to:
+  /// **'Échec du téléchargement — vérifie ta connexion. Ce qui est déjà téléchargé est conservé.'**
+  String get reciterDownloadFailed;
+
+  /// Progression du telechargement d'une sourate
+  ///
+  /// In fr, this message translates to:
+  /// **'Téléchargement… {done}/{total} versets'**
+  String reciterDownloadingProgress(String done, String total);
+
+  /// Sous-titre d'une sourate deja telechargee
+  ///
+  /// In fr, this message translates to:
+  /// **'Disponible hors-ligne'**
+  String get reciterSurahOffline;
+
+  /// Mot 'versets' abrege pour la ligne de sourate
+  ///
+  /// In fr, this message translates to:
+  /// **'versets'**
+  String get reciterVersesShort;
+
+  /// Badge : recitateur entierement disponible hors-ligne
+  ///
+  /// In fr, this message translates to:
+  /// **'Hors-ligne'**
+  String get reciterBadgeOfflineFull;
+
+  /// Badge : recitateur partiellement telecharge
+  ///
+  /// In fr, this message translates to:
+  /// **'Hors-ligne · {done}/{total}'**
+  String reciterBadgeOfflinePartial(String done, String total);
+
+  /// Badge : recitateur disponible uniquement via internet
+  ///
+  /// In fr, this message translates to:
+  /// **'Internet'**
+  String get reciterBadgeOnline;
+
+  /// Espace total occupe par l'audio telecharge
+  ///
+  /// In fr, this message translates to:
+  /// **'{size} utilisés sur cet appareil'**
+  String reciterSelectStorageTotal(String size);
 }
 
 class _AppLocalizationsDelegate

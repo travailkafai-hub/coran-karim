@@ -71,6 +71,70 @@ class ChaineRecitation(
 
     data class Changement(val motIndex: Int, val statut: Statut)
 
+    // ── DECROCHAGE : le recitateur recite AUTRE CHOSE (2026-08-01) ──────────
+    //
+    // L'INFORMATION EXISTAIT DEJA ET ETAIT JETEE. Quand le recitateur quitte
+    // le texte, le localisateur ne trouve aucune correspondance et rend
+    // `null` ; `traiter` se contentait de journaliser `bande=inconnue` puis
+    // de sortir. Preuve relevee sur le telephone de l'utilisateur le
+    // 2026-08-01, apres qu'il a enchaine sur la sourate 112 en pleine
+    // Al-Baqara -- ONZE fenetres consecutives, ~14 s, texte parfaitement
+    // reconnu, et rien ne s'est declenche :
+    //     f=19 bande=inconnue entendu="قُلْ هُوَ ٱللَّهُ أَحَدٌ"
+    //     f=24 bande=inconnue entendu="ٱللَّهُ ٱلصَّمَدُ"
+    //     f=27 bande=inconnue entendu="لَمْ يَلِدْ وَلَمْ يُولَدْ"
+    //
+    // LE CRITERE, LU DIRECTEMENT DANS CES LIGNES -- aucun seuil invente :
+    //   bande inconnue + entendu VIDE      -> silence (f=21, f=22), on ignore
+    //   bande inconnue + entendu NON VIDE  -> il dit quelque chose qui n'est
+    //                                         pas le texte -> decrochage
+    //
+    // Pourquoi DEUX fenetres et pas une : une fenetre isolee peut etre un
+    // fragment tronque en bord d'apercu (cf. le commentaire de `traiter` sur
+    // la queue cachee au localisateur) ; deux fenetres d'affilee sur du texte
+    // etranger ne s'expliquent plus par un artefact de decoupage.
+    //
+    // CE MECANISME N'A AUCUN EFFET SUR LE JUGEMENT : il ne touche ni le
+    // registre, ni le decideur, ni les statuts. Il compte, et il signale.
+    private var fenetresHorsTexte = 0
+    private var decrochageDejaSignale = false
+    /** Au moins une fenetre s'est localisee depuis le debut de la session. */
+    private var dejaLocaliseUneFois = false
+
+    /**
+     * Dernier mot DEFINITIF au moment du decrochage : c'est de la que le
+     * recitateur doit etre repris, pas du mot 0. Sans ca l'ecran rejouait le
+     * tout premier mot (mesure 2026-08-01 : `ancre=0 "بِسْمِ"`), qui plus est
+     * dans la Bismillah -- ou `_verseContaining` rend `null`, donc aucun audio
+     * ne partait et le declenchement etait invisible.
+     */
+    var motDuDecrochage: Int = -1
+        private set
+
+    /** Nombre de fenetres consecutives hors texte avant de signaler. */
+    private val fenetresAvantDecrochage = 2
+
+    /**
+     * Trou maximal accepte entre le dernier mot definitif et le debut de la
+     * bande. Deux, parce qu'un mot mal dit peut en contaminer un second par
+     * decoulement (raisonnement de l'utilisateur, 2026-08-01) -- au-dela,
+     * c'est un vrai saut, l'ancre ne doit pas suivre.
+     */
+    private val sautMaxMots = 2
+
+    /**
+     * Vrai quand le recitateur s'est manifestement ecarte du texte attendu.
+     * Remis a faux des qu'une fenetre se localise a nouveau -- l'appelant est
+     * donc prevenu UNE fois par decrochage, pas a chaque fenetre.
+     */
+    var decrochage: Boolean = false
+        private set
+
+    /** A appeler apres avoir traite le signal (evite de le rejouer). */
+    fun accuserDecrochage() {
+        decrochage = false
+    }
+
     fun definirTexte(mots: List<String>) {
         motsAttendus = mots
         tokensAttendus = mots.map(tokeniser)
@@ -92,6 +156,11 @@ class ChaineRecitation(
         }
         decideur.reinitialiser()
         dernierDefinitif = -1
+        fenetresHorsTexte = 0
+        decrochageDejaSignale = false
+        dejaLocaliseUneFois = false
+        decrochage = false
+        motDuDecrochage = -1
         statutsCourants = emptyMap()
         journal?.invoke("[v2] cible = ${mots.size} mots")
     }
@@ -181,10 +250,116 @@ class ChaineRecitation(
         if (bande == null) {
             // Resultat legitime : la fenetre ne dit rien de la position. Aucun
             // jugement n'en sort — regle "aucun verdict sans preuve acoustique".
+            val entenduLibre = Decodage.texte(logprobs, front.pieces, front.blank)
             journal?.invoke("[v2] f=${fenetre.id} bande=inconnue " +
-                "entendu=\"${Decodage.texte(logprobs, front.pieces, front.blank)}\"")
+                "entendu=\"$entenduLibre\" horsTexte=$fenetresHorsTexte " +
+                "dejaSignale=$decrochageDejaSignale")
+            // Decrochage (cf. le commentaire de `fenetresHorsTexte`) : on ne
+            // compte QUE les fenetres ou quelque chose a ete entendu. Une
+            // fenetre muette est un silence, pas une recitation etrangere.
+            // Trois garde-fous, tous imposes par la MESURE du 2026-08-01 sur le
+            // telephone (premiere version du detecteur) :
+            //
+            // (a) TANT QU'AUCUNE FENETRE NE S'EST JAMAIS LOCALISEE, on ne peut
+            //     pas parler de decrochage : le recitateur n'a pas encore
+            //     commence. Sans ca, le log montrait
+            //     `f=3 DECROCHAGE ... entendu="مٓ"` -- un fragment de demarrage.
+            //
+            // (b) UNE SEULE ALERTE tant qu'il n'est pas revenu dans le texte.
+            //     Sans ca : quatre declenchements en cinq secondes sur la meme
+            //     sourate 112 (f=13, f=16, f=17...), le compteur repartant a
+            //     zero apres chaque signalement.
+            if (entenduLibre.isNotBlank() && dejaLocaliseUneFois) {
+                fenetresHorsTexte++
+                if (fenetresHorsTexte >= fenetresAvantDecrochage && !decrochageDejaSignale) {
+                    decrochage = true
+                    decrochageDejaSignale = true
+                    motDuDecrochage = dernierDefinitif
+                    journal?.invoke("[v2] f=${fenetre.id} DECROCHAGE : " +
+                        "$fenetresHorsTexte fenetres hors texte, " +
+                        "dernier definitif=$dernierDefinitif, " +
+                        "dernier entendu=\"$entenduLibre\"")
+                }
+            }
             return
         }
+        // ── SAUT REFUSE (2026-08-01, demande utilisateur) ───────────────────
+        //
+        // « Je ne veux pas sauter du tout. Ce qu'on autorise, c'est qu'un mot
+        // dit faux soit juge orange -- et par decoulement il peut en toucher
+        // deux. Donc on autorise une validation avec un saut de 2 mots. »
+        //
+        // MESURE QUI L'IMPOSE (log du telephone, 2026-08-01) : le recitateur
+        // passe du mot 11 au mot 22 (dix mots sautes, plusieurs lignes) et la
+        // chaine suit sans broncher --
+        //     18:50:31 mot=11 -> definitif:vert
+        //     18:50:47 mot=22 -> provisoire:orange   <- saut accepte
+        //     18:51:19 mot=13, 14 -> definitif:vert  <- valides APRES coup
+        //
+        // CE QU'ON NE TOUCHE PAS, ET POURQUOI. `avanceMax` (80) reste
+        // inchange : ce n'est pas « de combien on autorise a sauter » mais
+        // « jusqu'ou on cherche ». Un bloc peut porter 40 mots ; a 24 la
+        // region de recherche etait tronquee et l'ancre decrochait au mot 82
+        // sur 295 (mesure 2026-07-30, cf. le commentaire de `avanceMax`).
+        // On borne donc le TROU accepte, pas la recherche.
+        //
+        // Le RECUL n'est pas concerne (ecart negatif) : un mot valide avant
+        // ses predecesseurs -- cas normal, le 3e mot d'un souffle peut etre
+        // definitif avant les deux premiers -- reste traite par `bande.recul`.
+        // OU EST LE SAUT, EXACTEMENT (mesure du 2026-08-01, 2e essai). Une
+        // premiere version comparait `bande.i0` au dernier mot definitif :
+        // elle ne voyait RIEN, parce que le saut n'est pas au DEBUT de la
+        // bande mais A L'INTERIEUR. Log qui le prouve -- une seule passe
+        // valide le mot 10 puis le mot 19, la LCS ayant apparie les deux
+        // extremites en ignorant 11..18 :
+        //     19:04:48 mot=10 -> definitif:vert
+        //     19:04:48 mot=19 -> definitif:vert
+        //     19:04:57 mot=20..28 -> omis
+        // On regarde donc l'ecart entre deux mots ATTESTES CONSECUTIFS (les
+        // seuls que le decodage libre a reellement entendus), et aussi
+        // l'ecart entre le dernier definitif et la premiere attestation.
+        val attestesTries = bande.attestes.keys.sorted()
+        var trou = 0
+        var trouApres = -1
+        if (attestesTries.isNotEmpty()) {
+            if (dernierDefinitif >= 0) {
+                trou = attestesTries.first() - (dernierDefinitif + 1)
+                trouApres = dernierDefinitif
+            }
+            for (k in 1 until attestesTries.size) {
+                val ecart = attestesTries[k] - attestesTries[k - 1] - 1
+                if (ecart > trou) {
+                    trou = ecart
+                    trouApres = attestesTries[k - 1]
+                }
+            }
+        }
+        // Exception au TOUT DEBUT (aucun mot encore definitif) : on ne sait
+        // pas ou le recitateur commence, et commencer au verset 2 sans dire
+        // la Bismillah est legitime (constate a chaque session de test).
+        if (dernierDefinitif >= 0 && trou > sautMaxMots) {
+            journal?.invoke("[v2] f=${fenetre.id} SAUT REFUSE : trou de $trou mots " +
+                "apres le mot $trouApres (attestes=${attestesTries.take(6)}...), " +
+                "dernier definitif=$dernierDefinitif, max=$sautMaxMots " +
+                "-- ancre inchangee, rien n'est juge")
+            if (dejaLocaliseUneFois) {
+                fenetresHorsTexte++
+                if (fenetresHorsTexte >= fenetresAvantDecrochage && !decrochageDejaSignale) {
+                    decrochage = true
+                    decrochageDejaSignale = true
+                    motDuDecrochage = dernierDefinitif
+                    journal?.invoke("[v2] f=${fenetre.id} DECROCHAGE (saut) : " +
+                        "dernier definitif=$dernierDefinitif")
+                }
+            }
+            return
+        }
+        // Une fenetre s'est localisee : le recitateur est (re)venu dans le
+        // texte. (c) C'est SEULEMENT ici que l'alerte se re-arme -- pas apres
+        // un simple decompte.
+        dejaLocaliseUneFois = true
+        fenetresHorsTexte = 0
+        decrochageDejaSignale = false
         if (bande.recul) {
             journal?.invoke("[v2] f=${fenetre.id} RECUL vers le mot ${bande.i0} " +
                 "(dernier definitif = $dernierDefinitif) — le recitateur repete")

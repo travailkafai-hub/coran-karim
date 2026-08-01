@@ -64,25 +64,74 @@ class TextScaleNotifier extends StateNotifier<double> {
   }
 }
 
-/// Vitesses prédéfinies du défilement automatique du mushaf (demande
-/// utilisateur 2026-07-06 : "lire le Coran et ça scroll selon sa vitesse").
-/// Valeurs en pixels/seconde — choix d'ergonomie (pas une règle religieuse à
-/// vérifier), calibrées pour une lecture confortable à l'œil.
-enum AutoScrollSpeed {
-  off(0),
-  slow(18),
-  normal(32),
-  fast(52);
+const _kPrefKindleMode = 'kindle_mode';
 
-  final double pixelsPerSecond;
-  const AutoScrollSpeed(this.pixelsPerSecond);
+/// Mode Kindle (demande utilisateur 2026-08-01) : thème repos-yeux (anti
+/// lumière bleue) + navigation par pages (tap sur les côtés / défilement
+/// éclair) -- remplace l'ancien "défilement automatique" à 4 vitesses fixes
+/// (off/slow/normal/fast), retiré du même coup (demande utilisateur : "plus
+/// raison d'être" une fois le mode Kindle en place). Persisté comme un choix
+/// de thème (contrairement à l'ancien défilement auto, se retrouver avec ce
+/// thème actif à l'ouverture n'est pas une mauvaise surprise, c'est une
+/// préférence de lecture comme la taille du texte).
+final kindleModeProvider =
+    StateNotifierProvider<KindleModeNotifier, bool>((ref) {
+  return KindleModeNotifier();
+});
+
+class KindleModeNotifier extends StateNotifier<bool> {
+  KindleModeNotifier() : super(false) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefKindleMode);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefKindleMode, value);
+  }
 }
 
-// Volontairement NON persisté d'une session à l'autre : reprendre à
-// défiler tout seul à l'ouverture de l'écran serait une mauvaise surprise.
-// Activer le défilement auto reste un geste explicite à chaque session.
-final autoScrollSpeedProvider =
-    StateProvider<AutoScrollSpeed>((ref) => AutoScrollSpeed.off);
+const _kPrefKindlePageSeconds = 'kindle_page_seconds';
+const kKindlePageSecondsMin = 4.0;
+const kKindlePageSecondsMax = 30.0;
+
+/// Jauge de vitesse du tournage de page automatique en mode Kindle --
+/// secondes par page, un curseur continu au lieu des 4 presets fixes de
+/// `AutoScrollSpeed` (demande utilisateur 2026-08-01).
+final kindlePageSecondsProvider =
+    StateNotifierProvider<KindlePageSecondsNotifier, double>((ref) {
+  return KindlePageSecondsNotifier();
+});
+
+class KindlePageSecondsNotifier extends StateNotifier<double> {
+  KindlePageSecondsNotifier() : super(10.0) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getDouble(_kPrefKindlePageSeconds);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(double value) async {
+    state = value.clamp(kKindlePageSecondsMin, kKindlePageSecondsMax);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_kPrefKindlePageSeconds, state);
+  }
+}
+
+// Volontairement NON persisté (même raison que le mode Kindle lui-même est
+// persisté mais pas ceci) : redémarrer en tournage automatique dès
+// l'ouverture serait une mauvaise surprise, même si le mode Kindle et sa
+// vitesse, eux, sont persistés.
+final kindleAutoTurnProvider = StateProvider<bool>((ref) => false);
 
 const _kPrefAdultChunkWordCount = 'adult_chunk_word_count';
 const kAdultChunkWordCountMin = 1;

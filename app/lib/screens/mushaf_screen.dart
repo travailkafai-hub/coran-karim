@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart' show SystemChrome, SystemUiMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -53,8 +52,7 @@ class _ListEntry {
       : kind = _EntryKind.surahBanner, surah = s, verseIndex = null, bismillah = null;
 }
 
-class _MushafScreenState extends ConsumerState<MushafScreen>
-    with SingleTickerProviderStateMixin {
+class _MushafScreenState extends ConsumerState<MushafScreen> {
   List<Verse> _verses = [];
   bool _loading = true;
   String? _error;
@@ -76,8 +74,16 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   List<_ListEntry> _items = [];
 
   final _scrollController = ScrollController();
-  Ticker? _autoScrollTicker;
-  Duration _lastTick = Duration.zero;
+
+  // Mode Kindle (demande utilisateur 2026-08-01) -- 4e version, la plus
+  // simple : après deux échecs d'un système de PAGES séparé (seuil de mots --
+  // sautait du contenu ; découpage par pixel puis par mot -- corrects mais
+  // plus fragiles et plus longs que nécessaire), retour au défilement
+  // continu existant (déjà stable) + un saut de scroll animé au tap
+  // ("un défilement éclair pour que le texte monte d'un coup", proposition
+  // de l'utilisateur) -- cf. `_kindleJumpPage`. Zéro système de pagination
+  // à maintenir.
+  Timer? _kindleAutoTurnTimer;
 
   // Une clé par verset pour pouvoir faire défiler jusqu'au verset en cours de
   // lecture — hauteurs variables (texte + trad. optionnelle), donc
@@ -102,6 +108,15 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   // -- dupliqué en constante locale ici pour éviter d'instancier un widget
   // juste pour lire sa taille.
   static const _kMushafHeaderHeight = 120.0;
+  // Même principe pour _BottomBar (icônes + libellés + marges + SafeArea) --
+  // approximation, comme _kMushafHeaderHeight ci-dessus.
+  static const _kBottomBarHeight = 92.0;
+  // Marge minimale gardée quand le chrome est masqué (plein écran réel,
+  // demande utilisateur 2026-08-01 : "le menu en bas doit disparaître
+  // vraiment", et l'espace qu'il libère doit redevenir utilisable pour le
+  // contenu -- pas juste visuellement caché avec le padding qui reste figé
+  // à la taille du chrome visible).
+  static const _kHiddenChromeMargin = 12.0;
 
   @override
   void initState() {
@@ -110,13 +125,20 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
     _load();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _scheduleHeaderHide();
+    // `kindleAutoTurnProvider` est un état global (pas ré-initialisé par
+    // écran) -- s'il était déjà activé avant d'arriver sur CET écran, il faut
+    // démarrer le minuteur ici ; `ref.listen` dans build() ne réagit qu'aux
+    // CHANGEMENTS futurs, pas à l'état déjà en place à l'ouverture.
+    if (ref.read(kindleAutoTurnProvider)) {
+      _syncKindleAutoTurn(true, ref.read(kindlePageSecondsProvider));
+    }
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
-    _autoScrollTicker?.dispose();
     _scrollController.dispose();
+    _kindleAutoTurnTimer?.cancel();
     _headerHideTimer?.cancel();
     // Restaure le chrome système normal en quittant l'écran de lecture --
     // ne pas laisser toute l'app en immersif au-delà de cet écran.
@@ -227,45 +249,6 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
         orElse: () => widget.surah,
       );
 
-  // Défilement automatique "téléprompteur" (demande utilisateur 2026-07-06 :
-  // "lire le Coran et ça scroll selon sa vitesse") — un Ticker avance le
-  // ScrollController à vitesse constante (px/s). Le geste manuel de
-  // l'utilisateur (drag) coupe l'auto-scroll plutôt que de lutter contre lui
-  // (même principe que le karaoké : le scroll manuel doit rester valide).
-  void _syncAutoScroll(AutoScrollSpeed speed) {
-    if (speed == AutoScrollSpeed.off) {
-      _autoScrollTicker?.stop();
-      return;
-    }
-    if (_autoScrollTicker == null) {
-      _lastTick = Duration.zero;
-      _autoScrollTicker = createTicker(_onAutoScrollTick)..start();
-    } else if (!_autoScrollTicker!.isTicking) {
-      _lastTick = Duration.zero;
-      _autoScrollTicker!.start();
-    }
-  }
-
-  void _onAutoScrollTick(Duration elapsed) {
-    if (!_scrollController.hasClients) return;
-    final dt = _lastTick == Duration.zero
-        ? 0.0
-        : (elapsed - _lastTick).inMicroseconds / 1e6;
-    _lastTick = elapsed;
-    final speed = ref.read(autoScrollSpeedProvider);
-    if (speed == AutoScrollSpeed.off) {
-      _autoScrollTicker?.stop();
-      return;
-    }
-    final pos = _scrollController.position;
-    final next = (pos.pixels + speed.pixelsPerSecond * dt)
-        .clamp(0.0, pos.maxScrollExtent);
-    _scrollController.jumpTo(next);
-    if (next >= pos.maxScrollExtent) {
-      ref.read(autoScrollSpeedProvider.notifier).state = AutoScrollSpeed.off;
-    }
-  }
-
   void _openReadingSettings() {
     showReadingSettingsSheet(context, ref);
   }
@@ -323,8 +306,12 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
-    final autoScroll = ref.watch(autoScrollSpeedProvider);
-    ref.listen(autoScrollSpeedProvider, (prev, next) => _syncAutoScroll(next));
+
+    final kindleMode = ref.watch(kindleModeProvider);
+    ref.listen(kindleAutoTurnProvider,
+        (_, next) => _syncKindleAutoTurn(next, ref.read(kindlePageSecondsProvider)));
+    ref.listen(kindlePageSecondsProvider,
+        (_, next) => _syncKindleAutoTurn(ref.read(kindleAutoTurnProvider), next));
 
     // Curseur de lecture (demande utilisateur 2026-07-06 : la lecture reste
     // sur cette page, avec un fond bleu qui suit le verset en cours et un
@@ -342,25 +329,18 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
     });
 
     return Scaffold(
-      backgroundColor: AppColors.cream,
+      backgroundColor: kindleMode ? AppColors.kindleBg : AppColors.cream,
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.green800))
           : _error != null
               ? _ErrorView(onRetry: _load)
               : Stack(
                   children: [
-                    const QuranPatternBackground(),
-                    _buildVerses(playingVerseKey),
-                    if (autoScroll != AutoScrollSpeed.off)
-                      Positioned(
-                        right: 16,
-                        bottom: 16,
-                        child: _AutoScrollBadge(
-                          onStop: () => ref
-                              .read(autoScrollSpeedProvider.notifier)
-                              .state = AutoScrollSpeed.off,
-                        ),
-                      ),
+                    // Pas de motif décoratif ni de badge de défilement en
+                    // mode Kindle -- c'est le thème sobre "repos-yeux" qui
+                    // remplace ces éléments, pas un mode qui les empile.
+                    if (!kindleMode) const QuranPatternBackground(),
+                    _buildVerses(playingVerseKey, kindleMode: kindleMode),
                     // Bande invisible en haut de l'écran (~15% de hauteur) :
                     // seule active quand le header est masqué (sinon le
                     // header, positionné par-dessus, intercepte le tap en
@@ -376,6 +356,30 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
                         child: GestureDetector(
                           behavior: HitTestBehavior.translucent,
                           onTap: _showHeader,
+                          // Petit repère visuel (demande utilisateur
+                          // 2026-08-01 : "un trait transparent qui montre que
+                          // le menu reste caché") -- avant ça, la bande de
+                          // réactivation était invisible, rien n'indiquait
+                          // qu'il y avait quelque chose à taper ici.
+                          child: SafeArea(
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: Container(
+                                  width: 44,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: (kindleMode
+                                            ? AppColors.kindleInk
+                                            : AppColors.cream)
+                                        .withAlpha(90),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     // Bouton retour TOUJOURS visible, independant du header --
@@ -426,89 +430,219 @@ class _MushafScreenState extends ConsumerState<MushafScreen>
                         ),
                       ),
                     ),
+                    // Mini-lecteur retiré (retour utilisateur 2026-07-19 : "le
+                    // bandeau de lecture n'est pas interessant") -- doublait
+                    // le bouton Lire/Pause de _BottomBar juste en dessous ; le
+                    // verset en cours de lecture reste visible par son
+                    // surlignage dans le texte (VerseTile), pas besoin d'une
+                    // 2e barre pour ça.
+                    //
+                    // Barre du bas -- ex-`Scaffold.bottomNavigationBar`,
+                    // déplacée ici le 2026-08-01 pour suivre la même
+                    // visibilité que le header (`_headerVisible`) : plein
+                    // écran "vraiment" veut dire que CE chrome disparaît
+                    // aussi, pas seulement le header du haut (demande
+                    // utilisateur explicite, l'ancienne version le gardait
+                    // "toujours visible" par choix -- 2026-07-19 -- mais ça
+                    // empêchait un vrai plein écran).
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: AnimatedSlide(
+                        duration: const Duration(milliseconds: 200),
+                        offset: _headerVisible ? Offset.zero : const Offset(0, 1),
+                        child: SafeArea(
+                          top: false,
+                          child: _BottomBar(
+                            onPlayTap: _verses.isEmpty ? null : _onPlayTap,
+                            onMicTap: _verses.isEmpty ? null : _openMemorization,
+                            onMicLongPress: _verses.isEmpty ? null : _openKaraoke,
+                            onMicDoubleTap:
+                                _verses.isEmpty ? null : _openContinuousRecitation,
+                            onTranslationTap: () =>
+                                setState(() => _showTranslation = !_showTranslation),
+                            onCoachTap: _verses.isEmpty ? null : _openCoachExplanation,
+                            onMoreTap: _openReadingSettings,
+                            showTranslation: _showTranslation,
+                            isPlaying: playerState.isPlaying,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-      // Mini-lecteur retire (retour utilisateur 2026-07-19 : "le bandeau de
-      // lecture n'est pas interessant") -- doublait le bouton Lire/Pause de
-      // _BottomBar juste en dessous ; le verset en cours de lecture reste
-      // visible par son surlignage bleu dans le texte (VerseTile), pas
-      // besoin d'une 2e barre pour ca.
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _BottomBar(
-            onPlayTap: _verses.isEmpty ? null : _playFromActive,
-            onMicTap: _verses.isEmpty ? null : _openMemorization,
-            onMicLongPress: _verses.isEmpty ? null : _openKaraoke,
-            onMicDoubleTap: _verses.isEmpty ? null : _openContinuousRecitation,
-            onTranslationTap: () =>
-                setState(() => _showTranslation = !_showTranslation),
-            onCoachTap: _verses.isEmpty ? null : _openCoachExplanation,
-            onMoreTap: _openReadingSettings,
-            showTranslation: _showTranslation,
-            isPlaying: playerState.isPlaying,
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildVerses(String? playingVerseKey) {
+  // Mode Kindle (demande utilisateur 2026-08-01, dernière version) : après
+  // deux échecs d'un système de PAGES séparé (seuil de mots -- sautait du
+  // contenu ; découpage par pixel puis par mot -- corrects mais jamais aussi
+  // simples/robustes que l'existant), retour à la proposition de l'utilisateur
+  // : garder le défilement continu tel quel (déjà stable, remplit tout
+  // l'écran nativement, aucun système de pagination à maintenir), et ne
+  // simuler la "page" qu'au moment du tap -- un saut de scroll animé d'une
+  // hauteur d'écran ("un défilement éclair pour que le texte monte d'un
+  // coup"). Zéro nouveau calcul de mise en page.
+  void _kindleJumpPage(double viewportHeight, {required bool forward}) {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final target =
+        (pos.pixels + (forward ? viewportHeight : -viewportHeight)).clamp(0.0, pos.maxScrollExtent);
+    _scrollController.animateTo(target,
+        duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
+  }
+
+  void _syncKindleAutoTurn(bool enabled, double seconds) {
+    _kindleAutoTurnTimer?.cancel();
+    if (!enabled) return;
+    _kindleAutoTurnTimer = Timer.periodic(Duration(seconds: seconds.round()), (_) {
+      if (!mounted) return;
+      // Même formule que le tap manuel (§_buildVerses) -- un `*0.7`
+      // approximatif ici aurait fait sauter un peu plus ou moins qu'un
+      // vrai "page suivante", décalant l'auto-tournage du tap manuel.
+      final size = MediaQuery.of(context).size;
+      final viewportHeight = size.height -
+          (_headerVisible ? _kMushafHeaderHeight + 8 : _kHiddenChromeMargin) -
+          (_headerVisible ? _kBottomBarHeight + 8 : _kHiddenChromeMargin);
+      _kindleJumpPage(viewportHeight, forward: true);
+    });
+  }
+
+  Widget _buildVerses(String? playingVerseKey, {bool kindleMode = false}) {
     final textScale = ref.watch(textScaleProvider);
     final showLoadingFooter = _loadingMore;
-    return NotificationListener<ScrollNotification>(
-      onNotification: (n) {
-        if (n is ScrollStartNotification && n.dragDetails != null) {
-          ref.read(autoScrollSpeedProvider.notifier).state = AutoScrollSpeed.off;
-        }
-        return false;
-      },
-      child: ListView.builder(
-        controller: _scrollController,
-        // top = hauteur du header -- il n'est plus un appBar de Scaffold qui
-        // réserve automatiquement cet espace (c'est maintenant un overlay
-        // flottant, §3 plein écran), donc le contenu doit commencer en
-        // dessous explicitement pour ne pas apparaître caché dessous.
-        padding: const EdgeInsets.only(top: _kMushafHeaderHeight + 8, bottom: 100),
-        itemCount: _items.length + (showLoadingFooter ? 1 : 0),
-        itemBuilder: (context, i) {
-          if (i >= _items.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.green800),
-              ),
-            );
-          }
-          final entry = _items[i];
-          switch (entry.kind) {
-            case _EntryKind.bismillah:
-              return _BismillahBanner(text: entry.bismillah!.textUthmani);
-            case _EntryKind.surahBanner:
-              return _SurahBanner(surah: entry.surah!);
-            case _EntryKind.verse:
-              final idx = entry.verseIndex!;
-              final verse = _verses[idx];
-              return VerseTile(
-                key: _verseKeys[idx],
-                verse: verse,
-                isActive: _activeVerse == idx,
-                isPlayingCursor: playingVerseKey != null && verse.key == playingVerseKey,
-                showTranslation: _showTranslation,
-                textScale: textScale,
-                onTap: () => setState(() => _activeVerse = idx),
-                // Tap sur un mot précis = l'expliquer (demande utilisateur
-                // 2026-07-10), pas le jouer -- la lecture reste accessible via
-                // le bouton "Lire" une fois le verset sélectionné.
-                onWordTap: (wordIdx) {
-                  setState(() => _activeVerse = idx);
-                  _openWordExplanation(verse, wordIdx);
-                },
+    final size = MediaQuery.of(context).size;
+    final viewportHeight = size.height -
+        (_headerVisible ? _kMushafHeaderHeight + 8 : _kHiddenChromeMargin) -
+        (_headerVisible ? _kBottomBarHeight + 8 : _kHiddenChromeMargin);
+    return Stack(
+      children: [
+        ListView.builder(
+          controller: _scrollController,
+          // top = hauteur du header -- il n'est plus un appBar de Scaffold qui
+          // réserve automatiquement cet espace (c'est maintenant un overlay
+          // flottant, §3 plein écran), donc le contenu doit commencer en
+          // dessous explicitement pour ne pas apparaître caché dessous.
+          // ⚠️ 2026-08-01 : cette réserve doit suivre `_headerVisible`, sinon
+          // le plein écran masque le chrome sans jamais rendre l'espace
+          // libéré au contenu (signalé par l'utilisateur : "ne tient pas des
+          // zones qui deviennent disponibles après la disparition du menu").
+          padding: EdgeInsets.only(
+            top: _headerVisible ? _kMushafHeaderHeight + 8 : _kHiddenChromeMargin,
+            bottom: _headerVisible ? _kBottomBarHeight + 8 : _kHiddenChromeMargin,
+          ),
+          itemCount: _items.length + (showLoadingFooter ? 1 : 0),
+          itemBuilder: (context, i) {
+            if (i >= _items.length) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.green800),
+                ),
               );
-          }
-        },
-      ),
+            }
+            return _buildEntry(_items[i], playingVerseKey, textScale, kindleMode: kindleMode);
+          },
+        ),
+        if (kindleMode) ...[
+          Positioned(
+            left: 0,
+            top: _headerVisible ? _kMushafHeaderHeight : _kHiddenChromeMargin,
+            bottom: 0,
+            width: 48,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => _kindleJumpPage(viewportHeight, forward: false),
+            ),
+          ),
+          Positioned(
+            right: 0,
+            top: _headerVisible ? _kMushafHeaderHeight : _kHiddenChromeMargin,
+            bottom: 0,
+            width: 48,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => _kindleJumpPage(viewportHeight, forward: true),
+            ),
+          ),
+        ],
+      ],
     );
+  }
+
+  // Extrait du switch de `_buildVerses` (jusqu'au 2026-08-01, dupliqué en
+  // dur dans l'itemBuilder) -- réutilisé tel quel par le mode Kindle
+  // paginé (§ _buildKindlePages) pour ne PAS réimplémenter le rendu d'un
+  // verset/bannière une 2e fois dans un langage légèrement différent.
+  Widget _buildEntry(_ListEntry entry, String? playingVerseKey, double textScale,
+      {bool kindleMode = false, int? wordStart, int? wordEnd}) {
+    switch (entry.kind) {
+      case _EntryKind.bismillah:
+        return _BismillahBanner(text: entry.bismillah!.textUthmani);
+      case _EntryKind.surahBanner:
+        return _SurahBanner(surah: entry.surah!);
+      case _EntryKind.verse:
+        final idx = entry.verseIndex!;
+        final verse = _verses[idx];
+        return VerseTile(
+          // En mode Kindle un même verset peut être rendu en DEUX morceaux
+          // (page N et page N+1) potentiellement montés en même temps
+          // (PageView garde la page voisine en mémoire) -- réutiliser la
+          // même GlobalKey partagée (`_verseKeys`, utilisée par le scroll
+          // continu pour Scrollable.ensureVisible) ferait planter l'app
+          // (« Duplicate GlobalKey »). Pas de clé stable nécessaire ici,
+          // le mode Kindle ne fait pas défiler jusqu'à un verset.
+          key: kindleMode ? null : _verseKeys[idx],
+          verse: verse,
+          isActive: _activeVerse == idx,
+          isPlayingCursor: playingVerseKey != null && verse.key == playingVerseKey,
+          showTranslation: _showTranslation,
+          textScale: textScale,
+          kindleMode: kindleMode,
+          wordStart: wordStart,
+          wordEnd: wordEnd,
+          onTap: () => setState(() => _activeVerse = idx),
+          // Tap sur un mot précis = l'expliquer (demande utilisateur
+          // 2026-07-10), pas le jouer -- la lecture reste accessible via
+          // le bouton "Lire" une fois le verset sélectionné.
+          onWordTap: (wordIdx) {
+            setState(() => _activeVerse = idx);
+            _openWordExplanation(verse, wordIdx);
+          },
+        );
+    }
+  }
+
+
+  // Bouton Lire/Pause de la barre du bas : son icône bascule selon
+  // `isPlaying`, mais AVANT ce correctif il appelait toujours `_playFromActive`
+  // -- donc un 2e tap pendant la lecture relançait `play()` (position remise à
+  // zéro) au lieu de mettre en pause. Symptôme utilisateur : "je fais pause,
+  // il recommence" (2026-08-01). On ne bascule pause/resume QUE si le verset
+  // actif est déjà celui chargé dans le player -- changer de verset doit
+  // continuer à (re)lancer une lecture depuis le début, pas reprendre l'ancien.
+  // `playerProvider` est un état GLOBAL (un seul lecteur pour toute l'app,
+  // pas par écran) -- donc "isPlaying" seul ne suffit pas à décider quoi
+  // faire : si la sourate A joue encore et qu'on ouvre la sourate B, taper
+  // "Lire" doit lancer B, pas mettre A en pause. Sans la comparaison de
+  // verset, un tap sur B est interprété comme une pause de A (bug constaté
+  // 2026-08-01 : "je change de sourate, je fais play, ça reste sur la
+  // première" -- la 1ère). Donc : pause/resume SEULEMENT si le verset actif
+  // de CET écran est déjà celui réellement chargé dans le lecteur ; sinon on
+  // (re)lance toujours depuis le début sur le nouveau verset/sourate.
+  void _onPlayTap() {
+    if (_verses.isEmpty) return;
+    final player = ref.read(playerProvider);
+    final active = _verses[_activeVerse];
+    final sameVerse = player.currentVerse?.key == active.key;
+    if (sameVerse && player.isPlaying) {
+      ref.read(playerProvider.notifier).pause();
+    } else if (sameVerse && player.isPaused) {
+      ref.read(playerProvider.notifier).resume();
+    } else {
+      _playFromActive();
+    }
   }
 
   void _playFromActive() {
@@ -777,47 +911,6 @@ class _BarButton extends StatelessWidget {
           Text(label, style: GoogleFonts.manrope(
               fontSize: 10, color: c, fontWeight: FontWeight.w500)),
         ],
-      ),
-    );
-  }
-}
-
-/// Petit contrôle flottant pour arrêter le défilement automatique sans
-/// rouvrir les réglages (demande utilisateur 2026-07-06 : le scroll manuel/
-/// l'arrêt doivent rester faciles d'accès pendant que ça défile tout seul).
-class _AutoScrollBadge extends StatelessWidget {
-  final VoidCallback onStop;
-  const _AutoScrollBadge({required this.onStop});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onStop,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.green900.withAlpha(230),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withAlpha(60), blurRadius: 10),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.pause_rounded, color: AppColors.brassLight, size: 18),
-              const SizedBox(width: 6),
-              Text(
-                AppLocalizations.of(context)!.mushafAutoScroll,
-                style: GoogleFonts.manrope(
-                    fontSize: 12, color: AppColors.cream, fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

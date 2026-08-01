@@ -132,6 +132,7 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
           final t = AppLocalizations.of(context)!;
           final sensitivity = ref.watch(prayerSensitivityProvider);
           final souffleurEnabled = ref.watch(prayerSouffleurEnabledProvider);
+          final followFree = ref.watch(followWithoutBlockingProvider);
           String label;
           if (sensitivity < 0.35) {
             label = t.prayerFollowSensitivityTolerant;
@@ -196,6 +197,29 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
                             color: AppColors.cream, fontWeight: FontWeight.w600)),
                     subtitle: Text(
                       t.prayerFollowSouffleurSubtitle(_kSilenceHintDelay.inSeconds),
+                      style: TextStyle(
+                          color: AppColors.cream.withOpacity(0.75), fontSize: 12),
+                    ),
+                  ),
+                  // "Suivre sans bloquer" -- DÉPLACÉ ici depuis la sheet de
+                  // vérification du karaoké le 2026-08-01 (demande
+                  // utilisateur : ce réglage appartient au suivi de prière,
+                  // pas à la récitation générale). Même provider, même
+                  // logique (cf. karaoke_recitation_screen.dart::_onWordFailed) :
+                  // seul le point de réglage change de place.
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    activeThumbColor: AppColors.brassLight,
+                    value: followFree,
+                    onChanged: (v) =>
+                        ref.read(followWithoutBlockingProvider.notifier).set(v),
+                    title: Text(t.karaokeFollowFreeTitle,
+                        style: GoogleFonts.manrope(
+                            color: AppColors.cream, fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                      followFree
+                          ? t.karaokeFollowFreeOnSubtitle
+                          : t.karaokeFollowFreeOffSubtitle,
                       style: TextStyle(
                           color: AppColors.cream.withOpacity(0.75), fontSize: 12),
                     ),

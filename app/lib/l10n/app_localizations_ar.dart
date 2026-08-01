@@ -327,6 +327,24 @@ class AppLocalizationsAr extends AppLocalizations {
   String get readingSettingsSpeedFast => 'سريع';
 
   @override
+  String get readingSettingsKindleSection => 'وضع القراءة الهادئة';
+
+  @override
+  String get readingSettingsKindleDescription =>
+      'سمة مريحة للعين تقلل الضوء الأزرق، مع تنقل بالصفحات كجهاز القراءة الإلكتروني.';
+
+  @override
+  String get readingSettingsKindleToggle => 'تفعيل وضع القراءة الهادئة';
+
+  @override
+  String get readingSettingsKindleAutoTurn => 'تقليب الصفحات تلقائيًا';
+
+  @override
+  String readingSettingsKindleSpeed(int seconds) {
+    return 'السرعة: $seconds ث / صفحة';
+  }
+
+  @override
   String get coachExplanationListen => 'استماع';
 
   @override
@@ -1134,13 +1152,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get reciterSelectStreamingNote =>
-      'قرّاء مدمجون — متاحون بالبث المباشر. التنزيل دون اتصال متوفر قريبًا.';
+      'القرّاء المدمجون. القراءة تتم عبر الإنترنت افتراضيًا؛ حمّل سورة للاستماع دون اتصال.';
 
   @override
   String get reciterSelectOfflineTitle => 'تنزيل للاستخدام دون اتصال';
 
   @override
-  String get reciterSelectOfflineSubtitle => 'متوفر في تحديث قادم.';
+  String get reciterSelectOfflineSubtitle =>
+      'حمّل سورة بسورة من أيقونة كل قارئ.';
 
   @override
   String get voiceCalibTitle => 'معايرة الصوت';
@@ -1478,4 +1497,61 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get settingsDiagnosticSubtitleOff =>
       'مُعطَّل — لا يُكتب شيء أثناء التلاوة';
+
+  @override
+  String get reciterDownloadsTitle => 'التحميل للاستماع دون اتصال';
+
+  @override
+  String reciterDownloadAll(String size) {
+    return 'تحميل الكل ($size)';
+  }
+
+  @override
+  String get reciterDownloadStop => 'إيقاف';
+
+  @override
+  String get reciterDeleteAllTitle => 'حذف التحميلات';
+
+  @override
+  String get reciterDeleteAllBody =>
+      'سيتم حذف جميع المقاطع الصوتية المحمّلة لهذا القارئ من الجهاز، وستعود القراءة عبر الإنترنت.';
+
+  @override
+  String get reciterDeleteAllConfirm => 'حذف';
+
+  @override
+  String reciterStorageUsed(String size, String done, String total) {
+    return '$size على هذا الجهاز • $done/$total سورة دون اتصال';
+  }
+
+  @override
+  String get reciterDownloadFailed =>
+      'فشل التحميل — تحقّق من اتصالك. الملفات المحمّلة محفوظة.';
+
+  @override
+  String reciterDownloadingProgress(String done, String total) {
+    return 'جارٍ التحميل… $done/$total آية';
+  }
+
+  @override
+  String get reciterSurahOffline => 'متاحة دون اتصال';
+
+  @override
+  String get reciterVersesShort => 'آية';
+
+  @override
+  String get reciterBadgeOfflineFull => 'دون اتصال';
+
+  @override
+  String reciterBadgeOfflinePartial(String done, String total) {
+    return 'دون اتصال · $done/$total';
+  }
+
+  @override
+  String get reciterBadgeOnline => 'إنترنت';
+
+  @override
+  String reciterSelectStorageTotal(String size) {
+    return '$size مستخدمة على هذا الجهاز';
+  }
 }

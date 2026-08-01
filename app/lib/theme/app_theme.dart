@@ -24,6 +24,29 @@ class AppColors {
   static const readingCursorBg     = Color(0xFFe3f0fb);
   static const readingCursorBorder = Color(0xFF4a90d9);
 
+  // Mode Kindle (demande utilisateur 2026-08-01) -- thème repos-yeux,
+  // volontairement SANS AUCUNE composante bleue dominante (contrairement à
+  // readingCursorBg/readingCursorBorder ci-dessus, réservés au mode normal) :
+  // fond chaud sépia proche du "warm light" des liseuses e-ink, texte brun
+  // foncé plutôt que noir pur -- moins de contraste dur, plus reposant en
+  // lecture longue.
+  static const kindleBg      = Color(0xFFf2e8d5);
+  static const kindleBgDeep  = Color(0xFFe9dcbf);
+  static const kindleInk     = Color(0xFF3a2b1a);
+  static const kindleInkSoft = Color(0xFF6b5636);
+  static const kindleAccent  = Color(0xFF8a6a3a);
+
+  // Erreur de TAJWID pendant la récitation (2026-08-01, demande utilisateur :
+  // "une coloration spécifique violet en cas d'erreur liée au tajweed").
+  // Distincte du rouge (lettre/harakat mal prononcée) : ici les lettres ET
+  // les harakat sont justes, seule une règle attendue n'a pas été réalisée
+  // (cf. RecitationErrorKind.tajwid). Violet choisi pour ne collisionner ni
+  // avec le rouge/orange/vert du jugement, ni avec les 4 couleurs de
+  // coloration tajwid du TEXTE juste en dessous (vert/bleu/orange/rouge) --
+  // celles-ci indiquent QUELLE règle s'applique, celle-ci indique qu'une
+  // règle a été RATÉE, ce sont deux informations différentes.
+  static const recitationTajwidError = Color(0xFFb47bd6);
+
   // Tajwid colors
   static const tajwidGhunna   = Color(0xFF1a7a5e);  // green — nasal
   static const tajwidQalqala  = Color(0xFF0055aa);  // blue — echo

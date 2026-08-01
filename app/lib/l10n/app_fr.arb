@@ -443,6 +443,31 @@
   "@readingSettingsSpeedFast": {
     "description": "Vitesse de défilement automatique : rapide"
   },
+  "readingSettingsKindleSection": "MODE KINDLE",
+  "@readingSettingsKindleSection": {
+    "description": "Titre de section : mode de lecture façon liseuse"
+  },
+  "readingSettingsKindleDescription": "Thème reposant, sans lumière bleue : navigation par pages, comme une liseuse.",
+  "@readingSettingsKindleDescription": {
+    "description": "Description du mode Kindle"
+  },
+  "readingSettingsKindleToggle": "Activer le mode Kindle",
+  "@readingSettingsKindleToggle": {
+    "description": "Interrupteur d'activation du mode Kindle"
+  },
+  "readingSettingsKindleAutoTurn": "Tourner les pages automatiquement",
+  "@readingSettingsKindleAutoTurn": {
+    "description": "Interrupteur du tournage de page automatique en mode Kindle"
+  },
+  "readingSettingsKindleSpeed": "Vitesse : {seconds} s / page",
+  "@readingSettingsKindleSpeed": {
+    "description": "Jauge de vitesse du tournage de page automatique",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "coachExplanationListen": "Écouter",
   "@coachExplanationListen": {
     "description": "Tooltip : lire l'explication à voix haute"
@@ -1473,7 +1498,7 @@
   "@reciterSelectTitle": {
     "description": "Titre de l'écran de choix du récitateur"
   },
-  "reciterSelectStreamingNote": "Réciteurs intégrés — disponibles en streaming. Téléchargement hors-ligne disponible prochainement.",
+  "reciterSelectStreamingNote": "Récitateurs intégrés. Par défaut la lecture passe par internet ; télécharge une sourate pour l'écouter hors-ligne.",
   "@reciterSelectStreamingNote": {
     "description": "Note en haut de l'écran de choix du récitateur"
   },
@@ -1481,7 +1506,7 @@
   "@reciterSelectOfflineTitle": {
     "description": "Titre du bandeau \"à venir\" de téléchargement hors-ligne"
   },
-  "reciterSelectOfflineSubtitle": "Disponible dans une prochaine mise à jour.",
+  "reciterSelectOfflineSubtitle": "Télécharge sourate par sourate depuis l'icône de chaque récitateur.",
   "@reciterSelectOfflineSubtitle": {
     "description": "Sous-titre du bandeau \"à venir\" de téléchargement hors-ligne"
   },
@@ -1976,5 +2001,102 @@
   "settingsDiagnosticSubtitleOff": "Désactivé — aucune écriture pendant la récitation",
   "@settingsDiagnosticSubtitleOff": {
     "description": "Subtitle when diagnostics are disabled"
+  },
+  "reciterDownloadsTitle": "Téléchargement hors-ligne",
+  "@reciterDownloadsTitle": {
+      "description": "Titre de l'ecran de gestion des telechargements"
+  },
+  "reciterDownloadAll": "Tout télécharger ({size})",
+  "@reciterDownloadAll": {
+      "description": "Bouton pour telecharger les 114 sourates",
+      "placeholders": {
+          "size": {
+              "type": "String"
+          }
+      }
+  },
+  "reciterDownloadStop": "Arrêter",
+  "@reciterDownloadStop": {
+      "description": "Bouton pour interrompre le telechargement en cours"
+  },
+  "reciterDeleteAllTitle": "Supprimer les téléchargements",
+  "@reciterDeleteAllTitle": {
+      "description": "Titre du dialogue de suppression des telechargements"
+  },
+  "reciterDeleteAllBody": "Tout l'audio téléchargé pour ce récitateur sera effacé de l'appareil. La lecture repassera par internet.",
+  "@reciterDeleteAllBody": {
+      "description": "Corps du dialogue de suppression"
+  },
+  "reciterDeleteAllConfirm": "Supprimer",
+  "@reciterDeleteAllConfirm": {
+      "description": "Bouton de confirmation de suppression"
+  },
+  "reciterStorageUsed": "{size} sur cet appareil • {done}/{total} sourates hors-ligne",
+  "@reciterStorageUsed": {
+      "description": "Entete de l'ecran de gestion : espace occupe et sourates hors-ligne",
+      "placeholders": {
+          "size": {
+              "type": "String"
+          },
+          "done": {
+              "type": "String"
+          },
+          "total": {
+              "type": "String"
+          }
+      }
+  },
+  "reciterDownloadFailed": "Échec du téléchargement — vérifie ta connexion. Ce qui est déjà téléchargé est conservé.",
+  "@reciterDownloadFailed": {
+      "description": "Message d'echec de telechargement"
+  },
+  "reciterDownloadingProgress": "Téléchargement… {done}/{total} versets",
+  "@reciterDownloadingProgress": {
+      "description": "Progression du telechargement d'une sourate",
+      "placeholders": {
+          "done": {
+              "type": "String"
+          },
+          "total": {
+              "type": "String"
+          }
+      }
+  },
+  "reciterSurahOffline": "Disponible hors-ligne",
+  "@reciterSurahOffline": {
+      "description": "Sous-titre d'une sourate deja telechargee"
+  },
+  "reciterVersesShort": "versets",
+  "@reciterVersesShort": {
+      "description": "Mot 'versets' abrege pour la ligne de sourate"
+  },
+  "reciterBadgeOfflineFull": "Hors-ligne",
+  "@reciterBadgeOfflineFull": {
+      "description": "Badge : recitateur entierement disponible hors-ligne"
+  },
+  "reciterBadgeOfflinePartial": "Hors-ligne · {done}/{total}",
+  "@reciterBadgeOfflinePartial": {
+      "description": "Badge : recitateur partiellement telecharge",
+      "placeholders": {
+          "done": {
+              "type": "String"
+          },
+          "total": {
+              "type": "String"
+          }
+      }
+  },
+  "reciterBadgeOnline": "Internet",
+  "@reciterBadgeOnline": {
+      "description": "Badge : recitateur disponible uniquement via internet"
+  },
+  "reciterSelectStorageTotal": "{size} utilisés sur cet appareil",
+  "@reciterSelectStorageTotal": {
+      "description": "Espace total occupe par l'audio telecharge",
+      "placeholders": {
+          "size": {
+              "type": "String"
+          }
+      }
   }
 }

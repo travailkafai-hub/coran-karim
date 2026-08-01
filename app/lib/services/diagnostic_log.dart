@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -80,7 +81,7 @@ class DiagnosticLog {
   // la v1, a l'identique -- ce tag sert precisement a le prouver : une mesure
   // sous ce tag doit reproduire la v24, sinon l'ajout du code v2 a eu un effet
   // qu'il ne devait pas avoir.
-  static const String _kBuildTag = 'v2-branchee-parallele';
+  static const String _kBuildTag = 'v4-calib2';
   static const String _kBuildTimestamp =
       String.fromEnvironment('BUILD_TS', defaultValue: '');
 
@@ -105,6 +106,27 @@ class DiagnosticLog {
       log('DiagnosticLog',
           '=== BUILD code=$_kBuildTag'
           '${_kBuildTimestamp.isEmpty ? '' : ' compile=$_kBuildTimestamp'} ===');
+      // Lie le journal NATIF des l'ouverture de l'app.
+      //
+      // BUG LATENT CORRIGE ICI (2026-07-31). `setLogFile` n'etait appele que
+      // depuis fastconformer_verifier.dart, au chargement du modele ASR. Or le
+      // pendant Kotlin fait `val f = file ?: return` : SANS FICHIER IL N'ECRIT
+      // RIEN. Tout composant natif qui journalise AVANT la premiere recitation
+      // ecrivait donc dans le vide, en silence -- ce n'etait pas visible tant
+      // que seul l'ASR journalisait, puisqu'il liait le fichier lui-meme juste
+      // avant.
+      //
+      // Constate sur l'ecran de CALIBRAGE : il n'a pas besoin du modele, donc
+      // il n'a jamais declenche setLogFile ; ses lignes [CALIB] n'atteignaient
+      // aucun fichier et il n'y avait rien a recuperer par `adb pull`. Le
+      // symptome etait trompeur -- « le calibrage n'ecrit pas » alors que le
+      // defaut etait « le natif n'a pas de fichier ».
+      try {
+        await const MethodChannel('com.corankarim/fastconformer_ctc')
+            .invokeMethod('setLogFile', {'path': _file!.path});
+      } catch (_) {
+        // Plugin pas encore attache : l'ASR le refera de son cote.
+      }
       return _file!.path;
     } catch (e) {
       debugPrint('[DiagnosticLog] init échoué : $e');
