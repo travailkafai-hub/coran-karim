@@ -267,3 +267,84 @@ Mesures chiffrées : `JOURNAL_TESTS_LOGS.md`. Refonte proposée :
 jugement, diagnostic, IHM) et devraient se transposer sur `test-2-gop` — sauf
 `BufferedTranscriber.kt`, qui diffère de 374 lignes entre les deux branches : un
 cherry-pick y entrera forcément en conflit et devra être fait à la main.
+
+---
+
+## 1. Session 2026-07-31/08-01 — piste 10 (contrastif) + tête tajwid + plan d'action
+
+**Point d'entrée pour la suite, à relire avant de continuer cette nuit.**
+
+### Ce qui est fait, vérifié, sur disque (rien de déployé)
+
+- **Tête tajwid, stage a, 12 epochs** — `val_tajwid` 0,201 → **0,138**
+  (meilleur que la lignée historique 0,170). Entraînée sur l'encodeur
+  `causal-v4-phrases`. Fichiers :
+  `HDD/.../fastconformer-dual-head-v1/stagea-tajwid-v4-long/`
+  (`stagea-final.nemo`, `stagea-tajwid-head.pt`).
+- **Encodeur contrastif (piste 10)** — détection sur audio réellement fauté,
+  2 % de collatéral : **25 % → 53 %** ; biais canonique (médiane gopC sur mot
+  fauté) **+0,109 → −0,105**, signe inversé. Entraîné sur le corpus de paires
+  `tts_phrases_concat` (1 265 paires), encodeur COMPLET dégelé.
+  `benchmark/models/fastconformer-contrastif-v1/contrastif-v1/contrastif-final.nemo`.
+- **Fine-tune sur données vérifiées** (`fastconformer-verifie-v1`), base =
+  contrastif, 6 epochs sur 131 723 lignes (50 343 clips longs contrôlés
+  récitateur par récitateur + 81 380 fautes TTS déjà auditées à 93,9 %
+  d'audibilité). `val_wer_ctc` = 0,180-0,182, stable par rapport au point de
+  départ causal (0,182) — **mais c'est une métrique interne, pas une preuve**.
+  `HDD/.../fastconformer-verifie-v1/causal-final.nemo`.
+- **9 récitateurs exclus, documentés** (`benchmark/recitateurs_exclus.py`) —
+  couple (audio, texte) du manifeste ne correspondant pas, mesuré par
+  décodage réel + WER normé sur les clips LONGS ORIGINAUX (pas un défaut de
+  découpage). Ne jamais les réintroduire sans nouvelle mesure.
+- **Corpus de fragments courts 3-8 s — ÉCHOUÉ deux fois, ne pas retenter sans
+  lire `ETAT_CTC_NEMO.md` §"Pistes de qualité" d'abord.** v1 (proportions
+  externes) : WER 37,2 %. v2 (alignement Viterbi CTC brut) : WER 43,3 %, pire
+  — spans CTC pointus (1 frame contre 31 pour des mots comparables), piège
+  déjà documenté depuis le 2026-07-14 (`2ae8dc7`) et pas relu avant de coder
+  la v2. Corpus supprimés, rien n'a été entraîné dessus pour de vrai.
+
+### Point de blocage cette nuit
+
+**Téléphones débranchés** — aucune recette device possible. Rien n'a été
+poussé sur l'appareil ; le modèle déployé n'a pas bougé.
+
+### Plan d'action, dans l'ordre
+
+1. **Recette device sur `fastconformer-verifie-v1`**, dès que les téléphones
+   sont rebranchés — seule mesure qui compte réellement. Exporter via
+   `export_causal_checkpoint.py` (une seule tête, `audio_signal`/`length`
+   contrôlés), pousser en gardant le modèle actuel en
+   `model.onnx.avant_verifie`, puis `benchmark/recette_2tel.sh`. Contrôles
+   dans l'ordre : aucun rouge sans preuve, ancre ~294-302, RESYNC 0, puis le
+   taux de non-verts contre la référence 2,03-2,71 %.
+   - **Si ça tient** : `verifie-v1` devient la référence, on continue dessus.
+   - **Si ça casse** : retour immédiat au modèle précédent (une commande),
+     et chercher lequel des deux runs (contrastif ou le fine-tune) est en
+     cause — les deux ont leur propre checkpoint, testables séparément.
+2. **⚠️ Dépendance à vérifier avant d'exporter la tête tajwid** : elle a été
+   entraînée sur l'encodeur `v4-phrases`, qui n'est PLUS l'encodeur courant
+   (contrastif puis verifie-v1 l'ont fait bouger deux fois depuis). La
+   brancher telle quelle sur `verifie-v1` reproduirait exactement le défaut
+   déjà nommé cette nuit (« la tête tajwid vit dans un autre run, incompatible
+   depuis que l'encodeur a bougé »). Il faut soit re-entraîner le stage a sur
+   `verifie-v1` (rapide, sans risque, encodeur gelé pendant ce stage), soit
+   figer `v4-phrases` comme référence si `verifie-v1` ne passe pas la recette.
+3. **Exporter les trois sorties ensemble** (`export_trois_tetes.py`, déjà
+   écrit et vérifié) une fois l'encodeur de référence choisi et la tête
+   tajwid réentraînée dessus.
+4. **Réécrire `decodeTajwid`** (argmax → seuil par classe/top-k, cf.
+   `Decideur.kt`/`FastConformerCtc.kt`) — code de jugement, à proposer et
+   faire valider avant d'implémenter (règle du projet).
+5. **Dernier maillon de la tête 3** : calculer les 12 caractéristiques
+   conditionnées par la cible côté Kotlin et brancher au `Decideur`. Le
+   `tete3.json` actuel est calé sur `v4-phrases` — à recalibrer sur
+   l'encodeur de référence retenu à l'étape 1.
+6. **Calibrage pause/jauge** (spécifié dans
+   `CALIBRAGE_DEBIT_ET_PAUSES.md`) : remettre `pauseMinSecondes` à 0,40
+   (mesuré meilleur que 0,35), ajouter `intervalleHabituel` au calibrage,
+   implémenter la jauge de débit — non bloquant, peut se faire en parallèle.
+7. **Corpus courtes-durées, si repris un jour** : ne pas utiliser les spans
+   Viterbi CTC comme bornes directes. Piste correcte non tentée : repères de
+   position (le pic) + modèle de durée, pas la largeur du span brut. Écrire
+   le protocole de vérification (petit échantillon, décodage réel, WER normé)
+   AVANT tout script de génération à l'échelle.

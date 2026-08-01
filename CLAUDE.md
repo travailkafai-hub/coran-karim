@@ -9,6 +9,7 @@ App Android (Flutter/Kotlin) de récitation coranique : vérification ASR
 | Sujet | Document |
 |---|---|
 | Point d'entrée courant, changement de machine, état git | `HANDOFF.md` (à tenir à jour) |
+| Chantier en cours : tête 3 / écart canonique, et ce qui bloque | `SUITE_TETE3.md` |
 | État complet piste NeMo CTC : modèles, WER, déploiement, reste à faire | `ETAT_CTC_NEMO.md` |
 | Mémoire technique ASR détaillée (pièges, décisions, méthodes) | `.claude/skills/model-training/references/asr.md` |
 | Tuteur Gemma LoRA (bug regex, QAT, datasets) | `.claude/skills/model-training/references/gemma-llm.md` |
@@ -84,6 +85,16 @@ Le déclenchement est **automatique** : le hook `.claude/hooks/detect-boucle.py`
 même passage et injecte le rappel tout seul — un agent qui boucle ne se voit
 pas boucler, il ne faut pas compter sur son jugement. Seuil réglable en tête du
 script (`REGION_CHURN_TRIGGER`), calibré avec l'utilisateur le 2026-07-26.
+
+Après toute modification d'un écran ou flux **avec état** (lecteur audio,
+enregistreur, navigation, formulaire) — avant de déclarer que c'est corrigé —
+invoquer le skill `scenarios-utilisateur` : il fait passer une checklist
+d'axes (interruption, répétition rapide, changement de cible en cours
+d'action, reprise après coupure, ressource indisponible, concurrence) au lieu
+de ne tester que le chemin qu'on vient de corriger. Écrit le 2026-08-01 après
+que le bug du bouton play/pause du Mushaf, corrigé et vérifié par logs sur
+son chemin testé (play→pause→resume), a immédiatement révélé un second bug
+sur un chemin voisin jamais essayé (lire puis revenir en arrière).
 
 ## Règles du projet (décisions utilisateur, ne pas re-dériver)
 
@@ -212,6 +223,16 @@ script (`REGION_CHURN_TRIGGER`), calibré avec l'utilisateur le 2026-07-26.
      ensuite invisible dans les logs.
   4. Un palliatif n'est acceptable QUE s'il est explicitement demandé, borné
      dans le temps, et documenté comme tel (avec la cause d'origine nommée).
+- **NE JAMAIS REPORTER UNE ACTION EN INVOQUANT L'HEURE OU LE MOMENT** (décision
+  utilisateur 2026-08-01, après avoir refusé de tester WhisperX pour le
+  décalage "pas ce soir, une autre fois avec un vrai budget de
+  vérification") : « arrête de me parler en précisant le temps, ce soir/demain
+  c'est pas toi qui décide de reporter ». Si une ressource manque ou qu'une
+  action reste à faire et que les moyens de la faire sont disponibles (accès
+  réseau, environnement installable, GPU libre...), elle se fait — le moment
+  de la journée n'est jamais un critère pour reporter. Reporter n'est légitime
+  que pour une vraie raison technique (ressource indisponible, dépendance
+  bloquante, décision qui doit être arbitrée) — jamais parce qu'il est tard.
 - **Ne JAMAIS supprimer un commentaire existant qui documente une tentative
   passée, un piège ou un "pourquoi"** (décision 2026-07-19, suite à un doute
   légitime de l'utilisateur sur le rescoring NLL : sans cette règle, un futur
@@ -229,6 +250,16 @@ script (`REGION_CHURN_TRIGGER`), calibré avec l'utilisateur le 2026-07-26.
 - **Chemin projet** : `/media/kafai/NouveauNom/Coran Karim` (espace dans le
   nom → attention sentencepiece et scripts shell). L'audio d'entraînement
   volumineux est sur le disque externe : `/run/media/kafai/HDD/Coran Karim/`.
+- **La partition RACINE (`/`) ne fait que 97 Go, partagée avec l'OS** —
+  distincte du SSD projet (`/media/kafai/NouveauNom`, 742 Go) et du HDD
+  (`/run/media/kafai/HDD`, plusieurs To libres). Piège payé le 2026-08-01 :
+  l'installation de WhisperX + le téléchargement d'un modèle HuggingFace ont
+  rempli `/` (`~/.cache/huggingface`, `~/.cache/pip`) jusqu'à moins de 1 Go
+  libre, sans lien avec l'espace du SSD projet (qui avait 86 Go libres au même
+  moment). `HF_HOME` et `PIP_CACHE_DIR` sont redirigés vers le HDD dans
+  `~/.bashrc` (`/run/media/kafai/HDD/caches/`) — **toujours vérifier `df -h /`
+  avant un `pip install` ou un téléchargement de modèle**, l'espace du SSD
+  projet ne dit rien sur l'espace de la partition système.
 - **Manifests à chemins morts** : les manifests `benchmark/nemo_manifests_mixed/`
   pointent vers `/mnt/ssd5/...` et `/mnt/hdd/...` (autre machine/session).
   Remap : `/mnt/ssd5/Coran Karim/` → `/media/kafai/NouveauNom/Coran Karim/`

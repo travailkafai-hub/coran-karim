@@ -232,6 +232,71 @@ le commit — pas encore confirmé en usage réel.
 
 ### Pistes de qualité identifiées mais non commencées
 
+- 🔴 **Corpus de fragments courts 3-8 s — DEUX methodes essayees, DEUX ont
+  echoue (2026-07-31/08-01), rester vigilant avant tout 3e essai.**
+  Objectif : combler le trou [0-3 s) mesure ci-dessous en decoupant les
+  clips longs reels sur des frontieres de mots. Le probleme n'est PAS de
+  decouper -- c'est d'estimer une frontiere de mot FIABLE a l'interieur d'un
+  clip.
+  **v1 -- proportions externes** (`word_timings_ref.json`, mediane murattal
+  quran.com d'AUTRES recitateurs, mise a l'echelle de la duree du clip) :
+  WER 37,2 % meme sur des fragments "proprement bornes" (mesure par decodage
+  reel + WER norme contre le texte assigne). Purge de 9 recitateurs
+  identifies comme mal etiquetes (cf. `recitateurs_exclus.py`) : 37,2 % ->
+  36,0 %, quasi aucun effet -- la cause n'etait PAS les donnees sources.
+  **v2 -- alignement Viterbi CTC force** (`spans_mots()`, deja dans le
+  projet, `banc_regles_gop.py`) : PIRE, 43,3 %. Cause confirmee par
+  inspection directe des spans : l'alignement CTC est POINTU par nature (un
+  mot mesure a 1 frame quand son voisin en fait 31, pour des mots de longueur
+  comparable) -- il marque l'instant de confiance maximale du modele, pas
+  l'etendue acoustique du mot. **Ce piege etait DEJA documente** dans ce
+  fichier au sujet de `build_confusable_splice_augmentation.py` (2026-07-14,
+  commit `2ae8dc7`) : « l'alignement CTC est peaky... a rouvrir seulement
+  s'il remplace l'etendue reelle du phoneme ». Verifie avant d'implementer
+  la v2, ca aurait evite l'essai.
+  **Piste correcte, non tentee** : ne pas utiliser les spans Viterbi comme
+  bornes directes -- s'en servir seulement comme REPERES DE POSITION (le pic)
+  et reconstruire une frontiere par un modele de duree (ex. elargissement
+  symetrique borne sur la duree mediane du mot, ou frontiere au milieu de
+  l'ecart entre deux pics voisins plutot qu'au bord du span). Vrai travail
+  d'ingenierie, pas une correction de fin de session -- **ne pas relancer un
+  3e essai sans ecrire d'abord le protocole de verification AVANT
+  generation** (petit echantillon, decodage reel, WER norme -- c'est cette
+  etape, sautee pour la v1, qui a permis a 18 Go d'etre generes et
+  a moitie entraines sur des donnees fausses avant qu'une verification soit
+  demandee).
+
+- 🟡 **Rééquilibrer les durées d'entraînement vers le COURT, pas le long**
+  (2026-07-31, demande utilisateur explicite : « plutôt sur des durées plus
+  courtes que sur des durées plus longues »). Mesure faite en séparant les
+  sources du manifeste `nemo_manifests_dual/train_manifest.jsonl` (156 892
+  clips mélangeaient récitation réelle, TTS de phrases fautées et divers — une
+  première lecture non séparée donnait une médiane trompeuse de 3,1 s). Sur les
+  **59 232 clips de récitation réelle seuls** (`train_wav_local/`) :
+  ```
+  [ 0- 3s)   2,6 %   <- TROU
+  [ 3- 8s)  26,7 %
+  [ 8-13s)  22,4 %
+  [13-20s)  21,0 %
+  [20-30s)  15,4 %   <- filtres par max_duration=20, hors sujet (cf. ci-dessous)
+  [30-60s)  11,9 %   <- filtres par max_duration=20, hors sujet
+  ```
+  Piste initialement envisagée dans le mauvais sens (étendre `max_duration`
+  vers 30-60 s pour couvrir la queue filtrée) — écartée par l'utilisateur :
+  la chaîne calibrée ce soir vise 6-13 s et évite activement les segments
+  longs (garde-fou à 30 s, seuil de pause calibré). Étendre l'entraînement vers
+  le long entraînerait un régime que l'app n'expose presque jamais.
+  Le vrai trou est **[0-3s), à seulement 2,6 %** — la zone des segments coupés
+  en frontière (mot tronqué, phrase amputée en tête). Les seuls clips courts
+  en nombre (TTS phrases fautées, 81 380 clips, médiane 1,7 s) sont des **mots
+  isolés synthétiques**, pas des fragments naturels de récitation coupée : ni
+  la même prosodie, ni le même contexte tronqué.
+  **Piste concrète, pas encore lancée** : ré-échantillonner par découpe
+  aléatoire (y compris coupes en plein mot, pour imiter ce que la segmentation
+  produit vraiment) des 59 232 clips réels existants vers 3-8 s. Aucune
+  nouvelle capture nécessaire. Concerne l'entraînement de l'**encodeur**
+  (robustesse aux frontières), sans lien avec la tête tajwid en cours ce soir.
+
 **Triage de priorité (2026-07-19, demande utilisateur)** — trois groupes :
 🟢 à tester en premier (pas de réentraînement, testable offline tout de suite) ;
 🟡 quasi-gratuit mais au bon moment (pas dans le premier run hybride, pour

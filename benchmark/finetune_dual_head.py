@@ -364,6 +364,20 @@ def parse_args():
                    help="reprendre les poids d'un ConvLettersDecoder deja "
                         "sauvegarde (meme --letters_head_hidden)")
     p.add_argument("--limit_train_batches", type=float, default=1.0)
+    p.add_argument("--out_root", default=None,
+                   help="2026-07-31 : racine des checkpoints. Le SSD etait a "
+                        "98 pourcent (21 Go libres) alors qu'un run de 12 "
+                        "epochs pese 16,5 Go -- on ecrit sur le HDD (5,8 To). "
+                        "Conforme a la regle du projet : on DEPLACE un run vers "
+                        "le HDD, on ne le supprime jamais.")
+    p.add_argument("--save_top_k", type=int, default=3,
+                   help="2026-07-31 : -1 = GARDER TOUTES les epochs. Le defaut "
+                        "3 SUPPRIME les autres checkpoints, ce qui contredit la "
+                        "regle du projet (« aucune piste n'est eliminee tant que "
+                        "le retour en arriere est possible ») et la demande "
+                        "utilisateur du 2026-07-31. Un checkpoint fait 1,38 Go : "
+                        "12 epochs = 16,5 Go, negligeable devant l'interet de "
+                        "pouvoir revenir a n'importe quelle epoch.")
     p.add_argument("--run_tag", default=None)
     p.add_argument("--monitor_metric", default=None,
                    help="metrique de checkpointing (defaut : val_tajwid en "
@@ -383,7 +397,8 @@ def main():
     epochs = args.epochs if args.epochs is not None else (2 if args.stage == "a" else 10)
 
     tag = f"-{args.run_tag}" if args.run_tag else ""
-    ckpt_dir = OUT_ROOT / f"stage{args.stage}{tag}"
+    racine = Path(args.out_root) if args.out_root else OUT_ROOT
+    ckpt_dir = racine / f"stage{args.stage}{tag}"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"=== Entrainement 2 tetes CTC — stage {args.stage} ===")
@@ -559,7 +574,7 @@ def main():
         dirpath=str(ckpt_dir), filename="dual-{epoch:02d}-{val_tajwid:.3f}",
         monitor=args.monitor_metric or (
             "val_tajwid" if args.stage == "a" else "val_letters"),
-        mode="min", save_top_k=3, save_last=True)
+        mode="min", save_top_k=args.save_top_k, save_last=True)
 
     trainer = pl.Trainer(
         max_epochs=epochs, accelerator="gpu", devices=1, precision="bf16-mixed",
