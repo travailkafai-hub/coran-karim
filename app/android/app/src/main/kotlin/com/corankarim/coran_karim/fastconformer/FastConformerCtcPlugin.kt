@@ -22,6 +22,9 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private lateinit var channel: MethodChannel
     private var engine: FastConformerCtc? = null
     private var streaming: FastConformerStreamingSession? = null
+    // TETE 3 (ecart canonique) : cf. Tete3.kt -- EN OBSERVATION SEULE tant que
+    // la parite des 12 scores n'est pas verifiee sur device.
+    private var tete3: com.corankarim.coran_karim.recitation2.Tete3? = null
     private var causalAlignment: CausalAlignmentSession? = null
     private var buffered: BufferedTranscriber? = null
     /** Etat du calibrage en cours (cf. "calibrageDemarrer"). Volontairement
@@ -275,6 +278,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     DiagnosticLog.log(TAG, "modele charge — tete tajwid : " +
                         if (engine!!.hasTajwid) "OUI (${engine!!.ruleNames.size} classes)"
                         else "non (modele a une seule tete)")
+                    // TETE 3 (ecart canonique) : optionnelle, EN OBSERVATION
+                    // SEULE (cf. Tete3.kt -- tant que la parite des 12 scores
+                    // n'est pas verifiee sur device, sa sortie ne doit trancher
+                    // aucun verdict). Absente sans erreur si le fichier manque.
+                    val tete3Path = call.argument<String>("tete3Path")
+                    tete3 = tete3Path?.let {
+                        try { com.corankarim.coran_karim.recitation2.Tete3.charger(
+                            java.io.File(it).readText(Charsets.UTF_8)) }
+                        catch (e: Exception) { null }
+                    }
+                    DiagnosticLog.log(TAG, "tete3 chargee : ${tete3 != null}")
                     // Dictionnaire mot->tokens precalcule (optionnel, cf.
                     // build_word_token_lookup.py) -- source primaire du
                     // tokenizer de l'alignement force, null si absent
@@ -949,7 +963,28 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // toutes les 3 s : c'est la que la LCS decrochait.
                     constructeur = com.corankarim.coran_karim.recitation2
                         .ConstructeurDeFenetres(
-                            apercuSecondes = 3.0,
+                            // ── COUPLE (PAS, LARGEUR) PORTE DEPUIS LA BRANCHE
+                            // `streaming` (2026-08-02), PAS ENCORE REVALIDE ICI.
+                            // Balayage original (banc JVM, modele final-v1 --
+                            // PAS le modele tete3) :
+                            //   pas/largeur   non verts   obs.   rejugement
+                            //     3 / 9        2,03 %     1358     58,5 %   <- avant (valeur ici avant ce commit)
+                            //     2 / 6        1,69 %     1501     62,4 %
+                            //     2 / 5        1,69 %     1496     62,0 %
+                            //     2 / 4        1,69 %     1382     58,9 %   <- retenu
+                            // Les observations UTILES sont constantes (295 mots
+                            // x ~2 pour figer, cf. Decideur k=2) -- tout le
+                            // reste est du recouvrement, et resserrer le pas
+                            // supprime du recouvrement inutile sans toucher au
+                            // taux. C'est une tuile de la couche SEGMENTATION,
+                            // independante du modele acoustique derriere elle --
+                            // d'ou le portage. Mais elle n'a ete MESUREE que sur
+                            // final-v1 : a revalider ici au banc JVM
+                            // (BancFluxBrut -Dapercu=2.0 -DlargeurApercu=4.0
+                            // -DpauseMin=0.25) avant de la considerer acquise
+                            // pour le modele tete3.
+                            apercuSecondes = 2.0,
+                            fenetreApercuSecondes = 4.0,
                             // SEUIL DE PAUSE REMESURE (2026-07-31).
                             // WhisperX ne cherche pas un VRAI silence mais la
                             // « region la moins active en parole » -- critere
@@ -976,7 +1011,22 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                             // plancher de l'architecture a curseur (1,04 s de
                             // lookahead + cadence 3 s + inference).
                             // NE PAS RETENTER sans changer autre chose.
-                            pauseMinSecondes = 0.40),
+                            //
+                            // ⚠️ HYPOTHESE RENVERSEE LE 2026-08-02 (sur
+                            // final-v1, PAS le modele tete3) -- et la clause
+                            // « sans changer autre chose » etait la bonne
+                            // porte : le MODELE avait change. Mesure sur DEUX
+                            // modeles, donc pas du bruit de passe :
+                            //                  pause 0,40   pause 0,25   gain
+                            //   v4-phrases       5,08 %       4,41 %    -0,67 pt
+                            //   final-v1         3,05 %       2,37 %    -0,68 pt
+                            // Le sens de l'effet s'INVERSE avec le nouvel
+                            // encodeur. Le commentaire ci-dessus reste pour
+                            // memoire (ce qui avait ete mesure, et sur quoi) --
+                            // PORTE ICI SANS REVALIDATION : le modele tete3
+                            // n'est ni final-v1 ni v4-phrases. A confirmer au
+                            // banc JVM avant de faire confiance a ce sens-la.
+                            pauseMinSecondes = 0.25),
                     // Tokenisation SILENCIEUSE : une confusion est un mot
                     // volontairement hors-Coran, quasi jamais dans le
                     // dictionnaire precalcule -- logger chaque repli en ferait
@@ -989,6 +1039,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     aligneur = com.corankarim.coran_karim.recitation2
                         .AligneurForce(moteur.vocabPieces, moteur.blank),
                     journal = { l -> DiagnosticLog.log(TAG, l) },
+                    tete3 = tete3,
                 )
                 chaine.definirTexte(v2Mots)
                 v2Chaine = chaine
@@ -1021,6 +1072,11 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     "margeL" to obs?.margeLettres?.toDouble(),
                     "margeH" to obs?.margeHarakat?.toDouble(),
                     "nbObs" to chaine.preuves.observations(c.motIndex).size,
+                    // TETE 2 : ids de regles (index dans rules.json, meme
+                    // ordre que TajwidRule.values cote Dart -- cf.
+                    // RegistreDePreuves.Observation.reglesTajwid). Vide sur un
+                    // modele sans tete tajwid, rien d'autre ne change.
+                    "rules" to (obs?.reglesTajwid ?: emptyList()),
                 )
             }
         } catch (e: Exception) {

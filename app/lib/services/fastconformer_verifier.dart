@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'diagnostic_log.dart';
+import '../models/judgement_options.dart' show TajwidRule;
 
 // ── Alignement forcé GOP (cf. ForcedAligner.kt, refonte 2026-07-11) ──────────
 
@@ -245,9 +246,13 @@ class FastConformerVerifier {
   // sans preuve acoustique.
   // Le modèle dual-head précédent reste dans son propre dossier sur le PC pour
   // un rollback sans réexport.
-  static const _kModelSubdir = 'models/fastconformer-ctc-causal-v1';
+  static const _kModelSubdir = 'models/trois-tetes-2026-08-04-combine';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
+  // TETE 3 (ecart canonique), OPTIONNELLE -- cf. Tete3.kt : en observation
+  // seule (journal), n'influence aucun verdict tant que la parite des 12
+  // scores n'est pas verifiee sur device.
+  static const _kTete3File = 'tete3.json';
   // Dictionnaire mot -> IDs de tokens précalculé avec le VRAI tokenizer NeMo
   // (benchmark/build_word_token_lookup.py) — remplace la tokenisation greedy
   // heuristique de CtcTokenizer.kt comme source PRIMAIRE pour l'alignement
@@ -306,6 +311,8 @@ class FastConformerVerifier {
     }
     final rulesFile = File('${appDir.path}/$_kModelSubdir/$_kRulesFile');
     _hasRuleHead = await rulesFile.exists();
+    final tete3File = File('${appDir.path}/$_kModelSubdir/$_kTete3File');
+    final hasTete3 = await tete3File.exists();
     final hasWordTokens = await wordTokensFile.exists();
     if (!hasWordTokens) {
       debugPrint('[FastConformer] word_tokens.json absent — alignement forcé '
@@ -317,6 +324,26 @@ class FastConformerVerifier {
         'vocabPath': vocabFile.path,
         'wordTokensPath': hasWordTokens ? wordTokensFile.path : null,
         'rulesPath': _hasRuleHead ? rulesFile.path : null,
+        // TETE 3 COUPEE (2026-08-04, isolation d'une regression). Mesure qui
+        // l'impose : meme sourate 2, meme depart, 1,68 % de mots non verts le
+        // matin (build v13, modele mono-tete) contre 10,61 % l'apres-midi
+        // (build v5-trois-tetes) -- ET une lenteur signalee par l'utilisateur.
+        // DEUX variables avaient change en meme temps (le code tete 3 ET le
+        // modele deploye) : on coupe donc la premiere seule pour l'attribuer.
+        //
+        // Pourquoi tete 3 est le suspect n°1 du COUT : son vecteur de
+        // caracteristiques boucle, POUR CHAQUE MOT ET CHAQUE FRAME, sur les
+        // 1025 classes avec un exp() puis un ln() (entropie). Le « 3 tetes
+        // coutent < 1 % » du graphe parle du MODELE, pas de ce calcul-la.
+        // TETE 3 REACTIVEE (2026-08-04) apres avoir ete INNOCENTEE par la
+        // mesure : coupee, le taux de mots non verts ne bougeait pas
+        // (9,32 / 9,24 / 10,00 % contre 7,77 / 9,24 / 9,24 % avec elle). La
+        // regression venait d'ailleurs -- `minAppariements` a 2 et le mauvais
+        // `word_tokens.json` (cf. Localisateur.minAppariements).
+        // Elle reste en OBSERVATION SEULE : son logit est journalise en [t3],
+        // il n'influence aucun verdict tant que la parite des 12 scores n'est
+        // pas verifiee sur device (cf. Tete3.kt).
+        'tete3Path': hasTete3 ? tete3File.path : null,
       });
       _loaded = ok ?? false;
       debugPrint('[FastConformer] Modèle chargé : $_loaded');
@@ -506,7 +533,8 @@ class FastConformerVerifier {
   /// ici) : les deux chemins sont choisis par un ternaire côté appelant, leurs
   /// types doivent donc coïncider.
   Future<({String committed, String preview, AlignPayload? align,
-           List<({int index, String statut, String trace})> v2,
+           List<({int index, String statut, String trace, String heard,
+                   Set<TajwidRule> detectedRules})> v2,
            bool v2Decrochage, int v2DecrochageMot})?>
       feedCausalAudio(Uint8List pcm16) async {
     if (!_streamingLoaded) return null;
@@ -518,7 +546,8 @@ class FastConformerVerifier {
         committed: raw['committed'] as String? ?? '',
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
-        v2: const <({int index, String statut, String trace})>[],
+        v2: const <({int index, String statut, String trace, String heard,
+                     Set<TajwidRule> detectedRules})>[],
         v2Decrochage: false, // la v2 ne tourne pas sur ce chemin
         v2DecrochageMot: -1,
       );
@@ -550,7 +579,8 @@ class FastConformerVerifier {
   /// entend quelque chose qui ne se localise nulle part). Champ SÉPARÉ des
   /// statuts par mot -- cf. le commentaire côté Kotlin.
   Future<({String committed, String preview, AlignPayload? align,
-           List<({int index, String statut, String trace})> v2,
+           List<({int index, String statut, String trace, String heard,
+                   Set<TajwidRule> detectedRules})> v2,
            bool v2Decrochage, int v2DecrochageMot})?>
       feedBufferedAudio(Uint8List pcm16) async {
     if (!_loaded) return null;
@@ -558,13 +588,22 @@ class FastConformerVerifier {
       final raw = await _channel
           .invokeMapMethod<String, dynamic>('feedBufferedAudio', {'pcm16': pcm16});
       if (raw == null) return null;
-      final v2 = <({int index, String statut, String trace})>[];
+      final v2 = <({int index, String statut, String trace, String heard,
+                     Set<TajwidRule> detectedRules})>[];
       for (final m in ((raw['v2'] as List?) ?? const []).cast<Map>()) {
         // La trace porte les TROIS scores. Un `gop` effondré avec un `free`
         // proche de 0 veut dire mauvaise POSITION, pas mauvaise prononciation :
         // sans les trois, le log fait chercher au mauvais endroit.
         String f(Object? v) =>
             v == null ? '-' : (v as num).toDouble().toStringAsFixed(2);
+        // TETE 2 : ids de regles -> TajwidRule par INDEX, meme convention que
+        // rule_annotation_service.dart et le chemin v1 (recitation_provider.dart)
+        // -- TajwidRule.values[i] doit rester le meme ordre que rules.json.
+        final regles = <TajwidRule>{
+          for (final id in ((m['rules'] as List?) ?? const []))
+            if ((id as int) >= 0 && id < TajwidRule.values.length)
+              TajwidRule.values[id],
+        };
         v2.add((
           index: m['i'] as int,
           statut: m['statut'] as String,
@@ -574,6 +613,8 @@ class FastConformerVerifier {
               '${(m['sansCreneau'] as bool?) ?? false ? '/sansCreneau' : ''} '
               'margeL=${f(m['margeL'])} margeH=${f(m['margeH'])} '
               'obs=${m['nbObs']} entendu="${m['entendu']}"',
+          heard: m['entendu'] as String? ?? '',
+          detectedRules: regles,
         ));
       }
       return (

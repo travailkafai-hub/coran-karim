@@ -45,6 +45,10 @@ class ChaineRecitation(
     private val decideur: Decideur = Decideur(),
     private val fluxBrut: FluxBrut = FluxBrut(),
     private val journal: ((String) -> Unit)? = null,
+    /** TETE 3 (ecart canonique), OPTIONNELLE. Cf. Tete3.kt : tant que la
+     *  parite des 12 scores n'est pas verifiee sur device, sa sortie est
+     *  seulement JOURNALISEE -- elle ne doit influencer aucun statut. */
+    private val tete3: Tete3? = null,
 ) {
     private var motsAttendus: List<String> = emptyList()
     private var tokensAttendus: List<IntArray> = emptyList()
@@ -216,7 +220,11 @@ class ChaineRecitation(
 
     private fun traiter(fenetre: Fenetre) {
         if (motsAttendus.isEmpty()) return
-        val logprobs = front.logprobs(fenetre.echantillons)
+        // UN SEUL appel au modele pour les trois sorties (cf. FrontAcoustique) :
+        // logprobs pour le jugement, tajwid pour la tete 2 -- null sur un
+        // modele a une seule tete, la chaine reste alors identique a avant.
+        val sorties = front.sorties(fenetre.echantillons)
+        val logprobs = sorties.logprobs
         if (logprobs.isEmpty()) return
 
         // LE LOCALISATEUR NE VOIT PAS LA QUEUE TRONQUEE DE L'APERCU.
@@ -399,6 +407,27 @@ class ChaineRecitation(
         for (m in res.mots) {
             val debutAbs = if (m.frames > 0) fenetre.absoluDeFrame(m.premiereFrame) else -1L
             val finAbs = if (m.frames > 0) fenetre.absoluDeFrame(m.derniereFrame) else -1L
+            // TETE 2 : la frame est CAPITALE pour attribuer une regle au bon
+            // mot (cf. FastConformerCtc.decodeTajwid) -- on decoupe donc
+            // exactement sur les memes bornes que celles retenues pour
+            // l'attestation du mot, pas sur la fenetre entiere.
+            val reglesTajwid = if (m.frames > 0 && sorties.tajwid != null) {
+                val debut = m.premiereFrame.coerceIn(0, sorties.tajwid.size)
+                val fin = (m.derniereFrame + 1).coerceIn(debut, sorties.tajwid.size)
+                front.decodeTajwid(sorties.tajwid.copyOfRange(debut, fin))
+                    .map { it.ruleId }.distinct()
+            } else emptyList()
+            // TETE 3 : OBSERVATION SEULE (journal), cf. vecteurTete3 ci-dessous
+            // -- ne touche ni Observation ni le statut.
+            if (tete3 != null && sorties.etat != null && m.frames > 0) {
+                val vec = vecteurTete3(m, sorties.etat, logprobs, tokensAttendus.getOrNull(m.index)?.size ?: 0)
+                if (vec != null && vec.size == tete3.tailleEntree) {
+                    val logit = tete3.logit(vec)
+                    journal?.invoke("[t3] mot=${m.index} logit=${"%.3f".format(logit)} " +
+                        "seuil2%=${"%.3f".format(tete3.seuil2Pct)} " +
+                        (if (logit > tete3.seuil2Pct) "DEVIATION_SUSPECTEE" else "ok"))
+                }
+            }
             registre.ajouter(
                 RegistreDePreuves.Observation(
                     fenetreId = fenetre.id,
@@ -419,6 +448,7 @@ class ChaineRecitation(
                     fenetrePleine = fenetre.pleine,
                     debutAbs = debutAbs,
                     finAbs = finAbs,
+                    reglesTajwid = reglesTajwid,
                 )
             )
         }
@@ -429,6 +459,76 @@ class ChaineRecitation(
                 "interieurs=${res.mots.count { it.interieur }}/${res.mots.size}" +
                 if (res.bandeTronquee) " (bande tronquee)" else ""
         )
+    }
+
+    /**
+     * TETE 3 : moyenne de l'etat d'encodeur sur les frames du mot (512) suivie
+     * des 12 grandeurs conditionnees par la cible -- cf.
+     * tete_encodeur_ecart.py::caracteristiques, meme ORDRE (parite = ordre).
+     *
+     * DEUX APPROXIMATIONS CONNUES, cf. graphe (2026-08-04), avant tout
+     * branchement sur un verdict :
+     *  - [forced_f] (score CTC FORWARD du Python) vaut ici [forced_v] (Viterbi) :
+     *    aucun scoreur forward n'existe cote Kotlin.
+     *  - [alt]/[alt2] viennent des DEUX meilleures confusions deja calculees
+     *    par AligneurForce (une par LETTRE, une par HARAKAT), pas du jeu
+     *    complet de `variantes()` du Python.
+     * Les deux touchent des grandeurs deja passees par [tokeniserConfusion],
+     * qui replie en glouton 33 % du temps (piege deja documente) -- une
+     * degradation que l'entrainement Python (SentencePiece direct) n'a jamais
+     * connue. D'ou : OBSERVATION SEULE, journalisee, aucun effet sur le statut.
+     */
+    private fun vecteurTete3(
+        m: AligneurForce.MotAligne, etat: Array<FloatArray>, logp: Array<FloatArray>,
+        idmSize: Int,
+    ): FloatArray? {
+        if (m.frames <= 0) return null
+        val ml = m.margeLettres
+        val mh = m.margeHarakat
+        if (ml == null && mh == null) return null // aucune confusion plausible
+        val confLettre = ml?.let { m.forced - it }
+        val confHarakat = mh?.let { m.forced - it }
+        val candidats = listOfNotNull(confLettre, confHarakat).sortedDescending()
+        val alt = candidats[0]
+        val alt2 = if (candidats.size > 1) candidats[1] else alt
+        val forcedV = m.forced
+        val forcedF = m.forced // APPROXIMATION, cf. doc ci-dessus
+
+        val f0 = m.premiereFrame.coerceIn(0, minOf(etat.size, logp.size))
+        val f1 = (m.derniereFrame + 1).coerceIn(f0, minOf(etat.size, logp.size))
+        if (f1 <= f0) return null
+        val dimEtat = etat[0].size
+        val etatMoyen = FloatArray(dimEtat)
+        for (t in f0 until f1) { val row = etat[t]; for (k in 0 until dimEtat) etatMoyen[k] += row[k] }
+        for (k in 0 until dimEtat) etatMoyen[k] /= (f1 - f0)
+
+        var entropieSomme = 0f
+        var picBlancCompte = 0
+        val blank = front.blank
+        for (t in f0 until f1) {
+            val frame = logp[t]
+            var maxV = frame[0]; var maxI = 0
+            for (c in 1 until frame.size) if (frame[c] > maxV) { maxV = frame[c]; maxI = c }
+            var sommeExp = 0f
+            for (v in frame) sommeExp += kotlin.math.exp((v - maxV).toDouble()).toFloat()
+            var h = 0f
+            for (v in frame) {
+                val p = kotlin.math.exp((v - maxV).toDouble()).toFloat() / sommeExp
+                h -= p * kotlin.math.ln((p + 1e-9f).toDouble()).toFloat()
+            }
+            entropieSomme += h
+            if (maxI == blank) picBlancCompte++
+        }
+        val n = (f1 - f0)
+        val entropie = entropieSomme / n
+        val picBlanc = picBlancCompte.toFloat() / n
+
+        val douze = floatArrayOf(
+            forcedV, forcedF, m.free, alt, alt2,
+            forcedV - m.free, forcedF - alt, alt - alt2,
+            n.toFloat(), idmSize.toFloat(), entropie, picBlanc,
+        )
+        return etatMoyen + douze
     }
 
     /** Journalisation par mot — la trace qui manquait en v1 : le log disait ce

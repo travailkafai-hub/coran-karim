@@ -70,11 +70,17 @@ class BancFluxBrut {
         val fusion = System.getProperty("fusion")?.toBoolean() ?: true
         val rms = System.getProperty("seuilRms")?.toFloat() ?: 0.03f
         val adaptatif = System.getProperty("adaptatif")?.toBoolean() ?: true
-        println("[banc] pauseMin=$pause maxBloc=$maxBloc fusion=$fusion rms=$rms adaptatif=$adaptatif")
+        // Couple (pas, largeur) du curseur glissant -- porte depuis la branche
+        // `streaming` (2026-08-02) pour pouvoir balayer sans recompiler.
+        val apercu = System.getProperty("apercu")?.toDouble() ?: 3.0
+        val largeur = System.getProperty("largeurApercu")?.toDouble() ?: 9.0
+        println("[banc] pauseMin=$pause maxBloc=$maxBloc fusion=$fusion rms=$rms " +
+            "adaptatif=$adaptatif apercu=$apercu largeurApercu=$largeur")
         val constructeur = ConstructeurDeFenetres(
             pauseMinSecondes = pause, seuilRmsSilence = rms,
             seuilAdaptatif = adaptatif,
             maxBlocSecondes = maxBloc, fusionner = fusion,
+            apercuSecondes = apercu, fenetreApercuSecondes = largeur,
         )
         val sortie = StringBuilder()
         var n = 0

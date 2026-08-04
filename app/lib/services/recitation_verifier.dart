@@ -8,6 +8,7 @@ import 'package:record/record.dart';
 import 'diagnostic_log.dart';
 import 'fastconformer_verifier.dart';
 import 'streaming_wav_capture.dart';
+import '../models/judgement_options.dart' show TajwidRule;
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -259,7 +260,7 @@ abstract class RecitationVerifier {
   /// déjà décidés, pas des scores — la couche de décision vit côté natif.
   /// Vide par défaut : une implémentation qui ne porte pas la v2 n'a rien à
   /// faire de plus.
-  Stream<List<({int index, String statut, String trace})>> get v2Statuses =>
+  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules})>> get v2Statuses =>
       const Stream.empty();
 
   /// Active la v2 sur [mots]. No-op par défaut.
@@ -463,7 +464,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// Flux SÉPARÉ de la v2 : aucune couche du chemin v1 ne le lit.
   final _decrochageCtrl = StreamController<int>.broadcast();
   final _v2Ctrl =
-      StreamController<List<({int index, String statut, String trace})>>.broadcast();
+      StreamController<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules})>>.broadcast();
   final AudioRecorder _recorder;
   Timer? _levelTimer;
 
@@ -992,7 +993,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// Changements de statut de la chaîne v2 (branchée en parallèle de la v1).
   /// Mesure de référence sur le même flux brut : v1 10,10 % de mots non verts,
   /// v2 2,03 %.
-  Stream<List<({int index, String statut, String trace})>> get v2Statuses => _v2Ctrl.stream;
+  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules})>> get v2Statuses => _v2Ctrl.stream;
 
   /// Le récitateur s'est écarté du texte (chaîne v2). Flux SÉPARÉ de
   /// [v2Statuses] : celui-ci parle de la récitation, pas d'un mot.
@@ -1333,7 +1334,7 @@ class MockRecitationVerifier implements RecitationVerifier {
   Stream<AlignPayload> get alignedWords => const Stream.empty();
 
   @override
-  Stream<List<({int index, String statut, String trace})>> get v2Statuses =>
+  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules})>> get v2Statuses =>
       const Stream.empty();
 
   @override

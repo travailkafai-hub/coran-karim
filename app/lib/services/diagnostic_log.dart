@@ -81,7 +81,13 @@ class DiagnosticLog {
   // la v1, a l'identique -- ce tag sert precisement a le prouver : une mesure
   // sous ce tag doit reproduire la v24, sinon l'ajout du code v2 a eu un effet
   // qu'il ne devait pas avoir.
-  static const String _kBuildTag = 'v4-calib2';
+  // v5-trois-tetes (2026-08-04) : modele 3 sorties deploye (logprobs +
+  // tajwid_logprobs + encoder_state). Tete 2 (tajwid) branchee dans la chaine
+  // v2 live (decodeTajwid par mot, cf. ChaineRecitation.vecteurTete3/reglesTajwid).
+  // Tete 3 (ecart canonique) calculee et JOURNALISEE SEULEMENT (logit + seuil
+  // dans les logs [t3]) -- n'influence AUCUN verdict tant que la parite des 12
+  // scores n'est pas verifiee sur device (cf. Tete3.kt).
+  static const String _kBuildTag = 'v9-tete3-reactivee';
   static const String _kBuildTimestamp =
       String.fromEnvironment('BUILD_TS', defaultValue: '');
 

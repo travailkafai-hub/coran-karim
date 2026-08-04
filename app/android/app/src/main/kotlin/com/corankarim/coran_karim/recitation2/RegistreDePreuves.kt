@@ -68,6 +68,10 @@ class RegistreDePreuves {
         val fenetrePleine: Boolean,
         val debutAbs: Long,
         val finAbs: Long,
+        /** Regles de tajwid detectees par la TETE 2 sur les frames de CE mot
+         *  (attribution temporelle, cf. FastConformerCtc.decodeTajwid). Vide
+         *  sur un modele sans tete tajwid -- rien d'autre ne change. */
+        val reglesTajwid: List<Int> = emptyList(),
     )
 
     private val parMot = HashMap<Int, MutableList<Observation>>()

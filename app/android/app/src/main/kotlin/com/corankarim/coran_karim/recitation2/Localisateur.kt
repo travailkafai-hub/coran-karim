@@ -45,7 +45,46 @@ class Localisateur(
      *  fenetre de recherche, elle doit juste etre assez grande. */
     private val avanceMax: Int = 80,
     private val margeAval: Int = 3,
-    private val minAppariements: Int = 2,
+    /**
+     * Nombre d'appariements exiges pour accepter une position.
+     *
+     * Etait a 2 SANS AUCUNE JUSTIFICATION ECRITE -- contrairement a [reculMax]
+     * et [avanceMax], qui portent chacun leur mesure. C'etait donc une valeur
+     * par defaut, pas une decision mesuree.
+     *
+     * CE QUE 2 COUTAIT (device, 234 fenetres, 2026-08-02) : 67 fenetres
+     * refusees = 29 %, dont 60 en `score-insuffisant`. Le detail montre des
+     * fenetres qui n'avaient decode QU'UN mot : `entendus=1` -- elles ne
+     * pouvaient donc mathematiquement jamais atteindre 2, quel que soit le
+     * modele. Une fenetre de 4 s moins 1,04 s de contexte droit ne porte que
+     * 1 a 3 mots au debit de ce recitateur.
+     *
+     * POURQUOI 1 N'EST PAS UN ASSOUPLISSEMENT DU JUGEMENT (raisonnement
+     * utilisateur, 2026-08-02) : une bande n'est qu'une HYPOTHESE de position.
+     * Pour FIGER un mot, le Decideur exige que le decodage libre l'ait emis
+     * exactement la ou l'alignement force le place (« deux mesures
+     * independantes valent deux fenetres »). Une bande mal placee n'obtient
+     * pas cet accord : le mot reste Provisoire et la fenetre suivante le
+     * corrige. Le doute se reforme donc tout seul -- le mecanisme existe deja,
+     * porte par l'attestation et non par ce compteur.
+     *
+     * RISQUE RESIDUEL, a surveiller dans la mesure : des couleurs provisoires
+     * qui clignotent (le contrat l'autorise), et surtout un mot tres frequent
+     * (`مِن`, `إِن`) qui place la bande au hasard dans une region de 92 mots.
+     * Le juge est le TAUX DE MOTS NON VERTS, pas le nombre de refus.
+     *
+     * ── PORTAGE SUR CETTE BRANCHE (2026-08-04) ────────────────────────────
+     * Mesure qui l'impose ICI, sourate 2, depart v1, 150 s, 3 passes :
+     *   branche `streaming` (minAppariements = 1) : 4,5 % de fenetres
+     *     refusees, 1,68 % de mots non verts ;
+     *   cette branche (minAppariements = 2)       : 26,0 % de fenetres
+     *     refusees, 9,24 % de mots non verts (7,77 / 9,24 / 9,24).
+     * L'ecart etait PREEXISTANT et n'avait rien a voir avec la tete 3 ni avec
+     * le modele a trois tetes -- les deux ont ete innocentes par la mesure
+     * (tete 3 coupee : taux inchange ; logprobs des deux modeles identiques
+     * au bit pres sur 20 s de recitation reelle).
+     */
+    private val minAppariements: Int = 1,
 ) {
     /**
      * @param i0 premier mot attendu couvert par la fenetre (inclus)

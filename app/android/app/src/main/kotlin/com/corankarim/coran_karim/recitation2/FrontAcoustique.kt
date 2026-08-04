@@ -34,21 +34,32 @@ import com.corankarim.coran_karim.fastconformer.FastConformerCtc
  *   python3 -c "import onnxruntime as ort; print([i.name for i in \
  *     ort.InferenceSession('<model.onnx>').get_inputs()])"
  */
+/**
+ * Les trois sorties possibles d'un appel au modele. [tajwid] et [etat] sont
+ * null sur un modele a une seule tete (deploiement historique) -- la chaine
+ * doit rester fonctionnelle dans ce cas, rien de plus ne se calcule.
+ */
+data class SortiesFront(
+    val logprobs: Array<FloatArray>,
+    val tajwid: Array<FloatArray>?,
+    val etat: Array<FloatArray>?,
+)
+
 interface FrontAcoustique {
     /**
-     * Logprobs ET etat de l'encodeur en UN SEUL appel au modele.
+     * Logprobs, tete tajwid ET etat de l'encodeur en UN SEUL appel au modele.
      *
-     * Deux methodes separees feraient tourner l'encodeur DEUX FOIS par
+     * Trois methodes separees feraient tourner l'encodeur PLUSIEURS FOIS par
      * fenetre -- inacceptable, et d'autant plus avec le curseur glissant qui
-     * emet une fenetre toutes les 3 s.
+     * emet une fenetre toutes les 2-3 s.
      *
-     * L'etat est null quand le modele charge ne l'expose pas : l'export
-     * deploye historiquement n'a qu'une sortie, et la chaine doit continuer de
-     * fonctionner dessus. C'est aussi ce qui permet aux bancs JVM de ne rien
-     * implementer de plus.
+     * [SortiesFront.tajwid]/[SortiesFront.etat] sont null quand le modele
+     * charge ne les expose pas : l'export deploye historiquement n'a qu'une
+     * sortie, et la chaine doit continuer de fonctionner dessus. C'est aussi
+     * ce qui permet aux bancs JVM de ne rien implementer de plus.
      */
-    fun sorties(echantillons: FloatArray): Pair<Array<FloatArray>, Array<FloatArray>?> =
-        Pair(logprobs(echantillons), null)
+    fun sorties(echantillons: FloatArray): SortiesFront =
+        SortiesFront(logprobs(echantillons), null, null)
 
     /** Pieces BPE du vocabulaire, index = id de token. */
     val pieces: List<String>
@@ -58,21 +69,33 @@ interface FrontAcoustique {
 
     /** @return logprobs (T x V), T = echantillons / 1280. */
     fun logprobs(echantillons: FloatArray): Array<FloatArray>
+
+    /** Detections de regles tajwid sur un extrait de [SortiesFront.tajwid] --
+     *  cf. [FastConformerCtc.decodeTajwid]. Liste vide par defaut (bancs JVM,
+     *  ou modele sans tete tajwid). */
+    fun decodeTajwid(tajwid: Array<FloatArray>?):
+        List<com.corankarim.coran_karim.fastconformer.DetectedRule> = emptyList()
+
+    /** Noms des regles, index = ruleId. Vide si le modele n'a pas de tete
+     *  tajwid (rien a nommer). */
+    val nomsRegles: List<String> get() = emptyList()
 }
 
 /** Implementation reelle : mel calcule cote app + ONNX. */
 class FrontOnnx(private val moteur: FastConformerCtc) : FrontAcoustique {
     override val pieces: List<String> get() = moteur.vocabPieces
     override val blank: Int get() = moteur.blank
+    override val nomsRegles: List<String> get() = moteur.ruleNames
     override fun logprobs(echantillons: FloatArray): Array<FloatArray> =
         moteur.computeLogProbs(echantillons)
 
-    /** Un seul passage du modele, deux sorties recuperees. */
-    override fun sorties(echantillons: FloatArray):
-        Pair<Array<FloatArray>, Array<FloatArray>?> {
+    /** Un seul passage du modele, trois sorties recuperees. */
+    override fun sorties(echantillons: FloatArray): SortiesFront {
         val o = moteur.computeAll(echantillons)
-        return Pair(o.letters, o.etatEncodeur)
+        return SortiesFront(o.letters, o.tajwid, o.etatEncodeur)
     }
+
+    override fun decodeTajwid(tajwid: Array<FloatArray>?) = moteur.decodeTajwid(tajwid)
 
     /** Le modele charge expose-t-il l'etat de l'encodeur ? */
     val exposeEtat: Boolean get() = moteur.exposeEtatEncodeur

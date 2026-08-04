@@ -256,6 +256,13 @@ class ConstructeurDeFenetres(
      * la cadence ET par maxBloc. A surveiller sur le temps reel.
      */
     private val apercuSecondes: Double = 0.0,
+    /** Longueur FIXE de la fenetre glissante d'apercu (cf. [fenetreApercuEch]).
+     *  Parametrable depuis le 2026-08-02 (porte depuis la branche `streaming`)
+     *  pour pouvoir BALAYER le couple (pas, largeur) au banc JVM : c'est le
+     *  seul moyen de trancher entre des configurations dont la mesure a deja
+     *  montre qu'elles ne se devinent pas (quatre essais perdants le
+     *  2026-07-31). */
+    private val fenetreApercuSecondes: Double = 9.0,
     private val fusionner: Boolean = true,
 ) {
     private val bloc = Horloge.ECH_PAR_FRAME // 80 ms, granularite de la detection
@@ -312,7 +319,7 @@ class ConstructeurDeFenetres(
     /** Longueur FIXE de la fenetre glissante d'apercu. Assez pour donner au
      *  modele son contexte gauche (5,6 s) plus de quoi juger quelques mots ;
      *  pas plus, sinon on retombe sur la fenetre qui grossit. */
-    private val fenetreApercuEch: Long = Horloge.secondesVersEch(9.0).toLong()
+    private val fenetreApercuEch: Long = Horloge.secondesVersEch(fenetreApercuSecondes).toLong()
     private val apercuMinEch: Long =
         Horloge.secondesVersEch(Horloge.LOOKAHEAD_FRAMES * 0.08 + 2.0).toLong()
 

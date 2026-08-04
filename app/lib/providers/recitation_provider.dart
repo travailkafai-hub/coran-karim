@@ -180,7 +180,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // Motif volontairement identique à `useGopScoring` : les deux moteurs
   // calculent, un seul peint l'écran. La v1 ne peut donc pas régresser du fait
   // du branchement, et une session compare les deux sur le MÊME audio.
-  StreamSubscription<List<({int index, String statut, String trace})>>? _v2Sub;
+  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules})>>? _v2Sub;
   StreamSubscription<int>? _decrochageSub;
 
   /// La v2 pilote-t-elle l'affichage ? Quand c'est faux, elle tourne quand même
@@ -2902,7 +2902,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// `omis` n'est PAS une couleur : c'est « le récitateur est passé outre, et
   /// on peut le prouver ». Il est rendu comme `skipped`, jamais comme `error` —
   /// condamner un mot non prononcé serait un verdict sans preuve.
-  void _onV2(List<({int index, String statut, String trace})> changements) {
+  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules})> changements) {
     var dernierJuge = -1;
     for (final c in changements) {
       DiagnosticLog.log('V2',
@@ -2923,7 +2923,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         _ => null, // `inconnu` : aucune preuve, donc aucune couleur
       };
       if (statut == null) continue;
-      _judge(words, c.index, statut, lock: definitif || c.statut == 'omis');
+      _judge(words, c.index, statut, lock: definitif || c.statut == 'omis',
+          heard: c.heard.isEmpty ? null : c.heard,
+          detectedRules: c.detectedRules.isEmpty ? null : c.detectedRules);
       if (c.index > dernierJuge) dernierJuge = c.index;
       touche = true;
     }
