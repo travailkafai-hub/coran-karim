@@ -97,6 +97,13 @@ CONFUSABLES = [
     # l'utilisateur apres son propre test (« mon cas c'etait remplacer jim par
     # ha »). Rendement inconnu -- c'est le controle de la passe 2 qui tranchera.
     ("ج", "ح"), ("ح", "خ"), ("ج", "خ"),
+    # ض<->ظ et ث<->س : AJOUTEES 2026-08-04 apres recherche web (plusieurs
+    # sources FR/EN/AR independantes) -- ض/ظ citee comme l'une des confusions
+    # les plus frequentes MEME chez des locuteurs natifs (ex. الضحى/الظحى),
+    # ث/س un schema typique des non-arabophones (« ثلاثة » -> « سلاثة »).
+    # Absentes du corpus d'origine. Rendement inconnu -- comme pour jim/ha/kha,
+    # c'est le controle de la passe 2 qui tranchera.
+    ("ض", "ظ"), ("ظ", "ض"), ("ث", "س"), ("س", "ث"),
 ]
 # NE PAS SUPPRIMER : ز->ز mesure 0/4 sur mot isole, seule substitution du
 # corpus d'origine que XTTS ne rend jamais. Exclue tant que ce n'est pas

@@ -105,6 +105,25 @@ if [ -n "$WAV" ]; then
   EXTRA_WAV="--es wav $DIST"
   echo "source deterministe : $(basename "$WAV")"
 fi
+# LIGNE DE DEPART DANS LE JOURNAL, relevee AVANT de lancer l'app.
+#
+# DEFAUT CORRIGE ICI (2026-08-04). Les deux attentes ci-dessous cherchaient
+# leur marqueur dans les 400 DERNIERES lignes du journal. Or ce journal est
+# APPEND-ONLY et PARTAGE entre sessions : le « fin du fichier » de la session
+# PRECEDENTE y trainait encore, et le banc concluait que le rejeu etait termine
+# au bout de vingt secondes. Symptome mesure ce soir : une recette sur deux
+# rendait 0 mot juge (20260804-213658, -215405, -221130) tandis que les autres
+# en rendaient 120 a 133, sur le MEME wav et le MEME binaire -- de quoi
+# attribuer a un correctif un effet qui n'etait qu'un artefact de banc.
+#
+# Elargir la fenetre ne corrige rien : c'est ce qui avait deja ete fait pour
+# « capture ouverte » (60 -> 400 lignes le 2026-07-30), et le meme defaut est
+# revenu sur l'autre marqueur. On borne donc par la POSITION : tout ce qui
+# precede le lancement est hors sujet, quel que soit le debit du journal.
+LIGNE0=$("$ADB" -s "$SAMSUNG" shell "wc -l < $LOG" 2>/dev/null | tr -d '\r ' )
+case "$LIGNE0" in ''|*[!0-9]*) LIGNE0=0 ;; esac
+DEPUIS=$((LIGNE0 + 1))
+
 "$ADB" -s "$SAMSUNG" shell am start -n $PKG/.MainActivity \
     --es recette ecoute --ei sourate "$SOURATE" --ei depart "$DEPART" $EXTRA_WAV >/dev/null
 # Aucun tap ici : l'intent `ecoute` fait atterrir DANS la recitation deja
@@ -127,7 +146,7 @@ for _ in $(seq 1 40); do
   # concluait « le micro ne s'est jamais ouvert » alors que la session tournait
   # (constate le 2026-07-30). Une detection de demarrage ne doit pas dependre du
   # DEBIT du journal.
-  if "$ADB" -s "$SAMSUNG" shell "tail -n 400 $LOG" 2>/dev/null | grep -q "capture ouverte"; then
+  if "$ADB" -s "$SAMSUNG" shell "tail -n +$DEPUIS $LOG" 2>/dev/null | grep -q "capture ouverte"; then
     PRET=1; break
   fi
 done
@@ -151,7 +170,7 @@ if [ -n "$WAV" ]; then
   echo -n "rejeu du fichier"
   for _ in $(seq 1 $((DUREE + 60))); do
     sleep 1
-    if "$ADB" -s "$SAMSUNG" shell "tail -n 400 $LOG" 2>/dev/null | grep -q "fin du fichier"; then
+    if "$ADB" -s "$SAMSUNG" shell "tail -n +$DEPUIS $LOG" 2>/dev/null | grep -q "fin du fichier"; then
       echo " (termine)"; break
     fi
   done

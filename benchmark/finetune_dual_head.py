@@ -80,6 +80,25 @@ RULE_CLASSES = [
 ]
 N_RULES = len(RULE_CLASSES)          # 19 -> ids 0..18
 
+# ── LA NOMENCLATURE VIENT DES LABELS, PAS D'UNE COPIE (2026-08-04) ──────────
+#
+# `build_frame_level_tajwid_labels.py --madd-binaire` fusionne la famille madd
+# en `madd_long` / `madd_court` (17 classes au lieu de 19) et ecrit la liste a
+# cote du .jsonl, en `<sortie>.classes.json`. Si on laissait N_RULES fige a 19
+# ici, la tete aurait 19 sorties pour des labels qui n'en indexent que 17 : les
+# deux dernieres classes ne recevraient JAMAIS de positif et les ids seraient
+# decales d'un bout a l'autre -- sans la moindre erreur a l'execution. C'est
+# exactement la famille de decalages silencieux qui a coute une soiree avec
+# `word_tokens.json` (deux dictionnaires de meme taille, jeux de mots
+# differents). On lit donc la nomenclature A COTE DES LABELS qu'on entraine.
+def charger_classes(spans_path):
+    """Classes ecrites par le generateur de labels ; repli sur RULE_CLASSES
+    pour les anciens fichiers, qui n'ont pas de .classes.json."""
+    p = Path(str(spans_path).replace(".jsonl", "") + ".classes.json")
+    if p.exists():
+        return json.loads(p.read_text(encoding="utf-8"))
+    return list(RULE_CLASSES)
+
 
 class _ZeroRNNTLoss(nn.Module):
     """Neutralise la branche RNNT (cf. docstring) sans la retirer du modele --
@@ -391,6 +410,23 @@ def parse_args():
 
 def main():
     args = parse_args()
+
+    # NOMENCLATURE EFFECTIVE, lue A COTE DES LABELS (cf. charger_classes).
+    # Doit etre fixee AVANT toute construction de modele : la tete 2 lit
+    # N_RULES pour se dimensionner. Sans ca, entrainer sur des labels fusionnes
+    # (17 classes) avec une tete a 19 sorties decalerait tous les ids en
+    # silence -- aucune erreur, juste des poids qui ne veulent rien dire.
+    classes = charger_classes(args.train_frame_spans)
+    globals()["RULE_CLASSES"] = classes
+    globals()["N_RULES"] = len(classes)
+    print(f"nomenclature tajwid : {len(classes)} classes "
+          f"({'FUSIONNEE madd_long/madd_court' if 'madd_long' in classes else 'historique'})")
+    classes_val = charger_classes(args.val_frame_spans)
+    if classes_val != classes:
+        raise SystemExit(
+            "ARRET : les classes de train et de val different "
+            f"({len(classes)} contre {len(classes_val)}). Entrainer et valider "
+            "sur deux nomenclatures n'a aucun sens.")
     # Stage a : LR eleve (seule une tete fraiche apprend, rien a proteger).
     # Stage b : LR bas (on affine un encodeur mature sans le detruire).
     lr = args.lr if args.lr is not None else (3e-4 if args.stage == "a" else 5e-5)

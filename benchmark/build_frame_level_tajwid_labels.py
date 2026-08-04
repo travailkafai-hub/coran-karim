@@ -44,7 +44,16 @@ import nemo.collections.asr as nemo_asr
 from pathlib import Path
 
 BASE = Path(__file__).parent
-NEMO_PATH = BASE / "models" / "fastconformer-dual-head-v1" / "stageb-convhead-v1" / "stageb-final.nemo"
+# Le run a ete DEPLACE sur le HDD (archivage du 2026-07-20, cf. CLAUDE.md
+# "Runs archives sur le HDD") : meme chemin relatif, seule la racine change.
+# On garde les deux et on prend celui qui existe -- un dossier absent du SSD
+# n'est PAS une preuve que le run a disparu.
+_CANDIDATS_NEMO = [
+    BASE / "models" / "fastconformer-dual-head-v1" / "stageb-convhead-v1" / "stageb-final.nemo",
+    Path("/run/media/kafai/HDD/Coran Karim/benchmark/models/fastconformer-dual-head-v1/"
+         "stageb-convhead-v1/stageb-final.nemo"),
+]
+NEMO_PATH = next((c for c in _CANDIDATS_NEMO if c.exists()), _CANDIDATS_NEMO[0])
 TAGGED_JSONL = BASE / "data" / "quran_tajweed_rules" / "uthmani_tajweed.jsonl"
 WAQF_JSON = BASE.parent / "app" / "assets" / "data" / "quran_waqf.json"
 
@@ -61,6 +70,55 @@ RULE_CLASSES = [
 ]
 RULE_ID = {name: i for i, name in enumerate(RULE_CLASSES)}
 N_RULES = len(RULE_CLASSES)
+
+# ── FUSION DE LA FAMILLE MADD (2026-08-04, --madd-binaire) ──────────────────
+#
+# IDEE DE L'UTILISATEUR, et la mesure lui donne raison deux fois.
+#
+# 1. CE QU'ON DEMANDAIT ETAIT IMPOSSIBLE. `madda_obligatory` (wajib muttasil,
+#    4-5 harakat) et `madda_permissible` (jaiz munfasil, 4-5 harakat) ont LA
+#    MEME LONGUEUR : ce qui les separe est la nature de ce qui SUIT la voyelle
+#    longue -- une hamza dans le meme mot, ou dans le mot suivant. C'est une
+#    categorie GRAMMATICALE, que le TEXTE connait deja (RecitedWord.
+#    expectedRules). Une tete acoustique ne peut pas y repondre, et son echec
+#    n'est pas un defaut d'entrainement.
+#    Constate sur device (recitation PROFESSIONNELLE rejouee, preset tajwid) :
+#    le mot 76 `إِلَّآ` est signale « madda_obligatory NON DETECTEE » alors que
+#    la tete detecte `madda_permissible` au meme endroit -- le madd EST fait,
+#    il est juste range dans la sous-famille voisine. L'app accuse donc a tort.
+#
+# 2. ET CETTE DEMANDE IMPOSSIBLE ABIME CE QUI ETAIT POSSIBLE. La distinction
+#    qui compte -- long (4-6) contre court (2) -- ne se separe qu'a moitie :
+#    AUC 0,653 par la duree, mesuree sur 410 detections d'une session reelle
+#    APRES correction du decodage (mediane 3 frames contre 2, moyenne 5,95
+#    contre 2,73). La tete a dilue sa capacite sur quatre classes dont trois se
+#    recouvrent, au lieu de trancher la seule question de son ressort :
+#    l'allongement a-t-il ete TENU ?
+#
+# CE QUE LA FUSION NE FAIT PAS : elle ne relache aucun critere. Fusionner
+# seulement au DECODAGE reviendrait a accepter n'importe quel madd pour un
+# madd obligatoire -- donc a valider un allongement court la ou il en faut un
+# long, exactement le « demi-mot valide » que le projet interdit. Ici la fusion
+# est faite dans les LABELS : la tete apprend « long » et « court » comme deux
+# sons differents, et c'est le TEXTE qui dit lequel etait requis.
+MADD_LONG = ("madda_necessary", "madda_obligatory", "madda_permissible")
+MADD_COURT = ("madda_normal",)
+
+
+def classes_binaires():
+    """RULE_CLASSES avec la famille madd reduite a deux classes."""
+    out = ["madd_long", "madd_court"]
+    out += [c for c in RULE_CLASSES if c not in MADD_LONG + MADD_COURT]
+    return out
+
+
+def id_binaire(cls, table):
+    """Id de `cls` dans la nomenclature fusionnee, ou None si hors perimetre."""
+    if cls in MADD_LONG:
+        return table["madd_long"]
+    if cls in MADD_COURT:
+        return table["madd_court"]
+    return table.get(cls)
 
 FULL_TAG_RE = re.compile(r'<tajweed\s+class=["\']?([a-z_]+)["\']?>(.*?)</tajweed>', re.S)
 ANY_TAG_RE = re.compile(r"<[^>]+>")
@@ -265,7 +323,31 @@ def main():
     ap.add_argument("--manifest", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--madd-binaire", action="store_true",
+                    help="fusionne la famille madd en madd_long / madd_court "
+                         "(cf. MADD_LONG plus haut). Sans ce drapeau, la "
+                         "nomenclature historique a 19 classes est conservee "
+                         "-- aucune piste n'est eliminee.")
     args = ap.parse_args()
+
+    # Nomenclature effective : historique (19 classes) ou fusionnee (17), selon
+    # --madd-binaire. Les deux restent productibles -- « aucune piste n'est
+    # eliminee tant que le retour en arriere est possible ».
+    if args.madd_binaire:
+        classes = classes_binaires()
+        table = {n: i for i, n in enumerate(classes)}
+        TABLE_ID = lambda c: id_binaire(c, table)
+    else:
+        classes = list(RULE_CLASSES)
+        table = dict(RULE_ID)
+        TABLE_ID = lambda c: table.get(c)
+    globals()["TABLE_ID"] = TABLE_ID
+    print(f"nomenclature : {len(classes)} classes"
+          f"{' (madd FUSIONNE : madd_long / madd_court)' if args.madd_binaire else ' (historique)'}")
+    # Le vocabulaire des regles accompagne les labels : sans lui, impossible de
+    # savoir a quoi correspond un id plus tard (piege paye avec rules.json).
+    Path(args.out).with_suffix(".classes.json").write_text(
+        json.dumps(classes, ensure_ascii=False, indent=1), encoding="utf-8")
 
     print(f"chargement {NEMO_PATH} ...")
     m = nemo_asr.models.EncDecHybridRNNTCTCBPEModel.restore_from(str(NEMO_PATH), map_location="cpu")
@@ -324,7 +406,9 @@ def main():
 
             spans = []
             for cls, wstart, wend in junctions:
-                cid = RULE_ID[cls]
+                cid = TABLE_ID(cls)
+                if cid is None:
+                    continue
                 f0 = first[wstart]
                 f1 = last[wend]
                 if f0 >= 0 and f1 >= f0:
@@ -353,7 +437,10 @@ def main():
                     # wtype = "lazim" -> classe "waqf_lazim" ; wtype deja
                     # "waqf_awla" -> classe "waqf_awla" telle quelle (source
                     # quran_waqf.json n'a pas un prefixe uniforme).
-                    cid = RULE_ID[wtype if wtype.startswith("waqf_") else f"waqf_{wtype}"]
+                    cid = TABLE_ID(wtype if wtype.startswith("waqf_")
+                                   else f"waqf_{wtype}")
+                    if cid is None:
+                        continue
                     spans.append([cid, int(found[0]), int(found[1])])
                 else:
                     n_waqf_missed += 1
