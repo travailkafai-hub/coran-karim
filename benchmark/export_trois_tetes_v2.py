@@ -136,12 +136,26 @@ def main():
     # mauvais type est choisi (cle "weight"/"bias" pour Linear contre
     # "conv.weight"/"out.weight" etc pour ConvTajwidHead) -- load_state_dict
     # leve une erreur explicite plutot que de charger a moitie en silence.
+    # NOMBRE DE CLASSES LU DANS LE CHECKPOINT, jamais suppose (2026-08-04).
+    # N_RULES etait fige a 19 ici : exporter une tete entrainee sur la
+    # nomenclature FUSIONNEE (17 classes, madd_long/madd_court) echouait sur un
+    # `size mismatch [17,512] vs [19,512]`. C'est le bon comportement -- mais
+    # deviner la dimension d'un fichier qu'on a sous la main est absurde. On la
+    # LIT, et rules.json est verifie contre elle : un modele qui sort 17 classes
+    # avec un rules.json de 19 noms decalerait silencieusement toutes les regles
+    # cote app (`TajwidRule.values[id]` mappe PAR INDEX).
+    sd = torch.load(a.tete_tajwid, map_location="cpu")
+    cle_sortie = "weight" if "weight" in sd else "out.weight"
+    n_classes = sd[cle_sortie].shape[0]
+    if n_classes != N_RULES:
+        print(f"  nomenclature NON standard : {n_classes} classes "
+              f"(le defaut historique est {N_RULES})")
     if a.head_hidden > 0:
         from finetune_dual_head import ConvTajwidHead
-        tete = ConvTajwidHead(d, a.head_hidden, N_RULES)
+        tete = ConvTajwidHead(d, a.head_hidden, n_classes)
     else:
-        tete = nn.Linear(d, N_RULES)
-    tete.load_state_dict(torch.load(a.tete_tajwid, map_location="cpu"))
+        tete = nn.Linear(d, n_classes)
+    tete.load_state_dict(sd)
     tete.eval()
     print(f"tete tajwid chargee : {sum(x.numel() for x in tete.parameters())} parametres")
 
@@ -215,6 +229,20 @@ def main():
         if a.deploy_source:
             src = Path(a.deploy_source) / nom
             if src.exists():
+                # GARDE ANTI-DECALAGE : `rules.json` donne les NOMS des classes,
+                # et l'app les associe PAR INDEX (`TajwidRule.values[id]`). Un
+                # fichier de 19 noms a cote d'un modele qui sort 17 classes ne
+                # provoque AUCUNE erreur -- il renomme simplement toutes les
+                # regles, en silence. C'est la meme famille de piege que le
+                # `word_tokens.json` de la veille (deux dictionnaires de meme
+                # taille, jeux de mots differents, une soiree perdue).
+                if nom == "rules.json":
+                    noms = json.loads(src.read_text(encoding="utf-8"))
+                    if len(noms) != n_classes:
+                        raise SystemExit(
+                            f"REFUS : rules.json porte {len(noms)} noms alors "
+                            f"que la tete sort {n_classes} classes. Les regles "
+                            f"seraient toutes decalees cote app, sans erreur.")
                 shutil.copy2(src, out / nom)
                 print(f"  {nom} copie")
     if a.tete3:
