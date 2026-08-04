@@ -67,8 +67,20 @@ def caracteristiques(tr, sp, texte):
     forced_v = float(tr[np.arange(len(lab)), lab].mean())
     forced_f = score_force(tr, idm) / n
     free = float(tr.max(axis=1).mean())
-    scores = sorted((score_force(tr, sp.encode(a)) / n for a in variantes(texte)),
-                    reverse=True)
+    # VARIANTES NON SCORABLES : EXCLUES, PAS NOTEES -1e30 (correctif 2026-08-05).
+    #
+    # `score_force` rend la sentinelle NEG = -1e30 quand l'audio est trop court
+    # pour la sequence de tokens (`T < (S+1)//2`) -- une variante plus longue
+    # que le mot n'a alors AUCUN alignement possible. C'est un « non mesurable »,
+    # pas un « tres mauvais score ». En le divisant par n on obtenait des
+    # caracteristiques a -1e29, que le filtre `|X| < 1e6` de main() jetait
+    # ensuite : 406 exemples sur 3675, soit 11 % du jeu d'entrainement PERDUS
+    # en silence -- et parmi eux des fautes, donc de la donnee rare.
+    # On ecarte donc ces variantes du concours au lieu de les faire concourir
+    # avec un score aberrant.
+    scores = sorted((v for v in (score_force(tr, sp.encode(a)) / n
+                                 for a in variantes(texte))
+                     if v > NEG / 2), reverse=True)
     if not scores:
         return None                      # aucune confusion plausible : non jugeable
     alt = scores[0]
@@ -77,8 +89,23 @@ def caracteristiques(tr, sp, texte):
     p /= p.sum(axis=1, keepdims=True)
     entropie = float(-(p * np.log(p + 1e-9)).sum(axis=1).mean())
     pic_blanc = float((tr.argmax(axis=1) == tr.shape[1] - 1).mean())
+    # ── LE MINIMUM, PAS SEULEMENT LA MOYENNE (2026-08-05) ──────────────────
+    #
+    # MEME DEFAUT QUE L'ETAT D'ENCODEUR MOYENNE, et meme correctif. Une faute
+    # ne porte le plus souvent que sur UNE lettre : sur un mot de six tokens,
+    # cinq restent parfaits et diluent le sixieme dans la moyenne. `forced_v`
+    # est donc structurellement sourd a ce qu'on cherche -- il mesure la sante
+    # GENERALE du mot, quand la question est « y a-t-il un endroit ou ca
+    # casse ». Le minimum le long du chemin force repond a cette question-la.
+    # `forced_v - fmin` dit de combien le pire point s'ecarte du reste : c'est
+    # le creux, independamment du niveau general du mot.
+    par_frame = tr[np.arange(len(lab)), lab]
+    fmin = float(par_frame.min())
+    fp10 = float(np.percentile(par_frame, 10))
+    creux = forced_v - fmin
     return [forced_v, forced_f, free, alt, alt2, forced_v - free, forced_f - alt,
-            alt - alt2, float(n), float(len(idm)), entropie, pic_blanc]
+            alt - alt2, float(n), float(len(idm)), entropie, pic_blanc,
+            fmin, fp10, creux]
 
 
 def main():
@@ -136,7 +163,13 @@ def main():
                         c = caracteristiques(lp[f0:f1], sp, m)
                         if c is None:
                             continue
-                        E.append(st[f0:f1].mean(axis=0))
+                        # ETAT RICHE : moyenne ET ecart-type sur les frames du mot (2026-08-05).
+                        # La moyenne seule DETRUIT la structure temporelle avant meme d'atteindre la
+                        # tete -- or une deviation est souvent une IRREGULARITE dans le mot (une lettre
+                        # qui derape), pas un deplacement de son centre de gravite. L'ecart-type par
+                        # dimension rend cette variabilite interne, pour le meme cout de calcul.
+                        _seg = st[f0:f1]
+                        E.append(np.concatenate([_seg.mean(axis=0), _seg.std(axis=0)]))
                         X.append(c)
                         y.append(1 if (etat == "faute" and j == i) else 0)
                         test.append(k < args.n_test)

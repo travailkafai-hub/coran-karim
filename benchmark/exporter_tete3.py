@@ -81,6 +81,9 @@ def main():
     p.add_argument("--etats", default="/tmp/claude-1000/etats_encodeur_AVANT.npz",
                    help="etats d'encodeur DE CE MODELE, extraits par tete_encodeur_ecart.py")
     p.add_argument("--n-test", type=int, default=189)
+    p.add_argument("--cache", type=int, default=128,
+                   help="unites de la couche cachee (balayage 2026-08-05)")
+    p.add_argument("--epochs", type=int, default=3000)
     args = p.parse_args()
 
     out = Path(args.sortie)
@@ -99,7 +102,13 @@ def main():
     mu, sd = A[ap].mean(0), A[ap].std(0) + 1e-6
     An = (A - mu) / sd
     poids = float((y[ap] == 0).sum() / max(1, (y[ap] == 1).sum()))
-    tete, npar, _ = entrainer(An[ap], y[ap], poids, epochs=1200)
+    # CONFIGURATION RETENUE PAR LE BALAYAGE DE LA NUIT DU 2026-08-05
+    # (balayage_tete3.py, meme jeu de test, meme graine) : 128 unites de cache
+    # et 3000 epochs donnent 47 % de detection a 2 % de collateral, contre 37 %
+    # au depart. Au-dela ca DEGRADE -- 4500 epochs 44 %, 192 unites 41 %,
+    # 8000 epochs 33 %. Ce ne sont donc pas des valeurs a monter « au cas ou ».
+    tete, npar, _ = entrainer(An[ap], y[ap], poids,
+                              epochs=args.epochs, cache=args.cache)
     with torch.no_grad():
         s = tete(torch.tensor(An[at], dtype=torch.float32)).squeeze(1).numpy()
     det2, seuil2 = detection_a_collateral(s[y[at] == 1], s[y[at] == 0], 0.02)

@@ -195,14 +195,26 @@ def main():
             # FAUTE=1 : audio reel de mots[i], etiquette canonique = variante
             c_faute = caracteristiques(lp[f0:f1], sp, texte_variant)
             if c_faute is not None:
-                E.append(st[f0:f1].mean(axis=0))
+                # ETAT RICHE : moyenne ET ecart-type sur les frames du mot (2026-08-05).
+                # La moyenne seule DETRUIT la structure temporelle avant meme d'atteindre la
+                # tete -- or une deviation est souvent une IRREGULARITE dans le mot (une lettre
+                # qui derape), pas un deplacement de son centre de gravite. L'ecart-type par
+                # dimension rend cette variabilite interne, pour le meme cout de calcul.
+                _seg = st[f0:f1]
+                E.append(np.concatenate([_seg.mean(axis=0), _seg.std(axis=0)]))
                 X.append(c_faute)
                 y.append(1)
                 test.append(k < args.n_test)
             # CORRECT=0 : meme audio, etiquette canonique = le VRAI mot
             c_correct = caracteristiques(lp[f0:f1], sp, mots[i])
             if c_correct is not None:
-                E.append(st[f0:f1].mean(axis=0))
+                # ETAT RICHE : moyenne ET ecart-type sur les frames du mot (2026-08-05).
+                # La moyenne seule DETRUIT la structure temporelle avant meme d'atteindre la
+                # tete -- or une deviation est souvent une IRREGULARITE dans le mot (une lettre
+                # qui derape), pas un deplacement de son centre de gravite. L'ecart-type par
+                # dimension rend cette variabilite interne, pour le meme cout de calcul.
+                _seg = st[f0:f1]
+                E.append(np.concatenate([_seg.mean(axis=0), _seg.std(axis=0)]))
                 X.append(c_correct)
                 y.append(0)
                 test.append(k < args.n_test)

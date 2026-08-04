@@ -54,7 +54,11 @@ NEG = -1e30
 _etat = {}
 
 NOMS = ["forced_v", "forced_f", "free", "alt", "alt2", "gopA", "gopC",
-        "marge_alt", "n_frames", "n_tokens", "entropie", "pic_blanc"]
+        "marge_alt", "n_frames", "n_tokens", "entropie", "pic_blanc",
+        # Ajoutees le 2026-08-05 : le CREUX du mot, pas sa sante moyenne.
+        # Une faute ne porte souvent que sur UNE lettre -- les autres la
+        # diluent dans forced_v. Cf. le commentaire de caracteristiques().
+        "forced_min", "forced_p10", "creux"]
 
 
 def demarrer(modele, tokenizer):
