@@ -2237,8 +2237,25 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         borderTint = const Color(0xFF6fe3a8);
         break;
       case WordStatus.unclear:
-        bgTint = const Color(0xFFffcc80).withOpacity(0.42);
-        borderTint = const Color(0xFFffcc80);
+        // VIOLET quand l'écart vient d'une RÈGLE DE TAJWID non détectée, et
+        // pas d'une prononciation douteuse. Ce cas manquait : le violet
+        // n'existait que dans `case WordStatus.error` (2026-08-01), alors que
+        // le contrôle tajwid produit un `unclear` (cf. _onV2) -- les deux
+        // mécanismes n'avaient jamais été reliés, donc le violet ne pouvait
+        // s'afficher pour la raison même qui l'a fait naître.
+        //
+        // La gravité reste `unclear` : les lettres et les harakat SONT justes,
+        // seule la règle manque. C'est la lecture du cahier des charges du
+        // 2026-07-30 -- la tête tajwid est là « juste pour préciser les mots où
+        // le tajwid est absent », pas pour condamner une prononciation.
+        final tajwidManquant =
+            ref.read(recitationProvider.notifier).classifyError(index) ==
+                RecitationErrorKind.tajwid;
+        final cu = tajwidManquant
+            ? AppColors.recitationTajwidError
+            : const Color(0xFFffcc80);
+        bgTint = cu.withOpacity(0.42);
+        borderTint = cu;
         break;
       case WordStatus.error:
         // Rouge SEULEMENT si verrouillé (demande utilisateur 2026-07-09 :

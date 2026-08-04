@@ -1052,8 +1052,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 // observation VOTANTE, et a defaut la derniere tout court (un
                 // mot `omis` n'en a aucune qui vote : savoir ce qu'il avait
                 // quand meme est precisement l'information utile).
-                val obs = chaine.preuves.observationsVotantes(c.motIndex).lastOrNull()
+                val votantes = chaine.preuves.observationsVotantes(c.motIndex)
+                val obs = votantes.lastOrNull()
                     ?: chaine.preuves.observations(c.motIndex).lastOrNull()
+                // Cf. le commentaire de "rules" plus bas : on ne regarde le
+                // tajwid QUE sur les observations qui ont le droit de voter
+                // (mot entierement dans la fenetre, quelque chose d'entendu).
+                val reglesVotantes = votantes.flatMap { it.reglesTajwid }.distinct()
                 mapOf(
                     "i" to c.motIndex,
                     "statut" to nomStatut(c.statut),
@@ -1076,7 +1081,26 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // ordre que TajwidRule.values cote Dart -- cf.
                     // RegistreDePreuves.Observation.reglesTajwid). Vide sur un
                     // modele sans tete tajwid, rien d'autre ne change.
-                    "rules" to (obs?.reglesTajwid ?: emptyList()),
+                    //
+                    // UNION SUR LES OBSERVATIONS VOTANTES, et pas la derniere
+                    // observation. MESURE QUI L'IMPOSE (commentaire de
+                    // recitation_provider.dart, device 2026-07-23) : le MEME
+                    // mot (mot=33 يَرَهُۥٓ, MEME audio) sortait `emises=` vide
+                    // sur une passe puis `emises=madda_normal` sur la suivante,
+                    // selon le decoupage du buffer. Une regle vit sur une
+                    // DUREE ; coupee au bord d'une fenetre, elle disparait.
+                    // Prendre la derniere observation, c'est donc tirer a pile
+                    // ou face -- et accuser le recitateur sur ce tirage.
+                    // L'union ne retient qu'une chose : la regle a-t-elle ete
+                    // vue AU MOINS UNE FOIS dans de bonnes conditions.
+                    "rules" to reglesVotantes,
+                    // La regle du projet est « aucun verdict sans preuve ».
+                    // Pour AFFIRMER qu'une regle est ABSENTE il faut donc
+                    // avoir REGARDE plusieurs fois : deux observations
+                    // votantes distinctes, exactement le k=2 que le Decideur
+                    // exige deja pour figer une lettre. En dessous, Dart doit
+                    // se taire plutot que de conclure.
+                    "tajwidFiable" to (votantes.size >= 2),
                 )
             }
         } catch (e: Exception) {

@@ -404,18 +404,70 @@ class ChaineRecitation(
             if (fin > 0) constructeur.frontiereMotSure(fin)
         }
 
+        // ETENDUE REELLE DE CHAQUE MOT, blancs compris (2026-08-04).
+        //
+        // `premiereFrame`/`derniereFrame` ne bornent QUE les frames ou le CTC a
+        // EMIS les tokens du mot : AligneurForce ecarte explicitement les
+        // blancs (« le blanc n'appartient a aucun mot »). Or le CTC est peaky
+        // -- il claque ses tokens sur une ou deux frames et reste blanc sur
+        // tout le reste du son. Mesure sur device : `إِنَّمَا` (quatre syllabes)
+        // ressort avec `frames=1`, et `إِلَّآ` (qui porte un madd) avec
+        // `frames=2`, tous deux PARFAITEMENT reconnus (gop=0,00, entendu
+        // exact). Ces bornes mesurent donc des PICS D'EMISSION, pas une duree.
+        //
+        // Consequence pour la tete 2 : elle emet sa sigmoide sur la duree
+        // REELLE de la regle, tandis qu'on la cherchait dans une fenetre de
+        // 80 a 160 ms -- le madd tombait a cote, et l'app concluait « regle
+        // attendue NON DETECTEE » sur les mots 76 `إِلَّآ` et 100 `إِنَّمَا`
+        // alors que la regle etait bien la, juste en dehors de la fenetre.
+        // C'etait un defaut de la FENETRE DE RECHERCHE, pas du recitateur.
+        //
+        // On borne donc chaque mot par ses voisins : du dernier pic du mot
+        // precedent (exclu) au premier pic du suivant (exclu). Les blancs
+        // reviennent ainsi au mot auquel ils appartiennent acoustiquement.
+        // Cette etendue ne sert QU'A CHERCHER LES REGLES : les scores des
+        // lettres (forced/free/gop) continuent d'etre calcules sur les seules
+        // frames emises, strictement comme avant -- aucun verdict de lettre
+        // ne change.
+        val avecFrames = res.mots.filter { it.frames > 0 }
+        val etendue = HashMap<Int, Pair<Int, Int>>(avecFrames.size)
+        for ((k, m) in avecFrames.withIndex()) {
+            val precedent = avecFrames.getOrNull(k - 1)
+            val suivant = avecFrames.getOrNull(k + 1)
+            val d = if (precedent == null) m.premiereFrame else precedent.derniereFrame + 1
+            val f = if (suivant == null) m.derniereFrame + 1 else suivant.premiereFrame
+            etendue[m.index] = Pair(minOf(d, m.premiereFrame), maxOf(f, m.derniereFrame + 1))
+        }
+
         for (m in res.mots) {
             val debutAbs = if (m.frames > 0) fenetre.absoluDeFrame(m.premiereFrame) else -1L
             val finAbs = if (m.frames > 0) fenetre.absoluDeFrame(m.derniereFrame) else -1L
             // TETE 2 : la frame est CAPITALE pour attribuer une regle au bon
-            // mot (cf. FastConformerCtc.decodeTajwid) -- on decoupe donc
-            // exactement sur les memes bornes que celles retenues pour
-            // l'attestation du mot, pas sur la fenetre entiere.
+            // mot (cf. FastConformerCtc.decodeTajwid) -- on cherche donc dans
+            // l'ETENDUE du mot (cf. `etendue` ci-dessus), et non dans ses
+            // seules frames emises, qui ne durent qu'un ou deux pics.
             val reglesTajwid = if (m.frames > 0 && sorties.tajwid != null) {
-                val debut = m.premiereFrame.coerceIn(0, sorties.tajwid.size)
-                val fin = (m.derniereFrame + 1).coerceIn(debut, sorties.tajwid.size)
-                front.decodeTajwid(sorties.tajwid.copyOfRange(debut, fin))
-                    .map { it.ruleId }.distinct()
+                val bornes = etendue[m.index]
+                val debut = (bornes?.first ?: m.premiereFrame)
+                    .coerceIn(0, sorties.tajwid.size)
+                val fin = (bornes?.second ?: (m.derniereFrame + 1))
+                    .coerceIn(debut, sorties.tajwid.size)
+                val detections = front.decodeTajwid(
+                    sorties.tajwid.copyOfRange(debut, fin))
+                // DUREE JOURNALISEE, JAMAIS JUGEE (2026-08-04). Le type d'un
+                // madd (`wajib` / `tabi'i`) est une categorie GRAMMATICALE que
+                // le texte connait deja ; l'acoustique ne peut repondre qu'a
+                // « combien de temps a dure l'allongement ». On expose donc
+                // cette duree pour pouvoir la MESURER sur du vrai audio avant
+                // de decider si elle peut servir de critere -- pas l'inverse.
+                if (detections.isNotEmpty()) {
+                    journal?.invoke("[tajwidDuree] mot=${m.index} " +
+                        detections.joinToString(" ") { d ->
+                            val nom = front.nomsRegles.getOrNull(d.ruleId) ?: "?${d.ruleId}"
+                            "$nom=${d.frames}f(${d.frames * 80}ms)"
+                        })
+                }
+                detections.map { it.ruleId }.distinct()
             } else emptyList()
             // TETE 3 : OBSERVATION SEULE (journal), cf. vecteurTete3 ci-dessous
             // -- ne touche ni Observation ni le statut.

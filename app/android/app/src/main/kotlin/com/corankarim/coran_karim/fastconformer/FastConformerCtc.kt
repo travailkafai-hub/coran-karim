@@ -23,7 +23,37 @@ import java.nio.LongBuffer
  *  [prob] = probabilite de la classe sur cette frame (0..1) -- permet de
  *  distinguer "regle franchement realisee" de "regle a peine esquissee",
  *  information qu'un simple symbole insere dans le texte ne portait pas. */
-data class DetectedRule(val ruleId: Int, val frame: Int, val prob: Float)
+data class DetectedRule(
+    val ruleId: Int,
+    val frame: Int,
+    val prob: Float,
+    /**
+     * Nombre de frames CONSECUTIVES sur lesquelles la tete a emis cette classe
+     * (80 ms par frame). 1 par defaut -- les appelants historiques ne le
+     * passent pas et ne s'en servent pas.
+     *
+     * POURQUOI CE CHAMP EXISTE (raisonnement utilisateur, 2026-08-04). La
+     * distinction `madda_obligatory` / `madda_normal` n'est PAS acoustique :
+     * un madd est *wajib* parce qu'une hamza le suit DANS LE MEME MOT
+     * (`إِلَّآ`), pas parce qu'il sonne autrement -- et les deux peuvent avoir
+     * la meme longueur. Demander a une tete ACOUSTIQUE de trancher une
+     * categorie GRAMMATICALE est donc la mauvaise question, et son echec n'est
+     * pas un defaut d'entrainement.
+     *
+     * Constate sur device le 2026-08-04 (preset tajwid, recitation
+     * PROFESSIONNELLE rejouee) : mot 76 `إِلَّآ` signale « madda_obligatory
+     * absente » alors que la tete avait bien detecte `madda_normal` -- un madd
+     * A ETE fait, il a juste ete classe dans la mauvaise sous-famille.
+     *
+     * Le bon decoupage est donc : le TYPE vient du texte (l'annotation le sait
+     * deja, cf. RecitedWord.expectedRules), et l'acoustique ne repond qu'a
+     * « y a-t-il eu un allongement, et de quelle DUREE ». Ce champ apporte la
+     * duree qui manquait. ⚠️ JOURNALISE SEULEMENT pour l'instant : aucune
+     * decision ne s'y appuie tant qu'on n'a pas mesure ce que valent
+     * reellement ces durees sur du vrai audio.
+     */
+    val frames: Int = 1,
+)
 
 /** Sorties du modele : la tete lettres (toujours presente) et, sur les modeles
  *  a DEUX tetes, la tete tajwid. [tajwid] est null sur les anciens modeles
@@ -74,6 +104,17 @@ class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? 
     private val tajwidNames: List<String> = rulesPath?.let { loadVocab(it) } ?: emptyList()
     private val hasTajwidHead: Boolean =
         tajwidNames.isNotEmpty() && session.outputNames.contains(TAJWID_OUTPUT)
+    /**
+     * ⚠️ N'EST PLUS UTILISE, ET NE DOIT PAS L'ETRE (2026-08-04). Conserve pour
+     * memoire : c'etait l'indice de blanc du temps ou la tete 2 etait une tete
+     * CTC + softmax (avant le 2026-07-24). La tete actuelle est MULTI-LABEL A
+     * SIGMOIDE : « aucune regle ici » ne s'exprime pas par une classe dediee
+     * mais par TOUTES les probabilites basses -- il n'y a donc pas de blanc, et
+     * ce n'est pas un oubli d'annotation. Verifie sur le modele deploye :
+     * `rules.json` porte 19 noms et la sortie a 19 classes (0..18), si bien que
+     * cette valeur vaut 19, un indice HORS PLAGE que l'argmax ne pouvait jamais
+     * rendre -- le decodeur ne se taisait donc jamais. Cf. [decodeTajwid].
+     */
     private val tajwidBlank: Int = tajwidNames.size
 
     /** Noms des classes de regles, index = ruleId de [DetectedRule]. Vide si le
@@ -117,20 +158,63 @@ class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? 
      */
     fun decodeTajwid(tajwid: Array<FloatArray>?): List<DetectedRule> {
         if (tajwid == null || !hasTajwidHead) return emptyList()
+        // ── UN SEUIL PAR CLASSE, ET NON UN ARGMAX ENTRE CLASSES ─────────────
+        //
+        // BUG STRUCTUREL CORRIGE ICI (2026-08-04). Ce decodage etait celui
+        // d'une tete CTC + SOFTMAX -- argmax entre classes, collapse des
+        // repetitions, classe de blanc. La tete 2 n'est plus celle-la depuis
+        // le 2026-07-24 : elle est MULTI-LABEL A SIGMOIDE (BCE par classe a
+        // l'entrainement, `-softplus(-x)` = logsigmoid a l'export) et elle est
+        // apprise sur des SPANS DENSES [classe, frame_debut, frame_fin], tout
+        // cela precisement pour que deux regles puissent coexister sur les
+        // MEMES frames (cas fondateur : `ٱلنَّاسِ`, ou l'assimilation du lam
+        // DANS le noun double EST la ghunnah). Le decodeur, lui, n'avait pas
+        // suivi le changement d'architecture.
+        //
+        // TROIS DEFAUTS QUE CA PRODUISAIT, mesures sur 20 s de recitation
+        // reelle avec le modele deploye :
+        //   1. `tajwidBlank` vaut `tajwidNames.size` = 19, alors que la sortie
+        //      n'a QUE 19 classes (indices 0..18) : l'indice de blanc est HORS
+        //      PLAGE, le garde `best != tajwidBlank` est toujours vrai, et
+        //      100 % des frames emettaient donc une regle. Sur ces frames,
+        //      49,8 % avaient leur « gagnant » SOUS 0,5 de probabilite : une
+        //      regle sur deux etait purement inventee.
+        //   2. La simultaneite etait detruite : 13,9 % des frames portent
+        //      REELLEMENT deux regles au-dessus du seuil, ce qu'un argmax ne
+        //      peut jamais rendre. C'est exactement ce que les spans avaient
+        //      ete construits pour permettre.
+        //   3. Les spans denses ressortaient hachés en pics d'UNE frame (une
+        //      classe ne « gagne » que la ou elle bat les 18 autres), ce qui
+        //      m'a fait conclure a tort a la peakiness du CTC en analysant les
+        //      durees : p25 = 1 frame sur `madda_obligatory`. C'etait le
+        //      decodage, pas le modele.
+        //
+        // Le seuil est 0,5 en PROBABILITE, la frontiere naturelle d'une
+        // sigmoide -- pas un reglage a calibrer.
         val out = ArrayList<DetectedRule>()
-        var prev = -1
-        for ((frameIdx, frame) in tajwid.withIndex()) {
-            var best = 0
-            var bestVal = frame[0]
-            for (c in 1 until frame.size) {
-                if (frame[c] > bestVal) { bestVal = frame[c]; best = c }
+        val nClasses = tajwid.firstOrNull()?.size ?: return emptyList()
+        val seuilLog = Math.log(0.5).toFloat()
+        for (c in 0 until nClasses) {
+            var debut = -1
+            var probMax = 0f
+            for (t in tajwid.indices) {
+                val actif = tajwid[t][c] >= seuilLog
+                if (actif) {
+                    if (debut < 0) { debut = t; probMax = 0f }
+                    val p = Math.exp(tajwid[t][c].toDouble()).toFloat()
+                    if (p > probMax) probMax = p
+                } else if (debut >= 0) {
+                    out.add(DetectedRule(c, debut, probMax, t - debut))
+                    debut = -1
+                }
             }
-            if (best != prev && best != tajwidBlank) {
-                // logprob -> probabilite, pour exposer une confiance lisible.
-                out.add(DetectedRule(best, frameIdx, Math.exp(bestVal.toDouble()).toFloat()))
+            if (debut >= 0) {
+                out.add(DetectedRule(c, debut, probMax, tajwid.size - debut))
             }
-            prev = best
         }
+        // Ordre chronologique : les appelants (ForcedAligner.segmentRules,
+        // attribution par recouvrement de frames) raisonnent sur la position.
+        out.sortBy { it.frame }
         return out
     }
 

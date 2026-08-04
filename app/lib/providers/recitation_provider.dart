@@ -180,7 +180,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // Motif volontairement identique à `useGopScoring` : les deux moteurs
   // calculent, un seul peint l'écran. La v1 ne peut donc pas régresser du fait
   // du branchement, et une session compare les deux sur le MÊME audio.
-  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules})>>? _v2Sub;
+  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable})>>? _v2Sub;
   StreamSubscription<int>? _decrochageSub;
 
   /// La v2 pilote-t-elle l'affichage ? Quand c'est faux, elle tourne quand même
@@ -2902,7 +2902,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// `omis` n'est PAS une couleur : c'est « le récitateur est passé outre, et
   /// on peut le prouver ». Il est rendu comme `skipped`, jamais comme `error` —
   /// condamner un mot non prononcé serait un verdict sans preuve.
-  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules})> changements) {
+  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable})> changements) {
     var dernierJuge = -1;
     for (final c in changements) {
       DiagnosticLog.log('V2',
@@ -2923,7 +2923,79 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         _ => null, // `inconnu` : aucune preuve, donc aucune couleur
       };
       if (statut == null) continue;
-      _judge(words, c.index, statut, lock: definitif || c.statut == 'omis',
+      // ── TAJWID : règle ATTENDUE et jamais vue malgré deux bons regards ────
+      //
+      // Ce contrôle existait depuis le 2026-07-20 (« le mode tajwid vérifie
+      // enfin le tajwid ») mais vivait dans `_onAligned`, donc dans la v1. Il
+      // a CESSÉ DE S'EXÉCUTER le jour où la v2 a pris l'affichage, sans que
+      // personne le décide : la v1 ne décode plus (0 ligne [GOP] dans les
+      // sessions du 2026-08-04), et le Decideur de la v2 ne connaît que le gop
+      // et l'attestation. Constat utilisateur qui l'a révélé : une session en
+      // preset tajwid, récitée SANS appliquer les règles, sortait 31 mots
+      // verts sur 34 et aucune correction.
+      //
+      // CE QUI CHANGE PAR RAPPORT À LA v1, et pourquoi ce n'est pas un simple
+      // portage. La v1 jugeait sur UNE passe, d'où son mécanisme de report
+      // (`deferredTajwid`) quand une règle de jonction dépendait d'un voisin
+      // pas encore arrivé. La v2 accumule les observations : on exige donc la
+      // MÊME preuve que pour une lettre — le mot doit avoir été vu deux fois
+      // ENTIÈREMENT DANS LA FENÊTRE (`tajwidFiable`, k=2 côté Kotlin), et les
+      // règles détectées sont l'UNION de ces observations, pas la dernière.
+      //
+      // MESURE QUI L'IMPOSE (device 2026-07-23, déjà au dossier) : le même mot
+      // `يَرَهُۥٓ`, sur le MÊME audio, sortait `emises=` vide sur une passe puis
+      // `emises=madda_normal` sur la suivante selon le découpage du buffer. Une
+      // règle vit sur une DURÉE ; coupée au bord d'une fenêtre elle disparaît.
+      // Conclure sur une seule observation, c'est tirer à pile ou face — et
+      // accuser le récitateur sur ce tirage.
+      //
+      // `unrealizedRulesFor` filtre déjà par les règles ACTIVES du preset :
+      // en mode adulte aucune règle n'est active, donc ce bloc est inerte et
+      // le jugement des lettres reste strictement inchangé (décision
+      // utilisateur 2026-07-20 : « en mode adulte, ne pas faire l'idgham ou la
+      // qalqala, ça ne fait pas une erreur ; avec mode tajweed, oui »).
+      var statutFinal = statut;
+      if (statut == WordStatus.correct && c.tajwidFiable) {
+        final manquantes = unrealizedRulesFor(c.index, c.detectedRules);
+        if (manquantes.isNotEmpty) {
+          statutFinal = WordStatus.unclear;
+          DiagnosticLog.log('V2tajwid',
+              'mot=${c.index} règle(s) ATTENDUE(S) et NON DÉTECTÉE(S) : '
+              '${manquantes.map((r) => r.key).join(",")} '
+              '| détectées=${c.detectedRules.map((r) => r.key).join(",")}');
+        }
+      }
+      // ── `omis` NE VERROUILLE PLUS (2026-08-04) ──────────────────────────
+      //
+      // DEFAUT CONSTATE PAR L'UTILISATEUR, ecran a l'appui : des mots
+      // s'affichaient SANS AUCUNE COULEUR (rendu de `WordStatus.skipped` :
+      // `underline = true`, aucun fond) alors que la v2 les avait finalement
+      // juges VERTS. Verifie dans le log de la session : huit mots suivent ce
+      // trajet, par exemple
+      //     mot=76 `إِلَّآ`  : omis -> provisoire:vert -> definitif:vert
+      //     mot=18 `بِمَآ`   : omis -> provisoire:vert -> definitif:vert
+      //     mot=17 `يُؤْمِنُونَ`: omis -> definitif:vert
+      //
+      // MECANISME : `omis` appelait `_judge(lock: true)`, donc le mot devenait
+      // `skipped` ET verrouille. La correction que la v2 emettait deux
+      // fenetres plus tard tombait alors sur `if (words[i].locked) return;` et
+      // etait jetee EN SILENCE. La chaine se corrigeait, l'ecran ne l'
+      // apprenait jamais -- et l'app continuait d'afficher une ACCUSATION
+      // (« tu n'as pas dit ce mot ») que sa propre couche de decision avait
+      // dementie. C'est le contraire du socle : dire vrai.
+      //
+      // POURQUOI NE PAS VERROUILLER EST LE BON CORRECTIF, et non un
+      // assouplissement : `Statut.Omis` n'est JAMAIS memorise dans
+      // `Decideur.definitifs[]` -- seules les COULEURS y entrent (VERT,
+      // ORANGE, ROUGE). La v2 le recalcule donc a chaque fenetre : il est
+      // revisable PAR CONCEPTION. C'etait Dart qui le figeait, contre le
+      // dessin de la couche qui le produit. Les statuts reellement finaux sont
+      // ceux prefixes `definitif:`, et eux continuent de verrouiller.
+      //
+      // Aucun risque de declencher la correction automatique au passage : un
+      // negatif NON verrouille sans `alignSeq` sort immediatement de `_judge`
+      // (cf. `if (alignSeq == null) return;`), et `_onV2` n'en passe pas.
+      _judge(words, c.index, statutFinal, lock: definitif,
           heard: c.heard.isEmpty ? null : c.heard,
           detectedRules: c.detectedRules.isEmpty ? null : c.detectedRules);
       if (c.index > dernierJuge) dernierJuge = c.index;

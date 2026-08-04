@@ -534,7 +534,7 @@ class FastConformerVerifier {
   /// types doivent donc coïncider.
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
-                   Set<TajwidRule> detectedRules})> v2,
+                   Set<TajwidRule> detectedRules, bool tajwidFiable})> v2,
            bool v2Decrochage, int v2DecrochageMot})?>
       feedCausalAudio(Uint8List pcm16) async {
     if (!_streamingLoaded) return null;
@@ -547,7 +547,7 @@ class FastConformerVerifier {
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
         v2: const <({int index, String statut, String trace, String heard,
-                     Set<TajwidRule> detectedRules})>[],
+                     Set<TajwidRule> detectedRules, bool tajwidFiable})>[],
         v2Decrochage: false, // la v2 ne tourne pas sur ce chemin
         v2DecrochageMot: -1,
       );
@@ -580,7 +580,7 @@ class FastConformerVerifier {
   /// statuts par mot -- cf. le commentaire côté Kotlin.
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
-                   Set<TajwidRule> detectedRules})> v2,
+                   Set<TajwidRule> detectedRules, bool tajwidFiable})> v2,
            bool v2Decrochage, int v2DecrochageMot})?>
       feedBufferedAudio(Uint8List pcm16) async {
     if (!_loaded) return null;
@@ -589,7 +589,7 @@ class FastConformerVerifier {
           .invokeMapMethod<String, dynamic>('feedBufferedAudio', {'pcm16': pcm16});
       if (raw == null) return null;
       final v2 = <({int index, String statut, String trace, String heard,
-                     Set<TajwidRule> detectedRules})>[];
+                     Set<TajwidRule> detectedRules, bool tajwidFiable})>[];
       for (final m in ((raw['v2'] as List?) ?? const []).cast<Map>()) {
         // La trace porte les TROIS scores. Un `gop` effondré avec un `free`
         // proche de 0 veut dire mauvaise POSITION, pas mauvaise prononciation :
@@ -615,6 +615,11 @@ class FastConformerVerifier {
               'obs=${m['nbObs']} entendu="${m['entendu']}"',
           heard: m['entendu'] as String? ?? '',
           detectedRules: regles,
+          // k=2 cote Kotlin : faux tant qu'on n'a pas REGARDE ce mot deux fois
+          // dans de bonnes conditions. Dart doit alors se taire sur le tajwid
+          // plutot que de conclure a une regle absente (cf. le commentaire du
+          // payload cote plugin). Defaut prudent : false.
+          tajwidFiable: (m['tajwidFiable'] as bool?) ?? false,
         ));
       }
       return (
