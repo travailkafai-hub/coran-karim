@@ -796,3 +796,91 @@ Deux points ne sont pas décidés par ce qui précède :
   donc parfois à tort) ou au VERDICT (juste, mais en retard sur la voix).
 - **qui gagne si le lecteur fait défiler à la main pendant que l'ancre suit.**
 
+
+---
+
+## 13. Abandon de l'écran vert — plan d'exécution (2026-08-05)
+
+Décision utilisateur : « abandonne l'écran de récitation vert et bascule tout
+sur l'écran principal ». Cette section est l'INVENTAIRE, pas une intention :
+elle dit ce qui migre, ce qui meurt, et ce qui doit être décidé — pour que
+l'exécution n'ait rien à redécouvrir.
+
+### 13.1 Ce que l'écran vert porte réellement
+
+2 915 lignes, 43 méthodes privées. Elles ne sont pas de même nature, et c'est
+ce qui rend la migration faisable :
+
+| nature | méthodes | destin |
+|---|---|---|
+| **Pilotage de la chaîne** | `_toggle`, `_togglePause`, `_startWithCountdown`, `_maybeExtendNextPage` | **migrent** — c'est le cœur |
+| **Réaction aux verdicts** | `_onWordFailed`, `_promptCurrentWord`, `_maybePrefetchCorrectionAudio` | **migrent** |
+| **Rendu du mot** | `_wordSpan` | **remplacé** par `VerseTile`/`TajweedText` (le Mushaf sait déjà dessiner) |
+| **Feuilles annexes** | `_openWordHelp`, `_openVerificationSheet`, `_openMemorizationGame` | **migrent tels quels** |
+| **Debug** | `_showFullTranscript` | **meurt** (cf. §13.4) |
+| **Profil de pauses** | `_maybeSaveProfile` | **migre** |
+
+Le Mushaf, lui, apporte ce que l'écran vert n'a jamais eu : défilement infini
+entre sourates, mode Kindle, pagination, marque-page, appui long.
+
+### 13.2 Le point dur : le rendu
+
+L'écran vert construit **un bloc de texte plat** (`_buildChunk` → `text` +
+`spans` + `wordKeys`) et dessine mot à mot avec `_wordSpan`. Le Mushaf dessine
+**par verset**, via `VerseTile`.
+
+⚠️ **C'est la seule vraie difficulté de la migration.** L'index de mot de
+`RecitedWord` est GLOBAL sur le passage ; celui de `TajweedText` est LOCAL au
+verset. Le pont existe déjà et il est testé : `_verseContaining(i)` et
+`_localIndexInVerse(i)` (écran vert), plus `wordStart`/`wordEnd` de
+`TajweedText` (écrits pour le mode Kindle, réutilisés pour la fusion des mots
+en erreur le 2026-08-05).
+
+⇒ Ne PAS réécrire un rendu plat dans le Mushaf. `VerseTile` reçoit un paramètre
+de plus — l'état de jugement par mot — et `TajweedText` colore le fond selon
+cet état, exactement comme `_wordSpan` le fait aujourd'hui.
+
+### 13.3 Les trois pilotes (cf. §12), traduits en états
+
+Un seul champ `_pilote` sur `MushafScreen` :
+
+    lecture    (défaut)  le doigt commande, tout est visible
+    recitation           l'ASR commande ; le texte non validé est MASQUÉ ;
+                         le défilement suit le pointeur ; le toucher est ignoré
+    jeu                  paliers de mémorisation
+
+Décisions déjà prises, à ne pas re-arbitrer :
+
+- **révélation au VERDICT**, jamais à l'ancre (l'ancre avance avant le verdict ;
+  révéler à l'ancre montre des mots non prononcés — symptôme constaté) ;
+- **la récitation pilote SEULE** le défilement : pas de tournage automatique en
+  parallèle, le toucher n'a aucun effet. Cela supprime le besoin d'un arbitre
+  entre deux sources concurrentes ;
+- **départ au curseur** (`_activeVerse`), jamais au verset 1 ;
+- le jeu : 20 versets, ou la sourate entière si elle est plus courte.
+
+### 13.4 Ce qui meurt avec l'écran vert
+
+- `RecitationScreen` (transcript brut, atteint par double-tap sur le micro) —
+  écran de debug interne, sans usage pour le récitateur ;
+- `_showFullTranscript` ;
+- `KaraokeRecitationScreen` lui-même, une fois les migrations faites.
+
+⚠️ **NE MEURENT PAS** : le journal de diagnostic (`DiagnosticLog`) et l'écran
+de recette. Le premier est ce qui a permis de trouver tout ce qui a été trouvé
+le 2026-08-05 ; le second est le seul chemin vers le mode RÉFÉRENCE, l'unique
+instrument qui dise QUI a tort quand un mot est signalé.
+
+### 13.5 Préalable non négociable
+
+**Le banc doit redevenir déterministe avant d'exécuter cette section.**
+
+Six passes du 2026-08-05, même audio rejoué, même binaire de chaîne — ancre
+atteinte : **294, 208, 40, 294, 210, 70**. Un facteur sept sur elle-même.
+
+Une migration de cette taille produira des régressions ; c'est normal. Ce qui
+ne l'est pas, c'est de ne pas pouvoir les distinguer du bruit. Le mode
+`WAV=<fichier>` existe déjà (même code, même cadence, entrée identique au bit
+près, au lieu du chemin haut-parleur → micro) : c'est lui qu'il faut employer.
+
+Sans ça, chaque étape de la migration se jugera sur un tirage au sort.
