@@ -264,7 +264,12 @@ abstract class RecitationVerifier {
       const Stream.empty();
 
   /// Active la v2 sur [mots]. No-op par défaut.
-  Future<void> v2Activer(bool actif, List<String> mots) async {}
+  ///
+  /// [mode] : 'CTL' (contrôle) ou 'REF' (référence) -- cloisonnement
+  /// contrôle/test (REFONTE_IHM.md §14). Défaut 'CTL' : un appelant qui ne
+  /// précise rien obtient le comportement de l'usage réel, jamais celui de la
+  /// recette par accident.
+  Future<void> v2Activer(bool actif, List<String> mots, {String mode = 'CTL'}) async {}
 
   /// Vrai si l'alignement forcé est actif pour la session courante (cible
   /// déclarée + modèle chargé). Faux → le scoring doit retomber sur le diff
@@ -999,7 +1004,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// [v2Statuses] : celui-ci parle de la récitation, pas d'un mot.
   Stream<int> get decrochage => _decrochageCtrl.stream;
 
-  Future<void> v2Activer(bool actif, List<String> mots) async {
+  @override
+  Future<void> v2Activer(bool actif, List<String> mots, {String mode = 'CTL'}) async {
+    await _fastConformer.v2SetMode(mode);
     await _fastConformer.v2SetTarget(mots);
     await _fastConformer.v2SetEnabled(actif);
   }
@@ -1338,7 +1345,7 @@ class MockRecitationVerifier implements RecitationVerifier {
       const Stream.empty();
 
   @override
-  Future<void> v2Activer(bool actif, List<String> mots) async {}
+  Future<void> v2Activer(bool actif, List<String> mots, {String mode = 'CTL'}) async {}
   @override
   bool get alignmentActive => false;
   @override

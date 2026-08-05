@@ -654,6 +654,27 @@ class FastConformerVerifier {
     } catch (_) {}
   }
 
+  /// Mode de la chaîne v2 CÔTÉ NATIF -- premier maillon du cloisonnement
+  /// contrôle/test (REFONTE_IHM.md §14, demande utilisateur 2026-08-05 :
+  /// « je veux que tout le process soit dupliqué, aucune communication, tout
+  /// soit étanche »).
+  ///
+  /// AVANT CET APPEL, AUCUN FLAG DE MODE N'EXISTAIT CÔTÉ KOTLIN : `v2Actif`/
+  /// `v2Mots` étaient posés sans distinction contrôle/référence, et
+  /// `Localisateur.kt` -- le mécanisme d'ancre lui-même -- ne savait donc pas
+  /// dans quel mode il tournait. Un correctif d'ancre en mode référence
+  /// touchait mécaniquement le mode contrôle.
+  ///
+  /// [mode] : `'CTL'` (contrôle, usage réel) ou `'REF'` (référence, recette
+  /// uniquement) -- mêmes deux valeurs que [DiagnosticLog.modeSession], pour
+  /// qu'un même mot signifie la même chose des deux côtés du pont natif.
+  Future<void> v2SetMode(String mode) async {
+    if (!_loaded) return;
+    try {
+      await _channel.invokeMethod('v2SetMode', {'mode': mode});
+    } catch (_) {}
+  }
+
   Future<void> resetBuffered() async {
     if (!_loaded) return;
     try {

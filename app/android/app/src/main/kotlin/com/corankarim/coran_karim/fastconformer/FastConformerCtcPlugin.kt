@@ -71,6 +71,26 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     @Volatile private var v2Actif = false
     private var v2Chaine: com.corankarim.coran_karim.recitation2.ChaineRecitation? = null
     @Volatile private var v2Mots: List<String> = emptyList()
+
+    // ── MODE CONTROLE / TEST (2026-08-05, REFONTE_IHM.md §14) ────────────────
+    //
+    // Demande utilisateur : « je veux que tout le process soit duplique,
+    // aucune communication, tout soit etanche ». Avant cette variable, AUCUN
+    // flag de mode n'existait cote Kotlin : v2Actif/v2Mots etaient poses sans
+    // distinction controle/reference, et le mecanisme d'ancre (Localisateur.kt)
+    // ne savait donc pas dans quel mode il tournait -- un correctif fait en
+    // mode reference (recette) touchait mecaniquement le mode controle (usage
+    // reel).
+    //
+    // Etape 1 du cloisonnement (celle-ci) : le flag existe et est transmis,
+    // MAIS `alimenterV2` instancie encore un seul et meme `ChaineRecitation`
+    // pour les deux modes -- la duplication de Localisateur/AligneurForce/
+    // ConstructeurDeFenetres/Decideur/ChaineRecitation elle-meme (§14.1-14.3)
+    // reste a faire, chantier de plusieurs jours documente dans REFONTE_IHM.md.
+    // Defaut 'CTL' : tant que Dart n'a pas encore appele v2SetMode (fenetre
+    // de demarrage), un mode absent doit se comporter comme l'usage reel,
+    // jamais comme la recette.
+    @Volatile private var v2Mode = "CTL"
     private val scope = CoroutineScope(Dispatchers.Default)
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -733,6 +753,15 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     if (v2Actif) "ACTIVE" else "desactivee")
                 result.success(null)
             }
+            // Mode CTL/REF -- cf. v2Mode. Appele AVANT v2SetTarget par
+            // v2Activer() cote Dart, donc v2Chaine (recreee au prochain bloc
+            // audio des que la cible change) voit toujours le bon mode des le
+            // premier bloc d'une nouvelle session.
+            "v2SetMode" -> {
+                v2Mode = call.argument<String>("mode") ?: "CTL"
+                DiagnosticLog.log(TAG, "[v2] mode = $v2Mode")
+                result.success(null)
+            }
             // Texte attendu de la v2. Separe de setAlignmentTarget : la v2
             // travaille sur des MOTS, la v1 sur des tokens deja calcules.
             "v2SetTarget" -> {
@@ -1040,6 +1069,11 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         .AligneurForce(moteur.vocabPieces, moteur.blank),
                     journal = { l -> DiagnosticLog.log(TAG, l) },
                     tete3 = tete3,
+                    // CLOISONNEMENT CTL/REF -- cf. le commentaire de
+                    // [ChaineRecitation.referenceSession]. v2Mode est mis a
+                    // jour par v2SetMode, appele avant v2SetTarget (donc avant
+                    // que v2Chaine soit recree), cf. le commentaire du handler.
+                    referenceSession = v2Mode == "REF",
                 )
                 chaine.definirTexte(v2Mots)
                 v2Chaine = chaine

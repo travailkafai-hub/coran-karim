@@ -1996,7 +1996,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // Forme fidèle à l'entraînement (PAS `strict`, qui fusionne des lettres
     // que le modèle a appris à distinguer — cf. normalizeTraining).
     final cible = state.words.map((w) => w.alignTarget).toList();
-    await _verifier.v2Activer(true, cible);
+    // start() est le mode VERSET UNIQUE : jamais de session de
+    // reference, cf. la doc de startControle/startTest -- ce mode n'est
+    // atteint que via la lecture normale d'un verset.
+    await _verifier.v2Activer(true, cible, mode: 'CTL');
     await _verifier.start(cible, refMinFrames: _refMinFrames(state.words));
     _myGeneration = _verifier.sessionGeneration;
   }
@@ -2165,7 +2168,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // la session mesure la v1 en croyant mesurer la v2 (constaté le
     // 2026-07-30 : 0 ligne [V2] dans une session étiquetée v2).
     await _verifier.v2Activer(
-        true, state.words.map((w) => w.alignTarget).toList());
+        true, state.words.map((w) => w.alignTarget).toList(),
+        mode: referenceSession ? 'REF' : 'CTL');
     await _verifier.start(
       state.words.map((w) => w.alignTarget).toList(),
       continuous: true,

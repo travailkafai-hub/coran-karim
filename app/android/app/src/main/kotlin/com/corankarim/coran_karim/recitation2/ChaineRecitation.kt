@@ -49,6 +49,28 @@ class ChaineRecitation(
      *  parite des 12 scores n'est pas verifiee sur device, sa sortie est
      *  seulement JOURNALISEE -- elle ne doit influencer aucun statut. */
     private val tete3: Tete3? = null,
+    /**
+     * CLOISONNEMENT CTL/REF (2026-08-05). Le mecanisme SAUT REFUSE (cf. plus
+     * bas dans [traiter]) est correct pour la recitation NORMALE : c'est la
+     * regle produit voulue -- pas de decrochage silencieux, un vrai trou doit
+     * faire repeter le recitateur, pas avancer sans jugement.
+     *
+     * Il est en revanche la CAUSE MESUREE de la regression de l'ancre en
+     * recitation de REFERENCE (bancs/recettes) : la mesure du 2026-08-05 sur
+     * la meme sourate, meme depart, montre le temoin d'avant ce mecanisme
+     * (commit ec04903) atteignant l'ancre 294, et deux temoins d'apres
+     * (6f1e954, 90e4772) plafonnant a 209 puis 69, avec des dizaines de "SAUT
+     * REFUSE" dans le journal. La cause : le refus ne bloque pas seulement le
+     * trou, il jette TOUTE la fenetre, y compris les mots attestes de part et
+     * d'autre -- alors qu'un trou de RECONNAISSANCE (le modele qui rate 3-4
+     * mots) est frequent et normal, meme quand le recitateur dit tout juste.
+     *
+     * En reference, on n'a pas besoin d'imposer une repetition : on veut
+     * juste MESURER jusqu'ou l'ancre suit. On revient donc au comportement
+     * d'avant le 2026-08-01 pour cette session-la uniquement : aucun trou
+     * n'est calcule, aucune fenetre n'est jetee pour cette raison.
+     */
+    private val referenceSession: Boolean = false,
 ) {
     private var motsAttendus: List<String> = emptyList()
     private var tokensAttendus: List<IntArray> = emptyList()
@@ -339,10 +361,14 @@ class ChaineRecitation(
         // On regarde donc l'ecart entre deux mots ATTESTES CONSECUTIFS (les
         // seuls que le decodage libre a reellement entendus), et aussi
         // l'ecart entre le dernier definitif et la premiere attestation.
+        //
+        // REFERENCE : ce calcul et le refus qui suit sont desactives -- cf.
+        // le commentaire de [referenceSession] au constructeur. Comportement
+        // d'avant le 2026-08-01 restaure pour cette session uniquement.
         val attestesTries = bande.attestes.keys.sorted()
         var trou = 0
         var trouApres = -1
-        if (attestesTries.isNotEmpty()) {
+        if (!referenceSession && attestesTries.isNotEmpty()) {
             if (dernierDefinitif >= 0) {
                 trou = attestesTries.first() - (dernierDefinitif + 1)
                 trouApres = dernierDefinitif
@@ -358,7 +384,7 @@ class ChaineRecitation(
         // Exception au TOUT DEBUT (aucun mot encore definitif) : on ne sait
         // pas ou le recitateur commence, et commencer au verset 2 sans dire
         // la Bismillah est legitime (constate a chaque session de test).
-        if (dernierDefinitif >= 0 && trou > sautMaxMots) {
+        if (!referenceSession && dernierDefinitif >= 0 && trou > sautMaxMots) {
             journal?.invoke("[v2] f=${fenetre.id} SAUT REFUSE : trou de $trou mots " +
                 "apres le mot $trouApres (attestes=${attestesTries.take(6)}...), " +
                 "dernier definitif=$dernierDefinitif, max=$sautMaxMots " +
