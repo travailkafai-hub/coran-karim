@@ -884,3 +884,98 @@ ne l'est pas, c'est de ne pas pouvoir les distinguer du bruit. Le mode
 près, au lieu du chemin haut-parleur → micro) : c'est lui qu'il faut employer.
 
 Sans ça, chaque étape de la migration se jugera sur un tirage au sort.
+
+---
+
+## 14. Cloisonnement complet contrôle / test — inventaire pour exécution future
+
+Décision utilisateur (2026-08-05), après le cloisonnement du point d'entrée
+Dart (`startControle`/`startTest`, cf. commit git du même jour) : « je veux
+que tout le process soit dupliqué, aucune communication, tout soit étanche ».
+
+Le point d'entrée seul ne suffit pas : le mécanisme d'ANCRE lui-même
+(`Localisateur.kt`, celui du recul exclusif tenté ce jour) **ne connaît même
+pas** la distinction contrôle/référence — code Kotlin partagé à 100 %, sans
+paramètre pour la différencier. Une modification de l'ancre en mode référence
+impacte donc aujourd'hui le mode normal, systématiquement.
+
+**Ce chantier n'a PAS été exécuté** : à cette taille, le faire dans le temps
+restant d'une session aurait été le risque de régression que l'utilisateur
+demande justement d'éviter. Cette section est l'inventaire, prêt à exécuter
+d'un trait dans une session dédiée avec le budget nécessaire.
+
+### 14.1 Ce qui doit être dupliqué — le pipeline Kotlin (`recitation2/`)
+
+3672 lignes, 8 fichiers, dépendances imbriquées (mesuré le 2026-08-05) :
+
+| fichier | lignes | dépend de |
+|---|---|---|
+| `ChaineRecitation.kt` | 619 | Localisateur, AligneurForce, ConstructeurDeFenetres, Decideur, FrontAcoustique |
+| `ConstructeurDeFenetres.kt` | 604 | — |
+| `AligneurForce.kt` | 434 | — |
+| `Decideur.kt` | 328 | — |
+| `Localisateur.kt` | 295 | — (le mécanisme d'ancre lui-même) |
+| `Calibrage.kt` | 296 | AligneurForce |
+| `Decodage.kt` | 151 | — |
+| `Tete3Traits.kt` | 273 | — |
+| `RegistreDePreuves.kt` | 123 | — |
+| `Tete3.kt` | 126 | — |
+| `Orthographe.kt` | 108 | — |
+| `FrontAcoustique.kt` | 102 | — |
+| `ConfusionsRecitation.kt` | 94 | — |
+| `FluxBrut.kt` | 66 | — |
+| `Horloge.kt` | 53 | — |
+
+`ChaineRecitation` est le point d'assemblage : dupliquer implique deux arbres
+complets (`ChaineRecitationControle` + ses dépendances propres,
+`ChaineRecitationTest` + les siennes), pas un fichier isolé.
+
+### 14.2 Ce qui doit être dupliqué — côté Dart (`recitation_provider.dart`)
+
+Déjà séparé (2026-08-05) : `startControle()` / `startTest()` — le point
+d'entrée de session.
+
+Reste PARTAGÉ, à dupliquer pour l'étanchéité complète :
+- `_onAligned` (ligne ~3094) — traite les résultats de l'ancre v1 ;
+- `_onV2` (ligne ~2945) — traite les statuts de la chaîne v2, donc de
+  `Localisateur` ;
+- `_judge` (ligne ~2391) — verrouille un verdict, commun aux deux modes ;
+- `_onDecrochageV2` (ligne ~233) — traite un décrochage signalé par la v2.
+
+### 14.3 Ce qui doit être dupliqué — le pont natif (`FastConformerCtcPlugin.kt`)
+
+`alimenterV2()` instancie `ChaineRecitation` (deux sites d'appel identifiés,
+cf. `v2Chaine`) : c'est ICI que le choix Controle/Test doit se faire, à partir
+d'un mode transmis depuis Dart. Aujourd'hui **aucun flag de mode n'existe côté
+Kotlin** — `v2Actif`/`v2Mots` sont posés sans distinction ; il faut l'ajouter
+(nouveau paramètre sur `v2SetEnabled` ou nouvelle méthode `v2SetMode`).
+
+### 14.4 Ce qui NE PEUT PAS être dupliqué, et pourquoi ce n'est pas un défaut
+
+Le **modèle ONNX chargé en mémoire** (`FastConformerCtc`, l'inférence
+elle-même) est un partage MATÉRIEL, pas logiciel : le dupliquer chargerait
+deux fois le modèle en RAM sur le téléphone. Il reste commun aux deux modes,
+et c'est sans conséquence pour l'étanchéité demandée — le modèle ne PREND
+aucune décision de jugement, il ne fait que produire des logprobs ; c'est tout
+ce qui vient APRÈS (Localisateur, AligneurForce, Decideur) qui doit être
+étanche, et qui l'est dans ce plan.
+
+### 14.5 Ordre d'exécution recommandé
+
+1. Ajouter le flag de mode côté Kotlin (`FastConformerCtcPlugin.kt`) et le fil
+   Dart -> MethodChannel qui le transmet (`startControle`/`startTest` le
+   connaissent déjà, il manque le relais vers le natif).
+2. Dupliquer `Localisateur.kt` en premier — c'est le fichier sans dépendance
+   interne, le plus isolé, et celui où un correctif a déjà failli toucher les
+   deux modes le jour même (recul exclusif).
+3. Remonter vers `AligneurForce`, `ConstructeurDeFenetres`, `Decideur`,
+   `FrontAcoustique` — chacun sans dépendance interne, duplicables
+   indépendamment.
+4. `ChaineRecitation` en dernier — l'assemblage, une fois que toutes ses
+   dépendances existent en double.
+5. Côté Dart : `_onAligned`, `_onV2`, `_judge`, `_onDecrochageV2`.
+6. Recette à deux téléphones sur CHAQUE mode séparément, avant tout commit.
+
+⚠️ Le banc de recette doit être rendu déterministe (§13.5, mode `WAV=<fichier>`)
+AVANT d'entamer ce chantier : sans ça, aucune des deux copies ne pourra être
+vérifiée contre l'autre de façon fiable.
