@@ -524,5 +524,7 @@
   "mushafRecite": "Recite",
   "mushafFromHere": "Starting from this verse",
   "mushafBookmarkAdded": "Bookmark added",
-  "mushafBookmarkRemoved": "Bookmark removed"
+  "mushafBookmarkRemoved": "Bookmark removed",
+  "readingSettingsGroupRead": "READ",
+  "readingSettingsGroupListen": "LISTEN"
 }

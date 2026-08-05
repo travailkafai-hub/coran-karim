@@ -2102,5 +2102,7 @@
   "mushafRecite": "Réciter",
   "mushafFromHere": "À partir de ce verset",
   "mushafBookmarkAdded": "Marque-page posé",
-  "mushafBookmarkRemoved": "Marque-page retiré"
+  "mushafBookmarkRemoved": "Marque-page retiré",
+  "readingSettingsGroupRead": "LIRE",
+  "readingSettingsGroupListen": "ÉCOUTER"
 }

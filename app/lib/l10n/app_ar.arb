@@ -524,5 +524,7 @@
   "mushafRecite": "تلاوة",
   "mushafFromHere": "ابتداءً من هذه الآية",
   "mushafBookmarkAdded": "تم وضع العلامة",
-  "mushafBookmarkRemoved": "تم حذف العلامة"
+  "mushafBookmarkRemoved": "تم حذف العلامة",
+  "readingSettingsGroupRead": "القراءة",
+  "readingSettingsGroupListen": "الاستماع"
 }
