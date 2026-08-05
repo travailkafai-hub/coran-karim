@@ -1190,8 +1190,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           // Poussé AVANT start() : la valeur est lue à l'ouverture du flux.
           ref.read(recitationVerifierProvider).noiseSuppress =
               ref.read(noiseSuppressProvider);
-          return notifier.startContinuous(
-              referenceSession: _isReferenceSession);
+          // Cloisonnement 2026-08-05 : deux points d'entrée distincts au lieu
+          // d'un paramètre booléen -- cf. la doc de startControle/startTest
+          // dans recitation_provider.dart.
+          return _isReferenceSession
+              ? notifier.startTest()
+              : notifier.startControle();
         },
         canContinue: () => mounted,
         onStage: (stage) {

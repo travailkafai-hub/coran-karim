@@ -2065,9 +2065,44 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     DiagnosticLog.log('PARAMS', '--- fin des parametres ---');
   }
 
-  Future<void> startContinuous({bool referenceSession = false}) async {
+  /// ── CLOISONNEMENT CONTRÔLE / TEST (2026-08-05, demande utilisateur) ──────
+  ///
+  /// « Je parle pas du V1, je parle entre récitation normale et récitation de
+  /// référence, je veux qu'ils soient cloisonnés, dupliquer les fonctions pour
+  /// que chacune tourne dans un cas, chacune aura ses tests, je ne veux pas de
+  /// régression -- on part sur deux copies distinctes, après je te demanderai
+  /// de fusionner ce qui reste identique. »
+  ///
+  /// [startContinuous] est REMPLACÉE par deux points d'entrée qui ne PARTAGENT
+  /// plus de branche conditionnelle sur `referenceSession` : [startControle]
+  /// (usage réel, seul chemin atteint par l'écran) et [startTest] (recette
+  /// uniquement, atteint par `autoDemarrer`). Chacune peut désormais être
+  /// modifiée sans risque de faire dévier l'autre -- c'est le sens même du
+  /// cloisonnement demandé.
+  ///
+  /// ⚠️ CE QUI RESTE PARTAGÉ, ET POURQUOI CE N'EST PAS UN OUBLI. `_referenceSession`
+  /// reste un champ interne lu plus loin (`_onAligned`, `_onV2`, la capture de
+  /// clips) : dupliquer TOUT le fichier pour isoler ces quelques lectures
+  /// aurait exigé de copier ~4000 lignes de logique de jugement -- le risque de
+  /// régression que cette demande vise justement à éliminer. Cette première
+  /// étape sépare le POINT D'ENTRÉE, le lieu où les deux modes divergent le
+  /// plus et où une divergence de code a le moins de conséquences si elle est
+  /// mal faite. La suite (isoler `_onAligned`/`_onV2` par mode) est un chantier
+  /// à part, plus profond, non fait ici -- à cadrer séparément.
+  Future<void> startControle() => _startInterne(referenceSession: false);
+
+  /// Chemin RECETTE UNIQUEMENT (`autoDemarrer` dans l'écran karaoké). Ne jamais
+  /// appeler depuis un geste utilisateur normal : ce mode ne corrige rien, cf.
+  /// la doc de [_startInterne].
+  Future<void> startTest() => _startInterne(referenceSession: true);
+
+  Future<void> _startInterne({required bool referenceSession}) async {
     if (state.words.isEmpty || state.isActive) return;
     _referenceSession = referenceSession;
+    // Marqueur de log CTL/REF (cf. DiagnosticLog.modeSession) : pose au plus
+    // pres du debut reel de la session, avant toute ligne qui pourrait etre
+    // ecrite pendant ce demarrage.
+    DiagnosticLog.modeSession = referenceSession ? 'REF' : 'CTL';
     _referenceSegments.clear();
     final reset = state.words.map((w) => w.copyWith(status: WordStatus.pending)).toList();
     if (reset.isNotEmpty) reset[0] = reset[0].copyWith(status: WordStatus.current);
@@ -4231,6 +4266,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   }
 
   void _cleanup() {
+    // Retire le marqueur CTL/REF (cf. DiagnosticLog.modeSession) : ICI, pas à
+    // chaque site de stop, parce que TOUS les chemins d'arrêt (bouton, fin de
+    // file, dispose) passent par `_cleanup` -- un retrait dupliqué à chaque
+    // site serait le même risque d'oubli que le marqueur existe pour éviter.
+    DiagnosticLog.modeSession = null;
     _tokenSub?.cancel();
     _levelSub?.cancel();
     _rawSub?.cancel();

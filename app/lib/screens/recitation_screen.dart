@@ -283,7 +283,10 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
               if (listening) {
                 n.stopContinuous();
               } else if (!finalizing) {
-                n.startContinuous();
+                // Cloisonnement 2026-08-05 : cet écran de debug n'a pas de
+                // notion de session de référence, il utilise donc le chemin
+                // contrôle (cf. recitation_provider.dart::startControle).
+                n.startControle();
               }
             },
             child: _MicButton(level: st.soundLevel, listening: listening),

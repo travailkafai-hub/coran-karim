@@ -194,11 +194,32 @@ class DiagnosticLog {
     return n;
   }
 
+  /// Mode de la session de récitation EN COURS -- 'CTL' (contrôle, usage réel)
+  /// ou 'REF' (référence, recette uniquement), null hors récitation.
+  ///
+  /// ── POURQUOI CE MARQUEUR EXISTE (2026-08-05, demande utilisateur) ────────
+  ///
+  /// « pour les logs, rajoute est-ce que c'est REF ou NORMAL, on ne sait jamais
+  /// si une [chose] se déclenche dans l'autre ». Le mode était dit UNE fois, en
+  /// tête de session (`[MODE] session de REFERENCE : ...`) -- suffisant pour
+  /// lire une session en entier, insuffisant pour une ligne isolée (une
+  /// recherche, un extrait colle ailleurs) : rien n'y rappelle sous quel mode
+  /// elle a été produite.
+  ///
+  /// Centralisé ICI plutôt que répété à chaque site d'appel : un site oublié
+  /// est un site où l'ambiguïté revient, exactement le risque que ce marqueur
+  /// supprime. `RecitationNotifier` le positionne dans `startControle`/
+  /// `startTest`, et le remet à null à l'arrêt -- cf. ces méthodes.
+  static String? modeSession;
+
   static void log(String tag, String message) {
     // Sortie AVANT tout formatage : l'interpolation de chaîne est elle-même le
     // coût dominant sur les lignes verbeuses (GOP, TEXTDIFF).
     if (!enabled) return;
-    final line = '${DateTime.now().toIso8601String()} [$tag] $message';
+    final mode = modeSession;
+    final line = mode == null
+        ? '${DateTime.now().toIso8601String()} [$tag] $message'
+        : '${DateTime.now().toIso8601String()} [$mode][$tag] $message';
     debugPrint(line); // garde aussi la visibilité logcat habituelle
     final f = _file;
     if (f == null) return;
