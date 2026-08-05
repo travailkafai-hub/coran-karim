@@ -1,0 +1,72 @@
+diff --git a/app/android/app/src/main/kotlin/com/corankarim/coran_karim/recitation2/Localisateur.kt b/app/android/app/src/main/kotlin/com/corankarim/coran_karim/recitation2/Localisateur.kt
+index 46ec998..44d8d4a 100644
+--- a/app/android/app/src/main/kotlin/com/corankarim/coran_karim/recitation2/Localisateur.kt
++++ b/app/android/app/src/main/kotlin/com/corankarim/coran_karim/recitation2/Localisateur.kt
+@@ -149,9 +149,54 @@ class Localisateur(
+ 
+         // UNE seule LCS sur toute la region : elle trouve d'elle-meme la
+         // correspondance, il n'y a pas de « point de depart » a balayer.
+-        val (score, _, attestes) =
++        var (score, _, attestes) =
+             apparier(entendus, attendus, min, entendusAvecFrames, max)
+         if (score < minAppariements || attestes.isEmpty()) return null
++
++        // ── UNE REPETITION, C'EST UN MOT QUI N'EXISTE PAS DEVANT ────────────
++        //
++        // CRITERE DONNE PAR L'UTILISATEUR (2026-08-05) : « quand le recitateur
++        // repete, ca veut dire qu'il va redire un mot deja valide QUI N'EXISTE
++        // PAS DEVANT ».
++        //
++        // LE DEFAUT QUE CELA CORRIGE. La LCS ci-dessus balaie toute la region
++        // -- [depart - reculMax, depart + avanceMax] -- et retient la meilleure
++        // correspondance OU QU'ELLE SOIT. Un mot present des deux cotes pouvait
++        // donc faire basculer la bande EN ARRIERE, alors que le recitateur
++        // avancait normalement. Or le texte coranique se repete sans cesse :
++        // `كَمَآ ءَامَنَ` deux fois dans le seul verset 2:13,
++        // `يُخَـٰدِعُونَ`/`يَخْدَعُونَ` a cinq mots d'ecart au verset 9. Une
++        // correspondance en arriere n'est donc PAS une preuve de repetition.
++        //
++        // CE QUE CA A COUTE, mesure le 2026-08-05 : un recul injustifie du mot
++        // 38 vers le mot 34, a la 47e seconde. L'audio a continue d'avancer, la
++        // bande est restee coincee, et la session s'est arretee a 40 mots juges
++        // sur 295 -- en affichant 0 % d'erreur, puisque 254 mots avaient quitte
++        // le denominateur au lieu de compter comme echec.
++        //
++        // LE CORRECTIF. Le recul doit etre EXCLUSIF, pas seulement MEILLEUR :
++        // on re-apparie sur la seule region EN AVANT, et on ne recule que si
++        // l'avant n'offre aucune lecture acceptable. A egalite ou presque,
++        // l'avant gagne -- avancer est le cas normal, reculer l'exception.
++        //
++        // ⚠️ CE N'EST PAS UN DEPLACEMENT DE SEUIL. On ne rend pas le recul plus
++        // difficile : on lui demande la preuve qui le definit. Un recitateur
++        // qui repete vraiment dit des mots absents devant, et l'appariement
++        // avant echoue alors de lui-meme.
++        var reculExclusif = true
++        if (attestes.keys.min() < depart) {
++            val (scoreAvant, _, attestesAvant) =
++                apparier(entendus, attendus, depart, entendusAvecFrames, max)
++            if (scoreAvant >= minAppariements && attestesAvant.isNotEmpty() &&
++                scoreAvant >= score - 1
++            ) {
++                // L'avant explique l'audio aussi bien : ce n'etait pas une
++                // repetition, seulement du texte qui se ressemble.
++                score = scoreAvant
++                attestes = attestesAvant
++                reculExclusif = false
++            }
++        }
+         // Attestation EXACTE : le texte brut entendu est-il, caractere pour
+         // caractere, le mot attendu ? C'est la seule qui vaut preuve.
+         val exacts = HashSet<Int>()
+@@ -219,7 +264,10 @@ class Localisateur(
+             i0 = i0,
+             i1 = i1,
+             confiance = score.toFloat() / entendus.size,
+-            recul = i0 < depart,
++            // `recul` ne vaut vrai que si l'arriere etait la SEULE lecture
++            // possible (cf. `reculExclusif` plus haut) -- sinon la bande a deja
++            // ete ramenee vers l'avant.
++            recul = i0 < depart && reculExclusif,
+             attestes = attestes,
+             attestesExacts = exacts,
+         )
