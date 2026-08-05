@@ -50,6 +50,60 @@ class _ScoredVerse {
 /// requête (sortie ASR) est comparée à ce même format. Chargé en asset
 /// (offline, ~1 Mo) plutôt que fetché en ligne : le cas d'usage vise aussi
 /// l'écoute pendant une prière/khutba, réseau pas garanti.
+
+/// PROFIL DE RECHERCHE — le cloisonnement demande par l'utilisateur
+/// (2026-08-05) : « le lien avec la recitation, je veux que ce soit traite
+/// cloisonne, des fonctions propres a la recitation, pour eviter la
+/// regression ».
+///
+/// POURQUOI CE CLOISONNEMENT EXISTE. Ce service repond a DEUX questions qui se
+/// ressemblent et n'ont pas les memes consequences :
+///
+///  1. « QUEL texte est recite ? » — Shazam et le suivi de priere. Une reponse
+///     fausse se voit tout de suite (mauvais verset affiche) et se rattrape :
+///     on relance l'ecoute. On veut donc trouver le plus souvent possible.
+///  2. « OU en est-on dans le texte deja connu ? » — la resynchronisation
+///     d'ANCRE en recitation. Une reponse fausse ne se voit pas : l'ancre part
+///     au mauvais endroit et le suivi ne revient jamais. Session du 2026-08-05
+///     a l'appui -- un recul d'ancre injustifie a laisse 254 mots sur 295 sans
+///     jugement, et le taux affiche etait de 0 % d'erreur.
+///
+/// Les deux questions ne peuvent donc pas partager leurs reglages : rendre la
+/// recherche plus PERMISSIVE aide (1) et met (2) en danger. Le profil rend ce
+/// partage impossible par construction -- regler le Shazam ne peut plus
+/// deplacer l'ancre sans qu'on l'ait ecrit ici, explicitement.
+class ProfilRecherche {
+  /// L'ecart entre les deux mots d'une paire fait-il partie de la cle ?
+  /// `false` (Shazam) tolere les mots avales par l'ASR ; `true` exige la meme
+  /// distance des deux cotes.
+  final bool ecartDansLaCle;
+
+  /// Largeur de la fenetre de vote, en mots. 0 = egalite stricte du decalage.
+  final int fenetreDecalage;
+
+  const ProfilRecherche({
+    required this.ecartDansLaCle,
+    required this.fenetreDecalage,
+  });
+
+  /// IDENTIFIER un passage inconnu (Shazam, suivi de priere). Mesure du
+  /// 2026-08-05 sur 200 versets : 50 % -> 96 % de passages retrouves quand
+  /// l'ASR avale un mot sur cinq, aucun scenario en regression.
+  static const identification =
+      ProfilRecherche(ecartDansLaCle: false, fenetreDecalage: 4);
+
+  /// REPLACER L'ANCRE dans un texte deja connu (recitation).
+  ///
+  /// ⚠️ FIGE SUR LE COMPORTEMENT D'AVANT LE 2026-08-05, DELIBEREMENT. Le gain
+  /// mesure sur l'identification n'a PAS ete mesure ici, et les deux usages
+  /// n'ont pas le meme risque : une recherche plus permissive trouve plus
+  /// souvent, donc se trompe aussi plus souvent -- ce qui est acceptable quand
+  /// on affiche un verset, et ne l'est pas quand on deplace l'ancre.
+  /// Ne changer ces valeurs qu'avec une mesure faite SUR LA RECITATION.
+  static const ancreRecitation =
+      ProfilRecherche(ecartDansLaCle: true, fenetreDecalage: 0);
+}
+
 class QuranVerseLocatorService {
   QuranVerseLocatorService._();
   static final instance = QuranVerseLocatorService._();
@@ -65,7 +119,8 @@ class QuranVerseLocatorService {
   // index mot-isolé (`_wordIndex`) -- une paire porte déjà une preuve
   // d'adjacence approchée, ce que le mot isolé ne donnait pas (d'où le veto
   // séparé `_hasBigramSupport`, devenu inutile, cf. plus bas).
-  Map<String, List<int>>? _pairIndex;
+  Map<String, List<int>>? _pairIndex;      // identification
+  Map<String, List<int>>? _pairIndexStrict; // ancre de recitation
 
   // Écart maximal entre les deux mots d'une paire indexée -- assez grand pour
   // survivre à 1-3 mots perdus/mal transcrits par l'ASR entre deux mots
@@ -94,7 +149,10 @@ class QuranVerseLocatorService {
   // 4 : absorbe jusqu'à quatre mots perdus sur l'extrait, sans laisser deux
   // zones éloignées du Coran voter ensemble -- ce serait rendre à l'algorithme
   // le défaut qu'il a été écrit pour supprimer.
-  static const _kOffsetWindow = 4;
+  //   → La valeur vit desormais dans `ProfilRecherche.fenetreDecalage` : elle
+  //     vaut 4 pour l'identification et 0 pour l'ancre de recitation, et ce
+  //     n'est plus une constante globale precisement pour que les deux usages
+  //     ne puissent plus se regler l'un l'autre.
   // Filtre de rareté (équivalent du seuil >400 occurrences mot-isolé
   // d'origine, mais sur des paires -- donc un seuil bien plus bas) : une
   // paire qui apparaît dans trop d'endroits différents du Coran n'aide pas à
@@ -156,6 +214,19 @@ class QuranVerseLocatorService {
     _verses = verses;
     _flatWords = flat;
     _pairIndex = pairIndex;
+    // Index STRICT (l'ecart dans la cle) : celui de l'ancre de recitation. Il
+    // coute une seconde passe au chargement et quelques Mo -- le prix a payer
+    // pour qu'un reglage du Shazam ne puisse pas deplacer l'ancre.
+    final strict = <String, List<int>>{};
+    for (var i = 0; i < flat.length; i++) {
+      final maxK = (flat.length - 1 - i).clamp(0, _kMaxPairGap);
+      for (var k = 1; k <= maxK; k++) {
+        strict.putIfAbsent('${flat[i]}\u0001${flat[i + k]}\u0001$k', () => [])
+            .add(i);
+      }
+    }
+    strict.removeWhere((_, p) => p.length > _kMaxPairOccurrences);
+    _pairIndexStrict = strict;
   }
 
   /// Verset qui contient la position [pos] de `_flatWords` (recherche
@@ -202,7 +273,8 @@ class QuranVerseLocatorService {
   /// besoin d'un veto bigramme séparé (une paire non trouvée dans l'index ne
   /// vote simplement pas) et le filtre de fréquence se fait sur les PAIRES
   /// (au chargement, `_kMaxPairOccurrences`) plutôt que sur les mots isolés.
-  Future<List<_ScoredVerse>> _rankCandidates(String heardText) async {
+  Future<List<_ScoredVerse>> _rankCandidates(String heardText,
+      {ProfilRecherche profil = ProfilRecherche.identification}) async {
     await _ensureLoaded();
     final queryWords = ArabicNormalizer.normalize(heardText)
         .split(RegExp(r'\s+'))
@@ -218,7 +290,8 @@ class QuranVerseLocatorService {
       return const [];
     }
 
-    final pairIndex = _pairIndex!;
+    final pairIndex =
+        profil.ecartDansLaCle ? _pairIndexStrict! : _pairIndex!;
     final flatWords = _flatWords!;
 
     final offsetVotes = <int, int>{};
@@ -227,7 +300,9 @@ class QuranVerseLocatorService {
       final maxK = (queryWords.length - 1 - i).clamp(0, _kMaxPairGap);
       for (var k = 1; k <= maxK; k++) {
         pairsTried++;
-        final key = _pairKey(queryWords[i], queryWords[i + k]);
+        final key = profil.ecartDansLaCle
+            ? '${queryWords[i]}\u0001${queryWords[i + k]}\u0001$k'
+            : _pairKey(queryWords[i], queryWords[i + k]);
         final positions = pairIndex[key];
         if (positions == null) continue;
         for (final p in positions) {
@@ -252,7 +327,7 @@ class QuranVerseLocatorService {
     final cumul = <int, int>{};
     for (final d in offsetVotes.keys) {
       var somme = 0;
-      for (var j = 0; j <= _kOffsetWindow; j++) {
+      for (var j = 0; j <= profil.fenetreDecalage; j++) {
         somme += offsetVotes[d + j] ?? 0;
       }
       cumul[d] = somme;
@@ -273,7 +348,7 @@ class QuranVerseLocatorService {
       // décalage qui porte le plus de votes À L'INTÉRIEUR de la fenêtre.
       var offset = e.key;
       var meilleur = offsetVotes[offset] ?? 0;
-      for (var j = 1; j <= _kOffsetWindow; j++) {
+      for (var j = 1; j <= profil.fenetreDecalage; j++) {
         final v = offsetVotes[e.key + j] ?? 0;
         if (v > meilleur) {
           meilleur = v;
@@ -296,8 +371,23 @@ class QuranVerseLocatorService {
   /// reconnaissance attendu). Retourne `null` si rien d'assez confiant n'est
   /// trouvé (texte trop court, ou aucune zone du Coran ne recoupe assez de
   /// mots dans l'ordre).
-  Future<QuranMatch?> locate(String heardText) async {
-    final ranked = await _rankCandidates(heardText);
+  /// REPLACER L'ANCRE en recitation — fonction PROPRE a la recitation
+  /// (cloisonnement demande le 2026-08-05, cf. [ProfilRecherche]).
+  ///
+  /// Volontairement distincte de [locate], bien qu'elle fasse aujourd'hui le
+  /// meme calcul avec d'autres reglages : c'est la SEULE facon d'empecher
+  /// qu'une amelioration du Shazam deplace l'ancre sans que personne ne l'ait
+  /// voulu. Le jour ou l'ancre a besoin d'autre chose, elle l'obtient ici sans
+  /// toucher a l'identification -- et reciproquement.
+  Future<QuranMatch?> localiserPourAncre(String heardText) =>
+      _localiser(heardText, ProfilRecherche.ancreRecitation);
+
+  Future<QuranMatch?> locate(String heardText) =>
+      _localiser(heardText, ProfilRecherche.identification);
+
+  Future<QuranMatch?> _localiser(
+      String heardText, ProfilRecherche profil) async {
+    final ranked = await _rankCandidates(heardText, profil: profil);
     if (ranked.isEmpty) return null;
     final best = ranked.first;
     debugPrint('[Shazam] meilleur candidat : '

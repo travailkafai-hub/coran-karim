@@ -1616,7 +1616,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   }) {
     if (_resyncInFlight || verses == null || probe.isEmpty) return;
     _resyncInFlight = true;
-    QuranVerseLocatorService.instance.locate(probe).then((match) {
+    // ANCRE : fonction PROPRE a la recitation (cloisonnement 2026-08-05).
+    // `locate()` est reglee pour IDENTIFIER un passage inconnu -- plus
+    // permissive depuis la correction du Shazam, donc plus encline a trouver
+    // ET a se tromper. Acceptable pour afficher un verset ; pas pour deplacer
+    // l'ancre, ou une erreur ne se voit pas et ne se rattrape pas.
+    QuranVerseLocatorService.instance.localiserPourAncre(probe).then((match) {
       _resyncInFlight = false;
       if (match == null || match.surahNumber != surahNumber) return;
       // Toujours la phase visée (pas de course avec un takbir/une bascule

@@ -1296,11 +1296,28 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // c'est celui qu'on mesure (pas de correction, donc pas de recul
         // d'ancre qui viendrait masquer un défaut d'alignement).
         _isReferenceSession = true;
-      } else if (_hasProfile == false && _globalStable != true) {
-        final wantsReference = await _askReferenceChoice();
-        if (wantsReference == null) return; // dialogue annulé
-        _isReferenceSession = wantsReference;
       } else {
+        // ── LA REFERENCE QUITTE L'INTERFACE, PAS LE PROJET (2026-08-05) ────
+        //
+        // Demande utilisateur : « enleve la recitation de reference, la
+        // finalite de l'app ne va pas l'utiliser -- mais tu peux la garder
+        // pour toi comme un chemin de recette », et la raison qu'il en donne
+        // est la bonne : « elle ne demande pas la repetition ». Un mode qui
+        // n'interrompt jamais et ne fait jamais redire un mot n'apprend rien
+        // a personne -- l'app existe pour corriger, pas pour constater.
+        //
+        // ⚠️ LE MODE RESTE ENTIEREMENT FONCTIONNEL, et il le doit : c'est
+        // l'instrument qui dit QUI a tort. Le 2026-08-05, deux signalements
+        // (un violet sur `حولهۥ`, un rouge sur `أبصارهم`) n'ont pu etre
+        // qualifies de faux positifs QUE parce que l'audio venait d'un
+        // recitateur professionnel, donc forcement juste. Avec la voix de
+        // l'utilisateur, les deux cas restaient indecidables.
+        //
+        // Seule la QUESTION posee a l'utilisateur disparait. Le banc l'active
+        // par `widget.autoDemarrer` (branche ci-dessus), et c'est desormais le
+        // SEUL chemin qui y mene -- ce qui garantit aussi qu'aucune session
+        // ordinaire ne tombe dedans par accident, ce que le dialogue rendait
+        // possible des que le profil de pauses etait absent.
         _isReferenceSession = false;
       }
       setState(() => _sessionNotice = null);
@@ -1379,6 +1396,17 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// être une récitation normale (correction automatique active, mais sans
   /// profil de pause encore établi pour ce passage). Retourne `null` si
   /// l'utilisateur annule (aucune récitation ne démarre alors).
+  // ── DIALOGUE « reference ou correction ? » — PLUS APPELE (2026-08-05) ─────
+  //
+  // Conserve intact plutot que supprime : il porte la formulation exacte des
+  // deux modes, et un futur besoin (un mode « evaluation » assume, par
+  // exemple) repartirait de la. Le mode REFERENCE lui-meme n'est pas mort --
+  // seul le CHOIX propose a l'utilisateur l'est, cf. le commentaire du bloc
+  // qui fixe `_isReferenceSession`. Le banc y accede par `autoDemarrer`.
+  //
+  // ⚠️ Ne pas le rebrancher sans repondre a l'objection qui l'a fait retirer :
+  // ce mode « ne demande pas la repetition », donc il ne corrige personne.
+  // ignore: unused_element
   Future<bool?> _askReferenceChoice() {
     final t = AppLocalizations.of(context)!;
     return showDialog<bool>(
@@ -2372,6 +2400,46 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final local = _localIndexInVerse(wordIndex);
     if (verse == null || local == null) return;
     final st = ref.read(recitationProvider);
+
+    // ── N'AFFICHER QUE LE MOT EN CAUSE, PAS TOUTE L'AYA (2026-08-05) ───────
+    //
+    // Demande utilisateur : « quand je clique sur le mot en erreur j'ai toute
+    // l'aya qui s'affiche ; je veux que ça reste sur le mot en question. Si
+    // deux ou trois mots en erreur sont côte à côte, on peut les fusionner
+    // dans la même fenêtre. »
+    //
+    // On étend donc la plage aux mots CONTIGUS qui portent aussi un verdict
+    // négatif. Deux fautes voisines forment presque toujours une seule et même
+    // difficulté (une liaison, un enchaînement) : les présenter séparément
+    // obligerait à ouvrir deux fois la fenêtre pour une seule cause.
+    //
+    // ⚠️ SEULS LES VERDICTS NÉGATIFS FUSIONNENT. Un mot `pending` ou `current`
+    // n'a pas été jugé : l'inclure ferait grossir l'extrait au fil de la
+    // récitation jusqu'à redonner le verset entier -- exactement ce qu'on
+    // supprime ici.
+    bool estEnErreur(int i) {
+      if (i < 0 || i >= st.words.length) return false;
+      final s = st.words[i].status;
+      return s == WordStatus.error ||
+          s == WordStatus.unclear ||
+          s == WordStatus.skipped;
+    }
+
+    var debut = local;
+    var fin = local;
+    if (estEnErreur(wordIndex)) {
+      // On borne l'extension au VERSET (indices locaux) : déborder sur le
+      // verset voisin afficherait un texte que la feuille ne sait pas rendre,
+      // puisqu'elle part de `verse.textUthmani`.
+      while (debut > 0 && estEnErreur(wordIndex - (local - debut) - 1)) {
+        debut--;
+      }
+      while (estEnErreur(wordIndex + (fin - local) + 1)) {
+        fin++;
+        if (fin - local > 12) break; // garde-fou : jamais un verset entier
+      }
+    }
+
     showTajwidHelpSheet(
       context,
       ref,
@@ -2380,6 +2448,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       focusWord: st.words[wordIndex].display,
       wordIndex: wordIndex,
       localWordIndex: local,
+      extraitDebut: debut,
+      extraitFin: fin + 1, // borne haute exclusive, comme le mode Kindle
     );
   }
 
