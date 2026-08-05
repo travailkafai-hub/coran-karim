@@ -55,6 +55,59 @@ from tete_ecart_canonique import (NOMS, detection_a_collateral,  # noqa: E402
 NEG = -1e30
 
 
+def resumer_etat(seg, mode):
+    """Resume les frames d'encodeur d'un mot en un vecteur de taille fixe.
+
+    C'EST LE LEVIER QUI A LE PLUS PAYE, ET C'EST POURQUOI IL EST ISOLE ICI.
+    Passer de la seule MOYENNE a moyenne+ecart-type a fait 37 % -> 47 % de
+    detection, sans toucher au modele ni aux donnees. La raison est simple :
+    une deviation de prononciation est une IRREGULARITE a l'interieur du mot
+    (une lettre qui derape), pas un deplacement de son centre de gravite. La
+    moyenne detruit cette information avant meme que la tete la voie.
+
+    `tiers` poussait la meme idee d'un cran : la moyenne des trois tiers du mot
+    dit OU se situe l'irregularite -- au debut, au milieu ou a la fin -- ce que
+    l'ecart-type, lui, ignore.
+
+    ⛔ `tiers` EST REFUTE (2026-08-05). Bootstrap a configuration fixe sur le
+    MEME jeu de test (2 019 mots, 149 fautes, 2 000 tirages) :
+
+        moyenne_std   44,3 %
+        tiers         34,9 %      ecart -9,4 pts, median -8,6,
+                                  victoires de `tiers` : 3 %
+
+    Ce n'est donc pas un plafond, c'est une PERTE. Explication la plus probable :
+    decouper un mot de 5 a 11 frames en trois donne des moyennes sur 2 a 4
+    frames, bien plus bruitees que la moyenne globale, et cela ajoute 1 536
+    dimensions a une tete qui ne dispose que de 31 830 exemples.
+
+    ⚠️ ATTENTION AU PIEGE QUI A PRECEDE CETTE MESURE. L'evaluation interne de
+    `main()` -- une SEULE configuration -- donnait `tiers` a 45 % contre 34 %,
+    soit +11 points. Le balayage complet a ramene l'ecart a +2 points, et le
+    bootstrap a configuration fixe l'a inverse a -9. Comparer deux points
+    arbitraires de la surface d'hyperparametres ne mesure rien.
+
+    Le mode est CONSERVE (et non supprime) pour que la mesure reste
+    reproductible : c'est la seule facon de distinguer « jamais essaye » de
+    « essaye et perdant ».
+
+    ⚠️ Un mot peut avoir MOINS de trois frames. On ne rejette pas ces cas (ce
+    serait perdre les mots courts, precisement ceux ou une lettre pese le plus)
+    : on decoupe par indices, ce qui repete une frame plutot que de rendre un
+    tiers vide.
+    """
+    if mode == "moyenne":
+        return seg.mean(axis=0)
+    if mode == "moyenne_std":
+        return np.concatenate([seg.mean(axis=0), seg.std(axis=0)])
+    if mode == "tiers":
+        t = len(seg)
+        b = [seg[max(0, (t * i) // 3):max(1, (t * (i + 1)) // 3)] for i in range(3)]
+        return np.concatenate([seg.mean(axis=0), seg.std(axis=0)] +
+                              [x.mean(axis=0) for x in b])
+    raise ValueError(mode)
+
+
 def caracteristiques(tr, sp, texte):
     """Les 12 grandeurs de l'etape 2a -- conservees telles quelles pour que la
     comparaison porte uniquement sur l'AJOUT de l'etat d'encodeur."""
@@ -76,11 +129,25 @@ def caracteristiques(tr, sp, texte):
     # caracteristiques a -1e29, que le filtre `|X| < 1e6` de main() jetait
     # ensuite : 406 exemples sur 3675, soit 11 % du jeu d'entrainement PERDUS
     # en silence -- et parmi eux des fautes, donc de la donnee rare.
+    #   ⚠️ CE CHIFFRE DE 11 % EST FAUX, il n'a jamais ete verifie sur le cache
+    #   reellement utilise. Compte le 2026-08-05 sur `tts_v2.npz` : 592 exemples
+    #   sur 34 085, soit 1,7 %. Le commentaire est conserve parce qu'il dit la
+    #   bonne CHOSE (des exemples etaient jetes en silence) ; seule sa grandeur
+    #   etait inventee.
     # On ecarte donc ces variantes du concours au lieu de les faire concourir
     # avec un score aberrant.
-    scores = sorted((v for v in (score_force(tr, sp.encode(a)) / n
-                                 for a in variantes(texte))
-                     if v > NEG / 2), reverse=True)
+    # ⚠️ FILTRER LE SCORE BRUT, JAMAIS LE SCORE DIVISE (defaut corrige le
+    # 2026-08-05, quelques heures apres avoir ecrit le filtre lui-meme).
+    # La premiere version comparait `score_force(...) / n` a `NEG / 2`. Or la
+    # sentinelle divisee vaut -1e30/n : des que le mot fait 3 frames ou plus,
+    # -3,3e29 > -5e29 et elle PASSAIT le filtre. Autrement dit le correctif ne
+    # protegeait que les mots de une ou deux frames -- c'est-a-dire presque
+    # aucun. Il s'est vu parce que le vecteur de reference a sorti un
+    # `alt2 = -2,5e29` et un logit de 3,7e29 ; sans ce vecteur il serait passe
+    # inapercu, exactement comme le defaut qu'il pretendait corriger.
+    scores = sorted((s / n for s in (score_force(tr, sp.encode(a))
+                                     for a in variantes(texte))
+                     if s > NEG / 2), reverse=True)
     if not scores:
         return None                      # aucune confusion plausible : non jugeable
     alt = scores[0]
@@ -99,13 +166,26 @@ def caracteristiques(tr, sp, texte):
     # casse ». Le minimum le long du chemin force repond a cette question-la.
     # `forced_v - fmin` dit de combien le pire point s'ecarte du reste : c'est
     # le creux, independamment du niveau general du mot.
-    par_frame = tr[np.arange(len(lab)), lab]
-    fmin = float(par_frame.min())
-    fp10 = float(np.percentile(par_frame, 10))
-    creux = forced_v - fmin
+    # ── LE « CREUX » DU MOT A ETE ESSAYE ET REFUTE (2026-08-05) ────────────
+    #
+    # Trois caracteristiques avaient ete ajoutees ici -- `forced_min`,
+    # `forced_p10`, et `creux = forced_v - forced_min`. L'idee etait de la meme
+    # famille que celle qui avait paye sur l'etat d'encodeur : une faute ne
+    # portant souvent que sur UNE lettre, la MOYENNE du chemin force serait
+    # sourde, cinq tokens corrects diluant le sixieme.
+    #
+    # MESURE (balayage complet, meme test, meme graine) : 47 % avec, 47 % sans
+    # -- strictement le meme plafond -- et une degradation plus rapide (34 % a
+    # 4500 epochs contre 44 % sans). Seul effet reel : un meilleur score a
+    # FAIBLE capacite (47 % contre 42 % a 64 unites), donc une information plus
+    # dense, mais deja presente ailleurs des que la capacite suffit.
+    #
+    # Elles sont donc RETIREES : garder trois caracteristiques qui n'apportent
+    # rien allonge le vecteur, le contrat de parite Kotlin, et le temps de
+    # calcul sur le telephone. Le commentaire reste pour qu'on ne les
+    # reintroduise pas en croyant a une idee neuve.
     return [forced_v, forced_f, free, alt, alt2, forced_v - free, forced_f - alt,
-            alt - alt2, float(n), float(len(idm)), entropie, pic_blanc,
-            fmin, fp10, creux]
+            alt - alt2, float(n), float(len(idm)), entropie, pic_blanc]
 
 
 def main():
@@ -114,6 +194,10 @@ def main():
         BASE / "models" / "fastconformer-causal-v4-phrases" / "causal-final.nemo"))
     p.add_argument("--dossier", default=str(BASE / "data" / "tts_phrases_concat"))
     p.add_argument("--n-test", type=int, default=189)
+    p.add_argument("--pooling", default="moyenne_std",
+                   choices=["moyenne", "moyenne_std", "tiers"],
+                   help="comment l'etat d'encodeur du mot est resume, "
+                        "cf. resumer_etat")
     p.add_argument("--cache", default="/tmp/claude-1000/etats_encodeur.npz")
     args = p.parse_args()
 
@@ -175,7 +259,7 @@ def main():
                         # qui derape), pas un deplacement de son centre de gravite. L'ecart-type par
                         # dimension rend cette variabilite interne, pour le meme cout de calcul.
                         _seg = st[f0:f1]
-                        E.append(np.concatenate([_seg.mean(axis=0), _seg.std(axis=0)]))
+                        E.append(resumer_etat(_seg, args.pooling))
                         X.append(c)
                         y.append(1 if (etat == "faute" and j == i) else 0)
                         test.append(k < args.n_test)

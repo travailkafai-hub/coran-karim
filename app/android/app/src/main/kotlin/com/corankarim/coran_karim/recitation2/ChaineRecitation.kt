@@ -55,6 +55,13 @@ class ChaineRecitation(
     private var variantesAttendues: List<List<IntArray>> = emptyList()
     private var confusionsLettresAttendues: List<List<IntArray>> = emptyList()
     private var confusionsHarakatAttendues: List<List<IntArray>> = emptyList()
+
+    /** Confusions de la TETE 3 — celles que le Python a utilisees pour
+     *  l'entrainer, generees par [ConfusionsRecitation] et NON par
+     *  [confusionsLettres]/[confusionsHarakat]. Les deux inventaires different
+     *  (premiere occurrence contre toutes, quatre harakat contre sept) : les
+     *  melanger rendrait `alt` et `alt2` faux sans rien signaler. */
+    private var confusionsTete3: List<List<IntArray>> = emptyList()
     private val registre = RegistreDePreuves()
     private var statutsCourants: Map<Int, Statut> = emptyMap()
 
@@ -157,6 +164,12 @@ class ChaineRecitation(
         }
         confusionsHarakatAttendues = mots.map { m ->
             confusionsHarakat(m).map(tokeniserConfusion).filter { it.isNotEmpty() }
+        }
+        // TETE 3 : son propre inventaire, cf. [confusionsTete3]. On NE filtre
+        // PAS les tokenisations vides comme au-dessus -- le Python n'en ecarte
+        // aucune, et une liste plus courte donnerait un autre `alt2`.
+        confusionsTete3 = if (tete3 == null) emptyList() else mots.map { m ->
+            ConfusionsRecitation.variantes(m).map(tokeniserConfusion)
         }
         decideur.reinitialiser()
         dernierDefinitif = -1
@@ -472,8 +485,24 @@ class ChaineRecitation(
             // TETE 3 : OBSERVATION SEULE (journal), cf. vecteurTete3 ci-dessous
             // -- ne touche ni Observation ni le statut.
             if (tete3 != null && sorties.etat != null && m.frames > 0) {
-                val vec = vecteurTete3(m, sorties.etat, logprobs, tokensAttendus.getOrNull(m.index)?.size ?: 0)
-                if (vec != null && vec.size == tete3.tailleEntree) {
+                val vec = vecteurTete3(m, sorties.etat, logprobs)
+                if (vec == null) {
+                    // ABSTENTION, et elle se dit. Un mot sans variante scorable
+                    // ou sans chemin force n'est pas « correct » : il est
+                    // INJUGEABLE par cette tete. Sans cette ligne, la difference
+                    // entre « la tete l'a vu bon » et « la tete n'a rien vu du
+                    // tout » serait invisible dans le log -- exactement le
+                    // « zero trace = zero execution » deja paye sur le secours.
+                    journal?.invoke("[t3] mot=${m.index} ABSTENTION")
+                } else if (vec.size != tete3.tailleEntree) {
+                    // Taille incoherente = mauvais fichier de tete deploye. On
+                    // le dit une bonne fois plutot que de laisser la tete se
+                    // taire : c'est le cas ou l'app tournait avec une tete a
+                    // 524 caracteristiques nourrie d'un vecteur d'un autre
+                    // format, et rendait des logits denues de sens.
+                    journal?.invoke("[t3] mot=${m.index} TETE INCOMPATIBLE : " +
+                        "vecteur=${vec.size}, tete=${tete3.tailleEntree}")
+                } else {
                     val logit = tete3.logit(vec)
                     journal?.invoke("[t3] mot=${m.index} logit=${"%.3f".format(logit)} " +
                         "seuil2%=${"%.3f".format(tete3.seuil2Pct)} " +
@@ -514,73 +543,59 @@ class ChaineRecitation(
     }
 
     /**
-     * TETE 3 : moyenne de l'etat d'encodeur sur les frames du mot (512) suivie
-     * des 12 grandeurs conditionnees par la cible -- cf.
-     * tete_encodeur_ecart.py::caracteristiques, meme ORDRE (parite = ordre).
+     * TETE 3 : le vecteur d'entree, calcule EXACTEMENT comme le Python qui a
+     * entraine la tete -- cf. [Tete3Traits], teste par `Tete3TraitsTest` contre
+     * un vecteur de reference produit sur un vrai audio par un vrai modele.
      *
-     * DEUX APPROXIMATIONS CONNUES, cf. graphe (2026-08-04), avant tout
-     * branchement sur un verdict :
-     *  - [forced_f] (score CTC FORWARD du Python) vaut ici [forced_v] (Viterbi) :
-     *    aucun scoreur forward n'existe cote Kotlin.
-     *  - [alt]/[alt2] viennent des DEUX meilleures confusions deja calculees
-     *    par AligneurForce (une par LETTRE, une par HARAKAT), pas du jeu
-     *    complet de `variantes()` du Python.
-     * Les deux touchent des grandeurs deja passees par [tokeniserConfusion],
-     * qui replie en glouton 33 % du temps (piege deja documente) -- une
-     * degradation que l'entrainement Python (SentencePiece direct) n'a jamais
-     * connue. D'ou : OBSERVATION SEULE, journalisee, aucun effet sur le statut.
+     * ── CE QUE CETTE FONCTION CALCULAIT AVANT LE 2026-08-05, ET POURQUOI ────
+     *
+     * Elle rendait une APPROXIMATION, honnetement documentee comme telle et
+     * cantonnee a l'observation faute de pouvoir faire mieux :
+     *
+     *   | grandeur | avant                        | maintenant              |
+     *   |----------|------------------------------|-------------------------|
+     *   | etat     | moyenne seule (512)          | moyenne + ecart-type (1024) |
+     *   | forced_f | recopiait forced_v (Viterbi) | vrai forward CTC        |
+     *   | alt/alt2 | 2 confusions de l'aligneur   | jeu complet de variantes |
+     *
+     * Les trois divergeaient du Python, et AUCUNE ne se voyait a l'execution :
+     * la tete rendait un logit, il etait simplement faux. C'est ce que le
+     * telephone a fait toute la journee du 2026-08-04 (lignes `[t3] logit=...`
+     * du journal, produites sur des entrees sans rapport avec l'entrainement).
+     *
+     * ⇒ Le seul garde-fou possible est le test de parite, et il est desormais
+     * la. Il a d'ailleurs immediatement attrape un defaut REEL et partage avec
+     * le Python : le filtre de sentinelle comparait le score DIVISE par le
+     * nombre de frames, si bien qu'au-dela de 2 frames il ne filtrait rien --
+     * `alt2` a -2,5e29 et un logit a 3,7e29.
+     *
+     * ── TOUJOURS OBSERVATION SEULE ─────────────────────────────────────────
+     *
+     * La parite du CALCUL ne prouve pas la valeur du VERDICT : les 47 % de
+     * detection ont ete mesures hors device, sur des fenetres decoupees par le
+     * banc, avec les logprobs d'un modele PyTorch. Sur l'appareil les frames
+     * viennent du localisateur et le modele est un export ONNX. Rien ne doit
+     * dependre de cette tete tant qu'une recette ne l'a pas confirme.
      */
     private fun vecteurTete3(
         m: AligneurForce.MotAligne, etat: Array<FloatArray>, logp: Array<FloatArray>,
-        idmSize: Int,
     ): FloatArray? {
         if (m.frames <= 0) return null
-        val ml = m.margeLettres
-        val mh = m.margeHarakat
-        if (ml == null && mh == null) return null // aucune confusion plausible
-        val confLettre = ml?.let { m.forced - it }
-        val confHarakat = mh?.let { m.forced - it }
-        val candidats = listOfNotNull(confLettre, confHarakat).sortedDescending()
-        val alt = candidats[0]
-        val alt2 = if (candidats.size > 1) candidats[1] else alt
-        val forcedV = m.forced
-        val forcedF = m.forced // APPROXIMATION, cf. doc ci-dessus
+        val tokens = tokensAttendus.getOrNull(m.index) ?: return null
+        if (tokens.isEmpty()) return null
+        val variantes = confusionsTete3.getOrNull(m.index) ?: return null
 
-        val f0 = m.premiereFrame.coerceIn(0, minOf(etat.size, logp.size))
-        val f1 = (m.derniereFrame + 1).coerceIn(f0, minOf(etat.size, logp.size))
+        val borne = minOf(etat.size, logp.size)
+        val f0 = m.premiereFrame.coerceIn(0, borne)
+        val f1 = (m.derniereFrame + 1).coerceIn(f0, borne)
         if (f1 <= f0) return null
-        val dimEtat = etat[0].size
-        val etatMoyen = FloatArray(dimEtat)
-        for (t in f0 until f1) { val row = etat[t]; for (k in 0 until dimEtat) etatMoyen[k] += row[k] }
-        for (k in 0 until dimEtat) etatMoyen[k] /= (f1 - f0)
 
-        var entropieSomme = 0f
-        var picBlancCompte = 0
-        val blank = front.blank
-        for (t in f0 until f1) {
-            val frame = logp[t]
-            var maxV = frame[0]; var maxI = 0
-            for (c in 1 until frame.size) if (frame[c] > maxV) { maxV = frame[c]; maxI = c }
-            var sommeExp = 0f
-            for (v in frame) sommeExp += kotlin.math.exp((v - maxV).toDouble()).toFloat()
-            var h = 0f
-            for (v in frame) {
-                val p = kotlin.math.exp((v - maxV).toDouble()).toFloat() / sommeExp
-                h -= p * kotlin.math.ln((p + 1e-9f).toDouble()).toFloat()
-            }
-            entropieSomme += h
-            if (maxI == blank) picBlancCompte++
-        }
-        val n = (f1 - f0)
-        val entropie = entropieSomme / n
-        val picBlanc = picBlancCompte.toFloat() / n
-
-        val douze = floatArrayOf(
-            forcedV, forcedF, m.free, alt, alt2,
-            forcedV - m.free, forcedF - alt, alt - alt2,
-            n.toFloat(), idmSize.toFloat(), entropie, picBlanc,
-        )
-        return etatMoyen + douze
+        // Les logprobs des SEULES frames du mot : le Python passe `tr = lp[f0:f1]`
+        // a `caracteristiques`, jamais la fenetre entiere.
+        val tranche = Array(f1 - f0) { logp[f0 + it] }
+        val traits = Tete3Traits.caracteristiques(tranche, tokens, variantes) ?: return null
+        val etatVec = Tete3Traits.etatMoyenEtEcartType(etat, f0, f1) ?: return null
+        return etatVec + traits
     }
 
     /** Journalisation par mot — la trace qui manquait en v1 : le log disait ce

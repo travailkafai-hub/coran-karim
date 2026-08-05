@@ -54,11 +54,10 @@ NEG = -1e30
 _etat = {}
 
 NOMS = ["forced_v", "forced_f", "free", "alt", "alt2", "gopA", "gopC",
-        "marge_alt", "n_frames", "n_tokens", "entropie", "pic_blanc",
-        # Ajoutees le 2026-08-05 : le CREUX du mot, pas sa sante moyenne.
-        # Une faute ne porte souvent que sur UNE lettre -- les autres la
-        # diluent dans forced_v. Cf. le commentaire de caracteristiques().
-        "forced_min", "forced_p10", "creux"]
+        "marge_alt", "n_frames", "n_tokens", "entropie", "pic_blanc"]
+# NOTE 2026-08-05 : trois caracteristiques de plus ont ete essayees ici
+# (`forced_min`, `forced_p10`, `creux`) puis RETIREES -- 47 % avec comme sans.
+# Le detail de la mesure est dans caracteristiques(), tete_encodeur_ecart.py.
 
 
 def demarrer(modele, tokenizer):
@@ -133,13 +132,28 @@ def entrainer(X, y, poids_pos, epochs=400, cache=32):
     """Un MLP minuscule -- l'objectif est de tester si la COMBINAISON peut etre
     apprise, pas de faire un gros modele. Quelques centaines de parametres."""
     import torch
+    # ── LE GPU N'ETAIT PAS UTILISE, ET PERSONNE NE S'EN APERCEVAIT ──────────
+    #
+    # Cette fonction est le coeur de TOUS les bancs de la tete 3 (balayages,
+    # comparaisons, bootstrap). Elle n'a jamais rien place sur CUDA : chaque
+    # balayage tournait entierement sur le processeur, GPU a 0 % pendant des
+    # heures. Rien ne le signalait -- le calcul est juste, seulement lent, et
+    # c'est exactement le genre de gaspillage qui ne leve aucune erreur.
+    # Signale par l'utilisateur le 2026-08-05, pas trouve par le banc.
+    #
+    # ⚠️ LE MODELE EST CREE SUR CPU **APRES** LA GRAINE, PUIS DEPLACE. Creer
+    # directement sur CUDA tirerait les poids initiaux avec le generateur du
+    # GPU : l'initialisation ne serait plus la meme, et les chiffres cesseraient
+    # d'etre comparables a tout l'historique mesure jusqu'ici (46 %, 43 %,
+    # 45 %...). L'ordre de ces trois lignes est donc un contrat, pas un style.
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(0)
     m = torch.nn.Sequential(torch.nn.Linear(X.shape[1], cache), torch.nn.ReLU(),
-                            torch.nn.Linear(cache, 1))
+                            torch.nn.Linear(cache, 1)).to(dev)
     opt = torch.optim.Adam(m.parameters(), lr=0.01, weight_decay=1e-4)
-    xb = torch.tensor(X, dtype=torch.float32)
-    yb = torch.tensor(y, dtype=torch.float32).unsqueeze(1)
-    w = torch.tensor([poids_pos], dtype=torch.float32)
+    xb = torch.tensor(X, dtype=torch.float32, device=dev)
+    yb = torch.tensor(y, dtype=torch.float32, device=dev).unsqueeze(1)
+    w = torch.tensor([poids_pos], dtype=torch.float32, device=dev)
     perte = torch.nn.BCEWithLogitsLoss(pos_weight=w)
     for _ in range(epochs):
         opt.zero_grad()
@@ -147,7 +161,9 @@ def entrainer(X, y, poids_pos, epochs=400, cache=32):
         l.backward()
         opt.step()
     n_par = sum(p.numel() for p in m.parameters())
-    return m, n_par, float(l)
+    # Rendu sur CPU : les appelants passent des tenseurs CPU a l'inference, et
+    # une seule passe avant sur 2 000 lignes ne vaut pas un transfert.
+    return m.cpu(), n_par, float(l.detach())
 
 
 def detection_a_collateral(score_faute, score_correct, cible=0.02):
