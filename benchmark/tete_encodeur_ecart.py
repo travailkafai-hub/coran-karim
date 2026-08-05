@@ -134,7 +134,13 @@ def main():
         model.preprocessor.featurizer.dither = 0.0
         sp = model.tokenizer.tokenizer
 
-        E, X, y, test = [], [], [], []
+        # `paire` : identifiant du couple (phrase, position du mot). Les deux
+        # versions d'un MEME mot -- clip correct et clip faute -- le partagent.
+        # C'est ce lien qui permet un entrainement PAR PAIRES (2026-08-05) :
+        # comparer un mot a LUI-MEME supprime toute la variation de nuisance
+        # (voix, identite du mot, position dans la phrase) et ne laisse que
+        # ce qu'on cherche -- la deviation.
+        E, X, y, test, paire = [], [], [], [], []
         t0 = time.time()
         with torch.no_grad():
             for k, r in enumerate(lignes):
@@ -173,13 +179,15 @@ def main():
                         X.append(c)
                         y.append(1 if (etat == "faute" and j == i) else 0)
                         test.append(k < args.n_test)
+                        paire.append(k * 1000 + j)
                 if (k + 1) % 200 == 0:
                     print(f"  {k+1}/{len(lignes)}  ({(time.time()-t0)/(k+1):.2f} s/paire)",
                           flush=True)
         E = np.array(E, dtype=np.float32)
         X = np.array(X, dtype=np.float32)
         y, test = np.array(y), np.array(test)
-        np.savez(args.cache, E=E, X=X, y=y, test=test)
+        paire = np.array(paire, dtype=np.int64)
+        np.savez(args.cache, E=E, X=X, y=y, test=test, paire=paire)
         print(f"  {E.shape[0]} mots en {time.time()-t0:.0f} s")
 
     ok = np.isfinite(X).all(axis=1) & (np.abs(X) < 1e6).all(axis=1) \
