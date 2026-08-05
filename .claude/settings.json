@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "true  # DESACTIVE 2026-08-05 -- pour reactiver, retirer 'true  # ' : python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/maj-graphe.py\" garde",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/maj-graphe.py\" garde",
             "timeout": 15
           }
         ]
