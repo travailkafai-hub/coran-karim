@@ -445,7 +445,11 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                       left: 8,
                       child: SafeArea(
                         child: Material(
-                          color: AppColors.green900.withValues(alpha: 0.55),
+                          // OPAQUE (2026-08-05) : semi-transparent, le mot
+                          // coranique juste en dessous transparaissait a
+                          // travers le bouton -- signale par l'utilisateur sur
+                          // capture (verset 66, mot visible dans le rond vert).
+                          color: AppColors.green900,
                           shape: const CircleBorder(),
                           child: IconButton(
                             icon: const Icon(Icons.arrow_back_rounded,
