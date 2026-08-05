@@ -36,7 +36,6 @@ class _ReadingSettingsSheet extends ConsumerWidget {
     final scale = ref.watch(textScaleProvider);
     final kindleMode = ref.watch(kindleModeProvider);
     final kindleAutoTurn = ref.watch(kindleAutoTurnProvider);
-    final kindlePageSeconds = ref.watch(kindlePageSecondsProvider);
     final playerState = ref.watch(playerProvider);
     final repeatMode = playerState.repeatMode;
     final repeatCount = playerState.repeatCount;
@@ -276,21 +275,27 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                 onChanged: (v) =>
                     ref.read(kindleAutoTurnProvider.notifier).state = v,
               ),
-              if (kindleAutoTurn) ...[
-                Text(
-                  t.readingSettingsKindleSpeed(kindlePageSeconds.round()),
-                  style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight),
-                ),
-                Slider(
-                  value: kindlePageSeconds,
-                  min: kKindlePageSecondsMin,
-                  max: kKindlePageSecondsMax,
-                  divisions: (kKindlePageSecondsMax - kKindlePageSecondsMin).round(),
-                  activeColor: AppColors.kindleAccent,
-                  onChanged: (v) =>
-                      ref.read(kindlePageSecondsProvider.notifier).set(v),
-                ),
-              ],
+              // ── LE CURSEUR DE VITESSE A ÉTÉ RETIRÉ (2026-08-05) ───────────
+              //
+              // Demande utilisateur : « il y a un temps, je ne veux même pas
+              // qu'on affiche ce temps-là ». Le réglage était une question à
+              // laquelle personne ne sait répondre : combien de secondes met-on
+              // à lire une page ? On ne le sait qu'après, et cela change avec
+              // le passage, la fatigue et le jour.
+              //
+              // La cadence s'APPREND désormais du geste qui la porte déjà :
+              // tourner la page à la main avant l'échéance dit « trop lent »,
+              // revenir en arrière dit « trop rapide »
+              // (cf. KindlePageSecondsNotifier.apprendre, branché dans
+              // MushafScreen._tapManuel). Le `kindlePageSecondsProvider`
+              // existe donc toujours et reste persisté -- il n'est simplement
+              // plus exposé, ni affiché.
+              //
+              // ⚠️ Ne pas remettre ce curseur « pour laisser le choix » sans
+              // remettre en cause l'apprentissage : deux sources qui écrivent
+              // la même valeur, l'une par geste l'autre par réglage, se
+              // contrediraient en silence -- l'utilisateur règlerait 12 s et
+              // verrait la valeur bouger toute seule.
             ],
               ],
             ),

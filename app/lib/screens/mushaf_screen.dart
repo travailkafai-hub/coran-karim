@@ -118,6 +118,44 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   // à la taille du chrome visible).
   static const _kHiddenChromeMargin = 12.0;
 
+  /// Distance gardée entre la poignée de rappel et l'encoche système : sous
+  /// cette marge, la zone de gestes d'Android capte le tap en premier et la
+  /// poignée ne répond pas (constaté sur device, 2026-08-05).
+  static const _kMargeGesteSysteme = 24.0;
+
+  // Bouton retour rond : `top: 8` + IconButton (48 de haut par défaut).
+  static const _kBoutonRetourHauteur = 8.0 + 48.0;
+
+  /// Place à réserver EN HAUT pour que le texte ne passe jamais sous un
+  /// élément flottant.
+  ///
+  /// ── LE DÉFAUT QUE CE GETTER SUPPRIME (2026-08-05) ──────────────────────
+  ///
+  /// La réserve était écrite en clair à quatre endroits, sous la forme
+  /// `_headerVisible ? _kMushafHeaderHeight + 8 : _kHiddenChromeMargin`. Elle
+  /// ne connaissait donc QUE le header. Or le bouton retour est
+  /// `Positioned(top: 8)` et **ne se masque jamais** (retour utilisateur
+  /// 2026-07-19 : c'était la seule façon de revenir en arrière). Résultat :
+  /// dès que le minuteur de 4 s masquait le header, la réserve tombait à
+  /// 12 px et le bouton recouvrait le texte coranique -- constaté sur capture,
+  /// le mot `فِى` du verset 6:7 était illisible sous le rond.
+  ///
+  /// Le correctif n'est pas d'ajouter 56 px quelque part : c'est que la
+  /// réserve DÉRIVE de ce qui est visible. Un futur élément flottant permanent
+  /// devra être ajouté ici, et nulle part ailleurs -- il n'y a plus quatre
+  /// formules à retrouver et à garder cohérentes.
+  ///
+  /// L'encoche est comptée explicitement : le bouton est dans un `SafeArea`,
+  /// la liste ne l'est pas.
+  double _reserveHaut(BuildContext context) => _headerVisible
+      ? _kMushafHeaderHeight + 8
+      : MediaQuery.of(context).padding.top + _kBoutonRetourHauteur;
+
+  /// Place à réserver EN BAS. La barre du bas, elle, glisse hors de l'écran
+  /// quand le chrome est masqué : rien ne reste, la marge minimale suffit.
+  double _reserveBas() =>
+      _headerVisible ? _kBottomBarHeight + 8 : _kHiddenChromeMargin;
+
   @override
   void initState() {
     super.initState();
@@ -347,33 +385,47 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                     // premier -- ordre du Stack). Ne capte JAMAIS les taps
                     // plus bas dans le texte (mots/versets gardent leurs
                     // propres gestes, cf. onWordTap plus bas).
+                    // POIGNÉE DE RAPPEL DU MENU (2026-08-05, corrigée le
+                    // jour même). Elle remplace la bande de tap invisible qui
+                    // occupait 15 % du haut de l'écran.
+                    //
+                    // DEUX DÉFAUTS CORRIGÉS D'UN COUP, tous deux signalés par
+                    // l'utilisateur sur la première version :
+                    //
+                    //  1. « le tiret du menu en bas ne s'active pas » — il
+                    //     était en `IgnorePointer`, donc purement décoratif :
+                    //     il DÉSIGNAIT le menu sans permettre de le rappeler.
+                    //     Un repère qu'on ne peut pas toucher invite un geste
+                    //     qui ne marche pas ; il est maintenant la cible.
+                    //  2. « il entre en concurrence avec le menu du téléphone »
+                    //     — collé au bord inférieur, il tombait dans la zone de
+                    //     gestes d'Android, qui capte en premier. Il est donc
+                    //     remonté de [_kMargeGesteSysteme] AU-DESSUS de
+                    //     l'encoche système, hors de portée de ce conflit.
+                    //
+                    // La zone tapable est volontairement plus large que le
+                    // trait (44 x 4 visibles, 120 x 44 tapables) : un repère
+                    // fin doit rester fin, mais viser 4 pixels de haut n'est
+                    // pas un geste réaliste.
                     if (!_headerVisible)
                       Positioned(
-                        top: 0,
                         left: 0,
                         right: 0,
-                        height: MediaQuery.of(context).size.height * 0.15,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onTap: _showHeader,
-                          // Petit repère visuel (demande utilisateur
-                          // 2026-08-01 : "un trait transparent qui montre que
-                          // le menu reste caché") -- avant ça, la bande de
-                          // réactivation était invisible, rien n'indiquait
-                          // qu'il y avait quelque chose à taper ici.
-                          child: SafeArea(
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 10),
+                        bottom: MediaQuery.of(context).padding.bottom +
+                            _kMargeGesteSysteme,
+                        child: Center(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _showHeader,
+                            child: SizedBox(
+                              width: 120,
+                              height: 44,
+                              child: Center(
                                 child: Container(
                                   width: 44,
                                   height: 4,
                                   decoration: BoxDecoration(
-                                    color: (kindleMode
-                                            ? AppColors.kindleInk
-                                            : AppColors.cream)
-                                        .withAlpha(90),
+                                    color: AppColors.green800.withAlpha(150),
                                     borderRadius: BorderRadius.circular(2),
                                   ),
                                 ),
@@ -464,6 +516,16 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                                 setState(() => _showTranslation = !_showTranslation),
                             onCoachTap: _verses.isEmpty ? null : _openCoachExplanation,
                             onMoreTap: _openReadingSettings,
+                            onBookmarkTap:
+                                _verses.isEmpty ? null : _basculerMarquePage,
+                            estMarque: _verses.isEmpty
+                                ? false
+                                : ref.watch(marquePagesProvider).contains(
+                                      MarquePagesNotifier.cle(
+                                        _verses[_activeVerse].surahNumber,
+                                        _verses[_activeVerse].ayahNumber,
+                                      ),
+                                    ),
                             showTranslation: _showTranslation,
                             isPlaying: playerState.isPlaying,
                           ),
@@ -496,26 +558,49 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   void _syncKindleAutoTurn(bool enabled, double seconds) {
     _kindleAutoTurnTimer?.cancel();
     if (!enabled) return;
+    _debutPage = DateTime.now();
     _kindleAutoTurnTimer = Timer.periodic(Duration(seconds: seconds.round()), (_) {
       if (!mounted) return;
       // Même formule que le tap manuel (§_buildVerses) -- un `*0.7`
       // approximatif ici aurait fait sauter un peu plus ou moins qu'un
       // vrai "page suivante", décalant l'auto-tournage du tap manuel.
       final size = MediaQuery.of(context).size;
-      final viewportHeight = size.height -
-          (_headerVisible ? _kMushafHeaderHeight + 8 : _kHiddenChromeMargin) -
-          (_headerVisible ? _kBottomBarHeight + 8 : _kHiddenChromeMargin);
+      final viewportHeight =
+          size.height - _reserveHaut(context) - _reserveBas();
       _kindleJumpPage(viewportHeight, forward: true);
+      // La page a tourné TOUTE SEULE : rien à apprendre, le lecteur n'a rien
+      // dit. On remet seulement le chronomètre à zéro pour la page suivante.
+      _debutPage = DateTime.now();
     });
+  }
+
+  /// Instant d'arrivée sur la page courante — base de l'apprentissage de la
+  /// cadence, cf. [KindlePageSecondsNotifier.apprendre].
+  DateTime? _debutPage;
+
+  /// Le lecteur a tourné la page LUI-MÊME : c'est lui qui donne la cadence.
+  ///
+  /// C'est le seul endroit d'où l'estimation apprend. Un tournage automatique
+  /// n'apprend rien — il exécute ce qui a déjà été appris, et s'en servir
+  /// reviendrait à confirmer sa propre estimation en boucle.
+  void _tapManuel({required bool enAvant}) {
+    final debut = _debutPage;
+    _debutPage = DateTime.now();
+    if (debut == null || !ref.read(kindleAutoTurnProvider)) return;
+    final ecoule = DateTime.now().difference(debut).inMilliseconds / 1000.0;
+    ref.read(kindlePageSecondsProvider.notifier)
+        .apprendre(ecoule, enAvant: enAvant);
+    // Le minuteur tourne à l'ancienne cadence : sans ce réarmement, la valeur
+    // apprise n'aurait d'effet qu'à la PROCHAINE activation du mode.
+    _syncKindleAutoTurn(true, ref.read(kindlePageSecondsProvider));
   }
 
   Widget _buildVerses(String? playingVerseKey, {bool kindleMode = false}) {
     final textScale = ref.watch(textScaleProvider);
     final showLoadingFooter = _loadingMore;
     final size = MediaQuery.of(context).size;
-    final viewportHeight = size.height -
-        (_headerVisible ? _kMushafHeaderHeight + 8 : _kHiddenChromeMargin) -
-        (_headerVisible ? _kBottomBarHeight + 8 : _kHiddenChromeMargin);
+    final viewportHeight =
+        size.height - _reserveHaut(context) - _reserveBas();
     return Stack(
       children: [
         ListView.builder(
@@ -529,8 +614,8 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           // libéré au contenu (signalé par l'utilisateur : "ne tient pas des
           // zones qui deviennent disponibles après la disparition du menu").
           padding: EdgeInsets.only(
-            top: _headerVisible ? _kMushafHeaderHeight + 8 : _kHiddenChromeMargin,
-            bottom: _headerVisible ? _kBottomBarHeight + 8 : _kHiddenChromeMargin,
+            top: _reserveHaut(context),
+            bottom: _reserveBas(),
           ),
           itemCount: _items.length + (showLoadingFooter ? 1 : 0),
           itemBuilder: (context, i) {
@@ -548,22 +633,28 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         if (kindleMode) ...[
           Positioned(
             left: 0,
-            top: _headerVisible ? _kMushafHeaderHeight : _kHiddenChromeMargin,
+            top: _reserveHaut(context),
             bottom: 0,
             width: 48,
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onTap: () => _kindleJumpPage(viewportHeight, forward: false),
+              onTap: () {
+                _tapManuel(enAvant: false);
+                _kindleJumpPage(viewportHeight, forward: false);
+              },
             ),
           ),
           Positioned(
             right: 0,
-            top: _headerVisible ? _kMushafHeaderHeight : _kHiddenChromeMargin,
+            top: _reserveHaut(context),
             bottom: 0,
             width: 48,
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onTap: () => _kindleJumpPage(viewportHeight, forward: true),
+              onTap: () {
+                _tapManuel(enAvant: true);
+                _kindleJumpPage(viewportHeight, forward: true);
+              },
             ),
           ),
         ],
@@ -603,6 +694,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           wordStart: wordStart,
           wordEnd: wordEnd,
           onTap: () => setState(() => _activeVerse = idx),
+          onLongPress: () => _menuVerset(idx),
           // Tap sur un mot précis = l'expliquer (demande utilisateur
           // 2026-07-10), pas le jouer -- la lecture reste accessible via
           // le bouton "Lire" une fois le verset sélectionné.
@@ -692,10 +784,107 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     });
   }
 
+  /// Marque ou démarque le verset actif (2026-08-05).
+  ///
+  /// Le retour visuel est IMMÉDIAT et nomme le verset : sans lui, marquer et
+  /// démarquer produiraient exactement la même absence de réaction, et on ne
+  /// saurait jamais dans quel sens le geste a joué.
+  Future<void> _basculerMarquePage() async {
+    if (_verses.isEmpty) return;
+    final v = _verses[_activeVerse];
+    final ajoute = await ref
+        .read(marquePagesProvider.notifier)
+        .basculer(v.surahNumber, v.ayahNumber);
+    if (!mounted) return;
+    final t = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        duration: const Duration(seconds: 2),
+        backgroundColor: AppColors.green900,
+        content: Text(
+          '${ajoute ? t.mushafBookmarkAdded : t.mushafBookmarkRemoved}'
+          '  ${v.surahNumber}:${v.ayahNumber}',
+          style: GoogleFonts.manrope(fontSize: 13, color: AppColors.cream),
+        ),
+      ));
+  }
+
   void _openMemorization() {
     final verse = _verses[_activeVerse];
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => CoachScreen(verses: [verse])));
+  }
+
+  /// Appui long sur un verset : « à partir d'ici » (demande utilisateur
+  /// 2026-08-05 — « une petite fenêtre qui s'affiche pour démarrer la
+  /// récitation à partir de là où on a commencé, le jeu à partir de là »).
+  ///
+  /// LE VERSET DEVIENT ACTIF AVANT D'OUVRIR LE MENU, et ce n'est pas un détail
+  /// d'implémentation : `_openKaraoke` et `_openMemorization` partent tous deux
+  /// de `_activeVerse`. Sans cette ligne, un appui long sur le verset 40
+  /// lancerait la récitation au verset actif précédent — l'action ne
+  /// correspondrait pas au verset touché, et le geste mentirait.
+  void _menuVerset(int index) {
+    setState(() => _activeVerse = index);
+    final t = AppLocalizations.of(context)!;
+    final verse = _verses[index];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: Row(
+                children: [
+                  Text(
+                    '${verse.surahNumber}:${verse.ayahNumber}',
+                    style: GoogleFonts.manrope(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                      color: AppColors.inkLight,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.mic_rounded, color: AppColors.green800),
+              title: Text(t.mushafRecite,
+                  style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
+              subtitle: Text(t.mushafFromHere,
+                  style: GoogleFonts.manrope(
+                      fontSize: 12, color: AppColors.inkLight)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openKaraoke();
+              },
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.school_rounded, color: AppColors.green800),
+              title: Text(t.mushafMemorize,
+                  style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
+              subtitle: Text(t.mushafFromHere,
+                  style: GoogleFonts.manrope(
+                      fontSize: 12, color: AppColors.inkLight)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openMemorization();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Appui long sur le micro : mode karaoké (récitation continue immersive,
@@ -801,12 +990,16 @@ class _BottomBar extends StatelessWidget {
   final VoidCallback? onTranslationTap;
   final VoidCallback? onCoachTap;
   final VoidCallback? onMoreTap;
+  final VoidCallback? onBookmarkTap;
+  /// Le verset actif est-il marque ? Pilote l'icone du signet.
+  final bool estMarque;
   final bool showTranslation;
   final bool isPlaying;
 
   const _BottomBar({
     this.onPlayTap, this.onMicTap, this.onMicLongPress, this.onMicDoubleTap,
     this.onTranslationTap, this.onCoachTap, this.onMoreTap,
+    this.onBookmarkTap, this.estMarque = false,
     this.showTranslation = false, this.isPlaying = false,
   });
 
@@ -843,8 +1036,19 @@ class _BottomBar extends StatelessWidget {
                   color: AppColors.brass,
                   onTap: onPlayTap ?? () {},
                 ),
-                _BarButton(icon: Icons.star_border_rounded, label: t.mushafFavorites,
-                    onTap: () {}),
+                // SIGNET -- remplace l'etoile « Favoris » (2026-08-05).
+                // Celle-ci portait un `onTap: () {}` vide depuis sa creation :
+                // rien n'etait casse, la fonction n'avait jamais existe.
+                // L'icone REFLETE l'etat du verset actif : un signet qui a la
+                // meme apparence marque ou non ne dit rien de ce qu'il a fait.
+                _BarButton(
+                  icon: estMarque
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  label: t.mushafFavorites,
+                  color: estMarque ? AppColors.brass : null,
+                  onTap: onBookmarkTap ?? () {},
+                ),
                 // GROS MICRO DE RÉCITATION RETIRÉ le 2026-07-20 (demande
                 // utilisateur : « le micro de récitation mémorisation doit
                 // être déplacé dans Coach »). Il portait 3 gestes : tap =

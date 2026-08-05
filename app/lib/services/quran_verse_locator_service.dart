@@ -71,14 +71,60 @@ class QuranVerseLocatorService {
   // survivre à 1-3 mots perdus/mal transcrits par l'ASR entre deux mots
   // effectivement reconnus, assez petit pour que la paire reste une preuve
   // d'adjacence réelle (pas juste "les deux mots existent quelque part").
+  //   ⚠️ CE COMMENTAIRE ÉTAIT FAUX JUSQU'AU 2026-08-05, et il l'était depuis
+  //   l'écriture de cet index. Tant que l'écart faisait partie de la CLÉ
+  //   (`'$a$b$k'`), agrandir `_kMaxPairGap` n'apportait AUCUNE tolérance aux
+  //   mots perdus : une paire ne correspondait que si l'écart était identique
+  //   des deux côtés, or un mot avalé par l'ASR le raccourcit forcément.
+  //   Question de l'utilisateur qui l'a mis au jour : « si je dis A B C D E F G
+  //   et que l'algo retrouve A D F G, est-ce qu'il gère que A et D sont séparés
+  //   par 1 mot et non par 4 ? » -- non, il ne le gérait pas. Le commentaire
+  //   est conservé pour que l'intention d'origine reste lisible ; c'est
+  //   `_pairKey` qui a changé, cf. ci-dessous.
   static const _kMaxPairGap = 4;
+
+  // Tolérance du vote de décalage, en nombre de mots (2026-08-05).
+  //
+  // Le décalage voté est `p - i`, où `i` est l'index dans la REQUÊTE. Chaque
+  // mot avalé par l'ASR décale d'une unité tous les `i` suivants : les votes
+  // d'avant et d'après le trou tombent alors sur DEUX décalages différents, et
+  // le pic se divise au lieu de s'additionner. On additionne donc les votes sur
+  // une petite plage de décalages consécutifs pour recoller ces morceaux.
+  //
+  // 4 : absorbe jusqu'à quatre mots perdus sur l'extrait, sans laisser deux
+  // zones éloignées du Coran voter ensemble -- ce serait rendre à l'algorithme
+  // le défaut qu'il a été écrit pour supprimer.
+  static const _kOffsetWindow = 4;
   // Filtre de rareté (équivalent du seuil >400 occurrences mot-isolé
   // d'origine, mais sur des paires -- donc un seuil bien plus bas) : une
   // paire qui apparaît dans trop d'endroits différents du Coran n'aide pas à
   // localiser, elle ajoute seulement du bruit au vote de décalage ci-dessous.
   static const _kMaxPairOccurrences = 60;
 
-  String _pairKey(String a, String b, int k) => '$a$b$k';
+  // L'ÉCART N'EST PLUS DANS LA CLÉ (2026-08-05). Une paire signifie désormais
+  // « ces deux mots apparaissent à moins de `_kMaxPairGap` l'un de l'autre »,
+  // sans exiger la même distance dans la requête et dans le texte.
+  //
+  // MESURE qui a motivé le changement (benchmark/shazam_tolerance_trous.py,
+  // 200 versets tirés au sort, seuil 0,45 du code) -- part des passages
+  // effectivement retrouvés :
+  //
+  //     ce que fait l'ASR          avant   écart libre   + fenêtre de vote
+  //     transcription parfaite      98 %       98 %            98 %
+  //     1 mot sur 10 avalé          74 %       84 %            98 %
+  //     1 mot sur 5 avalé           50 %       68 %            96 %
+  //     1 mot sur 10 mal transcrit  96 %       96 %            96 %
+  //     avalé + mal transcrit       60 %       67 %            89 %
+  //
+  // Les SUBSTITUTIONS ne gênaient déjà presque pas (96 %) : une paire dont un
+  // mot est faux ne vote simplement pas. Ce sont les SUPPRESSIONS qui tuaient
+  // l'algorithme, et elles sont le mode d'erreur dominant d'un ASR sur de la
+  // récitation en ambiance. Aucun scénario ne régresse.
+  //
+  // Le séparateur reste un caractère de contrôle : il ne peut apparaître dans
+  // aucun mot arabe, donc deux paires distinctes ne peuvent pas produire la
+  // même clé par concaténation.
+  String _pairKey(String a, String b) => '$a$b';
 
   Future<void> _ensureLoaded() async {
     if (_verses != null) return;
@@ -102,7 +148,7 @@ class QuranVerseLocatorService {
     for (var i = 0; i < flat.length; i++) {
       final maxK = (flat.length - 1 - i).clamp(0, _kMaxPairGap);
       for (var k = 1; k <= maxK; k++) {
-        final key = _pairKey(flat[i], flat[i + k], k);
+        final key = _pairKey(flat[i], flat[i + k]);
         pairIndex.putIfAbsent(key, () => []).add(i);
       }
     }
@@ -181,7 +227,7 @@ class QuranVerseLocatorService {
       final maxK = (queryWords.length - 1 - i).clamp(0, _kMaxPairGap);
       for (var k = 1; k <= maxK; k++) {
         pairsTried++;
-        final key = _pairKey(queryWords[i], queryWords[i + k], k);
+        final key = _pairKey(queryWords[i], queryWords[i + k]);
         final positions = pairIndex[key];
         if (positions == null) continue;
         for (final p in positions) {
@@ -198,7 +244,20 @@ class QuranVerseLocatorService {
       return const [];
     }
 
-    final rankedOffsets = offsetVotes.entries.toList()
+    // VOTE PAR FENÊTRE (2026-08-05) -- cf. [_kOffsetWindow].
+    //
+    // On additionne les votes de `d` à `d + _kOffsetWindow` : chaque mot avalé
+    // par l'ASR décale d'une unité les votes qui suivent, et sans cette somme
+    // le pic se retrouve éparpillé sur autant de décalages qu'il y a de trous.
+    final cumul = <int, int>{};
+    for (final d in offsetVotes.keys) {
+      var somme = 0;
+      for (var j = 0; j <= _kOffsetWindow; j++) {
+        somme += offsetVotes[d + j] ?? 0;
+      }
+      cumul[d] = somme;
+    }
+    final rankedOffsets = cumul.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     // Un seul candidat par verset (le décalage gagnant de ce verset) -- parmi
@@ -207,7 +266,20 @@ class QuranVerseLocatorService {
     final scored = <_ScoredVerse>[];
     final seenVerse = <String>{};
     for (final e in rankedOffsets.take(10)) {
-      final offset = e.key;
+      // ⚠️ LA FENÊTRE SERT À TROUVER LE PIC, PAS À LE SITUER. Rapporter `e.key`
+      // ferait tomber jusqu'à `_kOffsetWindow` mots AVANT le vrai début, donc
+      // parfois sur le verset précédent -- mesuré : 98 % -> 92 % sur
+      // transcription parfaite, une perte gratuite. On rapporte donc le
+      // décalage qui porte le plus de votes À L'INTÉRIEUR de la fenêtre.
+      var offset = e.key;
+      var meilleur = offsetVotes[offset] ?? 0;
+      for (var j = 1; j <= _kOffsetWindow; j++) {
+        final v = offsetVotes[e.key + j] ?? 0;
+        if (v > meilleur) {
+          meilleur = v;
+          offset = e.key + j;
+        }
+      }
       if (offset < 0 || offset >= flatWords.length) continue;
       final verse = _verseAtPos(offset);
       final verseKey = '${verse.surah}:${verse.ayah}';

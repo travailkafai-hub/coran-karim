@@ -719,3 +719,80 @@ la liste par sourate : les deux répondent à des questions différentes —
 - RNNT = localisation uniquement, jamais la vérification.
 - Aucun widget empilé nouveau sur l'écran de récitation.
 - Clés des règles = celles de `rules_map.json`, jamais renommées côté app.
+
+---
+
+## 12. Un seul écran, trois pilotes (décision utilisateur 2026-08-05)
+
+Dicté par l'utilisateur, transcrit ici pour qu'aucun agent n'ait à le
+re-deviner. La page du Mushaf devient **le seul lieu** ; ce qui change n'est
+pas l'écran, c'est **qui le pilote**.
+
+| pilote | déclencheur | ce qui commande l'affichage |
+|---|---|---|
+| **Lecture** (défaut) | ouvrir une sourate | le lecteur, par le doigt |
+| **Récitation** | choisir « récitation » sur la sourate | l'ASR : le texte est masqué, il ne se révèle qu'à mesure qu'il est validé |
+| **Jeu** | choisir « jeu » | les paliers de mémorisation, par 20 versets ou jusqu'à la fin de la sourate si elle est plus courte |
+
+L'écran karaoké séparé disparaît. Le curseur de lecture est le point de départ :
+lancer la récitation la fait commencer **là où on en est**, pas au verset 1.
+
+### 12.1 La cadence de page s'APPREND, elle ne se règle plus
+
+> « il y a un temps, je ne veux même pas qu'on affiche ce temps-là »
+
+Le curseur « secondes par page » posait une question sans réponse possible :
+personne ne sait dire en secondes à quelle vitesse il lit, et cela change avec
+le passage, la fatigue et le jour.
+
+Le geste qui porte l'information existe déjà :
+
+- tourner la page **à la main avant l'échéance** = « trop lent » → on retient
+  le temps réellement écoulé ;
+- **revenir en arrière** = « trop rapide » → la page a tourné avant la fin de
+  la lecture ; on rallonge, sans savoir de combien (on ne mesure pas ce qui
+  n'a pas eu lieu).
+
+Trois garde-fous, tous demandés explicitement :
+
+1. **départ au maximum** — mieux vaut une page qui tarde qu'une page qui
+   s'échappe ; le premier geste corrigera ;
+2. **plancher** — `kKindlePageSecondsMin`, pour qu'aucune suite de gestes ne
+   rende la lecture impossible ;
+3. **rejet des valeurs illogiques** — sous la seconde, ce n'est pas une cadence
+   de lecture mais un double-tap ; l'observation est ignorée, pas moyennée.
+
+L'estimation bouge d'une fraction à chaque observation (inertie 0,35) : un
+geste isolé ne peut pas emballer l'écran, et la convergence tient en quelques
+pages. Implémenté : `KindlePageSecondsNotifier.apprendre`,
+`MushafScreen._tapManuel`.
+
+⚠️ Ne pas réintroduire le curseur « pour laisser le choix » sans supprimer
+l'apprentissage : deux sources écrivant la même valeur se contrediraient en
+silence — l'utilisateur règlerait 12 s et verrait le nombre bouger tout seul.
+
+### 12.2 La récitation de référence quitte l'interface, pas le projet
+
+Question de l'utilisateur : « est-ce que c'est vraiment maintenant d'utilité ».
+
+Elle n'a jamais servi à comparer un audio à un autre. Elle sert à savoir **qui
+a tort**. Le 2026-08-05, elle a tranché deux fois en une matinée : le violet
+sur `حَوْلَهُۥ` et le rouge sur `أَبْصَـٰرَهُمْ` n'ont pu être qualifiés de faux
+positifs *que* parce que l'audio venait d'un récitateur professionnel — donc
+forcément juste. Avec la voix de l'utilisateur, les deux cas restaient
+indécidables.
+
+⇒ **Retirée de l'interface** (aucun usage pour le récitateur), **conservée dans
+le banc** (`benchmark/recette_2tel.sh`). C'est un instrument de mesure, pas une
+fonctionnalité.
+
+### 12.3 Ce qui reste à arbitrer avant de coder le pilote « récitation »
+
+Deux points ne sont pas décidés par ce qui précède :
+
+- **le mot affiché alors qu'il n'est pas encore prononcé.** L'ancre avance
+  avant le verdict — c'est structurel, pas un défaut d'affichage. Révéler « ce
+  qui est validé » exige donc de choisir entre révéler à l'ANCRE (en avance,
+  donc parfois à tort) ou au VERDICT (juste, mais en retard sur la voix).
+- **qui gagne si le lecteur fait défiler à la main pendant que l'ancre suit.**
+

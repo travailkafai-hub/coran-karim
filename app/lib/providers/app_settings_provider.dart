@@ -125,6 +125,49 @@ class KindlePageSecondsNotifier extends StateNotifier<double> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_kPrefKindlePageSeconds, state);
   }
+
+  // ── LA VITESSE S'APPREND, ELLE NE SE RÈGLE PLUS (2026-08-05) ─────────────
+  //
+  // Demande utilisateur : « dans le défilement il y a un temps, je ne veux
+  // même pas qu'on affiche ce temps-là ». Et il a raison sur le fond : une
+  // cadence de récitation ne se connaît pas à l'avance, elle ne s'exprime pas
+  // en secondes par page, et personne ne sait déplacer un curseur pour dire
+  // « je lis un peu plus lentement aujourd'hui ».
+  //
+  // Le geste qui porte l'information existe déjà : quand le lecteur touche
+  // l'écran pour tourner AVANT que la page ne tourne toute seule, il dit
+  // « trop lent ». Quand il revient en arrière, il dit « trop rapide ». On
+  // apprend donc la cadence de CE lecteur sur CE passage au lieu de la lui
+  // demander.
+  //
+  // ⚠️ POURQUOI UNE MOYENNE GLISSANTE ET NON LA DERNIÈRE MESURE. Un seul
+  // écart ne dit rien : le lecteur peut avoir tourné parce qu'on l'a
+  // interrompu, ou tapé deux fois de suite. Chaque observation ne déplace donc
+  // l'estimation que d'une fraction — l'écran ne peut pas s'emballer sur un
+  // geste isolé, et il converge quand même en quelques pages.
+  static const _kInertie = 0.35;
+
+  /// Le lecteur a tourné LUI-MÊME après [ecoule] secondes sur la page.
+  ///
+  /// [enAvant] false = il est revenu en arrière : il n'avait pas fini de lire,
+  /// la page a donc tourné trop tôt et le temps doit AUGMENTER. C'est le seul
+  /// cas où l'on ralentit, et il est volontairement plus prudent (on ne sait
+  /// pas de combien il était en retard, seulement qu'il l'était).
+  void apprendre(double ecoule, {required bool enAvant}) {
+    // Un geste sous la seconde n'est pas une cadence de lecture : c'est un
+    // double-tap, un rattrapage, ou un tap parasite. On l'ignore plutôt que de
+    // laisser une valeur absurde entrer dans la moyenne -- exactement ce que
+    // l'utilisateur a demandé d'éviter (« un temps illogique, on va pas le
+    // considérer »).
+    if (ecoule < 1.0) return;
+    final cible = enAvant
+        ? ecoule
+        // Revenir en arrière ne donne pas le bon temps, seulement le fait
+        // qu'il était trop court. On l'allonge d'un quart, et la répétition du
+        // geste fera le reste : on ne devine pas ce qu'on n'a pas mesuré.
+        : state * 1.25;
+    set(state + (cible - state) * _kInertie);
+  }
 }
 
 // Volontairement NON persisté (même raison que le mode Kindle lui-même est
@@ -471,5 +514,55 @@ class DiagnosticEnabledNotifier extends StateNotifier<bool> {
     DiagnosticLog.enabled = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kPrefDiagnosticEnabled, value);
+  }
+}
+
+const _kPrefMarquePages = 'marque_pages';
+
+/// MARQUE-PAGES (2026-08-05) — décision utilisateur : « 5, sur le verset, pour
+/// moi c'est le marque-page, ou le remplacer par un marque-page ».
+///
+/// Remplace l'étoile « Favoris » de la barre du bas, qui portait un
+/// `onTap: () {}` vide depuis sa création : la fonction n'a jamais existé, ce
+/// n'était pas une régression. Un signet dit mieux ce qu'on attend d'un
+/// Mushaf — retrouver où on s'était arrêté — qu'un favori, qui suppose un
+/// classement dont personne n'a besoin ici.
+///
+/// STOCKAGE : `"sourate:verset"`, la même clé que partout ailleurs dans l'app.
+/// Un couple de nombres serait plus « propre » et obligerait à inventer une
+/// sérialisation de plus ; la clé texte se relit à l'œil dans les préférences
+/// et se compare sans conversion.
+final marquePagesProvider =
+    StateNotifierProvider<MarquePagesNotifier, Set<String>>((ref) {
+  return MarquePagesNotifier();
+});
+
+class MarquePagesNotifier extends StateNotifier<Set<String>> {
+  MarquePagesNotifier() : super(const {}) {
+    _restore();
+  }
+
+  static String cle(int sourate, int verset) => '$sourate:$verset';
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_kPrefMarquePages);
+    if (saved != null && mounted) state = saved.toSet();
+  }
+
+  bool contient(int sourate, int verset) => state.contains(cle(sourate, verset));
+
+  /// @return true si le verset vient d'être marqué, false s'il vient d'être
+  ///   retiré — l'appelant en a besoin pour dire lequel des deux s'est produit
+  ///   sans relire l'état (qui est asynchrone à la persistance).
+  Future<bool> basculer(int sourate, int verset) async {
+    final k = cle(sourate, verset);
+    final suivant = Set<String>.from(state);
+    final ajoute = suivant.add(k);
+    if (!ajoute) suivant.remove(k);
+    state = suivant;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kPrefMarquePages, suivant.toList());
+    return ajoute;
   }
 }

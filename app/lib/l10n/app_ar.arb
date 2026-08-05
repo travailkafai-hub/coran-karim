@@ -520,5 +520,9 @@
   "reciterBadgeOfflineFull": "دون اتصال",
   "reciterBadgeOfflinePartial": "دون اتصال · {done}/{total}",
   "reciterBadgeOnline": "إنترنت",
-  "reciterSelectStorageTotal": "{size} مستخدمة على هذا الجهاز"
+  "reciterSelectStorageTotal": "{size} مستخدمة على هذا الجهاز",
+  "mushafRecite": "تلاوة",
+  "mushafFromHere": "ابتداءً من هذه الآية",
+  "mushafBookmarkAdded": "تم وضع العلامة",
+  "mushafBookmarkRemoved": "تم حذف العلامة"
 }

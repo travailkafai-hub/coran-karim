@@ -128,6 +128,18 @@ void showTajwidHelpSheet(
   String? focusWord,
   int? wordIndex,
   int? localWordIndex,
+  /// Plage de mots à AFFICHER, en indices locaux au verset (2026-08-05).
+  ///
+  /// Demande utilisateur : « quand je clique sur le mot en erreur j'ai toute
+  /// l'aya qui s'affiche, je veux que ça reste sur le mot en question ; si
+  /// deux ou trois mots en erreur sont côte à côte on peut les fusionner dans
+  /// la même fenêtre ».
+  ///
+  /// null = verset entier (comportement d'origine, conservé pour les appels
+  /// qui ne visent pas une erreur précise). La fusion des mots contigus est
+  /// calculée par l'APPELANT, qui seul connaît les verdicts.
+  int? extraitDebut,
+  int? extraitFin,
 }) {
   // Règles réellement présentes dans CE verset (via les classes du HTML).
   // La vraie balise est `<tajweed class=X>` (attribut SANS guillemets, voir
@@ -203,6 +215,13 @@ void showTajwidHelpSheet(
                         textUthmani: verse.textUthmani,
                         textUthmaniTajweed: verse.textUthmaniTajweed,
                         fontSize: 26,
+                        // Réutilise le découpage par mots déjà écrit pour le
+                        // mode Kindle plutôt qu'un second rendu : un extrait
+                        // affiché autrement que le verset serait une deuxième
+                        // façon de dessiner le même texte, donc deux endroits
+                        // à corriger le jour où la coloration change.
+                        wordStart: extraitDebut,
+                        wordEnd: extraitFin,
                       ),
                     ),
                     if (rules.isNotEmpty) ...[

@@ -520,5 +520,9 @@
   "reciterBadgeOfflineFull": "Offline",
   "reciterBadgeOfflinePartial": "Offline · {done}/{total}",
   "reciterBadgeOnline": "Internet",
-  "reciterSelectStorageTotal": "{size} used on this device"
+  "reciterSelectStorageTotal": "{size} used on this device",
+  "mushafRecite": "Recite",
+  "mushafFromHere": "Starting from this verse",
+  "mushafBookmarkAdded": "Bookmark added",
+  "mushafBookmarkRemoved": "Bookmark removed"
 }

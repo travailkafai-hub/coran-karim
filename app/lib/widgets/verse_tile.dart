@@ -12,6 +12,14 @@ class VerseTile extends StatelessWidget {
   final bool isPlayingCursor;
   final bool showTranslation;
   final VoidCallback? onTap;
+  /// Appui long (2026-08-05) : raccourci « à partir d'ici » — réciter ou jouer
+  /// en partant de CE verset, sans passer par la barre du bas ni sélectionner
+  /// d'abord le verset.
+  ///
+  /// Pourquoi l'appui long et pas un bouton : la page est un Mushaf, chaque
+  /// pixel ajouté y prend de la place au texte. Le geste porte l'action sans
+  /// rien afficher tant qu'on ne le fait pas.
+  final VoidCallback? onLongPress;
   final void Function(int wordIndex)? onWordTap;
   final double textScale;
   // Mode Kindle (2026-08-01) : le curseur de lecture ET le surlignage de
@@ -34,6 +42,7 @@ class VerseTile extends StatelessWidget {
     this.isPlayingCursor = false,
     this.showTranslation = false,
     this.onTap,
+    this.onLongPress,
     this.onWordTap,
     this.textScale = 1.0,
     this.kindleMode = false,
@@ -45,6 +54,7 @@ class VerseTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

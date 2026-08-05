@@ -2004,99 +2004,103 @@
   },
   "reciterDownloadsTitle": "Téléchargement hors-ligne",
   "@reciterDownloadsTitle": {
-      "description": "Titre de l'ecran de gestion des telechargements"
+    "description": "Titre de l'ecran de gestion des telechargements"
   },
   "reciterDownloadAll": "Tout télécharger ({size})",
   "@reciterDownloadAll": {
-      "description": "Bouton pour telecharger les 114 sourates",
-      "placeholders": {
-          "size": {
-              "type": "String"
-          }
+    "description": "Bouton pour telecharger les 114 sourates",
+    "placeholders": {
+      "size": {
+        "type": "String"
       }
+    }
   },
   "reciterDownloadStop": "Arrêter",
   "@reciterDownloadStop": {
-      "description": "Bouton pour interrompre le telechargement en cours"
+    "description": "Bouton pour interrompre le telechargement en cours"
   },
   "reciterDeleteAllTitle": "Supprimer les téléchargements",
   "@reciterDeleteAllTitle": {
-      "description": "Titre du dialogue de suppression des telechargements"
+    "description": "Titre du dialogue de suppression des telechargements"
   },
   "reciterDeleteAllBody": "Tout l'audio téléchargé pour ce récitateur sera effacé de l'appareil. La lecture repassera par internet.",
   "@reciterDeleteAllBody": {
-      "description": "Corps du dialogue de suppression"
+    "description": "Corps du dialogue de suppression"
   },
   "reciterDeleteAllConfirm": "Supprimer",
   "@reciterDeleteAllConfirm": {
-      "description": "Bouton de confirmation de suppression"
+    "description": "Bouton de confirmation de suppression"
   },
   "reciterStorageUsed": "{size} sur cet appareil • {done}/{total} sourates hors-ligne",
   "@reciterStorageUsed": {
-      "description": "Entete de l'ecran de gestion : espace occupe et sourates hors-ligne",
-      "placeholders": {
-          "size": {
-              "type": "String"
-          },
-          "done": {
-              "type": "String"
-          },
-          "total": {
-              "type": "String"
-          }
+    "description": "Entete de l'ecran de gestion : espace occupe et sourates hors-ligne",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      },
+      "done": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
       }
+    }
   },
   "reciterDownloadFailed": "Échec du téléchargement — vérifie ta connexion. Ce qui est déjà téléchargé est conservé.",
   "@reciterDownloadFailed": {
-      "description": "Message d'echec de telechargement"
+    "description": "Message d'echec de telechargement"
   },
   "reciterDownloadingProgress": "Téléchargement… {done}/{total} versets",
   "@reciterDownloadingProgress": {
-      "description": "Progression du telechargement d'une sourate",
-      "placeholders": {
-          "done": {
-              "type": "String"
-          },
-          "total": {
-              "type": "String"
-          }
+    "description": "Progression du telechargement d'une sourate",
+    "placeholders": {
+      "done": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
       }
+    }
   },
   "reciterSurahOffline": "Disponible hors-ligne",
   "@reciterSurahOffline": {
-      "description": "Sous-titre d'une sourate deja telechargee"
+    "description": "Sous-titre d'une sourate deja telechargee"
   },
   "reciterVersesShort": "versets",
   "@reciterVersesShort": {
-      "description": "Mot 'versets' abrege pour la ligne de sourate"
+    "description": "Mot 'versets' abrege pour la ligne de sourate"
   },
   "reciterBadgeOfflineFull": "Hors-ligne",
   "@reciterBadgeOfflineFull": {
-      "description": "Badge : recitateur entierement disponible hors-ligne"
+    "description": "Badge : recitateur entierement disponible hors-ligne"
   },
   "reciterBadgeOfflinePartial": "Hors-ligne · {done}/{total}",
   "@reciterBadgeOfflinePartial": {
-      "description": "Badge : recitateur partiellement telecharge",
-      "placeholders": {
-          "done": {
-              "type": "String"
-          },
-          "total": {
-              "type": "String"
-          }
+    "description": "Badge : recitateur partiellement telecharge",
+    "placeholders": {
+      "done": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
       }
+    }
   },
   "reciterBadgeOnline": "Internet",
   "@reciterBadgeOnline": {
-      "description": "Badge : recitateur disponible uniquement via internet"
+    "description": "Badge : recitateur disponible uniquement via internet"
   },
   "reciterSelectStorageTotal": "{size} utilisés sur cet appareil",
   "@reciterSelectStorageTotal": {
-      "description": "Espace total occupe par l'audio telecharge",
-      "placeholders": {
-          "size": {
-              "type": "String"
-          }
+    "description": "Espace total occupe par l'audio telecharge",
+    "placeholders": {
+      "size": {
+        "type": "String"
       }
-  }
+    }
+  },
+  "mushafRecite": "Réciter",
+  "mushafFromHere": "À partir de ce verset",
+  "mushafBookmarkAdded": "Marque-page posé",
+  "mushafBookmarkRemoved": "Marque-page retiré"
 }

@@ -27,6 +27,12 @@ enum _ShazamState { listening, searching, found, notFound, error }
 /// réactif comme un vrai "Shazam".
 const _kListenDuration = Duration(seconds: 7);
 
+/// Temps laissé pour LIRE le verset identifié avant que la feuille ne s'efface
+/// d'elle-même (cf. `_run`). Trop court, on est déplacé sans savoir vers quoi ;
+/// trop long, on retombe sur l'attente que cette ouverture automatique
+/// supprime.
+const _kDelaiAvantOuverture = Duration(milliseconds: 1200);
+
 class _ShazamSheet extends ConsumerStatefulWidget {
   const _ShazamSheet();
 
@@ -71,6 +77,26 @@ class _ShazamSheetState extends ConsumerState<_ShazamSheet> {
       _match = match;
       _state = match == null ? _ShazamState.notFound : _ShazamState.found;
     });
+    // ── OUVERTURE AUTOMATIQUE DU PASSAGE (2026-08-05) ──────────────────────
+    //
+    // Jusqu'ici, une fois le passage identifie, la feuille ATTENDAIT un tap
+    // sur « Y aller ». Ce bouton n'apportait aucune decision : l'utilisateur
+    // vient de demander « quel est ce passage ? », la reponse est trouvee, il
+    // n'y a rien a arbitrer. Le faire taper une fois de plus, c'est lui
+    // demander de confirmer ce qu'il a lui-meme declenche.
+    //
+    // ⚠️ ON NE SUPPRIME PAS LE BOUTON POUR AUTANT (cf. _actions) : la
+    // navigation automatique doit rester rattrapable si le delai passe
+    // inapercu, et le bouton sert de repli si un jour cette ouverture echoue.
+    //
+    // Le delai n'est pas une temporisation de confort : la feuille affiche le
+    // verset trouve, et partir instantanement empecherait de le LIRE -- on
+    // saurait qu'on a ete deplace sans savoir vers quoi.
+    if (match != null) {
+      await Future.delayed(_kDelaiAvantOuverture);
+      if (!mounted) return;
+      Navigator.of(context).pop(match);
+    }
   }
 
   @override
