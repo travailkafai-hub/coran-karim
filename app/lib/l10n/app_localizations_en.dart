@@ -1635,4 +1635,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String reciterSelectStorageTotal(String size) {
     return '$size used on this device';
   }
+
+  @override
+  String get mushafRecite => 'Recite';
+
+  @override
+  String get mushafFromHere => 'Starting from this verse';
+
+  @override
+  String get mushafBookmarkAdded => 'Bookmark added';
+
+  @override
+  String get mushafBookmarkRemoved => 'Bookmark removed';
+
+  @override
+  String get readingSettingsGroupRead => 'READ';
+
+  @override
+  String get readingSettingsGroupListen => 'LISTEN';
 }

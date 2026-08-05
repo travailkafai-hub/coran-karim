@@ -2760,6 +2760,42 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'{size} utilisés sur cet appareil'**
   String reciterSelectStorageTotal(String size);
+
+  /// No description provided for @mushafRecite.
+  ///
+  /// In fr, this message translates to:
+  /// **'Réciter'**
+  String get mushafRecite;
+
+  /// No description provided for @mushafFromHere.
+  ///
+  /// In fr, this message translates to:
+  /// **'À partir de ce verset'**
+  String get mushafFromHere;
+
+  /// No description provided for @mushafBookmarkAdded.
+  ///
+  /// In fr, this message translates to:
+  /// **'Marque-page posé'**
+  String get mushafBookmarkAdded;
+
+  /// No description provided for @mushafBookmarkRemoved.
+  ///
+  /// In fr, this message translates to:
+  /// **'Marque-page retiré'**
+  String get mushafBookmarkRemoved;
+
+  /// No description provided for @readingSettingsGroupRead.
+  ///
+  /// In fr, this message translates to:
+  /// **'LIRE'**
+  String get readingSettingsGroupRead;
+
+  /// No description provided for @readingSettingsGroupListen.
+  ///
+  /// In fr, this message translates to:
+  /// **'ÉCOUTER'**
+  String get readingSettingsGroupListen;
 }
 
 class _AppLocalizationsDelegate

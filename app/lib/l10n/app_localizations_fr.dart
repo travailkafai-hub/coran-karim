@@ -1651,4 +1651,22 @@ class AppLocalizationsFr extends AppLocalizations {
   String reciterSelectStorageTotal(String size) {
     return '$size utilisés sur cet appareil';
   }
+
+  @override
+  String get mushafRecite => 'Réciter';
+
+  @override
+  String get mushafFromHere => 'À partir de ce verset';
+
+  @override
+  String get mushafBookmarkAdded => 'Marque-page posé';
+
+  @override
+  String get mushafBookmarkRemoved => 'Marque-page retiré';
+
+  @override
+  String get readingSettingsGroupRead => 'LIRE';
+
+  @override
+  String get readingSettingsGroupListen => 'ÉCOUTER';
 }

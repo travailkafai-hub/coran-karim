@@ -1554,4 +1554,22 @@ class AppLocalizationsAr extends AppLocalizations {
   String reciterSelectStorageTotal(String size) {
     return '$size مستخدمة على هذا الجهاز';
   }
+
+  @override
+  String get mushafRecite => 'تلاوة';
+
+  @override
+  String get mushafFromHere => 'ابتداءً من هذه الآية';
+
+  @override
+  String get mushafBookmarkAdded => 'تم وضع العلامة';
+
+  @override
+  String get mushafBookmarkRemoved => 'تم حذف العلامة';
+
+  @override
+  String get readingSettingsGroupRead => 'القراءة';
+
+  @override
+  String get readingSettingsGroupListen => 'الاستماع';
 }

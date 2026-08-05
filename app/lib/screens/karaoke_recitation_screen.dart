@@ -2331,8 +2331,37 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         break;
     }
 
-    final textWidget = (tajwidWord != null && tajwidWord.isNotEmpty)
-        ? RichText(text: TextSpan(children: tajwidWord))
+    // ── LA COULEUR APPARTIENT AU VERDICT PENDANT LA RECITATION (2026-08-05)
+    //
+    // Demande utilisateur : « les deux systemes de couleurs se disputent le
+    // meme texte ». Constat en relisant le code : ce ne sont PAS deux systemes
+    // empiles, ce sont deux canaux distincts -- le VERDICT peint le fond et le
+    // contour, le TAJWID colore les lettres. Le conflit vient des TEINTES
+    // COMMUNES : un mot correct a un fond vert et des lettres vertes, un mot
+    // faux un fond rouge et parfois des lettres rouges. Impossible alors de
+    // savoir si un rouge est une regle de tajwid ou une faute -- or c'est
+    // exactement ce que l'application existe pour dire.
+    //
+    // LE CORRECTIF NE SUPPRIME PAS LE TAJWID, il lui retire la COULEUR le
+    // temps de la recitation : le texte redevient creme, et la couleur ne veut
+    // plus dire qu'une seule chose. Les regles restent lisibles autrement (la
+    // feuille d'aide au tap sur un mot, et la lecture normale hors recitation
+    // ou le tajwid garde toutes ses couleurs).
+    //
+    // ⚠️ ON NE TOUCHE PAS AUX SPANS D'ORIGINE. `_tajwidSpans` est construit une
+    // fois par passage et relu a chaque rendu : le muter ici perdrait les
+    // couleurs pour de bon, y compris apres la recitation. On recopie.
+    final tajwidNeutre = tajwidWord
+        ?.map((sp) => TextSpan(
+              text: sp.text,
+              children: sp.children,
+              style: (sp.style ?? const TextStyle())
+                  .copyWith(color: AppColors.cream),
+            ))
+        .toList();
+
+    final textWidget = (tajwidNeutre != null && tajwidNeutre.isNotEmpty)
+        ? RichText(text: TextSpan(children: tajwidNeutre))
         : Text(
             w.display,
             style: GoogleFonts.scheherazadeNew(
