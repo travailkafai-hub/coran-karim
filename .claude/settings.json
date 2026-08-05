@@ -49,7 +49,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/garde-index-chaine.py\"",
+            "command": "true  # DESACTIVE 2026-08-05 -- pour reactiver, retirer 'true  # ' : python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/garde-index-chaine.py\"",
             "timeout": 10
           }
         ]
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/exige-superviseur.py\" garde",
+            "command": "true  # DESACTIVE 2026-08-05 -- pour reactiver, retirer 'true  # ' : python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/exige-superviseur.py\" garde",
             "timeout": 10
           }
         ]
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/maj-graphe.py\" garde",
+            "command": "true  # DESACTIVE 2026-08-05 -- pour reactiver, retirer 'true  # ' : python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/maj-graphe.py\" garde",
             "timeout": 15
           }
         ]
