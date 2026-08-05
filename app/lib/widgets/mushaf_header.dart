@@ -12,7 +12,11 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
   const MushafHeader({super.key, required this.surah, this.onBack, this.onMindMap});
 
   @override
-  Size get preferredSize => const Size.fromHeight(120);
+  // 120 -> 64 : la banniere d'heures de priere ne prend plus de hauteur
+  // (cf. build). ⚠️ `MushafScreen._kMushafHeaderHeight` DOIT suivre -- c'est
+  // une constante dupliquee, volontairement (eviter d'instancier un widget
+  // pour lire sa taille), et le commentaire de la-bas le dit deja.
+  Size get preferredSize => const Size.fromHeight(64);
 
   @override
   Widget build(BuildContext context) {
@@ -37,10 +41,23 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
             // Content
             Column(
               children: [
-                // Status bar space + prayer time banner
-                _PrayerTimeBanner(),
+                // ── LA BANNIERE D'HEURES DE PRIERE QUITTE LE MUSHAF ────
+                //
+                // Demande utilisateur (2026-08-05) : l'en-tete empilait CINQ
+                // reperes -- retour, JUZ, nom arabe, nom latin, mindmap --
+                // AU-DESSUS d'une ligne entiere consacree a l'heure de la
+                // priere suivante. Sur une page dont la raison d'etre est de
+                // lire un texte, cela faisait deux lignes de chrome avant le
+                // premier mot.
+                //
+                // L'information n'est pas perdue : elle vit sur l'ecran
+                // d'accueil et sur « Suivre une priere », ou elle est
+                // ACTIONNABLE. Ici elle ne servait qu'a occuper de la hauteur,
+                // et personne n'ouvre une sourate pour connaitre l'heure du
+                // Dhuhr. `_PrayerTimeBanner` est CONSERVE (non appele) : le
+                // jour ou l'en-tete se replie sur un bandeau unique, il y a sa
+                // place toute trouvee.
                 const SizedBox(height: 4),
-                // Navigation row
                 _SurahNavRow(surah: surah, onBack: onBack, onMindMap: onMindMap),
               ],
             ),
@@ -51,6 +68,9 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
+// Conservee non appelee : cf. le commentaire de `build` -- l'heure de priere
+// quitte le Mushaf mais garde sa place ailleurs, et ce widget est pret.
+// ignore: unused_element
 class _PrayerTimeBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -98,10 +118,22 @@ class _SurahNavRow extends StatelessWidget {
             padding: EdgeInsets.zero,
           ),
           const SizedBox(width: 4),
-          _NavChip(label: AppLocalizations.of(context)!.mushafJuzChip(_juzOf(surah.number))),
-          const SizedBox(width: 6),
-          _NavChip(label: surah.nameArabic, isArabic: true),
-          const SizedBox(width: 6),
+          // ── TROIS PUCES DE POSITION -> UNE SEULE (2026-08-05) ────────────
+          //
+          // « JUZ 5 », « الأنعام » et « 6. Al-An'am » disaient la MEME chose
+          // trois fois. Le nom romanise porte deja le numero et le nom ; le
+          // chip arabe le repete dans une autre ecriture, et le juz est une
+          // information de reperage qu'on ne consulte pas en lisant.
+          //
+          // ⚠️ EN ARABE, C'EST LE CHIP ARABE QUI RESTE (cf. le libelle plus
+          // bas) : la regle du duo (REFONTE_IHM.md §7bis) interdit le nom
+          // romanise quand l'app est en arabe. On ne garde donc pas « le chip
+          // latin » mais « le chip de position », dont le contenu depend de la
+          // langue -- ce qui etait deja le cas.
+          //
+          // `_juzOf` est CONSERVEE : elle sert au jour ou le juz revient dans
+          // un fil d'ariane, et sa table approximative a un cout de
+          // reconstitution non nul.
           Expanded(
             child: _NavChip(
               // En arabe, le chip arabe ci-dessus suffit déjà -- pas de nom
@@ -126,6 +158,9 @@ class _SurahNavRow extends StatelessWidget {
   }
 
   // Approximate Juz for a surah (simplified)
+  // Conservee non appelee : la table approximative des juz a un cout de
+  // reconstitution non nul, et le juz reviendra dans un fil d'ariane.
+  // ignore: unused_element
   static int _juzOf(int surah) {
     const starts = [1,2,2,3,4,5,6,7,8,9,9,10,11,12,13,13,14,15,15,16,17,17,
       18,18,19,19,20,21,22,22,23,23,24,24,24,25,26,26,27,27,28,28,28,28,28,
@@ -143,6 +178,7 @@ class _NavChip extends StatelessWidget {
   final bool isArabic;
   final bool flex;
 
+  // ignore: unused_element_parameter
   const _NavChip({required this.label, this.isArabic = false, this.flex = false});
 
   @override

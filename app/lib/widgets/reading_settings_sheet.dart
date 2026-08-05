@@ -56,6 +56,21 @@ class _ReadingSettingsSheet extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ── GROUPE PAR INTENTION, PAS PAR TECHNIQUE (2026-08-05) ──
+                //
+                // Demande utilisateur : la feuille melangeait taille de
+                // police, vitesse audio, boucles de repetition, mode Kindle et
+                // tournage automatique dans un seul defilement. Rien n'y
+                // repondait a la question qu'on se pose en l'ouvrant -- « je
+                // veux LIRE autrement » ou « je veux ECOUTER autrement » --
+                // et il fallait parcourir tout le reste pour trouver.
+                //
+                // Deux intentions, deux blocs, dans l'ordre de l'usage : on lit
+                // d'abord, on ecoute ensuite. Le mode Kindle rejoint LIRE (il
+                // change la page et le theme, pas le son) ; la vitesse et les
+                // boucles rejoignent ECOUTER.
+                _EnTeteIntention(t.readingSettingsGroupRead),
+                const SizedBox(height: 10),
                 Text(
                   t.readingSettingsDisplaySection,
               style: GoogleFonts.manrope(
@@ -116,7 +131,9 @@ class _ReadingSettingsSheet extends ConsumerWidget {
             // choix, ça optimise l'espace"). DIFFÉRENTE de l'ancien
             // "défilement automatique" (qui faisait scroller le TEXTE) :
             // celle-ci change la vitesse de l'AUDIO du réciteur.
-            const SizedBox(height: 20),
+            const SizedBox(height: 22),
+            _EnTeteIntention(t.readingSettingsGroupListen),
+            const SizedBox(height: 10),
             Text(
               t.readingSettingsPlaybackSpeedSection,
               style: GoogleFonts.manrope(
@@ -302,6 +319,34 @@ class _ReadingSettingsSheet extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Titre de GROUPE — plus fort que les sous-titres de section existants, pour
+/// qu'on voie d'un coup d'oeil ou commence « lire » et ou commence « ecouter ».
+/// Sans cette hierarchie, tous les libelles avaient le meme poids et la feuille
+/// se lisait comme une liste plate.
+class _EnTeteIntention extends StatelessWidget {
+  final String titre;
+  const _EnTeteIntention(this.titre);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(width: 3, height: 16, color: AppColors.green700),
+        const SizedBox(width: 8),
+        Text(
+          titre,
+          style: GoogleFonts.manrope(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.4,
+            color: AppColors.green900,
+          ),
+        ),
+      ],
     );
   }
 }
