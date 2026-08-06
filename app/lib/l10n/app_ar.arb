@@ -527,5 +527,6 @@
   "mushafBookmarkRemoved": "تم حذف العلامة",
   "readingSettingsGroupRead": "القراءة",
   "readingSettingsGroupListen": "الاستماع",
-  "recitationPausedTapToResume": "المِيكروفون متوقّف — انقر للمتابعة"
+  "recitationPausedTapToResume": "المِيكروفون متوقّف — انقر للمتابعة",
+  "tajwidHelpClose": "إغلاق"
 }

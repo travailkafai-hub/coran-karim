@@ -87,7 +87,7 @@ class DiagnosticLog {
   // Tete 3 (ecart canonique) calculee et JOURNALISEE SEULEMENT (logit + seuil
   // dans les logs [t3]) -- n'influence AUCUN verdict tant que la parite des 12
   // scores n'est pas verifiee sur device (cf. Tete3.kt).
-  static const String _kBuildTag = 'v76-trace-couture-sourates';
+  static const String _kBuildTag = 'v78-icones-agrandies';
   static const String _kBuildTimestamp =
       String.fromEnvironment('BUILD_TS', defaultValue: '');
 

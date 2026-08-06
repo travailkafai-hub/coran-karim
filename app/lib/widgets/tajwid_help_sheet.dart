@@ -120,12 +120,72 @@ String Function(AppLocalizations) _e(TajwidRuleName r) => (t) => switch (r) {
 /// présentes, un bouton pour écouter le verset par le réciteur, et — si
 /// [wordIndex] est fourni — une boucle de correction interactive (demande
 /// utilisateur 2026-07-05) : écouter, se réenregistrer sur CE mot, valider.
+/// Classes tajwid ACTIVES pour chaque mot du verset.
+///
+/// Parcourt le HTML `text_uthmani_tajweed` en suivant la pile de balises
+/// ouvertes et en comptant les mots dans le TEXTE (separateur : espace). Rend
+/// une liste parallele aux mots affiches -- meme decoupage que
+/// `tajweedSpansPerWord`, qui coupe lui aussi sur l'espace.
+///
+/// La vraie balise est `<tajweed class=X>` (attribut SANS guillemets, cf.
+/// tajweed_text.dart) : la regex accepte les deux formes. Le marqueur de fin
+/// de verset `<span class=end>` est ignore -- ce n'est pas une regle.
+List<Set<String>> _classesParMot(String html) {
+  if (html.isEmpty) return const [];
+  final mots = <Set<String>>[];
+  var courant = <String>{};
+  final pile = <String>[];
+  var vuDuTexte = false;
+  var i = 0;
+  while (i < html.length) {
+    final c = html[i];
+    if (c == '<') {
+      final fin = html.indexOf('>', i);
+      if (fin < 0) break;
+      final balise = html.substring(i + 1, fin);
+      if (balise.startsWith('/')) {
+        if (pile.isNotEmpty) pile.removeLast();
+      } else if (!balise.endsWith('/')) {
+        final m = RegExp(r'class=(?:"([^"]*)"|([^\s">]+))').firstMatch(balise);
+        pile.add(m == null ? '' : (m.group(1) ?? m.group(2) ?? ''));
+      }
+      i = fin + 1;
+      continue;
+    }
+    if (c == ' ' || c == '\n' || c == '\t') {
+      if (vuDuTexte) {
+        mots.add(courant);
+        courant = <String>{};
+        vuDuTexte = false;
+      }
+      i++;
+      continue;
+    }
+    vuDuTexte = true;
+    for (final cl in pile) {
+      if (cl.isNotEmpty && cl != 'end') courant.add(cl);
+    }
+    i++;
+  }
+  if (vuDuTexte) mots.add(courant);
+  return mots;
+}
+
 void showTajwidHelpSheet(
   BuildContext context,
   WidgetRef ref, {
   required Verse verse,
   required List<Verse> playlist,
   String? focusWord,
+  /// Ce que le MODELE a reellement entendu sur ce mot (decodage libre).
+  ///
+  /// Demande utilisateur (2026-08-06) : « dans les erreurs il y a le mot
+  /// erroné, je veux rajouter l'entendu dans cet écran ». C'est la seule
+  /// information qui permet de comprendre un verdict sans lire le journal :
+  /// un `entendu` vide ne dit pas la meme chose qu'un `entendu` qui differe
+  /// d'une lettre, et un `entendu` IDENTIQUE a l'attendu dit que le defaut
+  /// n'est pas dans la prononciation.
+  String? entendu,
   int? wordIndex,
   int? localWordIndex,
   /// Plage de mots à AFFICHER, en indices locaux au verset (2026-08-05).
@@ -141,14 +201,39 @@ void showTajwidHelpSheet(
   int? extraitDebut,
   int? extraitFin,
 }) {
+  // ── LES REGLES DU MOT, PAS CELLES DU VERSET (2026-08-06) ────────────────
+  //
+  // Demande utilisateur : « pour les règles tajweed il ne faut pas mettre les
+  // règles du verset mais plutôt les règles du mot en question ».
+  //
+  // La feuille s'ouvre sur UN mot signale : lister les regles de toute l'aya
+  // noyait celle qui concerne ce mot au milieu de dix autres, et laissait
+  // croire qu'elles s'y appliquaient toutes.
+  //
+  // POURQUOI UN EXTRACTEUR DEDIE ET PAS LES SPANS DEJA CALCULES : les spans de
+  // `tajweed_text.dart` ne portent que des COULEURS, et plusieurs regles
+  // partagent la meme (toutes les grises). Remonter d'une couleur a une regle
+  // rendrait des regles fausses. On relit donc le HTML en suivant la pile de
+  // classes et en comptant les mots dans le TEXTE.
+  final classesParMot = _classesParMot(verse.textUthmaniTajweed ?? '');
   // Règles réellement présentes dans CE verset (via les classes du HTML).
   // La vraie balise est `<tajweed class=X>` (attribut SANS guillemets, voir
   // tajweed_text.dart) — pas `<span class="X">` comme supposé initialement,
   // ce qui faisait que cette légende ne détectait jamais rien.
-  final classes = RegExp(r'class=(?:"([^"]*)"|([^\s">]+))')
-      .allMatches(verse.textUthmaniTajweed ?? '')
-      .map((m) => m.group(1) ?? m.group(2) ?? '')
-      .toSet();
+  // Repli sur le VERSET entier quand l'appelant ne dit pas quel mot il vise
+  // (ouverture depuis la lecture, pas depuis une erreur) -- comportement
+  // d'avant, inchange dans ce cas.
+  final Set<String> classes;
+  if (extraitDebut != null && classesParMot.isNotEmpty) {
+    final d = extraitDebut.clamp(0, classesParMot.length);
+    final f = (extraitFin ?? (d + 1)).clamp(d, classesParMot.length);
+    classes = <String>{for (var i = d; i < f; i++) ...classesParMot[i]};
+  } else {
+    classes = RegExp(r'class=(?:"([^"]*)"|([^\s">]+))')
+        .allMatches(verse.textUthmaniTajweed ?? '')
+        .map((m) => m.group(1) ?? m.group(2) ?? '')
+        .toSet();
+  }
   final rules = [
     for (final c in classes)
       if (kTajwidRuleInfo.containsKey(c) && kTajwidRuleInfo[c]!.color != _kGray)
@@ -201,6 +286,29 @@ void showTajwidHelpSheet(
                           fontSize: 18, color: AppColors.ink),
                     ),
                   ),
+                  // CE QUI A ETE ENTENDU, a cote de ce qui etait attendu.
+                  // Teinte differente et fleche : les deux pastilles ne
+                  // doivent pas pouvoir etre confondues.
+                  if (entendu != null) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.arrow_forward_rounded,
+                        size: 14, color: AppColors.inkLight),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.inkLight.withAlpha(28),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        entendu.trim().isEmpty ? '—' : entendu,
+                        textDirection: TextDirection.rtl,
+                        style: GoogleFonts.scheherazadeNew(
+                            fontSize: 18, color: AppColors.inkLight),
+                      ),
+                    ),
+                  ],
                 ],
               ],
             ),
@@ -290,30 +398,38 @@ void showTajwidHelpSheet(
               ),
             ),
             const SizedBox(height: 12),
-            Consumer(builder: (ctx2, ref2, _) {
-              final reciter = ref2.watch(playerProvider).reciter;
-              final isArabic = Localizations.localeOf(ctx2).languageCode == 'ar';
-              return SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.green700,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
-                  onPressed: () {
-                    ref.read(playerProvider.notifier).play(verse, playlist);
-                  },
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: Text(
-                    t.tajwidHelpListenWithReciter(
-                        isArabic ? reciter.nameAr : reciter.nameFr),
-                    style: GoogleFonts.manrope(fontWeight: FontWeight.w700),
-                  ),
+            // ── FERMER, PAS UN SECOND BOUTON D'ECOUTE (2026-08-06) ──────────
+            //
+            // Demande utilisateur : « enlève le bouton tout en bas, c'est
+            // pareil, c'est un doublon de la prononciation ; remplace-le par
+            // un bouton fermer cette fenêtre ».
+            //
+            // Il lancait le verset chez le RECITATEUR de reference, ce que le
+            // bloc « ecouter la prononciation » fait deja juste au-dessus, et
+            // sur la bonne PLAGE (mot precedent + ce mot) au lieu de l'aya
+            // entiere. Deux boutons verts pour la meme intention, dont le plus
+            // gros faisait le moins bien.
+            //
+            // La feuille se fermait jusqu'ici par un glissement vers le bas --
+            // geste que rien n'indique, sur un ecran ouvert au milieu d'une
+            // recitation.
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.green700,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                 ),
-              );
-            }),
+                onPressed: () => Navigator.of(ctx).pop(),
+                icon: const Icon(Icons.check_rounded),
+                label: Text(
+                  t.tajwidHelpClose,
+                  style: GoogleFonts.manrope(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -353,7 +469,10 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
   // un peu pour qu'il puisse écouter 3 mots, un mot avant et un mot après »).
   // Un mot isolé s'écoute mal : l'attaque et la liaison portent une bonne
   // partie de ce qu'on cherche à entendre.
-  _Range _range = _Range.withBoth;
+  // FIGE a « mot precedent + ce mot » (cf. le bloc d'explication dans build).
+  // Le champ reste un _Range plutot qu'une paire de constantes : la plage est
+  // relue a trois endroits, et l'enum documente ce qu'elle vaut.
+  final _Range _range = _Range.withPrevious;
   bool _playing = false;
   bool _playingVoix = false;
   String? _erreurVoix;
@@ -439,28 +558,19 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
               color: AppColors.green700,
             ),
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ChoiceChip(
-                label: Text(t.tajwidHelpThisWord),
-                selected: _range == _Range.wordOnly,
-                onSelected: (_) => setState(() => _range = _Range.wordOnly),
-              ),
-              ChoiceChip(
-                label: Text(t.tajwidHelpPlusPrevious),
-                selected: _range == _Range.withPrevious,
-                onSelected: (_) => setState(() => _range = _Range.withPrevious),
-              ),
-              ChoiceChip(
-                label: Text(t.tajwidHelpPlusBoth),
-                selected: _range == _Range.withBoth,
-                onSelected: (_) => setState(() => _range = _Range.withBoth),
-              ),
-            ],
-          ),
+          // ── PLUS DE CHOIX DE PLAGE (demande utilisateur 2026-08-06) ─────
+          //
+          // « pour épurer cet écran, enlève dans "écouter la prononciation"
+          // "ce mot" / "mot précédent"... garde toujours par défaut le mot
+          // d'avant et le mot en question ».
+          //
+          // Les trois puces demandaient un choix a chaque ouverture pour un
+          // reglage dont la bonne valeur est toujours la meme : un mot seul
+          // sort de son contexte (liaison, madd de la fin du mot precedent),
+          // et le mot SUIVANT n'apporte rien pour juger celui-ci. Les
+          // libelles `tajwidHelpThisWord` / `PlusPrevious` / `PlusBoth`
+          // restent dans les traductions : ils redeviendront utiles si le
+          // choix revient un jour.
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,

@@ -2092,7 +2092,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                 color: (_autoCorrecting || _promptingWord)
                     ? Colors.white24
                     : AppColors.brassLight,
-                size: 20,
+                // 20 -> 26 (demande utilisateur 2026-08-06 : « agrandis un peu
+                // les icones pause, haut-parleur et reglages, c'est petit »).
+                // La BOITE de l'IconButton ne bouge pas (48 dp, ou ~40 avec
+                // `visualDensity.compact`) : la rangee ne peut donc pas
+                // deborder comme en 2026-07-25, ou c'est l'AJOUT d'un cinquieme
+                // bouton qui avait rogne le bouton pause hors de l'ecran.
+                size: 26,
               ),
               onPressed: (_autoCorrecting || _promptingWord)
                   ? null
@@ -2107,7 +2113,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           IconButton(
             visualDensity: VisualDensity.compact,
             tooltip: AppLocalizations.of(context)!.karaokeVerificationSettingsTitle,
-            icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
+            icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 26),
             onPressed: () => _openVerificationSheet(context),
           ),
           // Bascule vers le jeu de mémorisation (QCM mot par mot) pour ce
@@ -2141,6 +2147,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               icon: Icon(
                 _manuallyPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
                 color: AppColors.brassLight,
+                size: 32,
               ),
               onPressed: _togglePause,
             )
@@ -2671,6 +2678,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       verse: verse,
       playlist: _verses,
       focusWord: st.words[wordIndex].display,
+      entendu: st.words[wordIndex].heard,
       wordIndex: wordIndex,
       localWordIndex: local,
       extraitDebut: debut,

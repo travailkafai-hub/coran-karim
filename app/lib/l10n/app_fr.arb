@@ -2105,5 +2105,6 @@
   "mushafBookmarkRemoved": "Marque-page retiré",
   "readingSettingsGroupRead": "LIRE",
   "readingSettingsGroupListen": "ÉCOUTER",
-  "recitationPausedTapToResume": "Micro coupé — touchez pour reprendre"
+  "recitationPausedTapToResume": "Micro coupé — touchez pour reprendre",
+  "tajwidHelpClose": "Fermer"
 }
