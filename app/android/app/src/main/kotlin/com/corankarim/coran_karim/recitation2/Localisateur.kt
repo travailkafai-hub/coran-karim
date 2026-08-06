@@ -150,7 +150,8 @@ class Localisateur(
         // UNE seule LCS sur toute la region : elle trouve d'elle-meme la
         // correspondance, il n'y a pas de « point de depart » a balayer.
         val (score, _, attestes) =
-            apparier(entendus, attendus, min, entendusAvecFrames, max)
+            apparier(entendus, attendus, min, entendusAvecFrames, max,
+                     framesMinParMot)
         if (score < minAppariements || attestes.isEmpty()) return null
 
         // UN SEUL APPARIEMENT SUR UN MOT QUI SE REPETE NE SUFFIT PAS
@@ -272,41 +273,129 @@ class Localisateur(
      * @return (nombre d'appariements, index attendu du dernier apparie,
      *   index attendu -> plage de frames ou il a ete entendu)
      */
+    /**
+     * ── L'HORODATAGE TRANCHE L'AMBIGUITE DES PASSAGES REPETES (2026-08-06) ──
+     *
+     * DEFAUT MESURE, session live (Al-Ma'un, 107). Le recitateur dit
+     * `ٱلَّذِينَ هُمْ يُرَآءُونَ` (mots 24-26). Or la sourate contient
+     * `ٱلَّذِينَ هُمْ` DEUX fois : mots 19-20 et 24-25. Deux alignements
+     * expliquent alors l'audio avec le MEME nombre de correspondances (5) --
+     * verifie en rejouant la DP sur les vrais mots :
+     *     depart=19 -> LCS=5, retenu [19, 20, 26, 27, 28]   <- trou de 5 mots
+     *     depart=24 -> LCS=5, retenu [24, 25, 26, 27, 28]   <- contigu
+     * A egalite, la marche arriere prenait l'index le PLUS PETIT. D'ou, dans
+     * le log :
+     *     f=20/21/25  RECUL vers le mot 19 -- « le recitateur repete »
+     *     f=22/24/32  SAUT REFUSE : trou de 3 mots apres le mot 23
+     *                 (attestes=[27, 28]) -- ancre inchangee, rien n'est juge
+     * L'ancre restait a 23 et les CINQ derniers mots de la sourate n'ont
+     * jamais ete juges, alors que le flux brut les contient nettement
+     * (`ٱلَّذِينَ هُمْ يُرَآءُونَ` a 26-30 s, `وَيَمْنَعُونَ ٱلْمَاعُونَ` a
+     * 30-34 s). Meme signature sur les trois recitations analysees ce jour-la.
+     *
+     * CE QUI LEVE L'AMBIGUITE, ET CE N'EST PAS UNE PREFERENCE. Sauter de
+     * l'index `a` a l'index `b` laisse les mots `a+1..b-1` non entendus ; leur
+     * prononciation exige un minimum PHYSIQUE de frames ([framesMinParMot],
+     * deja utilise pour la tete de bloc : n tokens => n frames). Si l'audio
+     * qui separe les deux mots ENTENDUS n'en porte pas autant, l'alignement
+     * n'est pas « moins probable » : il est IMPOSSIBLE. Entre `هُمْ` et
+     * `يُرَآءُونَ` le decodage libre ne laisse qu'une fraction de seconde,
+     * alors que `عَن صَلَاتِهِمْ سَاهُونَ ٱلَّذِينَ هُمْ` en demanderait plus
+     * d'une seconde.
+     *
+     * CONTRAINTE DURE, PAS DEPARTAGE (decision utilisateur, 2026-08-06) : « le
+     * saut n'est pas autorise, en plus c'est ce que je veux detecter pour
+     * arreter la recitation et qu'il recite les mots reellement attendus ». Un
+     * vrai saut ne doit donc PAS etre appariee -- l'ancre ne doit pas le
+     * suivre en silence. Il tombe dans le decrochage, qui souffle les mots
+     * omis : c'est la fonction meme de l'application.
+     *
+     * POURQUOI LA DP CHANGE DE FORME. La contrainte lie deux appariements
+     * CONSECUTIFS ; une LCS classique dp[i][j] ne sait pas quel appariement
+     * precede. La DP porte donc sur les CANDIDATS d'appariement (couples
+     * (entendu, attendu) qui correspondent), typiquement quelques centaines --
+     * la chaine la plus longue s'y calcule en O(candidats^2), soit bien moins
+     * que la |entendus| x |region| d'avant sur un bloc long.
+     *
+     * [framesMinParMot] nul => aucune contrainte, comportement d'avant a
+     * l'identique (le banc et les appels sans horodatage restent valides).
+     */
     private fun apparier(
         entendus: List<String>,
         attendus: List<String>,
         depart: Int,
         avecFrames: List<Pair<Decodage.MotEntendu, String>>,
         fin: Int,
+        framesMinParMot: ((Int) -> Int)? = null,
     ): Triple<Int, Int, Map<Int, IntRange>> {
         val n = entendus.size
         val m = fin - depart + 1
         if (n == 0 || m <= 0) return Triple(0, depart, emptyMap())
 
-        val dp = Array(n + 1) { IntArray(m + 1) }
-        for (i in n - 1 downTo 0) {
-            for (j in m - 1 downTo 0) {
-                dp[i][j] = if (correspond(entendus[i], attendus[depart + j])) {
-                    dp[i + 1][j + 1] + 1
-                } else {
-                    maxOf(dp[i + 1][j], dp[i][j + 1])
+        // Candidats : (entendu i, attendu depart+j) qui correspondent. Ranges
+        // par i croissant puis j croissant -- l'ordre de la recitation.
+        val candI = ArrayList<Int>()
+        val candJ = ArrayList<Int>()
+        for (i in 0 until n) {
+            for (j in 0 until m) {
+                if (correspond(entendus[i], attendus[depart + j])) {
+                    candI.add(i); candJ.add(j)
                 }
             }
         }
+        if (candI.isEmpty()) return Triple(0, depart, emptyMap())
+
+        // Somme prefixe du minimum physique de frames, pour obtenir en O(1) le
+        // cout d'un saut de `a+1` a `b-1`.
+        val cumul = IntArray(m + 1)
+        if (framesMinParMot != null) {
+            for (j in 0 until m) {
+                cumul[j + 1] = cumul[j] + framesMinParMot(depart + j).coerceAtLeast(0)
+            }
+        }
+
+        /** L'audio entre deux mots ENTENDUS peut-il porter les mots attendus
+         *  qui les separent ? Deux voisins immediats : rien a porter. */
+        fun possible(iA: Int, jA: Int, iB: Int, jB: Int): Boolean {
+            if (framesMinParMot == null || jB == jA + 1) return true
+            val besoin = cumul[jB] - cumul[jA + 1]
+            if (besoin <= 0) return true
+            val dispo = avecFrames[iB].first.premiereFrame -
+                avecFrames[iA].first.derniereFrame
+            return dispo >= besoin
+        }
+
+        // Chaine la plus longue : meilleur[c] = longueur en partant de c.
+        val k = candI.size
+        val meilleur = IntArray(k) { 1 }
+        val suivant = IntArray(k) { -1 }
+        for (c in k - 1 downTo 0) {
+            for (d in c + 1 until k) {
+                if (candI[d] <= candI[c] || candJ[d] <= candJ[c]) continue
+                if (!possible(candI[c], candJ[c], candI[d], candJ[d])) continue
+                if (meilleur[d] + 1 > meilleur[c]) {
+                    meilleur[c] = meilleur[d] + 1
+                    suivant[c] = d
+                }
+            }
+        }
+        // A egalite de longueur, on garde le candidat de PLUS PETIT index --
+        // le comportement d'avant, inchange volontairement : la contrainte
+        // temporelle suffit a trancher le cas mesure, et deplacer en meme
+        // temps la regle de departage rendrait la mesure inattribuable.
+        var tete = 0
+        for (c in 1 until k) if (meilleur[c] > meilleur[tete]) tete = c
 
         val attestes = HashMap<Int, IntRange>()
         var dernier = depart
-        var i = 0
-        var j = 0
-        while (i < n && j < m) {
-            if (correspond(entendus[i], attendus[depart + j])) {
-                val f = avecFrames[i].first
-                attestes[depart + j] = f.premiereFrame..f.derniereFrame
-                dernier = depart + j
-                i++; j++
-            } else if (dp[i + 1][j] >= dp[i][j + 1]) i++ else j++
+        var c = tete
+        while (c >= 0) {
+            val f = avecFrames[candI[c]].first
+            attestes[depart + candJ[c]] = f.premiereFrame..f.derniereFrame
+            dernier = depart + candJ[c]
+            c = suivant[c]
         }
-        return Triple(dp[0][0], dernier, attestes)
+        return Triple(meilleur[tete], dernier, attestes)
     }
 
     /** Egalite exacte apres normalisation, ou prefixe long (>= 3 lettres) —
