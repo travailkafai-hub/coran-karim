@@ -314,7 +314,7 @@
   "@mushafPause": {
     "description": "Bouton barre du bas : mettre la lecture audio en pause"
   },
-  "mushafFavorites": "Favoris",
+  "mushafFavorites": "Signet",
   "@mushafFavorites": {
     "description": "Bouton barre du bas : favoris"
   },
@@ -2106,5 +2106,7 @@
   "readingSettingsGroupRead": "LIRE",
   "readingSettingsGroupListen": "ÉCOUTER",
   "recitationPausedTapToResume": "Micro coupé — touchez pour reprendre",
-  "tajwidHelpClose": "Fermer"
+  "tajwidHelpClose": "Fermer",
+  "mushafBookmarksTitle": "Mes signets",
+  "mushafNoBookmarks": "Aucun signet pour l'instant. Touchez l'icône pour marquer le verset où vous vous êtes arrêté."
 }

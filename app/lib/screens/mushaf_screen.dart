@@ -522,6 +522,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                             onMoreTap: _openReadingSettings,
                             onBookmarkTap:
                                 _verses.isEmpty ? null : _basculerMarquePage,
+                            onBookmarkLongPress: _ouvrirListeSignets,
                             estMarque: _verses.isEmpty
                                 ? false
                                 : ref.watch(marquePagesProvider).contains(
@@ -829,6 +830,99 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   /// de `_activeVerse`. Sans cette ligne, un appui long sur le verset 40
   /// lancerait la récitation au verset actif précédent — l'action ne
   /// correspondrait pas au verset touché, et le geste mentirait.
+  /// Liste des signets, avec acces direct a chacun.
+  ///
+  /// Demande utilisateur (2026-08-06) : « tu as ajouté favoris dans le Mushaf
+  /// [...] mais le problème, il n'y a pas d'accès direct pour y aller après ».
+  /// Un signet qu'on ne peut pas rouvrir n'est pas un signet.
+  ///
+  /// Le saut se fait par `initialAyahNumber`, le meme chemin que le « Shazam
+  /// coranique » (2026-07-18) -- pas un second mecanisme de navigation.
+  Future<void> _ouvrirListeSignets() async {
+    final t = AppLocalizations.of(context)!;
+    final cles = ref.read(marquePagesProvider).toList()
+      ..sort((a, b) {
+        final pa = a.split(':').map(int.parse).toList();
+        final pb = b.split(':').map(int.parse).toList();
+        return pa[0] != pb[0] ? pa[0].compareTo(pb[0]) : pa[1].compareTo(pb[1]);
+      });
+    List<Surah> sourates = const [];
+    try {
+      sourates = await QuranApi.fetchSurahs();
+    } catch (_) {
+      // Best-effort : sans les metadonnees on affiche quand meme la reference
+      // numerique plutot que rien.
+    }
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(t.mushafBookmarksTitle,
+                  style: GoogleFonts.manrope(
+                      fontSize: 16, fontWeight: FontWeight.w800,
+                      color: AppColors.ink)),
+              const SizedBox(height: 10),
+              if (cles.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  child: Text(t.mushafNoBookmarks,
+                      style: GoogleFonts.manrope(
+                          fontSize: 13, color: AppColors.inkLight)),
+                )
+              else
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: cles.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final p = cles[i].split(':').map(int.parse).toList();
+                      final s = sourates.where((x) => x.number == p[0]);
+                      final nom = s.isEmpty ? 'Sourate ${p[0]}' : s.first.nameSimple;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.bookmark_rounded,
+                            color: AppColors.brass),
+                        title: Text(nom,
+                            style: GoogleFonts.manrope(
+                                fontSize: 14, fontWeight: FontWeight.w700,
+                                color: AppColors.ink)),
+                        subtitle: Text('${p[0]}:${p[1]}',
+                            style: GoogleFonts.manrope(
+                                fontSize: 12, color: AppColors.inkLight)),
+                        trailing: const Icon(Icons.chevron_right_rounded,
+                            color: AppColors.inkLight),
+                        onTap: s.isEmpty
+                            ? null
+                            : () {
+                                Navigator.of(ctx).pop();
+                                Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => MushafScreen(
+                                      surah: s.first,
+                                      initialAyahNumber: p[1]),
+                                ));
+                              },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _menuVerset(int index) {
     setState(() => _activeVerse = index);
     final t = AppLocalizations.of(context)!;
@@ -995,6 +1089,7 @@ class _BottomBar extends StatelessWidget {
   final VoidCallback? onCoachTap;
   final VoidCallback? onMoreTap;
   final VoidCallback? onBookmarkTap;
+  final VoidCallback? onBookmarkLongPress;
   /// Le verset actif est-il marque ? Pilote l'icone du signet.
   final bool estMarque;
   final bool showTranslation;
@@ -1003,7 +1098,7 @@ class _BottomBar extends StatelessWidget {
   const _BottomBar({
     this.onPlayTap, this.onMicTap, this.onMicLongPress, this.onMicDoubleTap,
     this.onTranslationTap, this.onCoachTap, this.onMoreTap,
-    this.onBookmarkTap, this.estMarque = false,
+    this.onBookmarkTap, this.onBookmarkLongPress, this.estMarque = false,
     this.showTranslation = false, this.isPlaying = false,
   });
 
@@ -1052,6 +1147,12 @@ class _BottomBar extends StatelessWidget {
                   label: t.mushafFavorites,
                   color: estMarque ? AppColors.brass : null,
                   onTap: onBookmarkTap ?? () {},
+                  // APPUI LONG = la liste des signets (2026-08-06, demande
+                  // utilisateur : « il n'y a pas d'accès direct pour y aller
+                  // après »). Poser un signet sans pouvoir y revenir ne sert
+                  // a rien. Le tap garde son role -- marquer/demarquer le
+                  // verset courant -- et l'appui long ouvre la liste.
+                  onLongPress: onBookmarkLongPress,
                 ),
                 // GROS MICRO DE RÉCITATION RETIRÉ le 2026-07-20 (demande
                 // utilisateur : « le micro de récitation mémorisation doit
@@ -1103,14 +1204,16 @@ class _BarButton extends StatelessWidget {
   final String label;
   final Color? color;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   const _BarButton({required this.icon, required this.label,
-      this.color, required this.onTap});
+      this.color, required this.onTap, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
     final c = color ?? AppColors.cream.withAlpha(200);
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

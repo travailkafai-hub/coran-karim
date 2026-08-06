@@ -63,7 +63,7 @@
   "mushafExplanationTitleSurahVerseWord": "{surah} {ayah} — {word}",
   "mushafPlay": "Play",
   "mushafPause": "Pause",
-  "mushafFavorites": "Favorites",
+  "mushafFavorites": "Bookmark",
   "mushafMemorize": "Memorize",
   "mushafTranslation": "Transl.",
   "mushafCoachAi": "AI Coach",
@@ -528,5 +528,7 @@
   "readingSettingsGroupRead": "READ",
   "readingSettingsGroupListen": "LISTEN",
   "recitationPausedTapToResume": "Mic paused — tap to resume",
-  "tajwidHelpClose": "Close"
+  "tajwidHelpClose": "Close",
+  "mushafBookmarksTitle": "My bookmarks",
+  "mushafNoBookmarks": "No bookmark yet. Tap the icon to mark where you stopped."
 }

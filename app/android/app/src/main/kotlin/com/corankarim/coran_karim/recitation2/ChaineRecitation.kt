@@ -70,6 +70,33 @@ class ChaineRecitation(
      * d'avant le 2026-08-01 pour cette session-la uniquement : aucun trou
      * n'est calcule, aucune fenetre n'est jetee pour cette raison.
      */
+    /** Index de mots que l'application ne juge JAMAIS -- aujourd'hui la
+     *  Bismillah inseree en tete de sourate (decision projet 2026-07-20).
+     *
+     *  Ils sont exclus du comptage de SAUT. Un mot qu'on refuse de juger par
+     *  conception ne peut pas servir de preuve qu'on a saute quelque chose.
+     *
+     *  DEFAUT MESURE (2026-08-06, session live de l'utilisateur, build v79 --
+     *  « j'ai recite puis pause puis play pour passer a une autre sourate,
+     *  rien ne se passe »). Al-Kafirun terminee, ancre au mot 29 ; la cible
+     *  insere la Bismillah de la sourate suivante aux mots 30-33. Le
+     *  recitateur enchaine sur Al-Ikhlas et la chaine le VOIT parfaitement :
+     *      f=30 SAUT REFUSE : trou de 4 mots apres le mot 29
+     *           (attestes=[34, 35, 36, 37, 38])
+     *  -- 34-38 = `قُلْ هُوَ ٱللَّهُ أَحَدٌ ٱللَّهُ`, confirme sur le flux brut.
+     *  Mais l'ecart 29 -> 34 vaut 4 mots, au-dessus de [sautMaxMots] = 2 :
+     *  fenetre jetee, VINGT fois de suite, jusqu'a la fin de la session.
+     *  La Bismillah avait pourtant ete dite (`entendu="بِسْمِ"` trois fois) ;
+     *  elle n'a pas pu etre placee parce qu'un mot SEUL qui se repete dans la
+     *  zone de recherche est refuse par securite, et `بسم` y figure trois
+     *  fois (sourates 112, 113, 114).
+     *  CONSEQUENCE GENERALE : aucun recitateur ne pouvait franchir une
+     *  frontiere de sourate -- la fonction « enchainer sur une autre sourate »
+     *  etait cassee en entier.
+     *  Fournis par Dart (`RecitedWord.isBasmala`), qui en est la seule
+     *  autorite : la detecter en Kotlin sur le texte confondrait la Bismillah
+     *  inseree avec le verset 1:1 d'Al-Fatiha, qui lui est bien recite. */
+    private val nonJugeables: Set<Int> = emptySet(),
     private val referenceSession: Boolean = false,
 ) {
     private var motsAttendus: List<String> = emptyList()
@@ -574,12 +601,19 @@ class ChaineRecitation(
             // mots etaient tous deja valides. Deux fenetres comme celle-ci de
             // suite, et le decrochage coupait une recitation juste.
             val pertinents = attestesTries.filter { it >= ancrePourTrou }
+            // Nombre de mots JUGEABLES strictement entre [de] et [a] : c'est
+            // la seule mesure honnete d'un saut (cf. [nonJugeables]).
+            fun sautEntre(de: Int, a: Int): Int {
+                var n = 0
+                for (i in de + 1 until a) if (i !in nonJugeables) n++
+                return n
+            }
             if (dernierDefinitif >= 0 && pertinents.isNotEmpty()) {
-                trou = pertinents.first() - (ancrePourTrou + 1)
+                trou = sautEntre(ancrePourTrou, pertinents.first())
                 trouApres = ancrePourTrou
             }
             for (k in 1 until pertinents.size) {
-                val ecart = pertinents[k] - pertinents[k - 1] - 1
+                val ecart = sautEntre(pertinents[k - 1], pertinents[k])
                 if (ecart > trou) {
                     trou = ecart
                     trouApres = pertinents[k - 1]

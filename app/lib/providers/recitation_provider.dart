@@ -1945,6 +1945,24 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// "pending" à la fin de la liste, et étend la cible native en conséquence
   /// SANS bouger son ancre (cf. RecitationVerifier.extendAlignmentTarget) —
   /// la récitation continue exactement où elle en était, juste avec plus de
+  /// Index des mots que l'app ne juge JAMAIS -- la Bismillah insérée en tête
+  /// de sourate (décision projet 2026-07-20, `isBasmala`).
+  ///
+  /// La chaîne v2 en a besoin pour ne PAS les compter dans un saut : sans ça,
+  /// franchir une frontière de sourate ressemble à un saut de 4 mots, et
+  /// l'ancre reste bloquée pour de bon (défaut mesuré le 2026-08-06 —
+  /// « pause puis play pour passer à une autre sourate, rien ne se passe »).
+  /// Dart en est la seule autorité : détecter la Bismillah sur le texte
+  /// confondrait celle qui est insérée avec le verset 1:1 d'Al-Fatiha, qui
+  /// lui est bien récité.
+  static List<int> _indicesNonJuges(List<RecitedWord> mots, {int decalage = 0}) {
+    final out = <int>[];
+    for (var i = 0; i < mots.length; i++) {
+      if (mots[i].isBasmala) out.add(decalage + i);
+    }
+    return out;
+  }
+
   /// texte à réciter derrière.
   Future<void> extendWords(String moreArabicText) async {
     final newWords = _wordsFromText(moreArabicText);
@@ -1956,7 +1974,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // v2 A SA PROPRE CIBLE, cf. v2ExtendTarget : sans cet appel, la chaîne
     // qui pilote vraiment l'écran restait figée à sa taille de départ pour
     // toute la session (2026-08-05).
-    await _verifier.v2ExtendTarget(cible);
+    await _verifier.v2ExtendTarget(cible,
+        nonJugeables: _indicesNonJuges(newWords,
+            decalage: state.words.length - newWords.length));
   }
 
   /// Variante verset-consciente de [extendWords] : annote les règles tajwid
@@ -1975,7 +1995,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // v2 A SA PROPRE CIBLE, cf. v2ExtendTarget : sans cet appel, la chaîne
     // qui pilote vraiment l'écran restait figée à sa taille de départ pour
     // toute la session (2026-08-05).
-    await _verifier.v2ExtendTarget(cible);
+    await _verifier.v2ExtendTarget(cible,
+        nonJugeables: _indicesNonJuges(newWords,
+            decalage: state.words.length - newWords.length));
   }
 
   Future<void> start() async {
@@ -2013,7 +2035,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // start() est le mode VERSET UNIQUE : jamais de session de
     // reference, cf. la doc de startControle/startTest -- ce mode n'est
     // atteint que via la lecture normale d'un verset.
-    await _verifier.v2Activer(true, cible, mode: 'CTL');
+    await _verifier.v2Activer(true, cible,
+        mode: 'CTL', nonJugeables: _indicesNonJuges(state.words));
     await _verifier.start(cible, refMinFrames: _refMinFrames(state.words));
     _myGeneration = _verifier.sessionGeneration;
   }
@@ -2184,7 +2207,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // 2026-07-30 : 0 ligne [V2] dans une session étiquetée v2).
     await _verifier.v2Activer(
         true, state.words.map((w) => w.alignTarget).toList(),
-        mode: referenceSession ? 'REF' : 'CTL');
+        mode: referenceSession ? 'REF' : 'CTL',
+        nonJugeables: _indicesNonJuges(state.words));
     await _verifier.start(
       state.words.map((w) => w.alignTarget).toList(),
       continuous: true,

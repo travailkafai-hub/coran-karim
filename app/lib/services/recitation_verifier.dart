@@ -269,14 +269,16 @@ abstract class RecitationVerifier {
   /// contrôle/test (REFONTE_IHM.md §14). Défaut 'CTL' : un appelant qui ne
   /// précise rien obtient le comportement de l'usage réel, jamais celui de la
   /// recette par accident.
-  Future<void> v2Activer(bool actif, List<String> mots, {String mode = 'CTL'}) async {}
+  Future<void> v2Activer(bool actif, List<String> mots,
+      {String mode = 'CTL', List<int> nonJugeables = const []}) async {}
 
   /// Agrandit la cible v2 EN COURS DE SESSION, SANS recréer la chaîne (donc
   /// sans perdre l'ancre ni les mots déjà verrouillés) -- 2026-08-05. Même
   /// rôle que [extendAlignmentTarget] mais côté v2 (v1 et v2 ont chacun leur
   /// propre cible native, cf. le commentaire de v2SetTarget). No-op par
   /// défaut. Words = formes `alignTarget`, PAS les formes training du v1.
-  Future<void> v2ExtendTarget(List<String> mots) async {}
+  Future<void> v2ExtendTarget(List<String> mots,
+      {List<int> nonJugeables = const []}) async {}
 
   /// LA VOIX DU RÉCITATEUR sur les mots [motDebut]..[motFin] (inclus), en WAV.
   /// C'est l'audio EXACT qui a servi à juger ces mots. `null` si l'audio n'est
@@ -1029,15 +1031,17 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   Stream<int> get decrochage => _decrochageCtrl.stream;
 
   @override
-  Future<void> v2Activer(bool actif, List<String> mots, {String mode = 'CTL'}) async {
+  Future<void> v2Activer(bool actif, List<String> mots,
+      {String mode = 'CTL', List<int> nonJugeables = const []}) async {
     await _fastConformer.v2SetMode(mode);
-    await _fastConformer.v2SetTarget(mots);
+    await _fastConformer.v2SetTarget(mots, nonJugeables: nonJugeables);
     await _fastConformer.v2SetEnabled(actif);
   }
 
   @override
-  Future<void> v2ExtendTarget(List<String> mots) =>
-      _fastConformer.v2ExtendTarget(mots);
+  Future<void> v2ExtendTarget(List<String> mots,
+          {List<int> nonJugeables = const []}) =>
+      _fastConformer.v2ExtendTarget(mots, nonJugeables: nonJugeables);
 
   @override
   Future<String?> v2ExtraitVoix(int motDebut, int motFin) =>
@@ -1411,9 +1415,11 @@ class MockRecitationVerifier implements RecitationVerifier {
       const Stream.empty();
 
   @override
-  Future<void> v2Activer(bool actif, List<String> mots, {String mode = 'CTL'}) async {}
+  Future<void> v2Activer(bool actif, List<String> mots,
+      {String mode = 'CTL', List<int> nonJugeables = const []}) async {}
   @override
-  Future<void> v2ExtendTarget(List<String> mots) async {}
+  Future<void> v2ExtendTarget(List<String> mots,
+      {List<int> nonJugeables = const []}) async {}
   @override
   Future<String?> v2ExtraitVoix(int motDebut, int motFin) async => null;
   @override

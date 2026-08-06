@@ -63,7 +63,7 @@
   "mushafExplanationTitleSurahVerseWord": "{surah} {ayah} — {word}",
   "mushafPlay": "تشغيل",
   "mushafPause": "إيقاف مؤقت",
-  "mushafFavorites": "المفضلة",
+  "mushafFavorites": "علامة",
   "mushafMemorize": "حفظ",
   "mushafTranslation": "ترجمة",
   "mushafCoachAi": "المدرّب الذكي",
@@ -528,5 +528,7 @@
   "readingSettingsGroupRead": "القراءة",
   "readingSettingsGroupListen": "الاستماع",
   "recitationPausedTapToResume": "المِيكروفون متوقّف — انقر للمتابعة",
-  "tajwidHelpClose": "إغلاق"
+  "tajwidHelpClose": "إغلاق",
+  "mushafBookmarksTitle": "علاماتي",
+  "mushafNoBookmarks": "لا توجد علامة بعد. انقر على الأيقونة لتعليم الآية التي توقّفت عندها."
 }

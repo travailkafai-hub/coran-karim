@@ -2360,11 +2360,27 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   Widget _wordWrapBlock(RecitationSessionState st, int start, int end) {
-    // MOT COURANT -- `st.words` marque `current`, PAS `st.pointer` : quand la
-    // v2 pilote, `_onV2` met a jour les mots mais jamais le pointeur, qui
-    // reste a 0 (meme piege que `_promptCurrentWord`, cf. son commentaire).
-    final suivi = st.words.indexWhere((w) => w.status == WordStatus.current);
-    final curseur = suivi >= 0 ? suivi : st.pointer;
+    // ── OU EN EST LE RECITATEUR ─────────────────────────────────────────
+    //
+    // NI `st.pointer` NI `WordStatus.current` : quand la v2 pilote, `_onV2`
+    // met a jour les STATUTS des mots et rien d'autre. `pointer` reste a 0
+    // (piege deja documente dans `_promptCurrentWord`), et `current` n'est
+    // pose qu'a l'index 0 au moment du reset -- il n'avance jamais non plus.
+    //
+    // DEFAUT MESURE (2026-08-06, retour utilisateur : « le fil de lumiere
+    // n'est pas visible ») : le fil restait colle aux six premiers mots, dans
+    // la Bismillah, pendant toute la recitation.
+    //
+    // Le FRONT reel est le plus grand index deja juge : la v2 ne rend un
+    // statut que sur un mot qu'elle a vu.
+    var curseur = -1;
+    for (var i = st.words.length - 1; i >= 0; i--) {
+      final s0 = st.words[i].status;
+      if (s0 != WordStatus.pending && s0 != WordStatus.current) {
+        curseur = i;
+        break;
+      }
+    }
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Wrap(

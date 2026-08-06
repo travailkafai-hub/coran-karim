@@ -649,10 +649,12 @@ class FastConformerVerifier {
 
   /// Texte attendu de la v2 (des MOTS, pas des tokens : la v2 tokenise
   /// elle-même, et génère au passage les écritures équivalentes).
-  Future<void> v2SetTarget(List<String> mots) async {
+  Future<void> v2SetTarget(List<String> mots,
+      {List<int> nonJugeables = const []}) async {
     if (!_loaded) return;
     try {
-      await _channel.invokeMethod('v2SetTarget', {'mots': mots});
+      await _channel.invokeMethod(
+          'v2SetTarget', {'mots': mots, 'nonJugeables': nonJugeables});
     } catch (_) {}
   }
 
@@ -664,10 +666,12 @@ class FastConformerVerifier {
   /// l'écran, restait figée à sa taille de départ pour toute la session --
   /// tout mot enchaîné devenait structurellement hors de portée du
   /// localisateur/décrochage, quel que soit le réglage de patience.
-  Future<void> v2ExtendTarget(List<String> mots) async {
+  Future<void> v2ExtendTarget(List<String> mots,
+      {List<int> nonJugeables = const []}) async {
     if (!_loaded || mots.isEmpty) return;
     try {
-      await _channel.invokeMethod('v2ExtendTarget', {'mots': mots});
+      await _channel.invokeMethod(
+          'v2ExtendTarget', {'mots': mots, 'nonJugeables': nonJugeables});
     } catch (_) {}
   }
 

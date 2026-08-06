@@ -101,6 +101,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     /** Bloc de FUSION actif ? Defaut `true` = comportement mesure et en place.
      *  Pilotable par `v2SetFusion` pour mesurer l'hypothese « les apercus 2/4
      *  suffisent » sur device, en recette de reference. */
+    /** Index de mots jamais juges (Bismillah), fournis par Dart. Cf.
+     *  ChaineRecitation.nonJugeables : sans eux, franchir une frontiere de
+     *  sourate compte comme un saut de 4 mots et bloque l'ancre pour de bon. */
+    private val v2NonJugeablesInit = mutableSetOf<Int>()
+    @Volatile private var v2NonJugeables: MutableSet<Int> = v2NonJugeablesInit
+
     @Volatile private var v2Fusion = true
 
     /** Nombre de preuves concordantes exigees pour FIGER un verdict (Decideur.k).
@@ -908,6 +914,10 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // travaille sur des MOTS, la v1 sur des tokens deja calcules.
             "v2SetTarget" -> {
                 v2Mots = call.argument<List<String>>("mots") ?: emptyList()
+                // Index jamais juges (Bismillah) -- cf.
+                // ChaineRecitation.nonJugeables. Dart en est l'autorite.
+                v2NonJugeables = (call.argument<List<Int>>("nonJugeables")
+                    ?: emptyList()).toMutableSet()
                 v2Chaine = null // recree au prochain bloc audio, avec la cible
                 v1EtatJournalise = false // nouvelle session -> nouvelle ligne [V1]
                 DiagnosticLog.log(TAG, "[v2] cible = ${v2Mots.size} mots")
@@ -996,6 +1006,10 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             }
             "v2ExtendTarget" -> {
                 val plus = call.argument<List<String>>("mots") ?: emptyList()
+                // Les index arrivent DEJA absolus (Dart les calcule sur la
+                // cible complete) : la chaine vivante partage ce meme ensemble
+                // mutable, l'extension la met donc a jour sans la recreer.
+                v2NonJugeables.addAll(call.argument<List<Int>>("nonJugeables") ?: emptyList())
                 v2Mots = v2Mots + plus
                 v2Chaine?.etendreTexte(plus)
                 DiagnosticLog.log(TAG, "[v2] cible etendue : +${plus.size} mots "
@@ -1327,6 +1341,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // jour par v2SetMode, appele avant v2SetTarget (donc avant
                     // que v2Chaine soit recree), cf. le commentaire du handler.
                     referenceSession = v2Mode == "REF",
+                    nonJugeables = v2NonJugeables,
                 )
                 chaine.definirTexte(v2Mots)
                 v2Chaine = chaine
