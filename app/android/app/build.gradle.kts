@@ -89,7 +89,7 @@ tasks.withType<Test> {
         // "k" : nombre de preuves concordantes exigees pour figer (cf.
         // Decideur.k). Meme piege que ci-dessus -- sans le relais, tout le
         // balayage k=1/k=2 rendrait le meme chiffre.
-        "k")) {
+        "k", "apercu2", "largeurApercu2", "maxFusion")) {
         System.getProperty(k)?.let { systemProperty(k, it) }
     }
 }

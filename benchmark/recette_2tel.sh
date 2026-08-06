@@ -130,9 +130,20 @@ DEPUIS=$((LIGNE0 + 1))
 # inchange, la recette reste en reference.
 EXTRA_NORMAL=""
 [ -n "${NORMAL:-}" ] && EXTRA_NORMAL="--ez normal true"
+# FUSION=0 : coupe le bloc de fusion de la v2.  PREUVES=1 : une seule
+# observation fige (Decideur.k).  Les deux ensemble testent l'hypothese « une
+# seule ligne d'apercus 2/4 se suffit ».  Vides = comportement en place.
+EXTRA_V2=""
+[ -n "${FUSION:-}" ] && EXTRA_V2="$EXTRA_V2 --ez fusion $([ "$FUSION" = 0 ] && echo false || echo true)"
+[ -n "${PREUVES:-}" ] && EXTRA_V2="$EXTRA_V2 --ei preuves $PREUVES"
+# PAS/LARGEUR : recouvrement de la ligne d'apercus (recouvrement = largeur-pas).
+[ -n "${PAS:-}" ] && EXTRA_V2="$EXTRA_V2 --es pas $PAS"
+[ -n "${LARGEUR:-}" ] && EXTRA_V2="$EXTRA_V2 --es largeur $LARGEUR"
+# MAXBLOC : plafond de duree d'un bloc de la seconde ligne (defaut 30 s).
+[ -n "${MAXBLOC:-}" ] && EXTRA_V2="$EXTRA_V2 --es maxbloc $MAXBLOC"
 
 "$ADB" -s "$SAMSUNG" shell am start -n $PKG/.MainActivity \
-    --es recette ecoute --ei sourate "$SOURATE" --ei depart "$DEPART" $EXTRA_WAV $EXTRA_NORMAL >/dev/null
+    --es recette ecoute --ei sourate "$SOURATE" --ei depart "$DEPART" $EXTRA_WAV $EXTRA_NORMAL $EXTRA_V2 >/dev/null
 # Aucun tap ici : l'intent `ecoute` fait atterrir DANS la recitation deja
 # demarree (cf. KaraokeRecitationScreen.autoDemarrer).
 CENTRE=$("$ADB" -s "$SAMSUNG" shell wm size | tr -d '\r' | sed 's/.*: //' | awk -Fx '{print int($1/2), int($2/2)}')

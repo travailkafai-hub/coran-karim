@@ -74,6 +74,10 @@ class BancFluxBrut {
         // `streaming` (2026-08-02) pour pouvoir balayer sans recompiler.
         val apercu = System.getProperty("apercu")?.toDouble() ?: 3.0
         val largeur = System.getProperty("largeurApercu")?.toDouble() ?: 9.0
+        // SECONDE GRILLE (idee utilisateur : periodes premieres entre elles).
+        val apercu2 = System.getProperty("apercu2")?.toDouble() ?: 0.0
+        val largeur2 = System.getProperty("largeurApercu2")?.toDouble() ?: 0.0
+        val maxFusion = System.getProperty("maxFusion")?.toDouble() ?: 30.0
         println("[banc] pauseMin=$pause maxBloc=$maxBloc fusion=$fusion rms=$rms " +
             "adaptatif=$adaptatif apercu=$apercu largeurApercu=$largeur")
         val constructeur = ConstructeurDeFenetres(
