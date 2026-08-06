@@ -485,7 +485,7 @@ abstract class AppLocalizations {
   /// Bouton barre du bas : favoris
   ///
   /// In fr, this message translates to:
-  /// **'Favoris'**
+  /// **'Signet'**
   String get mushafFavorites;
 
   /// Bouton barre du bas : travailler ce verset (mémorisation)
@@ -2796,6 +2796,30 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'ÉCOUTER'**
   String get readingSettingsGroupListen;
+
+  /// No description provided for @recitationPausedTapToResume.
+  ///
+  /// In fr, this message translates to:
+  /// **'Micro coupé — touchez pour reprendre'**
+  String get recitationPausedTapToResume;
+
+  /// No description provided for @tajwidHelpClose.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fermer'**
+  String get tajwidHelpClose;
+
+  /// No description provided for @mushafBookmarksTitle.
+  ///
+  /// In fr, this message translates to:
+  /// **'Mes signets'**
+  String get mushafBookmarksTitle;
+
+  /// No description provided for @mushafNoBookmarks.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun signet pour l\'instant. Touchez l\'icône pour marquer le verset où vous vous êtes arrêté.'**
+  String get mushafNoBookmarks;
 }
 
 class _AppLocalizationsDelegate

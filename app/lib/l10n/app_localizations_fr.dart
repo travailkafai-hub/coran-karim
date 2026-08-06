@@ -244,7 +244,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get mushafPause => 'Pause';
 
   @override
-  String get mushafFavorites => 'Favoris';
+  String get mushafFavorites => 'Signet';
 
   @override
   String get mushafMemorize => 'Mémoriser';
@@ -1669,4 +1669,18 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get readingSettingsGroupListen => 'ÉCOUTER';
+
+  @override
+  String get recitationPausedTapToResume =>
+      'Micro coupé — touchez pour reprendre';
+
+  @override
+  String get tajwidHelpClose => 'Fermer';
+
+  @override
+  String get mushafBookmarksTitle => 'Mes signets';
+
+  @override
+  String get mushafNoBookmarks =>
+      'Aucun signet pour l\'instant. Touchez l\'icône pour marquer le verset où vous vous êtes arrêté.';
 }

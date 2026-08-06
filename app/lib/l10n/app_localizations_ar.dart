@@ -233,7 +233,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get mushafPause => 'إيقاف مؤقت';
 
   @override
-  String get mushafFavorites => 'المفضلة';
+  String get mushafFavorites => 'علامة';
 
   @override
   String get mushafMemorize => 'حفظ';
@@ -1572,4 +1572,18 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get readingSettingsGroupListen => 'الاستماع';
+
+  @override
+  String get recitationPausedTapToResume =>
+      'المِيكروفون متوقّف — انقر للمتابعة';
+
+  @override
+  String get tajwidHelpClose => 'إغلاق';
+
+  @override
+  String get mushafBookmarksTitle => 'علاماتي';
+
+  @override
+  String get mushafNoBookmarks =>
+      'لا توجد علامة بعد. انقر على الأيقونة لتعليم الآية التي توقّفت عندها.';
 }

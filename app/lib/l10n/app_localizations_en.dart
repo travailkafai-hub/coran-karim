@@ -242,7 +242,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mushafPause => 'Pause';
 
   @override
-  String get mushafFavorites => 'Favorites';
+  String get mushafFavorites => 'Bookmark';
 
   @override
   String get mushafMemorize => 'Memorize';
@@ -1653,4 +1653,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get readingSettingsGroupListen => 'LISTEN';
+
+  @override
+  String get recitationPausedTapToResume => 'Mic paused — tap to resume';
+
+  @override
+  String get tajwidHelpClose => 'Close';
+
+  @override
+  String get mushafBookmarksTitle => 'My bookmarks';
+
+  @override
+  String get mushafNoBookmarks =>
+      'No bookmark yet. Tap the icon to mark where you stopped.';
 }
