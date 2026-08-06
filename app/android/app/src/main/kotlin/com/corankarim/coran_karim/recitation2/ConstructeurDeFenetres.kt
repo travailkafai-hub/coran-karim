@@ -264,10 +264,61 @@ class ConstructeurDeFenetres(
      *  2026-07-31). */
     private val fenetreApercuSecondes: Double = 9.0,
     private val fusionner: Boolean = true,
+    /** Plafond PROPRE au bloc de FUSION, separe de [maxBlocSecondes].
+     *
+     *  Les deux etaient confondus, et c'est un piege paye le 2026-08-06 : le
+     *  bloc de fusion vaut PAR CONSTRUCTION deux blocs. Plafonner un bloc seul
+     *  a 5 s rendait donc la fusion systematiquement trop longue, et elle
+     *  n'etait PLUS JAMAIS produite -- sans qu'aucune ligne de log ne le dise.
+     *  Mesure de ce jour-la (recette reelle, apercus 3 s + maxBloc 5 s) :
+     *  24,41 % de mots non verts dont 46 `omis`, et ZERO fenetre de plus de
+     *  6 s dans tout le journal. On croyait mesurer « des blocs plus courts »,
+     *  on mesurait « seconde ligne supprimee ».
+     *
+     *  Un reglage qui doit satisfaire deux exigences opposees se dedouble ; il
+     *  ne se regle pas mieux. */
+    private val maxFusionSecondes: Double = 30.0,
+    /** SECONDE GRILLE d'apercus, de periode PREMIERE avec la premiere (idee
+     *  utilisateur 2026-08-06 : « 3 et 5 sont deux nombres premiers »).
+     *
+     *  Deux grilles de periodes 3 s et 5 s ne realignent leurs frontieres que
+     *  toutes les 15 s : un mot coupe au bord d'une fenetre de la premiere
+     *  n'est presque jamais coupe au meme endroit par la seconde. Avec 2 et 4,
+     *  ou 4 et 4, les frontieres coincident en permanence et les deux lignes
+     *  ratent exactement le meme mot.
+     *
+     *  MESUREE ET SANS EFFET (banc JVM, Al-Baqara 433 s, meme audio, ligne B
+     *  active dans les deux cas) :
+     *      A(4/4) seul          : 265 fenetres, 1277 obs -> 14,24 % non verts
+     *      A(3/3) + A(5/5)      : 295 fenetres, 1266 obs -> 14,24 %
+     *  Taux IDENTIQUE, meme nombre de mots mal servis (43), pour 30 fenetres
+     *  de plus. Deux grilles A ne remplacent pas non plus la ligne B :
+     *      A(3/3) + A(5/5) sans fusion : 670 obs -> 19,66 %, 85 mots mal servis
+     *
+     *  POURQUOI l'argument de primalite ne mord pas ici : il suppose que la
+     *  seconde ligne est une GRILLE, dont les frontieres pourraient coincider
+     *  avec la premiere. La ligne B ne coupe pas sur une horloge, elle coupe
+     *  aux SILENCES REELS du recitateur -- instants sans periodicite, donc
+     *  jamais synchronisables avec une grille, quelle que soit sa periode. La
+     *  decorrelation recherchee est deja fournie, et plus fortement : les
+     *  coupes de B tombent la ou le recitateur s'arrete, jamais au milieu d'un
+     *  mot.
+     *
+     *  Le code est CONSERVE et desactive (0) : refaire cette mesure couterait
+     *  une demi-heure, et rien dans le comportement observable ne dit qu'elle
+     *  a deja ete faite.
+     *
+     *  0 = desactivee (defaut) : la configuration en place est inchangee. */
+    private val apercu2Secondes: Double = 0.0,
+    private val fenetreApercu2Secondes: Double = 0.0,
 ) {
     private val bloc = Horloge.ECH_PAR_FRAME // 80 ms, granularite de la detection
     private val pauseMinBlocs = (pauseMinSecondes * Horloge.TAUX / bloc).toInt()
     private val maxEch = Horloge.secondesVersEch(maxBlocSecondes)
+    private val maxEchFusion = Horloge.secondesVersEch(maxFusionSecondes)
+    private val apercu2Ech = Horloge.secondesVersEch(apercu2Secondes)
+    private val fenetreApercu2Ech = Horloge.secondesVersEch(fenetreApercu2Secondes)
+    private var dernierApercu2 = 0L
     /**
      * Contexte droit exige par le modele causal : 13 frames de sortie = 1,04 s.
      *
@@ -438,6 +489,17 @@ class ConstructeurDeFenetres(
         // court que le lookahead du modele causal (1,04 s) : il ne rend AUCUNE
         // frame de sortie exploitable. La chaine a ete inondee de fenetres
         // vides et n'a plus rien localise du tout.
+        // Les DEUX grilles sont evaluees dans le meme passage : rendre la main
+        // apres la premiere ferait mourir la seconde de faim (elle ne serait
+        // servie que les tours ou la premiere n'est pas due).
+        val apercus = ArrayList<Fenetre>(2)
+        if (apercu2Ech > 0 &&
+            positionTravail - derniereCoupe >= apercuMinEch &&
+            positionTravail - dernierApercu2 >= apercu2Ech) {
+            dernierApercu2 = positionTravail
+            val debut2 = maxOf(derniereCoupe, positionTravail - fenetreApercu2Ech)
+            apercus.add(bloquer(debut2, positionTravail, fusion = false, apercu = true))
+        }
         if (apercuEch > 0 &&
             positionTravail - derniereCoupe >= apercuMinEch &&
             positionTravail - dernierApercu >= apercuEch) {
@@ -455,9 +517,10 @@ class ConstructeurDeFenetres(
             // curseur l'aura amene au centre (l'aligneur refuse deja de juger
             // un mot situe dans le dernier lookahead).
             val debutApercu = maxOf(derniereCoupe, positionTravail - fenetreApercuEch)
-            return listOf(bloquer(debutApercu, positionTravail,
-                                  fusion = false, apercu = true))
+            apercus.add(bloquer(debutApercu, positionTravail,
+                                fusion = false, apercu = true))
         }
+        if (apercus.isNotEmpty()) return apercus
 
         // GARDE-FOU de domaine : jamais de bloc plus long que les clips
         // d'entrainement. On coupe alors au point le plus SILENCIEUX vu depuis
@@ -491,7 +554,7 @@ class ConstructeurDeFenetres(
         // 2e observation : le meme enonce vu AVEC le precedent. Contexte
         // different, normalisation differente, donc preuve independante.
         if (fusionner && avantDerniereCoupe >= 0 &&
-            position - avantDerniereCoupe <= maxEch
+            position - avantDerniereCoupe <= maxEchFusion
         ) {
             out.add(bloquer(avantDerniereCoupe, position, fusion = true))
         }

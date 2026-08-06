@@ -60,12 +60,22 @@ class MainActivity : FlutterActivity() {
                     // `--ei preuves 1` : Decideur.k, cf. FastConformerCtcPlugin.
                     val preuves = intent?.getIntExtra("preuves", 2) ?: 2
                     intent?.removeExtra("preuves")
+                    // `--es pas 4.0 --es largeur 4.0` : recouvrement de la
+                    // ligne d'apercus (largeur - pas). Chaines et non flottants
+                    // : `am start` n'a pas d'extra double portable.
+                    val pas = intent?.getStringExtra("pas")?.toDoubleOrNull() ?: 4.0
+                    val largeur = intent?.getStringExtra("largeur")?.toDoubleOrNull() ?: 4.0
+                    val maxBloc = intent?.getStringExtra("maxbloc")?.toDoubleOrNull() ?: 30.0
+                    intent?.removeExtra("pas"); intent?.removeExtra("largeur")
+                    intent?.removeExtra("maxbloc")
                     result.success(
                         if (m == null) null
                         else mapOf("mode" to m, "sourate" to s, "versets" to n,
                                    "depart" to d, "wav" to w, "normal" to normal,
                                    "fusion" to fusion,
-                                   "preuves" to preuves))
+                                   "preuves" to preuves,
+                                   "pas" to pas, "largeur" to largeur,
+                                   "maxbloc" to maxBloc))
                 } else result.notImplemented()
             }
     }

@@ -288,7 +288,11 @@ abstract class RecitationVerifier {
   Future<void> v2Terminer() async {}
 
   /// Active/désactive le BLOC DE FUSION de la v2 (mesure). No-op par défaut.
-  Future<void> v2SetFusion(bool actif, {int preuves = 2}) async {}
+  Future<void> v2SetFusion(bool actif,
+      {int preuves = 2,
+      double pas = 4.0,
+      double largeur = 4.0,
+      double maxBloc = 30.0}) async {}
 
   /// Vrai si l'alignement forcé est actif pour la session courante (cible
   /// déclarée + modèle chargé). Faux → le scoring doit retomber sur le diff
@@ -1039,8 +1043,13 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       _fastConformer.v2ExtraitVoix(motDebut, motFin);
 
   @override
-  Future<void> v2SetFusion(bool actif, {int preuves = 2}) =>
-      _fastConformer.v2SetFusion(actif, preuves: preuves);
+  Future<void> v2SetFusion(bool actif,
+          {int preuves = 2,
+          double pas = 4.0,
+          double largeur = 4.0,
+          double maxBloc = 30.0}) =>
+      _fastConformer.v2SetFusion(actif,
+          preuves: preuves, pas: pas, largeur: largeur, maxBloc: maxBloc);
 
   @override
   Future<void> v2Terminer() async {
@@ -1407,7 +1416,11 @@ class MockRecitationVerifier implements RecitationVerifier {
   @override
   Future<void> v2Terminer() async {}
   @override
-  Future<void> v2SetFusion(bool actif, {int preuves = 2}) async {}
+  Future<void> v2SetFusion(bool actif,
+      {int preuves = 2,
+      double pas = 4.0,
+      double largeur = 4.0,
+      double maxBloc = 5.0}) async {}
   @override
   bool get alignmentActive => false;
   @override

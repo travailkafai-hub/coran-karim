@@ -98,7 +98,10 @@ class _PointDEntreeState extends State<_PointDEntree> {
             wav: extras['wav'] as String?,
             normal: extras['normal'] as bool? ?? false,
             fusion: extras['fusion'] as bool? ?? true,
-            preuves: (extras['preuves'] as num?)?.toInt() ?? 2));
+            preuves: (extras['preuves'] as num?)?.toInt() ?? 2,
+            pas: (extras['pas'] as num?)?.toDouble() ?? 4.0,
+            largeur: (extras['largeur'] as num?)?.toDouble() ?? 4.0,
+            maxBloc: (extras['maxbloc'] as num?)?.toDouble() ?? 30.0));
   }
 
   @override

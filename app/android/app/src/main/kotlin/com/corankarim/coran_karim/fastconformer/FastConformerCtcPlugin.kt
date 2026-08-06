@@ -116,6 +116,55 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
      *  position plus tot. Les 12 mots qui changent d'etat vont tous de
      *  provisoire non-vert a definitif non-vert, aucun ne devient vert. */
     @Volatile private var v2Preuves = 2
+
+    /** Pas et largeur de la ligne d'apercus. Le RECOUVREMENT (largeur - pas)
+     *  avait ete choisi a 50 % en supposant une ligne UNIQUE : un mot coupe au
+     *  bord d'une fenetre etait alors entier dans la suivante, et c'etait la
+     *  seule facon de le revoir. Avec la seconde ligne (blocs fermes aux vrais
+     *  silences + fusion), cette relecture existe deja par un autre chemin --
+     *  d'ou la question, posee par l'utilisateur, de savoir si le recouvrement
+     *  fait encore un travail utile.
+     *  Banc JVM (Al-Baqara 433 s, 295 mots, fusion active, k=2) :
+     *      pas 2 s (recouvrement 50 %) : 14,24 %  -- 1158 observations
+     *      pas 3 s (recouvrement 25 %) : 14,92 %  -- 1084 observations
+     *      pas 4 s (recouvrement  0 %) : 13,90 %  --  917 observations
+     *  Soit aucun ecart au-dela du bruit pour 21 % de calcul en moins. */
+    // DEFAUT PORTE A 4,0 / 4,0 -- RECOUVREMENT SUPPRIME (2026-08-06, decision
+    // utilisateur apres mesure). Recette reelle a deux telephones, Al-Baqara
+    // v6, 420 s, meme protocole, avec les DEUX lignes actives :
+    //     recouvrement 50 % : 278 fenetres, 1838 s presentes -> 1,69 % non verts
+    //     recouvrement 50 % : 275 fenetres, 1800 s presentes -> 1,02 %
+    //     recouvrement  0 % : 214 fenetres, 1603 s presentes -> 1,02 %
+    // Soit le meilleur des deux passes a 50 %, pour 23 % de fenetres en moins.
+    // La cadence ne bouge pas (1,28 s contre 1,16 s) : la ligne de blocs
+    // continue de produire des fenetres entre les apercus.
+    // CE QUI EST AFFIRME : aucune perte detectable. PAS un gain de qualite --
+    // les deux passes a 50 % donnaient deja 5 puis 3 mots non verts, l'ecart
+    // mesure (0 mot) est plus petit que cette variance. Le gain certain est le
+    // calcul. Le banc deterministe (meme audio) concorde : 13,90 % contre
+    // 14,24 %.
+    @Volatile private var v2Pas = 4.0
+    @Volatile private var v2Largeur = 4.0
+
+    /** Duree maximale d'un bloc de la SECONDE ligne (celle qui coupe aux vrais
+     *  silences). Valait 30 s par defaut -- jamais passee explicitement, donc
+     *  jamais choisie. Mesure : la mediane des fenetres longues etait de 9,2 s
+     *  et le maximum de 21,8 s.
+     *  ESSAYE A 5 s le 2026-08-06, puis REVENU A 30 s. Deux raisons, dans cet
+     *  ordre :
+     *  1. a 5 s, le bloc de FUSION n'etait plus jamais produit -- il vaut deux
+     *     blocs, et il partageait alors ce meme plafond. Recette reelle :
+     *     24,41 % de mots non verts dont 46 `omis`, ZERO fenetre de plus de
+     *     6 s. Cause corrigee depuis (maxFusionSecondes, plafond separe) ;
+     *  2. plafond separe une fois en place, la configuration retenue (apercus
+     *     4 s sans recouvrement) n'a ete MESUREE qu'avec maxBloc=30. Livrer 5 s
+     *     reviendrait a livrer une combinaison jamais mesuree. */
+    @Volatile private var v2MaxBloc = 30.0
+
+    /** Plafond du bloc de FUSION. 30 s = valeur effective historique (elle
+     *  etait celle de [v2MaxBloc] avant que les deux soient separes), donc la
+     *  configuration deja mesuree reste identique au bit pres. */
+    @Volatile private var v2MaxFusion = 30.0
     private val scope = CoroutineScope(Dispatchers.Default)
 
     /** Cache de l'app -- seul besoin : ecrire l'extrait de voix rejoue au tap
@@ -861,9 +910,14 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "v2SetFusion" -> {
                 v2Fusion = call.argument<Boolean>("actif") ?: true
                 v2Preuves = call.argument<Int>("preuves") ?: 2
+                v2Pas = call.argument<Double>("pas") ?: 4.0
+                v2Largeur = call.argument<Double>("largeur") ?: 4.0
+                v2MaxBloc = call.argument<Double>("maxbloc") ?: 30.0
+                v2MaxFusion = call.argument<Double>("maxfusion") ?: 30.0
                 v2Chaine = null
                 DiagnosticLog.log(TAG,
-                    "[v2] bloc de fusion = $v2Fusion, preuves exigees = $v2Preuves")
+                    "[v2] bloc de fusion = $v2Fusion, preuves exigees = $v2Preuves, " +
+                    "apercu pas=${v2Pas}s largeur=${v2Largeur}s maxBloc=${v2MaxBloc}s maxFusion=${v2MaxFusion}s")
                 result.success(null)
             }
             "v2Terminer" -> {
@@ -1157,8 +1211,8 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                             // (BancFluxBrut -Dapercu=2.0 -DlargeurApercu=4.0
                             // -DpauseMin=0.25) avant de la considerer acquise
                             // pour le modele tete3.
-                            apercuSecondes = 2.0,
-                            fenetreApercuSecondes = 4.0,
+                            apercuSecondes = v2Pas,
+                            fenetreApercuSecondes = v2Largeur,
                             // SEUIL DE PAUSE REMESURE (2026-07-31).
                             // WhisperX ne cherche pas un VRAI silence mais la
                             // « region la moins active en parole » -- critere
@@ -1200,6 +1254,11 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                             // PORTE ICI SANS REVALIDATION : le modele tete3
                             // n'est ni final-v1 ni v4-phrases. A confirmer au
                             // banc JVM avant de faire confiance a ce sens-la.
+                            maxBlocSecondes = v2MaxBloc,
+                            // Plafond PROPRE a la fusion : elle vaut deux
+                            // blocs, elle ne peut pas partager celui d'un bloc
+                            // seul (cf. ConstructeurDeFenetres).
+                            maxFusionSecondes = v2MaxFusion,
                             pauseMinSecondes = 0.25,
                             // BLOC DE FUSION pilotable depuis Dart (2026-08-06).
                             // Hypothese utilisateur : « les apercus 2/4 se

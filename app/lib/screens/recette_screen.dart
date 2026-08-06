@@ -50,7 +50,10 @@ class RecetteScreen extends ConsumerStatefulWidget {
       this.wav,
       this.normal = false,
       this.fusion = true,
-      this.preuves = 2});
+      this.preuves = 2,
+      this.pas = 4.0,
+      this.largeur = 4.0,
+      this.maxBloc = 30.0});
 
   /// `ecoute` (l'app juge) ou `lecture` (l'app joue le récitateur).
   /// Null = l'utilisateur choisit sur place (accès manuel depuis l'accueil).
@@ -112,6 +115,16 @@ class RecetteScreen extends ConsumerStatefulWidget {
   /// tôt — 14,24 % → 15,59 % de mots non verts.
   final int preuves;
 
+  /// Pas et largeur de la ligne d'aperçus. Le recouvrement vaut
+  /// `largeur - pas` ; `pas = largeur` le supprime. Mesuré au banc JVM avec la
+  /// seconde ligne active : 50 % → 14,24 %, 25 % → 14,92 %, 0 % → 13,90 % de
+  /// mots non verts, pour 21 % d'observations en moins sans recouvrement.
+  final double pas;
+  final double largeur;
+
+  /// Plafond de durée d'un bloc de la seconde ligne.
+  final double maxBloc;
+
   @override
   ConsumerState<RecetteScreen> createState() => _RecetteScreenState();
 }
@@ -148,7 +161,11 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
         // audio, donc le drapeau doit être posé avant que la capture s'ouvre.
         await ref
             .read(recitationVerifierProvider)
-            .v2SetFusion(widget.fusion, preuves: widget.preuves);
+            .v2SetFusion(widget.fusion,
+                preuves: widget.preuves,
+                pas: widget.pas,
+                largeur: widget.largeur,
+                maxBloc: widget.maxBloc);
         if (widget.wav != null) {
           ref.read(recitationVerifierProvider).wavRejoue = widget.wav;
           DiagnosticLog.log('RECETTE', 'source deterministe : ${widget.wav}');

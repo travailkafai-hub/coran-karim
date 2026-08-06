@@ -347,6 +347,8 @@ class FastConformerVerifier {
       });
       _loaded = ok ?? false;
       debugPrint('[FastConformer] Modèle chargé : $_loaded');
+      // Rejoue les reglages v2 : ils ont pu etre poses avant ce chargement.
+      if (_loaded) await _envoyerReglagesV2();
       // Trace le modèle REELLEMENT charge (cf. _kBuildTag dans
       // diagnostic_log.dart, meme motivation) : plusieurs checkpoints ont ete
       // deployes/compares le 2026-07-16, et leurs plages de gop typiques
@@ -684,12 +686,51 @@ class FastConformerVerifier {
   /// 295 mots) : fusion=true 14,24 % de non verts / 1494 observations ;
   /// fusion=false 19,32 % / 879 observations. Le banc tournait toutefois en
   /// repli glouton de tokenisation -- d'où ce drapeau pour la recette réelle.
-  Future<void> v2SetFusion(bool actif, {int preuves = 2}) async {
-    if (!_loaded) return;
+  Future<void> v2SetFusion(bool actif,
+      {int preuves = 2,
+      double pas = 4.0,
+      double largeur = 4.0,
+      double maxBloc = 30.0}) async {
+    // PAS de garde `!_loaded` ici. La recette pose ces drapeaux AVANT
+    // d'ouvrir la capture, donc avant le chargement du modele : la garde
+    // faisait repartir l'appel sans rien faire ET sans laisser de trace.
+    // Deux passes ont ete mesurees le 2026-08-06 en croyant comparer deux
+    // configurations, alors qu'elles etaient identiques (5 puis 3 mots non
+    // verts = la variance entre deux passes, pas un effet). Le handler natif
+    // ne fait que ranger deux champs : il n'a jamais eu besoin du modele.
+    _v2FusionSouhaitee = actif;
+    _v2PreuvesSouhaitees = preuves;
+    _v2Pas = pas;
+    _v2Largeur = largeur;
+    _v2MaxBloc = maxBloc;
+    await _envoyerReglagesV2();
+  }
+
+  bool _v2FusionSouhaitee = true;
+  int _v2PreuvesSouhaitees = 2;
+  double _v2Pas = 4.0;
+  double _v2Largeur = 4.0;
+  double _v2MaxBloc = 30.0;
+
+  /// Pousse les reglages v2 au natif. Rejoue APRES le chargement du modele :
+  /// le plugin recree la chaine a ce moment-la, une valeur posee avant serait
+  /// perdue sans qu'aucune ligne ne le dise.
+  Future<void> _envoyerReglagesV2() async {
     try {
-      await _channel.invokeMethod(
-          'v2SetFusion', {'actif': actif, 'preuves': preuves});
-    } catch (_) {}
+      await _channel.invokeMethod('v2SetFusion',
+          {
+            'actif': _v2FusionSouhaitee,
+            'preuves': _v2PreuvesSouhaitees,
+            'pas': _v2Pas,
+            'largeur': _v2Largeur,
+            'maxbloc': _v2MaxBloc,
+          });
+    } catch (e) {
+      // JAMAIS silencieux : un reglage de mesure qui n'arrive pas invalide
+      // la mesure entiere, et se lit a tort comme « le parametre ne change
+      // rien ».
+      DiagnosticLog.log('FastConformer', '[v2] reglages NON APPLIQUES : $e');
+    }
   }
 
   /// FERME la session v2 : dernière analyse de la queue d'audio, hors grille.
