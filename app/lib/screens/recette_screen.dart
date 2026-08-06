@@ -53,7 +53,8 @@ class RecetteScreen extends ConsumerStatefulWidget {
       this.preuves = 2,
       this.pas = 4.0,
       this.largeur = 4.0,
-      this.maxBloc = 30.0});
+      this.maxBloc = 10.0,
+      this.maxFusion = 18.0});
 
   /// `ecoute` (l'app juge) ou `lecture` (l'app joue le récitateur).
   /// Null = l'utilisateur choisit sur place (accès manuel depuis l'accueil).
@@ -125,6 +126,9 @@ class RecetteScreen extends ConsumerStatefulWidget {
   /// Plafond de durée d'un bloc de la seconde ligne.
   final double maxBloc;
 
+  /// Plafond PROPRE au bloc de fusion (il vaut deux blocs).
+  final double maxFusion;
+
   @override
   ConsumerState<RecetteScreen> createState() => _RecetteScreenState();
 }
@@ -165,7 +169,8 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
                 preuves: widget.preuves,
                 pas: widget.pas,
                 largeur: widget.largeur,
-                maxBloc: widget.maxBloc);
+                maxBloc: widget.maxBloc,
+                maxFusion: widget.maxFusion);
         if (widget.wav != null) {
           ref.read(recitationVerifierProvider).wavRejoue = widget.wav;
           DiagnosticLog.log('RECETTE', 'source deterministe : ${widget.wav}');

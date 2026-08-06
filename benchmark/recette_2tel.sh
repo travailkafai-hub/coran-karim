@@ -141,6 +141,7 @@ EXTRA_V2=""
 [ -n "${LARGEUR:-}" ] && EXTRA_V2="$EXTRA_V2 --es largeur $LARGEUR"
 # MAXBLOC : plafond de duree d'un bloc de la seconde ligne (defaut 30 s).
 [ -n "${MAXBLOC:-}" ] && EXTRA_V2="$EXTRA_V2 --es maxbloc $MAXBLOC"
+[ -n "${MAXFUSION:-}" ] && EXTRA_V2="$EXTRA_V2 --es maxfusion $MAXFUSION"
 
 "$ADB" -s "$SAMSUNG" shell am start -n $PKG/.MainActivity \
     --es recette ecoute --ei sourate "$SOURATE" --ei depart "$DEPART" $EXTRA_WAV $EXTRA_NORMAL $EXTRA_V2 >/dev/null

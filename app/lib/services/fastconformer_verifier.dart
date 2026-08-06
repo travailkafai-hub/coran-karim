@@ -690,7 +690,8 @@ class FastConformerVerifier {
       {int preuves = 2,
       double pas = 4.0,
       double largeur = 4.0,
-      double maxBloc = 30.0}) async {
+      double maxBloc = 10.0,
+      double maxFusion = 18.0}) async {
     // PAS de garde `!_loaded` ici. La recette pose ces drapeaux AVANT
     // d'ouvrir la capture, donc avant le chargement du modele : la garde
     // faisait repartir l'appel sans rien faire ET sans laisser de trace.
@@ -703,6 +704,7 @@ class FastConformerVerifier {
     _v2Pas = pas;
     _v2Largeur = largeur;
     _v2MaxBloc = maxBloc;
+    _v2MaxFusion = maxFusion;
     await _envoyerReglagesV2();
   }
 
@@ -710,7 +712,8 @@ class FastConformerVerifier {
   int _v2PreuvesSouhaitees = 2;
   double _v2Pas = 4.0;
   double _v2Largeur = 4.0;
-  double _v2MaxBloc = 30.0;
+  double _v2MaxBloc = 10.0;
+  double _v2MaxFusion = 18.0;
 
   /// Pousse les reglages v2 au natif. Rejoue APRES le chargement du modele :
   /// le plugin recree la chaine a ce moment-la, une valeur posee avant serait
@@ -724,6 +727,7 @@ class FastConformerVerifier {
             'pas': _v2Pas,
             'largeur': _v2Largeur,
             'maxbloc': _v2MaxBloc,
+            'maxfusion': _v2MaxFusion,
           });
     } catch (e) {
       // JAMAIS silencieux : un reglage de mesure qui n'arrive pas invalide

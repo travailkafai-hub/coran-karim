@@ -78,13 +78,24 @@ class BancFluxBrut {
         val apercu2 = System.getProperty("apercu2")?.toDouble() ?: 0.0
         val largeur2 = System.getProperty("largeurApercu2")?.toDouble() ?: 0.0
         val maxFusion = System.getProperty("maxFusion")?.toDouble() ?: 30.0
-        println("[banc] pauseMin=$pause maxBloc=$maxBloc fusion=$fusion rms=$rms " +
-            "adaptatif=$adaptatif apercu=$apercu largeurApercu=$largeur")
+        // TOUS les parametres sont imprimes, sans exception. Le 2026-08-06,
+        // `maxFusion` et `apercu2` etaient LUS mais jamais passes au
+        // constructeur (mauvaise indentation dans une edition) : sept
+        // configurations ont rendu 302 blocs et 41/295 a l'identique, et la
+        // mesure des « deux grilles de periodes premieres » etait vide de sens
+        // -- la seconde grille n'a jamais existe. Une ligne de parametres
+        // incomplete rend ce genre de panne indetectable.
+        println("[banc] pauseMin=$pause maxBloc=$maxBloc maxFusion=$maxFusion " +
+            "fusion=$fusion rms=$rms adaptatif=$adaptatif " +
+            "apercu=$apercu largeurApercu=$largeur " +
+            "apercu2=$apercu2 largeurApercu2=$largeur2")
         val constructeur = ConstructeurDeFenetres(
             pauseMinSecondes = pause, seuilRmsSilence = rms,
             seuilAdaptatif = adaptatif,
             maxBlocSecondes = maxBloc, fusionner = fusion,
+            maxFusionSecondes = maxFusion,
             apercuSecondes = apercu, fenetreApercuSecondes = largeur,
+            apercu2Secondes = apercu2, fenetreApercu2Secondes = largeur2,
         )
         val sortie = StringBuilder()
         var n = 0

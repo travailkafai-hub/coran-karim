@@ -292,7 +292,8 @@ abstract class RecitationVerifier {
       {int preuves = 2,
       double pas = 4.0,
       double largeur = 4.0,
-      double maxBloc = 30.0}) async {}
+      double maxBloc = 10.0,
+      double maxFusion = 18.0}) async {}
 
   /// Vrai si l'alignement forcé est actif pour la session courante (cible
   /// déclarée + modèle chargé). Faux → le scoring doit retomber sur le diff
@@ -1047,9 +1048,11 @@ class WhisperOnnxVerifier implements RecitationVerifier {
           {int preuves = 2,
           double pas = 4.0,
           double largeur = 4.0,
-          double maxBloc = 30.0}) =>
+          double maxBloc = 10.0,
+          double maxFusion = 18.0}) =>
       _fastConformer.v2SetFusion(actif,
-          preuves: preuves, pas: pas, largeur: largeur, maxBloc: maxBloc);
+          preuves: preuves, pas: pas, largeur: largeur,
+          maxBloc: maxBloc, maxFusion: maxFusion);
 
   @override
   Future<void> v2Terminer() async {
@@ -1420,7 +1423,8 @@ class MockRecitationVerifier implements RecitationVerifier {
       {int preuves = 2,
       double pas = 4.0,
       double largeur = 4.0,
-      double maxBloc = 5.0}) async {}
+      double maxBloc = 10.0,
+      double maxFusion = 18.0}) async {}
   @override
   bool get alignmentActive => false;
   @override

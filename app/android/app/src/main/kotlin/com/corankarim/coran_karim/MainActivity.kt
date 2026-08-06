@@ -65,9 +65,10 @@ class MainActivity : FlutterActivity() {
                     // : `am start` n'a pas d'extra double portable.
                     val pas = intent?.getStringExtra("pas")?.toDoubleOrNull() ?: 4.0
                     val largeur = intent?.getStringExtra("largeur")?.toDoubleOrNull() ?: 4.0
-                    val maxBloc = intent?.getStringExtra("maxbloc")?.toDoubleOrNull() ?: 30.0
+                    val maxBloc = intent?.getStringExtra("maxbloc")?.toDoubleOrNull() ?: 10.0
                     intent?.removeExtra("pas"); intent?.removeExtra("largeur")
-                    intent?.removeExtra("maxbloc")
+                    val maxFusion = intent?.getStringExtra("maxfusion")?.toDoubleOrNull() ?: 18.0
+                    intent?.removeExtra("maxbloc"); intent?.removeExtra("maxfusion")
                     result.success(
                         if (m == null) null
                         else mapOf("mode" to m, "sourate" to s, "versets" to n,
@@ -75,7 +76,7 @@ class MainActivity : FlutterActivity() {
                                    "fusion" to fusion,
                                    "preuves" to preuves,
                                    "pas" to pas, "largeur" to largeur,
-                                   "maxbloc" to maxBloc))
+                                   "maxbloc" to maxBloc, "maxfusion" to maxFusion))
                 } else result.notImplemented()
             }
     }

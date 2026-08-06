@@ -157,14 +157,49 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
      *     24,41 % de mots non verts dont 46 `omis`, ZERO fenetre de plus de
      *     6 s. Cause corrigee depuis (maxFusionSecondes, plafond separe) ;
      *  2. plafond separe une fois en place, la configuration retenue (apercus
-     *     4 s sans recouvrement) n'a ete MESUREE qu'avec maxBloc=30. Livrer 5 s
-     *     reviendrait a livrer une combinaison jamais mesuree. */
-    @Volatile private var v2MaxBloc = 30.0
+     *     4 s sans recouvrement) n'avait ete MESUREE qu'avec maxBloc=30.
+     *
+     *  PORTE A 10 s LE 2026-08-06 apres balayage complet. Demande utilisateur
+     *  (« je pense pas que c'est bien d'avoir autant de mots » dans un bloc) :
+     *  a 30 s une fenetre portait jusqu'a 58 mots.
+     *
+     *  BANC JVM (Al-Baqara 433 s, meme audio, apercus 4/4, k=2) :
+     *      maxBloc/maxFusion   blocs   obs    non verts
+     *          30 / 30          265   1162      13,90 %
+     *          15 / 30          273   1151      13,90 %
+     *          10 / 18          302   1107      13,90 %   <- retenu
+     *          12 / 24          286   1142      14,24 %
+     *          10 / 16          299   1081      15,59 %
+     *          10 / 15          296   1058      15,93 %
+     *  La falaise est entre maxFusion 18 et 16 : en dessous, la fusion cesse
+     *  d'etre produite et le rattrapage disparait avec elle.
+     *
+     *  RECETTE REELLE, rejeu deterministe du meme WAV, sur DEUX telephones :
+     *      30 / 30  : 210 fenetres, plus longue 26,0 s, 38 au-dela de 12 s -> 1,02 %
+     *      15 / 30  : 221 fenetres, plus longue 21,8 s, 39 au-dela de 12 s -> 1,02 %
+     *      10 / 18  : 240 fenetres, plus longue 16,9 s, 19 au-dela de 12 s -> 1,02 %
+     *  Memes trois mots non verts (172, 228, 285) dans les six passes, et
+     *  resultat IDENTIQUE sur le Redmi. 10/18 est donc le plus serre a qualite
+     *  strictement egale.
+     *
+     *  CE QU'IL NE FAUT PAS EN CONCLURE : que « le modele s'effondre au-dela
+     *  de 12 s ». C'est l'inverse. Mot 67 `أَلَآ`, meme audio : a 30/30 il est
+     *  d'abord declare `omis` (gop=-2,96, bord) puis REPECHE quatre secondes
+     *  plus tard en `provisoire:vert` (gop=0,00, INT, obs=4) -- par les
+     *  fenetres de 9,6 / 11,8 / 11,4 s. A 6/12, seules deux fenetres (4,0 s et
+     *  6,0 s) le couvrent, obs=1, et il reste `omis`. Les fenetres longues NE
+     *  SONT PAS du gaspillage : ce sont elles le rattrapage. Plafonner en
+     *  dessous de 18 s degrade de facon monotone (2,37 % a 6/12, 4,07 % a 4/8,
+     *  9,15 % a 8/8 ou la fusion disparait). */
+    @Volatile private var v2MaxBloc = 10.0
 
     /** Plafond du bloc de FUSION. 30 s = valeur effective historique (elle
-     *  etait celle de [v2MaxBloc] avant que les deux soient separes), donc la
-     *  configuration deja mesuree reste identique au bit pres. */
-    @Volatile private var v2MaxFusion = 30.0
+     *  etait celle de [v2MaxBloc] avant que les deux soient separes).
+     *  PORTE A 18 s le 2026-08-06 : c'est la derniere valeur qui ne coute
+     *  rien (cf. le tableau de [v2MaxBloc] -- 18 s : 13,90 %, 16 s : 15,59 %).
+     *  Ne pas descendre en dessous sans remesurer : la fusion cesse alors
+     *  d'etre produite, en silence. */
+    @Volatile private var v2MaxFusion = 18.0
     private val scope = CoroutineScope(Dispatchers.Default)
 
     /** Cache de l'app -- seul besoin : ecrire l'extrait de voix rejoue au tap
@@ -912,8 +947,8 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 v2Preuves = call.argument<Int>("preuves") ?: 2
                 v2Pas = call.argument<Double>("pas") ?: 4.0
                 v2Largeur = call.argument<Double>("largeur") ?: 4.0
-                v2MaxBloc = call.argument<Double>("maxbloc") ?: 30.0
-                v2MaxFusion = call.argument<Double>("maxfusion") ?: 30.0
+                v2MaxBloc = call.argument<Double>("maxbloc") ?: 10.0
+                v2MaxFusion = call.argument<Double>("maxfusion") ?: 18.0
                 v2Chaine = null
                 DiagnosticLog.log(TAG,
                     "[v2] bloc de fusion = $v2Fusion, preuves exigees = $v2Preuves, " +

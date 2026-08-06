@@ -101,7 +101,8 @@ class _PointDEntreeState extends State<_PointDEntree> {
             preuves: (extras['preuves'] as num?)?.toInt() ?? 2,
             pas: (extras['pas'] as num?)?.toDouble() ?? 4.0,
             largeur: (extras['largeur'] as num?)?.toDouble() ?? 4.0,
-            maxBloc: (extras['maxbloc'] as num?)?.toDouble() ?? 30.0));
+            maxBloc: (extras['maxbloc'] as num?)?.toDouble() ?? 10.0,
+            maxFusion: (extras['maxfusion'] as num?)?.toDouble() ?? 18.0));
   }
 
   @override
