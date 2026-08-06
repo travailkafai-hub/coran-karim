@@ -2104,5 +2104,6 @@
   "mushafBookmarkAdded": "Marque-page posé",
   "mushafBookmarkRemoved": "Marque-page retiré",
   "readingSettingsGroupRead": "LIRE",
-  "readingSettingsGroupListen": "ÉCOUTER"
+  "readingSettingsGroupListen": "ÉCOUTER",
+  "recitationPausedTapToResume": "Micro coupé — touchez pour reprendre"
 }

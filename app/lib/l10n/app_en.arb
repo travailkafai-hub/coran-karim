@@ -526,5 +526,6 @@
   "mushafBookmarkAdded": "Bookmark added",
   "mushafBookmarkRemoved": "Bookmark removed",
   "readingSettingsGroupRead": "READ",
-  "readingSettingsGroupListen": "LISTEN"
+  "readingSettingsGroupListen": "LISTEN",
+  "recitationPausedTapToResume": "Mic paused — tap to resume"
 }

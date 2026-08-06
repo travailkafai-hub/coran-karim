@@ -193,6 +193,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   RecitationStartStage? _startStage;
   int _bismillahWordCount = 0;
 
+  /// Derniere composition de bandeaux tracee (cf. `[COUTURE]` dans
+  /// `_verseArea`) -- evite de reecrire la meme ligne a chaque frame.
+  String? _derniereSignatureRanges;
+
   // Liste MUTABLE (contrairement à widget.verses, figé à l'ouverture) — permet
   // d'enchaîner sur la sourate suivante sans fermer/rouvrir l'écran (demande
   // utilisateur 2026-07-11 : "récitation en flux continu... enchaîner sur une
@@ -228,6 +232,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // approche pas. Largement au-delà de ce qui tient à l'écran (plusieurs
   // versets d'avance), donc invisible en usage normal.
   static const int _kRenderLookaheadWords = 150;
+
+  /// Longueur du FIL DE LUMIERE : nombre de mots eclaires derriere le curseur.
+  /// Borne l'effet ET son cout -- seuls ces mots-la se reconstruisent au rythme
+  /// de l'animation (cf. `_wordSpan`). Une page en porte plus de cent.
+  static const int _kTraineeMots = 6;
 
   // Métadonnées (nom arabe/français, nombre de versets) des sourates déjà
   // rencontrées dans _verses — préchargées avant chaque affichage (initial ou
@@ -1915,9 +1924,80 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                 ],
               ),
             ),
+            // ── MICRO COUPE : LE DIRE EN GRAND, AU MILIEU ───────────────
+            //
+            // Demande utilisateur (2026-08-06) : « je veux que le play/pause
+            // soit explicite, style un play et pause qui s'affiche en
+            // transparent au milieu de l'ecran, pour eviter qu'il continue de
+            // reciter alors que le micro est coupe ».
+            //
+            // Le seul indice etait jusqu'ici l'icone de la barre du bas, hors
+            // du champ de lecture : on recite en regardant le TEXTE, au centre.
+            // Reciter dans le vide n'a aucun cout visible -- rien ne se colore,
+            // ce qui ressemble a une chaine qui rame, pas a un micro coupe.
+            if (_manuallyPaused) Positioned.fill(child: _voileMicroCoupe()),
             if (_startStage case final stage?)
               Positioned.fill(child: RecitationStartOverlay(stage: stage)),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Voile de PAUSE : glyphe transparent au centre, tap pour reprendre.
+  ///
+  /// Volontairement TRANSPARENT et non bloquant a la lecture : le texte
+  /// coranique doit rester lisible dessous -- on ne masque pas le Coran pour
+  /// afficher un bouton. Le tap sur le voile reprend la capture, ce qui evite
+  /// d'avoir a viser l'icone de la barre du bas.
+  Widget _voileMicroCoupe() {
+    final t = AppLocalizations.of(context)!;
+    return GestureDetector(
+      onTap: _togglePause,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        color: AppColors.green900.withOpacity(0.42),
+        child: Center(
+          child: AnimatedBuilder(
+            animation: _breath,
+            builder: (context, _) {
+              // Respiration LENTE : le voile doit se remarquer sans clignoter.
+              final b = (math.sin(_breath.value * 2 * math.pi) + 1) / 2;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 132,
+                    height: 132,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.22),
+                      border: Border.all(
+                        color: AppColors.brassLight.withOpacity(0.35 + b * 0.35),
+                        width: 2,
+                      ),
+                    ),
+                    // PAUSE, pas play : l'icone dit l'ETAT COURANT (le micro
+                    // est coupe), pas l'action. C'est l'etat qu'on risque
+                    // d'ignorer en recitant, pas le geste.
+                    child: Icon(Icons.pause_rounded,
+                        size: 72,
+                        color: AppColors.brassLight.withOpacity(0.55 + b * 0.35)),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    t.recitationPausedTapToResume,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.manrope(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.cream.withOpacity(0.80 + b * 0.20),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -2201,6 +2281,38 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       }
       blockSurah = surah ?? blockSurah;
     }
+    // ── TRACE DE LA COUTURE ENTRE DEUX SOURATES (2026-08-06) ─────────────
+    //
+    // Defaut signale PLUSIEURS FOIS par l'utilisateur et jamais elucide :
+    // « quand j'ai recite la sourate 94, a la fin il y a le debut de la
+    // sourate 95 avant le signe de la sourate, avant la Bismillah ».
+    //
+    // La lecture du code ne suffit pas : la pagination est propre (page 596
+    // finit a 94:8, page 597 commence a 95:1) et `_buildChunk` insere bien la
+    // Bismillah devant 95:1 -- sur le papier l'ordre est correct. Plutot que
+    // d'inventer une explication, on ECRIT ce que le rendu construit vraiment.
+    // Emis une seule fois par composition de bandeaux, jamais a chaque frame.
+    final signature = ranges
+        .map((r) => r.banner != null ? 'B${r.banner}@${r.start}' : '${r.start}-${r.end}')
+        .join(' ');
+    if (signature != _derniereSignatureRanges) {
+      _derniereSignatureRanges = signature;
+      final st0 = ref.read(recitationProvider);
+      final couture = ranges.where((r) => r.banner != null).map((r) {
+        final i = r.start;
+        String mot(int k) => (k >= 0 && k < st0.words.length)
+            ? st0.words[k].display
+            : '(hors liste)';
+        return 'bandeau=${r.banner} @mot=$i '
+            'avant=[${mot(i - 2)} ${mot(i - 1)}] apres=[${mot(i)} ${mot(i + 1)} ${mot(i + 2)}] '
+            'surahOwning(${i - 1})=${_surahOwning(i - 1)} surahOwning($i)=${_surahOwning(i)}';
+      }).join(' | ');
+      DiagnosticLog.log('Karaoke',
+          '[COUTURE] blocs=$signature  meta=${_surahMeta.keys.toList()}  '
+          'mots=${st0.words.length} tables=${_surahByWord.length}'
+          '${couture.isEmpty ? "" : "  $couture"}');
+    }
+
     return NotificationListener<ScrollNotification>(
       // Un scroll DÉMARRÉ PAR UN GLISSEMENT (dragDetails non-null) = geste
       // manuel de l'utilisateur, par opposition à Scrollable.ensureVisible
@@ -2233,6 +2345,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   Widget _wordWrapBlock(RecitationSessionState st, int start, int end) {
+    // MOT COURANT -- `st.words` marque `current`, PAS `st.pointer` : quand la
+    // v2 pilote, `_onV2` met a jour les mots mais jamais le pointeur, qui
+    // reste a 0 (meme piege que `_promptCurrentWord`, cf. son commentaire).
+    final suivi = st.words.indexWhere((w) => w.status == WordStatus.current);
+    final curseur = suivi >= 0 ? suivi : st.pointer;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Wrap(
@@ -2241,7 +2358,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         runSpacing: 18,
         children: [
           for (var i = start; i < end; i++) ...[
-            _wordSpan(st.words[i], i),
+            _wordSpan(st.words[i], i, curseur),
             // Numéro de fin de verset (demande utilisateur 2026-07-10 :
             // "texte continu", pas de repère d'aya pendant la récitation,
             // contrairement à l'écran de lecture) -- même convention que
@@ -2272,7 +2389,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // 2026-07-05, "partout où le texte apparaît") -- le jugement vert/orange/
   // rouge est porté par le FOND, jamais par la couleur du texte, pour que les
   // deux systèmes ne se disputent jamais le même pixel.
-  Widget _wordSpan(RecitedWord w, int index) {
+  Widget _wordSpan(RecitedWord w, int index, [int curseur = -1]) {
     final tajwidWord =
         index < _tajwidSpans!.length ? _tajwidSpans![index] : null;
 
@@ -2395,7 +2512,32 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                 fontSize: 30, height: 2.1, color: AppColors.cream),
           );
 
-    final chip = AnimatedContainer(
+    // ── FIL DE LUMIERE (demande utilisateur 2026-08-06) ──────────────────
+    //
+    // « les mots se valident aléatoirement ; je veux une ligne sous les mots
+    // qui suit le curseur, pas de lien avec la validation, pour un aspect
+    // visuel que tous les mots derrière sont en train d'être validés — style
+    // un fil de lumière qui avance, petite animation légère ».
+    //
+    // POURQUOI CE N'EST PAS UN VERDICT, et pourquoi c'est important. Les
+    // couleurs de jugement apparaissent dans le DESORDRE : un mot se fige dès
+    // qu'il a ses preuves, et deux mots voisins ne les obtiennent pas au même
+    // instant (cf. Decideur). Vu de l'écran, ça saute. Le fil dit une autre
+    // chose, et une seule : « la chaîne est passée ici ». Il ne dépend
+    // d'aucun statut et ne doit JAMAIS être lu comme un vert.
+    //
+    // Il ne s'affiche que là où aucune bordure de jugement n'existe : un
+    // verdict prime toujours sur la décoration.
+    //
+    // COUT BORNE : seuls les [_kTraineeMots] mots derrière le curseur sont
+    // animés. Sans cette borne, chaque mot de la page se reconstruirait 60
+    // fois par seconde -- une page en porte plus de cent.
+    const traineeMax = _kTraineeMots;
+    final distance = curseur - index;
+    final dansLaTrainee =
+        borderTint == null && curseur >= 0 && distance >= 0 && distance < traineeMax;
+
+    Widget chipAvec(double lueur) => AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -2405,13 +2547,32 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         border: Border(
           bottom: BorderSide(
             color: borderTint ??
-                (underline ? AppColors.brassLight.withOpacity(0.5) : Colors.transparent),
+                (lueur > 0
+                    ? AppColors.brassLight.withOpacity(lueur)
+                    : (underline
+                        ? AppColors.brassLight.withOpacity(0.5)
+                        : Colors.transparent)),
             width: 2,
           ),
         ),
       ),
       child: Opacity(opacity: opacity, child: textWidget),
     );
+
+    final chip = dansLaTrainee
+        ? AnimatedBuilder(
+            animation: _breath,
+            builder: (context, _) {
+              // Decroissance derriere le curseur : le mot courant est le plus
+              // clair, la trainee s'eteint. Le battement (meme horloge que le
+              // halo, 4 s) empeche l'effet de paraitre fige quand le
+              // recitateur marque une pause.
+              final fondu = 1.0 - distance / traineeMax;
+              final t = (math.sin(_breath.value * 2 * math.pi) + 1) / 2;
+              return chipAvec((0.30 + t * 0.25) * fondu * fondu);
+            },
+          )
+        : chipAvec(0);
     final tappable = w.status == WordStatus.error || w.status == WordStatus.unclear;
     Widget result =
         tappable ? GestureDetector(onTap: () => _openWordHelp(index), child: chip) : chip;
