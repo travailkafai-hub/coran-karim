@@ -587,7 +587,24 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     if (unrealizedRulesFor(wordIndex, w.detectedRules).isNotEmpty) {
       return RecitationErrorKind.tajwid;
     }
-    if (w.expectedRules.isNotEmpty) return RecitationErrorKind.tajwid;
+    // ── LE REPLI PAR ÉLIMINATION DOIT LUI AUSSI RESPECTER LE PRESET ─────
+    //
+    // Défaut signalé (2026-08-06) : « il y a du violet alors que je ne suis pas
+    // en mode tajweed ». Session `preset=adulte regles=aucune`, mot 43
+    // `لَّخَبِيرٌۢ` jugé `unclear` par le gop (lettres et harakat justes) :
+    // il porte un ghunnah dans le TEXTE, donc cette ligne le classait
+    // « erreur de tajwid » et l'écran le peignait en violet -- alors que
+    // l'utilisateur n'a jamais demandé qu'on juge le ghunnah.
+    //
+    // La branche du dessus filtrait déjà par les règles actives
+    // (`unrealizedRulesFor`) ; celle-ci lisait `w.expectedRules` brut, c'est-à-
+    // dire TOUTES les règles que le texte porte. Les deux branches gardent leur
+    // rôle -- constat d'un côté, élimination de l'autre -- mais aucune ne peut
+    // accuser sur une règle que le mode ne juge pas.
+    //
+    // En mode adulte, `shownRulesFor` est vide : on rend `inconnu`, et le mot
+    // reste simplement orange (« imprécis »), sans étiquette de tajwid.
+    if (shownRulesFor(wordIndex).isNotEmpty) return RecitationErrorKind.tajwid;
     return RecitationErrorKind.inconnu;
   }
 

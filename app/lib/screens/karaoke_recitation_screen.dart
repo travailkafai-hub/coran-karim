@@ -2588,10 +2588,21 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // COUT BORNE : seuls les [_kTraineeMots] mots derrière le curseur sont
     // animés. Sans cette borne, chaque mot de la page se reconstruirait 60
     // fois par seconde -- une page en porte plus de cent.
+    // ── LE FIL ECLAIRE CE QUI EST EN COURS DE JUGEMENT, PAS CE QUI L'EST ──
+    //
+    // Correction du 2026-08-06, seconde passe. La premiere version eclairait
+    // les mots DEJA juges, derriere le front -- ce qui ne dit rien d'utile :
+    // ces mots portent deja leur couleur. Retour utilisateur : « un testeur ne
+    // sait pas qu'il est en train d'ecouter ».
+    //
+    // Le jugement a plusieurs secondes de retard sur la voix (le temps que la
+    // fenetre se ferme et que le modele reponde). Les mots interessants sont
+    // donc ceux qui viennent APRES le dernier juge : le recitateur les a dits,
+    // l'application les traite, et rien ne le montrait. Le fil les couvre.
     const traineeMax = _kTraineeMots;
-    final distance = curseur - index;
+    final distance = index - curseur;   // devant le front, pas derriere
     final dansLaTrainee =
-        borderTint == null && curseur >= 0 && distance >= 0 && distance < traineeMax;
+        borderTint == null && distance > 0 && distance <= traineeMax;
 
     Widget chipAvec(double lueur) => AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -2623,7 +2634,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               // clair, la trainee s'eteint. Le battement (meme horloge que le
               // halo, 4 s) empeche l'effet de paraitre fige quand le
               // recitateur marque une pause.
-              final fondu = 1.0 - distance / traineeMax;
+              // Le plus clair est le mot JUSTE APRES le front -- le
+              // prochain a etre juge -- et ca s'eteint vers l'avant.
+              final fondu = 1.0 - (distance - 1) / traineeMax;
               final t = (math.sin(_breath.value * 2 * math.pi) + 1) / 2;
               return chipAvec((0.30 + t * 0.25) * fondu * fondu);
             },
