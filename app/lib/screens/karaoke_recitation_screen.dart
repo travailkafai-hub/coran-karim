@@ -692,7 +692,18 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         );
       }
     }
-    if (!ref.read(autoCorrectionEnabledProvider)) {
+    // ── LE RÉGLAGE NE COUPE QUE LES ERREURS, JAMAIS LE DÉCROCHAGE ────────
+    //
+    // Spécification utilisateur (2026-08-06) : « quand c'est désactivé, il n'y
+    // a pas de blocage SAUF en cas de décrochage, qui reste tout le temps
+    // actif ». Le décrochage n'est pas une erreur de prononciation : c'est le
+    // récitateur qui a quitté le texte ou s'est arrêté — l'application ne peut
+    // plus rien lui dire d'utile tant qu'elle ne l'a pas retrouvé.
+    //
+    // Avant ce correctif, ce garde-fou barrait AUSSI `surSilence`, donc le
+    // décrochage ne partait jamais dès qu'on décochait la correction — alors
+    // que c'est justement le cas où l'aide est indispensable.
+    if (!surSilence && !ref.read(autoCorrectionEnabledProvider)) {
       DiagnosticLog.log('Correction',
           'IGNORÉ mot $wordIndex : correction automatique désactivée');
       return;
@@ -759,19 +770,33 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     //       trou persistant sur deux fenêtres, signalé par la chaîne Kotlin.
     // Les autres mots non verts ne bloquent plus : ils gardent leur couleur,
     // restent consultables après coup (tap sur le mot -> souffleur).
-    if (!surSilence) {
-      final precedent = wordIndex - 1;
-      final precedentEnEchec = precedent >= 0 &&
-          precedent < words.length &&
-          (words[precedent].status == WordStatus.error ||
-              words[precedent].status == WordStatus.skipped);
-      if (!precedentEnEchec) {
-        DiagnosticLog.log('Correction',
-            'mot $wordIndex non vert mais ISOLÉ (précédent OK) -> pas de blocage, '
-            'on laisse la couleur et on continue');
-        return;
-      }
-    }
+    // ── RÈGLE DES DEUX MOTS CONSÉCUTIFS : RETIRÉE (2026-08-06) ──────────
+    //
+    // Elle vivait ici et disait : un mot non vert ISOLÉ ne bloque pas, il faut
+    // que le précédent soit lui aussi en échec.
+    //
+    //     final precedent = wordIndex - 1;
+    //     final precedentEnEchec = ... error || skipped ...
+    //     if (!precedentEnEchec) return;
+    //
+    // POURQUOI ELLE AVAIT ÉTÉ POSÉE (2026-08-01), et ça reste vrai : mesure du
+    // 2026-07-28 (verifier_erreurs.py, 125 mots jugés) -- 8 mots non verts,
+    // ZÉRO vraie erreur. Les rouges isolés sont très majoritairement des faux
+    // positifs de la chaîne, et interrompre dessus est insupportable.
+    //
+    // POURQUOI ELLE EST RETIRÉE. Spécification utilisateur (2026-08-06) :
+    // « j'ai activé la correction automatique, donc il aurait dû me bloquer à
+    // CHAQUE erreur ; quand c'est désactivé il n'y a pas de blocage sauf en cas
+    // de décrochage ». La règle décidait à la place de l'utilisateur : cocher
+    // « correction automatique » veut dire « reprends-moi », pas « reprends-moi
+    // une fois sur deux ». Le réglage retrouve son sens littéral, et celui qui
+    // ne veut pas être interrompu le décoche -- le décrochage continuant de le
+    // rattraper (cf. le garde-fou plus haut, qui ne barre plus `surSilence`).
+    //
+    // ⚠️ SI LES INTERRUPTIONS SUR FAUX POSITIFS REVIENNENT, la réponse n'est
+    // PAS de remettre cette règle : c'est de réduire les faux positifs. Les
+    // remettre reviendrait à masquer le défaut au lieu de le traiter, et à
+    // reprendre à l'utilisateur une décision qu'il a explicitement demandée.
     // Bug corrigé 2026-07-16 (revue de code, Finding #4) : ce guard ne
     // vérifiait que _autoCorrecting, pas _promptingWord (souffleur) -- les
     // deux flux appellent pauseCapture()/WordCorrectionAudio.playWordRange()

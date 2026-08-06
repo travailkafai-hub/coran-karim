@@ -694,9 +694,28 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
     if (widget.wordIndex >= words.length) return;
     final expected = words[widget.wordIndex];
 
+    // ── LE MOT REDIT DOIT ÊTRE LE MOT ATTENDU, PAS « À 75 % » ───────────
+    //
+    // Défaut signalé par l'utilisateur (2026-08-06) : « dans réessayer le mot,
+    // là il m'affiche autre chose et il dit c'est ok ».
+    //
+    // Le critère était `similarity(...) >= 0.75` sur le squelette : un mot avec
+    // une lettre fausse le franchissait. L'écran affichait alors le mot
+    // RÉELLEMENT entendu -- donc un autre mot -- et annonçait « corrigé ». Deux
+    // fautes en une : on valide ce qui ne l'est pas, et on le montre à
+    // l'utilisateur en le félicitant.
+    //
+    // C'est précisément ce que le projet a déjà refusé une fois (2026-07-25,
+    // règle « pas de correctif palliatif ») : « un récitateur qui ne dit que la
+    // moitié d'un mot était alors validé -- précisément ce que l'app existe
+    // pour détecter ».
+    //
+    // Le squelette doit donc être ÉGAL. On reste sur `normalized` (sans
+    // harakat) et non `strict` : la boucle de correction sert à redire le MOT,
+    // et une harakat approximative se juge dans la chaîne, pas ici -- durcir
+    // jusque-là serait un second changement, non demandé et non mesuré.
     final heardNorm = ArabicNormalizer.normalize(text ?? '');
-    final matches = heardNorm.isNotEmpty &&
-        ArabicNormalizer.similarity(heardNorm, expected.normalized) >= 0.75;
+    final matches = heardNorm.isNotEmpty && heardNorm == expected.normalized;
 
     setState(() {
       _heardText = (text == null || text.trim().isEmpty)
