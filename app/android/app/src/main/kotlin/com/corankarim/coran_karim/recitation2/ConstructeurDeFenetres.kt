@@ -309,6 +309,10 @@ class ConstructeurDeFenetres(
      *  a deja ete faite.
      *
      *  0 = desactivee (defaut) : la configuration en place est inchangee. */
+    /** Duree de silence au-dela de laquelle on considere l'enonce TERMINE et
+     *  on ferme le bloc sans attendre que la parole reprenne. Cf. le bloc
+     *  « FIN D'ENONCE » dans [traiterBloc] pour la mesure qui la fixe. */
+    private val finEnonceSecondes: Double = 3.0,
     private val apercu2Secondes: Double = 0.0,
     private val fenetreApercu2Secondes: Double = 0.0,
 ) {
@@ -316,6 +320,8 @@ class ConstructeurDeFenetres(
     private val pauseMinBlocs = (pauseMinSecondes * Horloge.TAUX / bloc).toInt()
     private val maxEch = Horloge.secondesVersEch(maxBlocSecondes)
     private val maxEchFusion = Horloge.secondesVersEch(maxFusionSecondes)
+    private val finEnonceBlocs =
+        (finEnonceSecondes * Horloge.TAUX / bloc).toInt().coerceAtLeast(1)
     private val apercu2Ech = Horloge.secondesVersEch(apercu2Secondes)
     private val fenetreApercu2Ech = Horloge.secondesVersEch(fenetreApercu2Secondes)
     private var dernierApercu2 = 0L
@@ -442,6 +448,46 @@ class ConstructeurDeFenetres(
         if (r < seuil) {
             if (runSilence == 0) debutSilence = posBloc
             runSilence++
+            // ── FIN D'ENONCE : LE SILENCE FERME LE BLOC LUI-MEME ────────────
+            //
+            // Idee utilisateur (2026-08-06) : « normalement quand je finis la
+            // sourate apres il y a un silence long, je ne sais pas comment
+            // l'exploiter pour valider la fin de la recitation ».
+            //
+            // DEFAUT QU'ELLE CORRIGE, mesure sur trois recitations reelles.
+            // La coupe n'etait armee QUE dans la branche « la parole reprend »
+            // ci-dessous. A la fin d'une sourate la parole ne reprend jamais :
+            // le dernier bloc n'etait donc JAMAIS ferme, et ses derniers mots
+            // n'etaient vus que par des apercus, ou ils sont au bord droit
+            // donc non votants. Resultat, sur les trois recitations :
+            //     Al-Ma'un  cible 29, ancre 23 -> 5 derniers mots jamais juges
+            //     Al-Humaza cible 37, ancre 33 -> 3
+            //     Ad-Duha   cible 44, ancre 38 -> 5
+            // avec `f=26 bande=33..34 interieurs=0/2` et `f=29 bande=36..41
+            // interieurs=4/6` : la fenetre VOIT les mots, elle ne peut pas les
+            // juger. `ChaineRecitation.terminer()` fait exactement ce qu'il
+            // faut, mais il n'est appele que par `v2Terminer` -- lui-meme
+            // jamais atteint quand on enchaine une sourate sans passer par le
+            // bouton STOP (`session fermee` : 0 occurrence sur 152 349 lignes
+            // de journal).
+            //
+            // POURQUOI 3 s, ET POURQUOI CE N'EST PAS UN SEUIL A L'OEIL.
+            // Distribution mesuree des silences sur les trois sessions
+            // utilisateur PLUS la recette Al-Baqara (96 pauses, queue finale
+            // exclue) : mediane 0,6 a 1,0 s, 90e centile 2,6 s, et SIX pauses
+            // seulement au-dela de 3 s -- toutes des arrets reels. Les silences
+            // de fin mesurent 6,6 / 7,6 / 12,9 s. La separation est nette.
+            //
+            // ET SURTOUT : se tromper ici ne coute RIEN. Emettre ce bloc plus
+            // tot n'enleve aucune observation, n'avance aucune ancre de force
+            // et ne fige aucun verdict -- ca AJOUTE une fenetre la ou il n'y en
+            // avait aucune. Si le recitateur reprend juste apres, le bloc
+            // suivant repart de `debutSilence` comme d'habitude. Ce n'est donc
+            // pas un critere d'acceptation deplace, c'est une latence.
+            if (vuDeLaParole && coupeEnAttente < 0 && runSilence == finEnonceBlocs) {
+                coupeEnAttente = posBloc
+                prochainDebutEnAttente = debutSilence
+            }
         } else {
             // LA PAROLE REPREND. Si le silence qu'on vient de quitter etait
             // assez long, il separait deux enonces : on ferme le bloc ICI.
