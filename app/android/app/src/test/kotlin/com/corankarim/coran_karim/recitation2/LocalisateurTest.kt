@@ -76,6 +76,102 @@ class LocalisateurTest {
         assertTrue("la bande ne doit pas etre marquee `recul`", !localiser()!!.recul)
     }
 
+    /** DEUX VERSETS IDENTIQUES -- le cas ou la contrainte temporelle ne peut
+     *  RIEN, parce que le trou EST paye en audio.
+     *
+     *  Cas REEL (2026-08-06, sourate 94 Ash-Sharh, session live, build v78).
+     *  Versets 5 et 6 : `فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا` (mots 17-20) puis
+     *  `إِنَّ مَعَ ٱلْعُسْرِ يُسْرًا` (mots 21-24). Le recitateur dit le verset 6
+     *  puis enchaine ; la chaine apparie le verset 6 aux index du verset 5, et
+     *  le log donne SEPT fois :
+     *      f=22 SAUT REFUSE : trou de 4 mots apres le mot 20
+     *           (attestes=[17, 18, 19, 20, 25]), dernier definitif=20, max=2
+     *  Ancre bloquee au mot 20 sur 31, toute la fin de la recitation perdue.
+     *
+     *  La contrainte temporelle ne peut pas trancher : les quatre mots sautes
+     *  ONT ete prononces, l'audio en porte le cout. Seule la COMPACITE
+     *  distingue [17,18,19,20,25] (portee 8) de [21,22,23,24,25] (portee 4).
+     *
+     *  ⚠️ AUCUNE LETTRE DOUBLEE dans les mots jouets : le decodeur synthetique
+     *  replie deux tokens identiques consecutifs (comportement CTC), `inna`
+     *  ressortirait `ina` et ne s'apparierait plus a lui-meme. Piege paye en
+     *  ecrivant ce test. */
+    @Test
+    fun `deux versets identiques -- c'est le SECOND qui est retenu`() {
+        val mots = listOf(
+            "alam", "nashrah", "laka", "sadrak",          // 0-3
+            "wawadana", "anka", "wizrak",                 // 4-6
+            "aladhi", "anqada", "zahrak",                 // 7-9
+            "warafana", "laka", "dhikrak",                // 10-12
+            "inza", "mata", "alusri", "yusran",           // 13-16  <- verset 5
+            "inza", "mata", "alusri", "yusran",           // 17-20  <- verset 6, IDENTIQUE
+            "faidha", "faragta", "fansab",                // 21-23
+            "wailan", "rabika", "fargab",                 // 24-26
+        )
+        val pieces = Synthese.vocabulaire(mots)
+        val front = FauxFront(pieces)
+        val tokeniser = Synthese.tokeniseur(pieces)
+        // Le recitateur vient de finir le verset 5 (ancre 12 : il l'entame) et
+        // dit le verset 6 puis le premier mot du 7. Les deux alignements ont
+        // EXACTEMENT cinq appariements ; seule la portee les separe.
+        val prononces = listOf("inza", "mata", "alusri", "yusran", "faidha")
+        val pcm = Synthese.pcm(prononces, tokeniser, front.blank, pauseTousLes = 0)
+        val b = Localisateur(pieces, front.blank).localiser(
+            front.logprobs(pcm), mots, dernierVerrouille = 12,
+            framesMinParMot = { i -> tokeniser(mots[i]).size },
+        )!!
+        assertEquals(
+            "l'alignement COMPACT doit gagner : aucun mot suppose non prononce",
+            setOf(17, 18, 19, 20, 21), b.attestes.keys.toSet()
+        )
+    }
+
+    /** LE CAS REEL DE LA SOURATE 94 : deux copies, le mot distinctif PERDU.
+     *
+     *  Ash-Sharh, session live du 2026-08-06 (build v78). Versets 5 et 6 :
+     *      17-20  فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا
+     *      21-24  إِنَّ  مَعَ ٱلْعُسْرِ يُسْرًا
+     *  Le mot distinctif aurait du trancher -- `فان` et `ان` ne s'apparient
+     *  pas entre eux. Mais le modele l'a lu `إِنَّمَا`, qui ne correspond ni a
+     *  l'un ni a l'autre : il ne restait que TROIS mots communs aux deux
+     *  copies. Meme longueur, meme portee, egalite PARFAITE -- ni la
+     *  contrainte temporelle (l'alignement fautif ne saute rien) ni la
+     *  compacite ne peuvent trancher. Seul le sens le peut.
+     *
+     *  Consequence mesuree : `RECUL vers le mot 18` trois fois, ancre jamais
+     *  passee au verset 6, puis quatre `SAUT REFUSE` et un DECROCHAGE quand le
+     *  recitateur a enchaine sur le verset 7. Ancre bloquee a 20 sur 31. */
+    @Test
+    fun `a egalite parfaite, l'alignement qui AVANCE gagne`() {
+        val mots = listOf(
+            "alam", "nashrah", "laka", "sadrak",          // 0-3
+            "wawadana", "anka", "wizrak",                 // 4-6
+            "aladhi", "anqada", "zahrak",                 // 7-9
+            "warafana", "laka", "dhikrak",                // 10-12
+            "zayd", "amru", "bakr", "khalid",             // 13-16  (bourrage)
+            "fainza", "mata", "alusri", "yusran",         // 17-20  <- verset 5
+            "inza", "mata", "alusri", "yusran",           // 21-24  <- verset 6
+            "faidha", "faragta", "fansab",                // 25-27
+        )
+        val pieces = Synthese.vocabulaire(mots)
+        val front = FauxFront(pieces)
+        val tokeniser = Synthese.tokeniseur(pieces)
+        // Le verset 5 est juge (ancre 20). Le recitateur dit le verset 6, mais
+        // le modele n'a PAS lu son premier mot -- exactement comme sur device.
+        // Les trois mots restants vont aux deux copies : egalite parfaite.
+        val prononces = listOf("mata", "alusri", "yusran")
+        val pcm = Synthese.pcm(prononces, tokeniser, front.blank, pauseTousLes = 0)
+        val b = Localisateur(pieces, front.blank).localiser(
+            front.logprobs(pcm), mots, dernierVerrouille = 20,
+            framesMinParMot = { i -> tokeniser(mots[i]).size },
+        )!!
+        assertEquals(
+            "l'alignement doit se poser sur le verset 6, pas relire le verset 5",
+            setOf(22, 23, 24), b.attestes.keys.toSet()
+        )
+        assertTrue("et ne pas etre signale comme une repetition", !b.recul)
+    }
+
     @Test
     fun `un trou de mots reellement sautes n'est PAS apparie`() {
         // DECISION UTILISATEUR (2026-08-06) : « le saut n'est pas autorise, en

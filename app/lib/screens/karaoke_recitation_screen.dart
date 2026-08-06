@@ -197,6 +197,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// `_verseArea`) -- evite de reecrire la meme ligne a chaque frame.
   String? _derniereSignatureRanges;
 
+  /// Jusqu'a quand afficher le glyphe pause/play au centre.
+  ///
+  /// Retour utilisateur (2026-08-06) : « le play/pause, ce n'est pas pour
+  /// rester sur l'ecran / occuper l'ecran ; juste qu'il s'affiche et c'est
+  /// bon ». La premiere version etait un voile PERMANENT avec un fond
+  /// assombri : il fallait le traverser pour lire le texte, alors qu'on veut
+  /// juste etre averti au moment du geste.
+  DateTime? _glypheEtatJusqua;
+  Timer? _glypheTimer;
+
   // Liste MUTABLE (contrairement à widget.verses, figé à l'ouverture) — permet
   // d'enchaîner sur la sourate suivante sans fermer/rouvrir l'écran (demande
   // utilisateur 2026-07-11 : "récitation en flux continu... enchaîner sur une
@@ -237,6 +247,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// Borne l'effet ET son cout -- seuls ces mots-la se reconstruisent au rythme
   /// de l'animation (cf. `_wordSpan`). Une page en porte plus de cent.
   static const int _kTraineeMots = 6;
+
+  /// Duree d'affichage du glyphe pause/play au centre.
+  static const int _kGlypheEtatMs = 1100;
 
   // Métadonnées (nom arabe/français, nombre de versets) des sourates déjà
   // rencontrées dans _verses — préchargées avant chaque affichage (initial ou
@@ -573,6 +586,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   @override
   void dispose() {
     _breath.dispose();
+    _glypheTimer?.cancel();
     _wordFailedSub?.cancel();
     _decrochageSub?.cancel();
     // ── CAUSE RACINE CORRIGÉE (2026-07-25) ───────────────────────────────
@@ -1477,7 +1491,20 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// au tap sur le halo, qui appelle stopContinuous() et clôt tout). Pendant
   /// la pause, aucun mot n'est jugé, aucune ancre ne bouge -- la récitation
   /// reprend exactement là où elle s'était arrêtée.
+  /// Montre le glyphe d'etat au centre pendant [_kGlypheEtatMs], puis
+  /// l'efface. Un seul timer : une bascule rapide repousse l'echeance au lieu
+  /// d'en empiler plusieurs.
+  void _montrerGlypheEtat() {
+    _glypheTimer?.cancel();
+    setState(() => _glypheEtatJusqua =
+        DateTime.now().add(const Duration(milliseconds: _kGlypheEtatMs)));
+    _glypheTimer = Timer(const Duration(milliseconds: _kGlypheEtatMs), () {
+      if (mounted) setState(() => _glypheEtatJusqua = null);
+    });
+  }
+
   Future<void> _togglePause() async {
+    _montrerGlypheEtat();
     final verifier = ref.read(recitationVerifierProvider);
     if (_manuallyPaused) {
       // Vide le buffer avant de reprendre (même raison que la reprise post-
@@ -1935,7 +1962,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             // du champ de lecture : on recite en regardant le TEXTE, au centre.
             // Reciter dans le vide n'a aucun cout visible -- rien ne se colore,
             // ce qui ressemble a une chaine qui rame, pas a un micro coupe.
-            if (_manuallyPaused) Positioned.fill(child: _voileMicroCoupe()),
+            if (_glypheEtatJusqua != null)
+              Positioned.fill(child: _glypheEtat()),
             if (_startStage case final stage?)
               Positioned.fill(child: RecitationStartOverlay(stage: stage)),
           ],
@@ -1950,53 +1978,33 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// coranique doit rester lisible dessous -- on ne masque pas le Coran pour
   /// afficher un bouton. Le tap sur le voile reprend la capture, ce qui evite
   /// d'avoir a viser l'icone de la barre du bas.
-  Widget _voileMicroCoupe() {
-    final t = AppLocalizations.of(context)!;
-    return GestureDetector(
-      onTap: _togglePause,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        color: AppColors.green900.withOpacity(0.42),
-        child: Center(
-          child: AnimatedBuilder(
-            animation: _breath,
-            builder: (context, _) {
-              // Respiration LENTE : le voile doit se remarquer sans clignoter.
-              final b = (math.sin(_breath.value * 2 * math.pi) + 1) / 2;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 132,
-                    height: 132,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withOpacity(0.22),
-                      border: Border.all(
-                        color: AppColors.brassLight.withOpacity(0.35 + b * 0.35),
-                        width: 2,
-                      ),
-                    ),
-                    // PAUSE, pas play : l'icone dit l'ETAT COURANT (le micro
-                    // est coupe), pas l'action. C'est l'etat qu'on risque
-                    // d'ignorer en recitant, pas le geste.
-                    child: Icon(Icons.pause_rounded,
-                        size: 72,
-                        color: AppColors.brassLight.withOpacity(0.55 + b * 0.35)),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    t.recitationPausedTapToResume,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.manrope(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.cream.withOpacity(0.80 + b * 0.20),
-                    ),
-                  ),
-                ],
-              );
-            },
+  Widget _glypheEtat() {
+    // NI voile NI zone tactile : le texte coranique reste lisible et
+    // cliquable dessous. Le glyphe dit l'ETAT qu'on vient d'atteindre (pause
+    // ou lecture) et s'efface tout seul -- c'est un accuse de reception du
+    // geste, pas un panneau.
+    return IgnorePointer(
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          key: ValueKey(_glypheEtatJusqua),
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 160),
+          builder: (context, t, child) =>
+              Opacity(opacity: t, child: Transform.scale(scale: 0.92 + t * 0.08, child: child)),
+          child: Container(
+            width: 128,
+            height: 128,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black.withOpacity(0.38),
+              border: Border.all(
+                  color: AppColors.brassLight.withOpacity(0.55), width: 2),
+            ),
+            child: Icon(
+              _manuallyPaused ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              size: 68,
+              color: AppColors.brassLight,
+            ),
           ),
         ),
       ),

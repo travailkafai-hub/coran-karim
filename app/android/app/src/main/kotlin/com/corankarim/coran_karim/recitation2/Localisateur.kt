@@ -151,7 +151,7 @@ class Localisateur(
         // correspondance, il n'y a pas de « point de depart » a balayer.
         val (score, _, attestes) =
             apparier(entendus, attendus, min, entendusAvecFrames, max,
-                     framesMinParMot)
+                     framesMinParMot, pointDeReprise = depart)
         if (score < minAppariements || attestes.isEmpty()) return null
 
         // UN SEUL APPARIEMENT SUR UN MOT QUI SE REPETE NE SUFFIT PAS
@@ -327,6 +327,10 @@ class Localisateur(
         avecFrames: List<Pair<Decodage.MotEntendu, String>>,
         fin: Int,
         framesMinParMot: ((Int) -> Int)? = null,
+        /** Index attendu ou la recitation CONTINUE (dernier verrouille + 1).
+         *  Sert au departage : un alignement qui part d'ici ou apres AVANCE ;
+         *  un alignement qui part avant suppose une REPETITION. */
+        pointDeReprise: Int = depart,
     ): Triple<Int, Int, Map<Int, IntRange>> {
         val n = entendus.size
         val m = fin - depart + 1
@@ -366,25 +370,94 @@ class Localisateur(
         }
 
         // Chaine la plus longue : meilleur[c] = longueur en partant de c.
+        // [finJ] = index attendu OU s'acheve la meilleure chaine partant de c.
+        // Sert au departage ci-dessous ; a longueur egale, une chaine qui
+        // s'acheve plus TOT couvre moins de mots attendus, donc en saute moins.
         val k = candI.size
         val meilleur = IntArray(k) { 1 }
+        val finJ = IntArray(k) { candJ[it] }
         val suivant = IntArray(k) { -1 }
         for (c in k - 1 downTo 0) {
             for (d in c + 1 until k) {
                 if (candI[d] <= candI[c] || candJ[d] <= candJ[c]) continue
                 if (!possible(candI[c], candJ[c], candI[d], candJ[d])) continue
-                if (meilleur[d] + 1 > meilleur[c]) {
+                val mieux = meilleur[d] + 1 > meilleur[c] ||
+                    (meilleur[d] + 1 == meilleur[c] && finJ[d] < finJ[c])
+                if (mieux) {
                     meilleur[c] = meilleur[d] + 1
+                    finJ[c] = finJ[d]
                     suivant[c] = d
                 }
             }
         }
-        // A egalite de longueur, on garde le candidat de PLUS PETIT index --
-        // le comportement d'avant, inchange volontairement : la contrainte
-        // temporelle suffit a trancher le cas mesure, et deplacer en meme
-        // temps la regle de departage rendrait la mesure inattribuable.
+
+        // ── A LONGUEUR EGALE, LA CHAINE LA PLUS COMPACTE GAGNE ──────────────
+        //
+        // La contrainte temporelle ci-dessus elimine les alignements
+        // IMPOSSIBLES. Elle ne suffit pas quand le trou est PAYE en audio, et
+        // le cas est frequent : deux versets presque identiques.
+        //
+        // MESURE (2026-08-06, session live, sourate 94 Ash-Sharh). Versets 5 et
+        // 6 : `فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا` puis `إِنَّ مَعَ ٱلْعُسْرِ يُسْرًا`.
+        // Le recitateur dit le verset 6 ; le decodage libre l'apparie au verset
+        // 5, et le log donne SEPT fois :
+        //     f=22 SAUT REFUSE : trou de 4 mots apres le mot 20
+        //          (attestes=[17, 18, 19, 20, 25]), dernier definitif=20, max=2
+        // L'ancre est restee bloquee au mot 20 sur 31 pendant toute la fin de
+        // la recitation. Le trou 20->25 etait bel et bien couvert en audio (les
+        // quatre mots du verset 6 ONT ete prononces) : la contrainte physique
+        // etait satisfaite, elle ne pouvait rien y faire.
+        //
+        // LE DEPARTAGE. Deux chaines expliquent le meme audio avec le meme
+        // nombre d'appariements : [17,18,19,20,25] (portee 8) et
+        // [21,22,23,24,25] (portee 4). Prendre la plus compacte, c'est retenir
+        // l'explication qui suppose le MOINS DE MOTS NON PRONONCES. Ce n'est
+        // pas une preference esthetique : chaque mot saute est une accusation
+        // implicite, et on ne l'emet pas quand une lecture sans saut explique
+        // le meme son aussi bien.
+        //
+        // CE QUE CA NE FAIT PAS : autoriser un vrai saut. Un saut reel reste
+        // rejete par la contrainte temporelle (l'audio n'en porte pas le cout),
+        // et tombe donc dans le decrochage -- « le saut n'est pas autorise, en
+        // plus c'est ce que je veux detecter » (decision utilisateur).
+        // ── A EGALITE, AVANCER PLUTOT QUE RECULER ──────────────────────────
+        //
+        // MESURE QUI L'IMPOSE (2026-08-06, sourate 94 Ash-Sharh, session live,
+        // build v78). Les versets 5 et 6 sont identiques a une lettre pres :
+        //     17-20  فَإِنَّ مَعَ ٱلْعُسْرِ يُسْرًا
+        //     21-24  إِنَّ  مَعَ ٱلْعُسْرِ يُسْرًا
+        // Le mot distinctif AURAIT du trancher : `فان` et `ان` ne
+        // s'apparient pas entre eux (prefixe < 3, distance d'edition non
+        // applicable sous 5 lettres). Mais le modele l'a lu `إِنَّمَا` --
+        // `entendu="إِنَّمَا"` dans le log, qui ne correspond NI a l'un NI a
+        // l'autre. Il ne restait que `مع العسر يسرا` : TROIS mots qui vont
+        // aux deux copies, meme longueur de chaine et meme portee.
+        // L'ancien departage (« index le plus petit ») choisissait donc la
+        // premiere copie, et le log donne trois fois :
+        //     f=21/23/25  RECUL vers le mot 18 -- « le recitateur repete »
+        // L'ancre n'a jamais traverse le verset 6. Quand le recitateur est
+        // passe au verset 7, la chaine l'a bien vu (`attestes=[25, 26, 27]`)
+        // mais l'ecart 20 -> 25 valait 4 mots : SAUT REFUSE quatre fois, puis
+        // DECROCHAGE, ancre bloquee a 20 sur 31 jusqu'a la fin.
+        //
+        // LA REGLE (validee par l'utilisateur) : continuer est le cas NORMAL,
+        // repeter est un EVENEMENT. A qualite strictement egale, l'alignement
+        // qui avance gagne ; un recul doit etre justifie par quelque chose que
+        // l'avance n'explique pas -- une chaine PLUS LONGUE, qui reste
+        // prioritaire.
+        //
+        // Ordre de comparaison : longueur, puis avance, puis compacite, puis
+        // le plus petit index (stabilite, comportement historique).
+        fun reculee(c: Int) = if (depart + candJ[c] < pointDeReprise) 1 else 0
         var tete = 0
-        for (c in 1 until k) if (meilleur[c] > meilleur[tete]) tete = c
+        for (c in 1 until k) {
+            val a = intArrayOf(-meilleur[c], reculee(c), finJ[c] - candJ[c], candJ[c])
+            val b = intArrayOf(-meilleur[tete], reculee(tete),
+                               finJ[tete] - candJ[tete], candJ[tete])
+            for (x in a.indices) {
+                if (a[x] != b[x]) { if (a[x] < b[x]) tete = c; break }
+            }
+        }
 
         val attestes = HashMap<Int, IntRange>()
         var dernier = depart
