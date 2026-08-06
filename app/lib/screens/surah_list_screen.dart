@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../widgets/quran_shazam_sheet.dart';
 import '../widgets/quran_pattern_background.dart';
 import 'mushaf_screen.dart';
+import '../providers/app_settings_provider.dart';
 import 'prayer_follow_screen.dart';
 
 class SurahListScreen extends ConsumerStatefulWidget {
@@ -79,6 +80,22 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
             // Suivre une priere plutot que de le laisser seul dans la barre
             // du bas de l'ecran de lecture.
             actions: [
+              // ── SIGNET : REPRENDRE OU ON EN ETAIT ────────────────────────
+              //
+              // Demande utilisateur (2026-08-06) : « place-le dans le coin en
+              // haut, a cote de l'oeil et suivre priere ». Un signet qu'on ne
+              // peut rouvrir que depuis l'ecran ou on l'a pose ne sert a rien.
+              //
+              // ⚠️ LE DERNIER POSE, PAS LE PLUS AVANCE. Premiere version : on
+              // triait par position dans le Mushaf et on prenait la derniere.
+              // Defaut signale aussitot -- « je constate que je marque une
+              // autre page, elle ne se modifie pas » : marquer un verset
+              // ANTERIEUR ne changeait rien. `MarquePagesNotifier.basculer`
+              // construit un `Set<String>.from(state)` -- donc un
+              // LinkedHashSet, qui conserve l'ordre d'INSERTION. Le dernier
+              // pose est simplement `state.last`, et c'est lui qu'on veut :
+              // « reprendre » veut dire la ou on s'est arrete en dernier.
+              const _BoutonSignet(),
               IconButton(
                 icon: const Icon(Icons.hearing_rounded, color: AppColors.cream),
                 tooltip: t.homeIdentifyTooltip,
@@ -307,6 +324,40 @@ class _SurahTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Accès direct au dernier signet posé (barre du haut de l'accueil).
+///
+/// Invisible tant qu'aucun signet n'existe : un bouton qui ne fait rien
+/// apprend à l'ignorer. Le saut passe par `MushafScreen(initialAyahNumber:)`,
+/// le même chemin que la liste des signets et que le « Shazam coranique » --
+/// pas un troisième mécanisme de navigation.
+class _BoutonSignet extends ConsumerWidget {
+  const _BoutonSignet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cles = ref.watch(marquePagesProvider);
+    if (cles.isEmpty) return const SizedBox.shrink();
+    // `state` est un LinkedHashSet : le DERNIER pose est le dernier insere.
+    final p = cles.last.split(':').map(int.parse).toList();
+    return IconButton(
+      icon: const Icon(Icons.bookmark_rounded, color: AppColors.brassLight),
+      tooltip: '${p[0]}:${p[1]}',
+      onPressed: () async {
+        try {
+          final sourates = await QuranApi.fetchSurahs();
+          final s = sourates.where((x) => x.number == p[0]);
+          if (s.isEmpty || !context.mounted) return;
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => MushafScreen(surah: s.first, initialAyahNumber: p[1]),
+          ));
+        } catch (_) {
+          // Best-effort : sans les metadonnees on n'ouvre pas un ecran vide.
+        }
+      },
     );
   }
 }

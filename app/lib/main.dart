@@ -8,7 +8,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/prayer_settings_provider.dart';
-import 'screens/calibrage_screen.dart';
 import 'screens/recette_screen.dart';
 import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
@@ -141,38 +140,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _tab, children: _screens),
-      // Accès direct à la RECETTE (2026-07-28, demande utilisateur : « simplifie
-      // l'accès pour l'IHM »). Deux téléphones à lancer à chaque itération de
-      // test : sans ce raccourci il faut refaire la même navigation des deux
-      // côtés, ce qui coûte du temps ET fait varier le protocole entre deux
-      // mesures censées être comparables. Le même écran est atteignable par
-      // intent, cf. _PointDEntree.
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Calibrage : mesure les seuils de decoupage sur la voix du
-          // recitateur. Meme raison que le raccourci Recette ci-dessous -- il
-          // se lance a chaque changement de voix ou de telephone, et une
-          // navigation longue ferait varier le protocole entre deux mesures
-          // censees etre comparables.
-          FloatingActionButton.small(
-            heroTag: 'calibrage',
-            onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CalibrageScreen())),
-            tooltip: 'Calibrage du découpage',
-            child: const Icon(Icons.tune),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            heroTag: 'recette',
-            onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const RecetteScreen())),
-            icon: const Icon(Icons.science),
-            label: const Text('Recette'),
-          ),
-        ],
-      ),
+      // ── LES BOUTONS DE DEVELOPPEMENT SONT RETIRES (2026-08-06) ───────────
+      //
+      // Demande utilisateur : « enlève le calibrage, il ne sert plus à rien ;
+      // et la recette, c'est toi qui y accèdes -- plus d'affichage dans l'app,
+      // tu laisses l'accès direct pour toi ».
+      //
+      // Les deux ecrans EXISTENT toujours et restent atteignables :
+      //   - RECETTE   : par intent, cf. MainActivity + `_PointDEntree`
+      //                 (`--es recette ecoute --ei sourate N`) -- c'est le
+      //                 chemin qu'utilise `benchmark/recette_2tel.sh`, il n'a
+      //                 jamais eu besoin du bouton ;
+      //   - CALIBRAGE : `CalibrageScreen` est conserve, simplement plus
+      //                 propose. Son role a ete repris par le decoupage aux
+      //                 silences reels et par le profil de pause.
+      // On ne supprime AUCUN code : on retire deux entrees d'une IHM destinee
+      // au recitateur, pas au developpeur.
+      //
+      // Le SIGNET, lui, vit dans la barre du haut de la liste des sourates,
+      // a cote de l'oreille et de la mosquee (demande utilisateur : « place-le
+      // dans le coin en haut a cote de l'oeil et suivre priere »).
       bottomNavigationBar: _buildNav(),
     );
   }

@@ -612,6 +612,48 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // donc l'écran ne peut plus savoir si elle tourne. Or c'est justement ce
     // qu'il faut couper en sortant. L'appel est idempotent et sans coût.
     unawaited(ref.read(recitationVerifierProvider).setClipCapture(null));
+    // ── RELÂCHER LE MICRO EN QUITTANT L'ÉCRAN (2026-08-06) ────────────────
+    //
+    // Défaut constaté par l'utilisateur, en lisant le Mushaf : « je vois le
+    // micro allumé, il n'y a pas de raison, je ne suis pas en récitation ».
+    // Vérifié sur l'appareil :
+    //     appops get com.corankarim.coran_karim RECORD_AUDIO
+    //     -> RECORD_AUDIO: allow; time=+8m35s ago (RUNNING)
+    // L'application détenait donc le micro depuis huit minutes, c'est-à-dire
+    // depuis qu'elle avait quitté la récitation.
+    //
+    // CAUSE : seul `_recorder.stop()` relâche le micro, et il n'est appelé que
+    // par `RecitationVerifier.stop()`. `pauseCapture()` fait `_recorder.pause()`
+    // -- l'objet `AudioRecord` reste vivant, et Android maintient son
+    // indicateur de confidentialité tant qu'il l'est. `_closeAudioCapture()`,
+    // malgré son nom, ne coupe que l'écriture du WAV (`setClipCapture(null)`).
+    // Et `dispose()` n'appelait ni l'un ni l'autre.
+    //
+    // Même racine que le défaut déjà documenté ce jour (`capture ouverte` = 3,
+    // trace de fermeture = 0, d'où les derniers mots jamais jugés) -- mais avec
+    // une conséquence bien plus grave : garder le micro d'un utilisateur qui ne
+    // récite plus.
+    //
+    // Fire-and-forget : `dispose()` est synchrone et ne doit jamais retarder la
+    // fermeture de l'écran. `stopContinuous()` d'abord -- il ferme proprement
+    // la session v2 (dernière fenêtre hors grille) ; puis `stop()` en ceinture,
+    // car `stopContinuous()` sort tout de suite si la session n'est plus
+    // `isActive`, et le micro doit être relâché DANS TOUS LES CAS.
+    final notifier = ref.read(recitationProvider.notifier);
+    final verifier = ref.read(recitationVerifierProvider);
+    unawaited(() async {
+      try {
+        await notifier.stopContinuous();
+      } catch (e) {
+        DiagnosticLog.log('ASR', 'sortie d\'ecran : stopContinuous a echoue : $e');
+      }
+      try {
+        await verifier.stop();
+        DiagnosticLog.log('ASR', 'sortie d\'ecran : micro relache');
+      } catch (e) {
+        DiagnosticLog.log('ASR', 'sortie d\'ecran : stop() a echoue : $e');
+      }
+    }());
     super.dispose();
   }
 

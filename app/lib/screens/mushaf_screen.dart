@@ -8,6 +8,7 @@ import '../models/verse.dart';
 import '../models/player_state_model.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
@@ -20,6 +21,7 @@ import '../widgets/quran_pattern_background.dart';
 import 'coach_screen.dart';
 import 'recitation_screen.dart';
 import 'karaoke_recitation_screen.dart';
+import 'memorization_game_screen.dart';
 import 'mind_map_screen.dart';
 
 class MushafScreen extends ConsumerStatefulWidget {
@@ -68,7 +70,17 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   // changement. `_items` est la liste de RENDU (verset, ou bannière
   // Bismillah/nom de sourate insérée entre deux sourates).
   List<Surah> _loadedSurahs = [];
-  int? _nextSurahNumber;
+  /// Page suivante du Mushaf a charger (1-604), null quand il n'y en a plus.
+  ///
+  /// ── PAGE, PLUS SOURATE (2026-08-06, demande utilisateur) ────────────────
+  /// « dans le mushaf il faut enchainer les PAGES, c'est un seul mushaf ;
+  /// reutilise la separation entre les sourates comme dans la page recitation ».
+  /// L'enchainement se faisait sourate par sourate (`fetchVerses`) : ouvrir
+  /// Al-Baqara depuis la sourate precedente chargeait ses 286 versets d'un
+  /// seul coup, et un mushaf ne se lit pas par sourates entieres mais par
+  /// pages. Meme granularite que l'ecran de recitation, qui enchaine deja par
+  /// page (`_maybeExtendNextPage`).
+  int? _nextPage;
   bool _loadingMore = false;
   List<Surah>? _allSurahsCache;
   List<_ListEntry> _items = [];
@@ -207,7 +219,10 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         _verses = verses;
         _verseKeys = List.generate(verses.length, (_) => GlobalKey());
         _loadedSurahs = [widget.surah];
-        _nextSurahNumber = widget.surah.number < 114 ? widget.surah.number + 1 : null;
+        final dernierePage = verses.isEmpty ? null : verses.last.pageNumber;
+        _nextPage = (dernierePage != null && dernierePage < 604)
+            ? dernierePage + 1
+            : null;
         _items = [
           if (bismillah != null) _ListEntry.bismillah(bismillah),
           for (var i = 0; i < verses.length; i++) _ListEntry.verse(i),
@@ -231,29 +246,49 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
     if (!_loadingMore &&
-        _nextSurahNumber != null &&
+        _nextPage != null &&
         pos.maxScrollExtent - pos.pixels < _kLoadMoreThreshold) {
-      _loadNextSurah();
+      _chargerPageSuivante();
     }
   }
 
-  // Charge la sourate suivante et l'ajoute à la suite, dans le même scroll
-  // continu -- avec une bannière de nom de sourate + Bismillah entre les deux
-  // (sauf At-Tawbah, qui n'en a pas). Idempotent/sûr en cas d'appels
-  // rapprochés grâce à `_loadingMore` (le scroll déclenche `_onScroll` à
-  // chaque frame tant qu'on est proche du bas).
-  Future<void> _loadNextSurah() async {
-    final nextNum = _nextSurahNumber;
-    if (nextNum == null || _loadingMore) return;
+  /// Charge la PAGE suivante du Mushaf et l'ajoute a la suite, dans le meme
+  /// scroll continu -- en inserant une banniere de sourate + Bismillah a
+  /// CHAQUE debut de sourate rencontre dans la page (une page peut en contenir
+  /// plusieurs, et At-Tawbah n'a pas de Bismillah).
+  ///
+  /// Idempotent : `_loadingMore` protege des appels rapproches, le scroll
+  /// declenchant `_onScroll` a chaque frame tant qu'on est pres du bas.
+  ///
+  /// ⚠️ ECHEC JOURNALISE, pas seulement `debugPrint` : l'ancienne version
+  /// avalait toute exception dans un `debugPrint` invisible en production --
+  /// un `firstWhere` sans correspondance suffisait a arreter l'enchainement
+  /// pour de bon, sans que rien ne le dise.
+  Future<void> _chargerPageSuivante() async {
+    final page = _nextPage;
+    if (page == null || _loadingMore) return;
     _loadingMore = true;
     try {
       _allSurahsCache ??= await QuranApi.fetchSurahs();
-      final nextSurah =
-          _allSurahsCache!.firstWhere((s) => s.number == nextNum);
-      final needsBismillah = nextNum != 1 && nextNum != 9;
-      final verses = await QuranApi.fetchVerses(nextNum);
-      final bismillah =
-          needsBismillah ? await QuranApi.fetchBismillah() : null;
+      final nouveaux = await QuranApi.fetchVersesByPage(page);
+      if (!mounted) return;
+      if (nouveaux.isEmpty) {
+        setState(() => _nextPage = page < 604 ? page + 1 : null);
+        return;
+      }
+      // Filet : ne jamais reintroduire un verset deja charge (meme regle que
+      // l'ecran de recitation -- une page peut chevaucher ce qu'on a deja).
+      final connus = _verses.map((v) => v.key).toSet();
+      final verses = nouveaux.where((v) => !connus.contains(v.key)).toList();
+      if (verses.isEmpty) {
+        setState(() => _nextPage = page < 604 ? page + 1 : null);
+        return;
+      }
+      Verse? bismillah;
+      if (verses.any((v) => v.ayahNumber == 1 &&
+          v.surahNumber != 1 && v.surahNumber != 9)) {
+        bismillah = await QuranApi.fetchBismillah();
+      }
       if (!mounted) return;
       setState(() {
         final baseIdx = _verses.length;
@@ -262,17 +297,38 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           ..._verseKeys,
           ...List.generate(verses.length, (_) => GlobalKey()),
         ];
-        _items = [
-          ..._items,
-          _ListEntry.surahBanner(nextSurah),
-          if (bismillah != null) _ListEntry.bismillah(bismillah),
-          for (var i = 0; i < verses.length; i++) _ListEntry.verse(baseIdx + i),
-        ];
-        _loadedSurahs = [..._loadedSurahs, nextSurah];
-        _nextSurahNumber = nextNum < 114 ? nextNum + 1 : null;
+        final ajouts = <_ListEntry>[];
+        var precedente = _loadedSurahs.isEmpty ? null : _loadedSurahs.last.number;
+        final chargees = [..._loadedSurahs];
+        for (var i = 0; i < verses.length; i++) {
+          final v = verses[i];
+          // Debut de sourate = separation, exactement comme l'ecran de
+          // recitation : banniere de nom puis Bismillah (sauf 1 et 9).
+          if (v.surahNumber != precedente) {
+            final s = _allSurahsCache!
+                .where((x) => x.number == v.surahNumber)
+                .toList();
+            if (s.isNotEmpty) {
+              ajouts.add(_ListEntry.surahBanner(s.first));
+              if (chargees.every((c) => c.number != s.first.number)) {
+                chargees.add(s.first);
+              }
+            }
+            if (v.ayahNumber == 1 &&
+                v.surahNumber != 1 && v.surahNumber != 9 && bismillah != null) {
+              ajouts.add(_ListEntry.bismillah(bismillah));
+            }
+            precedente = v.surahNumber;
+          }
+          ajouts.add(_ListEntry.verse(baseIdx + i));
+        }
+        _items = [..._items, ...ajouts];
+        _loadedSurahs = chargees;
+        _nextPage = page < 604 ? page + 1 : null;
       });
     } catch (e) {
-      debugPrint('[Mushaf] échec chargement sourate suivante $nextNum : $e');
+      DiagnosticLog.log('Mushaf', 'echec chargement page $page : $e');
+      debugPrint('[Mushaf] échec chargement page $page : $e');
     } finally {
       _loadingMore = false;
     }
@@ -591,13 +647,32 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   void _tapManuel({required bool enAvant}) {
     final debut = _debutPage;
     _debutPage = DateTime.now();
-    if (debut == null || !ref.read(kindleAutoTurnProvider)) return;
+    if (debut == null) return;
+    // ── ON APPREND TOUJOURS, MÊME TOURNAGE AUTOMATIQUE ÉTEINT ────────────
+    //
+    // Demande utilisateur (2026-08-06) : « que la durée du défilement s'adapte
+    // au clic ; si après un défilement j'ai cliqué après un certain temps, il
+    // ajuste ; et également au sens — est-ce que je recule ou j'avance ».
+    //
+    // Le mécanisme existait déjà (cf. `KindlePageSecondsNotifier.apprendre` :
+    // en avant on prend le temps réel, en arrière on rallonge d'un quart car
+    // reculer ne dit pas le bon temps mais seulement qu'il était trop court,
+    // et un geste sous la seconde est ignoré). Il était seulement BRIDÉ par
+    // `!kindleAutoTurnProvider` : il n'apprenait que si le tournage
+    // automatique tournait déjà.
+    //
+    // C'est l'inverse de ce qu'il faut : ce sont les taps MANUELS qui portent
+    // la cadence de lecture, et c'est d'eux qu'il faut apprendre -- pour que
+    // le jour où l'utilisateur active le tournage automatique, il soit déjà
+    // à son rythme au lieu de partir d'une valeur par défaut.
     final ecoule = DateTime.now().difference(debut).inMilliseconds / 1000.0;
     ref.read(kindlePageSecondsProvider.notifier)
         .apprendre(ecoule, enAvant: enAvant);
-    // Le minuteur tourne à l'ancienne cadence : sans ce réarmement, la valeur
-    // apprise n'aurait d'effet qu'à la PROCHAINE activation du mode.
-    _syncKindleAutoTurn(true, ref.read(kindlePageSecondsProvider));
+    // Le réarmement, lui, n'a de sens que si le minuteur tourne : sans lui la
+    // valeur apprise n'aurait d'effet qu'à la prochaine activation.
+    if (ref.read(kindleAutoTurnProvider)) {
+      _syncKindleAutoTurn(true, ref.read(kindlePageSecondsProvider));
+    }
   }
 
   Widget _buildVerses(String? playingVerseKey, {bool kindleMode = false}) {
@@ -635,34 +710,61 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
             return _buildEntry(_items[i], playingVerseKey, textScale, kindleMode: kindleMode);
           },
         ),
-        if (kindleMode) ...[
-          Positioned(
-            left: 0,
-            top: _reserveHaut(context),
-            bottom: 0,
-            width: 48,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () {
-                _tapManuel(enAvant: false);
-                _kindleJumpPage(viewportHeight, forward: false);
-              },
-            ),
+        // ── LE CHANGEMENT DE PAGE N'APPARTIENT PAS AU MODE KINDLE ────────
+        //
+        // Demande utilisateur (2026-08-06) : « la gestion du defilement dans
+        // le Mushaf n'est pas liee a l'option Kindle ; Kindle c'est la
+        // COULEUR, mais la gestion du changement de page doit etre presente
+        // aussi dans l'autre mode ».
+        //
+        // Ces deux zones de tap etaient posees `if (kindleMode)`. Le mode
+        // Kindle n'est pourtant qu'un THEME -- fond `kindleBg` et trame
+        // retiree (cf. `backgroundColor` et `QuranPatternBackground`). Lier la
+        // navigation a un choix de couleur obligeait a passer en Kindle pour
+        // tourner les pages, et faisait perdre la navigation a qui prefere le
+        // theme creme.
+        //
+        // Elles sont donc TOUJOURS presentes. Le mode Kindle ne change plus
+        // que l'apparence, et le tourne-page automatique
+        // (`_syncKindleAutoTurn`) reste pilote par son propre reglage.
+        // ── LES BANDES SONT DECALEES DU BORD (2026-08-06) ────────────────
+        //
+        // Defaut signale : « je peux avancer en bas mais je n'arrive pas a
+        // reculer en arriere ». Une seule chose distingue les deux cotes : le
+        // bord GAUCHE est la zone du geste systeme « retour » d'Android, qui
+        // capte ce qui s'y passe avant l'application. Le fichier connaissait
+        // deja le probleme -- `_kMargeGesteSysteme` est utilisee pour le
+        // bouton du bas -- mais pas sur les cotes.
+        //
+        // Les deux bandes sont donc decalees de cette marge et elargies. On
+        // les garde SYMETRIQUES : si le defaut venait d'ailleurs, une
+        // asymetrie de code aurait rendu le diagnostic impossible.
+        Positioned(
+          left: _kMargeGesteSysteme,
+          top: _reserveHaut(context),
+          bottom: 0,
+          width: 64,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () {
+              _tapManuel(enAvant: false);
+              _kindleJumpPage(viewportHeight, forward: false);
+            },
           ),
-          Positioned(
-            right: 0,
-            top: _reserveHaut(context),
-            bottom: 0,
-            width: 48,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () {
-                _tapManuel(enAvant: true);
-                _kindleJumpPage(viewportHeight, forward: true);
-              },
-            ),
+        ),
+        Positioned(
+          right: _kMargeGesteSysteme,
+          top: _reserveHaut(context),
+          bottom: 0,
+          width: 64,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () {
+              _tapManuel(enAvant: true);
+              _kindleJumpPage(viewportHeight, forward: true);
+            },
           ),
-        ],
+        ),
       ],
     );
   }
@@ -923,63 +1025,105 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     );
   }
 
+  /// Menu du verset (appui long) : une BULLE compacte a trois choix.
+  ///
+  /// Demande utilisateur (2026-08-06) : « je la veux dans le style du menu,
+  /// une bulle qui propose les trois choix ». La feuille precedente occupait
+  /// toute la largeur avec des `ListTile` a sous-titres repetes (« A partir de
+  /// ce verset » trois fois) : beaucoup de surface pour trois actions courtes.
+  ///
+  /// LE VERSET DEVIENT ACTIF AVANT D'OUVRIR, et ce n'est pas un detail :
+  /// `_openKaraoke`, `_openMemorization` et `_openJeuMemorisation` partent tous
+  /// de `_activeVerse`. Sans cette ligne, un appui long sur le verset 40
+  /// lancerait l'action sur le verset actif precedent -- le geste mentirait.
   void _menuVerset(int index) {
     setState(() => _activeVerse = index);
     final t = AppLocalizations.of(context)!;
     final verse = _verses[index];
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.cream,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-              child: Row(
-                children: [
-                  Text(
-                    '${verse.surahNumber}:${verse.ayahNumber}',
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.1,
-                      color: AppColors.inkLight,
-                    ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.cream,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.green900.withAlpha(60),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+                  child: Row(
+                    children: [
+                      Text(
+                        '${verse.surahNumber}:${verse.ayahNumber}',
+                        style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                          color: AppColors.inkLight,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // « A partir de ce verset » vaut pour les trois : il se
+                      // dit une fois, pas sur chaque ligne.
+                      Expanded(
+                        child: Text(t.mushafFromHere,
+                            style: GoogleFonts.manrope(
+                                fontSize: 12, color: AppColors.inkLight)),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                _ActionVerset(
+                  icone: Icons.mic_rounded,
+                  libelle: t.mushafRecite,
+                  onTap: () { Navigator.pop(ctx); _openKaraoke(); },
+                ),
+                _ActionVerset(
+                  icone: Icons.school_rounded,
+                  libelle: t.mushafMemorize,
+                  onTap: () { Navigator.pop(ctx); _openMemorization(); },
+                ),
+                // TROISIEME CHOIX (2026-08-06) : le jeu de memorisation
+                // n'etait atteignable que depuis le hub Coach et la barre de
+                // l'ecran de recitation -- jamais depuis le TEXTE, qui est
+                // pourtant l'endroit ou on decide de travailler un verset.
+                _ActionVerset(
+                  icone: Icons.videogame_asset_rounded,
+                  libelle: t.memorizationGameTitle,
+                  onTap: () { Navigator.pop(ctx); _openJeuMemorisation(); },
+                ),
+                const SizedBox(height: 10),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.mic_rounded, color: AppColors.green800),
-              title: Text(t.mushafRecite,
-                  style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
-              subtitle: Text(t.mushafFromHere,
-                  style: GoogleFonts.manrope(
-                      fontSize: 12, color: AppColors.inkLight)),
-              onTap: () {
-                Navigator.pop(ctx);
-                _openKaraoke();
-              },
-            ),
-            ListTile(
-              leading:
-                  const Icon(Icons.school_rounded, color: AppColors.green800),
-              title: Text(t.mushafMemorize,
-                  style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
-              subtitle: Text(t.mushafFromHere,
-                  style: GoogleFonts.manrope(
-                      fontSize: 12, color: AppColors.inkLight)),
-              onTap: () {
-                Navigator.pop(ctx);
-                _openMemorization();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Jeu de memorisation sur le verset actif (demande utilisateur 2026-08-06).
+  /// Meme ecran que le hub Coach et la barre de recitation -- un seul jeu,
+  /// trois portes d'entree.
+  void _openJeuMemorisation() {
+    final verse = _verses[_activeVerse];
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MemorizationGameScreen(
+          surah: _surahForNumber(verse.surahNumber),
+          verses: [verse],
         ),
       ),
     );
@@ -1247,4 +1391,38 @@ class _ErrorView extends StatelessWidget {
           ],
         ),
       );
+}
+
+/// Une action de la bulle du verset : icone + libelle, sur une seule ligne.
+class _ActionVerset extends StatelessWidget {
+  final IconData icone;
+  final String libelle;
+  final VoidCallback onTap;
+  const _ActionVerset(
+      {required this.icone, required this.libelle, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+        child: Row(
+          children: [
+            Icon(icone, color: AppColors.green800, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(libelle,
+                  style: GoogleFonts.manrope(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink)),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.inkLight, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -170,13 +170,21 @@ class _ShazamSheetState extends ConsumerState<_ShazamSheet> {
   }
 
   Widget _actions(AppLocalizations t) {
-    if (_state == _ShazamState.found) {
-      return FilledButton(
-        onPressed: () => Navigator.of(context).pop(_match),
-        style: FilledButton.styleFrom(backgroundColor: AppColors.green800),
-        child: Text(t.shazamGoThere),
-      );
-    }
+    // ── PLUS DE BOUTON « Y ALLER » (2026-08-06) ──────────────────────────
+    //
+    // Retour utilisateur : « dans l'oreille il y a toujours le bouton "y
+    // aller" ; c'est vrai que ça serait automatiquement, il vaut mieux
+    // l'enlever ».
+    //
+    // Il etait deja SANS EFFET : l'ouverture du passage est automatique depuis
+    // le 2026-08-05 (cf. le bloc « OUVERTURE AUTOMATIQUE DU PASSAGE » dans
+    // `_run`). Le bouton restait affiche et ne portait plus aucune decision --
+    // au mieux il ne servait a rien, au pire il laissait croire qu'il fallait
+    // encore confirmer.
+    //
+    // Le libelle `shazamGoThere` reste dans les traductions : il redeviendrait
+    // utile si l'ouverture automatique etait un jour remise en cause.
+    if (_state == _ShazamState.found) return const SizedBox.shrink();
     if (_state == _ShazamState.notFound || _state == _ShazamState.error) {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,

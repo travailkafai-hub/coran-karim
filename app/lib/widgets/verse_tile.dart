@@ -122,7 +122,28 @@ class VerseTile extends StatelessWidget {
                   child: Text(
                     _stripHtml(verse.translationFr!),
                     style: GoogleFonts.manrope(
-                      fontSize: 13,
+                      // ── LA TRADUCTION SUIT L'ARABE, SANS LE COPIER ──
+                      //
+                      // Demande utilisateur (2026-08-06) : « je veux que la
+                      // taille de la traduction suive un peu la taille de
+                      // l'écriture en arabe ; je ne dis pas qu'elle soit
+                      // pareille, mais qu'elle suive un peu l'évolution de la
+                      // taille ».
+                      //
+                      // Elle etait FIXE a 13 : agrandir l'arabe la laissait
+                      // minuscule a cote, et le rapport devenait absurde aux
+                      // grandes tailles. La lier a `textScale` a l'identique
+                      // (13 * textScale) la ferait grossir autant que l'arabe,
+                      // ce que l'utilisateur ne veut pas non plus -- une
+                      // traduction n'est pas le texte, elle doit rester
+                      // secondaire.
+                      //
+                      // Elle suit donc a MOITIE : la moitie de l'ecart a 1.
+                      // A textScale=1 elle vaut 13 (inchangee) ; a 1,6 elle
+                      // vaut 15,9 au lieu de 20,8 -- l'arabe passe de 26 a
+                      // 41,6, donc l'ecart se creuse mais la traduction ne
+                      // reste plus figee.
+                      fontSize: 13 * (1 + (textScale - 1) * 0.5),
                       color: kindleMode ? AppColors.kindleInkSoft : AppColors.inkLight,
                       height: 1.5,
                     ),

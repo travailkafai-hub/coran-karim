@@ -15,29 +15,38 @@ class RecitationStartOverlay extends StatelessWidget {
     final t = AppLocalizations.of(context)!;
     // ── L'ISTI'ADHA REMPLACE LE DECOMPTE 3-2-1 (demande utilisateur) ──────
     //
-    // « au lieu de 1 2 3 GO, remplace avec une belle ecriture style arabe
-    // esquisse andalouse : قل أعوذ بالله من الشيطان الرجيم ».
+    // « au lieu de 1 2 3 GO, remplace avec une belle ecriture style arabe » puis
+    // « en une seule fois, et enleve le GO, ca se declenche automatiquement ».
     //
     // Le decompte chiffre etait un artefact d'application ; on ouvre une
-    // recitation du Coran par l'isti'adha, pas par un chronometre. Elle se
-    // devoile en trois temps, au rythme du decompte qu'elle remplace -- la
-    // sequence de demarrage (chargement, micro) n'est pas touchee, seul son
-    // affichage change.
+    // recitation du Coran par l'isti'adha, pas par un chronometre. Elle
+    // s'affiche ENTIERE, sans devoilement progressif : la formule se lit d'un
+    // trait, la couper en trois en faisait de nouveau un decompte.
+    //
+    // Le « GO » disparait aussi : la capture demarre toute seule, l'annoncer
+    // n'apporte rien et rompt le ton. L'ecran d'attente porte donc une seule
+    // chose du debut a la fin.
+    //
+    // La SEQUENCE n'est pas touchee (chargement du modele, ouverture du micro,
+    // memes etapes, memes durees) -- seul son affichage change.
+    const isti3adhaTexte = 'أَعُوذُ بِٱللَّهِ مِنَ ٱلشَّيْطَٰنِ ٱلرَّجِيمِ';
     final isti3adha = switch (stage) {
-      RecitationStartStage.countdown3 => 'أَعُوذُ',
-      RecitationStartStage.countdown2 => 'أَعُوذُ بِٱللَّهِ',
-      RecitationStartStage.countdown1 =>
-        'أَعُوذُ بِٱللَّهِ مِنَ ٱلشَّيْطَٰنِ ٱلرَّجِيمِ',
+      RecitationStartStage.countdown3 ||
+      RecitationStartStage.countdown2 ||
+      RecitationStartStage.countdown1 ||
+      RecitationStartStage.go => isti3adhaTexte,
       _ => null,
     };
     final countdown = isti3adha;
     final title = switch (stage) {
       RecitationStartStage.loadingModel => t.karaokeLoadingModel,
+      // Plus de « Preparez-vous » ni de « GO » sous la formule : elle se
+      // suffit, et un sous-titre y remettrait le decompte qu'on retire.
       RecitationStartStage.countdown3 ||
       RecitationStartStage.countdown2 ||
-      RecitationStartStage.countdown1 => t.karaokeGetReady,
+      RecitationStartStage.countdown1 ||
+      RecitationStartStage.go => '',
       RecitationStartStage.startingCapture => t.karaokePreparingMicrophone,
-      RecitationStartStage.go => t.karaokeGo,
       RecitationStartStage.modelUnavailable => t.karaokeModelUnavailable,
     };
     final busy =
@@ -56,33 +65,42 @@ class RecitationStartOverlay extends StatelessWidget {
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 220),
               child: Column(
-                key: ValueKey(stage),
+                // MEME cle pour toutes les etapes qui portent la formule :
+                // sinon l'AnimatedSwitcher la fait re-entrer a chaque etape et
+                // elle clignote trois fois.
+                key: ValueKey(isti3adha ?? stage),
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (busy)
-                    const SizedBox(
-                      width: 42,
-                      height: 42,
-                      child: CircularProgressIndicator(
-                        color: AppColors.brassLight,
-                        strokeWidth: 3,
-                      ),
-                    )
-                  else
-                    // Scheherazade New pour l'arabe : c'est la police
-                    // calligraphique deja utilisee pour le texte coranique
-                    // (cf. karaoke/mushaf). Utiliser Fraunces, taillee pour le
-                    // latin, rendrait un arabe sans liaisons ni proportions.
-                    isti3adha != null
+                  // LA FORMULE D'ABORD, TOUJOURS. Le rond de progression
+                  // ne la remplace plus -- il se glisse DESSOUS pendant les
+                  // etapes techniques (chargement, micro). C'est ce
+                  // remplacement qui la faisait disparaitre puis revenir.
+                  isti3adha != null
                         ? Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 28),
                             child: Text(
                               isti3adha,
                               textAlign: TextAlign.center,
                               textDirection: TextDirection.rtl,
-                              style: GoogleFonts.scheherazadeNew(
-                                fontSize: 46,
-                                height: 1.9,
+                              // ── LE CHOIX DE LA POLICE ───────────────
+                              //
+                              // L'utilisateur a montre deux calligraphies
+                              // THULUTH (composition compacte, hampes hautes).
+                              // Aucune police libre ne fait du vrai thuluth
+                              // compose, mais `arefRuqaa` en est la famille --
+                              // ruqaa/thuluth, dessinee par Abdullah Aref --
+                              // et c'est de loin la plus proche des trois
+                              // candidates disponibles ici :
+                              //   arefRuqaa      ruqaa/thuluth  <- retenue
+                              //   amiri          naskh classique
+                              //   scheherazadeNew naskh de lecture (le texte
+                              //                   coranique de l'app)
+                              // En gras : le trait plein est ce qui rapproche
+                              // le plus du modele montre.
+                              style: GoogleFonts.arefRuqaa(
+                                fontSize: 40,
+                                height: 2.1,
+                                fontWeight: FontWeight.w700,
                                 color: AppColors.brassLight,
                               ),
                             ),
@@ -96,7 +114,18 @@ class RecitationStartOverlay extends StatelessWidget {
                               color: AppColors.brassLight,
                             ),
                           ),
-                  if (busy || countdown != null) ...[
+                  if (busy) ...[
+                    const SizedBox(height: 26),
+                    const SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(
+                        color: AppColors.brassLight,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ],
+                  if ((busy || countdown != null) && title.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     Text(
                       title,
