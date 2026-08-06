@@ -95,7 +95,10 @@ class _PointDEntreeState extends State<_PointDEntree> {
             surah: (extras['sourate'] as num?)?.toInt() ?? 2,
             limite: (extras['versets'] as num?)?.toInt() ?? 20,
             depart: (extras['depart'] as num?)?.toInt() ?? 1,
-            wav: extras['wav'] as String?));
+            wav: extras['wav'] as String?,
+            normal: extras['normal'] as bool? ?? false,
+            fusion: extras['fusion'] as bool? ?? true,
+            preuves: (extras['preuves'] as num?)?.toInt() ?? 2));
   }
 
   @override

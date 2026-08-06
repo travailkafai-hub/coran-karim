@@ -59,6 +59,31 @@ class WordCorrectionAudio {
   /// (`QuranApi.fetchAyahSegments`) plutôt que d'estimer une découpe
   /// approximative. Ne jette pas si l'audio ou le timing sont introuvables
   /// (retourne simplement immédiatement).
+  /// Joue un fichier local ENTIER et attend la fin — sert à rejouer la VOIX DU
+  /// RÉCITATEUR extraite du flux brut (2026-08-06, cf.
+  /// `FastConformerCtcVerifier.v2ExtraitVoix`).
+  ///
+  /// Passe par le MÊME lecteur statique que [playWordRange] : les deux ne
+  /// doivent jamais jouer en parallèle (un seul haut-parleur, et surtout un
+  /// seul jeu d'abonnements — piège déjà payé le 2026-07-16 entre correction
+  /// automatique et souffleur).
+  static Future<void> playFile(String path) async {
+    DiagnosticLog.log('Voix', 'lecture extrait : $path');
+    await _player.stop();
+    final completer = Completer<void>();
+    late final StreamSubscription doneSub;
+    doneSub = _player.onPlayerComplete.listen((_) {
+      doneSub.cancel();
+      if (!completer.isCompleted) completer.complete();
+    });
+    await _player.play(DeviceFileSource(path));
+    // Garde-fou : un extrait fait au plus quelques secondes. Sans borne, une
+    // fin de lecture jamais notifiée laisserait le bouton bloqué.
+    await completer.future.timeout(const Duration(seconds: 15), onTimeout: () {
+      doneSub.cancel();
+    });
+  }
+
   static Future<void> playWordRange(
     Verse verse,
     Reciter reciter, {

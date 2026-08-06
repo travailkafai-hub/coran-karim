@@ -64,11 +64,20 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// On ne mesure alors plus la chaîne, on mesure un décalage de départ.
   final bool sansBasmala;
 
+  /// FORCE le mode normal (CTL) même en `autoDemarrer` (2026-08-05, mesure de
+  /// diagnostic ponctuelle). La recette impose d'ordinaire la référence (cf.
+  /// le commentaire plus bas sur `_isReferenceSession`) : ce drapeau permet
+  /// EXCEPTIONNELLEMENT de vérifier un audio déterministe sous SAUT
+  /// REFUSE/décrochage, actifs uniquement en normal. Défaut false : tout
+  /// appel existant du banc garde exactement le comportement d'avant.
+  final bool forcerModeNormal;
+
   const KaraokeRecitationScreen({
     super.key,
     required this.verses,
     this.autoDemarrer = false,
     this.sansBasmala = false,
+    this.forcerModeNormal = false,
   });
 
   @override
@@ -123,22 +132,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // DIFFÉRENT échoue, pour que celui-ci ait droit à son propre essai.
   int? _lastAutoCorrectedWordIndex;
 
-  // Silence prolongé = le récitateur est bloqué et attend (2026-08-01).
-  // C'est le SECOND déclencheur du blocage/correction, à côté des "deux mots
-  // consécutifs en échec" (cf. _onWordFailed) -- un mot isolé ne bloque plus,
-  // mais si le récitateur reste muet dessus, c'est qu'il a oublié la suite et
-  // il faut la lui souffler. Réarmé à chaque avancée du pointeur.
-  Timer? _silenceTimer;
-  // 4 s (2026-08-01). Historique complet, parce que la valeur n'est PAS
-  // arbitraire : 3 s au départ, descendu à 2 s à la demande de l'utilisateur,
-  // puis REMONTÉ à 4 s après mesure sur device -- « il se déclenche beaucoup
-  // alors que je continue de parler ».
-  // LA RAISON EST STRUCTURELLE : la v2 juge par fenêtres d'aperçu de 3 s
-  // (`apercuSecondes = 3.0`, ConstructeurDeFenetres). Deux validations
-  // successives peuvent donc être espacées de plus de 2 s SANS que le
-  // récitateur se soit arrêté. Un délai plus court que la cadence du moteur
-  // déclenche forcément à tort. 4 s laisse passer une fenêtre entière.
-  static const _kSilenceCorrectionDelay = Duration(seconds: 4);
+  // ── MINUTEUR DE SILENCE, RETIRÉ (2026-08-05) ──────────────────────────
+  // A existé du 2026-08-01 au 2026-08-05 sous le nom `_armerSilence` /
+  // `_kSilenceCorrectionDelay` (Timer 4 s réarmé à chaque avancée du
+  // pointeur, déclenchant la correction si le mot suivi ne bougeait plus).
+  // Retiré : la valeur avait déjà été retouchée trois fois (3 s -> 2 s -> 4 s)
+  // pour la même raison -- « il se déclenche alors que je continue de
+  // parler » -- signe que le critère (absence de progression) ne distinguait
+  // pas un récitateur arrêté d'un mot simplement plus long à reconnaître.
+  // Mesuré le jour du retrait : déclenché sur "الٓمٓ" et sur "يُؤْمِنُونَ بِمَا"
+  // dès l'ouverture de session / après un trou de reconnaissance, dans les
+  // deux cas alors que le récitateur n'avait pas décroché. Décision
+  // utilisateur : un récitateur bloqué dispose du souffleur manuel
+  // (`_promptCurrentWord`, tap sur le mot) ; l'aide AUTOMATIQUE ne vient
+  // plus que du décrochage v2 (`decrochageDetecte`, cf. `_onWordFailed`),
+  // qui exige une preuve (texte hors sujet ou trou persistant sur deux
+  // fenêtres), pas la seule absence de progression.
 
   // Pause manuelle (demande utilisateur 2026-07-10 : "il faut que je gère la
   // pause aussi et après je continue") — distincte du STOP (halo central, qui
@@ -272,20 +281,48 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // correction disponible uniquement au tap sur le mot). ref.keepAlive()
     // dans recitationProvider (cf. recitation_provider.dart) garantit que
     // cette instance ne change plus sous nos pieds après cet abonnement.
-    _wordFailedSub =
-        ref.read(recitationProvider.notifier).wordFailed.listen(_onWordFailed);
+    _wordFailedSub = ref.read(recitationProvider.notifier).wordFailed.listen(
+        (i) => _onWordFailed(i,
+            raison: 'mot precedent egalement en echec (deux consecutifs)'));
     // DÉCROCHAGE (2026-08-01) : le récitateur dit autre chose que le texte --
     // deux mots décodés consécutifs hors du texte attendu. Flux SÉPARÉ de
     // `wordFailed` (qui, lui, parle d'un mot attendu mal jugé) : ici, ce
     // n'est pas un mot qui est faux, c'est la récitation qui a quitté le
     // texte. On reprend la main sur le mot courant.
-    _decrochageSub = ref
-        .read(recitationProvider.notifier)
-        .decrochageDetecte
-        .listen((ancre) => _onWordFailed(ancre, surSilence: true));
+    _decrochageSub =
+        ref.read(recitationProvider.notifier).decrochageDetecte.listen((ancre) {
+      // NE PAS décrocher avant que la récitation ait VRAIMENT commencé
+      // (2026-08-05, même raison que le minuteur de silence retiré ci-dessus,
+      // confirmée par l'utilisateur sur ce cas précis : « je n'ai pas parlé,
+      // ça doit attendre »). Mesuré sur device : décrochage déclenché à
+      // 17:46:44 sur "الٓمٓ" (premier mot réel après la Bismillah, jamais
+      // encore verrouillé), à partir de deux fragments non reconnus ("مٍ" à
+      // 17:46:36, "تَ" à 17:46:44) séparés de 8 s de silence -- des restes de
+      // "الٓمٓ" mal reconnu, pas du texte étranger.
+      final words = ref.read(recitationProvider).words;
+      final premierReel = words.indexWhere((w) => !w.isBasmala);
+      if (premierReel >= 0 && ancre <= premierReel && !words[premierReel].locked) {
+        DiagnosticLog.log('Decrochage',
+            'ignoré : premier mot réel (mot=$premierReel) pas encore verrouillé');
+        return;
+      }
+      _onWordFailed(ancre,
+          surSilence: true, raison: 'decrochage v2 (hors texte ou trou)');
+    });
   }
 
   Future<void> _initAsync() async {
+    // PRÉCHARGEMENT DU RÉGLAGE DE CORRECTION (2026-08-05) -- ne pas retirer.
+    // Ce provider démarre à `true` en dur puis lit sa valeur PERSISTÉE en
+    // asynchrone, et il n'est créé qu'au premier `ref.read`. Sans ce
+    // préchargement, ce premier read était celui de la PREMIÈRE correction :
+    // elle lisait le défaut `true`, les suivantes la vraie valeur. Mesuré sur
+    // device (réglage persisté à `false`) : 1ʳᵉ correction jouée, 2ᵉ et 3ᵉ
+    // « IGNORÉ : correction automatique désactivée » -- systématique, ce que
+    // l'utilisateur avait bien vu comme « toujours le deuxième KO ».
+    // Le créer ici laisse plusieurs secondes à la lecture avant qu'une
+    // correction soit seulement possible.
+    ref.read(autoCorrectionEnabledProvider);
     // Récupérée INCONDITIONNELLEMENT (mise en cache statique par QuranApi,
     // quasi gratuite si déjà chargée) : même si CETTE session ne l'utilise pas
     // tout de suite, un enchaînement ultérieur sur la page suivante
@@ -463,7 +500,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // manipulent capture + buffer, s'entrelacer corromprait l'état.
     if (_autoCorrecting || _promptingWord) return;
     final st = ref.read(recitationProvider);
-    final pointer = st.pointer;
+    // PAS `st.pointer` (2026-08-05) : quand la v2 pilote, `_onV2` met à jour
+    // les MOTS mais jamais le pointeur, qui reste donc à 0 -- toujours DANS
+    // la Bismillah. `_verseContaining(0)` y rend `null` (exclusion
+    // volontaire), donc la fonction s'arrêtait en silence AVANT la première
+    // ligne de log : le bouton ne faisait jamais rien dès qu'une session
+    // tournait avec la v2 (mesuré : zéro ligne `[Souffleur]` sur toute une
+    // journée de tests). Même correctif que partout ailleurs dans ce
+    // fichier : suivre le mot marqué `current`, pas le pointeur.
+    final suivi = st.words.indexWhere((w) => w.status == WordStatus.current);
+    final pointer = suivi >= 0 ? suivi : st.pointer;
     final verse = _verseContaining(pointer);
     final local = _localIndexInVerse(pointer);
     if (verse == null || local == null) return;
@@ -478,11 +524,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       if (wasListening) await verifier.pauseCapture();
       final reciter = ref.read(playerProvider).reciter;
       try {
-        // wordsBefore/After = 0 : STRICTEMENT le mot demandé. Contrairement à
-        // la correction (qui rejoue le mot précédent pour donner l'élan), ici
-        // l'utilisateur sait où il en est — il veut le mot, pas le contexte.
+        // wordsAfter = 1 (2026-08-05, demande utilisateur : "l'audio doit
+        // dire deux mots") -- le mot demandé PLUS le suivant, pour donner un
+        // peu d'élan à la reprise. Même réglage que la correction déclenchée
+        // par décrochage (`wordsBefore: 0, wordsAfter: 1`) : dans les deux
+        // cas le récitateur est arrêté et doit repartir, pas rejouer ce qu'il
+        // vient de dire.
         await WordCorrectionAudio.playWordRange(verse, reciter,
-            errorWordIndex: local, wordsBefore: 0, wordsAfter: 0);
+            errorWordIndex: local, wordsBefore: 0, wordsAfter: 1);
       } catch (e) {
         // Même raison que dans _onWordFailed : audio/timing indisponible pour
         // ce récitateur/verset ne doit jamais casser la session en cours.
@@ -517,7 +566,6 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     _breath.dispose();
     _wordFailedSub?.cancel();
     _decrochageSub?.cancel();
-    _silenceTimer?.cancel();
     // ── CAUSE RACINE CORRIGÉE (2026-07-25) ───────────────────────────────
     // Ici, `dispose()` SUPPRIMAIT le dossier temporaire de capture
     // (`discardTempDir`) sans prévenir le côté natif, qui gardait le chemin
@@ -544,60 +592,20 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     super.dispose();
   }
 
-  /// (Ré)arme le minuteur de silence sur le mot courant. S'il expire sans
-  /// que le pointeur ait bougé, le récitateur est resté muet sur ce mot :
-  /// on lui souffle la suite (cf. `_kSilenceCorrectionDelay`).
-  void _armerSilence(int pointer) {
-    _silenceTimer?.cancel();
-    if (_isReferenceSession) return; // ne jamais interrompre une référence
-    if (!ref.read(autoCorrectionEnabledProvider)) return;
-    // Ne PAS souffler avant que la récitation ait commencé (correctif
-    // 2026-08-01, vu dans le log de l'utilisateur : capture ouverte à
-    // 17:57:25, « SILENCE 3s sur le mot 0 » à 17:57:28 -- il n'avait pas
-    // encore ouvert la bouche). Le minuteur ne vaut que comme « il s'est
-    // ARRÊTÉ en cours de route », pas comme « il n'a pas encore démarré ».
-    if (pointer <= 0) return;
-    // Le cooldown anti-rafale (4 s) est plus long que ce délai (2 s) : armer
-    // sèchement à 2 s ferait tomber le déclenchement dans le cooldown, où il
-    // serait ignoré ET jamais réarmé -- le récitateur bloqué ne recevrait
-    // qu'une seule aide. On attend donc la fin du cooldown quand il est actif.
-    final cooldown = _correctionCooldownUntil;
-    var delai = _kSilenceCorrectionDelay;
-    if (cooldown != null && cooldown.isAfter(DateTime.now())) {
-      final reste = cooldown.difference(DateTime.now());
-      if (reste > delai) delai = reste + const Duration(milliseconds: 200);
-    }
-    DiagnosticLog.log('Attente',
-        'minuteur armé sur le mot $pointer pour ${delai.inMilliseconds} ms');
-    _silenceTimer = Timer(delai, () {
-      if (!mounted) return;
-      final st = ref.read(recitationProvider);
-      if (st.status != RecitationStatus.listening) {
-        DiagnosticLog.log('Attente', 'expiré mais status=${st.status} -> ignoré');
-        return;
-      }
-      // LE CRITÈRE N'EST PAS LE SILENCE ACOUSTIQUE mais « le modèle ne place
-      // plus rien » (formulation de l'utilisateur, 2026-08-01 : « ça doit être
-      // le modèle ne place rien depuis 2 s »). Du bruit ambiant n'empêche donc
-      // pas l'aide : ce qui compte est que le mot suivi n'ait pas bougé.
-      final suivi = st.words.indexWhere((w) => w.status == WordStatus.current);
-      if (suivi != pointer) {
-        DiagnosticLog.log('Attente',
-            'expiré mais le modèle a avancé ($pointer -> $suivi) -> ignoré');
-        return;
-      }
-      if (pointer < 0 || pointer >= st.words.length) return;
-      DiagnosticLog.log('Correction',
-          'SILENCE ${_kSilenceCorrectionDelay.inSeconds}s sur le mot $pointer '
-          '-> on souffle la suite');
-      _onWordFailed(pointer, surSilence: true);
-    });
-  }
 
-  /// [surSilence] : appelé par le minuteur de silence (§_armerSilence), pas
-  /// par le flux `wordFailed` -- le récitateur s'est arrêté, on lui souffle
-  /// le mot même si un seul mot est en échec.
-  Future<void> _onWordFailed(int wordIndex, {bool surSilence = false}) async {
+  /// [surSilence] : appelé par le décrochage v2 (§_decrochageSub), pas
+  /// par le flux `wordFailed` -- le récitateur a quitté le texte ou un trou
+  /// persiste, on lui souffle le mot même si un seul mot est en échec.
+  Future<void> _onWordFailed(
+    int wordIndex, {
+    bool surSilence = false,
+    // ORIGINE DU DÉCLENCHEMENT (2026-08-05, demande utilisateur : pouvoir
+    // répondre "pourquoi la correction est partie" en LISANT le log, sans
+    // relire le code). Les trois appelants passent une valeur explicite --
+    // cf. la ligne 'wordFailed déclenché' plus bas, seul endroit où c'est
+    // journalisé, juste avant que l'audio parte réellement.
+    String raison = '(non précisée)',
+  }) async {
     // Journalisation persistante (Coach IA) : indépendante des réglages de
     // correction automatique ci-dessous, jamais pendant une session de
     // référence (même raison que plus bas : ce n'est pas une vraie erreur de
@@ -661,13 +669,21 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         );
       }
     }
-    if (!ref.read(autoCorrectionEnabledProvider)) return;
+    if (!ref.read(autoCorrectionEnabledProvider)) {
+      DiagnosticLog.log('Correction',
+          'IGNORÉ mot $wordIndex : correction automatique désactivée');
+      return;
+    }
     // Jamais de correction pendant une récitation de RÉFÉRENCE (demande
     // utilisateur 2026-07-06) : ce moment sert uniquement à observer le
     // rythme naturel du réciteur (pauses, tempo) pour PauseProfileService —
     // l'interrompre pour corriger fausserait justement ce qu'on cherche à
     // mesurer.
-    if (_isReferenceSession) return;
+    if (_isReferenceSession) {
+      DiagnosticLog.log('Correction',
+          'IGNORÉ mot $wordIndex : session de référence');
+      return;
+    }
     // Strict/tolérant (demande utilisateur 2026-07-06) : en mode tolérant,
     // seul le rouge (mot faux) déclenche la correction — l'orange (mot
     // reconnu mais imprécis) est accepté sans interruption.
@@ -716,8 +732,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     //       autre verset/une autre sourate produit une rafale, jamais un
     //       accident isolé ; un faux positif de chaîne ou une harakat
     //       approximative reste, lui, isolé ;
-    //   (b) un SILENCE prolongé (cf. `_armerSilence`) -- le récitateur est
-    //       bloqué et attend qu'on lui souffle la suite.
+    //   (b) un DÉCROCHAGE v2 (cf. `_decrochageSub`) -- texte hors sujet ou
+    //       trou persistant sur deux fenêtres, signalé par la chaîne Kotlin.
     // Les autres mots non verts ne bloquent plus : ils gardent leur couleur,
     // restent consultables après coup (tap sur le mot -> souffleur).
     if (!surSilence) {
@@ -739,7 +755,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // sur le MÊME lecteur audio statique ; un mot qui échoue pendant que le
     // souffleur joue lançait une correction en parallèle, les deux jeux
     // d'abonnements posSub/doneSub s'entrechoquant.
-    if (_autoCorrecting || _promptingWord) return; // un mot/une action a la fois
+    // ⚠️ CES RETOURS ÉTAIENT SILENCIEUX (2026-08-05) : un décrochage pouvait
+    // être signalé par le natif puis mourir ici sans une seule ligne de log.
+    // Mesuré : 1ʳᵉ correction complète, 2ᵉ décrochage signalé mais AUCUN
+    // `wordFailed déclenché` ni `Correction-Audio` derrière.
+    if (_autoCorrecting || _promptingWord) {
+      DiagnosticLog.log('Correction',
+          'IGNORÉ mot $wordIndex : action déjà en cours '
+          '(_autoCorrecting=$_autoCorrecting _promptingWord=$_promptingWord)');
+      return; // un mot/une action a la fois
+    }
     // Anti-rafale (demande utilisateur 2026-07-06 : "il me donne pas le temps
     // pour répéter") -- constaté en test réel : quand la reconnaissance
     // décroche (bruit/silence mal interprété), plusieurs mots peuvent
@@ -749,10 +774,20 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // corrections force cette fenêtre, quelle que soit la cause exacte de la
     // cascade côté reconnaissance.
     final cooldown = _correctionCooldownUntil;
-    if (cooldown != null && DateTime.now().isBefore(cooldown)) return;
+    if (cooldown != null && DateTime.now().isBefore(cooldown)) {
+      DiagnosticLog.log('Correction',
+          'IGNORÉ mot $wordIndex : anti-rafale actif jusqu\'à $cooldown');
+      return;
+    }
     final verse = _verseContaining(wordIndex);
     final local = _localIndexInVerse(wordIndex);
-    if (verse == null || local == null) return;
+    if (verse == null || local == null) {
+      DiagnosticLog.log('Correction',
+          'IGNORÉ mot $wordIndex : position introuvable '
+          '(verset=${verse?.key} local=$local) -- mot hors des versets chargés '
+          'ou dans la Bismillah');
+      return;
+    }
     // Un seul essai forcé (demande utilisateur 2026-07-16 soir, réglable via
     // followWithoutBlockingProvider) : ce MÊME mot a déjà eu droit à un recul
     // + audio de correction juste avant, et wordFailed refire dessus -- le
@@ -797,7 +832,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           'ABANDON : le mot $wordIndex est repasse a $current avant la correction');
       return;
     }
-    DiagnosticLog.log('Correction', 'wordFailed déclenché : wordIndex(global)=$wordIndex '
+    DiagnosticLog.log('Correction', 'wordFailed déclenché : raison=$raison '
+        'wordIndex(global)=$wordIndex '
         'mot="${wordIndex < words.length ? words[wordIndex].display : "?"}" '
         'status=$current '
         'verset=${verse.key} local(dans verset)=$local');
@@ -962,20 +998,6 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _autoCorrecting = false;
       _correctionCooldownUntil =
           DateTime.now().add(const Duration(seconds: 4));
-      // CONTINUER D'AIDER SI LE SILENCE PERSISTE (2026-08-01, demande
-      // utilisateur : « si silence encore, il faut que ça continue à
-      // l'aider »). Le minuteur ne se réarmait que sur une AVANCÉE du
-      // pointeur : un récitateur qui reste bloqué après l'aide ne faisait
-      // donc plus rien bouger, et n'était plus jamais aidé. On le réarme ici,
-      // sur le mot où on vient de le laisser. Le cooldown de 4 s ci-dessus
-      // reste le garde-fou anti-rafale.
-      if (mounted) {
-        // Même critère qu'ailleurs : le mot SUIVI par la v2, pas le pointeur
-        // (qui reste à 0 quand la v2 pilote).
-        final st = ref.read(recitationProvider);
-        final suivi = st.words.indexWhere((w) => w.status == WordStatus.current);
-        if (suivi >= 0) _armerSilence(suivi);
-      }
       if (mounted) {
         setState(() => _resumeHintIndex = wordIndex);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1272,6 +1294,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _maybeSaveProfile();
     } else if (st.status != RecitationStatus.processing) {
       _profileSaved = false;
+      // Repère "reprends ici" (2026-08-05) : sans ce nettoyage, un repère posé
+      // par une correction d'une session ANTÉRIEURE restait affiché sur un mot
+      // qui n'a plus jamais été rejugé depuis -- mesuré sur device, souligné
+      // sur "ذَٰلِكَ" alors que le journal natif de la nouvelle session n'avait
+      // jugé aucun mot au-delà de la Bismillah. Le repère ne s'efface que
+      // "quand ce mot reçoit un jugement" (cf. ligne plus bas) ; si ça
+      // n'arrive plus jamais, il ne partait jamais tout seul.
+      if (_resumeHintIndex != null) setState(() => _resumeHintIndex = null);
       // Chaque récitation est indépendante (demande utilisateur 2026-07-12) :
       // repart de la sensibilité par défaut, jamais de celle laissée par une
       // récitation précédente (même passage ou non).
@@ -1299,7 +1329,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // sans rien d'autre pour le dire. Le banc impose le mode RÉFÉRENCE :
         // c'est celui qu'on mesure (pas de correction, donc pas de recul
         // d'ancre qui viendrait masquer un défaut d'alignement).
-        _isReferenceSession = true;
+        // SAUF `forcerModeNormal` (2026-08-05) : mesure ponctuelle pour
+        // verifier un audio deterministe sous SAUT REFUSE/decrochage.
+        _isReferenceSession = !widget.forcerModeNormal;
       } else {
         // ── LA REFERENCE QUITTE L'INTERFACE, PAS LE PROJET (2026-08-05) ────
         //
@@ -1779,32 +1811,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // la suite en arrière-plan AVANT d'y arriver -- sinon la session se
       // termine normalement (pointer >= words.length -> finished) au lieu
       // d'enchaîner.
+      //
+      // PAS `next.pointer` (2026-08-05, même défaut que le souffleur cf.
+      // _promptCurrentWord) : quand la v2 pilote, le pointeur reste bloqué
+      // près de 0, donc `words.length - pointer` ne descend jamais sous
+      // `_kExtendLookaheadWords` -- l'enchaînement ne se déclenchait JAMAIS,
+      // et la session se figeait dès le dernier mot chargé (mesuré : bloqué
+      // sur "ٱلْمُفْلِحُونَ", dernier mot de la plage 2:1→2:5, "je ne peux
+      // plus réciter"). On suit le mot marqué `current`.
+      final suiviExtend =
+          next.words.indexWhere((w) => w.status == WordStatus.current);
+      final pointerExtend = suiviExtend >= 0 ? suiviExtend : next.pointer;
       if (next.status == RecitationStatus.listening &&
-          next.words.length - next.pointer <= _kExtendLookaheadWords) {
+          next.words.length - pointerExtend <= _kExtendLookaheadWords) {
         _maybeExtendNextPage();
       }
-      _maybePrefetchCorrectionAudio(next.pointer);
-      // Minuteur de silence (2026-08-01) : toute avancée réelle du pointeur
-      // le réarme ; s'il expire, c'est que le récitateur s'est arrêté -- on
-      // lui souffle alors le mot bloquant, même s'il est isolé (cf. le
-      // garde-fou "décrochage" dans _onWordFailed, qui laisse justement
-      // passer les mots isolés sans interrompre).
-      // ⚠️ PAS `next.pointer` : quand la v2 pilote, `_onV2` met à jour les
-      // MOTS mais jamais le pointeur, qui reste donc à 0 -- le minuteur
-      // sortait alors systématiquement sur son garde `pointer <= 0` et n'a
-      // JAMAIS été armé (mesure 2026-08-01 : aucune ligne `[Attente]` dans le
-      // log, toutes les aides venaient du décrochage, ~6 s au lieu de 2 s).
-      // On suit donc le mot marqué `current`, celui que la v2 pose elle-même
-      // et sur lequel l'écran défile.
-      final suivi = next.words.indexWhere((w) => w.status == WordStatus.current);
-      if (next.status == RecitationStatus.listening && suivi >= 0) {
-        final avant = prev?.words.indexWhere((w) => w.status == WordStatus.current);
-        if (avant != suivi || prev?.status != next.status) {
-          _armerSilence(suivi);
-        }
-      } else {
-        _silenceTimer?.cancel();
-      }
+      _maybePrefetchCorrectionAudio(pointerExtend);
       // Le repère "reprends ici" s'efface dès que ce mot a reçu un jugement
       // (l'utilisateur a repris, l'indication n'est plus utile).
       final hint = _resumeHintIndex;
@@ -2251,7 +2273,6 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // rouge est porté par le FOND, jamais par la couleur du texte, pour que les
   // deux systèmes ne se disputent jamais le même pixel.
   Widget _wordSpan(RecitedWord w, int index) {
-    final isCurrent = w.status == WordStatus.current;
     final tajwidWord =
         index < _tajwidSpans!.length ? _tajwidSpans![index] : null;
 
@@ -2318,20 +2339,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         underline = true;
         break;
       case WordStatus.current:
-        break; // le contour doré ci-dessous suffit
       case WordStatus.pending:
-        // Texte non-encore-récité MASQUÉ (demande utilisateur 2026-07-06 :
-        // "je veux que le texte non récité soit caché, qu'il s'affiche au
-        // fur et à mesure qu'on parle") -- quasi invisible plutôt que
-        // simplement estompé, pour que ça serve vraiment d'aide à la
-        // mémorisation (pas juste un effet visuel). La forme du mot (espace
-        // réservé par l'Opacity ci-dessous) reste perceptible pour ne pas
-        // casser le rythme visuel de la ligne.
+        // Texte non-encore-JUGÉ INVISIBLE (demande utilisateur 2026-07-06,
+        // étendue le 2026-08-05 : "il ne faut afficher que les mots validés
+        // ou erronés"). `current` marquait jusqu'ici le mot que le modèle
+        // suit, avec un contour doré -- retiré : ce marqueur pouvait rester
+        // affiché sur un mot jamais réellement prouvé (mesure sur device,
+        // "ذَٰلِكَ" souligné en `current` alors que le journal natif n'avait
+        // jugé AUCUN mot au-delà de la Bismillah dans toute la session,
+        // `dernier definitif` bloqué à 3). Traiter les deux statuts pareil
+        // retire cette fuite d'information : rien n'indique où l'app pense
+        // que le récitateur en est tant que ce n'est pas prouvé.
         // SAUF en session de RÉFÉRENCE (demande utilisateur 2026-07-09) :
         // cette session sert à capturer le rythme naturel de lecture (pauses)
         // en suivant le texte des yeux -- masquer le texte n'a pas de sens
         // ici (pas un test de mémoire) et perturbe la lecture normale.
-        opacity = _isReferenceSession ? 1.0 : 0.04;
+        opacity = _isReferenceSession ? 1.0 : 0.0;
         break;
     }
 
@@ -2381,10 +2404,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         borderRadius: BorderRadius.circular(6),
         border: Border(
           bottom: BorderSide(
-            color: isCurrent
-                ? AppColors.brassLight
-                : (borderTint ??
-                    (underline ? AppColors.brassLight.withOpacity(0.5) : Colors.transparent)),
+            color: borderTint ??
+                (underline ? AppColors.brassLight.withOpacity(0.5) : Colors.transparent),
             width: 2,
           ),
         ),
@@ -2467,7 +2488,17 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       while (debut > 0 && estEnErreur(wordIndex - (local - debut) - 1)) {
         debut--;
       }
-      while (estEnErreur(wordIndex + (fin - local) + 1)) {
+      // ⚠️ BORNER AU VERSET (2026-08-06). `estEnErreur` teste des indices
+      // GLOBAUX alors que `fin` est un indice LOCAL au verset : si les mots en
+      // erreur se poursuivent dans le verset SUIVANT, `fin` sortait du verset
+      // courant et la feuille faisait `sublist(debut, fin+1)` hors bornes ->
+      // RangeError au tap sur un mot en erreur (constaté en production). Le
+      // commentaire ci-dessus disait déjà « on borne l'extension au VERSET » ;
+      // la boucle du haut le faisait (`debut > 0`), celle-ci l'avait oublié.
+      final motsDuVerset =
+          ArabicNormalizer.splitExpectedWords(verse.textUthmani).length;
+      while (fin + 1 < motsDuVerset &&
+          estEnErreur(wordIndex + (fin - local) + 1)) {
         fin++;
         if (fin - local > 12) break; // garde-fou : jamais un verset entier
       }

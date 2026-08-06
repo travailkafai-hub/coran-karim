@@ -363,8 +363,17 @@ class TajweedText extends StatelessWidget {
     // texte canonique) et n'emprunte que la couleur au champ tajwid --
     // jamais ses propres caractères (cf. commentaire de la fonction).
     final allWordSpans = tajweedSpansPerWord(textUthmani, textUthmaniTajweed, base);
-    final start = wordStart ?? 0;
-    final end = wordEnd ?? allWordSpans.length;
+    // BORNES CLAMPÉES (2026-08-06) : `sublist` lève un RangeError dès que la
+    // plage sort du verset. L'appelant calcule `extraitDebut`/`extraitFin` sur
+    // des indices de MOTS qui peuvent déborder -- notamment depuis que la
+    // fenêtre d'écoute s'étend d'un mot avant ET après (demande utilisateur
+    // « 3 mots »), ce qui rend le débordement atteignable en fin de verset.
+    // Constaté en production : « j'ai cliqué sur un mot en erreur, j'ai
+    // RangeError ». On CLAMPE ici plutôt qu'au seul appelant : ce widget est
+    // partagé (feuille d'aide, mode Kindle, coach) et chacun calcule ses
+    // bornes de son côté.
+    final start = (wordStart ?? 0).clamp(0, allWordSpans.length);
+    final end = (wordEnd ?? allWordSpans.length).clamp(start, allWordSpans.length);
     final wordSpans = allWordSpans.sublist(start, end);
     final children = <InlineSpan>[..._leadingSpans()];
     for (var i = 0; i < wordSpans.length; i++) {
@@ -410,8 +419,10 @@ class TajweedText extends StatelessWidget {
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty && ArabicNormalizer.normalize(w).isNotEmpty)
         .toList();
-    final start = wordStart ?? 0;
-    final end = wordEnd ?? allWords.length;
+    // Mêmes bornes clampées que dans le rendu tajwid ci-dessus, et pour la
+    // même raison (RangeError sur `sublist` quand la plage sort du verset).
+    final start = (wordStart ?? 0).clamp(0, allWords.length);
+    final end = (wordEnd ?? allWords.length).clamp(start, allWords.length);
     final words = allWords.sublist(start, end);
     return RichText(
       textDirection: TextDirection.rtl,

@@ -47,7 +47,10 @@ class RecetteScreen extends ConsumerStatefulWidget {
       this.surah = 2,
       this.limite = 20,
       this.depart = 1,
-      this.wav});
+      this.wav,
+      this.normal = false,
+      this.fusion = true,
+      this.preuves = 2});
 
   /// `ecoute` (l'app juge) ou `lecture` (l'app joue le récitateur).
   /// Null = l'utilisateur choisit sur place (accès manuel depuis l'accueil).
@@ -91,6 +94,24 @@ class RecetteScreen extends ConsumerStatefulWidget {
   /// cherché, et tout « gain » annoncé serait du bruit.
   final String? wav;
 
+  /// FORCE le mode normal (CTL) au lieu de la référence habituelle imposée
+  /// par la recette (2026-08-05, mesure de diagnostic ponctuelle -- cf.
+  /// `_ecouter`). Défaut false : tout appel existant du banc n'est pas
+  /// affecté.
+  final bool normal;
+
+  /// Bloc de FUSION de la v2 (2e observation d'un énoncé vu avec le précédent).
+  /// `false` le désactive, pour mesurer l'hypothèse « les aperçus 2/4
+  /// suffisent » en recette RÉELLE. Défaut `true` = comportement en place.
+  final bool fusion;
+
+  /// Nombre de preuves concordantes exigées pour figer un verdict
+  /// (`Decideur.k`). Défaut 2 = comportement en place. Mesuré au banc JVM sur
+  /// Al-Baqara : k=1 ne libère AUCUN vert (la règle `nette` fige déjà un vert
+  /// sur une seule observation attestée) et fige des rouges de position plus
+  /// tôt — 14,24 % → 15,59 % de mots non verts.
+  final int preuves;
+
   @override
   ConsumerState<RecetteScreen> createState() => _RecetteScreenState();
 }
@@ -123,6 +144,11 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
           'mode=${widget.mode ?? "manuel"}');
       // Mode imposé par l'intent : on enchaîne sans attendre un tap.
       if (widget.mode == 'ecoute') {
+        // AVANT tout démarrage : la chaîne v2 est recréée au prochain bloc
+        // audio, donc le drapeau doit être posé avant que la capture s'ouvre.
+        await ref
+            .read(recitationVerifierProvider)
+            .v2SetFusion(widget.fusion, preuves: widget.preuves);
         if (widget.wav != null) {
           ref.read(recitationVerifierProvider).wavRejoue = widget.wav;
           DiagnosticLog.log('RECETTE', 'source deterministe : ${widget.wav}');
@@ -202,6 +228,7 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
               // Le récitateur ne dit pas la Basmala : la garder décalerait les
               // deux téléphones de quatre mots dès le départ.
               sansBasmala: widget.mode == 'ecoute',
+              forcerModeNormal: widget.normal,
             )));
   }
 

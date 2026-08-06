@@ -278,6 +278,7 @@ void showTajwidHelpSheet(
                       _ListenRangeControl(
                         verse: verse,
                         localWordIndex: localWordIndex,
+                        globalWordIndex: wordIndex,
                       ),
                     ],
                     if (wordIndex != null && focusWord != null) ...[
@@ -330,7 +331,16 @@ void showTajwidHelpSheet(
 class _ListenRangeControl extends ConsumerStatefulWidget {
   final Verse verse;
   final int localWordIndex;
-  const _ListenRangeControl({required this.verse, required this.localWordIndex});
+
+  /// Index GLOBAL du mot dans la session — nécessaire pour retrouver la voix
+  /// du récitateur, que la chaîne v2 indexe globalement (pas par verset).
+  /// `null` hors session (feuille ouverte depuis la lecture normale).
+  final int? globalWordIndex;
+  const _ListenRangeControl({
+    required this.verse,
+    required this.localWordIndex,
+    this.globalWordIndex,
+  });
 
   @override
   ConsumerState<_ListenRangeControl> createState() => _ListenRangeControlState();
@@ -339,8 +349,14 @@ class _ListenRangeControl extends ConsumerStatefulWidget {
 enum _Range { wordOnly, withPrevious, withBoth }
 
 class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
-  _Range _range = _Range.withPrevious;
+  // TROIS MOTS PAR DÉFAUT (demande utilisateur 2026-08-06 : « élargis la page
+  // un peu pour qu'il puisse écouter 3 mots, un mot avant et un mot après »).
+  // Un mot isolé s'écoute mal : l'attaque et la liaison portent une bonne
+  // partie de ce qu'on cherche à entendre.
+  _Range _range = _Range.withBoth;
   bool _playing = false;
+  bool _playingVoix = false;
+  String? _erreurVoix;
 
   (int, int) get _bounds => switch (_range) {
         _Range.wordOnly => (0, 0),
@@ -362,6 +378,41 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
       );
     } finally {
       if (mounted) setState(() => _playing = false);
+    }
+  }
+
+  /// MA VOIX — rejoue l'audio EXACT qui a servi à juger ces mots (2026-08-06).
+  ///
+  /// Ce n'est pas une reconstitution : la chaîne v2 garde le flux brut en
+  /// mémoire (300 s) et chaque mot jugé porte ses bornes absolues dedans, donc
+  /// on redonne à entendre l'échantillon qui a produit le verdict. C'est la
+  /// seule façon de trancher « j'ai mal dit » contre « le modèle a mal
+  /// entendu » — question posée en boucle pendant les analyses de session.
+  Future<void> _playVoix() async {
+    final g = widget.globalWordIndex;
+    if (g == null) return;
+    setState(() {
+      _playingVoix = true;
+      _erreurVoix = null;
+    });
+    try {
+      final (before, after) = _bounds;
+      final chemin = await ref
+          .read(recitationVerifierProvider)
+          .v2ExtraitVoix(g - before, g + after);
+      if (!mounted) return;
+      if (chemin == null) {
+        // Cas légitimes : audio sorti de l'anneau (session longue), ou mots
+        // sans position connue. On le DIT plutôt que de rester muet — un
+        // bouton qui ne fait rien est indiscernable d'un bug.
+        setState(() => _erreurVoix = 'Audio plus disponible');
+        return;
+      }
+      await WordCorrectionAudio.playFile(chemin);
+    } catch (e) {
+      if (mounted) setState(() => _erreurVoix = 'Lecture impossible');
+    } finally {
+      if (mounted) setState(() => _playingVoix = false);
     }
   }
 
@@ -431,6 +482,45 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
               ),
             ),
           ),
+          // ── MA VOIX (2026-08-06) ──────────────────────────────────────────
+          // Seulement EN SESSION : hors récitation il n'y a aucun flux brut à
+          // rejouer, et un bouton qui ne peut pas marcher ne doit pas
+          // s'afficher.
+          if (widget.globalWordIndex != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  side: const BorderSide(color: AppColors.brass),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _playingVoix ? null : _playVoix,
+                icon: Icon(
+                  _playingVoix
+                      ? Icons.graphic_eq_rounded
+                      : Icons.record_voice_over_outlined,
+                  color: AppColors.brass,
+                ),
+                label: Text(
+                  _playingVoix ? 'Lecture…' : 'Ma voix',
+                  style: GoogleFonts.manrope(
+                      fontWeight: FontWeight.w700, color: AppColors.brass),
+                ),
+              ),
+            ),
+            if (_erreurVoix != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  _erreurVoix!,
+                  style: GoogleFonts.manrope(
+                      fontSize: 11, color: AppColors.green700.withOpacity(0.7)),
+                ),
+              ),
+          ],
         ],
       ),
     );

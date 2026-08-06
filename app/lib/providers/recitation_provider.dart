@@ -188,6 +188,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// text-diff. Le passer à false suffit à revenir au comportement v1.
   static const bool _v2PiloteAffichage = true;
 
+  /// Le passage dans le chemin v1 (`_onAligned`) a-t-il déjà été journalisé
+  /// pour cette session ? Remis à faux à chaque démarrage. Cf. le bloc `[V1]`
+  /// en tête de `_onAligned` : instrumentation de nettoyage (2026-08-06).
+  bool _v1AlignJournalise = false;
+
   /// Exposé pour que l'écran sache si l'ancre v1 a encore un sens (elle est
   /// figée quand la v2 pilote : la v1 ne décode plus).
   bool get v2PiloteAffichage => _v2PiloteAffichage;
@@ -1945,9 +1950,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     final newWords = _wordsFromText(moreArabicText);
     if (newWords.isEmpty) return;
     state = state.copyWith(words: [...state.words, ...newWords]);
-    await _verifier
-        .extendAlignmentTarget(newWords.map((w) => w.alignTarget).toList(),
-            refMinFrames: _refMinFrames(newWords));
+    final cible = newWords.map((w) => w.alignTarget).toList();
+    await _verifier.extendAlignmentTarget(cible,
+        refMinFrames: _refMinFrames(newWords));
+    // v2 A SA PROPRE CIBLE, cf. v2ExtendTarget : sans cet appel, la chaîne
+    // qui pilote vraiment l'écran restait figée à sa taille de départ pour
+    // toute la session (2026-08-05).
+    await _verifier.v2ExtendTarget(cible);
   }
 
   /// Variante verset-consciente de [extendWords] : annote les règles tajwid
@@ -1960,9 +1969,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     final newWords = _wordsFromSegments(segments);
     if (newWords.isEmpty) return;
     state = state.copyWith(words: [...state.words, ...newWords]);
-    await _verifier
-        .extendAlignmentTarget(newWords.map((w) => w.alignTarget).toList(),
-            refMinFrames: _refMinFrames(newWords));
+    final cible = newWords.map((w) => w.alignTarget).toList();
+    await _verifier.extendAlignmentTarget(cible,
+        refMinFrames: _refMinFrames(newWords));
+    // v2 A SA PROPRE CIBLE, cf. v2ExtendTarget : sans cet appel, la chaîne
+    // qui pilote vraiment l'écran restait figée à sa taille de départ pour
+    // toute la session (2026-08-05).
+    await _verifier.v2ExtendTarget(cible);
   }
 
   Future<void> start() async {
@@ -1980,6 +1993,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       status: RecitationStatus.listening,
       rawTranscript: '',
     );
+    _v1AlignJournalise = false; // nouvelle session -> nouvelle ligne [V1]
     _tokenSub = _verifier.tokens.listen(_onToken);
     _levelSub = _verifier.soundLevel
         .listen((lvl) => state = state.copyWith(soundLevel: lvl));
@@ -2133,6 +2147,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // premier takbir plutôt que de découvrir un réseau indisponible en pleine
     // salât.
     if (_confidentMode) unawaited(_ensureFatihaWords());
+    _v1AlignJournalise = false; // nouvelle session -> nouvelle ligne [V1]
     _tokenSub = _verifier.tokens.listen(_onToken);
     _levelSub = _verifier.soundLevel
         .listen((lvl) => state = state.copyWith(soundLevel: lvl));
@@ -2233,6 +2248,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       continuous: true,
       prayerPhase: PrayerPhase.standby,
     );
+    _v1AlignJournalise = false; // nouvelle session -> nouvelle ligne [V1]
     _tokenSub = _verifier.tokens.listen(_onToken);
     _levelSub = _verifier.soundLevel
         .listen((lvl) => state = state.copyWith(soundLevel: lvl));
@@ -2967,7 +2983,32 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         _ => null, // `inconnu` : aucune preuve, donc aucune couleur
       };
       if (statut == null) continue;
-      // ── TAJWID : règle ATTENDUE et jamais vue malgré deux bons regards ────
+      // ── LA BISMILLAH N'EST JAMAIS JUGÉE (2026-08-06) ─────────────────────
+      //
+      // Demande utilisateur répétée depuis longtemps, restée sans effet sur ce
+      // chemin : « je veux qu'elle ne soit pas jugée et qu'elle soit
+      // facilement mise en vert ».
+      //
+      // POURQUOI ELLE NE L'ÉTAIT PLUS. Les garde-fous `isBasmala` existent
+      // bien (cf. `_onAligned`, plus bas) mais vivent tous dans la v1. La
+      // chaîne v2 ne connaît PAS la Bismillah -- aucune occurrence côté
+      // Kotlin -- donc depuis qu'elle pilote l'affichage, ces protections ont
+      // cessé de s'appliquer sans que personne le décide. Même famille de
+      // régression que le contrôle tajwid juste en dessous.
+      //
+      // MESURE (session v61 du 2026-08-06) : mots 0 `بِسْمِ` et 1 `ٱللَّهِ`
+      // déclarés `omis` -- le verdict le plus grave -- avec gop -16,70 et
+      // -18,71 et `entendu=""`. Or le projet a établi dès le 2026-07-20 que le
+      // modèle est structurellement mal calibré sur ces 4 mots (récités ~44 %
+      // plus vite dans le corpus, trois pistes d'entraînement, même échec) :
+      // ce n'est pas une faute du récitant, et le condamner est faux.
+      //
+      // On force donc `correct`, jamais un verdict négatif. C'est une
+      // EXEMPTION ASSUMÉE et bornée à 4 mots, pas une tolérance ajoutée au
+      // jugement : ces mots ne sont pas mieux jugés, ils ne sont plus jugés
+      // du tout -- décision utilisateur du 2026-07-20, reconduite ici.
+      final estBasmala = words[c.index].isBasmala;
+      final statutBase = estBasmala ? WordStatus.correct : statut;
       //
       // Ce contrôle existait depuis le 2026-07-20 (« le mode tajwid vérifie
       // enfin le tajwid ») mais vivait dans `_onAligned`, donc dans la v1. Il
@@ -2998,8 +3039,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // le jugement des lettres reste strictement inchangé (décision
       // utilisateur 2026-07-20 : « en mode adulte, ne pas faire l'idgham ou la
       // qalqala, ça ne fait pas une erreur ; avec mode tajweed, oui »).
-      var statutFinal = statut;
-      if (statut == WordStatus.correct && c.tajwidFiable) {
+      // `statutBase` et non `statut` : la Bismillah est déjà forcée à
+      // `correct` plus haut, et le contrôle tajwid ci-dessous ne doit pas la
+      // redégrader (elle n'est PAS jugée, tajwid compris).
+      var statutFinal = statutBase;
+      if (!estBasmala && statutBase == WordStatus.correct && c.tajwidFiable) {
         final manquantes = unrealizedRulesFor(c.index, c.detectedRules);
         if (manquantes.isNotEmpty) {
           statutFinal = WordStatus.unclear;
@@ -3096,6 +3140,27 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   }
 
   void _onAligned(AlignPayload p) {
+    // ── PREUVE QUE LE CHEMIN v1 NE SERT PLUS (2026-08-06, demande
+    // utilisateur : instrumenter la v1 pour pouvoir NETTOYER le code).
+    //
+    // `_onAligned` est le juge de la v1. Il porte encore des mécanismes que la
+    // v2 n'a jamais eus -- les garde-fous `isBasmala`, le report tajwid, le
+    // plancher de durée -- et c'est précisément ce qui a fait croire qu'ils
+    // s'appliquaient encore : ils ont cessé de tourner le jour où la v2 a pris
+    // l'affichage, sans que personne le décide (défaut retrouvé DEUX fois
+    // aujourd'hui : contrôle tajwid, puis Bismillah déclarée `omis`).
+    //
+    // UNE ligne par session, pas une par passe : ce qu'on veut savoir est
+    // binaire -- ce code s'exécute-t-il, oui ou non ? Zéro ligne `[V1]` sur
+    // une session entière = la v1 est morte et peut être retirée. Une seule
+    // ligne = elle tourne encore, et il faut instruire AVANT de supprimer.
+    if (!_v1AlignJournalise) {
+      _v1AlignJournalise = true;
+      DiagnosticLog.log('V1',
+          '_onAligned S\'EXÉCUTE (v2PiloteAffichage=$_v2PiloteAffichage '
+          'useGop=$_useGopScoring mots=${p.words.length}) '
+          '-- ce chemin porte les gardes isBasmala/tajwid que la v2 n\'a pas');
+    }
     // Tourne TOUJOURS (calcule + logue [GOP]), même si useGopScoring=false --
     // demande utilisateur 2026-07-20 : comparer les deux méthodes en
     // parallèle sur la même session, pas juste basculer l'une ou l'autre à
@@ -4339,6 +4404,21 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     state = state.copyWith(status: RecitationStatus.processing, soundLevel: 0);
 
     await _verifier.stop(); // enfile le dernier segment, retourne vite
+
+    // FERMER LA CHAÎNE v2 (2026-08-06) : dernière analyse de la queue d'audio,
+    // hors grille. La grille de fenêtres cesse d'avancer dès que le récitateur
+    // se tait, donc SANS cet appel les derniers mots prononcés restent
+    // `provisoire` -- donc NON VERTS -- à jamais. Mesuré : mot `تَنْهَرْ` à
+    // gop 0,00 et texte exact, resté non vert parce que la session s'est
+    // arrêtée juste après lui. `ChaineRecitation.terminer()` existait depuis
+    // le début pour ça, mais n'était appelé que par le banc WAV.
+    //
+    // Placé APRÈS `stop()` : la queue doit être complète avant d'être
+    // analysée. ⚠️ Ces statuts ne remontent PAS par le chemin habituel (la
+    // réponse de `feed()`, qui ne sera plus appelée) : c'est
+    // `FastConformerCtcVerifier.v2Terminer` qui les réinjecte lui-même dans
+    // le flux, pour que `_onV2` les applique comme les autres.
+    await _verifier.v2Terminer();
 
     // Si la file était déjà vide au moment du stop (dernier segment invalide
     // ou pas de nouveau segment), _onPendingChanged ne sera pas redéclenché.

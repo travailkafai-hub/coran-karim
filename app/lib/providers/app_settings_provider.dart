@@ -21,6 +21,26 @@ class AutoCorrectionSettingNotifier extends StateNotifier<bool> {
     _restore();
   }
 
+  /// ⚠️ COURSE CORRIGEE LE 2026-08-05 : le notifier demarre a `true` en dur,
+  /// puis lit la valeur PERSISTEE en asynchrone. Ce provider n'etant cree
+  /// qu'au PREMIER `ref.read`, et ce premier read etant justement celui de la
+  /// premiere correction, celle-ci lisait le defaut `true` avant l'arrivee du
+  /// `false` sauvegarde -- les suivantes lisaient la vraie valeur.
+  ///
+  /// SYMPTOME MESURE (log device, session 22:46) : reglage persiste a `false`,
+  /// et pourtant
+  ///     22:46:43  1re correction  -> wordFailed -> Correction-Audio  (passe)
+  ///     22:46:50  2e decrochage   -> IGNORE : correction desactivee
+  ///     22:47:09  3e decrochage   -> IGNORE : correction desactivee
+  /// « toujours le deuxieme KO », systematique et non aleatoire -- c'est
+  /// exactement la signature d'un defaut d'initialisation, pas d'un hasard.
+  ///
+  /// CORRECTIF : le provider est desormais cree DES L'OUVERTURE de l'ecran de
+  /// recitation (cf. KaraokeRecitationScreen._initAsync), soit plusieurs
+  /// secondes avant la premiere correction possible -- la lecture asynchrone a
+  /// donc largement le temps d'aboutir. La course n'est plus atteignable en
+  /// pratique, et le defaut reste documente ici pour qu'on ne la reintroduise
+  /// pas en supprimant ce prechargement.
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getBool(_kPrefAutoCorrection);

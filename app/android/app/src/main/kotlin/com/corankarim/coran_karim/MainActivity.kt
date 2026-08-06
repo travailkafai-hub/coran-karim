@@ -41,10 +41,31 @@ class MainActivity : FlutterActivity() {
                     val d = intent?.getIntExtra("depart", 1) ?: 1
                     val w = intent?.getStringExtra("wav")
                     intent?.removeExtra("wav")
+                    // `--ez normal true` (2026-08-05) : la recette impose
+                    // TOUJOURS le mode reference (cf. RecetteScreen). Ce drapeau
+                    // permet EXCEPTIONNELLEMENT de forcer le mode normal pour
+                    // une seule mesure de diagnostic -- verifier qu'un audio
+                    // deterministe qui se juge bien en reference se comporte
+                    // pareil sous SAUT REFUSE/decrochage (actifs uniquement en
+                    // normal). Defaut false : n'importe quel appel existant du
+                    // banc continue de forcer la reference comme avant.
+                    val normal = intent?.getBooleanExtra("normal", false) ?: false
+                    intent?.removeExtra("normal")
+                    // `--ez fusion false` : coupe le BLOC DE FUSION pour la
+                    // mesure (cf. FastConformerCtcPlugin.v2Fusion). Defaut
+                    // true = comportement en place, aucun appel existant du
+                    // banc n'est affecte.
+                    val fusion = intent?.getBooleanExtra("fusion", true) ?: true
+                    intent?.removeExtra("fusion")
+                    // `--ei preuves 1` : Decideur.k, cf. FastConformerCtcPlugin.
+                    val preuves = intent?.getIntExtra("preuves", 2) ?: 2
+                    intent?.removeExtra("preuves")
                     result.success(
                         if (m == null) null
                         else mapOf("mode" to m, "sourate" to s, "versets" to n,
-                                   "depart" to d, "wav" to w))
+                                   "depart" to d, "wav" to w, "normal" to normal,
+                                   "fusion" to fusion,
+                                   "preuves" to preuves))
                 } else result.notImplemented()
             }
     }

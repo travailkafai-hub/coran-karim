@@ -91,11 +91,42 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     // de demarrage), un mode absent doit se comporter comme l'usage reel,
     // jamais comme la recette.
     @Volatile private var v2Mode = "CTL"
+
+    /** L'etat v1/v2 a-t-il deja ete journalise pour cette session ? Remis a
+     *  faux par `v2SetTarget` (nouvelle cible = nouvelle session). Cf. le bloc
+     *  `[V1]` dans `feed` : on veut UNE ligne par session, pas une par bloc
+     *  PCM (~12/s). */
+    @Volatile private var v1EtatJournalise = false
+
+    /** Bloc de FUSION actif ? Defaut `true` = comportement mesure et en place.
+     *  Pilotable par `v2SetFusion` pour mesurer l'hypothese « les apercus 2/4
+     *  suffisent » sur device, en recette de reference. */
+    @Volatile private var v2Fusion = true
+
+    /** Nombre de preuves concordantes exigees pour FIGER un verdict (Decideur.k).
+     *  Pilotable par `v2SetFusion(preuves:)` pour tester en recette REELLE
+     *  l'autre moitie de l'hypothese « une seule ligne 2/4 suffit ».
+     *  MESURE JVM PREALABLE (Al-Baqara 433 s, 295 mots, meme audio, meme
+     *  denominateur) -- k=1 ne fait PAS gagner, il fait perdre :
+     *      fusion=true  k=2 : 14,24 %   fusion=true  k=1 : 15,59 %
+     *      fusion=false k=2 : 19,32 %   fusion=false k=1 : 20,00 %
+     *  Raison : un VERT ne passe deja PAS par k (cf. la regle `nette` du
+     *  Decideur, qui fige sur UNE observation attestee). k ne retient que les
+     *  NON-verts ; l'abaisser ne libere aucun vert, il fige des rouges de
+     *  position plus tot. Les 12 mots qui changent d'etat vont tous de
+     *  provisoire non-vert a definitif non-vert, aucun ne devient vert. */
+    @Volatile private var v2Preuves = 2
     private val scope = CoroutineScope(Dispatchers.Default)
+
+    /** Cache de l'app -- seul besoin : ecrire l'extrait de voix rejoue au tap
+     *  sur un mot (cf. `v2ExtraitVoix`). Capture ici parce que le plugin n'a
+     *  aucun autre acces au contexte. */
+    private var cacheDir: java.io.File? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(binding.binaryMessenger, "com.corankarim/fastconformer_ctc")
         channel.setMethodCallHandler(this)
+        cacheDir = binding.applicationContext.cacheDir
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -465,7 +496,34 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // securite, il ne consomme simplement plus rien tant que la
                     // v2 fait mieux (2,03 % contre 10,10 %).
                     val v1Coupee = v2Actif && v2Mots.isNotEmpty()
+                    // ── PREUVE QUE LA v1 NE SERT PLUS (2026-08-06, demande
+                    // utilisateur : « rajoute du log V1 pour s'assurer que
+                    // rien ne se declenche et que rien n'est necessaire au
+                    // fonctionnement de la v2, comme ca on nettoie le code »).
+                    //
+                    // Journalise UNE FOIS par session, pas a chaque bloc PCM
+                    // (~12 appels/s : le log serait inutilisable et fausserait
+                    // la mesure du temps reel). Ce qu'on veut savoir tient en
+                    // une ligne : la v1 a-t-elle ete instanciee, et a-t-elle
+                    // consomme de l'audio ?
+                    //
+                    // Lecture : si `v1Coupee=true` et `bufferedExiste=false`
+                    // sur toute une session, alors AUCUN code v1 n'a tourne et
+                    // la suppression est sans risque. Si `bufferedExiste=true`
+                    // alors qu'on est en v2, c'est un reste d'une session
+                    // precedente -- a instruire avant de supprimer quoi que ce
+                    // soit.
+                    if (!v1EtatJournalise) {
+                        v1EtatJournalise = true
+                        DiagnosticLog.log(TAG, "[V1] etat au 1er bloc : " +
+                            "v1Coupee=$v1Coupee v2Actif=$v2Actif " +
+                            "v2Mots=${v2Mots.size} bufferedExiste=${buffered != null} " +
+                            "-- si v1Coupee et !bufferedExiste, la v1 ne tourne pas")
+                    }
                     if (buffered == null && !v1Coupee) {
+                        DiagnosticLog.log(TAG, "[V1] INSTANCIATION de " +
+                            "BufferedTranscriber -- la v1 VA tourner (v2Actif=$v2Actif " +
+                            "v2Mots=${v2Mots.size})")
                         buffered = BufferedTranscriber(current)
                         pendingCommitSilenceMs?.let { buffered!!.setCommitSilenceMs(it) }
                         buffered!!.setNeverBlockAnchor(pendingNeverBlockAnchor)
@@ -767,7 +825,92 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "v2SetTarget" -> {
                 v2Mots = call.argument<List<String>>("mots") ?: emptyList()
                 v2Chaine = null // recree au prochain bloc audio, avec la cible
+                v1EtatJournalise = false // nouvelle session -> nouvelle ligne [V1]
                 DiagnosticLog.log(TAG, "[v2] cible = ${v2Mots.size} mots")
+                result.success(null)
+            }
+            // Agrandit la cible EN COURS DE SESSION (2026-08-05, enchainement
+            // de page) SANS recreer la chaine -- v2SetTarget mettrait
+            // v2Chaine a null, ce qui perdrait l'ancre et tous les mots deja
+            // verrouilles au prochain bloc audio. Cf. le commentaire de
+            // ChaineRecitation.etendreTexte pour la mesure qui l'impose.
+            // LA VOIX DU RECITATEUR sur une plage de mots, ecrite en WAV et
+            // rendue par son chemin (2026-08-06). Cf.
+            // ChaineRecitation.voixSurPlage : c'est l'audio EXACT qui a servi a
+            // juger ces mots, pas une reconstitution.
+            //
+            // Fichier ECRASE a chaque appel (`voix_extrait.wav`) : c'est une
+            // ecoute immediate pendant la recitation, pas un enregistrement a
+            // conserver -- inutile d'accumuler des fichiers dans le cache.
+            // FERMER LA SESSION : derniere analyse de la queue d'audio, hors
+            // grille (2026-08-06). `ChaineRecitation.terminer()` existait
+            // depuis le debut et son commentaire disait deja pourquoi --
+            // « sans cet appel, les derniers mots resteraient PROVISOIRES a
+            // jamais, la grille cesse d'avancer des que le recitateur se
+            // tait » -- mais il n'etait appele QUE par le banc WAV
+            // (`v2AnalyserWav`). Sur une vraie session : jamais.
+            //
+            // MESURE (session v61, 2026-08-06) : le recitateur s'arrete apres
+            // le mot 39 `تَنْهَرْ`, gop=0,00, texte exact, 3 observations --
+            // et le mot reste `provisoire` donc NON VERT, faute d'une
+            // derniere passe. Constat utilisateur : « le dernier mot prononce
+            // mais pas juge, pourtant je me suis arrete, normalement il doit
+            // etre juge ».
+            // Bascule le bloc de FUSION (cf. v2Fusion). Recree la chaine pour
+            // que le changement prenne effet au prochain bloc audio.
+            "v2SetFusion" -> {
+                v2Fusion = call.argument<Boolean>("actif") ?: true
+                v2Preuves = call.argument<Int>("preuves") ?: 2
+                v2Chaine = null
+                DiagnosticLog.log(TAG,
+                    "[v2] bloc de fusion = $v2Fusion, preuves exigees = $v2Preuves")
+                result.success(null)
+            }
+            "v2Terminer" -> {
+                val chaine = v2Chaine
+                if (chaine == null) {
+                    result.success(null)
+                } else {
+                    val changements = chaine.terminer()
+                    DiagnosticLog.log(TAG, "[v2] session fermee : " +
+                        "${changements.size} mot(s) finalise(s)")
+                    result.success(changements.map { c ->
+                        mapOf("i" to c.motIndex, "statut" to nomStatut(c.statut))
+                    })
+                }
+            }
+            "v2ExtraitVoix" -> {
+                val d = call.argument<Int>("motDebut") ?: -1
+                val f = call.argument<Int>("motFin") ?: -1
+                val chaine = v2Chaine
+                if (chaine == null || d < 0 || f < d) {
+                    DiagnosticLog.log(TAG, "[v2] extrait voix REFUSE : " +
+                        "chaine=${chaine != null} motDebut=$d motFin=$f")
+                    result.success(null)
+                } else {
+                    val pcm = chaine.voixSurPlage(d, f)
+                    if (pcm == null || pcm.isEmpty()) {
+                        // Cas legitime : l'audio est sorti de l'anneau (plus de
+                        // 300 s), ou aucun de ces mots n'a de position connue.
+                        // On le DIT plutot que de rendre un fichier vide.
+                        DiagnosticLog.log(TAG, "[v2] extrait voix INDISPONIBLE " +
+                            "mots $d..$f (hors anneau ou aucune position)")
+                        result.success(null)
+                    } else {
+                        val p = "${cacheDir?.absolutePath}/voix_extrait.wav"
+                        WavWriter.writeMono16k(p, pcm)
+                        DiagnosticLog.log(TAG, "[v2] extrait voix mots $d..$f : " +
+                            "${"%.2f".format(pcm.size / 16000.0)}s -> $p")
+                        result.success(p)
+                    }
+                }
+            }
+            "v2ExtendTarget" -> {
+                val plus = call.argument<List<String>>("mots") ?: emptyList()
+                v2Mots = v2Mots + plus
+                v2Chaine?.etendreTexte(plus)
+                DiagnosticLog.log(TAG, "[v2] cible etendue : +${plus.size} mots "
+                    + "-> ${v2Mots.size} mots (chaine active=${v2Chaine != null})")
                 result.success(null)
             }
             // ── CHAINE v2 (package recitation2) — BANC SUR AUDIO REEL ────────
@@ -983,6 +1126,8 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             if (chaine == null) {
                 val tk = CtcTokenizer(moteur.vocabPieces, wordTokenLookup)
                 chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
+                    decideur = com.corankarim.coran_karim.recitation2
+                        .Decideur(k = v2Preuves),
                     front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
                     tokeniser = { mot -> tk.tokenizeWord(mot) },
                     // CURSEUR GLISSANT toutes les 3 s -- fenetre de LONGUEUR
@@ -1055,7 +1200,21 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                             // PORTE ICI SANS REVALIDATION : le modele tete3
                             // n'est ni final-v1 ni v4-phrases. A confirmer au
                             // banc JVM avant de faire confiance a ce sens-la.
-                            pauseMinSecondes = 0.25),
+                            pauseMinSecondes = 0.25,
+                            // BLOC DE FUSION pilotable depuis Dart (2026-08-06).
+                            // Hypothese utilisateur : « les apercus 2/4 se
+                            // recouvrent de 2 s, ils peuvent s'en sortir seuls,
+                            // le second chemin fait trop de controle ».
+                            // Banc JVM (Al-Baqara 433 s, 295 mots, meme audio) :
+                            //   fusion=true  -> 359 blocs, 1494 obs, 14,24 %
+                            //   fusion=false -> 279 blocs,  879 obs, 19,32 %
+                            // Soit 41 % d'observations en moins : beaucoup de
+                            // mots n'atteignent jamais leur 2e preuve et
+                            // restent `provisoire`, donc non verts. Le banc
+                            // tournait toutefois en repli glouton de
+                            // tokenisation -- d'ou ce drapeau, pour trancher
+                            // sur DEVICE en recette de reference.
+                            fusionner = v2Fusion),
                     // Tokenisation SILENCIEUSE : une confusion est un mot
                     // volontairement hors-Coran, quasi jamais dans le
                     // dictionnaire precalcule -- logger chaque repli en ferait

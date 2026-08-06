@@ -152,6 +152,32 @@ class Localisateur(
         val (score, _, attestes) =
             apparier(entendus, attendus, min, entendusAvecFrames, max)
         if (score < minAppariements || attestes.isEmpty()) return null
+
+        // UN SEUL APPARIEMENT SUR UN MOT QUI SE REPETE NE SUFFIT PAS
+        // (2026-08-05). Ne touche PAS a [minAppariements] (=1), deja mesure
+        // et retenu contre 2 (4,5% de fenetres refusees / 1,68% de mots non
+        // verts, contre 26% / 9,24% -- cf. le commentaire de
+        // [minAppariements]). Ce meme commentaire nommait deja le risque
+        // sans le traiter : « un mot tres frequent (`مِن`, `إِن`) qui place
+        // la bande au hasard dans une region de 92 mots ».
+        //
+        // MESURE QUI L'IMPOSE (session live, 2026-08-05) : le recitateur
+        // repete "إِنَّ" (mot 40, verset 2:6) pendant plus d'une minute sans
+        // que l'ancre n'avance -- `minAppariements=1` a laisse un unique
+        // appariement fortuit sur "إِن"/"مِن" ailleurs dans la region de
+        // recherche (]min,max], 92 mots) poser toute la bande au mauvais
+        // endroit, HORS de la vraie position. Avec un seul mot attendu comme
+        // preuve, rien ne distingue laquelle de ses occurrences est la bonne.
+        //
+        // Avec DEUX appariements concordants, la SEQUENCE elle-meme leve
+        // l'ambiguite (la LCS exige que le second mot suive le premier dans
+        // le bon ordre relatif) -- on ne touche donc qu'au cas score == 1.
+        if (score == 1) {
+            val seulIdx = attestes.keys.first()
+            val texte = attendus[seulIdx]
+            val repetitions = (min..max).count { attendus[it] == texte }
+            if (repetitions > 1) return null
+        }
         // Attestation EXACTE : le texte brut entendu est-il, caractere pour
         // caractere, le mot attendu ? C'est la seule qui vaut preuve.
         val exacts = HashSet<Int>()
@@ -285,11 +311,145 @@ class Localisateur(
 
     /** Egalite exacte apres normalisation, ou prefixe long (>= 3 lettres) —
      *  un mot tronque par le decodage libre ne doit pas casser la LOCALISATION
-     *  (il sera de toute facon juge par l'alignement force, pas ici). */
+     *  (il sera de toute facon juge par l'alignement force, pas ici).
+     *
+     *  ── LE SQUELETTE SUFFIT A LOCALISER (2026-08-06, idee utilisateur) ─────
+     *
+     *  Le prefixe ne rattrape QUE les troncatures : une seule lettre fausse AU
+     *  MILIEU cassait tout l'appariement, alors que le mot restait
+     *  reconnaissable.
+     *
+     *  MESURE QUI L'IMPOSE (log device 07:49:30-07:49:39, mot 26 وَوَجَدَكَ) :
+     *  le decodage libre a produit QUATRE lectures instables du meme son --
+     *  `ووجسك`, `ووجتك`, `ووجزسك` -- jamais le `د`. Aucune ne passait le
+     *  prefixe (divergence en 4e position), donc AUCUNE bande : ancre figee au
+     *  mot 25 pendant 12 s, decrochage, puis cinq SAUT REFUSE quand le
+     *  localisateur est parti accrocher les mots 31-35. Le mot etait pourtant
+     *  bien dit -- c'est la reconnaissance qui hesitait, pas le recitateur.
+     *
+     *  POURQUOI CE N'EST PAS UN ASSOUPLISSEMENT DU JUGEMENT. Une bande n'est
+     *  qu'une HYPOTHESE DE POSITION (cf. le commentaire de [minAppariements]).
+     *  Le verrouillage, lui, continue d'exiger l'attestation EXACTE, harakat
+     *  comprises (`attestesExacts`, compare le texte BRUT au mot attendu) --
+     *  ce chemin-la n'est pas touche. On rend donc le localisateur capable de
+     *  dire « c'est ce mot-la » sans lui donner le droit de dire « il est
+     *  juste ». Le graphe porte deja la regle : « normaliser pour TROUVER,
+     *  comparer exactement pour CONFIRMER ».
+     *
+     *  LE CRITERE, ET POURQUOI DEUX CONDITIONS. La plus longue sous-sequence
+     *  commune (les lettres partagees DANS L'ORDRE) doit valoir au moins
+     *  3 lettres ET couvrir 60 % du mot attendu. Les deux sont necessaires :
+     *  3 lettres seules suffiraient sur presque n'importe quel mot long (faux
+     *  appariement garanti sur un texte qui se repete), et un pourcentage seul
+     *  laisserait passer des mots de 2-3 lettres sur une seule lettre commune
+     *  -- exactement le piege des mots frequents (`مِن`, `إِن`) deja nomme.
+     *
+     *  ⛔ TENTE PUIS RETIRE LE MEME JOUR -- MESURE A L'APPUI, NE PAS REFAIRE
+     *  SANS BANC. Deux formes ont ete essayees et REFUTEES :
+     *
+     *  (1) sous-sequence commune >= 3 lettres ET >= 60 % du mot attendu.
+     *      Teste d'abord sur 10 cas CHOISIS PAR MOI, tous des variantes d'un
+     *      meme mot : ca passait. Puis teste sur les 227 mots attendus REELS
+     *      extraits des logs de session, toutes paires : **1119 paires de mots
+     *      DIFFERENTS s'appariaient** alors qu'elles ne le faisaient pas avant
+     *      -- `ءامنوا`~=`كانوا` (lcs 4/5), `ءامنا`~=`الناس` (3/5),
+     *      `ءانذرتهم`~=`انهم` (4/4). Cause : la sous-sequence ignore les
+     *      lettres INTERCALEES, donc deux mots sans rapport partagent
+     *      facilement un squelette.
+     *
+     *  (2) une seule substitution, meme longueur, >= 4 lettres. Bien meilleur
+     *      (30 faux appariements au lieu de 1119) mais toujours dangereux :
+     *      il apparie `تقهر`~=`تنهر`, deux mots de la MEME sourate 93 a quatre
+     *      mots d'ecart (versets 9 et 10), et `اليس`~=`اليك`. Un faux
+     *      appariement sur un mot voisin pose la bande au mauvais endroit --
+     *      precisement le blocage qu'on cherchait a supprimer.
+     *
+     *  (3) SOCLE sans l'article `ال` et sans proclitiques (idee utilisateur :
+     *      « le socle du mot, exclu AL »). Meilleur que (1) -- 48 faux
+     *      appariements a 60 %, 7 a 100 % -- mais DEGRADE le cas cible : sans
+     *      analyse morphologique, retirer un `و` initial mange la RACINE des
+     *      mots ou il en fait partie. `ووجدك` (racine وجد) devient `جدك`, donc
+     *      la comparaison ne porte plus que sur 3 lettres et `جسك`~`جدك` tombe
+     *      a 2/3 = 67 %. Effet de bord constate au passage : `الله` devient
+     *      `له`. Heuristique a rejeter sans vrai stemmer.
+     *
+     *  ── LE TABLEAU, MESURE SUR LES MOTS REELS DES SESSIONS ────────────────
+     *      critere                        faux appariements   rattrape ووجدك
+     *      sous-sequence 3 + 60 %                197              oui
+     *      1 substitution, >= 4 lettres            4              partiel
+     *      socle sans AL, 60 %                    48              NON (degrade)
+     *      socle sans AL, 100 %                    7              non
+     *      PREFIXE seul                            0              non
+     *      >>> 1 LETTRE D'ECART, mot >= 5          2              OUI  <<<
+     *
+     *  RETENU : « une lettre d'ecart » (distance d'edition <= 1), qui accepte
+     *  la lettre remplacee ET la lettre manquante. Les 2 faux restants sont
+     *  intrinseques : `متربة`~`مقربة` (une lettre les separe vraiment) et
+     *  `والذين`~`الذين` (le waw de conjonction, deux formes du meme mot que
+     *  l'alignement force departagera). A 2 lettres d'ecart on retombe a 18
+     *  faux : la marge est etroite, ne pas y toucher sans refaire la mesure.
+     *
+     *  Mesure faite en fenetre REELLE de recherche (-12/+80) et non toutes
+     *  paires : l'utilisateur a justement objecte que l'appariement ne balaie
+     *  que la region en cours. Resserrer la fenetre n'aide PAS -- meme a 2
+     *  mots d'ecart il reste 9 faux appariements, et ce sont les pires
+     *  (`الرحمن`~`الرحيم`, `والضحى`~`والليل` : voisins immediats). L'arabe
+     *  coranique met cote a cote des mots au squelette proche ; la proximite
+     *  AUGMENTE l'ambiguite au lieu de la reduire.
+     *
+     *  LECON DE METHODE : n'evaluer un critere d'appariement que sur le
+     *  VOCABULAIRE REEL, dans la FENETRE REELLE, toutes paires confondues --
+     *  jamais sur des exemples choisis pour reussir. Le texte coranique se
+     *  repete, c'est ce qui rend tout assouplissement couteux.
+     *
+     *  Le cas qui motivait tout ca (mot 26 `وَوَجَدَكَ` decode `ووجسك` /
+     *  `ووجتك` / `ووجزسك`, ancre figee 12 s le 2026-08-06) reste donc NON
+     *  RESOLU ici. Piste a instruire au banc (`BancFluxBrut`) et non a l'oeil,
+     *  cf. `[MESURE] 83 % des refus de localisation = fenetre trop pauvre` :
+     *  la vraie cause est peut-etre la FENETRE donnee au decodage libre, pas
+     *  le critere de comparaison. */
     private fun correspond(entendu: String, attendu: String): Boolean {
         if (entendu == attendu) return true
         val n = minOf(entendu.length, attendu.length)
-        if (n < 3) return false
-        return entendu.regionMatches(0, attendu, 0, n)
+        if (n >= 3 && entendu.regionMatches(0, attendu, 0, n)) return true
+        // (4) UNE SEULE LETTRE D'ECART -- la forme RETENUE (idee utilisateur :
+        // « une lettre d'écart, ce n'est pas grave »). Mesuree la meilleure des
+        // cinq essayees : 2 faux appariements dans la fenetre reelle, contre
+        // 197 pour la sous-sequence. Elle accepte la lettre REMPLACEE comme la
+        // lettre MANQUANTE -- c'est ce qui la distingue de « meme longueur, 1
+        // substitution » et lui fait rattraper `ودك` -> `ودعك` (ع avale).
+        // Plancher a 5 lettres : en dessous, une lettre d'ecart change trop la
+        // proportion du mot (`الم`/`لم`, `من`/`ما`).
+        if (attendu.length < MIN_LETTRES_EDITION) return false
+        return distanceEdition(entendu, attendu) <= MAX_EDITION
+    }
+
+    /** Distance de Levenshtein BORNEE : des que l'ecart de longueur depasse
+     *  [MAX_EDITION] la reponse est connue, on ne calcule rien. Sur des mots de
+     *  quelques lettres le cout est negligeable devant une inference. */
+    private fun distanceEdition(a: String, b: String): Int {
+        if (kotlin.math.abs(a.length - b.length) > MAX_EDITION) return MAX_EDITION + 1
+        var prec = IntArray(b.length + 1) { it }
+        for (i in 1..a.length) {
+            val cur = IntArray(b.length + 1)
+            cur[0] = i
+            for (j in 1..b.length) {
+                val sub = prec[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1
+                cur[j] = minOf(prec[j] + 1, cur[j - 1] + 1, sub)
+            }
+            prec = cur
+        }
+        return prec[b.length]
+    }
+
+    private companion object {
+        /** Une lettre d'ecart, pas deux : a 2, les faux appariements passent de
+         *  2 a 18 sur le meme vocabulaire (`ءامنوا`~`كانوا`, `الرحيم`~`الرحمن`). */
+        const val MAX_EDITION = 1
+        /** Mot attendu assez long pour qu'une lettre d'ecart reste un detail.
+         *  A 4 lettres on rattrape deja `ألم`~`أليم` ; a 5 il ne reste que deux
+         *  faux, tous deux intrinsequement ambigus (`متربة`~`مقربة`, et
+         *  `والذين`~`الذين` que l'alignement force tranchera de toute facon). */
+        const val MIN_LETTRES_EDITION = 5
     }
 }

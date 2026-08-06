@@ -654,6 +654,78 @@ class FastConformerVerifier {
     } catch (_) {}
   }
 
+  /// Agrandit la cible v2 EN COURS DE SESSION, SANS recréer la chaîne (donc
+  /// sans perdre l'ancre ni les mots déjà verrouillés) -- 2026-08-05,
+  /// enchaînement de page (`_maybeExtendNextPage`). Avant cet appel,
+  /// l'enchaînement de page ne touchait QUE l'ancien aligneur v1
+  /// (`extendAlignmentTarget`) : la cible v2, celle qui pilote vraiment
+  /// l'écran, restait figée à sa taille de départ pour toute la session --
+  /// tout mot enchaîné devenait structurellement hors de portée du
+  /// localisateur/décrochage, quel que soit le réglage de patience.
+  Future<void> v2ExtendTarget(List<String> mots) async {
+    if (!_loaded || mots.isEmpty) return;
+    try {
+      await _channel.invokeMethod('v2ExtendTarget', {'mots': mots});
+    } catch (_) {}
+  }
+
+  /// LA VOIX DU RÉCITATEUR sur les mots [motDebut]..[motFin] (inclus), écrite
+  /// en WAV — c'est l'audio EXACT qui a servi à juger ces mots, extrait du
+  /// flux brut encore en mémoire (cf. `ChaineRecitation.voixSurPlage`).
+  ///
+  /// Retourne `null` quand l'audio n'est plus disponible (sorti de l'anneau de
+  /// 300 s) ou qu'aucun de ces mots n'a de position connue — cas légitimes,
+  /// l'appelant doit le dire à l'utilisateur plutôt que de jouer du vide.
+  /// Active/désactive le BLOC DE FUSION (2e observation d'un énoncé, vu avec
+  /// le précédent). Défaut `true` = comportement mesuré et en place.
+  ///
+  /// Existe pour trancher sur DEVICE l'hypothèse « les aperçus 2/4 suffisent,
+  /// le second chemin fait trop de contrôle ». Banc JVM (Al-Baqara 433 s,
+  /// 295 mots) : fusion=true 14,24 % de non verts / 1494 observations ;
+  /// fusion=false 19,32 % / 879 observations. Le banc tournait toutefois en
+  /// repli glouton de tokenisation -- d'où ce drapeau pour la recette réelle.
+  Future<void> v2SetFusion(bool actif, {int preuves = 2}) async {
+    if (!_loaded) return;
+    try {
+      await _channel.invokeMethod(
+          'v2SetFusion', {'actif': actif, 'preuves': preuves});
+    } catch (_) {}
+  }
+
+  /// FERME la session v2 : dernière analyse de la queue d'audio, hors grille.
+  /// Sans cet appel, les derniers mots prononcés restent PROVISOIRES à jamais
+  /// (la grille de fenêtres cesse d'avancer dès que le récitateur se tait) --
+  /// mesuré le 2026-08-06 : mot `تَنْهَرْ` à gop 0,00, texte exact, resté non
+  /// vert parce que la session s'est arrêtée juste après.
+  /// @return les mots finalisés par cette dernière passe : `(index, statut)`.
+  /// L'appelant DOIT les réinjecter dans le flux de statuts -- ils ne
+  /// remontent pas par le chemin habituel, qui est la réponse de `feed()`.
+  Future<List<({int index, String statut})>> v2Terminer() async {
+    if (!_loaded) return const [];
+    try {
+      final r = await _channel.invokeMethod<List<dynamic>>('v2Terminer');
+      if (r == null) return const [];
+      return r
+          .map((e) => (
+                index: (e['i'] as num).toInt(),
+                statut: e['statut'] as String,
+              ))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<String?> v2ExtraitVoix(int motDebut, int motFin) async {
+    if (!_loaded) return null;
+    try {
+      return await _channel.invokeMethod<String>(
+          'v2ExtraitVoix', {'motDebut': motDebut, 'motFin': motFin});
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Mode de la chaîne v2 CÔTÉ NATIF -- premier maillon du cloisonnement
   /// contrôle/test (REFONTE_IHM.md §14, demande utilisateur 2026-08-05 :
   /// « je veux que tout le process soit dupliqué, aucune communication, tout

@@ -101,8 +101,47 @@ object Orthographe {
                     .replace(ALIF_WASLA.toString(), "ا")
             )
         }
+        // 7) MADD TENU PLUS LONGTEMPS : lettre d'allongement DOUBLEE
+        //    (2026-08-06, idee utilisateur).
+        //
+        //    Le CTC emet un token par pic ; quand le recitateur tient un madd
+        //    plus longtemps que la duree canonique, le decodage libre ecrit la
+        //    lettre d'allongement DEUX FOIS. L'alignement force, lui, doit
+        //    alors etaler les tokens de la forme canonique sur plus de frames,
+        //    et son score MOYEN PAR FRAME baisse -- le mot sort orange alors
+        //    qu'il est bien prononce.
+        //
+        //    MESURE (session v61, 2026-08-06, preset ADULTE donc sans tajwid) :
+        //      mot 30 `عَآئِلًا` -> orange, gop=-1,18 forced=-1,52 free=-0,34,
+        //      entendu `عَاآئِلًا` -- un alif de plus, seul ecart.
+        //
+        //    C'est bien la MEME PRONONCIATION, seulement plus tenue : la regle
+        //    d'entree de ce fichier est donc respectee (« une variante ne
+        //    rentre ici que si elle se prononce STRICTEMENT pareil »). Ce
+        //    n'est pas symetrique du cas RETIRE en (2) : la, on blanchissait un
+        //    madd RACCOURCI -- une voyelle breve la ou il faut une longue,
+        //    c'est-a-dire une vraie faute. Ici la voyelle est longue et le
+        //    reste ; seule sa duree depasse le canon, ce qui n'est une faute
+        //    dans AUCUN preset (et surtout pas en mode adulte).
+        //
+        //    L'aligneur retient le MEILLEUR score parmi les variantes : si le
+        //    recitateur n'allonge pas, la forme canonique gagne et rien ne
+        //    change. Cette variante ne peut donc que rattraper un allongement,
+        //    jamais degrader un mot normal.
+        for (lettre in ALLONGEMENT) {
+            val i = mot.indexOf(lettre)
+            if (i >= 0) {
+                out.add(mot.substring(0, i) + lettre + mot.substring(i))
+                break // une seule variante de ce type, cf. MAX
+            }
+        }
         return out.take(MAX)
     }
 
-    private const val MAX = 6
+    /** Lettres porteuses d'allongement (madd) : alif, waw, ya. */
+    private val ALLONGEMENT = charArrayOf('ا', 'و', 'ي')
+
+    // 6 -> 7 : la variante « madd tenu » ci-dessus s'ajoute aux six formes
+    // d'ecriture equivalentes deja generees, sans en evincer aucune.
+    private const val MAX = 7
 }

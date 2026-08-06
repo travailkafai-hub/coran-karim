@@ -271,6 +271,25 @@ abstract class RecitationVerifier {
   /// recette par accident.
   Future<void> v2Activer(bool actif, List<String> mots, {String mode = 'CTL'}) async {}
 
+  /// Agrandit la cible v2 EN COURS DE SESSION, SANS recréer la chaîne (donc
+  /// sans perdre l'ancre ni les mots déjà verrouillés) -- 2026-08-05. Même
+  /// rôle que [extendAlignmentTarget] mais côté v2 (v1 et v2 ont chacun leur
+  /// propre cible native, cf. le commentaire de v2SetTarget). No-op par
+  /// défaut. Words = formes `alignTarget`, PAS les formes training du v1.
+  Future<void> v2ExtendTarget(List<String> mots) async {}
+
+  /// LA VOIX DU RÉCITATEUR sur les mots [motDebut]..[motFin] (inclus), en WAV.
+  /// C'est l'audio EXACT qui a servi à juger ces mots. `null` si l'audio n'est
+  /// plus disponible. No-op par défaut.
+  Future<String?> v2ExtraitVoix(int motDebut, int motFin) async => null;
+
+  /// FERME la session v2 (dernière analyse de la queue d'audio). Sans elle les
+  /// derniers mots prononcés restent PROVISOIRES. No-op par défaut.
+  Future<void> v2Terminer() async {}
+
+  /// Active/désactive le BLOC DE FUSION de la v2 (mesure). No-op par défaut.
+  Future<void> v2SetFusion(bool actif, {int preuves = 2}) async {}
+
   /// Vrai si l'alignement forcé est actif pour la session courante (cible
   /// déclarée + modèle chargé). Faux → le scoring doit retomber sur le diff
   /// textuel historique.
@@ -1011,6 +1030,41 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     await _fastConformer.v2SetEnabled(actif);
   }
 
+  @override
+  Future<void> v2ExtendTarget(List<String> mots) =>
+      _fastConformer.v2ExtendTarget(mots);
+
+  @override
+  Future<String?> v2ExtraitVoix(int motDebut, int motFin) =>
+      _fastConformer.v2ExtraitVoix(motDebut, motFin);
+
+  @override
+  Future<void> v2SetFusion(bool actif, {int preuves = 2}) =>
+      _fastConformer.v2SetFusion(actif, preuves: preuves);
+
+  @override
+  Future<void> v2Terminer() async {
+    // Les statuts de cette dernière passe ne remontent PAS par le chemin
+    // habituel (la réponse de `feed()`, cf. `_v2Ctrl.add(v2)` plus haut) :
+    // `feed` ne sera plus appelé, la capture est arrêtée. On les réinjecte
+    // donc nous-mêmes dans le même flux, pour que `_onV2` les applique
+    // exactement comme les autres.
+    final finaux = await _fastConformer.v2Terminer();
+    if (finaux.isEmpty) return;
+    _v2Ctrl.add(finaux
+        .map((e) => (
+              index: e.index,
+              statut: e.statut,
+              trace: 'fermeture de session',
+              heard: '',
+              detectedRules: <TajwidRule>{},
+              // false : pas de contrôle tajwid sur cette passe -- il exige
+              // deux observations pleines, que la fermeture ne fournit pas.
+              tajwidFiable: false,
+            ))
+        .toList());
+  }
+
   /// Niveau approx (RMS -> pseudo-dBFS -> [0,1]) pour l'animation du halo,
   /// calculé directement sur le PCM reçu (pas d'API getAmplitude() en mode
   /// startStream — les deux mécanismes du package `record` sont distincts).
@@ -1346,6 +1400,14 @@ class MockRecitationVerifier implements RecitationVerifier {
 
   @override
   Future<void> v2Activer(bool actif, List<String> mots, {String mode = 'CTL'}) async {}
+  @override
+  Future<void> v2ExtendTarget(List<String> mots) async {}
+  @override
+  Future<String?> v2ExtraitVoix(int motDebut, int motFin) async => null;
+  @override
+  Future<void> v2Terminer() async {}
+  @override
+  Future<void> v2SetFusion(bool actif, {int preuves = 2}) async {}
   @override
   bool get alignmentActive => false;
   @override

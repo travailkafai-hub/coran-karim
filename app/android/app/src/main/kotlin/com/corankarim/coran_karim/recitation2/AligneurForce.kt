@@ -347,6 +347,28 @@ class AligneurForce(
             prev = cur
         }
         val fin = logSomme(prev[l - 1], if (l >= 2) prev[l - 2] else neginf)
+        // ── LA SENTINELLE NE SE DIVISE PAS (2026-08-06) ─────────────────────
+        //
+        // `fin` vaut [neginf] quand AUCUN chemin CTC n'existe. La diviser par
+        // le nombre de frames en fait une valeur FINIE et plausible : sur
+        // 3 frames, -1e30 / 3 = -3,33e29. Tous les gardes en aval testent
+        // `<= neginf` (donc `<= -1e30`) et laissent alors passer cette
+        // valeur -- la sentinelle cesse d'etre reconnaissable.
+        //
+        // CONSTATE EN PRODUCTION (log device, 2026-08-06, build v56) :
+        //     margeL=3.333333383491554e+29
+        // c'est-a-dire `f - (-3,33e29)`. La marge positive est benigne (le
+        // Decideur ne condamne que sur marge NEGATIVE), mais le meme defaut
+        // dans l'autre sens -- `f` sentinelle, concurrente normale -- produit
+        // une marge massivement NEGATIVE et donc un ROUGE VERROUILLE SANS
+        // AUCUNE PREUVE ACOUSTIQUE, ce que la regle projet interdit.
+        //
+        // MEME BUG, DEJA PAYE UNE FOIS : `Tete3Traits` comparait lui aussi le
+        // score DIVISE a la sentinelle, « si bien qu'au-dela de 2 frames il ne
+        // filtrait plus rien -- alt2 a -2,5e29 et un logit a 3,7e29 ». Corrige
+        // la-bas le 2026-08-05, jamais ici. On filtre donc AVANT la division,
+        // sur le score BRUT, et la sentinelle ressort intacte.
+        if (fin <= neginf) return neginf
         val n = (a - de + 1).coerceAtLeast(1)
         return fin / n
     }
