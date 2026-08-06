@@ -124,8 +124,15 @@ LIGNE0=$("$ADB" -s "$SAMSUNG" shell "wc -l < $LOG" 2>/dev/null | tr -d '\r ' )
 case "$LIGNE0" in ''|*[!0-9]*) LIGNE0=0 ;; esac
 DEPUIS=$((LIGNE0 + 1))
 
+# NORMAL=1 : force le mode normal (CTL) au lieu de la reference habituelle
+# (2026-08-05, mesure de diagnostic ponctuelle -- cf. le commentaire de
+# KaraokeRecitationScreen.forcerModeNormal). Defaut vide : comportement
+# inchange, la recette reste en reference.
+EXTRA_NORMAL=""
+[ -n "${NORMAL:-}" ] && EXTRA_NORMAL="--ez normal true"
+
 "$ADB" -s "$SAMSUNG" shell am start -n $PKG/.MainActivity \
-    --es recette ecoute --ei sourate "$SOURATE" --ei depart "$DEPART" $EXTRA_WAV >/dev/null
+    --es recette ecoute --ei sourate "$SOURATE" --ei depart "$DEPART" $EXTRA_WAV $EXTRA_NORMAL >/dev/null
 # Aucun tap ici : l'intent `ecoute` fait atterrir DANS la recitation deja
 # demarree (cf. KaraokeRecitationScreen.autoDemarrer).
 CENTRE=$("$ADB" -s "$SAMSUNG" shell wm size | tr -d '\r' | sed 's/.*: //' | awk -Fx '{print int($1/2), int($2/2)}')

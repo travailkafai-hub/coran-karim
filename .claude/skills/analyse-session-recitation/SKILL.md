@@ -10,6 +10,131 @@ Ce skill existe parce que cette analyse a été refaite une dizaine de fois le
 glissée à chaque fois**. Les pièges ci-dessous sont tous des erreurs réellement
 commises ce jour-là, pas des précautions théoriques.
 
+---
+
+## ⚠️ LIRE EN PREMIER — LA CHAÎNE A CHANGÉ (mise à jour 2026-08-06)
+
+Ce skill a été écrit pour la **v1**. La chaîne qui peint l'écran est aujourd'hui
+la **v2** (`recitation2/`, ligne `[CTL][V2]`). Une grande partie des lignes de
+log citées plus bas **n'existe plus** — chercher un mécanisme mort, c'est
+conclure « il n'a pas tourné » sur un code qui a été supprimé.
+
+**Vérifié par comptage sur une session v2 réelle (build `v56`, 2026-08-06,
+9 670 lignes) :**
+
+| marqueur cité dans ce skill | occurrences | statut |
+|---|---|---|
+| `[GOP] … lock=true` | **0** | mort — remplacé par `[CTL][V2] mot=` |
+| `segment FIGE` / `apercu reutilise` | **0** | mort — **plus de gel, plus de « borne dure »** |
+| `ZERO FRAME` | **0** | mort |
+| `secours mot=` | **0** | mort — **il n'y a plus de 2ᵉ buffer** |
+| `AVANCE SANS JUGER` | **0** | mort |
+| `RESYNC` | **0** | mort |
+| `VALIDATION retard=` | **0** | mort |
+| `ETRANGLE PAR LA REFERENCE` | **0** | mort |
+
+⇒ **Les étapes 3 bis (chemin de gel) et 3 ter (2ᵉ buffer) ne s'appliquent plus.**
+Elles sont conservées telles quelles plus bas — règle projet : on n'efface pas
+la trace de ce qui a été tenté — mais elles ne concernent que les logs v1
+d'avant le 2026-08. Sur une session v2, la colonne « 2ᵉ buffer » vaut
+systématiquement `sans objet (supprimé par conception)`, et la colonne
+« chemin » vaut `v2`.
+
+### Les marqueurs v2, ceux qu'il faut réellement chercher
+
+| ligne | ce qu'elle dit |
+|---|---|
+| `[CTL][V2] mot=N "x" -> statut \| gop= forced= free= frames= INT margeL= margeH= obs= entendu=""` | le verdict d'un mot, avec toutes ses preuves |
+| `[v2] f=N bande=i0..i1 conf=… interieurs=k/n` | la fenêtre s'est localisée |
+| `[v2] f=N bande=inconnue entendu="…"` | la fenêtre n'a rien pu positionner |
+| `[v2] f=N SAUT REFUSE : trou de T mots apres le mot P (attestes=[…])` | trou > `sautMaxMots` → **toute la fenêtre est jetée** |
+| `[v2] f=N RECUL vers le mot i0` | le récitateur répète |
+| `[v2] f=N horsTexte (saut)? : fenetresHorsTexte=… fenetresAvantDecrochage=…` | compteur avant décrochage |
+| `[v2] f=N DECROCHAGE (saut)? : … dernier atteste vu=… reprise apres le mot R` | le natif signale |
+| `[v2] cible etendue : +k mots -> N mots (chaine active=…)` | enchaînement de page **répercuté au natif** |
+| `[t3] mot=N logit=… ` / `[tajwidDuree] mot=N …` | têtes 2/3, **observation seule, aucun verdict** |
+
+**Statuts possibles** (à lire tels quels, ne pas les traduire) :
+`definitif:vert` `definitif:orange` `definitif:rouge` `provisoire:vert`
+`provisoire:orange` `provisoire:rouge` `omis`.
+
+⚠️ **`provisoire:*` en fin de session = mot JAMAIS VERROUILLÉ.** C'est un
+non-vert, au même titre qu'un rouge — le compter, ne jamais le lire comme
+« vert » sous prétexte que le mot est `provisoire:vert`.
+
+⚠️ **`omis` = « le récitateur n'a pas dit ce mot »**, le verdict le plus grave
+de l'app. Mesuré le 2026-08-06 : deux `omis` (mots 44-45, Bismillah d'une
+nouvelle sourate) alors que le flux brut la contient clairement. **Tout `omis`
+doit être confronté au WAV, sans exception.**
+
+## Étape 0 (v2) — LA CHAÎNE DU DÉCROCHAGE, ET SES CINQ MORTS SILENCIEUSES
+
+Ajoutée le 2026-08-06 après une soirée entière passée à corriger le mauvais
+maillon. Un décrochage doit traverser **quatre étages** ; il peut mourir à
+chacun, et il est longtemps mort **sans laisser une seule ligne**.
+
+```
+[v2] DECROCHAGE (natif Kotlin)
+   ↓
+[CTL][Decrochage] signalé par la v2 -- reprise=R      (pont natif → Dart)
+   ↓
+[CTL][Correction] wordFailed déclenché : raison=…     (_onWordFailed)
+   ↓
+[CTL][Correction-Audio] verset=… fromIdx=… toIdx=…    (audio réellement joué)
+```
+
+**Compter les quatre, et comparer.** `DECROCHAGE=25` mais
+`Decrochage signalé=14` et `wordFailed=8` : ce sont **deux fuites**, pas un
+détail. Les causes connues, dans l'ordre où on les rencontre :
+
+| étage perdu | cause | journalisé ? |
+|---|---|---|
+| natif → Dart | `if (_confidentMode) return;` (mode prière) | **non** — trou de diagnostic |
+| natif → Dart | `if (state.status != RecitationStatus.listening) return;` | **non** — trou de diagnostic |
+| `_onWordFailed` | réglage correction désactivé | oui (`IGNORÉ … désactivée`) |
+| `_onWordFailed` | anti-rafale (cooldown 4 s) | oui (`IGNORÉ … anti-rafale`) |
+| `_onWordFailed` | `verset=null` → **Bismillah / hors versets chargés** | oui (`IGNORÉ … position introuvable`) |
+
+**Le piège de la jonction de sourates (mesuré 2026-08-06).** À l'enchaînement
+de page, la reprise tombe sur la Bismillah insérée ; `_verseContaining` y rend
+`null`, donc **la correction ne peut jamais partir** — deux fois de suite dans
+la même session. Vérifier systématiquement :
+
+```bash
+grep -c "IGNORÉ.*position introuvable" $S   # >0 => decrochage impuissant
+```
+
+**Vérifier aussi le mode AVANT de conclure quoi que ce soit :**
+
+```
+[CTL][PARAMS] session=NORMALE correction=active ancreSansBlocage=false modeConfiant=false
+```
+
+`modeConfiant=true` **coupe le décrochage à la source**. Une session en mode
+confiant ne valide AUCUN correctif de décrochage — le dire, et ne pas la
+compter. Erreur commise le 2026-08-06 : deux sessions sur quatre étaient en
+mode confiant, avec 53 et 25 `SAUT REFUSE`, chiffres qui ne prouvaient rien.
+
+## Étape 0 bis (v2) — LA CIBLE A-T-ELLE SUIVI L'ÉCRAN ?
+
+Défaut trouvé le 2026-08-05, resté invisible des semaines : l'enchaînement de
+page mettait à jour l'écran **et l'ancien aligneur v1**, jamais la cible
+**v2** — celle qui juge réellement. La cible restait figée à sa taille de
+départ, et tout mot au-delà était structurellement hors de portée
+(localisateur et décrochage sont bornés par `motsAttendus.size`).
+
+```bash
+grep -m1 "PARAMS] cible=" $S          # cible au DEMARRAGE
+grep    "cible etendue"    $S          # doit apparaitre a chaque page enchainee
+grep -oE 'nouvelle position max|mot=[0-9]+' $S | ...   # ancre max atteinte
+```
+
+**Si `ancre max` dépasse la cible initiale sans aucune ligne `cible etendue`,
+l'analyse est faussée** : les mots au-delà ne pouvaient pas être jugés, et tout
+« taux » calculé dessus est faux.
+
+---
+
 ## Règle n°1 — ne JAMAIS omettre les mots non jugés
 
 L'utilisateur l'a redemandé deux fois : *« il y a aussi les non jugés à blanc,
@@ -102,7 +227,16 @@ Pour chaque mot qui n'est pas vert : index, texte attendu, texte entendu,
 Un mot sans cause identifiée est un **trou de diagnostic** : le dire, ne pas le
 ranger dans « divers ».
 
-## Étape 3 bis — Par quel CHEMIN le mot a-t-il été verrouillé ?
+## Étape 3 bis — Par quel CHEMIN le mot a-t-il été verrouillé ? [v1 SEULEMENT]
+
+> **⚠️ OBSOLÈTE SUR LA CHAÎNE v2 (constaté 2026-08-06).** `segment FIGE` et
+> `apercu reutilise` valent **0 occurrence** sur une session v2 : il n'y a plus
+> de gel, donc plus de « chemin borne dure ». Section conservée pour lire les
+> logs v1 d'archive et parce qu'elle porte une leçon de méthode qui reste vraie
+> (« comparer les taux, pas les effectifs » ; « zéro trace = zéro exécution,
+> vérifier dans le CODE que le garde peut être vrai » — c'est exactement ce qui
+> a permis de trouver les morts silencieuses de l'Étape 0).
+> Sur une session v2, la colonne « chemin » du tableau vaut `v2`.
 
 Ajoutée le 2026-07-27 après une erreur d'analyse coûteuse : j'ai écrit que les
 mots non secourus avaient « `covered = true`, donc mon signal est le mauvais »
@@ -150,7 +284,14 @@ zéro exécution, et **aucune ligne de log** pour le dire. Chercher `grep -c` su
 la ligne que le mécanisme DEVRAIT produire est le premier réflexe, avant toute
 hypothèse sur son déclencheur.
 
-## Étape 3 ter — Le 2ᵉ buffer : TOUS les secours, un par ligne
+## Étape 3 ter — Le 2ᵉ buffer : TOUS les secours, un par ligne [v1 SEULEMENT]
+
+> **⚠️ OBSOLÈTE SUR LA CHAÎNE v2 (constaté 2026-08-06).** `secours mot=` vaut
+> **0 occurrence** : le 2ᵉ buffer a été **supprimé par conception** en v2 (le
+> recouvrement des fenêtres fait le travail en amont, cf. l'en-tête de
+> `ChaineRecitation`). Sur une session v2 la colonne « 2ᵉ buffer » vaut
+> `sans objet (supprimé par conception)` — ce n'est **pas** un mécanisme mort à
+> instruire, c'est une absence voulue. Section conservée pour les logs v1.
 
 Demande explicite de l'utilisateur (2026-07-28) : *« sur tous les rattrapages tu
 dois inclure ça dans ta méthode d'analyse »*. Donner « 15 rattrapages sur 35 »
@@ -258,6 +399,52 @@ Le mécanisme C **ne sera corrigé par aucun découpage** — c'est l'ancre.
 Vérifier aussi les **rattrapages** (`unclear` puis `correct` sur une passe
 suivante) : ils prouvent que le premier verdict était un artefact.
 
+## Étape 4 bis (v2) — LE BALAYAGE TEMPOREL DU FLUX BRUT, À FOURNIR TOUJOURS
+
+Demande explicite de l'utilisateur (2026-08-06) : *« ça m'intéresse, avec les
+temps 3-6, 6-9… ce que le modèle reçoit, ça m'aide à analyser »*. Ce balayage
+n'est pas une vérification ponctuelle réservée aux mots douteux : c'est une
+**sortie standard de l'analyse**, à donner en entier.
+
+**Pourquoi il tranche là où le log ne peut pas.** Le log dit ce que la chaîne a
+*conclu* ; le balayage dit ce que le modèle *reçoit*, seconde par seconde, hors
+de toute politique de fenêtrage. Les deux se lisent l'un contre l'autre :
+
+| ce qu'on voit | ce que ça prouve |
+|---|---|
+| le mot est décodé net dans le brut, mais absent des `attestes` | défaut de la CHAÎNE (fenêtre mal posée), pas du récitateur |
+| le mot est instable d'une fenêtre à l'autre (`ووجسك`/`ووجتك`/`ووجزسك`) | limite du MODÈLE sur ce son |
+| le brut ne contient rien d'exploitable sur la plage | le récitateur s'est arrêté / audio trop pauvre |
+| le même passage revient à deux instants éloignés | RÉPÉTITION — cause n°1 des faux `SAUT REFUSE` |
+
+```bash
+# recuperer le WAV de la session (l'horodatage du dossier == debut de session)
+adb -s <serial> shell "run-as com.corankarim.coran_karim ls -t app_flutter/recitation_captures/ | head -3"
+adb -s <serial> shell "run-as com.corankarim.coran_karim tar cf - -C app_flutter/recitation_captures/<session> ." > s.tar && tar xf s.tar
+# balayer : largeurs 4 s ET 6 s, pas = largeur/2, sur TOUTE la duree
+PYTHONPATH="benchmark/.venv_nemo/lib/python3.14/site-packages" \
+  /usr/bin/python3.14 benchmark/balayer_flux_brut.py <stream_*.wav> 0 <duree>
+```
+
+⚠️ Le venv `.venv_nemo` est **obligatoire** (`onnxruntime` n'est pas dans le
+python système), et son `bin/python3.14` est un symlink cassé : passer par
+`PYTHONPATH` + `/usr/bin/python3.14`, comme ci-dessus. Le HDD porte le SDK
+Android — si Gradle échoue soudain sur « SDK location not found », c'est le
+disque qui s'est démonté, pas le code.
+
+⚠️ **Deux largeurs au minimum, jamais une seule.** Mesure du 2026-07-28 : `عظيم`
+est parfait à 3 s et introuvable à 12 s. Une largeur unique fait conclure
+« absent » sur un mot présent.
+
+**Ce que ce balayage a permis de trancher le 2026-08-06**, et qu'aucune lecture
+de log n'aurait donné : l'utilisateur signalait « il se mêle avec cette
+sourate ». Le balayage a montré Al-Kâfirûn récitée en entier et correctement
+(0-30 s), PUIS répétée (36-48 s). La cible chargée était bien Al-Kâfirûn --
+donc **aucun mélange de sourate** : le vrai mécanisme était la RÉPÉTITION d'un
+passage qui figure deux fois dans la sourate (`وَلَآ أَنتُمْ عَـٰبِدُونَ مَآ
+أَعْبُدُ`). Sans le balayage, l'hypothèse « mauvaise sourate chargée » aurait
+été retenue -- elle avait d'ailleurs été affirmée à tort avant vérification.
+
 ## Étape 5 — Confronter à l'AUDIO, toujours
 
 Un verdict n'est établi qu'après vérification sur le son. Le log seul dit ce que
@@ -319,8 +506,23 @@ chaque session.
 exception :**
 
 ```
-| mot | attendu | entendu | état | forced | free | cause | chemin | dans le WAV ? | 2ᵉ buffer | mécanisme |
+| mot | attendu | entendu | état | gop | forced | free | frames | marge | cause | dans le WAV ? | mécanisme |
 ```
+
+> **FORMAT v2 (2026-08-06).** Les colonnes `chemin` et `2ᵉ buffer` sont
+> retirées : les deux mécanismes qu'elles décrivaient n'existent plus (cf. le
+> bandeau en tête). Trois colonnes les remplacent, toutes disponibles telles
+> quelles dans la ligne `[CTL][V2] mot=` :
+> - **gop** — `forced − free`. Le discriminant principal.
+> - **frames** — nombre de frames émises. `frames=1` sur un mot long est un
+>   signal de troncature/pic d'émission, pas une durée.
+> - **marge** — `margeL` / `margeH` (lettres / harakat). ⚠️ Une valeur en
+>   `e+29` est une **SENTINELLE QUI FUIT**, pas une marge : la lire comme un
+>   score est une faute. Signaler l'anomalie, ne jamais la moyenner.
+>   Observée le 2026-08-06 (`margeL=3.33e+29`) — même famille de défaut que la
+>   sentinelle divisée avant filtrage déjà corrigée dans `Tete3Traits`.
+>
+> Le tableau v1 d'origine reste valable pour relire un log d'archive.
 
 - **mot** — index absolu.
 - **attendu / entendu** — textes bruts du log. `(vide)` si `entendu=""`.
@@ -408,3 +610,11 @@ colonne — jamais laisser croire qu'elle l'a été.
 | « le mot n'est pas dans la transcription, donc absent du WAV » | trois « non » sur trois etaient faux : lettre tombee ou quasi-homophone. Lire les fenetres decodees de la zone |
 | « 16 echecs sur 18 viennent de ce chemin, c'est lui le coupable » | rapporter au trafic : ce chemin portait 89 % des mots et echouait au meme taux. Un effectif n'est pas un taux |
 | « j'ai le fichier du modele sur le PC, c'est le meme » | comparer la taille avec celle du device. Deux exports du meme jour different |
+| « le mecanisme n'a pas tourne, il n'y a aucune ligne » | verifier D'ABORD qu'il existe encore. Sur v2, `secours mot=`/`segment FIGE`/`ZERO FRAME` valent 0 parce que le CODE a ete supprime, pas parce qu'un garde est faux (2026-08-06) |
+| « le decrochage n'est pas detecte » | compter les QUATRE etages (natif / signal / wordFailed / audio). Le 2026-08-06 il etait detecte 25 fois, transmis 14, execute 8 — le defaut etait en aval, pas dans la detection |
+| « la correction ne part pas, donc le seuil est mauvais » | avant de toucher un seuil : lire les `IGNORÉ`. Une soiree entiere de correctifs sur le seuil, alors que la cause etait un REGLAGE persiste a `false` et une course d'initialisation (2026-08-05) |
+| « ce mot est `provisoire:vert`, donc il est vert » | `provisoire` = JAMAIS VERROUILLE = non vert. Le compter comme tel |
+| « l'app dit `omis`, le recitateur a saute ce mot » | `omis` est le verdict le plus grave : le confronter au WAV. Le 2026-08-06, deux `omis` portaient sur une Bismillah parfaitement audible |
+| « l'ancre monte au-dela de la cible, tant mieux » | verifier `cible etendue` : sans elle les mots au-dela ne pouvaient PAS etre juges, et le taux calcule dessus est faux (defaut trouve le 2026-08-05) |
+| « margeL vaut 3e+29, c'est une marge enorme » | c'est une SENTINELLE qui fuit — une valeur inatteignable utilisee comme « pas de candidat ». La lire comme un score fausse toute moyenne |
+| « la session est en mode confiant mais ca teste quand meme » | `modeConfiant=true` coupe le decrochage a la source (`if (_confidentMode) return`). Cette session ne valide RIEN sur le decrochage |

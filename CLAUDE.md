@@ -244,6 +244,27 @@ sur un chemin voisin jamais essayé (lire puis revenir en arrière).
   tenté — les faire disparaître fait perdre cette mémoire pour de bon, aucun
   historique git ne compense un agent qui ne pense pas à `git log -p` avant
   d'agir.
+- **UN RÉSULTAT NÉGATIF ("je ne trouve pas X") EST UNE AFFIRMATION À VÉRIFIER,
+  PAS UN FAIT ACQUIS — ne jamais inventer d'explication autour** (consigne
+  utilisateur 2026-08-05 : « arrête de mentir pour trouver une solution »).
+  Fait précis qui l'a motivée : un `grep` sur "إِنَّ" dans un log a échoué
+  (probablement un problème d'encodage/normalisation Unicode sur le motif de
+  recherche), j'ai conclu « le mot n'apparaît dans aucune ligne de jugement »,
+  et **construit une explication plausible autour de cette absence** (« ce
+  WAV est celui de la session cassée, donc pas un test propre ») au lieu de
+  redouter que la recherche elle-même ait échoué. L'utilisateur a relu le log
+  lui-même et y a trouvé la ligne en clair : le mot était bien jugé vert.
+  L'explication que j'avais fournie était donc entièrement fabriquée pour
+  habiller un résultat faux.
+  ⇒ Avant d'affirmer qu'une chose est absente d'un log/fichier/résultat :
+  vérifier la recherche elle-même (motif, encodage, casse) avec une méthode
+  différente (`grep -c`, ouvrir le fichier, chercher un fragment plus court)
+  avant de conclure à l'absence.
+  ⇒ Ne jamais construire une explication narrative pour justifier un résultat
+  négatif inattendu tant que la fiabilité de la méthode qui a produit ce
+  résultat n'est pas confirmée. Une explication plausible n'est pas une
+  preuve — si elle repose sur un résultat non revérifié, c'est de
+  l'invention, pas un diagnostic.
 
 ## Spécificités de CETTE machine (Ubuntu, RTX 5080 16 Go)
 

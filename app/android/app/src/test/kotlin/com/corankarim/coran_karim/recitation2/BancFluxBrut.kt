@@ -184,7 +184,14 @@ class BancFluxBrut {
         val blank = pieces.size
 
         val registre = RegistreDePreuves()
-        val decideur = Decideur()
+        // -Dk=1 : UNE seule observation suffit a figer (au lieu de deux
+        // fenetres concordantes). Ce n'est PAS un reglage a l'oeil, c'est
+        // l'autre moitie de l'hypothese « les apercus 2/4 se suffisent » : sans
+        // le bloc de FUSION, un mot ne recoit souvent qu'un seul regard, et
+        // exiger deux preuves le laisse provisoire donc NON VERT. Couper la
+        // fusion en gardant k=2 mesure donc un epouvantail, pas l'hypothese.
+        val k = System.getProperty("k")?.toInt() ?: 2
+        val decideur = Decideur(k = k)
         val localisateur = Localisateur(pieces, blank)
         val aligneur = AligneurForce(pieces, blank)
         val tokens = HashMap<String, IntArray>()

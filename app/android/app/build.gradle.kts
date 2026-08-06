@@ -80,7 +80,16 @@ tasks.withType<Test> {
     // Les workers de test ne HERITENT PAS des -D de la ligne de commande : sans
     // ce relais, un balayage de parametres rend trois fois le meme chiffre et
     // on croit que le parametre n'a aucun effet. Piege paye le 2026-07-30.
-    for (k in listOf("pauseMin", "maxBloc", "fusion", "seuilRms", "fautesTous", "typeFaute", "adaptatif")) {
+    for (k in listOf("pauseMin", "maxBloc", "fusion", "seuilRms", "fautesTous", "typeFaute", "adaptatif",
+        // 2026-08-06 : `apercu`/`largeurApercu` MANQUAIENT a cette liste. Le
+        // banc affichait donc 3,0/9,0 (les defauts) quels que soient les -D
+        // passes -- exactement le piege que le commentaire ci-dessus decrit,
+        // reintroduit par omission quand le curseur glissant a ete ajoute.
+        "apercu", "largeurApercu",
+        // "k" : nombre de preuves concordantes exigees pour figer (cf.
+        // Decideur.k). Meme piege que ci-dessus -- sans le relais, tout le
+        // balayage k=1/k=2 rendrait le meme chiffre.
+        "k")) {
         System.getProperty(k)?.let { systemProperty(k, it) }
     }
 }
