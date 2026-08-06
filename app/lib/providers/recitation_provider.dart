@@ -2996,6 +2996,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     if (!_v2PiloteAffichage) return;
     final words = [...state.words];
     var touche = false;
+    final nouveauxEchecs = <int>[];
     for (final c in changements) {
       if (c.index < 0 || c.index >= words.length) continue;
       final definitif = c.statut.startsWith('definitif:');
@@ -3104,10 +3105,28 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // dessin de la couche qui le produit. Les statuts reellement finaux sont
       // ceux prefixes `definitif:`, et eux continuent de verrouiller.
       //
-      // Aucun risque de declencher la correction automatique au passage : un
-      // negatif NON verrouille sans `alignSeq` sort immediatement de `_judge`
-      // (cf. `if (alignSeq == null) return;`), et `_onV2` n'en passe pas.
+      // ── LA CORRECTION NE PARTAIT JAMAIS EN v2 (corrigé 2026-08-06) ─────
+      //
+      // Ce commentaire disait : « aucun risque de déclencher la correction
+      // automatique au passage [...] et `_onV2` n'en passe pas ». L'intention
+      // était juste — ne pas corriger sur un négatif PROVISOIRE — mais l'effet
+      // réel était total : `newErrors` n'étant jamais fourni, `_judge` ne
+      // remplissait rien, et `_wordFailedCtrl` n'était alimenté QUE par
+      // `_onAligned`, c'est-à-dire par la chaîne v1 -- morte depuis que la v2
+      // pilote l'écran (instrumentation `[V1]` : 1 ligne sur toute une
+      // session).
+      //
+      // MESURE (session utilisateur du 2026-08-06, An-Nisâ' 1-4, v85,
+      // `correction=active`) : DEUX mots `definitif:rouge` et
+      // `wordFailed` = 0 occurrence. La correction automatique était donc
+      // structurellement impossible, et tous les réglages de ses conditions
+      // portaient sur une branche que rien n'atteignait.
+      //
+      // Le garde-fou reste entier : `_judge` n'ajoute à `newErrors` que si
+      // `lock && isNegative` -- un rouge PROVISOIRE ne déclenche toujours
+      // rien, ce qui était bien l'intention d'origine.
       _judge(words, c.index, statutFinal, lock: definitif,
+          newErrors: nouveauxEchecs,
           heard: c.heard.isEmpty ? null : c.heard,
           detectedRules: c.detectedRules.isEmpty ? null : c.detectedRules);
       if (c.index > dernierJuge) dernierJuge = c.index;
@@ -3160,6 +3179,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         }
       }
       state = state.copyWith(words: words);
+      // Emis APRES la mise a jour de l'etat : l'ecran karaoke lit
+      // `recitationProvider` dans `_onWordFailed`, il doit y voir le mot
+      // deja verrouille.
+      for (final i in nouveauxEchecs) _wordFailedCtrl.add(i);
     }
   }
 

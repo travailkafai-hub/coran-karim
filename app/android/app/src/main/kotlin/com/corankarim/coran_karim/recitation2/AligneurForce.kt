@@ -141,6 +141,85 @@ class AligneurForce(
 
     private val neginf = -1e30f
 
+    /** Piece -> identifiant, pour construire le graphe des ecritures. */
+    private val idParPiece: Map<String, Int> =
+        pieces.withIndex().associate { (i, p) -> p to i }
+
+    /** Longueur de la plus longue piece : borne la recherche des aretes. */
+    private val pieceMax: Int = pieces.maxOfOrNull { it.length } ?: 1
+
+    /**
+     * ── UN MOT N'A PAS UNE ECRITURE, IL EN A DES DIZAINES ──────────────────
+     *
+     * Graphe des decoupages de [texte] en pieces du vocabulaire : un noeud par
+     * position de caractere, une arete par piece qui commence la. Les chemins
+     * de ce graphe SONT toutes les tokenisations valides du mot.
+     *
+     * DEFAUT QUE CA CORRIGE (2026-08-06, Al-Baqara, session live) :
+     *     mot=42 "كَفَرُوا۟" -> definitif:rouge | gop=-5.33 forced=-5.34
+     *                            free=-0.01 frames=1 obs=4 entendu="كَفَ"
+     * Le flux brut porte le mot ENTIER, lu parfaitement par le modele aux
+     * largeurs 4 s et 6 s, et une fenetre de 11,76 s l'avait au centre avec
+     * 11/11 mots interieurs. Ce n'etait donc ni le modele, ni le fenetrage,
+     * ni un bord. La cible imposait la piece ENTIERE `▁كَفَرُوا۟` (le mot vaut
+     * UN jeton dans `word_tokens.json`) alors que le modele avait EPELE le mot
+     * sur cet audio. Le chemin force n'ayant nulle part ou poser ce jeton
+     * unique, Viterbi l'a ecrase sur une frame -- et `entendu`, qui est le
+     * decodage libre RESTREINT aux frames du mot, ne pouvait rendre qu'un
+     * fragment.
+     * Reproduit au banc (PlancherDureeTest), les deux echecs sont SYMETRIQUES :
+     *     modele emet la piece entiere + cible piece entiere -> 8 frames, gop 0,00
+     *     modele EPELLE                + cible piece entiere -> 1 frame, gop -11,99
+     * Choisir un camp serait donc faux dans l'autre sens. La seule forme juste
+     * est de proposer TOUTES les ecritures et de laisser l'audio trancher.
+     *
+     * AMPLEUR (mesuree sur le vocabulaire du modele deploye) : 4 678 mots sur
+     * 19 001 ont une decomposition de dictionnaire DIFFERENTE du repli glouton
+     * -- dont 184 qui valent un seul jeton. Ce n'est pas un cas particulier.
+     *
+     * POURQUOI ON NE LES ENUMERE PAS : un mot a 68 ecritures valides en
+     * mediane, jusqu'a 1800. Mais elles sont les chemins d'un graphe de 12
+     * noeuds et 19 aretes (medianes mesurees) -- la DP les parcourt toutes
+     * sans jamais en lister une seule. Un fichier qui les listerait ferait a
+     * la main, et mal, ce que le treillis fait gratuitement.
+     *
+     * COUT, chiffre sur une fenetre reelle du log (11,76 s, 11 mots) :
+     * 99 etats -> 209, soit 14 553 -> 30 723 cases de DP. Quelques additions
+     * chacune, contre ~850 ms d'inference d'encodeur sur la meme fenetre : le
+     * DP etait deja un arrondi, il le reste. Il est donc paye sur TOUS les
+     * mots, et c'est voulu -- on ne peut pas savoir a l'avance lequel posera
+     * probleme, cela depend de ce que le modele a produit sur CET audio.
+     *
+     * @return (nombre de noeuds, aretes (depuis, vers, jeton)) ou null si le
+     *   mot n'est pas decomposable (jamais observe : 0 cas sur 19 001).
+     */
+    private fun grapheEcritures(texte: String): Pair<Int, List<IntArray>>? {
+        val s = "\u2581" + texte
+        val n = s.length
+        val aretes = ArrayList<IntArray>()
+        val atteignable = BooleanArray(n + 1)
+        atteignable[0] = true
+        for (i in 0 until n) {
+            if (!atteignable[i]) continue
+            var j = minOf(n, i + pieceMax)
+            while (j > i) {
+                val id = idParPiece[s.substring(i, j)]
+                if (id != null) { aretes.add(intArrayOf(i, j, id)); atteignable[j] = true }
+                j--
+            }
+        }
+        if (!atteignable[n]) return null
+        // On elague les aretes qui ne menent nulle part : sans ca le treillis
+        // porterait des etats morts, et la DP les visiterait pour rien.
+        val utile = BooleanArray(n + 1)
+        utile[n] = true
+        for (k in aretes.indices.reversed()) {
+            val e = aretes[k]
+            if (utile[e[1]]) utile[e[0]] = true
+        }
+        return (n + 1) to aretes.filter { utile[it[0]] && utile[it[1]] }
+    }
+
     /**
      * @param tokensParMot tokens attendus, un tableau par mot de la bande
      * @param indexPremierMot index absolu (dans le texte attendu) du 1er mot
@@ -171,6 +250,12 @@ class AligneurForce(
          *  produire [MotAligne.margeLettres] / [MotAligne.margeHarakat]. */
         confusionsLettresParMot: List<List<IntArray>> = emptyList(),
         confusionsHarakatParMot: List<List<IntArray>> = emptyList(),
+        /** Texte de chaque mot de la bande. Fourni => l'alignement explore
+         *  TOUTES les ecritures du mot (cf. [grapheEcritures]) au lieu de la
+         *  seule tokenisation de [tokensParMot]. Absent => comportement
+         *  d'avant, a l'identique : le banc et les appels sans texte restent
+         *  valides. */
+        textesParMot: List<String> = emptyList(),
     ): Resultat? {
         val t = logprobs.size
         if (t == 0 || tokensParMot.isEmpty()) return null
@@ -186,42 +271,128 @@ class AligneurForce(
         }
         if (mots.isEmpty()) return null
 
-        val proprio = ArrayList<Int>()   // token -> index de mot (relatif a la bande)
-        val tokens = ArrayList<Int>()
-        mots.forEachIndexed { w, toks ->
-            for (tk in toks) { tokens.add(tk); proprio.add(w) }
+        // ── LE TREILLIS ────────────────────────────────────────────────────
+        //
+        // Deux formes, meme DP. Sans [textesParMot] on garde EXACTEMENT le
+        // treillis lineaire d'avant (`[blanc, t1, blanc, t2, ...]`). Avec, on
+        // aligne le MOT et non une tokenisation figee : les etats deviennent
+        // le graphe de toutes ses ecritures (cf. [grapheEcritures]).
+        //
+        // Un etat = soit un BLANC pose sur un noeud du graphe, soit un JETON
+        // pose sur une arete. Les transitions sont celles du CTC, transposees
+        // du chemin lineaire au graphe : rester, passer au blanc suivant,
+        // enchainer deux jetons sans blanc SI leurs identifiants different.
+        val etatToken = ArrayList<Int>()   // jeton emis par l'etat (blank pour un blanc)
+        val etatMot = ArrayList<Int>()     // mot proprietaire, -1 pour un blanc
+        val preds = ArrayList<IntArray>()  // predecesseurs (hors boucle sur soi)
+        var etatsDepart = IntArray(0)
+        var etatsFin = IntArray(0)
+
+        val avecTexte = textesParMot.size == mots.size &&
+            textesParMot.all { it.isNotEmpty() }
+        var graphes: List<Pair<Int, List<IntArray>>>? = null
+        if (avecTexte) {
+            val g = ArrayList<Pair<Int, List<IntArray>>>(mots.size)
+            var complet = true
+            for (m in textesParMot) {
+                val gr = grapheEcritures(m)
+                if (gr == null) { complet = false; break }
+                g.add(gr)
+            }
+            // Un seul mot non decomposable et on retombe sur le treillis
+            // lineaire pour TOUTE la bande : mieux vaut le comportement
+            // d'avant, connu et mesure, qu'un melange des deux. Jamais observe
+            // sur le vocabulaire deploye (0 mot sur 19 001), mais un texte
+            // hors-Coran ou un modele futur pourraient l'atteindre.
+            if (complet) graphes = g
         }
-        if (tokens.isEmpty()) return null
 
-        val l = 2 * tokens.size + 1
-        val s = IntArray(l) { if (it % 2 == 0) blank else tokens[it / 2] }
+        if (graphes != null) {
+            // Noeuds globaux : la fin d'un mot EST le debut du suivant.
+            val offset = IntArray(mots.size + 1)
+            for (w in mots.indices) offset[w + 1] = offset[w] + (graphes[w].first - 1)
+            val nbNoeuds = offset[mots.size] + 1
+            // Blancs d'abord (id = noeud), puis un etat par arete.
+            for (v in 0 until nbNoeuds) { etatToken.add(blank); etatMot.add(-1) }
+            val aretesGlob = ArrayList<IntArray>() // de, vers, jeton, mot
+            for (w in mots.indices) {
+                for (e in graphes[w].second) {
+                    aretesGlob.add(intArrayOf(offset[w] + e[0], offset[w] + e[1], e[2], w))
+                }
+            }
+            for (e in aretesGlob) { etatToken.add(e[2]); etatMot.add(e[3]) }
+            val idArete = { k: Int -> nbNoeuds + k }
+            // Aretes entrantes par noeud, pour construire les predecesseurs.
+            val entrantes = Array(nbNoeuds) { ArrayList<Int>() }
+            val sortantes = Array(nbNoeuds) { ArrayList<Int>() }
+            aretesGlob.forEachIndexed { k, e ->
+                entrantes[e[1]].add(k); sortantes[e[0]].add(k)
+            }
+            for (v in 0 until nbNoeuds) {
+                preds.add(entrantes[v].map { idArete(it) }.toIntArray())
+            }
+            aretesGlob.forEachIndexed { k, e ->
+                val p = ArrayList<Int>()
+                p.add(e[0]) // le blanc pose sur le noeud de depart
+                for (f in entrantes[e[0]]) {
+                    // Deux jetons EGAUX consecutifs exigent un blanc entre eux.
+                    if (aretesGlob[f][2] != e[2]) p.add(idArete(f))
+                }
+                preds.add(p.toIntArray())
+            }
+            etatsDepart = (listOf(0) + sortantes[0].map { idArete(it) }).toIntArray()
+            etatsFin = (listOf(nbNoeuds - 1) +
+                entrantes[nbNoeuds - 1].map { idArete(it) }).toIntArray()
+        } else {
+            val proprio = ArrayList<Int>()
+            val tokens = ArrayList<Int>()
+            mots.forEachIndexed { w, toks ->
+                for (tk in toks) { tokens.add(tk); proprio.add(w) }
+            }
+            if (tokens.isEmpty()) return null
+            val l = 2 * tokens.size + 1
+            for (li in 0 until l) {
+                val tk = if (li % 2 == 0) blank else tokens[li / 2]
+                etatToken.add(tk)
+                etatMot.add(if (li % 2 == 0) -1 else proprio[li / 2])
+            }
+            for (li in 0 until l) {
+                val p = ArrayList<Int>()
+                if (li >= 1) p.add(li - 1)
+                if (li >= 2 && etatToken[li] != blank &&
+                    etatToken[li] != etatToken[li - 2]) p.add(li - 2)
+                preds.add(p.toIntArray())
+            }
+            etatsDepart = if (l > 1) intArrayOf(0, 1) else intArrayOf(0)
+            etatsFin = if (l >= 2) intArrayOf(l - 1, l - 2) else intArrayOf(0)
+        }
 
-        val dp = Array(t) { FloatArray(l) { neginf } }
-        val back = Array(t) { IntArray(l) { -1 } }
-
-        dp[0][0] = logprobs[0][blank]
-        if (l > 1) dp[0][1] = logprobs[0][s[1]]
+        val nbEtats = etatToken.size
+        if (nbEtats == 0) return null
+        val dp = Array(t) { FloatArray(nbEtats) { neginf } }
+        val back = Array(t) { IntArray(nbEtats) { -1 } }
+        for (st in etatsDepart) dp[0][st] = logprobs[0][etatToken[st]]
 
         for (ti in 1 until t) {
             val lp = logprobs[ti]
-            for (li in 0 until l) {
-                var best = dp[ti - 1][li]
-                var arg = li
-                if (li >= 1 && dp[ti - 1][li - 1] > best) { best = dp[ti - 1][li - 1]; arg = li - 1 }
-                if (li >= 2 && s[li] != blank && s[li] != s[li - 2] && dp[ti - 1][li - 2] > best) {
-                    best = dp[ti - 1][li - 2]; arg = li - 2
+            for (st in 0 until nbEtats) {
+                var best = dp[ti - 1][st]   // rester dans le meme etat
+                var arg = st
+                for (pr in preds[st]) {
+                    val v = dp[ti - 1][pr]
+                    if (v > best) { best = v; arg = pr }
                 }
                 if (best <= neginf) continue
-                dp[ti][li] = best + lp[s[li]]
-                back[ti][li] = arg
+                dp[ti][st] = best + lp[etatToken[st]]
+                back[ti][st] = arg
             }
         }
 
-        var fin = l - 1
-        if (l >= 2 && dp[t - 1][l - 2] > dp[t - 1][l - 1]) fin = l - 2
+        var fin = etatsFin[0]
+        for (st in etatsFin) if (dp[t - 1][st] > dp[t - 1][fin]) fin = st
         if (dp[t - 1][fin] <= neginf) return null
 
-        // Retro-propagation : quelle position du treillis occupe chaque frame.
+        // Retro-propagation : quel etat occupe chaque frame.
         val chemin = IntArray(t)
         var cur = fin
         for (ti in t - 1 downTo 0) {
@@ -236,13 +407,13 @@ class AligneurForce(
         val sommeFree = DoubleArray(mots.size)
 
         for (ti in 0 until t) {
-            val li = chemin[ti]
-            if (li % 2 == 0) continue // blanc : n'appartient a aucun mot
-            val w = proprio[li / 2]
+            val st = chemin[ti]
+            val w = etatMot[st]
+            if (w < 0) continue // blanc : n'appartient a aucun mot
             if (premiere[w] < 0) premiere[w] = ti
             derniere[w] = ti
             nb[w]++
-            sommeForced[w] += logprobs[ti][s[li]].toDouble()
+            sommeForced[w] += logprobs[ti][etatToken[st]].toDouble()
             sommeFree[w] += Decodage.maxLogprob(logprobs[ti]).toDouble()
         }
 
@@ -261,6 +432,42 @@ class AligneurForce(
                     if (v.isEmpty()) continue
                     val alt = forwardMoyen(logprobs, premiere[w], derniere[w], v)
                     if (alt > f) f = alt
+                }
+            }
+            // ── RATTRAPAGE CIBLE : LE MOT EST-IL ECRIT AUTREMENT ? ─────────
+            //
+            // Idee de l'utilisateur, dans sa forme BORNEE (2026-08-06). Ouvrir
+            // toutes les ecritures dans le treillis PRINCIPAL a ete mesure
+            // perdant (0,68 % -> 7,46 % sur le meme WAV) : la DP y deplace les
+            // frontieres de tous les mots. Ici l'alignement global n'est pas
+            // touche -- on rescore CE mot sur l'audio que ses voisins n'ont pas
+            // revendique, et on ne garde le resultat que s'il est MEILLEUR.
+            //
+            // Le defaut vise (Al-Baqara, mot 42 `كَفَرُوا۟`) : la cible imposait
+            // la piece ENTIERE (le mot vaut UN jeton sur 184 du dictionnaire)
+            // alors que le modele avait EPELE le mot. Viterbi l'a ecrase sur
+            // une frame -> gop=-5,33 avec free=-0,01, et un rouge sur un mot
+            // parfaitement prononce.
+            //
+            // Un rescoring ne peut que RETIRER un faux rouge : il ne vole
+            // aucune frame (la plage est bornee par les voisins attestes) et il
+            // ne descend jamais le score (on prend le maximum).
+            if (n > 0 && w < textesParMot.size && textesParMot[w].isNotEmpty()) {
+                val deLibre = if (w > 0 && derniere[w - 1] >= 0)
+                    (derniere[w - 1] + 1).coerceAtMost(premiere[w]) else 0
+                val aLibre = if (w + 1 < mots.size && premiere[w + 1] >= 0)
+                    (premiere[w + 1] - 1).coerceAtLeast(derniere[w]) else t - 1
+                if (aLibre > derniere[w] || deLibre < premiere[w]) {
+                    val alt = forwardMoyenGraphe(logprobs, deLibre, aLibre, textesParMot[w])
+                    if (alt > neginf && alt > f) {
+                        f = alt
+                        // La plage retenue devient celle du mot : sans ca,
+                        // `frames`, `entendu` et `interieur` continueraient de
+                        // decrire l'alignement qu'on vient d'ecarter.
+                        premiere[w] = deLibre
+                        derniere[w] = aLibre
+                        nb[w] = aLibre - deLibre + 1
+                    }
                 }
             }
             // CONCURRENTES : meme fenetre de frames, mais leur score est
@@ -324,6 +531,58 @@ class AligneurForce(
      * d'[aligner] -- meme piege qu'en v1, ou `ctcForwardNll` cohabitait avec la
      * DP principale.
      */
+    /**
+     * Comme [forwardMoyen], mais sur TOUTES les ecritures du mot au lieu d'une
+     * seule (cf. [grapheEcritures]) -- et sur une plage de frames qu'on choisit.
+     *
+     * SERT AU RATTRAPAGE CIBLE, pas a l'alignement. Ouvrir les ecritures dans
+     * le treillis PRINCIPAL a ete mesure PERDANT le 2026-08-06 (0,68 % ->
+     * 7,46 % de mots non verts sur le meme WAV) : libre de re-epeler chaque
+     * mot, la DP deplace les frontieres et les voisins paient. Ici l'alignement
+     * global n'est pas touche -- on rescore UN mot deja condamne, sur l'audio
+     * que ses voisins n'ont pas revendique. Un rescoring ne peut donc que
+     * retirer un faux rouge, jamais en creer ni voler des frames.
+     */
+    private fun forwardMoyenGraphe(
+        logprobs: Array<FloatArray>, de: Int, a: Int, texte: String,
+    ): Float {
+        if (de < 0 || a < de) return neginf
+        val g = grapheEcritures(texte) ?: return neginf
+        val (nbNoeuds, aretes) = g
+        if (aretes.isEmpty()) return neginf
+        val entrantes = Array(nbNoeuds) { ArrayList<Int>() }
+        val sortantes = Array(nbNoeuds) { ArrayList<Int>() }
+        aretes.forEachIndexed { k, e -> entrantes[e[1]].add(k); sortantes[e[0]].add(k) }
+        val nbEtats = nbNoeuds + aretes.size
+        fun jeton(st: Int) = if (st < nbNoeuds) blank else aretes[st - nbNoeuds][2]
+        var prev = FloatArray(nbEtats) { neginf }
+        prev[0] = logprobs[de][blank]
+        for (k in sortantes[0]) prev[nbNoeuds + k] = logprobs[de][aretes[k][2]]
+        for (t in de + 1..a) {
+            val cur = FloatArray(nbEtats) { neginf }
+            val lp = logprobs[t]
+            for (v in 0 until nbNoeuds) {
+                var acc = prev[v]
+                for (k in entrantes[v]) acc = logSomme(acc, prev[nbNoeuds + k])
+                if (acc > neginf) cur[v] = acc + lp[blank]
+            }
+            aretes.forEachIndexed { k, e ->
+                var acc = prev[nbNoeuds + k]
+                acc = logSomme(acc, prev[e[0]])
+                for (f in entrantes[e[0]]) {
+                    if (aretes[f][2] != e[2]) acc = logSomme(acc, prev[nbNoeuds + f])
+                }
+                if (acc > neginf) cur[nbNoeuds + k] = acc + lp[e[2]]
+            }
+            prev = cur
+        }
+        var fin = prev[nbNoeuds - 1]
+        for (k in entrantes[nbNoeuds - 1]) fin = logSomme(fin, prev[nbNoeuds + k])
+        if (fin <= neginf) return neginf
+        val n = (a - de + 1).coerceAtLeast(1)
+        return fin / n
+    }
+
     private fun forwardMoyen(
         logprobs: Array<FloatArray>, de: Int, a: Int, tokens: IntArray,
     ): Float {

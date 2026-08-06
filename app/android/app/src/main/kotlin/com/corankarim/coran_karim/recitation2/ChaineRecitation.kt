@@ -749,6 +749,49 @@ class ChaineRecitation(
                 confusionsLettresAttendues.subList(bande.i0, bande.i1 + 1),
             confusionsHarakatParMot =
                 confusionsHarakatAttendues.subList(bande.i0, bande.i1 + 1),
+            // ── DESACTIVE : MESURE PERDANTE (2026-08-06) ───────────────────
+            //
+            // Passer le TEXTE fait explorer a l'aligneur TOUTES les ecritures
+            // du mot (cf. AligneurForce.grapheEcritures) au lieu de la seule
+            // tokenisation du dictionnaire. Ca corrige parfaitement le cas
+            // isole -- banc : frames 1 -> 14, gop -11,99 -> 0,00 sur le mot
+            // dont la cible imposait une piece que le modele n'avait pas
+            // produite.
+            //
+            // MAIS LA MESURE D'ENSEMBLE LE REFUTE. Rejeu DETERMINISTE du meme
+            // WAV Al-Baqara, meme binaire a ce parametre pres :
+            //     sans le texte : 2/295 = 0,68 % de mots non verts
+            //     avec le texte : 22/295 = 7,46 %
+            // Onze fois plus. La tokenisation du dictionnaire ne genait donc
+            // pas : elle CONTRAIGNAIT utilement. Libre de re-epeler chaque
+            // mot, la DP trouve des chemins qui marquent bien localement mais
+            // deplacent les frontieres de mots -- et les voisins paient.
+            //
+            // Le code de `grapheEcritures` est CONSERVE et non branche : il
+            // porte la mesure, et l'idee reste bonne pour un usage BORNE (par
+            // exemple n'ouvrir les ecritures que pour le mot dont le gop
+            // s'effondre alors que `free` est proche de 0, au lieu de toute la
+            // bande). C'est cette forme-la qu'il faudra mesurer, pas celle-ci.
+            // ── LA FORME BORNEE A ECHOUE AUSSI (2026-08-06) ────────────────
+            //
+            // Troisieme tentative sur ce sujet, troisieme refutation. Rescorer
+            // le SEUL mot condamne, sur l'audio libre entre ses voisins, en
+            // gardant le maximum : 0,68 % -> 6,12 % de mots non verts sur le
+            // meme WAV.
+            //
+            // POURQUOI, et c'est une erreur de conception de ma part : le score
+            // est une MOYENNE PAR FRAME. Elargir la plage y ajoute des frames
+            // de silence, dont la probabilite de blanc est elevee -- la moyenne
+            // monte donc artificiellement, le rescoring gagne presque partout
+            // et remplace de bons alignements par des plages larges vides de
+            // sens. Comparer une moyenne sur 1 frame a une moyenne sur 12 n'est
+            // pas une comparaison.
+            //
+            // Ce qu'il faudrait pour reessayer : un score COMPARABLE entre deux
+            // plages de longueurs differentes (par exemple le score total du
+            // seul chemin des jetons, silences exclus), et non une moyenne.
+            // Tant que ce point n'est pas resolu, ne pas rebrancher.
+            // textesParMot = motsAttendus.subList(bande.i0, bande.i1 + 1),
         ) ?: return
 
         // ON REMONTE LA FRONTIERE DU DERNIER MOT SUR AU CONSTRUCTEUR.

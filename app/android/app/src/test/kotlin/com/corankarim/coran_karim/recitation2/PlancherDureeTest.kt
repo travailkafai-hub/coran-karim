@@ -63,7 +63,11 @@ class PlancherDureeTest {
     /** Vocabulaire ou `kafarou` est UNE SEULE piece, comme dans le vrai
      *  modele, alors que ses voisins sont epeles lettre par lettre. */
     private fun vocabulaireAvecMotEntier(): List<String> {
-        val base = Synthese.vocabulaire(listOf("inna", "aladhina", "sawaa"))
+        // Les LETTRES de `kafarou` doivent etre des pieces, sinon le mot n'est
+        // pas decomposable et le graphe des ecritures n'a qu'un seul chemin --
+        // le banc ne testerait alors rien du tout (piege paye en l'ecrivant).
+        val base = Synthese.vocabulaire(
+            listOf("inna", "aladhina", "sawaa", "kafarou"))
         return base + "▁kafarou"
     }
 
@@ -164,5 +168,46 @@ class PlancherDureeTest {
             "${tokEntier("kafarou").size * 80} ms pour 7 lettres")
         assertTrue("reproduction attendue : le mot s'ecrase", m.frames <= 2)
         assertTrue("et il est pourtant declare COUVERT", m.couvert)
+    }
+
+    /** LE CORRECTIF : avec le TEXTE, l'aligneur explore toutes les ecritures.
+     *
+     *  Meme audio et meme cible que le test precedent -- le modele EPELLE, la
+     *  tokenisation du dictionnaire donne la piece ENTIERE. Seule difference :
+     *  `textesParMot` est fourni, donc l'aligneur aligne LE MOT et non une
+     *  tokenisation figee (cf. AligneurForce.grapheEcritures).
+     */
+    @Test
+    fun `avec le texte, l'ecriture epelee est retrouvee et le gop remonte`() {
+        val pieces = vocabulaireAvecMotEntier()
+        val blank = pieces.size
+        val tokEntier = tokeniseur(pieces)
+        val parLettre = Synthese.tokeniseur(pieces)
+        val front = FauxFront(pieces)
+        val aligneur = AligneurForce(pieces, blank)
+
+        val mots = listOf("inna", "aladhina", "kafarou", "sawaa")
+        val frames = ArrayList<Int>()
+        for (m in mots) {
+            for (tk in parLettre(m)) repeat(2) { frames.add(tk) }
+            repeat(3) { frames.add(blank) }
+        }
+        val pcm = FloatArray(frames.size * Horloge.ECH_PAR_FRAME)
+        frames.forEachIndexed { i, id ->
+            java.util.Arrays.fill(pcm, i * Horloge.ECH_PAR_FRAME,
+                (i + 1) * Horloge.ECH_PAR_FRAME, Synthese.valeurPourId(id))
+        }
+
+        val res = aligneur.aligner(
+            front.logprobs(pcm), mots.map(tokEntier), 0,
+            textesParMot = mots,
+        )!!
+        val m = res.mots[2]
+        println("[correctif] kafarou : frames=${m.frames} gop=${m.gop} " +
+            "forced=${m.forced} free=${m.free} entendu=\"${m.entendu}\"")
+        assertTrue("le mot doit retrouver sa duree (etait 1), obtenu ${m.frames}",
+            m.frames >= 6)
+        assertTrue("le gop doit remonter (etait -11,99), obtenu ${m.gop}",
+            m.gop > -0.5f)
     }
 }
