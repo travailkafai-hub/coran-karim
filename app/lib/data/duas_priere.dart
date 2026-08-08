@@ -22,6 +22,7 @@ const kDuasPriere = <Dua>[
     source: 'Rapporté par Mouslim et At-Tirmidhi',
     virtue: "« Les huit portes du Paradis lui sont ouvertes, il entre par celle qu'il veut. »",
     tags: ['avant_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/13.mp3',
   ),
   Dua(
     id: 'adhan_reponse',
@@ -45,6 +46,7 @@ const kDuasPriere = <Dua>[
     source: 'Rapporté par Al-Boukhari',
     virtue: "« Mon intercession lui est due au Jour de la Résurrection. »",
     tags: ['avant_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/25.mp3',
   ),
   Dua(
     id: 'entre_adhan_iqama',
@@ -67,6 +69,7 @@ const kDuasPriere = <Dua>[
         "Au nom d'Allah, prière et salut sur le Messager d'Allah. Ô Allah, ouvre-moi les portes de Ta miséricorde.",
     source: 'Rapporté par Mouslim et Ibn Majah',
     tags: ['avant_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/20.mp3',
   ),
   Dua(
     id: 'mosquee_sortie',
@@ -78,6 +81,7 @@ const kDuasPriere = <Dua>[
         "Au nom d'Allah, prière et salut sur le Messager d'Allah. Ô Allah, je Te demande de Ta grâce. Ô Allah, protège-moi du diable banni.",
     source: 'Rapporté par Mouslim et Ibn Majah',
     tags: ['avant_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/21.mp3',
   ),
 
   // ── Pendant la prière ──────────────────────────────────────────────────
@@ -91,6 +95,7 @@ const kDuasPriere = <Dua>[
         "Gloire et louange à Toi, ô Allah. Béni soit Ton nom, exaltée soit Ta majesté, et il n'y a de divinité que Toi.",
     source: 'Rapporté par Abou Dawoud et At-Tirmidhi — après le takbīr initial, avant Al-Fātiḥa',
     tags: ['dans_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/28.mp3',
   ),
   Dua(
     id: 'istiftah_baid',
@@ -102,6 +107,7 @@ const kDuasPriere = <Dua>[
         "Ô Allah, éloigne-moi de mes fautes comme Tu as éloigné l'Orient de l'Occident. Ô Allah, purifie-moi de mes fautes comme on purifie le vêtement blanc de la souillure. Ô Allah, lave-moi de mes fautes par la neige, l'eau et la grêle.",
     source: 'Rapporté par Al-Boukhari et Mouslim',
     tags: ['dans_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/27.mp3',
   ),
   Dua(
     id: 'ruku',
@@ -126,6 +132,7 @@ const kDuasPriere = <Dua>[
     virtue:
         "Le Prophète ﷺ vit « une trentaine d'anges se hâter à qui l'inscrirait en premier » lorsqu'un compagnon prononça cette formule.",
     tags: ['dans_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/39.mp3',
   ),
   Dua(
     id: 'sujud',
@@ -150,6 +157,7 @@ const kDuasPriere = <Dua>[
         "Seigneur, pardonne-moi, fais-moi miséricorde, guide-moi, répare ce qui est brisé en moi, préserve-moi, accorde-moi ma subsistance et élève-moi.",
     source: 'Rapporté par Abou Dawoud, At-Tirmidhi et Ibn Majah',
     tags: ['dans_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/49.mp3',
   ),
   Dua(
     id: 'tashahhud',
@@ -161,6 +169,7 @@ const kDuasPriere = <Dua>[
         "Les salutations, les prières et les bonnes paroles appartiennent à Allah. Que la paix soit sur toi, ô Prophète, ainsi que la miséricorde d'Allah et Ses bénédictions. Que la paix soit sur nous et sur les serviteurs vertueux d'Allah. J'atteste qu'il n'y a de divinité qu'Allah et j'atteste que Muhammad est Son serviteur et Son Messager.",
     source: 'Rapporté par Al-Boukhari et Mouslim',
     tags: ['dans_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/52.mp3',
   ),
   Dua(
     id: 'salat_ibrahimiyya',
@@ -172,6 +181,7 @@ const kDuasPriere = <Dua>[
         "Ô Allah, prie sur Muhammad et sur la famille de Muhammad comme Tu as prié sur Abraham et sur la famille d'Abraham : Tu es digne de louange et de gloire. Ô Allah, bénis Muhammad et la famille de Muhammad comme Tu as béni Abraham et la famille d'Abraham : Tu es digne de louange et de gloire.",
     source: 'Rapporté par Al-Boukhari et Mouslim',
     tags: ['dans_priere', 'joumoua'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/53.mp3',
   ),
   Dua(
     id: 'avant_salam',
@@ -195,6 +205,7 @@ const kDuasPriere = <Dua>[
         "Ô Allah, je me suis fait beaucoup de tort à moi-même, et nul ne pardonne les péchés sauf Toi. Accorde-moi donc un pardon venant de Toi et fais-moi miséricorde : Tu es le Pardonneur, le Miséricordieux.",
     source: 'Rapporté par Al-Boukhari et Mouslim — enseignée à Abou Bakr pour sa prière',
     tags: ['dans_priere', 'istighfar'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/57.mp3',
   ),
 
   // ── Ṣalāt as-Ṣobḥ ──────────────────────────────────────────────────────
@@ -236,6 +247,7 @@ const kDuasPriere = <Dua>[
     virtue:
         "Trois demandes qui couvrent la journée entière : ce qu'on apprend, ce qu'on gagne, ce qu'on fait.",
     tags: ['sobh'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/73.mp3',
   ),
   Dua(
     id: 'sobh_ajirni',
@@ -260,6 +272,7 @@ const kDuasPriere = <Dua>[
     virtue:
         "Allah inscrit dix bonnes actions, efface dix mauvaises, élève de dix degrés, et cela vaut protection contre tout mal ce jour-là.",
     tags: ['sobh', 'apres_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/72.mp3',
     repeat: 10,
   ),
   Dua(
@@ -301,6 +314,7 @@ const kDuasPriere = <Dua>[
         "Je demande pardon à Allah (×3). Ô Allah, Tu es la Paix et de Toi vient la paix. Béni sois-Tu, ô Détenteur de la majesté et de la générosité.",
     source: 'Rapporté par Mouslim',
     tags: ['apres_priere', 'istighfar'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/66.mp3',
     repeat: 3,
   ),
   Dua(
@@ -327,6 +341,7 @@ const kDuasPriere = <Dua>[
         "Ô Allah, aide-moi à T'évoquer, à Te remercier et à T'adorer de la meilleure manière.",
     source: 'Rapporté par Abou Dawoud — le Prophète ﷺ à Muʿādh ibn Jabal : « Je t\'aime, ne délaisse jamais cela après chaque prière »',
     tags: ['apres_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/59.mp3',
   ),
   Dua(
     id: 'apres_la_hawla',
@@ -338,6 +353,7 @@ const kDuasPriere = <Dua>[
         "Il n'y a de force ni de puissance qu'en Allah. Il n'y a de divinité qu'Allah et nous n'adorons que Lui. À Lui le bienfait, à Lui la grâce, à Lui la belle louange.",
     source: 'Rapporté par Mouslim',
     tags: ['apres_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/68.mp3',
   ),
 
   // ── Witr & Qunūt ───────────────────────────────────────────────────────
@@ -351,6 +367,7 @@ const kDuasPriere = <Dua>[
         "Ô Allah, guide-moi parmi ceux que Tu as guidés, préserve-moi parmi ceux que Tu as préservés, prends-moi en charge parmi ceux dont Tu T'es chargé, bénis-moi dans ce que Tu m'as donné, et protège-moi du mal de ce que Tu as décrété. Car c'est Toi qui décrètes et nul ne décrète contre Toi. Celui que Tu soutiens n'est pas humilié et celui que Tu combats n'est pas honoré. Béni sois-Tu, notre Seigneur, et exalté sois-Tu.",
     source: 'Rapporté par Abou Dawoud, At-Tirmidhi et An-Nasā\'ī — enseignée par le Prophète ﷺ à Al-Ḥasan',
     tags: ['witr', 'nuit'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/116.mp3',
   ),
   Dua(
     id: 'qunut_ramadan',
@@ -415,7 +432,14 @@ const kDuasPriere = <Dua>[
     virtue:
         "« Multipliez la prière sur moi le jour du vendredi, car vos prières me sont présentées. »",
     tags: ['joumoua'],
-    repeat: 100,
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/98.mp3',
+    audioAsset: 'audio/duas/98_cut.mp3',
+    // repeat corrigé 100 -> 10 (2026-08-07) : 100 était une estimation sans
+    // source précise ("multipliez" dans le hadith ne donne pas de chiffre).
+    // Le texte source de hisnmuslim.com précise explicitement "عشرَ مرَّاتٍ"
+    // (dix fois) -- valeur reprise ici plutôt que de garder un chiffre rond
+    // non sourcé.
+    repeat: 10,
   ),
   Dua(
     id: 'joumoua_heure',
@@ -513,6 +537,7 @@ const kDuasPriere = <Dua>[
         "Au nom d'Allah, Allah est le plus Grand. Ô Allah, cela vient de Toi et Te revient. Ô Allah, accepte-le de moi.",
     source: 'Rapporté par Mouslim et Abou Dawoud',
     tags: ['aid'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/246.mp3',
   ),
 
   // ── Istikhāra ──────────────────────────────────────────────────────────

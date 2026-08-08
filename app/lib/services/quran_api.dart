@@ -103,6 +103,22 @@ class QuranApi {
     return _versesBySurah![surahNumber] ?? const [];
   }
 
+  /// Concatène plusieurs plages de versets (potentiellement de sourates
+  /// différentes, ex. les trois muʿawwidhāt) en UNE playlist ordonnée, pour
+  /// `Dua.verseRanges` (cf. son commentaire). Une plage introuvable/vide est
+  /// simplement omise plutôt que de faire échouer toute la playlist.
+  static Future<List<Verse>> fetchVerseRanges(
+      List<(int surah, int ayahStart, int ayahEnd)> ranges) async {
+    await _ensureLoaded();
+    final result = <Verse>[];
+    for (final (surah, start, end) in ranges) {
+      final verses = _versesBySurah![surah] ?? const [];
+      result.addAll(
+          verses.where((v) => v.ayahNumber >= start && v.ayahNumber <= end));
+    }
+    return result;
+  }
+
   /// Une page du Mushaf standard (1-604) -- utilisé pour l'enchaînement
   /// dynamique entre sourates (KaraokeRecitationScreen._maybeExtendNextPage) :
   /// charger une page à la fois plutôt que la sourate suivante en entier

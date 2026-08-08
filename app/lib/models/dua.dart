@@ -45,8 +45,55 @@ class Dua {
   /// permet de rejouer l'audio réciteur déjà présent dans l'app (pas de
   /// source audio libre trouvée pour les invocations hadith, cf. recherche
   /// 2026-07-10 : aucune API gratuite équivalente à quran.com pour celles-ci).
+  /// MISE À JOUR 2026-08-07 : cette conclusion était fausse — cf. `audioUrl`
+  /// ci-dessous, trouvé via une recherche renouvelée sur demande utilisateur.
   final int? surahNumber;
   final int? ayahNumber;
+
+  /// Plages de versets à jouer EN SÉQUENCE quand `textAr` couvre plusieurs
+  /// versets -- éventuellement de PLUSIEURS sourates différentes (ex. les
+  /// trois muʿawwidhāt : Al-Ikhlāṣ 112, Al-Falaq 113, An-Nās 114). Chaque
+  /// triplet est `(sourate, premier verset, dernier verset)`, dans l'ordre de
+  /// lecture. `surahNumber`/`ayahNumber` restent le point d'entrée affiché
+  /// (premier verset de la première plage) ; c'est CE champ qui prévaut pour
+  /// construire la playlist de lecture quand il est renseigné.
+  ///
+  /// BUG CORRIGÉ (2026-08-07, constat utilisateur : « il y a que Qul huwa
+  /// Allahu ahad, pas la récitation de toutes les muʿawwidhāt ») : sans ce
+  /// champ, `_playAudio` ne savait lire qu'UN SEUL verset (`surahNumber`/
+  /// `ayahNumber`), donc uniquement Al-Ikhlāṣ 112:1 pour `muawwidhat` alors
+  /// que le texte affiché contient les 15 versets des trois sourates.
+  final List<(int, int, int)>? verseRanges;
+
+  /// URL audio directe (MP3, hors Coran) pour les invocations issues des
+  /// hadiths. Source : l'API publique de hisnmuslim.com (texte du livre
+  /// « Hisn al-Muslim »), appariée au texte de cette entrée par similarité de
+  /// mots après vérification manuelle un par un (2026-08-07) — un appariement
+  /// automatique seul avait produit de faux positifs sur des formules courtes
+  /// réutilisées dans plusieurs chapitres du livre (ex. « لا إله إلا الله »
+  /// employé aussi bien comme dhikr complet que comme simple exclamation de
+  /// frayeur) ; ces cas ambigus ont été laissés sans audio plutôt que
+  /// d'attacher un enregistrement incertain à un texte religieux.
+  final String? audioUrl;
+
+  /// Chemin d'un clip AUDIO EMBARQUÉ (asset Flutter, relatif à `assets/`),
+  /// prioritaire sur `audioUrl` quand renseigné.
+  ///
+  /// POURQUOI (2026-08-07) : plusieurs clips de hisnmuslim.com ne sont pas de
+  /// simples récitations de la formule — le lecteur y ANNONCE À VOIX HAUTE le
+  /// nombre de répétitions (« ثلاث مرات », « سبع مرات »...) en fin
+  /// d'enregistrement, une note du livre lue telle quelle. Combiné à la
+  /// répétition CÔTÉ APP (`Dua.repeat`), l'utilisateur entendrait cette
+  /// annonce répétée N fois — constat utilisateur direct : « il dit répété 3
+  /// fois... on va répéter l'audio 3 fois ». Pour `tasbih_fatima`, le clip
+  /// complet contenait en plus toute une prière de continuation après le
+  /// tasbih (24 s), rejouée 33 fois aurait fait ~13 minutes.
+  /// Correctif : ces clips précis ont été découpés (ffmpeg, coupe au silence
+  /// qui précède l'annonce/la continuation, fondu de 80 ms pour éviter un
+  /// clic) et embarqués dans `assets/audio/duas/` plutôt que retéléchargés à
+  /// chaque lecture — seuls quelques clips sont concernés, la très grande
+  /// majorité reste en streaming via `audioUrl`.
+  final String? audioAsset;
 
   const Dua({
     required this.id,
@@ -61,9 +108,19 @@ class Dua {
     this.repeat = 1,
     this.surahNumber,
     this.ayahNumber,
+    this.verseRanges,
+    this.audioUrl,
+    this.audioAsset,
   });
 
   bool get isQuranic => surahNumber != null && ayahNumber != null;
+
+  /// Identité stable de la source audio hadith (asset si présent, sinon URL)
+  /// -- utilisée comme clé de comparaison par `DuaAudioService`.
+  String? get audioKey => audioAsset ?? audioUrl;
+
+  /// Vrai si une écoute est possible, coranique ou non.
+  bool get hasAudio => isQuranic || audioUrl != null || audioAsset != null;
 
   /// Texte agrégé sur lequel porte la recherche (FR + AR + translittération
   /// + source). Le champ arabe est inclus tel quel : chercher « اللهم »

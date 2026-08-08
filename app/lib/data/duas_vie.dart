@@ -37,6 +37,7 @@ const kDuasVie = <Dua>[
     source: 'Rapporté par Abou Dawoud et At-Tirmidhi',
     virtue: "« Ses péchés passés lui sont pardonnés. »",
     tags: ['repas'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/180.mp3',
   ),
   Dua(
     id: 'repas_hote',
@@ -47,6 +48,7 @@ const kDuasVie = <Dua>[
         "Ô Allah, bénis-les dans ce que Tu leur as accordé, pardonne-leur et fais-leur miséricorde.",
     source: 'Rapporté par Mouslim',
     tags: ['repas', 'autrui'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/182.mp3',
   ),
   Dua(
     id: 'iftar',
@@ -60,6 +62,7 @@ const kDuasVie = <Dua>[
     virtue:
         "« Le jeûneur a, au moment de rompre, une invocation qui n'est pas repoussée. » (Ibn Majah)",
     tags: ['repas'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/176.mp3',
   ),
   Dua(
     id: 'iftar_chez_autrui',
@@ -71,6 +74,7 @@ const kDuasVie = <Dua>[
         "Que les jeûneurs rompent toujours le jeûne chez vous, que les vertueux mangent de votre nourriture et que les anges prient sur vous.",
     source: 'Rapporté par Abou Dawoud et Ibn Majah',
     tags: ['repas', 'autrui'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/184.mp3',
   ),
   Dua(
     id: 'boire_lait',
@@ -80,6 +84,7 @@ const kDuasVie = <Dua>[
     translationFr: "Ô Allah, bénis-le pour nous et donne-nous-en davantage.",
     source: 'Rapporté par At-Tirmidhi',
     tags: ['repas'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/179.mp3',
   ),
 
   // ── La maison ──────────────────────────────────────────────────────────
@@ -96,6 +101,7 @@ const kDuasVie = <Dua>[
     virtue:
         "« On te dit : tu es guidé, préservé et protégé — et le diable s'écarte de toi. »",
     tags: ['maison', 'sortie'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/16.mp3',
   ),
   Dua(
     id: 'maison_entree',
@@ -109,6 +115,7 @@ const kDuasVie = <Dua>[
     virtue:
         "Mentionner le nom d'Allah en entrant et en mangeant prive le diable du gîte et du repas (Mouslim).",
     tags: ['maison'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/18.mp3',
   ),
   Dua(
     id: 'wc_entree',
@@ -120,6 +127,7 @@ const kDuasVie = <Dua>[
         "Ô Allah, je cherche refuge auprès de Toi contre les démons mâles et femelles.",
     source: 'Rapporté par Al-Boukhari et Mouslim',
     tags: ['maison'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/10.mp3',
   ),
   Dua(
     id: 'wc_sortie',
@@ -151,6 +159,7 @@ const kDuasVie = <Dua>[
     translationFr: "Puisses-tu l'user, et qu'Allah — exalté soit-Il — te le remplace.",
     source: 'Rapporté par Abou Dawoud',
     tags: ['maison', 'autrui'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/7.mp3',
   ),
   Dua(
     id: 'miroir',
@@ -176,6 +185,7 @@ const kDuasVie = <Dua>[
     virtue:
         "« Allah lui inscrit un million de bonnes actions, efface un million de mauvaises et lui élève un million de degrés. » Dite là où les gens sont le plus distraits d'Allah.",
     tags: ['sortie'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/209.mp3',
   ),
   Dua(
     id: 'vehicule',
@@ -201,6 +211,7 @@ const kDuasVie = <Dua>[
         "Ô Allah, je Te demande son bien, le bien de ses habitants et le bien de ce qu'elle contient. Et je cherche refuge auprès de Toi contre son mal, le mal de ses habitants et le mal de ce qu'elle contient.",
     source: 'Rapporté par An-Nasā\'ī et Al-Hakim',
     tags: ['sortie', 'voyage'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/208.mp3',
   ),
 
   // ── Le voyage ──────────────────────────────────────────────────────────
@@ -214,6 +225,7 @@ const kDuasVie = <Dua>[
         "Allah est le plus Grand (×3). Gloire à Celui qui a mis ceci à notre service, alors que nous n'étions pas capables de le dominer. Et c'est vers notre Seigneur que nous retournerons. Ô Allah, nous Te demandons dans ce voyage la piété, la crainte de Toi, et des œuvres que Tu agrées. Ô Allah, allège pour nous ce voyage et raccourcis-en la distance. Ô Allah, Tu es le Compagnon dans le voyage et le Remplaçant auprès de la famille.",
     source: 'Rapporté par Mouslim',
     tags: ['voyage'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/207.mp3',
   ),
   Dua(
     id: 'voyage_retour',
@@ -235,6 +247,7 @@ const kDuasVie = <Dua>[
         "Je confie à Allah ta religion, ce qui t'est confié et l'issue de tes actes.",
     source: 'Rapporté par At-Tirmidhi et Abou Dawoud',
     tags: ['voyage', 'autrui'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/212.mp3',
   ),
   Dua(
     id: 'voyage_exauce',
@@ -269,6 +282,7 @@ const kDuasVie = <Dua>[
     translationFr: "Nous avons reçu la pluie par la grâce d'Allah et Sa miséricorde.",
     source: 'Rapporté par Al-Boukhari et Mouslim',
     tags: ['meteo'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/173.mp3',
   ),
   Dua(
     id: 'vent',
@@ -281,6 +295,7 @@ const kDuasVie = <Dua>[
     source: 'Rapporté par Mouslim',
     virtue: "Le Prophète ﷺ ne maudissait jamais le vent : « il est envoyé par ordre d'Allah ».",
     tags: ['meteo'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/167.mp3',
   ),
   Dua(
     id: 'tonnerre',
@@ -291,6 +306,7 @@ const kDuasVie = <Dua>[
         "Gloire à Celui que le tonnerre glorifie par Sa louange, ainsi que les anges, par crainte de Lui.",
     source: 'Rapporté par Mālik dans Al-Muwaṭṭaʾ (propos d\'Ibn az-Zubayr)',
     tags: ['meteo'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/168.mp3',
   ),
   Dua(
     id: 'nouvelle_lune',
@@ -325,6 +341,7 @@ const kDuasVie = <Dua>[
     translationFr: "Que Celui pour qui tu m'aimes t'aime.",
     source: 'Rapporté par Abou Dawoud',
     tags: ['autrui'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/200.mp3',
   ),
   Dua(
     id: 'mariage_felicitation',
@@ -335,6 +352,7 @@ const kDuasVie = <Dua>[
         "Qu'Allah te bénisse, qu'Il répande Sa bénédiction sur toi et qu'Il vous unisse dans le bien.",
     source: 'Rapporté par Abou Dawoud et At-Tirmidhi',
     tags: ['autrui'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/190.mp3',
   ),
   Dua(
     id: 'eternuement',

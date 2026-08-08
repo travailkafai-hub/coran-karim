@@ -32,6 +32,7 @@ const kDuasCoeur = <Dua>[
     virtue:
         "Anas rapporte l'avoir appliquée : « Allah dissipa mon souci et régla ma dette. »",
     tags: ['angoisse', 'dette'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/121.mp3',
   ),
   Dua(
     id: 'anas_abduka',
@@ -45,6 +46,7 @@ const kDuasCoeur = <Dua>[
     virtue:
         "« Allah dissipera son souci et remplacera sa tristesse par une joie. » On demanda : faut-il l'apprendre ? Il répondit : « Bien sûr, que celui qui l'entend l'apprenne. »",
     tags: ['angoisse'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/120.mp3',
   ),
   Dua(
     id: 'rahmataka_arju',
@@ -56,6 +58,7 @@ const kDuasCoeur = <Dua>[
         "Ô Allah, c'est Ta miséricorde que j'espère : ne me confie pas à moi-même, ne serait-ce que le temps d'un clin d'œil. Améliore toute ma situation. Il n'y a de divinité que Toi.",
     source: 'Rapporté par Abou Dawoud',
     tags: ['angoisse'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/123.mp3',
   ),
   Dua(
     id: 'hasbunallah',
@@ -83,6 +86,7 @@ const kDuasCoeur = <Dua>[
         "Pas de mal, c'est une purification, si Allah veut.",
     source: 'Rapporté par Al-Boukhari',
     tags: ['maladie'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/147.mp3',
   ),
   Dua(
     id: 'shifa_sept',
@@ -97,6 +101,8 @@ const kDuasCoeur = <Dua>[
     virtue:
         "« Aucun serviteur ne rend visite à un malade dont le terme n'est pas arrivé et ne dit cela sept fois sans qu'Allah ne le guérisse. »",
     tags: ['maladie'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/148.mp3',
+    audioAsset: 'audio/duas/148_cut.mp3',
     repeat: 7,
   ),
   Dua(
@@ -108,6 +114,7 @@ const kDuasCoeur = <Dua>[
         "Je cherche refuge dans la puissance d'Allah et Sa capacité contre le mal que je ressens et que je redoute.",
     source: 'Rapporté par Mouslim — poser la main sur la douleur, dire « Bismillāh » trois fois puis ceci sept fois',
     tags: ['maladie'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/243.mp3',
     repeat: 7,
   ),
   Dua(
@@ -133,6 +140,7 @@ const kDuasCoeur = <Dua>[
         "Ô Allah, nous Te plaçons face à eux et nous cherchons refuge auprès de Toi contre leurs maux.",
     source: 'Rapporté par Abou Dawoud et An-Nasā\'ī',
     tags: ['peur'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/126.mp3',
   ),
   Dua(
     id: 'cauchemar',
@@ -173,6 +181,7 @@ const kDuasCoeur = <Dua>[
     virtue:
         "« Même si tu avais une dette de la taille d'une montagne, Allah te permettrait de la régler. »",
     tags: ['dette'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/136.mp3',
   ),
   Dua(
     id: 'istighfar_rizq',
@@ -188,6 +197,7 @@ const kDuasCoeur = <Dua>[
     tags: ['dette', 'istighfar'],
     surahNumber: 71,
     ayahNumber: 10,
+    verseRanges: [(71, 10, 12)],
   ),
 
   // ── Colère & discorde ──────────────────────────────────────────────────
@@ -202,6 +212,7 @@ const kDuasCoeur = <Dua>[
     virtue:
         "« Je connais une parole qui, s'il la disait, ferait partir ce qu'il éprouve. » S'y ajoutent : s'asseoir si l'on est debout, se taire, faire ses ablutions.",
     tags: ['colere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/75.mp3',
   ),
   Dua(
     id: 'akhlaq',
@@ -242,6 +253,7 @@ const kDuasCoeur = <Dua>[
         "Ô Allah, pardonne-lui, fais-lui miséricorde, préserve-le et efface ses fautes. Fais-lui un honorable accueil, élargis son entrée, lave-le avec l'eau, la neige et la grêle, et purifie-le de ses péchés comme Tu purifies le vêtement blanc de la souillure.",
     source: 'Rapporté par Mouslim',
     tags: ['deuil'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/156.mp3',
   ),
   Dua(
     id: 'visite_tombes',
@@ -253,6 +265,7 @@ const kDuasCoeur = <Dua>[
         "Que la paix soit sur vous, habitants de ces demeures, croyants et musulmans. Nous vous rejoindrons, si Allah veut. Nous demandons à Allah la préservation pour nous et pour vous.",
     source: 'Rapporté par Mouslim',
     tags: ['deuil'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/165.mp3',
   ),
 
   // ── Repentir & istighfār ───────────────────────────────────────────────
@@ -267,6 +280,8 @@ const kDuasCoeur = <Dua>[
     virtue:
         "« Ô gens, repentez-vous à Allah : moi-même je me repens à Lui cent fois par jour. » Le modèle le plus élevé demandait pardon plus que quiconque.",
     tags: ['istighfar'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/96.mp3',
+    audioAsset: 'audio/duas/96_cut.mp3',
     repeat: 100,
   ),
   Dua(
@@ -280,6 +295,7 @@ const kDuasCoeur = <Dua>[
         "Seigneur, pardonne-moi et accepte mon repentir. Tu es Celui qui accueille le repentir, le Miséricordieux.",
     source: 'Rapporté par Abou Dawoud et At-Tirmidhi — comptée cent fois dans une même assise',
     tags: ['istighfar'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/195.mp3',
     repeat: 100,
   ),
   Dua(
@@ -310,6 +326,7 @@ const kDuasCoeur = <Dua>[
     virtue:
         "Se dit dès l'entrée en état de sacralisation et se répète sans cesse — en montant, en descendant, à chaque rencontre — jusqu'au premier jet de cailloux pour le Hajj, ou jusqu'au début du ṭawāf pour la ʿUmra. Les hommes élèvent la voix, les femmes la gardent basse.",
     tags: ['pelerin'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/233.mp3',
     repeat: 3,
   ),
   Dua(
@@ -364,6 +381,7 @@ const kDuasCoeur = <Dua>[
     virtue:
         "« La meilleure invocation est celle du jour de ʿArafa, et la meilleure parole que j'aie dite, moi et les prophètes avant moi, est celle-ci. » Le jour où Allah affranchit le plus de serviteurs du Feu.",
     tags: ['pelerin'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/2.mp3',
     repeat: 100,
   ),
   Dua(

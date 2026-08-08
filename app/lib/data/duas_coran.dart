@@ -189,6 +189,7 @@ const kDuasCoran = <Dua>[
     tags: ['prophetes', 'angoisse'],
     surahNumber: 20,
     ayahNumber: 25,
+    verseRanges: [(20, 25, 28)],
   ),
   Dua(
     id: 'dua_musa_faqir',
@@ -324,6 +325,7 @@ const kDuasCoran = <Dua>[
     virtue:
         "« Ce qui a eu lieu dans cette assemblée lui est pardonné. » Se dit en quittant toute réunion, y compris une séance de lecture.",
     tags: ['lecture_coran', 'autrui', 'istighfar'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/196.mp3',
   ),
 
   // ── Khatm — fin du Coran ───────────────────────────────────────────────
@@ -396,5 +398,6 @@ const kDuasCoran = <Dua>[
     tags: ['protection_coran', 'maladie'],
     surahNumber: 1,
     ayahNumber: 1,
+    verseRanges: [(1, 1, 7)],
   ),
 ];

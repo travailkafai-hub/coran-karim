@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart' show AssetSource, UrlSource;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,6 +6,7 @@ import '../l10n/app_localizations.dart';
 import '../models/dua.dart';
 import '../providers/dua_prefs_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/dua_audio_service.dart';
 import '../services/quran_api.dart';
 import '../theme/app_theme.dart';
 import 'tajweed_text.dart';
@@ -26,11 +28,26 @@ class DuaCard extends ConsumerStatefulWidget {
   /// le contenu de l'étape et où replier n'apporte rien.
   final bool initiallyExpanded;
 
+  /// Vrai quand cette carte est celle en cours dans la lecture enchaînée
+  /// (« Lire tout » de `DuaCollectionScreen`) — pur repère visuel, la
+  /// progression réelle (répétitions, chargement) vit dans le bandeau de
+  /// `_SequenceBar`, pas ici, pour ne pas dupliquer l'état du lecteur.
+  final bool playingInSequence;
+
+  /// Vrai tant qu'une lecture enchaînée est active sur l'écran parent — le
+  /// bouton « Écouter » de CETTE carte est alors désactivé. Les deux
+  /// partagent le même lecteur global (`playerProvider`) : sans ce verrou,
+  /// un tap ici pendant la séquence percuterait sa lecture en cours (verset
+  /// remplacé sous elle, décompte de répétitions faussé).
+  final bool audioLocked;
+
   const DuaCard({
     super.key,
     required this.dua,
     this.accent = AppColors.brass,
     this.initiallyExpanded = false,
+    this.playingInSequence = false,
+    this.audioLocked = false,
   });
 
   @override
@@ -62,7 +79,10 @@ class _DuaCardState extends ConsumerState<DuaCard> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.cream300),
+        border: Border.all(
+          color: widget.playingInSequence ? widget.accent : AppColors.cream300,
+          width: widget.playingInSequence ? 2 : 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha(8),
@@ -193,12 +213,16 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                     ),
                   ],
                   // Écoute (duas coraniques uniquement — réutilise le
-                  // réciteur déjà présent dans l'app ; aucune source audio
-                  // libre trouvée pour les invocations hadith, cf. recherche
-                  // 2026-07-10).
-                  if (dua.isQuranic) ...[
+                  // réciteur déjà présent dans l'app ; les invocations hadith
+                  // utilisent l'audio de hisnmuslim.com depuis le 2026-08-07
+                  // (cf. `Dua.audioUrl`) -- recherche 2026-07-10 corrigée.
+                  if (dua.hasAudio) ...[
                     const SizedBox(height: 10),
-                    _ListenButton(loading: _audioLoading, onTap: _playAudio),
+                    _ListenButton(
+                      loading: _audioLoading,
+                      locked: widget.audioLocked,
+                      onTap: _playAudio,
+                    ),
                   ],
                   // Traduction, source et mérite -- texte français uniquement
                   // dans les données actuelles, donc masqués en arabe (même
@@ -311,14 +335,38 @@ class _DuaCardState extends ConsumerState<DuaCard> {
   }
 
   Future<void> _playAudio() async {
-    final surah = widget.dua.surahNumber;
-    final ayah = widget.dua.ayahNumber;
-    if (surah == null || ayah == null || _audioLoading) return;
+    final dua = widget.dua;
+    if (_audioLoading || widget.audioLocked || !dua.hasAudio) return;
     setState(() => _audioLoading = true);
     try {
-      final verses = await QuranApi.fetchVerses(surah);
-      final verse = verses.firstWhere((v) => v.ayahNumber == ayah);
-      await ref.read(playerProvider.notifier).play(verse, [verse]);
+      if (dua.isQuranic) {
+        // Un seul son à la fois dans l'app : coupe l'éventuelle lecture
+        // hadith en cours avant de prendre la main sur le lecteur partagé.
+        await DuaAudioService.instance.stop();
+        final ranges = dua.verseRanges;
+        if (ranges != null) {
+          // Plusieurs versets (potentiellement plusieurs sourates, ex. les
+          // muʿawwidhāt) -- une seule lecture, pas de répétition ici : le
+          // bouton individuel sert à ENTENDRE la prononciation, pas à
+          // imposer le nombre de répétitions (cf. `_RepeatCounter`, à taper
+          // manuellement).
+          final playlist = await QuranApi.fetchVerseRanges(ranges);
+          if (playlist.isNotEmpty) {
+            await ref.read(playerProvider.notifier).play(playlist.first, playlist);
+          }
+        } else {
+          final verses = await QuranApi.fetchVerses(dua.surahNumber!);
+          final verse = verses.firstWhere((v) => v.ayahNumber == dua.ayahNumber);
+          await ref.read(playerProvider.notifier).play(verse, [verse]);
+        }
+      } else {
+        await ref.read(playerProvider.notifier).stop();
+        final asset = dua.audioAsset;
+        await DuaAudioService.instance.play(
+          asset != null ? AssetSource(asset) : UrlSource(dua.audioUrl!),
+          key: dua.audioKey!,
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -333,38 +381,45 @@ class _DuaCardState extends ConsumerState<DuaCard> {
 
 class _ListenButton extends StatelessWidget {
   final bool loading;
+  final bool locked;
   final VoidCallback onTap;
-  const _ListenButton({required this.loading, required this.onTap});
+  const _ListenButton({
+    required this.loading,
+    this.locked = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: loading ? null : onTap,
+        onTap: (loading || locked) ? null : onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: AppColors.brass.withAlpha(30),
+            color: (locked ? AppColors.inkLight : AppColors.brass).withAlpha(30),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (loading)
-                const SizedBox(
+                SizedBox(
                   width: 14,
                   height: 14,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: AppColors.brass),
+                      strokeWidth: 2,
+                      color: locked ? AppColors.inkLight : AppColors.brass),
                 )
               else
-                const Icon(Icons.play_circle_outline_rounded,
-                    size: 16, color: AppColors.brass),
+                Icon(Icons.play_circle_outline_rounded,
+                    size: 16,
+                    color: locked ? AppColors.inkLight : AppColors.brass),
               const SizedBox(width: 6),
               Text(
                 AppLocalizations.of(context)!.coachExplanationListen,
                 style: GoogleFonts.manrope(
                   fontSize: 12,
-                  color: AppColors.brass,
+                  color: locked ? AppColors.inkLight : AppColors.brass,
                   fontWeight: FontWeight.w600,
                 ),
               ),

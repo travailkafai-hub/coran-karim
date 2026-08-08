@@ -25,6 +25,7 @@ const kDuasJour = <Dua>[
     virtue:
         "Le sommeil est présenté comme une petite mort : ouvrir les yeux sur cette phrase, c'est traiter chaque matin comme un sursis accordé.",
     tags: ['reveil'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/1.mp3',
   ),
   Dua(
     id: 'reveil_afani',
@@ -36,6 +37,7 @@ const kDuasJour = <Dua>[
         "Louange à Allah qui m'a préservé dans mon corps, m'a rendu mon âme et m'a permis de L'évoquer.",
     source: 'Rapporté par At-Tirmidhi',
     tags: ['reveil'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/3.mp3',
   ),
   Dua(
     id: 'reveil_imran',
@@ -64,6 +66,7 @@ const kDuasJour = <Dua>[
         "Nous voici au matin et le Royaume appartient à Allah. Louange à Allah. Il n'y a de divinité qu'Allah, Seul, sans associé. À Lui la royauté, à Lui la louange, et Il est capable de toute chose. Seigneur, je Te demande le bien de ce jour et le bien de ce qui suit, et je cherche refuge auprès de Toi contre le mal de ce jour et le mal de ce qui suit.",
     source: 'Rapporté par Mouslim',
     tags: ['matin'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/77.mp3',
   ),
   Dua(
     id: 'matin_bika',
@@ -75,6 +78,7 @@ const kDuasJour = <Dua>[
         "Ô Allah, c'est par Toi que nous entrons dans le matin, par Toi que nous entrons dans le soir, par Toi que nous vivons, par Toi que nous mourons, et c'est vers Toi qu'est la résurrection.",
     source: 'Rapporté par At-Tirmidhi',
     tags: ['matin'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/78.mp3',
   ),
   Dua(
     id: 'sayyid_istighfar',
@@ -88,6 +92,7 @@ const kDuasJour = <Dua>[
     virtue:
         "« Celui qui la dit le jour avec conviction et meurt ce jour-là avant le soir entre au Paradis » — de même pour la nuit.",
     tags: ['matin', 'soir', 'istighfar'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/79.mp3',
   ),
   Dua(
     id: 'hasbiya_allah',
@@ -101,6 +106,8 @@ const kDuasJour = <Dua>[
     source: 'Rapporté par Abou Dawoud — sept fois matin et soir',
     virtue: "« Allah lui suffira pour ce qui le préoccupe, de ce monde et de l'autre. »",
     tags: ['matin', 'soir', 'angoisse', 'peur'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/83.mp3',
+    audioAsset: 'audio/duas/83_cut.mp3',
     repeat: 7,
   ),
   Dua(
@@ -116,6 +123,7 @@ const kDuasJour = <Dua>[
     virtue:
         "Cent fois dans la journée : l'équivalent d'affranchir dix esclaves, cent bonnes actions inscrites, cent mauvaises effacées, et une protection contre le diable jusqu'au soir.",
     tags: ['matin', 'apres_priere'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/2.mp3',
     repeat: 100,
   ),
   Dua(
@@ -143,6 +151,8 @@ const kDuasJour = <Dua>[
     virtue:
         "Quatre paroles qui pèsent plus lourd que tout ce que l'on aurait pu dire depuis l'aube.",
     tags: ['matin'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/94.mp3',
+    audioAsset: 'audio/duas/94_cut.mp3',
     repeat: 3,
   ),
   Dua(
@@ -156,6 +166,7 @@ const kDuasJour = <Dua>[
     source: 'Rapporté par Abou Dawoud et At-Tirmidhi',
     virtue: "« Ses péchés lui sont pardonnés, eût-il fui devant l'ennemi. »",
     tags: ['matin', 'soir', 'istighfar'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/250.mp3',
     repeat: 3,
   ),
   Dua(
@@ -172,6 +183,9 @@ const kDuasJour = <Dua>[
     repeat: 3,
     surahNumber: 112,
     ayahNumber: 1,
+    // Corrigé 2026-08-07 (constat utilisateur : seul 112:1 était lu) --
+    // les trois sourates complètes, dans l'ordre où elles sont récitées.
+    verseRanges: [(112, 1, 4), (113, 1, 5), (114, 1, 6)],
   ),
   Dua(
     id: 'ayat_kursi',
@@ -200,6 +214,8 @@ const kDuasJour = <Dua>[
     source: 'Rapporté par Abou Dawoud et At-Tirmidhi — trois fois matin et soir',
     virtue: "« Rien ne lui nuira. »",
     tags: ['matin', 'soir', 'peur'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/86.mp3',
+    audioAsset: 'audio/duas/86_cut.mp3',
     repeat: 3,
   ),
   Dua(
@@ -213,6 +229,8 @@ const kDuasJour = <Dua>[
     source: 'Rapporté par Abou Dawoud — trois fois matin et soir',
     virtue: "« Il incombe à Allah de le satisfaire au Jour de la Résurrection. »",
     tags: ['matin', 'soir'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/87.mp3',
+    audioAsset: 'audio/duas/87_cut.mp3',
     repeat: 3,
   ),
   Dua(
@@ -225,6 +243,7 @@ const kDuasJour = <Dua>[
         "Ô Allah, je Te demande le pardon et la préservation dans ce monde et dans l'au-delà. Ô Allah, je Te demande le pardon et la préservation dans ma religion, ma vie ici-bas, ma famille et mes biens. Ô Allah, couvre ce que je voudrais cacher et apaise mes frayeurs.",
     source: 'Rapporté par Abou Dawoud et Ibn Majah',
     tags: ['matin', 'soir', 'peur'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/84.mp3',
   ),
   Dua(
     id: 'ya_hayyu_ya_qayyum',
@@ -237,6 +256,7 @@ const kDuasJour = <Dua>[
         "Ô Vivant, ô Subsistant, j'implore Ton secours par Ta miséricorde. Améliore toute ma situation et ne me confie pas à moi-même, ne serait-ce que le temps d'un clin d'œil.",
     source: 'Rapporté par An-Nasā\'ī et Al-Hakim',
     tags: ['matin', 'soir', 'angoisse'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/88.mp3',
   ),
   Dua(
     id: 'alim_al_ghayb',
@@ -248,6 +268,7 @@ const kDuasJour = <Dua>[
         "Ô Allah, Connaisseur de l'invisible et du visible, Créateur des cieux et de la terre, Seigneur et Souverain de toute chose : j'atteste qu'il n'y a de divinité que Toi. Je cherche refuge auprès de Toi contre le mal de mon âme et contre le mal du diable et de son association.",
     source: 'Rapporté par At-Tirmidhi et Abou Dawoud',
     tags: ['matin', 'soir'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/85.mp3',
   ),
 
   // ── Adhkār du soir ─────────────────────────────────────────────────────
@@ -286,6 +307,8 @@ const kDuasJour = <Dua>[
     source: 'Rapporté par Mouslim — trois fois le soir',
     virtue: "« Rien ne lui nuira jusqu'au matin. » Également dite en s'arrêtant en voyage.",
     tags: ['soir', 'peur', 'voyage'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/97.mp3',
+    audioAsset: 'audio/duas/97_cut.mp3',
     repeat: 3,
   ),
   Dua(
@@ -298,6 +321,7 @@ const kDuasJour = <Dua>[
         "Nous voici au soir sur la disposition naturelle de l'Islam, sur la parole de sincérité, sur la religion de notre Prophète Muhammad — paix et bénédiction sur lui — et sur la voie de notre père Abraham, monothéiste sincère et soumis, qui n'était pas du nombre des associateurs.",
     source: 'Rapporté par Ahmad',
     tags: ['soir'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/90.mp3',
   ),
 
   // ── Avant de dormir ────────────────────────────────────────────────────
@@ -310,6 +334,7 @@ const kDuasJour = <Dua>[
     translationFr: "Ô Allah, c'est en Ton nom que je meurs et que je vis.",
     source: 'Rapporté par Al-Boukhari',
     tags: ['sommeil'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/105.mp3',
   ),
   Dua(
     id: 'sommeil_aslamtu',
@@ -323,6 +348,7 @@ const kDuasJour = <Dua>[
     virtue:
         "« Si tu meurs cette nuit-là, tu meurs sur la nature originelle. » Le Prophète ﷺ recommandait d'en faire les dernières paroles de la journée.",
     tags: ['sommeil'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/111.mp3',
   ),
   Dua(
     id: 'sommeil_baqara_285',
@@ -349,6 +375,8 @@ const kDuasJour = <Dua>[
     virtue:
         "Le Prophète ﷺ l'enseigna à sa fille qui demandait un serviteur : « Cela vaut mieux pour vous qu'un serviteur. »",
     tags: ['sommeil'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/69.mp3',
+    audioAsset: 'audio/duas/69_cut.mp3',
     repeat: 33,
   ),
   Dua(
@@ -360,6 +388,7 @@ const kDuasJour = <Dua>[
         "Ô Allah, préserve-moi de Ton châtiment le jour où Tu ressusciteras Tes serviteurs.",
     source: 'Rapporté par Abou Dawoud et At-Tirmidhi — trois fois, la main droite sous la joue',
     tags: ['sommeil'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/104.mp3',
     repeat: 3,
   ),
 
@@ -387,6 +416,7 @@ const kDuasJour = <Dua>[
         "Ô Allah, Seigneur de Gabriel, de Michaël et d'Isrāfīl, Créateur des cieux et de la terre, Connaisseur de l'invisible et du visible : Tu juges entre Tes serviteurs sur ce en quoi ils divergeaient. Guide-moi, avec Ta permission, vers la vérité au sujet de ce qui fait l'objet de divergence. Tu guides qui Tu veux vers un chemin droit.",
     source: 'Rapporté par Mouslim',
     tags: ['nuit'],
+    audioUrl: 'https://www.hisnmuslim.com/audio/ar/30.mp3',
   ),
   Dua(
     id: 'nuit_insomnie',
