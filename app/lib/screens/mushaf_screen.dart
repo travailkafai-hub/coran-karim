@@ -180,8 +180,52 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     // démarrer le minuteur ici ; `ref.listen` dans build() ne réagit qu'aux
     // CHANGEMENTS futurs, pas à l'état déjà en place à l'ouverture.
     if (ref.read(kindleAutoTurnProvider)) {
-      _syncKindleAutoTurn(true, ref.read(kindlePageSecondsProvider));
+      _demarrerCalibration();
     }
+  }
+
+  /// Un tournage AUTOMATIQUE : la page tourne, l'horloge de mesure repart, et
+  /// on retient que ce tournage n'est pas de la main du lecteur -- c'est ce
+  /// qui rend un retour arriere interpretable.
+  void _tournerAutomatiquement(double seconds) {
+    if (!mounted) return;
+    // Même formule que le tap manuel (§_buildVerses) -- un `*0.7`
+    // approximatif ici aurait fait sauter un peu plus ou moins qu'un
+    // vrai "page suivante", décalant l'auto-tournage du tap manuel.
+    final size = MediaQuery.of(context).size;
+    final viewportHeight = size.height - _reserveHaut(context) - _reserveBas();
+    _kindleJumpPage(viewportHeight, forward: true);
+    DiagnosticLog.log('Cadence', // TEMP-CADENCE : trace de mise au point, a retirer
+        
+        'tournage AUTOMATIQUE (delai ${seconds.toStringAsFixed(1)}s) '
+        '-- rien appris, le lecteur n\'a rien dit');
+    // La page a tourné TOUTE SEULE : rien à apprendre, le lecteur n'a rien
+    // dit. On remet le chronomètre de MESURE à zéro pour la page suivante.
+    _debutPage = DateTime.now();
+    _dernierTournageAutomatique = true;
+  }
+
+  /// Repousse le prochain tournage automatique SANS toucher a l'horloge de
+  /// mesure : le lecteur est actif, la page ne doit pas tourner sous ses yeux,
+  /// mais la duree de lecture de cette page continue de courir depuis son
+  /// affichage.
+  void _reporterMinuteur() {
+    if (!ref.read(kindleAutoTurnProvider) || _calibrationEnCours) return;
+    final s = ref.read(kindlePageSecondsProvider);
+    _kindleAutoTurnTimer?.cancel();
+    _kindleAutoTurnTimer = Timer.periodic(Duration(seconds: s.round()), (_) {
+      _tournerAutomatiquement(s);
+    });
+  }
+
+  /// Remet le mode automatique en attente de mesure (cf. `_calibrationEnCours`).
+  void _demarrerCalibration() {
+    _kindleAutoTurnTimer?.cancel();
+    _calibrationEnCours = true;
+    _debutPage = null; // aucun intervalle connu : le 1er tap n'apprendra rien
+    DiagnosticLog.log('Cadence', // TEMP-CADENCE : trace de mise au point, a retirer
+        
+        'calibration demandee : deux taps pour donner la cadence');
   }
 
   @override
@@ -402,10 +446,18 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     final playerState = ref.watch(playerProvider);
 
     final kindleMode = ref.watch(kindleModeProvider);
+    final modeSombre = ref.watch(modeSombreProvider);
     ref.listen(kindleAutoTurnProvider,
         (_, next) => _syncKindleAutoTurn(next, ref.read(kindlePageSecondsProvider)));
     ref.listen(kindlePageSecondsProvider,
         (_, next) => _syncKindleAutoTurn(ref.read(kindleAutoTurnProvider), next));
+    ref.listen(kindleAutoTurnProvider, (_, actif) {
+      if (actif) {
+        _demarrerCalibration();
+      } else {
+        _syncKindleAutoTurn(false, 0);
+      }
+    });
 
     // Curseur de lecture (demande utilisateur 2026-07-06 : la lecture reste
     // sur cette page, avec un fond bleu qui suit le verset en cours et un
@@ -423,7 +475,9 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     });
 
     return Scaffold(
-      backgroundColor: kindleMode ? AppColors.kindleBg : AppColors.cream,
+      backgroundColor: modeSombre
+          ? AppColors.sombreBg
+          : (kindleMode ? AppColors.kindleBg : AppColors.cream),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.green800))
           : _error != null
@@ -433,8 +487,12 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                     // Pas de motif décoratif ni de badge de défilement en
                     // mode Kindle -- c'est le thème sobre "repos-yeux" qui
                     // remplace ces éléments, pas un mode qui les empile.
-                    if (!kindleMode) const QuranPatternBackground(),
-                    _buildVerses(playingVerseKey, kindleMode: kindleMode),
+                    // Le motif de fond est un decor CLAIR : sur fond noir il
+                    // fait un voile grisatre et mange le contraste du texte.
+                    if (!kindleMode && !modeSombre)
+                      const QuranPatternBackground(),
+                    _buildVerses(playingVerseKey,
+                        kindleMode: kindleMode, modeSombre: modeSombre),
                     // Bande invisible en haut de l'écran (~15% de hauteur) :
                     // seule active quand le header est masqué (sinon le
                     // header, positionné par-dessus, intercepte le tap en
@@ -505,7 +563,21 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                           // coranique juste en dessous transparaissait a
                           // travers le bouton -- signale par l'utilisateur sur
                           // capture (verset 66, mot visible dans le rond vert).
-                          color: AppColors.green900,
+                          //
+                          // ── ARBITRAGE INVERSE (2026-08-07) ──────────────
+                          // « Je veux que le retour arriere soit plus
+                          // transparent, il cache du texte. » L'opacite reglait
+                          // un defaut de LISIBILITE DU BOUTON ; elle en creait
+                          // un de LISIBILITE DU TEXTE, qui prime -- c'est un
+                          // Mushaf, le texte passe avant le chrome.
+                          // Compromis retenu : nettement translucide (alpha
+                          // 110) mais pose sur un fond sombre, donc l'icone
+                          // creme reste lisible. En mode nuit on l'accorde au
+                          // fond noir plutot qu'au vert du theme clair.
+                          color: (modeSombre
+                                  ? AppColors.sombreBgDeep
+                                  : AppColors.green900)
+                              .withAlpha(110),
                           shape: const CircleBorder(),
                           child: IconButton(
                             icon: const Icon(Icons.arrow_back_rounded,
@@ -532,6 +604,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                         duration: const Duration(milliseconds: 200),
                         offset: _headerVisible ? Offset.zero : const Offset(0, -1),
                         child: MushafHeader(
+                          modeSombre: modeSombre,
                           surah: widget.surah,
                           onBack: () => Navigator.of(context).maybePop(),
                           onMindMap: () => Navigator.of(context).push(
@@ -567,6 +640,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                         child: SafeArea(
                           top: false,
                           child: _BottomBar(
+                            modeSombre: modeSombre,
                             onPlayTap: _verses.isEmpty ? null : _onPlayTap,
                             onMicTap: _verses.isEmpty ? null : _openMemorization,
                             onMicLongPress: _verses.isEmpty ? null : _openKaraoke,
@@ -618,22 +692,140 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
 
   void _syncKindleAutoTurn(bool enabled, double seconds) {
     _kindleAutoTurnTimer?.cancel();
-    if (!enabled) return;
+    if (!enabled) {
+      _calibrationEnCours = false;
+      return;
+    }
+    // Tant que la cadence n'a pas ete MESUREE entre deux taps, rien ne tourne.
+    if (_calibrationEnCours) {
+      DiagnosticLog.log('Cadence', // TEMP-CADENCE : trace de mise au point, a retirer
+        
+          'tournage automatique EN ATTENTE : la cadence sera mesuree entre '
+          'vos deux prochains taps, rien ne tourne d\'ici la');
+      return;
+    }
     _debutPage = DateTime.now();
-    _kindleAutoTurnTimer = Timer.periodic(Duration(seconds: seconds.round()), (_) {
-      if (!mounted) return;
-      // Même formule que le tap manuel (§_buildVerses) -- un `*0.7`
-      // approximatif ici aurait fait sauter un peu plus ou moins qu'un
-      // vrai "page suivante", décalant l'auto-tournage du tap manuel.
-      final size = MediaQuery.of(context).size;
-      final viewportHeight =
-          size.height - _reserveHaut(context) - _reserveBas();
-      _kindleJumpPage(viewportHeight, forward: true);
-      // La page a tourné TOUTE SEULE : rien à apprendre, le lecteur n'a rien
-      // dit. On remet seulement le chronomètre à zéro pour la page suivante.
-      _debutPage = DateTime.now();
-    });
+    _kindleAutoTurnTimer = Timer.periodic(Duration(seconds: seconds.round()),
+        (_) => _tournerAutomatiquement(seconds));
   }
+
+  // ── LE DEFILEMENT MANUEL COMPTE AUTANT QUE LE TAP (2026-08-07) ──────────
+  //
+  // Specification utilisateur : « quand je touche l'ecran, si je descends, ca
+  // impacte le delai et il doit se remettre a zero. Exemple : delai de 20 s,
+  // ca tourne a 20 s, je n'ai pas fini, je glisse en bas pour finir -- donc
+  // toute la page je ne l'ai pas encore lue -- le nouveau delai doit
+  // recommencer. Alors que si je finis avant, le clic pour tourner la page :
+  // le temps doit diminuer, mais repartir de zero. On ne va pas traiter le
+  // scroll pour afficher plus. »
+  //
+  // TROIS REGLES, ET UNE SEULE MESURE.
+  //  1. TOUT geste de l'utilisateur remet le chronometre a zero. Il est en
+  //     train de lire : la page ne doit pas tourner sous ses yeux parce qu'un
+  //     minuteur lance avant son geste arrive a echeance.
+  //  2. Un defilement EN ARRIERE dit « ca a tourne trop tot, je n'avais pas
+  //     fini » -- exactement ce que dit le tap arriere. Le delai s'allonge.
+  //  3. Un defilement EN AVANT ne dit RIEN sur la cadence : le lecteur va
+  //     simplement voir la suite. On remet le chronometre a zero, on n'apprend
+  //     pas. (« on ne va pas traiter le scroll pour afficher plus »)
+  //
+  // POURQUOI CE N'ETAIT PAS COUVERT : le minuteur est un `Timer.periodic`
+  // arme une fois pour toutes. Il ne connaissait que le tap (`_tapManuel` le
+  // rearme) ; pendant qu'on faisait defiler a la main, il continuait de
+  // courir et pouvait tourner la page en pleine lecture.
+  //
+  // ⚠️ NE PAS APPRENDRE DU DEFILEMENT PROGRAMME. `_kindleJumpPage` utilise
+  // `animateTo`, qui emet les memes notifications qu'un doigt. Seule la
+  // presence de `dragDetails` distingue un vrai geste -- sans ce test, chaque
+  // tournage automatique se prendrait pour un geste du lecteur et
+  // s'auto-confirmerait en boucle, le defaut meme que `_tapManuel` evite.
+  double? _pixelsDebutGeste;
+
+  /// Le tournage automatique attend-il d'etre CALIBRE par deux taps ?
+  ///
+  /// ── LE DELAI SE MESURE, IL NE SE SUPPOSE PLUS (2026-08-07) ──────────────
+  ///
+  /// Demande utilisateur : « je veux que le declenchement du delai automatique
+  /// se fasse en mesurant le delai entre deux taps, pour la premiere fois ».
+  ///
+  /// CE QUI SE PASSAIT AVANT, et que le journal a montre : activer le mode
+  /// armait le minuteur sur la valeur STOCKEE (30 s au depart, ou ce qui
+  /// restait d'une lecture precedente). La page tournait donc sur une cadence
+  /// qui n'etait pas celle du jour, le lecteur revenait en arriere, et le
+  /// delai ne faisait plus que grimper -- mesure du 15:49-15:51 : 12,5 -> 13,5
+  /// -> 14,7 -> 16,0 -> 17,4 s, cinq retours arriere, et PAS UN SEUL tap avant
+  /// pour le faire redescendre.
+  ///
+  /// Maintenant : a l'activation, aucun minuteur. Le premier tap n'apprend
+  /// rien (il n'y a pas encore d'intervalle), le second donne la cadence, et
+  /// c'est SEULEMENT la que le tournage automatique demarre. On ne suppose
+  /// plus, on mesure.
+  ///
+  /// EFFET DE BORD VOULU : cela regle aussi le defaut de la reouverture
+  /// d'ecran (le chronometre partait a l'ouverture, donc « depuis que l'ecran
+  /// est pret » et non « depuis que la lecture a commence »).
+  bool _calibrationEnCours = false;
+
+  bool _surDefilement(ScrollNotification n) {
+    if (n is ScrollStartNotification) {
+      if (n.dragDetails == null) return false; // defilement programme
+      _pixelsDebutGeste = n.metrics.pixels;
+      return false;
+    }
+    if (n is ScrollEndNotification && _pixelsDebutGeste != null) {
+      final depart = _pixelsDebutGeste!;
+      _pixelsDebutGeste = null;
+      final delta = n.metrics.pixels - depart;
+      // Un micro-mouvement n'est pas une intention de lecture.
+      if (delta.abs() < 8) return false;
+      final debut = _debutPage;
+      // Regle 2 : revenu en arriere -> la page avait tourne trop tot.
+      // ⚠️ SEULEMENT apres un tournage AUTOMATIQUE (cf.
+      // `_dernierTournageAutomatique`) : revenir sur ses pas apres avoir
+      // tourne soi-meme ne dit rien du delai automatique.
+      if (delta < 0 && debut != null && _dernierTournageAutomatique) {
+        final ecoule =
+            DateTime.now().difference(debut).inMilliseconds / 1000.0;
+        ref
+            .read(kindlePageSecondsProvider.notifier)
+            .apprendre(ecoule, enAvant: false);
+      }
+      DiagnosticLog.log('Cadence', // TEMP-CADENCE : trace de mise au point, a retirer
+        
+          'defilement manuel ${delta < 0 ? "ARRIERE" : "avant"} '
+          '(${delta.abs().toStringAsFixed(0)} px) -- chronometre remis a zero'
+          // Ne PAS annoncer un allongement que le filtre `< 1 s` a pu
+          // refuser : la ligne disait « delai allonge » alors que rien
+          // n'avait bouge (constate dans le journal du 15:49).
+          '${delta < 0 ? ", retour arriere signale" : ", rien appris"}');
+      // ── DEUX HORLOGES, PAS UNE (corrige 2026-08-07) ────────────────────
+      //
+      // `_debutPage` servait A LA FOIS de base de MESURE (« depuis quand
+      // cette page est affichee ») et de REPORT du minuteur (« il vient de
+      // bouger, ne tourne pas maintenant »). Tout defilement la remettait a
+      // zero -- donc lire une page en faisant glisser une fois pour en voir
+      // le bas ne mesurait QUE le temps depuis ce glissement. La cadence
+      // apprise etait systematiquement PLUS COURTE que la realite, ce qui
+      // faisait tourner trop tot, ce qui provoquait un retour arriere, ce qui
+      // rallongeait le delai... la boucle observee dans le journal.
+      //
+      // Desormais : le defilement REPOUSSE le minuteur (il lit, on ne tourne
+      // pas) mais ne touche PAS a `_debutPage`. Seul un tournage de page
+      // remet l'horloge de mesure a zero, ce qui est sa definition meme.
+      _reporterMinuteur();
+    }
+    return false;
+  }
+
+  /// Le dernier tournage de page a-t-il ete AUTOMATIQUE ?
+  ///
+  /// Le signal « trop tot » (retour en arriere) n'a de sens que dans ce cas :
+  /// si c'est le LECTEUR qui a tourne puis qui revient, le delai automatique
+  /// n'y est pour rien. Mesure du 2026-08-07 qui l'impose :
+  ///     15:56:27  tap avant            <- il tourne LUI-MEME
+  ///     15:56:32  EN ARRIERE apres 5.5s : 17.4 -> 18.9
+  /// Le delai automatique a ete allonge a cause d'un geste manuel.
+  bool _dernierTournageAutomatique = false;
 
   /// Instant d'arrivée sur la page courante — base de l'apprentissage de la
   /// cadence, cf. [KindlePageSecondsNotifier.apprendre].
@@ -647,7 +839,16 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   void _tapManuel({required bool enAvant}) {
     final debut = _debutPage;
     _debutPage = DateTime.now();
-    if (debut == null) return;
+    // Le lecteur a tourne LUI-MEME : un retour arriere qui suivrait ne dira
+    // rien du delai automatique (cf. `_dernierTournageAutomatique`).
+    _dernierTournageAutomatique = false;
+    if (debut == null) {
+      DiagnosticLog.log('Cadence', // TEMP-CADENCE : trace de mise au point, a retirer
+        
+          'tap ${enAvant ? "avant" : "arriere"} -- aucun debut de page connu, '
+          'rien appris (premier geste de la session)');
+      return;
+    }
     // ── ON APPREND TOUJOURS, MÊME TOURNAGE AUTOMATIQUE ÉTEINT ────────────
     //
     // Demande utilisateur (2026-08-06) : « que la durée du défilement s'adapte
@@ -668,6 +869,14 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     final ecoule = DateTime.now().difference(debut).inMilliseconds / 1000.0;
     ref.read(kindlePageSecondsProvider.notifier)
         .apprendre(ecoule, enAvant: enAvant);
+    // Deuxieme tap : la cadence est mesuree, le tournage peut demarrer.
+    if (_calibrationEnCours && enAvant && ecoule >= 1.0) {
+      _calibrationEnCours = false;
+      DiagnosticLog.log('Cadence', // TEMP-CADENCE : trace de mise au point, a retirer
+        
+          'calibration TERMINEE : ${ecoule.toStringAsFixed(1)}s mesurees entre '
+          'deux taps -- le tournage automatique demarre');
+    }
     // Le réarmement, lui, n'a de sens que si le minuteur tourne : sans lui la
     // valeur apprise n'aurait d'effet qu'à la prochaine activation.
     if (ref.read(kindleAutoTurnProvider)) {
@@ -675,7 +884,8 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     }
   }
 
-  Widget _buildVerses(String? playingVerseKey, {bool kindleMode = false}) {
+  Widget _buildVerses(String? playingVerseKey,
+      {bool kindleMode = false, bool modeSombre = false}) {
     final textScale = ref.watch(textScaleProvider);
     final showLoadingFooter = _loadingMore;
     final size = MediaQuery.of(context).size;
@@ -683,7 +893,9 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         size.height - _reserveHaut(context) - _reserveBas();
     return Stack(
       children: [
-        ListView.builder(
+        NotificationListener<ScrollNotification>(
+          onNotification: _surDefilement,
+          child: ListView.builder(
           controller: _scrollController,
           // top = hauteur du header -- il n'est plus un appBar de Scaffold qui
           // réserve automatiquement cet espace (c'est maintenant un overlay
@@ -707,7 +919,8 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                 ),
               );
             }
-            return _buildEntry(_items[i], playingVerseKey, textScale, kindleMode: kindleMode);
+            return _buildEntry(_items[i], playingVerseKey, textScale,
+                kindleMode: kindleMode, modeSombre: modeSombre);
           },
         ),
         // ── LE CHANGEMENT DE PAGE N'APPARTIENT PAS AU MODE KINDLE ────────
@@ -739,6 +952,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         // Les deux bandes sont donc decalees de cette marge et elargies. On
         // les garde SYMETRIQUES : si le defaut venait d'ailleurs, une
         // asymetrie de code aurait rendu le diagnostic impossible.
+        ),
         Positioned(
           left: _kMargeGesteSysteme,
           top: _reserveHaut(context),
@@ -774,12 +988,16 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   // paginé (§ _buildKindlePages) pour ne PAS réimplémenter le rendu d'un
   // verset/bannière une 2e fois dans un langage légèrement différent.
   Widget _buildEntry(_ListEntry entry, String? playingVerseKey, double textScale,
-      {bool kindleMode = false, int? wordStart, int? wordEnd}) {
+      {bool kindleMode = false,
+      bool modeSombre = false,
+      int? wordStart,
+      int? wordEnd}) {
     switch (entry.kind) {
       case _EntryKind.bismillah:
-        return _BismillahBanner(text: entry.bismillah!.textUthmani);
+        return _BismillahBanner(
+            text: entry.bismillah!.textUthmani, modeSombre: modeSombre);
       case _EntryKind.surahBanner:
-        return _SurahBanner(surah: entry.surah!);
+        return _SurahBanner(surah: entry.surah!, modeSombre: modeSombre);
       case _EntryKind.verse:
         final idx = entry.verseIndex!;
         final verse = _verses[idx];
@@ -798,6 +1016,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           showTranslation: _showTranslation,
           textScale: textScale,
           kindleMode: kindleMode,
+          modeSombre: modeSombre,
           wordStart: wordStart,
           wordEnd: wordEnd,
           onTap: () => setState(() => _activeVerse = idx),
@@ -805,7 +1024,18 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           // Tap sur un mot précis = l'expliquer (demande utilisateur
           // 2026-07-10), pas le jouer -- la lecture reste accessible via
           // le bouton "Lire" une fois le verset sélectionné.
-          onWordTap: (wordIdx) {
+          //
+          // ── PASSE EN APPUI LONG (demande utilisateur 2026-08-07) ─────────
+          // « Quand je suis en mode lecture, le clic sur le bord de l'écran
+          // c'est pour passer à l'écran suivant. » Le tap simple est donc
+          // réservé à la navigation : un mot qui le captait aussi empêchait
+          // la page de tourner dès qu'on visait un peu court. L'appui long
+          // ne concurrence rien -- et c'est déjà le geste du menu de verset,
+          // donc le même reflexe pour « j'en veux plus sur ceci ».
+          //
+          // `onWordTap` n'est plus fourni : sans lui, le texte ne pose aucun
+          // détecteur de tap et le geste redescend intact au parent.
+          onWordLongPress: (wordIdx) {
             setState(() => _activeVerse = idx);
             _openWordExplanation(verse, wordIdx);
           },
@@ -1113,17 +1343,33 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     );
   }
 
-  /// Jeu de memorisation sur le verset actif (demande utilisateur 2026-08-06).
-  /// Meme ecran que le hub Coach et la barre de recitation -- un seul jeu,
-  /// trois portes d'entree.
+  /// Jeu de memorisation a partir du verset actif (demande utilisateur
+  /// 2026-08-06). Meme ecran que le hub Coach et la barre de recitation --
+  /// un seul jeu, trois portes d'entree.
+  ///
+  /// BUG CORRIGE (2026-08-07) : cette porte d'entree passait `verses:
+  /// [verse]`, un SEUL verset -- la partie s'arretait donc immediatement
+  /// apres lui, contrairement aux deux autres portes d'entree
+  /// (`karaoke_recitation_screen.dart:_openMemorizationGame`,
+  /// `coach_hub_screen.dart`) qui demarrent sur toute la PAGE du Mushaf a
+  /// partir du verset choisi. Meme regle reprise ici : la partie est de
+  /// toute facon illimitee desormais (le notifier charge la page suivante
+  /// tout seul, cf. `memorization_game_provider.dart`), donc ce depart ne
+  /// fixe plus qu'un POINT DE DEPART, pas une borne.
   void _openJeuMemorisation() {
     final verse = _verses[_activeVerse];
+    final page = verse.pageNumber;
+    final pageVerses = page == null
+        ? [verse]
+        : _verses
+            .where((v) => v.pageNumber == page && v.ayahNumber >= verse.ayahNumber)
+            .toList();
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => MemorizationGameScreen(
           surah: _surahForNumber(verse.surahNumber),
-          verses: [verse],
+          verses: pageVerses,
         ),
       ),
     );
@@ -1194,31 +1440,55 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
 // fichier (évite de toucher au switch de l'itemBuilder).
 class _SurahBanner extends StatelessWidget {
   final Surah surah;
-  const _SurahBanner({required this.surah});
+  /// Le bandeau ornemental est un decor CLAIR. Sur fond noir il forme un pave
+  /// blanc au milieu de la page -- constate sur capture (2026-08-07). On le
+  /// laisse tel quel mais assombri par un voile, plutot que de reecrire un
+  /// second bandeau : l'ornement garde son dessin, il cesse d'eblouir.
+  final bool modeSombre;
+  const _SurahBanner({required this.surah, this.modeSombre = false});
 
   @override
-  Widget build(BuildContext context) => SurahOrnamentHeader(surah: surah);
+  Widget build(BuildContext context) {
+    final entete = SurahOrnamentHeader(surah: surah);
+    if (!modeSombre) return entete;
+    return ColorFiltered(
+      colorFilter: const ColorFilter.matrix(<double>[
+        0.45, 0, 0, 0, 0,
+        0, 0.45, 0, 0, 0,
+        0, 0, 0.45, 0, 0,
+        0, 0, 0, 1, 0,
+      ]),
+      child: entete,
+    );
+  }
 }
 
 class _BismillahBanner extends StatelessWidget {
   final String text;
-  const _BismillahBanner({required this.text});
+  final bool modeSombre;
+  const _BismillahBanner({required this.text, this.modeSombre = false});
 
   @override
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: AppColors.green50,
+          color: modeSombre ? AppColors.sombreBgDeep : AppColors.green50,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.green100, width: 1),
+          border: Border.all(
+              color: modeSombre
+                  ? AppColors.sombreAccent.withAlpha(90)
+                  : AppColors.green100,
+              width: 1),
         ),
         child: Center(
           child: Text(
             text,
             textDirection: TextDirection.rtl,
             style: GoogleFonts.scheherazadeNew(
-              fontSize: 24, color: AppColors.green800, height: 1.8),
+              fontSize: 24,
+              color: modeSombre ? AppColors.sombreInk : AppColors.green800,
+              height: 1.8),
           ),
         ),
       );
@@ -1234,6 +1504,8 @@ class _BottomBar extends StatelessWidget {
   final VoidCallback? onMoreTap;
   final VoidCallback? onBookmarkTap;
   final VoidCallback? onBookmarkLongPress;
+  /// Lecture sur fond noir : le vert du theme s'y confond avec la page.
+  final bool modeSombre;
   /// Le verset actif est-il marque ? Pilote l'icone du signet.
   final bool estMarque;
   final bool showTranslation;
@@ -1244,6 +1516,7 @@ class _BottomBar extends StatelessWidget {
     this.onTranslationTap, this.onCoachTap, this.onMoreTap,
     this.onBookmarkTap, this.onBookmarkLongPress, this.estMarque = false,
     this.showTranslation = false, this.isPlaying = false,
+    this.modeSombre = false,
   });
 
   @override
@@ -1255,7 +1528,16 @@ class _BottomBar extends StatelessWidget {
     return Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         decoration: BoxDecoration(
-          color: AppColors.green800,
+          // Sur fond noir, le vert fonce du theme se confond avec la page --
+          // « le menu cache en mode dark est invisible » (utilisateur,
+          // 2026-08-07). On l'eclaircit et on lui donne un liseré : ce n'est
+          // pas une couleur de marque ici, c'est un repere qui doit se voir.
+          color: modeSombre ? AppColors.sombreBgDeep : AppColors.green800,
+          border: modeSombre
+              ? Border(
+                  top: BorderSide(
+                      color: AppColors.sombreAccent.withAlpha(120), width: 1))
+              : null,
           borderRadius: BorderRadius.circular(32),
           boxShadow: [
             BoxShadow(

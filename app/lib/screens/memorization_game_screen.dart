@@ -21,6 +21,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../providers/memorization_game_provider.dart';
+import '../providers/memorization_game_records_provider.dart';
 import '../theme/app_theme.dart';
 
 class MemorizationGameScreen extends ConsumerWidget {
@@ -68,23 +69,35 @@ class MemorizationGameScreen extends ConsumerWidget {
         ),
         child: SafeArea(
           child: state.isGameComplete
-              ? _CompletionView(surah: surah, isArabic: isArabic)
+              ? _CompletionView(
+                  surah: surah,
+                  isArabic: isArabic,
+                  finalWords: state.totalWordsCompleted,
+                  record: ref.watch(memorizationGameRecordProvider),
+                )
               : Column(
                   children: [
                     const SizedBox(height: 60), // sous l'AppBar transparente
-                    _ProgressStars(state: state),
+                    _ScoreBar(
+                      words: state.totalWordsCompleted,
+                      record: ref.watch(memorizationGameRecordProvider),
+                      justBeatRecord: state.justBeatRecord,
+                    ),
                     Expanded(
                       child: Center(
-                        child: state.choices.isEmpty
-                            ? _FirstWordBubble(
-                                word: state.currentWord,
-                                onTap: () => notifier.submitWord(state.currentWord),
-                              )
-                            : _ChoiceGrid(
-                                choices: state.choices,
-                                wrongFlash: state.wrongFlash,
-                                onChoiceTap: notifier.submitWord,
-                              ),
+                        child: state.isLoadingNextPage
+                            ? const _NextPageLoading()
+                            : state.choices.isEmpty
+                                ? _FirstWordBubble(
+                                    word: state.currentWord,
+                                    onTap: () =>
+                                        notifier.submitWord(state.currentWord),
+                                  )
+                                : _ChoiceGrid(
+                                    choices: state.choices,
+                                    wrongFlash: state.wrongFlash,
+                                    onChoiceTap: notifier.submitWord,
+                                  ),
                       ),
                     ),
                   ],
@@ -95,58 +108,128 @@ class MemorizationGameScreen extends ConsumerWidget {
   }
 }
 
-/// Barre de progression ludique (une étoile au bout de la barre remplie).
+/// Score courant + record personnel (remplace l'ancienne barre "verset X sur
+/// Y", cf. décision utilisateur 2026-08-07 : la partie est désormais
+/// illimitée -- charge la page suivante toute seule au lieu de s'arrêter en
+/// fin de page -- donc "X sur Y" n'a plus de sens (Y grandit sans cesse).
 ///
-/// PIÈGE ÉVITÉ (2026-07-22, cf. leçon déjà tirée sur la carte mentale pour
-/// les grandes sourates) : une première version affichait une icône étoile
-/// PAR VERSET dans un `Wrap` -- inoffensif pour Al-Fatiha (7 versets) mais
-/// pour Al-Baqarah (286 versets) ça produit ~286 icônes qui débordent
-/// largement l'écran et poussent tout le jeu hors champ (overflow constaté
-/// au screenshot). Une barre de progression, elle, reste de taille fixe quel
-/// que soit le nombre de versets -- jamais recréer un indicateur "un élément
-/// par verset" sans vérifier le comportement sur une grande sourate.
-class _ProgressStars extends StatelessWidget {
-  final MemorizationGameState state;
-  const _ProgressStars({required this.state});
+/// Reste un indicateur de TAILLE FIXE (deux nombres), ce qui préserve la
+/// leçon du 2026-07-22 sur les grandes sourates (cf. historique de cette
+/// classe) : jamais un élément par verset, même sous une autre forme.
+class _ScoreBar extends StatefulWidget {
+  final int words;
+  final int record;
+  final bool justBeatRecord;
+  const _ScoreBar(
+      {required this.words, required this.record, required this.justBeatRecord});
+
+  @override
+  State<_ScoreBar> createState() => _ScoreBarState();
+}
+
+class _ScoreBarState extends State<_ScoreBar> {
+  bool _showNewRecord = false;
+
+  @override
+  void didUpdateWidget(covariant _ScoreBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.justBeatRecord && !oldWidget.justBeatRecord) {
+      setState(() => _showNewRecord = true);
+      Future.delayed(const Duration(milliseconds: 1400), () {
+        if (mounted) setState(() => _showNewRecord = false);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final total = state.verses.length;
-    final progress = (state.currentVerseIndex +
-            (state.currentWordIndex / state.currentVerse.words.length)) /
-        total;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
-      child: Column(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
-                    minHeight: 14,
-                    backgroundColor: Colors.white,
-                    valueColor:
-                        AlwaysStoppedAnimation(AppColors.gameChipColors[1]),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.star_rounded, color: AppColors.gameStar, size: 26),
-            ],
+          Expanded(
+            child: _StatChip(
+              icon: Icons.bolt_rounded,
+              color: AppColors.gameChipColors[1],
+              label: t.memorizationGameWordsCount(widget.words),
+            ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            t.memorizationGameVerseProgress(
-                state.currentVerseIndex + 1, total),
-            style: GoogleFonts.baloo2(
-                fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.inkLight),
+          const SizedBox(width: 10),
+          Expanded(
+            child: AnimatedScale(
+              scale: _showNewRecord ? 1.08 : 1.0,
+              duration: const Duration(milliseconds: 250),
+              child: _StatChip(
+                icon: Icons.emoji_events_rounded,
+                color: AppColors.gameStar,
+                label: _showNewRecord
+                    ? t.memorizationGameNewRecord
+                    : t.memorizationGameRecordLabel(widget.record),
+              ),
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  const _StatChip({required this.icon, required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 6,
+                offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.baloo2(
+                    fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.ink),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+/// Court état d'attente pendant que la page suivante se charge (quasi
+/// instantané -- les données du Coran sont 100% locales, cf.
+/// `QuranApi` -- mais un état visuel évite un dernier mot qui semble figé).
+class _NextPageLoading extends StatelessWidget {
+  const _NextPageLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const CircularProgressIndicator(color: AppColors.gameStar),
+        const SizedBox(height: 14),
+        Text(t.memorizationGameLoadingNextPage,
+            style: GoogleFonts.baloo2(
+                fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.inkLight)),
+      ],
     );
   }
 }
@@ -333,7 +416,14 @@ class _ChoiceChipState extends State<_ChoiceChip> {
 class _CompletionView extends StatelessWidget {
   final Surah surah;
   final bool isArabic;
-  const _CompletionView({required this.surah, required this.isArabic});
+  final int finalWords;
+  final int record;
+  const _CompletionView({
+    required this.surah,
+    required this.isArabic,
+    required this.finalWords,
+    required this.record,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -366,6 +456,13 @@ class _CompletionView extends StatelessWidget {
                   isArabic ? surah.nameArabic : surah.nameSimple),
               textAlign: TextAlign.center,
               style: GoogleFonts.manrope(fontSize: 14, color: AppColors.inkLight),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              t.memorizationGameFinalScore(finalWords, max(finalWords, record)),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.baloo2(
+                  fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.gameStar),
             ),
             const SizedBox(height: 24),
             FilledButton(
