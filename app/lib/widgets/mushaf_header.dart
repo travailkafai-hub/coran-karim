@@ -9,7 +9,15 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBack;
   final VoidCallback? onMindMap;
 
-  const MushafHeader({super.key, required this.surah, this.onBack, this.onMindMap});
+  /// Lecture sur fond noir : le degrade vert du theme se confond avec la
+  /// page et l'en-tete devient invisible (« le menu cache en mode dark est
+  /// invisible », utilisateur 2026-08-07). On lui donne alors un fond sombre
+  /// distinct du noir de la page, plus un liseré doré : ce n'est pas une
+  /// couleur de marque ici, c'est un repere qui doit se voir.
+  final bool modeSombre;
+
+  const MushafHeader({super.key, required this.surah, this.onBack,
+      this.onMindMap, this.modeSombre = false});
 
   @override
   Size get preferredSize => const Size.fromHeight(120);
@@ -17,12 +25,19 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [AppColors.green900, AppColors.green800],
+          colors: modeSombre
+              ? const [AppColors.sombreBgDeep, Color(0xFF262626)]
+              : const [AppColors.green900, AppColors.green800],
         ),
+        border: modeSombre
+            ? Border(
+                bottom: BorderSide(
+                    color: AppColors.sombreAccent.withAlpha(120), width: 1))
+            : null,
       ),
       child: SafeArea(
         child: Stack(

@@ -82,8 +82,55 @@ final _endMarkerRe = RegExp(r'\s*<span class=end>.*?</span>');
 
 /// Parses quran.com tajweed HTML into a list of colored TextSpans.
 /// Handles nested spans (2 levels).
-List<TextSpan> parseTajweedHtml(String html, TextStyle base) {
-  return _parseNode(html.replaceAll(_endMarkerRe, ''), null, base);
+/// Rend une couleur de tajwid lisible sur fond noir SANS changer sa teinte.
+///
+/// Les couleurs de `_tajweedColors` sont choisies pour un fond CLAIR : gris
+/// moyen `0xFF77766C` (idgham sans ghunnah, laam shamsiyah, hamzat wasl,
+/// lettres muettes), rouge brique `0xFFA13420` (madd necessaire)... Sur
+/// `0xFF0B0B0B` elles disparaissent -- et ce sont les plus frequentes,
+/// `ham_wasl` et `laam_shamsiyah` reviennent a chaque `ٱل`.
+///
+/// ON INVERSE LA LUMINOSITE, PAS LES CANAUX. Une inversion RVB naive
+/// (`0xFFFFFFFF - c`) ferait virer le vert des ghunnah au rose et le bleu
+/// des qalqala a l'orange : le code couleur du tajwid, que le recitant
+/// connait par coeur, serait detruit. En HSL on garde teinte et saturation
+/// et on ne retourne que la clarte -- un vert sombre devient un vert clair,
+/// il reste un vert.
+///
+/// Le plancher a 0,62 evite qu'une couleur deja claire reste terne apres
+/// inversion : sur fond noir il faut une clarte minimale pour lire, pas
+/// seulement une clarte differente.
+Color _pourFondNoir(Color c) {
+  final hsl = HSLColor.fromColor(c);
+  return hsl.withLightness((1 - hsl.lightness).clamp(0.62, 0.92)).toColor();
+}
+
+
+/// Table des couleurs de regles INVERSEE une bonne fois, pour le fond noir.
+///
+/// ── POURQUOI A LA SOURCE, ET PAS A L'USAGE (corrige 2026-08-07) ───────────
+///
+/// Premiere version : `_pourFondNoir` etait appelee a CHAQUE point d'usage.
+/// Deux consequences, visibles sur capture d'ecran :
+///  - l'encre de BASE (blanc casse `0xFFE8E4DA`) y passait aussi, alors
+///    qu'elle est deja claire : clarte 0,88 -> 1-0,88 = 0,12, ramenee au
+///    plancher 0,62 -> un kaki terne. Tout le texte sans regle devenait
+///    brun-olive sur fond noir, quasi illisible ;
+///  - une couleur heritee (`parentColor`) pouvait etre inversee DEUX fois en
+///    descendant l'arbre HTML.
+///
+/// Inverser une seule fois, a l'entree, supprime les deux d'un coup : ce qui
+/// circule ensuite est deja la bonne couleur, et l'encre de base n'est jamais
+/// touchee puisqu'elle ne vient pas de cette table.
+final Map<String, Color?> _classColorsSombre = {
+  for (final e in _classColors.entries)
+    e.key: e.value == null ? null : _pourFondNoir(e.value!),
+};
+
+List<TextSpan> parseTajweedHtml(String html, TextStyle base,
+    {bool sombre = false}) {
+  return _parseNode(html.replaceAll(_endMarkerRe, ''), null, base,
+      sombre: sombre);
 }
 
 /// Regroupe les spans tajwid PAR MOT (un groupe de TextSpans par mot,
@@ -93,8 +140,9 @@ List<TextSpan> parseTajweedHtml(String html, TextStyle base) {
 /// Convention vérifiée sur l'app de référence Quran.com (capture 2026-07-05) :
 /// la coloration est fine/éparse par lettre, PAS un mot entier d'une seule
 /// couleur — d'où cette fonction plutôt qu'un simple mapping mot→couleur.
-List<List<TextSpan>> _tajweedSpansPerWordRaw(String html, TextStyle base) {
-  final spans = parseTajweedHtml(html, base);
+List<List<TextSpan>> _tajweedSpansPerWordRaw(String html, TextStyle base,
+    {bool sombre = false}) {
+  final spans = parseTajweedHtml(html, base, sombre: sombre);
   final words = <List<TextSpan>>[];
   var current = <TextSpan>[];
   for (final span in spans) {
@@ -145,7 +193,8 @@ List<TextSpan> _remapWordColors(
           final srcIdx = sameLength
               ? i
               : (i * colorsByIndex.length / plainWord.length).floor();
-          final color = srcIdx < colorsByIndex.length ? colorsByIndex[srcIdx] : null;
+          final color =
+              srcIdx < colorsByIndex.length ? colorsByIndex[srcIdx] : null;
           return color != null ? base.copyWith(color: color) : base;
         }(),
       ),
@@ -168,7 +217,8 @@ List<TextSpan> _remapWordColors(
 /// "صَلَوٰتَكَ" à l'écran). On respecte donc désormais le texte canonique À LA
 /// LETTRE et on se contente d'y superposer la couleur.
 List<List<TextSpan>> tajweedSpansPerWord(
-    String plainText, String? tajweedHtml, TextStyle base) {
+    String plainText, String? tajweedHtml, TextStyle base,
+    {bool sombre = false}) {
   // MÊME filtre que ArabicNormalizer.splitExpectedWords (source de la liste
   // récitable RecitedWord, indexée en parallèle de celle-ci par _wordSpan) —
   // bug corrigé 2026-07-11 : ce filtre ne retirait avant que les mots
@@ -192,7 +242,7 @@ List<List<TextSpan>> tajweedSpansPerWord(
       for (final w in plainWords) [TextSpan(text: w, style: base)],
     ];
   }
-  final tajweedWords = _tajweedSpansPerWordRaw(tajweedHtml, base);
+  final tajweedWords = _tajweedSpansPerWordRaw(tajweedHtml, base, sombre: sombre);
   return [
     for (var i = 0; i < plainWords.length; i++)
       i < tajweedWords.length
@@ -209,7 +259,8 @@ List<List<TextSpan>> tajweedSpansPerWord(
 final _tagNameRe = RegExp(r'^([a-zA-Z][a-zA-Z0-9]*)');
 final _classAttrRe = RegExp(r'class=(?:"([^"]*)"|([^\s">]+))');
 
-List<TextSpan> _parseNode(String html, Color? parentColor, TextStyle base) {
+List<TextSpan> _parseNode(String html, Color? parentColor, TextStyle base,
+    {bool sombre = false}) {
   final spans = <TextSpan>[];
   int i = 0;
 
@@ -235,16 +286,18 @@ List<TextSpan> _parseNode(String html, Color? parentColor, TextStyle base) {
 
       final cm = _classAttrRe.firstMatch(tag);
       final cls = cm?.group(1) ?? cm?.group(2) ?? '';
-      final color = _classColors.containsKey(cls)
-          ? _classColors[cls]
-          : (cls.contains(' ')
-              ? _classColors[cls.split(' ').first]
-              : parentColor);
+      // Table inversee sur fond noir (cf. _classColorsSombre) : la couleur
+      // qui circule ensuite est deja la bonne, plus aucune conversion en aval.
+      final table = sombre ? _classColorsSombre : _classColors;
+      final color = table.containsKey(cls)
+          ? table[cls]
+          : (cls.contains(' ') ? table[cls.split(' ').first] : parentColor);
 
       // Find matching closing tag for THIS tag name (peut être <tajweed> ou <span>).
       final close = _findClose(html, gt + 1, tagName);
       final inner = html.substring(gt + 1, close.contentEnd);
-      final innerSpans = _parseNode(inner, color ?? parentColor, base);
+      final innerSpans =
+          _parseNode(inner, color ?? parentColor, base, sombre: sombre);
       spans.addAll(innerSpans.map((s) => TextSpan(
         text: s.text,
         children: s.children,
@@ -262,7 +315,9 @@ List<TextSpan> _parseNode(String html, Color? parentColor, TextStyle base) {
       if (text.isNotEmpty) {
         spans.add(TextSpan(
           text: text,
-          style: parentColor != null ? base.copyWith(color: parentColor) : base,
+          style: parentColor != null
+              ? base.copyWith(color: parentColor)
+              : base,
         ));
       }
       i = end;
@@ -319,6 +374,29 @@ class TajweedText extends StatelessWidget {
   final int? wordStart;
   final int? wordEnd;
 
+  /// Couleur de l'encre. null = `AppColors.ink` (comportement historique).
+  /// Pilotee par le theme de lecture : sur fond noir, l'encre sombre serait
+  /// tout simplement invisible (demande utilisateur 2026-08-07 : « le fond
+  /// noir ET l'ecriture visible »).
+  final Color? couleurTexte;
+
+  /// Lecture sur fond noir : les couleurs de tajwid sont INVERSEES en
+  /// luminosite (cf. `_pourFondNoir`). Sans cela le fond change mais pas
+  /// l'encre des regles -- « le texte devient invisible, il ne faut pas
+  /// appliquer betement » (utilisateur, 2026-08-07).
+  final bool modeSombre;
+
+  /// Appui LONG sur un mot. Quand il est fourni, il remplace [onWordTap] :
+  /// le tap simple n'est plus capte par le texte et redescend au parent.
+  ///
+  /// ── POURQUOI (demande utilisateur 2026-08-07) ────────────────────────────
+  /// « Quand je suis en mode lecture, le clic sur le bord de l'ecran, c'est
+  /// pour passer a l'ecran suivant. » Le tap est donc pris par la navigation
+  /// de page ; un mot qui le capte aussi cree un conflit -- soit la page ne
+  /// tourne pas, soit l'explication s'ouvre par accident. L'appui long ne
+  /// concurrence rien.
+  final void Function(int wordIndex)? onWordLongPress;
+
   const TajweedText({
     super.key,
     required this.textUthmani,
@@ -329,6 +407,9 @@ class TajweedText extends StatelessWidget {
     this.leading,
     this.wordStart,
     this.wordEnd,
+    this.couleurTexte,
+    this.modeSombre = false,
+    this.onWordLongPress,
   });
 
   @override
@@ -336,7 +417,7 @@ class TajweedText extends StatelessWidget {
     final base = GoogleFonts.scheherazadeNew(
       fontSize: fontSize,
       height: lineHeight,
-      color: AppColors.ink,
+      color: couleurTexte ?? AppColors.ink,
     );
 
     if (textUthmaniTajweed == null || textUthmaniTajweed!.isEmpty) {
@@ -362,7 +443,9 @@ class TajweedText extends StatelessWidget {
     // tajweedSpansPerWord() reconstruit chaque mot depuis textUthmani (le
     // texte canonique) et n'emprunte que la couleur au champ tajwid --
     // jamais ses propres caractères (cf. commentaire de la fonction).
-    final allWordSpans = tajweedSpansPerWord(textUthmani, textUthmaniTajweed, base);
+    final allWordSpans = tajweedSpansPerWord(
+        textUthmani, textUthmaniTajweed, base,
+        sombre: modeSombre);
     // BORNES CLAMPÉES (2026-08-06) : `sublist` lève un RangeError dès que la
     // plage sort du verset. L'appelant calcule `extraitDebut`/`extraitFin` sur
     // des indices de MOTS qui peuvent déborder -- notamment depuis que la
@@ -378,9 +461,14 @@ class TajweedText extends StatelessWidget {
     final children = <InlineSpan>[..._leadingSpans()];
     for (var i = 0; i < wordSpans.length; i++) {
       final wordIndex = start + i; // index RÉEL dans le verset, pas dans la plage
-      final recognizer = onWordTap != null
-          ? (TapGestureRecognizer()..onTap = () => onWordTap!(wordIndex))
-          : null;
+      // L'appui long a la PRIORITE : quand il est demande, le tap simple
+      // reste disponible pour le parent (tourner la page).
+      final recognizer = onWordLongPress != null
+          ? (LongPressGestureRecognizer()
+            ..onLongPress = () => onWordLongPress!(wordIndex))
+          : (onWordTap != null
+              ? (TapGestureRecognizer()..onTap = () => onWordTap!(wordIndex))
+              : null);
       for (final s in wordSpans[i]) {
         children.add(TextSpan(text: s.text, style: s.style, recognizer: recognizer));
       }
@@ -404,7 +492,7 @@ class TajweedText extends StatelessWidget {
   }
 
   Widget _plainTappable(TextStyle base) {
-    if (onWordTap == null) {
+    if (onWordTap == null && onWordLongPress == null) {
       return Text(
         textUthmani,
         textDirection: TextDirection.rtl,
@@ -434,8 +522,11 @@ class TajweedText extends StatelessWidget {
             TextSpan(
               text: i < words.length - 1 ? '${words[i]} ' : words[i],
               style: base,
-              recognizer: TapGestureRecognizer()
-                ..onTap = () => onWordTap!(start + i),
+              recognizer: onWordLongPress != null
+                  ? (LongPressGestureRecognizer()
+                    ..onLongPress = () => onWordLongPress!(start + i))
+                  : (TapGestureRecognizer()
+                    ..onTap = () => onWordTap!(start + i)),
             ),
         ],
       ),

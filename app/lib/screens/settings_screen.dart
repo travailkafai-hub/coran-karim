@@ -72,6 +72,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.record_voice_over,
             title: t.settingsReciterTitle,
             subtitle: reciterSubtitle,
+            color: AppColors.settingsAudio,
             // Flourish calligraphique -- uniquement en fr/en (en arabe, le
             // nom arabe est déjà le sous-titre principal, pas de doublon).
             trailing: locale == 'ar'
@@ -99,6 +100,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.explore_rounded,
             title: t.settingsQiblaTitle,
             subtitle: t.settingsQiblaSubtitle,
+            color: AppColors.settingsPrayer,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const QiblaScreen())),
           ),
@@ -106,6 +108,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.access_time_rounded,
             title: 'Horaires de prière',
             subtitle: 'Adhan programmé, rappel avant Sobh',
+            color: AppColors.settingsPrayer,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const PrayerTimesSettingsScreen())),
           ),
@@ -116,6 +119,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.tune_rounded,
             title: t.settingsVoiceCalibTitle,
             subtitle: t.settingsVoiceCalibSubtitle,
+            color: AppColors.settingsVoice,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const VoiceCalibrationScreen())),
           ),
@@ -128,6 +132,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.color_lens_rounded,
             title: t.settingsTajweedColorsTitle,
             subtitle: t.settingsTajweedColorsSubtitle,
+            color: AppColors.settingsDisplay,
             trailing: Switch.adaptive(
               value: true, // TODO: persist
               onChanged: (_) {},
@@ -146,12 +151,23 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.language_rounded,
             title: t.settingsLocaleTitle,
             subtitle: _localeLabel(locale),
+            color: AppColors.settingsApp,
             onTap: () => _pickLocale(context, ref),
           ),
+          // Cette tuile est restée SANS `onTap` jusqu'au 2026-08-09 : elle
+          // affichait un sous-titre et n'ouvrait rien. Le sous-titre annonçait
+          // en plus « Whisper », alors que la vérification tourne sur
+          // FastConformer CTC — une information fausse montrée à l'utilisateur.
+          // Elle mène désormais à AboutScreen, qui porte ce que l'app doit
+          // dire avant d'être publiée (données captées, avertissement sur le
+          // texte généré, sources, licences).
           _SettingsTile(
             icon: Icons.info_outline_rounded,
             title: t.appTitle,
             subtitle: t.settingsAboutSubtitle,
+            color: AppColors.settingsApp,
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const AboutScreen())),
           ),
         ],
       ),
@@ -203,9 +219,12 @@ class _SettingsTile extends StatelessWidget {
   final String subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
+  /// Couleur de la pastille -- une par section (cf. AppColors.settings*),
+  /// défaut vert pour ne rien casser là où elle n'est pas encore précisée.
+  final Color color;
   const _SettingsTile({
     required this.icon, required this.title, required this.subtitle,
-    this.trailing, this.onTap,
+    this.trailing, this.onTap, this.color = AppColors.green700,
   });
 
   @override
@@ -225,10 +244,10 @@ class _SettingsTile extends StatelessWidget {
           leading: Container(
             width: 38, height: 38,
             decoration: BoxDecoration(
-              color: AppColors.green50,
+              color: color.withAlpha(28),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: AppColors.green700, size: 20),
+            child: Icon(icon, color: color, size: 20),
           ),
           title: Text(title,
               style: GoogleFonts.manrope(
@@ -272,6 +291,7 @@ class _DiagnosticTile extends ConsumerWidget {
       subtitle: on
           ? t.settingsDiagnosticSubtitleOn
           : t.settingsDiagnosticSubtitleOff,
+      color: AppColors.settingsDiagnostic,
       trailing: Switch.adaptive(
         value: on,
         activeColor: AppColors.green700,
@@ -305,6 +325,7 @@ class _NoiseSuppressTile extends ConsumerWidget {
       subtitle: on
           ? 'Activée — à comparer avec le réglage éteint avant de la garder'
           : 'Éteinte (recommandé) — le modèle est entraîné sur de l\'audio non filtré',
+      color: AppColors.settingsDiagnostic,
       trailing: Switch.adaptive(
         value: on,
         activeColor: AppColors.green700,
@@ -369,12 +390,13 @@ class _VoiceLoraClipsTileState extends State<_VoiceLoraClipsTile> {
           : count == 0
               ? t.settingsMyClipsEmpty
               : t.settingsMyClipsCount(count),
+      color: AppColors.settingsVoice,
       trailing: _exporting
           ? const SizedBox(
               width: 20,
               height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green700))
-          : const Icon(Icons.ios_share_rounded, color: AppColors.green700),
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.settingsVoice))
+          : const Icon(Icons.ios_share_rounded, color: AppColors.settingsVoice),
       onTap: (count != null && count > 0 && !_exporting) ? _export : null,
     );
   }
@@ -432,12 +454,13 @@ class _DisputedVerdictsTileState extends State<_DisputedVerdictsTile> {
           : count == 0
               ? t.settingsDisputedEmpty
               : t.settingsDisputedCount(count),
+      color: AppColors.settingsVoice,
       trailing: _exporting
           ? const SizedBox(
               width: 20,
               height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green700))
-          : const Icon(Icons.ios_share_rounded, color: AppColors.green700),
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.settingsVoice))
+          : const Icon(Icons.ios_share_rounded, color: AppColors.settingsVoice),
       onTap: (count != null && count > 0 && !_exporting) ? _export : null,
     );
   }

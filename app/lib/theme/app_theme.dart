@@ -36,6 +36,25 @@ class AppColors {
   static const kindleInkSoft = Color(0xFF6b5636);
   static const kindleAccent  = Color(0xFF8a6a3a);
 
+  // ── LECTURE SUR FOND NOIR (demande utilisateur 2026-08-07) ──────────────
+  // « Pour le Mushaf, rajoute une option dark : le fond noir et l'écriture
+  // visible. » Troisieme theme de lecture, a cote du clair et du sepia
+  // (Kindle) -- pas une variante de ce dernier : le sepia sert le confort
+  // diurne, le noir sert la lecture nocturne et les ecrans OLED.
+  //
+  // L'encre est un blanc CASSE (0xFFE8E4DA), jamais du blanc pur : sur fond
+  // noir, le blanc pur produit un halo qui fatigue plus vite que le contraste
+  // qu'il apporte. Meme raison pour le fond, `0xFF0B0B0B` plutot que du noir
+  // absolu -- il evite le "smearing" des dalles OLED au defilement.
+  static const sombreBg      = Color(0xFF0B0B0B);
+  static const sombreBgDeep  = Color(0xFF1C1C1C);
+  // BLANC, demande explicite de l'utilisateur (2026-08-07) apres capture :
+  // « le texte doit etre blanc ». Le blanc casse que j'avais choisi pour le
+  // confort n'etait pas ce qui etait demande.
+  static const sombreInk     = Color(0xFFFFFFFF);
+  static const sombreInkSoft = Color(0xFF9A948A);
+  static const sombreAccent  = Color(0xFFC9A227);
+
   // Erreur de TAJWID pendant la récitation (2026-08-01, demande utilisateur :
   // "une coloration spécifique violet en cas d'erreur liée au tajweed").
   // Distincte du rouge (lettre/harakat mal prononcée) : ici les lettres ET
@@ -103,6 +122,19 @@ class AppColors {
     Color(0xFFFF8A65), // corail
     Color(0xFFBA68C8), // violet
   ];
+
+  // Réglages (`settings_screen.dart`) — demande utilisateur 2026-08-09 : les
+  // pastilles d'icône étaient toutes vert700/vert50, jugées "pas parlantes"
+  // (aucune différence visuelle entre Audio/Prière/Diagnostic...). Une
+  // couleur PAR SECTION, choisie à distance des teintes déjà prises par
+  // tajwid/mindmap/jeu ci-dessus pour ne pas laisser croire à un lien entre
+  // systèmes -- ces pastilles n'ont aucun rapport avec ces autres systèmes.
+  static const settingsAudio      = green700;               // Audio -- couleur de marque
+  static const settingsPrayer     = brass;                   // Prière -- déjà la teinte "sacré/or" de l'appli
+  static const settingsVoice      = Color(0xFF8E44AD);       // Personnalisation vocale -- améthyste
+  static const settingsDisplay    = Color(0xFF2E86C1);       // Affichage -- bleu acier
+  static const settingsDiagnostic = Color(0xFFD9704A);       // Diagnostic -- orange brûlé
+  static const settingsApp        = Color(0xFF6B7280);       // Application -- gris ardoise neutre
 }
 
 class AppTheme {

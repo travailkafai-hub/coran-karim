@@ -21,6 +21,8 @@ class VerseTile extends StatelessWidget {
   /// rien afficher tant qu'on ne le fait pas.
   final VoidCallback? onLongPress;
   final void Function(int wordIndex)? onWordTap;
+  /// Appui long sur un mot (cf. TajweedText.onWordLongPress).
+  final void Function(int wordIndex)? onWordLongPress;
   final double textScale;
   // Mode Kindle (2026-08-01) : le curseur de lecture ET le surlignage de
   // sélection utilisaient tous deux du bleu (readingCursorBg/Border,
@@ -29,6 +31,10 @@ class VerseTile extends StatelessWidget {
   // l'utilisateur après une 1ère version du mode Kindle qui ne touchait que
   // le fond de page, pas ces surlignages.
   final bool kindleMode;
+  /// Lecture sur fond noir (cf. modeSombreProvider). Prioritaire sur le
+  /// sepia du mode Kindle quand les deux sont actifs : c'est le FOND qui
+  /// change, et il ne peut pas etre les deux a la fois.
+  final bool modeSombre;
   // Plage de mots (2026-08-01, mode Kindle : verset scindé entre deux pages,
   // cf. mushaf_screen.dart) -- null = verset entier (partout ailleurs). Le
   // badge de numéro ne s'affiche que sur la page qui contient le 1er mot.
@@ -44,43 +50,93 @@ class VerseTile extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.onWordTap,
+    this.onWordLongPress,
     this.textScale = 1.0,
     this.kindleMode = false,
+    this.modeSombre = false,
     this.wordStart,
     this.wordEnd,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Palette de lecture resolue une fois : sombre > kindle > clair.
+    final fondProfond = modeSombre
+        ? AppColors.sombreBgDeep
+        : (kindleMode ? AppColors.kindleBgDeep : AppColors.readingCursorBg);
+    final accent = modeSombre
+        ? AppColors.sombreAccent
+        : (kindleMode ? AppColors.kindleAccent : AppColors.readingCursorBorder);
+    final encre = modeSombre
+        ? AppColors.sombreInk
+        : (kindleMode ? AppColors.kindleInk : AppColors.ink);
+    final encreDouce = modeSombre
+        ? AppColors.sombreInkSoft
+        : (kindleMode ? AppColors.kindleInkSoft : AppColors.inkLight);
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        // ── RENDRE LA LARGEUR AU TEXTE (2026-08-06) ──────────────────────
+        //
+        // Constat utilisateur, capture a l'appui : « pourquoi y a-t-il cet
+        // espace entre وَأَنزَلَ et ٱلتَّوْرَىٰةَ ? je pense qu'on peut mettre
+        // 3 mots ».
+        //
+        // Deux choses distinctes se voient sur cette ligne, il faut les
+        // separer :
+        //
+        // 1. L'ESPACE ETIRE vient de `TextAlign.justify`
+        //    (tajweed_text.dart, ajoute le 2026-08-01 pour corriger des lignes
+        //    visiblement trop courtes). La justification etire les blancs des
+        //    lignes NON finales jusqu'aux deux bords : quand la ligne ne porte
+        //    que deux mots, tout l'espace restant tombe entre eux. Un Mushaf
+        //    imprime etire les LETTRES (kashida), pas les blancs -- Flutter ne
+        //    sait pas le faire. On ne retire donc pas `justify` (ce serait
+        //    ramener le defaut de 2026-08-01), on lui donne moins d'espace a
+        //    etirer.
+        //
+        // 2. LE NOMBRE DE MOTS PAR LIGNE depend de la largeur disponible. La
+        //    tuile en consommait 48 dp (marge 8+8, padding 16+16) sur une
+        //    largeur d'ecran de ~411 dp, soit ~12 % du texte -- pour un cadre
+        //    decoratif. Ramene a 28 dp, le texte recupere 20 dp.
+        //
+        // Ce que ce changement NE garantit PAS : qu'un troisieme mot tienne
+        // sur CETTE ligne-la. `وَٱلْإِنجِيلَ` est large ; le gain est de
+        // l'ordre de sa marge d'echec. On rend la largeur perdue, on ne
+        // promet pas le resultat mot a mot.
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         decoration: BoxDecoration(
-          color: isPlayingCursor
-              ? (kindleMode ? AppColors.kindleBgDeep : AppColors.readingCursorBg)
-              : isActive
-                  ? (kindleMode
-                      ? AppColors.kindleBgDeep.withAlpha(140)
-                      : AppColors.green50)
-                  : Colors.transparent,
+          // ── AUCUN SURLIGNAGE SUR FOND NOIR (utilisateur, 2026-08-07) ──
+          // « meme pas besoin du surligneur bleu ». Sur fond noir un pave
+          // colore derriere le texte ne guide pas l'oeil, il l'agresse -- et
+          // le verset en cours se repere deja par sa bordure.
+          color: modeSombre
+              ? Colors.transparent
+              : isPlayingCursor
+                  ? fondProfond
+                  : isActive
+                      ? (kindleMode
+                          ? fondProfond.withAlpha(140)
+                          : AppColors.green50)
+                      : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: isPlayingCursor
               ? Border.all(
-                  color: kindleMode ? AppColors.kindleAccent : AppColors.readingCursorBorder,
+                  color: accent,
                   width: 1.5)
               : isActive
                   ? Border.all(
-                      color: kindleMode
-                          ? AppColors.kindleAccent.withAlpha(120)
+                      color: modeSombre || kindleMode
+                          ? accent.withAlpha(120)
                           : AppColors.green100,
                       width: 1)
                   : null,
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          // horizontal 16 -> 10 (cf. le commentaire de `margin` ci-dessus).
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -97,14 +153,18 @@ class VerseTile extends StatelessWidget {
                 fontSize: 26 * textScale,
                 lineHeight: 2.1,
                 onWordTap: onWordTap,
+                onWordLongPress: onWordLongPress,
                 wordStart: wordStart,
                 wordEnd: wordEnd,
+                couleurTexte: encre,
+                modeSombre: modeSombre,
                 // Le badge ne doit apparaître qu'une fois, sur la portion qui
                 // contient le tout 1er mot du verset (l'autre moitié, sur la
                 // page suivante, n'en a pas -- ce n'est pas "un nouveau
                 // verset qui commence").
                 leading: (wordStart == null || wordStart == 0)
-                    ? _VerseNumberBadge(verse.ayahNumber, kindleMode: kindleMode)
+                    ? _VerseNumberBadge(verse.ayahNumber,
+                        kindleMode: kindleMode, modeSombre: modeSombre)
                     : null,
               ),
               // French translation (optional) -- jamais en mode arabe : la
@@ -144,7 +204,7 @@ class VerseTile extends StatelessWidget {
                       // 41,6, donc l'ecart se creuse mais la traduction ne
                       // reste plus figee.
                       fontSize: 13 * (1 + (textScale - 1) * 0.5),
-                      color: kindleMode ? AppColors.kindleInkSoft : AppColors.inkLight,
+                      color: encreDouce,
                       height: 1.5,
                     ),
                   ),
@@ -163,7 +223,9 @@ class VerseTile extends StatelessWidget {
 class _VerseNumberBadge extends StatelessWidget {
   final int number;
   final bool kindleMode;
-  const _VerseNumberBadge(this.number, {this.kindleMode = false});
+  final bool modeSombre;
+  const _VerseNumberBadge(this.number,
+      {this.kindleMode = false, this.modeSombre = false});
 
   // Convert to Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩)
   static String _toArabicIndic(int n) {
@@ -181,13 +243,16 @@ class _VerseNumberBadge extends StatelessWidget {
       width: 38,
       height: 38,
       child: CustomPaint(
-        painter: _OctagonBadgePainter(kindleMode: kindleMode),
+        painter: _OctagonBadgePainter(
+            kindleMode: kindleMode, modeSombre: modeSombre),
         child: Center(
           child: Text(
             isArabic ? _toArabicIndic(number) : '$number',
             style: GoogleFonts.amiri(
               fontSize: 14,
-              color: kindleMode ? AppColors.kindleAccent : AppColors.brass,
+              color: modeSombre
+                  ? AppColors.sombreAccent
+                  : (kindleMode ? AppColors.kindleAccent : AppColors.brass),
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -206,7 +271,8 @@ class _VerseNumberBadge extends StatelessWidget {
 // cohérent avec le reste de l'habillage graphique.
 class _OctagonBadgePainter extends CustomPainter {
   final bool kindleMode;
-  const _OctagonBadgePainter({this.kindleMode = false});
+  final bool modeSombre;
+  const _OctagonBadgePainter({this.kindleMode = false, this.modeSombre = false});
 
   static Path _octagonPath(Size size) {
     final cx = size.width / 2;
@@ -230,17 +296,24 @@ class _OctagonBadgePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final path = _octagonPath(size);
     canvas.drawPath(
-        path, Paint()..color = kindleMode ? AppColors.kindleBgDeep : AppColors.cream200);
+        path,
+        Paint()
+          ..color = modeSombre
+              ? AppColors.sombreBgDeep
+              : (kindleMode ? AppColors.kindleBgDeep : AppColors.cream200));
     canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
-        ..color = kindleMode ? AppColors.kindleAccent : AppColors.brass,
+        ..color = modeSombre
+            ? AppColors.sombreAccent
+            : (kindleMode ? AppColors.kindleAccent : AppColors.brass),
     );
   }
 
   @override
   bool shouldRepaint(covariant _OctagonBadgePainter oldDelegate) =>
-      oldDelegate.kindleMode != kindleMode;
+      oldDelegate.kindleMode != kindleMode ||
+      oldDelegate.modeSombre != modeSombre;
 }

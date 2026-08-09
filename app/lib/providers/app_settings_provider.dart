@@ -94,6 +94,32 @@ const _kPrefKindleMode = 'kindle_mode';
 /// de thème (contrairement à l'ancien défilement auto, se retrouver avec ce
 /// thème actif à l'ouverture n'est pas une mauvaise surprise, c'est une
 /// préférence de lecture comme la taille du texte).
+/// Lecture sur FOND NOIR (demande utilisateur 2026-08-07). Independant du
+/// mode Kindle : on peut vouloir le noir sans la pagination sepia, et
+/// inversement. Persiste comme une preference de theme, au meme titre.
+final modeSombreProvider =
+    StateNotifierProvider<ModeSombreNotifier, bool>((ref) {
+  return ModeSombreNotifier();
+});
+
+const _kPrefModeSombre = 'mushaf_mode_sombre';
+
+class ModeSombreNotifier extends StateNotifier<bool> {
+  ModeSombreNotifier() : super(false) {
+    _restore();
+  }
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefModeSombre);
+    if (saved != null && mounted) state = saved;
+  }
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefModeSombre, value);
+  }
+}
+
 final kindleModeProvider =
     StateNotifierProvider<KindleModeNotifier, bool>((ref) {
   return KindleModeNotifier();
@@ -119,7 +145,14 @@ class KindleModeNotifier extends StateNotifier<bool> {
 
 const _kPrefKindlePageSeconds = 'kindle_page_seconds';
 const kKindlePageSecondsMin = 4.0;
-const kKindlePageSecondsMax = 30.0;
+// Releve de 30 a 90 s (2026-08-07). Mesure : la cadence reelle de
+// l'utilisateur est de 24 a 30 s par page, et une mesure de 30,3 s a ete
+// ECRETEE a 30,0 en silence. Un plafond qui coupe la valeur observee n'est
+// plus une securite, c'est une erreur -- il datait de l'epoque ou la cadence
+// se reglait au curseur, et ou 30 s etait le maximum qu'on imaginait regler.
+// Maintenant qu'elle se MESURE, la borne n'a plus qu'un role : ecarter une
+// valeur absurde (page laissee ouverte une demi-heure).
+const kKindlePageSecondsMax = 90.0;
 
 /// Jauge de vitesse du tournage de page automatique en mode Kindle --
 /// secondes par page, un curseur continu au lieu des 4 presets fixes de
@@ -167,6 +200,9 @@ class KindlePageSecondsNotifier extends StateNotifier<double> {
   // geste isolé, et il converge quand même en quelques pages.
   static const _kInertie = 0.35;
 
+  /// Les trois dernieres durees de page MESUREES (tap en avant uniquement).
+  final _dernieres = <double>[];
+
   /// Le lecteur a tourné LUI-MÊME après [ecoule] secondes sur la page.
   ///
   /// [enAvant] false = il est revenu en arrière : il n'avait pas fini de lire,
@@ -179,14 +215,101 @@ class KindlePageSecondsNotifier extends StateNotifier<double> {
     // laisser une valeur absurde entrer dans la moyenne -- exactement ce que
     // l'utilisateur a demandé d'éviter (« un temps illogique, on va pas le
     // considérer »).
-    if (ecoule < 1.0) return;
-    final cible = enAvant
-        ? ecoule
-        // Revenir en arrière ne donne pas le bon temps, seulement le fait
-        // qu'il était trop court. On l'allonge d'un quart, et la répétition du
-        // geste fera le reste : on ne devine pas ce qu'on n'a pas mesuré.
-        : state * 1.25;
-    set(state + (cible - state) * _kInertie);
+    // ── SANS TRACE, RIEN N'EST DIAGNOSTICABLE (2026-08-07) ────────────────
+    // Question de l'utilisateur : « y a-t-il de la log sur l'evolution de ce
+    // delai ? » Il n'y en avait aucune. Or ce mecanisme decide TOUT SEUL
+    // quand la page tourne : sans trace, un delai qui derive ou qui ne bouge
+    // pas est indistinguable d'un mecanisme qui ne s'execute jamais -- c'est
+    // exactement le piege paye le matin meme sur l'identification de sourate,
+    // ou un chemin ecrit en `debugPrint` m'a fait conclure a tort qu'il
+    // n'avait jamais tourne.
+    if (ecoule < 1.0) {
+      DiagnosticLog.log('Cadence', // TEMP-CADENCE : trace de mise au point, a retirer
+        
+          'geste ignore : ${ecoule.toStringAsFixed(2)}s < 1s '
+          '(${enAvant ? "avant" : "arriere"}) -- tap parasite, delai inchange '
+          'a ${state.toStringAsFixed(1)}s');
+      return;
+    }
+    // ── EN AVANT : LA MESURE DEVIENT LA REFERENCE, SANS LISSAGE ───────────
+    //
+    // Demande utilisateur (2026-08-07) : « je trouve que l'adaptation se fait
+    // lentement ; quand je tape avant qu'il tourne, au lieu de diminuer, il
+    // vaut mieux remettre ce nouveau delai comme reference ».
+    //
+    // Et le raisonnement est juste : taper AVANT l'echeance n'est pas un
+    // indice parmi d'autres, c'est une DECLARATION -- « j'ai fini de lire
+    // cette page en tant de temps ». La moyenne glissante la traitait comme
+    // une opinion a ponderer, d'où quatre ou cinq pages avant de converger.
+    // Le temps ecoule est ici DIRECTEMENT observe, il n'y a rien a estimer.
+    //
+    // Le lissage reste pour le cas EN ARRIERE, et lui seul : revenir en
+    // arriere ne donne PAS le bon temps, seulement le fait qu'il etait trop
+    // court. On ne sait pas de combien. On allonge d'un quart et la
+    // repetition du geste fait le reste -- on ne devine pas ce qu'on n'a pas
+    // mesure.
+    //
+    // ⚠️ CONTREPARTIE ASSUMEE : un tap parasite en avant fixe desormais la
+    // cadence a lui seul, alors que l'inertie l'aurait dilue. Le seul
+    // garde-fou restant est le plancher `ecoule < 1.0`. Si des taps courts
+    // parasites se voient a l'usage, c'est ce plancher qu'il faut relever
+    // (vers 3-4 s), pas le lissage qu'il faut remettre : ce serait revenir au
+    // defaut signale ici.
+    final avant = state;
+    if (enAvant) {
+      // ── MEDIANE DES TROIS DERNIERES, PAS LA DERNIERE SEULE ─────────────
+      //
+      // L'affectation directe (2026-08-07, « l'adaptation se fait lentement »)
+      // a bien supprime la convergence en cinq pages -- mais elle a supprime
+      // AUSSI toute memoire : la derniere page gagnait toujours. Mesure du
+      // meme jour : 24,5 -> 23,9 -> 30,0 -> 28,3, alors que les quatre pages
+      // disent la meme chose (~26 s). Une page a long verset et une page a
+      // versets courts donnent des temps tres differents, et le delai suivait
+      // aveuglement la derniere.
+      //
+      // La mediane de trois garde la reactivite (trois pages, pas cinq) et
+      // supprime l'a-coup : une page atypique ne peut plus imposer sa duree a
+      // elle seule, il en faut deux pour deplacer la mediane.
+      _dernieres.add(ecoule);
+      if (_dernieres.length > 3) _dernieres.removeAt(0);
+      final tri = [..._dernieres]..sort();
+      final mediane = tri[tri.length ~/ 2];
+      // ── UNE PAGE NE PEUT PAS ACCELERER DE PLUS DE 25 % D'UN COUP ────────
+      //
+      // Demande utilisateur (2026-08-07) : « pour le tap qui diminue le temps
+      // de lecture, on fait un minimum qui doit etre etabli, exemple la
+      // moyenne fois 0,75 -- la lecture ne va pas d'un coup devenir rapide de
+      // 25 % de plus ».
+      //
+      // Le raisonnement est juste et il est asymetrique a dessein. Un tap
+      // ANTICIPE peut avoir plusieurs causes : la page etait courte, on a
+      // saute un passage deja connu, on a tape par reflexe. Rien n'oblige a
+      // croire qu'on lit soudain deux fois plus vite. A l'inverse, se faire
+      // couper en pleine page est un fait sans ambiguite -- c'est pour ca que
+      // l'allongement, lui, n'a pas de bride ici (il a deja son lissage).
+      //
+      // Le plancher ne BLOQUE pas l'acceleration, il l'etale : 0,75 puis
+      // encore 0,75 fait 0,56 en deux pages, 0,42 en trois. Une vraie lecture
+      // rapide s'impose donc en quelques pages ; un tap isole, non.
+      final plancher = avant * 0.75;
+      final retenu = mediane < plancher ? plancher : mediane;
+      set(retenu);
+      DiagnosticLog.log('Cadence', // TEMP-CADENCE : trace de mise au point, a retirer
+        
+          'EN AVANT apres ${ecoule.toStringAsFixed(1)}s : '
+          '${avant.toStringAsFixed(1)}s -> ${state.toStringAsFixed(1)}s '
+          '(mediane de ${_dernieres.map((e) => e.toStringAsFixed(1)).join("/")})'
+          '${retenu != mediane ? " -- PLANCHER -25 % applique (mediane brute "
+              "${mediane.toStringAsFixed(1)}s)" : ""}'
+          '${state != retenu ? " -- ECRETE aux bornes" : ""}');
+      return;
+    }
+    set(avant + (avant * 1.25 - avant) * _kInertie);
+    DiagnosticLog.log('Cadence', // TEMP-CADENCE : trace de mise au point, a retirer
+        
+        'EN ARRIERE apres ${ecoule.toStringAsFixed(1)}s : '
+        '${avant.toStringAsFixed(1)}s -> ${state.toStringAsFixed(1)}s '
+        '(trop tot, +25 % lisses a $_kInertie)');
   }
 }
 

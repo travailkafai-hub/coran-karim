@@ -2,7 +2,6 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
-import '../models/player_state_model.dart' show RepeatMode;
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../theme/app_theme.dart';
@@ -35,10 +34,9 @@ class _ReadingSettingsSheet extends ConsumerWidget {
     final t = AppLocalizations.of(context)!;
     final scale = ref.watch(textScaleProvider);
     final kindleMode = ref.watch(kindleModeProvider);
+    final modeSombre = ref.watch(modeSombreProvider);
     final kindleAutoTurn = ref.watch(kindleAutoTurnProvider);
     final playerState = ref.watch(playerProvider);
-    final repeatMode = playerState.repeatMode;
-    final repeatCount = playerState.repeatCount;
     final playbackSpeed = playerState.speed;
     const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
@@ -161,8 +159,36 @@ class _ReadingSettingsSheet extends ConsumerWidget {
             // restent des puces car ce ne sont pas des points sur une échelle
             // numérique continue.
             const SizedBox(height: 12),
+            // ── L'ANCIEN REGLAGE DE REPETITION EST REMPLACE (2026-08-06) ───
+            //
+            // Il y avait ici un curseur « repeter le verset N fois » plus deux
+            // puces (« illimite », « sourate entiere »). Les trois curseurs
+            // ci-dessous les couvrent tous : un verset repete N fois, c'est
+            // groupe=1 / chaque groupe=N ; la sourate en boucle, c'est
+            // groupe=1 / chaque groupe=1 / la sourate=0 (illimite).
+            //
+            // Les avoir gardes cote a cote donnait QUATRE curseurs et des
+            // puces pour le meme sujet -- retour utilisateur : « c'est mal
+            // fait ». `RepeatMode` et `repeatCount` restent dans le modele et
+            // le moteur : rien n'est casse pour les autres ecrans qui les
+            // lisent, seul ce reglage disparait de CETTE feuille.
+            // ── BOUCLES IMBRIQUEES (demande utilisateur 2026-08-06) ────────
+            //
+            // « on doit avoir deux curseurs : un pour ce qu'on va répéter, et
+            // l'autre pour la boucle globale. Exemple : répéter la sourate 3
+            // fois, mais pour chaque sourate répéter 3 versets 3 fois. »
+            //
+            // Il en faut TROIS, pas deux : la taille du groupe, le nombre de
+            // fois qu'on le redit, et le nombre de fois qu'on reprend tout.
+            // Sans le premier, « 3 versets » n'est pas exprimable.
+            //
+            // Les reglages historiques (verset seul / sourate en boucle)
+            // restent en dessous : ils ne sont pas remplaces, et le moteur ne
+            // bascule sur les boucles imbriquees que si l'un de ces trois
+            // curseurs quitte sa valeur neutre (cf. `_onCompleted`).
+            const SizedBox(height: 14),
             Text(
-              t.readingSettingsRepeatSection,
+              t.readingSettingsLoopSection,
               style: GoogleFonts.manrope(
                 fontSize: 10.5,
                 letterSpacing: 1.2,
@@ -172,78 +198,104 @@ class _ReadingSettingsSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              t.readingSettingsRepeatDescription,
+              t.readingSettingsLoopDescription,
               style: GoogleFonts.manrope(
-                fontSize: 12,
-                height: 1.4,
-                color: AppColors.inkLight,
-              ),
+                  fontSize: 12, height: 1.4, color: AppColors.inkLight),
             ),
+            const SizedBox(height: 8),
+            // L'unite repetee : le verset (defaut) ou le MOT (demande
+            // utilisateur 2026-08-06). Au mot, la lecture change de moteur --
+            // plages temporelles decoupees dans l'audio du recitateur grace a
+            // ses reperes mot-a-mot, cf. `PlayerNotifier._boucleMots`. Le
+            // texte d'aide dit franchement la dependance : tous les
+            // recitateurs ne publient pas ces reperes.
+            Row(
+              children: [
+                Text(t.readingSettingsUnitLabel,
+                    style: GoogleFonts.manrope(
+                        fontSize: 12, color: AppColors.inkLight)),
+                const Spacer(),
+                SegmentedButton<bool>(
+                  style: ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    textStyle: WidgetStatePropertyAll(
+                        GoogleFonts.manrope(fontSize: 12)),
+                  ),
+                  segments: [
+                    ButtonSegment(
+                        value: false, label: Text(t.readingSettingsUnitVerse)),
+                    ButtonSegment(
+                        value: true, label: Text(t.readingSettingsUnitWord)),
+                  ],
+                  selected: {playerState.uniteMot},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (s) => ref
+                      .read(playerProvider.notifier)
+                      .setUniteMot(s.first),
+                ),
+              ],
+            ),
+            if (playerState.uniteMot) ...[
+              const SizedBox(height: 4),
+              Text(t.readingSettingsWordUnitHint,
+                  style: GoogleFonts.manrope(
+                      fontSize: 11, height: 1.35, color: AppColors.inkLight)),
+            ],
             const SizedBox(height: 6),
             Text(
-              repeatMode == RepeatMode.off
-                  ? t.readingSettingsRepeatOff
-                  : repeatMode == RepeatMode.surah
-                      ? t.readingSettingsRepeatSurah
-                      : repeatCount == 0
-                          ? t.readingSettingsRepeatVerseInfinite
-                          : t.readingSettingsRepeatVerseCount(repeatCount),
-              style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight),
+                playerState.uniteMot
+                    ? t.readingSettingsGroupSizeWords(
+                        playerState.groupeVersets)
+                    : t.readingSettingsGroupSize(playerState.groupeVersets),
+                style: GoogleFonts.manrope(
+                    fontSize: 12, color: AppColors.inkLight)),
+            Slider(
+              value: playerState.groupeVersets.clamp(1, 10).toDouble(),
+              min: 1,
+              max: 10,
+              divisions: 9,
+              activeColor: AppColors.green700,
+              onChanged: (v) => ref
+                  .read(playerProvider.notifier)
+                  .setBoucle(groupe: v.round()),
+            ),
+            // 0 = illimite, a l'extremite gauche : c'est la seule valeur qui
+            // n'est pas un nombre de tours, elle ne se melange pas au reste.
+            Text(
+              t.readingSettingsGroupRepeats(playerState.repetitionsGroupe) +
+                  (playerState.repetitionsGroupe == 0
+                      ? ' (${t.readingSettingsUnlimited})'
+                      : ''),
+              style: GoogleFonts.manrope(
+                  fontSize: 12, color: AppColors.inkLight),
             ),
             Slider(
-              value: (repeatMode == RepeatMode.verse ? repeatCount : 0)
-                  .clamp(0, 20)
-                  .toDouble(),
+              value: playerState.repetitionsGroupe.clamp(0, 20).toDouble(),
               min: 0,
               max: 20,
               divisions: 20,
               activeColor: AppColors.green700,
-              onChanged: (v) {
-                final notifier = ref.read(playerProvider.notifier);
-                notifier.setRepeatMode(v == 0 ? RepeatMode.off : RepeatMode.verse);
-                notifier.setRepeatCount(v.round());
-              },
+              onChanged: (v) => ref
+                  .read(playerProvider.notifier)
+                  .setBoucle(repGroupe: v.round()),
             ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ChoiceChip(
-                  label: Text(t.readingSettingsRepeatVerseInfinite),
-                  selected: repeatMode == RepeatMode.verse && repeatCount == 0,
-                  selectedColor: AppColors.green700,
-                  labelStyle: GoogleFonts.manrope(
-                    fontWeight: FontWeight.w600,
-                    color: repeatMode == RepeatMode.verse && repeatCount == 0
-                        ? AppColors.cream
-                        : AppColors.ink,
-                  ),
-                  backgroundColor: AppColors.cream200,
-                  onSelected: (_) {
-                    final notifier = ref.read(playerProvider.notifier);
-                    notifier.setRepeatMode(RepeatMode.verse);
-                    notifier.setRepeatCount(0);
-                  },
-                ),
-                ChoiceChip(
-                  label: Text(t.readingSettingsRepeatSurah),
-                  selected: repeatMode == RepeatMode.surah,
-                  selectedColor: AppColors.green700,
-                  labelStyle: GoogleFonts.manrope(
-                    fontWeight: FontWeight.w600,
-                    color: repeatMode == RepeatMode.surah
-                        ? AppColors.cream
-                        : AppColors.ink,
-                  ),
-                  backgroundColor: AppColors.cream200,
-                  onSelected: (_) {
-                    final notifier = ref.read(playerProvider.notifier);
-                    notifier.setRepeatMode(RepeatMode.surah);
-                    notifier.setRepeatCount(0);
-                  },
-                ),
-              ],
+            Text(
+              t.readingSettingsGlobalRepeats(playerState.repetitionsGlobales) +
+                  (playerState.repetitionsGlobales == 0
+                      ? ' (${t.readingSettingsUnlimited})'
+                      : ''),
+              style: GoogleFonts.manrope(
+                  fontSize: 12, color: AppColors.inkLight),
+            ),
+            Slider(
+              value: playerState.repetitionsGlobales.clamp(0, 10).toDouble(),
+              min: 0,
+              max: 10,
+              divisions: 10,
+              activeColor: AppColors.green700,
+              onChanged: (v) => ref
+                  .read(playerProvider.notifier)
+                  .setBoucle(repGlobal: v.round()),
             ),
             // Mode Kindle (demande utilisateur 2026-08-01) : thème repos-yeux
             // + navigation par pages, regroupé ici avec les autres réglages
@@ -279,6 +331,30 @@ class _ReadingSettingsSheet extends ConsumerWidget {
               value: kindleMode,
               activeColor: AppColors.kindleAccent,
               onChanged: (v) => ref.read(kindleModeProvider.notifier).set(v),
+            ),
+            // ── LECTURE SUR FOND NOIR (demande utilisateur 2026-08-07) ─────
+            // Reglage SEPARE du mode Kindle, pas une de ses options : le
+            // sepia sert le confort diurne, le noir la lecture nocturne. On
+            // peut vouloir l'un sans l'autre. Quand les deux sont coches, le
+            // FOND est noir (il ne peut pas etre les deux) et la pagination
+            // du mode Kindle reste active.
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Fond noir',
+                style: GoogleFonts.manrope(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.ink),
+              ),
+              subtitle: Text(
+                'Ecriture claire sur fond noir, pour la lecture de nuit',
+                style: GoogleFonts.manrope(
+                    fontSize: 11.5, color: AppColors.inkLight),
+              ),
+              value: modeSombre,
+              activeColor: AppColors.sombreAccent,
+              onChanged: (v) => ref.read(modeSombreProvider.notifier).set(v),
             ),
             if (kindleMode) ...[
               SwitchListTile(
