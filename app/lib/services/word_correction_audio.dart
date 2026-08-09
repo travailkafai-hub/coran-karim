@@ -88,6 +88,12 @@ class WordCorrectionAudio {
     Verse verse,
     Reciter reciter, {
     required int errorWordIndex,
+    /// Fraction de la duree jouee (1.0 = tout). Demande utilisateur
+    /// 2026-08-07 : « l'audio de repetition est un peu long, reduis de 20 % ».
+    /// On rogne la FIN, jamais le debut : c'est le depart du passage qui
+    /// permet de le reconnaitre. Plancher a 800 ms pour ne pas rendre un
+    /// souffle inaudible sur une plage deja courte.
+    double facteurDuree = 1.0,
     int wordsBefore = 1,
     int wordsAfter = 0,
   }) async {
@@ -146,7 +152,12 @@ class WordCorrectionAudio {
     final endSeg = segments.firstWhere((s) => s[0] == toIdx,
         orElse: () => segments.last);
     final startMs = startSeg[2];
-    final endMs = endSeg[3];
+    var endMs = endSeg[3];
+    if (facteurDuree < 1.0 && endMs > startMs) {
+      final pleine = endMs - startMs;
+      final reduite = (pleine * facteurDuree).round();
+      endMs = startMs + (reduite < 800 ? (pleine < 800 ? pleine : 800) : reduite);
+    }
     // Priorité : (1) sourate TÉLÉCHARGÉE par l'utilisateur, (2) précache
     // mémoire de la session (cf. `prefetch`), (3) streaming direct.
     // (1) est nouveau (2026-08-01) -- cf. commentaire en tête de fonction.

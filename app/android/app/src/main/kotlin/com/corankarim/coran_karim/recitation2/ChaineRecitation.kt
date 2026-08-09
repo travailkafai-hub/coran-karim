@@ -98,7 +98,93 @@ class ChaineRecitation(
      *  inseree avec le verset 1:1 d'Al-Fatiha, qui lui est bien recite. */
     private val nonJugeables: Set<Int> = emptySet(),
     private val referenceSession: Boolean = false,
+    /**
+     * SUIVRE UNE PRIERE (2026-08-07, specification utilisateur).
+     *
+     * « Il ne faut pas utiliser le localiseur de l'application de recitation
+     * qui refuse le saut. La, les sauts seront autorises pour que l'aligneur
+     * suive -- si par exemple des mots ne sont pas detectes, ou plusieurs, ou
+     * il y a un probleme de voix, qu'on arrive a suivre. [...] Il va juste
+     * reciter les mots qu'il pense qu'il y a un oubli, donc il faut poursuivre
+     * le Coran, mais apres, il faut debloquer le saut. [...] Au lieu
+     * d'attendre l'ancre comme dans les autres modes, juste on repete, mais
+     * apres on active le saut et la localisation. »
+     *
+     * POURQUOI UNE BRANCHE ET NON UN SECOND LOCALISATEUR. Dupliquer le
+     * localisateur donnerait deux codes qui divergent -- le projet a deja paye
+     * ce prix (cf. les mecanismes de la v1 restes vivants et morts a la fois).
+     * Ici le mecanisme refuse est UN SEUL : le rejet de fenetre sur trou trop
+     * grand. On le debraye, on ne reecrit rien.
+     *
+     * CE QUI CHANGE, EXACTEMENT :
+     *  - le trou n'est plus un motif de REJET : la fenetre est acceptee, la
+     *    bande est posee, l'ancre suit le recitateur ;
+     *  - le trou reste MESURE et REMONTE ([sautPresumeDe]/[sautPresumeA]) :
+     *    c'est ce qui permet a l'app de souffler les mots probablement oublies.
+     *
+     * CE QUI NE CHANGE PAS : la recitation normale (`sautLibre = false`) garde
+     * son refus intact -- c'est une regle produit voulue, mesuree, et elle
+     * n'est pas touchee par ce parametre.
+     */
+    private val sautLibre: Boolean = false,
 ) {
+    /**
+     * Bornes du dernier trou constate quand [sautLibre] est actif : les mots
+     * `sautPresumeDe + 1 .. sautPresumeA - 1` n'ont pas ete entendus alors que
+     * le recitateur est deja plus loin.
+     *
+     * Ce N'EST PAS une accusation d'oubli -- « on ne sera pas sur qu'il a
+     * vraiment rate » (utilisateur). C'est le signal qui permet de LUI SOUFFLER
+     * le passage. Aucun verdict n'en decoule, aucune ancre ne recule.
+     * Remis a -1 des qu'il a ete lu, pour ne souffler qu'une fois par trou.
+     */
+    /**
+     * Vrai tant que la PREMIERE localisation apres une pose de cible n'a pas
+     * eu lieu.
+     *
+     * ── LE DECALAGE D'ENTREE N'EST PAS UN OUBLI (2026-08-07) ────────────────
+     *
+     * Question de l'utilisateur : « une fois le verset detecte, faut-il
+     * l'appliquer de suite ? entre-temps l'imam a avance ».
+     *
+     * Oui, il a avance -- et c'est inevitable : on reconnait un passage PARCE
+     * QU'IL VIENT D'ETRE DIT. L'ancre posee est donc toujours un peu derriere.
+     * Ce n'est pas grave en soi : le localisateur cherche dans
+     * `[ancre - reculMax, ancre + avanceMax]`, soit -20/+80, il est quatre
+     * fois plus tolerant vers l'avant et rattrape tout seul.
+     *
+     * CE QUI ETAIT GRAVE : ce rattrapage etait compte comme un TROU. Mesure du
+     * 17:34 -- identification 25:43, ancre au mot 508, et sept secondes plus
+     * tard `passage non entendu : mots 508..520`, tout le verset souffle alors
+     * qu'il venait d'etre recite correctement. Les mots entre le point
+     * d'entree et la position reelle n'ont jamais ete ATTENDUS ; les declarer
+     * non entendus est un contresens.
+     *
+     * On saute donc le signalement sur la premiere localisation qui suit une
+     * pose de cible. Une seule -- ensuite, un trou redevient un vrai trou.
+     */
+    private var premiereLocalisation = false
+
+    /** Trou constate mais PAS ENCORE signale : on laisse une fenetre de plus
+     *  pour le combler (cf. le commentaire dans [traiter]). */
+    private var trouEnAttenteDe = -1
+    private var trouEnAttenteA = -1
+    private var idFenetreTrou = -1L
+
+    var sautPresumeDe: Int = -1
+    var sautPresumeA: Int = -1
+
+    /**
+     * Texte du DECODAGE LIBRE de la derniere fenetre traitee, quelle que soit
+     * sa localisation (bande connue ou non).
+     *
+     * Existait deja mais n'etait que JOURNALISE (`entendu="..."`) : c'est la
+     * matiere premiere de l'identification de sourate (« Shazam ») du mode
+     * priere, et rien ne la remontait a Dart. Vide quand la fenetre ne porte
+     * que du silence.
+     */
+    var dernierEntenduLibre: String = ""
+
     private var motsAttendus: List<String> = emptyList()
     private var tokensAttendus: List<IntArray> = emptyList()
     private var variantesAttendues: List<List<IntArray>> = emptyList()
@@ -199,7 +285,27 @@ class ChaineRecitation(
      *  n'existait pas dans motsAttendus), pas un manque de patience -- une
      *  fois la vraie cause identifiee, le filet de securite n'avait plus lieu
      *  d'etre (demande utilisateur). */
-    private val fenetresAvantDecrochage = 2
+    /**
+     * ── PORTE A 3 (demande utilisateur 2026-08-07) ──────────────────────────
+     *
+     * Annonce des le 2026-08-06 : « apres test, si 2 mots declenchent beaucoup
+     * de blocage, je vais mettre 3 ». Le test a eu lieu : sur la soiree du
+     * 2026-08-07, plusieurs decrochages a 2 fenetres se sont averes faux --
+     * le mot 73 `بِمُؤْمِنِينَ` declare `definitif:vert` 5 ms apres l'alerte,
+     * `مُصْلِحُونَ` valide par la fenetre suivante 500 ms plus tard.
+     *
+     * Maintenant que le decrochage est le SEUL mecanisme qui interrompt encore
+     * (la correction sur erreur isolee a ete retiree le meme jour), le cout
+     * d'un faux positif a change de nature : ce n'est plus une aide de trop,
+     * c'est la seule interruption de la session, et elle doit etre juste.
+     * Une fenetre de plus, c'est environ 1 s d'attente supplementaire pour une
+     * exigence de preuve de 50 % superieure.
+     *
+     * L'historique de ce reglage est conserve ci-dessous : il porte la mesure
+     * qui avait fait REDESCENDRE de 4 a 2, et la vraie cause d'alors (cible
+     * trop courte) n'a rien a voir avec celle d'aujourd'hui.
+     */
+    private val fenetresAvantDecrochage = 3
 
     /**
      * Trou maximal accepte entre le dernier mot definitif et le debut de la
@@ -245,7 +351,30 @@ class ChaineRecitation(
      */
     private fun pointDeReprise(): Int = maxOf(dernierDefinitif, dernierAttesteVu)
 
-    fun definirTexte(mots: List<String>) {
+    /**
+     * [positionDepart] : ou le recitateur EST DEJA suppose se trouver dans ce
+     * texte (mode priere). Par defaut -1 = « on ne sait pas », comportement
+     * historique : la recherche part du mot 0.
+     *
+     * ── POURQUOI CE PARAMETRE EXISTE (2026-08-07) ──────────────────────────
+     *
+     * Le localisateur cherche dans une fenetre BORNEE autour du dernier mot
+     * verrouille : `depart = dernierVerrouille + 1`, region
+     * `[depart - reculMax, depart + avanceMax]`. Sur une chaine neuve,
+     * `dernierVerrouille = -1`, donc la region vaut 0..80.
+     *
+     * MESURE (session du 2026-08-07, 10:41) : le mode priere identifie la
+     * sourate 9 et place l'imam au mot 1652 sur 2498. La chaine v2 recevait
+     * bien les 2498 mots -- et cherchait entre 0 et 80. Resultat :
+     * `bande=inconnue` sur TOUTES les fenetres, alors que le decodage libre
+     * entendait parfaitement `لَهُمُ ٱلْخَيْرَٰتُ وَأُو۟لَـٰٓئِكَ هُمُ ٱلْمُ`,
+     * qui est bien 9:88-89. Rien ne pouvait etre juge, le pointeur restait
+     * fige, et le souffleur de silence partait au bout de 4 s -- l'imam se
+     * faisait corriger alors qu'il recitait juste.
+     *
+     * L'identification CONNAIT cette position ; elle ne la transmettait pas.
+     */
+    fun definirTexte(mots: List<String>, positionDepart: Int = -1) {
         motsAttendus = emptyList()
         tokensAttendus = emptyList()
         variantesAttendues = emptyList()
@@ -260,8 +389,28 @@ class ChaineRecitation(
         dejaLocaliseUneFois = false
         decrochage = false
         motDuDecrochage = -1
+        sautPresumeDe = -1
+        sautPresumeA = -1
+        trouEnAttenteDe = -1
+        trouEnAttenteA = -1
+        idFenetreTrou = -1L
+        dernierEntenduLibre = ""
         statutsCourants = emptyMap()
         ajouterMots(mots, journalCible = true)
+        // La region de recherche du localisateur est calee sur
+        // `dernierDefinitif + 1` (cf. la doc de cette fonction). En posant ce
+        // champ, on dit a la chaine « il en est LA » sans rien verrouiller ni
+        // juger : aucun statut n'est produit, seule la fenetre de recherche se
+        // deplace. Le recul reste possible (`reculMax`), et si la position
+        // fournie est fausse, `sautLibre` laisse la chaine se relocaliser
+        // ailleurs -- c'est une indication, pas une contrainte.
+        premiereLocalisation = true
+        if (positionDepart > 0 && positionDepart < mots.size) {
+            dernierDefinitif = positionDepart - 1
+            journal?.invoke("[v2] position de depart indiquee : mot " +
+                "$positionDepart/${mots.size} -- la recherche s'y cale au " +
+                "lieu de partir du mot 0")
+        }
     }
 
     /**
@@ -332,6 +481,40 @@ class ChaineRecitation(
      * le 2026-07-30 : un mot verrouille VERT ressortait "rouge provisoire" a la
      * relecture, parce que la relecture ne voyait que les 2 dernieres preuves.
      */
+    /**
+     * RECULE l'ancre au mot [mot] et rend leur liberte aux verdicts suivants.
+     *
+     * Specification utilisateur (2026-08-07) : sur un decrochage, l'audio est
+     * joue ET « l'ancre revient au niveau du decrochage », puis on attend que
+     * le recitant repete.
+     *
+     * ⚠️ NE RECREE PAS LA CHAINE. `definirTexte` remettrait tout a zero et
+     * ferait perdre les verdicts de toute la session -- inacceptable en cours
+     * de recitation. Ici on ne deplace que le point de reprise et on oublie
+     * les verdicts POSTERIEURS, pour qu'ils puissent etre reprononces et
+     * rejuges. Tout ce qui precede reste acquis.
+     *
+     * Sans effet en mode [sautLibre] (suivi de priere) : « l'ancre ne recule
+     * jamais, il n'y a pas d'attente pour repeter » -- l'imam n'a aucune
+     * obligation de reprendre, l'application le suit.
+     */
+    fun reculerAncre(mot: Int) {
+        if (sautLibre) {
+            journal?.invoke("[v2] recul d'ancre IGNORE (mode priere) : " +
+                "l'ancre ne recule jamais dans ce mode")
+            return
+        }
+        val cible = mot.coerceIn(0, maxOf(0, motsAttendus.size - 1))
+        decideur.oublierDepuis(cible)
+        dernierDefinitif = cible - 1
+        dernierAttesteVu = minOf(dernierAttesteVu, cible - 1)
+        fenetresHorsTexte = 0
+        decrochageDejaSignale = false
+        statutsCourants = statutsCourants.filterKeys { it < cible }
+        journal?.invoke("[v2] ANCRE RECULEE au mot $cible -- " +
+            "verdicts posterieurs oublies, le recitant peut repeter")
+    }
+
     val statuts: Map<Int, Statut> get() = statutsCourants
     val brut: FluxBrut get() = fluxBrut
 
@@ -455,6 +638,12 @@ class ChaineRecitation(
             // Resultat legitime : la fenetre ne dit rien de la position. Aucun
             // jugement n'en sort — regle "aucun verdict sans preuve acoustique".
             val entenduLibre = Decodage.texte(logprobs, front.pieces, front.blank)
+            // Remonte a l'appelant (cf. [dernierEntenduLibre]) : c'est la
+            // matiere de l'identification de sourate du mode priere. Ecrit ici
+            // et non plus bas -- ce point est atteint que la bande soit connue
+            // ou non, et c'est justement quand elle est INCONNUE que ce texte
+            // sert le plus (aucune cible encore identifiee).
+            dernierEntenduLibre = entenduLibre
             journal?.invoke("[v2] f=${fenetre.id} bande=inconnue " +
                 "entendu=\"$entenduLibre\" horsTexte=$fenetresHorsTexte " +
                 "dejaSignale=$decrochageDejaSignale")
@@ -642,7 +831,80 @@ class ChaineRecitation(
         // Exception au TOUT DEBUT (aucun mot encore definitif) : on ne sait
         // pas ou le recitateur commence, et commencer au verset 2 sans dire
         // la Bismillah est legitime (constate a chaque session de test).
-        if (!referenceSession && dernierDefinitif >= 0 && trou > sautMaxMots) {
+        // ── MODE PRIERE : LE TROU SE SIGNALE, IL NE REFUSE PLUS ─────────────
+        //
+        // Specification utilisateur (2026-08-07) : « les sauts seront autorises
+        // pour que l'aligneur suive [...] il va juste reciter les mots qu'il
+        // pense qu'il y a un oubli [...] mais apres, il faut debloquer le saut
+        // [...] au lieu d'attendre l'ancre comme dans les autres modes ».
+        // Et, precise ensuite : « meme quand le saut est detecte on lance le
+        // souffleur, mais apres c'est l'aligneur, on ne force pas a suivre ».
+        //
+        // On remonte donc les bornes du trou -- de quoi souffler le passage --
+        // et on LAISSE LA FENETRE VIVRE : la bande est posee, l'ancre suit le
+        // recitateur la ou il est reellement. Aucune ancre ne recule, aucune
+        // attente qu'il repete, et surtout AUCUN replacement d'autorite sur
+        // les mots souffles : apres le souffleur, c'est le localisateur qui
+        // decide, librement.
+        if (sautLibre && premiereLocalisation && trou > sautMaxMots) {
+            journal?.invoke("[v2] f=${fenetre.id} trou de $trou mot(s) IGNORE : " +
+                "premiere localisation apres pose de cible -- c'est le " +
+                "decalage d'entree, pas un oubli du recitant")
+            premiereLocalisation = false
+        } else if (sautLibre && dernierDefinitif >= 0 && trou > sautMaxMots) {
+            // ── ON ATTEND LA FENETRE SUIVANTE AVANT DE SOUFFLER ────────────
+            //
+            // MESURE (session 18:33) :
+            //     f=9   SAUT ACCEPTE : trou de 7 mots apres le mot 749
+            //     f=9   bande=755..760            -> souffleur declenche
+            //     f=10  bande=749..761 interieurs=12/13   (600 ms plus tard)
+            // Les mots 750..756 etaient bien la -- simplement dans la fenetre
+            // d'APRES. Le souffleur a tranche 600 ms trop tot, sur un passage
+            // correctement recite.
+            //
+            // Meme defaut que celui mesure le matin sur `مُصْلِحُونَ` : decider
+            // sur une fenetre sans attendre celle qui leve le doute. Un trou
+            // constate UNE fois n'est pas un trou : c'est un cadrage de
+            // fenetre. On le met donc EN ATTENTE, et on ne le signale que si
+            // la fenetre suivante ne l'a pas comble.
+            if (trouEnAttenteDe < 0) {
+                trouEnAttenteDe = trouApres
+                trouEnAttenteA = trouApres + trou + 1
+                // ⚠️ LE REPERE SE POSE ICI, PAS PLUS BAS (corrige 2026-08-07).
+                // Premiere version : `idFenetreTrou` n'etait ecrit qu'APRES le
+                // test de confirmation. Au moment du test il valait donc encore
+                // -1, et `fenetre.id > -1` etait trivialement vrai : le trou
+                // etait mis en attente PUIS confirme dans la MEME fenetre.
+                // Mesure : `f=1 MIS EN ATTENTE` suivi de `f=1 SAUT CONFIRME`.
+                // L'attente ne durait rien, et le souffleur partait quand meme.
+                idFenetreTrou = fenetre.id
+                journal?.invoke("[v2] f=${fenetre.id} trou de $trou mot(s) apres " +
+                    "le mot $trouApres MIS EN ATTENTE -- on laisse la fenetre " +
+                    "suivante le combler avant de souffler")
+            }
+        }
+        // Le trou en attente a-t-il ete comble par CETTE fenetre ?
+        if (sautLibre && trouEnAttenteDe >= 0) {
+            val comble = (trouEnAttenteDe + 1 until trouEnAttenteA)
+                .all { it in nonJugeables || bande.attestes.containsKey(it) ||
+                       it <= dernierDefinitif }
+            if (comble) {
+                journal?.invoke("[v2] f=${fenetre.id} trou en attente COMBLE " +
+                    "par cette fenetre -- aucun souffleur, ce n'etait qu'un " +
+                    "cadrage de fenetre")
+                trouEnAttenteDe = -1
+                trouEnAttenteA = -1
+            } else if (fenetre.id > idFenetreTrou) {
+                sautPresumeDe = trouEnAttenteDe
+                sautPresumeA = trouEnAttenteA
+                journal?.invoke("[v2] f=${fenetre.id} SAUT CONFIRME (mode priere) : " +
+                    "le trou apres le mot $trouEnAttenteDe n'a pas ete comble " +
+                    "par la fenetre suivante -- souffleur")
+                trouEnAttenteDe = -1
+                trouEnAttenteA = -1
+            }
+        }
+        if (!sautLibre && !referenceSession && dernierDefinitif >= 0 && trou > sautMaxMots) {
             // LA CHAINE PROGRESSE-T-ELLE ENCORE SUR CE TROU ? (2026-08-05)
             //
             // MESURE QUI L'IMPOSE : session live, mots 35-37 "مِّن رَّبِّهِمْ"
@@ -719,6 +981,29 @@ class ChaineRecitation(
         // existe, cf. le commentaire la-bas.)
         fenetresHorsTexte = 0
         decrochageDejaSignale = false
+        // ── ET L'ALERTE ELLE-MEME S'EFFACE (corrige 2026-08-07) ────────────
+        //
+        // `decrochage` n'etait PAS remis a faux ici -- seuls le compteur et le
+        // « deja signale » l'etaient. Or `alimenter()` traite plusieurs
+        // fenetres par appel, et l'appelant ne lit `decrochage` qu'A LA FIN :
+        // une alerte levee par une fenetre ANTERIEURE partait donc alors
+        // qu'une fenetre plus recente venait de prouver le contraire.
+        //
+        // MESURE (session 18:57, recitation normale) :
+        //     [V2] mot=73 "بِمُؤْمِنِينَ" -> definitif:VERT  gop=0,00
+        //     18:57:01.840  Decrochage signale -- dernierDefinitif=72
+        //     18:57:01.845  wordFailed ... status=WordStatus.correct
+        // L'application corrigeait un mot qu'elle venait elle-meme de declarer
+        // juste, 5 ms plus tot. L'utilisateur : « il n'attend pas le jugement
+        // final ! » -- c'est exactement cela.
+        //
+        // Le garde-fou du 2026-07-25 (« le mot est-il encore faux ? ») ne
+        // couvrait pas ce chemin : le decrochage entre avec `surSilence` et
+        // saute la verification, parce qu'il est cense parler de la
+        // recitation entiere et non d'un mot. Il faut donc l'annuler A LA
+        // SOURCE, ici, ou l'on sait que le recitateur suit.
+        decrochage = false
+        motDuDecrochage = -1
         // SEULEMENT MAINTENANT (2026-08-05) : la fenetre a passe le contrôle
         // de saut, son attestation peut servir de reference aux suivantes.
         //

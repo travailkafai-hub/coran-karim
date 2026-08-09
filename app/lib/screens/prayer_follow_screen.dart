@@ -36,12 +36,68 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
   // avancée réelle du pointeur, déclenche la lecture du mot attendu si aucune
   // avancée n'a eu lieu depuis le délai -- seule aide offerte dans ce mode
   // (jamais de blocage, cf. RecitationNotifier._confidentMode).
+  // Passage a souffler quand la chaine constate un trou (mode priere).
+  // Cf. RecitationNotifier.sautASouffler : ce n'est PAS un verdict, et rien
+  // n'attend que l'imam repete -- on lui fait entendre, il continue.
+  StreamSubscription<({int de, int a})>? _sautSub;
+  int _dernierMotSuivi = -1;
   Timer? _silenceTimer;
   // Réduit de 6s à 3s (demande utilisateur 2026-07-19) : dans ce mode, le
   // pointeur peut déjà être en retard sur ce qui est réellement récité (cf.
   // SUIVI_PRIERE.md §3.4/§3.9) -- un délai plus court aide à rattraper plus
   // vite plutôt que de laisser un long silence avant la première aide.
-  static const _kSilenceHintDelay = Duration(seconds: 3);
+  //
+  // ── REMONTÉ À 8 s (demande utilisateur 2026-08-07) ─────────────────────
+  //
+  // Le raisonnement de 2026-07-19 supposait que le pointeur immobile signifie
+  // « il hésite ». La mesure du 2026-08-07 montre que c'est faux, et
+  // pourquoi : à 09:44:31 l'identification pose l'ancre au mot 177 (34:11) ;
+  // à 09:44:34, soit 3 s plus tard EXACTEMENT, le souffleur part. Le pointeur
+  // n'avait pas bougé non pas parce que l'imam se taisait -- le décodage
+  // libre de la même seconde entend `مَلُوغُونَ بَصِيرٌ`, `نِِعْمَلَ سَ`,
+  // `رَاتٍ وَقَقَدْد فِى ٱلسَّرْد`, il récitait sans interruption -- mais parce
+  // que l'application regardait au mauvais endroit.
+  //
+  // Un délai court transforme donc chaque erreur de position en interruption.
+  // Et pendant la salât, 3 s de silence sont ORDINAIRES : souffle entre deux
+  // versets, pause avant d'enchaîner la sourate après Al-Fatiha, descente en
+  // rukū'. Le souffleur est une PROPOSITION (« l'imam n'est pas obligé
+  // d'attendre et d'écouter ») -- il doit se faire rare.
+  //
+  // 8 s : au-delà de toute respiration normale, en deçà d'un vrai blanc de
+  // mémoire. Valeur à ajuster à l'usage, c'est une constante nommée.
+  // Porté à 4 s (demande utilisateur 2026-08-07). NOTE : ce n'était PAS la
+  // cause du déclenchement analysé ce jour-là -- cf. `_jugementDepuisCible`
+  // juste en dessous. Le délai reste un confort, pas un correctif.
+  static const _kSilenceHintDelay = Duration(seconds: 4);
+
+  /// Un mot au moins a-t-il été jugé depuis le dernier changement de cible ?
+  ///
+  /// ── LE MINUTEUR MESURAIT LA LATENCE DE L'APP (corrigé 2026-08-07) ──────
+  ///
+  /// L'utilisateur : « je n'ai pas mémoire d'avoir fait 3 s de silence ».
+  /// Il avait raison, et le journal le montre :
+  ///     09:44:29.79  retranscription "وَأَلَنَّا لَهُ ٱلْحَدِيدَ…"  (34:10)
+  ///     09:44:31.92  cible v2 posée, 883 mots, pointeur -> 177
+  ///     09:44:34.66  [Souffleur] hésitation longue (3s)
+  ///     09:44:37.34  v2 entend "مَلُوغُونَ بَصِيرٌ"           (34:11)
+  /// Il récitait avant, il récitait après. Le minuteur est réarmé à chaque
+  /// déplacement du pointeur ; le passage de la phase `detectingTarget` à
+  /// `target` a fait sauter le pointeur à 177 et l'a donc armé -- alors que
+  /// l'application n'avait encore RIEN pu juger sur cette cible toute neuve.
+  ///
+  /// Allonger le délai ne corrige pas cela, il le retarde. La condition qui
+  /// manque est celle-ci : ne pas parler d'hésitation tant qu'on n'a pas
+  /// prouvé qu'on sait juger cette cible. Un seul mot jugé suffit.
+  bool _jugementDepuisCible = false;
+
+  /// Contexte joue AUTOUR du passage saute (cf. `_soufflerPassage`).
+  /// Un peu avant pour situer, un peu plus apres pour relancer.
+  /// Duree jouee par le souffleur, en fraction de la plage complete.
+  /// « L'audio de repetition est un peu long, reduis de 20 % » (2026-08-07).
+  static const _kFacteurDureeSouffle = 0.8;
+  static const _kMotsAvantSouffle = 2;
+  static const _kMotsApresSouffle = 3;
   bool _promptingWord = false;
 
   // Défilement automatique vers le mot courant (demande utilisateur
@@ -54,7 +110,83 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
   List<GlobalKey> _wordKeys = [];
 
   @override
+  void initState() {
+    super.initState();
+    // ── ECOUTE IMMEDIATE (demande utilisateur 2026-08-07) ─────────────────
+    // « Quand je clique sur suivre la priere, lance directement l'ecoute. »
+    // On n'entre pas sur cet ecran par curiosite : on y entre parce que la
+    // priere commence. Un tap de plus n'ajoute rien et fait rater le takbir.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final st = ref.read(recitationProvider);
+      if (st.status == RecitationStatus.listening) return;
+      DiagnosticLog.log('Priere',
+          'demarrage automatique a l\'ouverture de l\'ecran');
+      await ref.read(recitationProvider.notifier).startPrayerFollow();
+      if (mounted) _scrollToCurrentWord(0);
+    });
+    _sautSub = ref
+        .read(recitationProvider.notifier)
+        .sautASouffler
+        .listen(_soufflerPassage);
+  }
+
+  /// Joue l'audio du recitateur sur les mots [bornes.de]..[bornes.a].
+  ///
+  /// Volontairement SANS effet de bord : pas de recul d'ancre, pas d'attente,
+  /// pas de replacement du curseur. Apres la lecture, la chaine continue de
+  /// suivre l'imam la ou il en est reellement -- « on ne force pas a suivre »
+  /// (utilisateur, 2026-08-07).
+  Future<void> _soufflerPassage(({int de, int a}) bornes) async {
+    if (!mounted || _promptingWord) return;
+    final notifier = ref.read(recitationProvider.notifier);
+    final debut = notifier.verseAndLocalIndexFor(bornes.de);
+    if (debut == null) return;
+    final (verse, local) = debut;
+    final st = ref.read(recitationProvider);
+    setState(() => _promptingWord = true);
+    final verifier = ref.read(recitationVerifierProvider);
+    final wasListening = st.status == RecitationStatus.listening;
+    try {
+      if (wasListening) await verifier.pauseCapture();
+      try {
+        // ── DU CONTEXTE AUTOUR DU PASSAGE (demande utilisateur 2026-08-07)
+        //
+        // « Rajoute le souffleur, il dit un peu avant et un peu plus apres,
+        // style 5 mots. »
+        //
+        // Souffler le trou NU ne suffit pas a raccrocher : l'imam a besoin
+        // d'entendre ou ca s'attache. Un peu avant pour reconnaitre l'endroit,
+        // un peu PLUS apres pour repartir avec de l'elan -- c'est la meme
+        // raison qui avait fait passer la correction de recitation a
+        // « le mot plus le suivant » (2026-08-05).
+        //
+        // BORNES DU VERSET : `playWordRange` travaille a l'interieur d'UN
+        // verset. Si le contexte deborde, ses propres garde-fous ramenent au
+        // premier/dernier segment disponible -- on souffle alors un peu moins,
+        // jamais le mauvais passage.
+        await WordCorrectionAudio.playWordRange(
+          verse, ref.read(playerProvider).reciter,
+          errorWordIndex: local,
+          wordsBefore: _kMotsAvantSouffle,
+          wordsAfter: (bornes.a - bornes.de) + _kMotsApresSouffle,
+        );
+      } catch (e) {
+        DiagnosticLog.log('Priere', 'souffle du passage impossible : $e');
+      }
+      // Le tampon est vide APRES la lecture : sans ca, l'audio du recitateur
+      // capte par le micro se retrouverait dans la fenetre suivante et serait
+      // pris pour la voix de l'imam.
+      if (wasListening) await verifier.resetBuffer();
+    } finally {
+      if (wasListening) await verifier.resumeCapture();
+      if (mounted) setState(() => _promptingWord = false);
+    }
+  }
+
+  @override
   void dispose() {
+    _sautSub?.cancel();
     _silenceTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
@@ -108,7 +240,10 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
       final reciter = ref.read(playerProvider).reciter;
       try {
         await WordCorrectionAudio.playWordRange(verse, reciter,
-            errorWordIndex: local, wordsBefore: 0, wordsAfter: 0);
+            errorWordIndex: local,
+            wordsBefore: 0,
+            wordsAfter: 0,
+            facteurDuree: _kFacteurDureeSouffle);
       } catch (e) {
         DiagnosticLog.log('Souffleur', 'échec lecture (Suivre une prière) : $e');
       }
@@ -258,7 +393,33 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
     // Al-Fatiha se contente d'ATTENDRE la fin de la récitation avant de
     // lancer détection puis correction -- aucune aide/correction avant ça.
     ref.listen(recitationProvider, (prev, next) {
-      final eligible = next.status == RecitationStatus.listening &&
+      // Cible neuve (la sourate vient d'être identifiée, ou un takbir a tout
+      // remis à zéro) : on repart sans preuve de jugement.
+      if (next.words.length != prev?.words.length) _jugementDepuisCible = false;
+      // ── `skipped` N'EST PAS UN JUGEMENT (corrige 2026-08-07) ───────────
+      //
+      // Ce garde-fou a ete mis en echec par mon propre code. Quand la sourate
+      // est identifiee, `_beginIdentifiedTargetPhase` marque tous les mots
+      // AVANT le point d'entree en `skipped` -- une facon de dire « on n'a pas
+      // commence la ». Le test « un statut autre que pending/current » les
+      // comptait comme des jugements, donc le souffleur s'armait AUSSITOT.
+      //
+      // MESURE (session 17:58) : cible posee a 17:58:15,5 sur 893 mots avec
+      // 407 mots marques passes ; souffleur declenche a 17:58:19,3, soit 3,8 s
+      // plus tard, sans qu'un seul mot ait ete reellement juge.
+      //
+      // On ne compte donc QUE les verdicts reels : vert, orange, rouge. Un mot
+      // « passe » ou « en attente » ne prouve rien sur la capacite de la
+      // chaine a juger cette cible.
+      if (!_jugementDepuisCible &&
+          next.words.any((w) =>
+              w.status == WordStatus.correct ||
+              w.status == WordStatus.unclear ||
+              w.status == WordStatus.error)) {
+        _jugementDepuisCible = true;
+      }
+      final eligible = _jugementDepuisCible &&
+          next.status == RecitationStatus.listening &&
           next.prayerPhase != PrayerPhase.standby &&
           next.prayerPhase != PrayerPhase.detectingTarget &&
           next.prayerPhase != PrayerPhase.fatiha;
@@ -275,8 +436,21 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
       if (next.words.length != _wordKeys.length) {
         _wordKeys = List.generate(next.words.length, (_) => GlobalKey());
       }
-      if (next.pointer != prev?.pointer) {
-        _scrollToCurrentWord(next.pointer);
+      // ── SUIVRE LE MOT MARQUE, PAS LE POINTEUR (corrige 2026-08-07) ────
+      //
+      // `_onV2` pose bien `WordStatus.current` sur le mot en cours, mais ne
+      // met JAMAIS a jour `state.pointer` -- il n'ecrit que `words`. Le
+      // defilement, cale sur `pointer`, ne se declenchait donc jamais :
+      // « il n'y a pas le scrolling qui suit » (utilisateur).
+      //
+      // L'ecran de recitation ne s'y trompe pas : il cherche l'index du mot
+      // marque `current`. On fait pareil ici plutot que de toucher a la
+      // chaine -- meme source de verite, meme comportement.
+      final courant = next.words.indexWhere(
+          (w) => w.status == WordStatus.current);
+      if (courant >= 0 && courant != _dernierMotSuivi) {
+        _dernierMotSuivi = courant;
+        _scrollToCurrentWord(courant);
       }
     });
 
@@ -323,7 +497,7 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
   }
 }
 
-class _WordsArea extends StatelessWidget {
+class _WordsArea extends ConsumerWidget {
   final RecitationSessionState state;
   final ScrollController scrollController;
   final List<GlobalKey> wordKeys;
@@ -332,6 +506,23 @@ class _WordsArea extends StatelessWidget {
     required this.scrollController,
     required this.wordKeys,
   });
+
+  /// Le mot [i] est-il le DERNIER de son verset ? Meme source de verite que
+  /// le souffleur (`verseAndLocalIndexFor`), donc jamais de decalage entre ce
+  /// qu'on affiche et ce qu'on juge.
+  bool _finDeVerset(WidgetRef ref, int i) {
+    final n = ref.read(recitationProvider.notifier);
+    final ici = n.verseAndLocalIndexFor(i);
+    if (ici == null) return false;
+    if (i + 1 >= state.words.length) return true;
+    final suivant = n.verseAndLocalIndexFor(i + 1);
+    return suivant == null || suivant.$1.key != ici.$1.key;
+  }
+
+  int _numeroVerset(WidgetRef ref, int i) =>
+      ref.read(recitationProvider.notifier).verseAndLocalIndexFor(i)?.$1
+          .ayahNumber ??
+      0;
 
   String _emptyLabel(AppLocalizations t) {
     switch (state.prayerPhase) {
@@ -349,7 +540,7 @@ class _WordsArea extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (state.words.isEmpty) {
       return Center(
         child: Padding(
@@ -373,16 +564,51 @@ class _WordsArea extends StatelessWidget {
           spacing: 4,
           runSpacing: 16,
           children: [
-            for (var i = 0; i < state.words.length; i++)
+            // ── LE MEME REPERAGE QU'EN RECITATION (2026-08-07) ───────────
+            //
+            // « Ce n'est toujours pas le meme affichage que la recitation :
+            // on a les numeros d'ayat, les separations de sourates. »
+            //
+            // Cet ecran n'affichait qu'une suite de mots, sans aucun repere :
+            // sur 893 mots d'une sourate, impossible de savoir ou l'on est.
+            // On rend donc le numero de verset a sa FIN, comme le fait
+            // l'ecran de recitation -- meme convention (le numero clot le
+            // verset, il ne l'ouvre pas), meme source de verite
+            // (`verseAndLocalIndexFor`, qui connait le decoupage reel).
+            for (var i = 0; i < state.words.length; i++) ...[
               KeyedSubtree(
                 key: i < wordKeys.length ? wordKeys[i] : null,
                 child: _WordChip(word: state.words[i]),
               ),
+              if (_finDeVerset(ref, i)) _BadgeVerset(_numeroVerset(ref, i)),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+/// Numero de verset, pose APRES son dernier mot -- meme convention que
+/// l'ecran de recitation (le numero clot le verset).
+class _BadgeVerset extends StatelessWidget {
+  final int numero;
+  const _BadgeVerset(this.numero);
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.brassLight.withValues(alpha: 0.7)),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text('$numero',
+            style: GoogleFonts.manrope(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.brassLight)),
+      );
 }
 
 class _WordChip extends StatelessWidget {

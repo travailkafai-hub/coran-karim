@@ -241,6 +241,15 @@ abstract class RecitationVerifier {
   /// du décrochage (-1 si aucun) : c'est de là qu'il faut reprendre.
   Stream<int> get decrochage;
 
+  /// Décodage libre de la dernière fenêtre v2 (mode prière) : le texte que le
+  /// modèle entend, SANS cible imposée. Base de l'identification de sourate.
+  /// Vide par défaut -- une implémentation sans v2 n'a rien à en dire.
+  Stream<String> get v2DecodageLibre => const Stream.empty();
+
+  /// Passage probablement sauté (mode prière) : les mots `de + 1 .. a - 1`
+  /// n'ont pas été entendus. PAS un verdict -- de quoi souffler le passage.
+  Stream<({int de, int a})> get v2SautPresume => const Stream.empty();
+
   /// Chemin d'un WAV stable (survit à la transcription, contrairement aux
   /// segments temporaires normalement supprimés aussitôt) contenant le DERNIER
   /// enregistrement transcrit — utilisé pour l'empreinte vocale (comparaison
@@ -270,7 +279,9 @@ abstract class RecitationVerifier {
   /// précise rien obtient le comportement de l'usage réel, jamais celui de la
   /// recette par accident.
   Future<void> v2Activer(bool actif, List<String> mots,
-      {String mode = 'CTL', List<int> nonJugeables = const []}) async {}
+      {String mode = 'CTL',
+      List<int> nonJugeables = const [],
+      int depart = -1}) async {}
 
   /// Agrandit la cible v2 EN COURS DE SESSION, SANS recréer la chaîne (donc
   /// sans perdre l'ancre ni les mots déjà verrouillés) -- 2026-08-05. Même
@@ -283,6 +294,10 @@ abstract class RecitationVerifier {
   /// LA VOIX DU RÉCITATEUR sur les mots [motDebut]..[motFin] (inclus), en WAV.
   /// C'est l'audio EXACT qui a servi à juger ces mots. `null` si l'audio n'est
   /// plus disponible. No-op par défaut.
+  /// Recule l'ancre v2 au mot donne (decrochage/erreur) sans recreer la
+  /// chaine. Rend faux si la v2 ne tourne pas. No-op par defaut.
+  Future<bool> v2ReculerAncre(int mot) async => false;
+
   Future<String?> v2ExtraitVoix(int motDebut, int motFin) async => null;
 
   /// FERME la session v2 (dernière analyse de la queue d'audio). Sans elle les
@@ -1019,7 +1034,28 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     if (parts?.v2Decrochage == true) {
       _decrochageCtrl.add(parts!.v2DecrochageMot);
     }
+    // ── MODE PRIERE (2026-08-07) ────────────────────────────────────────────
+    // Deux flux de plus, alimentés seulement quand la chaîne tourne en mode
+    // PRIERE. Ils ne portent AUCUN verdict : le premier est du texte entendu
+    // (pour identifier la sourate), le second des bornes de passage à
+    // souffler. Rien de ce qui précède n'en dépend.
+    final libre = parts?.v2Libre ?? '';
+    if (libre.isNotEmpty) _libreCtrl.add(libre);
+    final de = parts?.v2SautDe ?? -1;
+    if (de >= 0) _sautCtrl.add((de: de, a: parts!.v2SautA));
   }
+
+  final _libreCtrl = StreamController<String>.broadcast();
+  final _sautCtrl = StreamController<({int de, int a})>.broadcast();
+
+  /// Décodage libre de la dernière fenêtre v2, sans aucune cible imposée.
+  /// C'est ce qui permet d'identifier la sourate en début de rak'ah.
+  Stream<String> get v2DecodageLibre => _libreCtrl.stream;
+
+  /// Bornes d'un passage que le récitateur semble avoir sauté (mode prière).
+  /// Les mots `de + 1 .. a - 1` n'ont pas été entendus alors qu'il est déjà
+  /// plus loin. PAS une accusation : de quoi lui souffler le passage.
+  Stream<({int de, int a})> get v2SautPresume => _sautCtrl.stream;
 
   /// Changements de statut de la chaîne v2 (branchée en parallèle de la v1).
   /// Mesure de référence sur le même flux brut : v1 10,10 % de mots non verts,
@@ -1032,9 +1068,12 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   @override
   Future<void> v2Activer(bool actif, List<String> mots,
-      {String mode = 'CTL', List<int> nonJugeables = const []}) async {
+      {String mode = 'CTL',
+      List<int> nonJugeables = const [],
+      int depart = -1}) async {
     await _fastConformer.v2SetMode(mode);
-    await _fastConformer.v2SetTarget(mots, nonJugeables: nonJugeables);
+    await _fastConformer.v2SetTarget(mots,
+        nonJugeables: nonJugeables, depart: depart);
     await _fastConformer.v2SetEnabled(actif);
   }
 
@@ -1044,6 +1083,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       _fastConformer.v2ExtendTarget(mots, nonJugeables: nonJugeables);
 
   @override
+  @override
+  Future<bool> v2ReculerAncre(int mot) => _fastConformer.v2ReculerAncre(mot);
+
   Future<String?> v2ExtraitVoix(int motDebut, int motFin) =>
       _fastConformer.v2ExtraitVoix(motDebut, motFin);
 
@@ -1406,6 +1448,10 @@ class MockRecitationVerifier implements RecitationVerifier {
   @override
   Stream<int> get decrochage => const Stream.empty(); // pas de v2 en mock
   @override
+  Stream<String> get v2DecodageLibre => const Stream.empty();
+  @override
+  Stream<({int de, int a})> get v2SautPresume => const Stream.empty();
+  @override
   String? get lastAudioPath => null;
   @override
   Stream<AlignPayload> get alignedWords => const Stream.empty();
@@ -1416,12 +1462,16 @@ class MockRecitationVerifier implements RecitationVerifier {
 
   @override
   Future<void> v2Activer(bool actif, List<String> mots,
-      {String mode = 'CTL', List<int> nonJugeables = const []}) async {}
+      {String mode = 'CTL',
+      List<int> nonJugeables = const [],
+      int depart = -1}) async {}
   @override
   Future<void> v2ExtendTarget(List<String> mots,
       {List<int> nonJugeables = const []}) async {}
   @override
   Future<String?> v2ExtraitVoix(int motDebut, int motFin) async => null;
+  @override
+  Future<bool> v2ReculerAncre(int mot) async => false;
   @override
   Future<void> v2Terminer() async {}
   @override

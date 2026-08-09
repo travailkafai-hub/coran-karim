@@ -138,6 +138,29 @@ Ces constats sortent du graphe lui-même, pas d'une opinion :
    peut structurellement pas être suivi, et le banc — qui rejoue un audio
    linéaire — ne peut pas produire ce cas. (`piege_resync_avant_seulement`)
 
+## À faire, inscrit dans le graphe (2026-08-06)
+
+**`[EN ATTENTE] Recouvrement PARTIEL des fenêtres d'aperçu`** — demande
+explicite de l'utilisateur : « garde-la dans le graphe comme à faire ».
+
+Deux mesures encadrent la piste, et c'est ce qui la rend intéressante :
+
+- le recouvrement **50 %** (`pas=2` / `largeur=4`) a été retiré au profit de
+  `pas=4` / `largeur=4` : **même taux** (1,02 % de non-verts sur Al-Baqara,
+  rejeu déterministe) pour **22 % de fenêtres en moins**. Une fois la SECONDE
+  ligne de jugement en place, le recouvrement total ne payait plus sa charge ;
+- le **mot 11** reste mal cadré. Balayé hors device, il est lu parfaitement dès
+  qu'il n'est **pas au bord** de la fenêtre : c'est un défaut de CADRAGE, pas
+  une limite du modèle.
+
+D'où l'hypothèse à mesurer : un recouvrement **intermédiaire** (`pas=3` /
+`largeur=4`), qui évite de remettre un mot au bord sans revenir au coût du
+50 %.
+
+⚠️ Ne pas confondre avec la **grille coprime 3/5** (deux lignes de périodes
+premières entre elles) : celle-là a été mesurée et reste **derrière le 4/4**.
+C'est une piste distincte, déjà tranchée.
+
 ## Contrat du modèle (à ne pas re-dériver)
 
 Cible de la réécriture : **causal v1**, verrouillé par `StreamingModelConfig.kt` —

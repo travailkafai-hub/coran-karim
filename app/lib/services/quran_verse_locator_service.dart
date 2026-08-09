@@ -10,10 +10,26 @@ class QuranMatch {
   final int surahNumber;
   final int ayahNumber;
   final double confidence;
+
+  /// Nombre ABSOLU de paires ayant vote pour ce decalage.
+  ///
+  /// ── POURQUOI LE RATIO NE SUFFIT PAS (mesure 2026-08-07) ──────────────────
+  /// `confidence` est une FRACTION (votes / paires testees). Deux votes contre
+  /// un donnent le meme rapport que neuf contre six -- alors que l'un est du
+  /// bruit et l'autre une certitude. Mesure sur cas de verite connue :
+  ///   43:49  9 votes / 26 paires      juste
+  ///   43:49  11 votes / 26 paires     juste
+  ///   43:50  6 votes / 26 paires      juste
+  ///   9:88   6 votes / 22 paires      juste
+  ///   25:43  2 votes / 22 paires      FAUX (ancre posee au mauvais endroit)
+  /// Les justes tiennent entre 6 et 11 ; la fausse en a 2. Aucune zone grise.
+  final int votes;
+
   const QuranMatch({
     required this.surahNumber,
     required this.ayahNumber,
     required this.confidence,
+    this.votes = 0,
   });
 }
 
@@ -35,7 +51,8 @@ class _IndexedVerse {
 class _ScoredVerse {
   final _IndexedVerse verse;
   final double score;
-  const _ScoredVerse(this.verse, this.score);
+  final int votes;
+  const _ScoredVerse(this.verse, this.score, [this.votes = 0]);
 }
 
 /// "Shazam coranique" (demande utilisateur 2026-07-18) : identifie à quel
@@ -360,7 +377,7 @@ class QuranVerseLocatorService {
       final verseKey = '${verse.surah}:${verse.ayah}';
       if (!seenVerse.add(verseKey)) continue;
       final score = e.value / pairsTried;
-      scored.add(_ScoredVerse(verse, score));
+      scored.add(_ScoredVerse(verse, score, e.value));
     }
     scored.sort((a, b) => b.score.compareTo(a.score));
     return scored;
@@ -403,6 +420,7 @@ class QuranVerseLocatorService {
       surahNumber: best.verse.surah,
       ayahNumber: best.verse.ayah,
       confidence: best.score,
+      votes: best.votes,
     );
   }
 
@@ -425,6 +443,7 @@ class QuranVerseLocatorService {
         surahNumber: r.verse.surah,
         ayahNumber: r.verse.ayah,
         confidence: r.score,
+        votes: r.votes,
       ));
       if (result.length >= k) break;
     }

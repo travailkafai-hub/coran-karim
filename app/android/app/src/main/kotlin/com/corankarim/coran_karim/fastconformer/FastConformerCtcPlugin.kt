@@ -69,6 +69,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     // Mesure de reference (banc, flux brut du 2026-07-30) : v1 10,10 % de mots
     // non verts, v2 2,03 %.
     @Volatile private var v2Actif = false
+    @Volatile private var v2Depart = -1
     private var v2Chaine: com.corankarim.coran_karim.recitation2.ChaineRecitation? = null
     @Volatile private var v2Mots: List<String> = emptyList()
 
@@ -670,7 +671,35 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                             // DEFINITIF, pas le pointeur (reste a 0 quand rien
                             // n'a pu etre juge -- mesure 2026-08-01).
                             "v2DecrochageMot" to motDecrochage,
-                        ) else emptyMap())
+                        ) else emptyMap()) +
+                        // ── MODE PRIERE (2026-08-07) ────────────────────────
+                        // Deux cles supplementaires, ignorees par tout code qui
+                        // ne les connait pas -- meme principe que `v2Decrochage`
+                        // ci-dessus : on n'insere rien dans `v2`, qui ne
+                        // transporte que des verdicts par mot.
+                        //
+                        // `v2Libre` : le decodage libre de la derniere fenetre.
+                        // C'est ce qui permet d'identifier la sourate en debut
+                        // de rak'ah (« Shazam ») sans aucune cible prealable.
+                        // Emis SEULEMENT s'il porte du texte : une fenetre de
+                        // silence n'a rien a dire.
+                        (v2Chaine?.dernierEntenduLibre
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { mapOf("v2Libre" to it) } ?: emptyMap()) +
+                        // `v2SautDe`/`v2SautA` : bornes d'un passage que le
+                        // recitateur semble avoir saute. PAS un verdict --
+                        // « on ne sera pas sur qu'il a vraiment rate »
+                        // (utilisateur). De quoi lui souffler le passage, rien
+                        // de plus : la bande a ete gardee, l'ancre a suivi.
+                        // Consomme ici (remis a -1) pour ne souffler qu'une
+                        // fois par trou.
+                        (v2Chaine?.takeIf { it.sautPresumeDe >= 0 }?.let { c ->
+                            val de = c.sautPresumeDe
+                            val a = c.sautPresumeA
+                            c.sautPresumeDe = -1
+                            c.sautPresumeA = -1
+                            mapOf("v2SautDe" to de, "v2SautA" to a)
+                        } ?: emptyMap())
                     withContext(Dispatchers.Main) { result.success(payload) }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { result.error("FEED_BUFFERED_FAILED", e.message, null) }
@@ -914,6 +943,9 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // travaille sur des MOTS, la v1 sur des tokens deja calcules.
             "v2SetTarget" -> {
                 v2Mots = call.argument<List<String>>("mots") ?: emptyList()
+                // Ou le recitateur en est DEJA (mode priere) -- cf.
+                // ChaineRecitation.definirTexte(positionDepart).
+                v2Depart = call.argument<Int>("depart") ?: -1
                 // Index jamais juges (Bismillah) -- cf.
                 // ChaineRecitation.nonJugeables. Dart en est l'autorite.
                 v2NonJugeables = (call.argument<List<Int>>("nonJugeables")
@@ -953,13 +985,44 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // Bascule le bloc de FUSION (cf. v2Fusion). Recree la chaine pour
             // que le changement prenne effet au prochain bloc audio.
             "v2SetFusion" -> {
+                val ancienFusion = v2Fusion
+                val ancienPreuves = v2Preuves
+                val ancienPas = v2Pas
+                val ancienneLargeur = v2Largeur
+                val ancienMaxBloc = v2MaxBloc
+                val ancienMaxFusion = v2MaxFusion
                 v2Fusion = call.argument<Boolean>("actif") ?: true
                 v2Preuves = call.argument<Int>("preuves") ?: 2
                 v2Pas = call.argument<Double>("pas") ?: 4.0
                 v2Largeur = call.argument<Double>("largeur") ?: 4.0
                 v2MaxBloc = call.argument<Double>("maxbloc") ?: 10.0
                 v2MaxFusion = call.argument<Double>("maxfusion") ?: 18.0
-                v2Chaine = null
+                // ── NE DETRUIRE LA CHAINE QUE SI QUELQUE CHOSE A CHANGE ─────
+                //
+                // DEFAUT MESURE (2026-08-06, session utilisateur) : apres avoir
+                // recite, l'utilisateur ecoute SA VOIX sur un mot en erreur --
+                // ca marche (`extrait voix mots 22..23 : 3,46s`). Puis plus
+                // rien : `extrait voix REFUSE : chaine=false` neuf fois de
+                // suite. Entre les deux, a 21:50:23, cette ligne :
+                //     [v2] bloc de fusion = true, preuves exigees = 2, ...
+                // C'est `v2SetFusion` qui est parti -- non pas depuis la
+                // recette, mais depuis le RELAIS DES REGLAGES apres chargement
+                // du modele (cf. `_envoyerReglagesV2`, ajoute le matin meme
+                // pour qu'un drapeau pose avant le chargement ne soit pas
+                // perdu). Il renvoyait des valeurs IDENTIQUES a celles en
+                // cours, et rasait quand meme la chaine -- donc le registre des
+                // positions ET le `FluxBrut` qui porte la voix du recitateur.
+                //
+                // Recreer la chaine est necessaire quand le fenetrage change
+                // (elle capture ses parametres a la construction). Ca ne l'est
+                // JAMAIS quand rien ne bouge.
+                val inchange = v2Fusion == ancienFusion &&
+                    v2Preuves == ancienPreuves &&
+                    v2Pas == ancienPas &&
+                    v2Largeur == ancienneLargeur &&
+                    v2MaxBloc == ancienMaxBloc &&
+                    v2MaxFusion == ancienMaxFusion
+                if (!inchange) v2Chaine = null
                 DiagnosticLog.log(TAG,
                     "[v2] bloc de fusion = $v2Fusion, preuves exigees = $v2Preuves, " +
                     "apercu pas=${v2Pas}s largeur=${v2Largeur}s maxBloc=${v2MaxBloc}s maxFusion=${v2MaxFusion}s")
@@ -976,6 +1039,18 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     result.success(changements.map { c ->
                         mapOf("i" to c.motIndex, "statut" to nomStatut(c.statut))
                     })
+                }
+            }
+            // Recul d'ancre sur decrochage/erreur (specification utilisateur
+            // 2026-08-07). NE recree PAS la chaine : cf. ChaineRecitation.
+            "v2ReculerAncre" -> {
+                val mot = call.argument<Int>("mot") ?: -1
+                val chaine = v2Chaine
+                if (chaine == null || mot < 0) {
+                    result.success(false)
+                } else {
+                    chaine.reculerAncre(mot)
+                    result.success(true)
                 }
             }
             "v2ExtraitVoix" -> {
@@ -1229,8 +1304,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             if (chaine == null) {
                 val tk = CtcTokenizer(moteur.vocabPieces, wordTokenLookup)
                 chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
+                    // Le Decideur recoit LES MEMES `nonJugeables` que la
+                    // chaine : sans eux, il declarait `Omis` tout ce qui
+                    // precede le point d'entree (cf. sa doc). Ils doivent etre
+                    // passes ICI, a la construction, comme pour la chaine.
                     decideur = com.corankarim.coran_karim.recitation2
-                        .Decideur(k = v2Preuves),
+                        .Decideur(k = v2Preuves, nonJugeables = v2NonJugeables),
                     front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
                     tokeniser = { mot -> tk.tokenizeWord(mot) },
                     // CURSEUR GLISSANT toutes les 3 s -- fenetre de LONGUEUR
@@ -1342,8 +1421,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // que v2Chaine soit recree), cf. le commentaire du handler.
                     referenceSession = v2Mode == "REF",
                     nonJugeables = v2NonJugeables,
+                    // MODE PRIERE -- troisieme mode, a cote de CTL et REF.
+                    // Le saut n'y est plus un motif de rejet : il est signale
+                    // pour souffler le passage, et la bande est gardee.
+                    // Cf. [ChaineRecitation.sautLibre].
+                    sautLibre = v2Mode == "PRIERE",
                 )
-                chaine.definirTexte(v2Mots)
+                chaine.definirTexte(v2Mots, v2Depart)
                 v2Chaine = chaine
             }
             chaine.alimenter(samples).map { c ->

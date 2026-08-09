@@ -537,7 +537,12 @@ class FastConformerVerifier {
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
                    Set<TajwidRule> detectedRules, bool tajwidFiable})> v2,
-           bool v2Decrochage, int v2DecrochageMot})?>
+           bool v2Decrochage, int v2DecrochageMot,
+           // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
+           // `v2Libre` : decodage libre de la derniere fenetre, base de
+           // l'identification de sourate. `v2SautDe/A` : bornes d'un passage
+           // probablement saute -- de quoi le SOUFFLER, pas un verdict.
+           String v2Libre, int v2SautDe, int v2SautA})?>
       feedCausalAudio(Uint8List pcm16) async {
     if (!_streamingLoaded) return null;
     try {
@@ -552,6 +557,9 @@ class FastConformerVerifier {
                      Set<TajwidRule> detectedRules, bool tajwidFiable})>[],
         v2Decrochage: false, // la v2 ne tourne pas sur ce chemin
         v2DecrochageMot: -1,
+        v2Libre: '',
+        v2SautDe: -1,
+        v2SautA: -1,
       );
     } catch (e) {
       debugPrint('[FastConformer] Échec feedCausalAudio : $e');
@@ -583,7 +591,12 @@ class FastConformerVerifier {
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
                    Set<TajwidRule> detectedRules, bool tajwidFiable})> v2,
-           bool v2Decrochage, int v2DecrochageMot})?>
+           bool v2Decrochage, int v2DecrochageMot,
+           // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
+           // `v2Libre` : decodage libre de la derniere fenetre, base de
+           // l'identification de sourate. `v2SautDe/A` : bornes d'un passage
+           // probablement saute -- de quoi le SOUFFLER, pas un verdict.
+           String v2Libre, int v2SautDe, int v2SautA})?>
       feedBufferedAudio(Uint8List pcm16) async {
     if (!_loaded) return null;
     try {
@@ -631,6 +644,9 @@ class FastConformerVerifier {
         v2: v2,
         v2Decrochage: (raw['v2Decrochage'] as bool?) ?? false,
         v2DecrochageMot: (raw['v2DecrochageMot'] as int?) ?? -1,
+        v2Libre: raw['v2Libre'] as String? ?? '',
+        v2SautDe: (raw['v2SautDe'] as int?) ?? -1,
+        v2SautA: (raw['v2SautA'] as int?) ?? -1,
       );
     } catch (e) {
       debugPrint('[FastConformer] Échec feedBufferedAudio : $e');
@@ -649,12 +665,14 @@ class FastConformerVerifier {
 
   /// Texte attendu de la v2 (des MOTS, pas des tokens : la v2 tokenise
   /// elle-même, et génère au passage les écritures équivalentes).
+  /// [depart] : position DEJA atteinte par le recitateur dans ce texte
+  /// (mode priere). -1 = inconnue, la recherche part du mot 0.
   Future<void> v2SetTarget(List<String> mots,
-      {List<int> nonJugeables = const []}) async {
+      {List<int> nonJugeables = const [], int depart = -1}) async {
     if (!_loaded) return;
     try {
-      await _channel.invokeMethod(
-          'v2SetTarget', {'mots': mots, 'nonJugeables': nonJugeables});
+      await _channel.invokeMethod('v2SetTarget',
+          {'mots': mots, 'nonJugeables': nonJugeables, 'depart': depart});
     } catch (_) {}
   }
 
@@ -762,6 +780,19 @@ class FastConformerVerifier {
           .toList();
     } catch (_) {
       return const [];
+    }
+  }
+
+  /// Recule l'ancre de la chaine v2 au mot [mot] et libere les verdicts
+  /// suivants, SANS recreer la chaine (cf. ChaineRecitation.reculerAncre).
+  Future<bool> v2ReculerAncre(int mot) async {
+    if (!_loaded) return false;
+    try {
+      return await _channel
+              .invokeMethod<bool>('v2ReculerAncre', {'mot': mot}) ??
+          false;
+    } catch (_) {
+      return false;
     }
   }
 

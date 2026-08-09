@@ -62,12 +62,52 @@ class Decideur(
     private val seuilMargeRouge: Float = 0f,
     private val k: Int = 2,
     private val motsPosterieursPourOmission: Int = 3,
+    /**
+     * Mots qui ne doivent JAMAIS recevoir de verdict : Bismillah non recitee,
+     * et surtout tout ce qui PRECEDE le point d'entree quand on rejoint une
+     * sourate en cours (mode priere).
+     *
+     * ── LE DECIDEUR NE LES CONNAISSAIT PAS (corrige 2026-08-07) ─────────────
+     *
+     * `nonJugeables` etait passe a [ChaineRecitation] et n'y servait qu'au
+     * COMPTAGE DES TROUS. La regle d'omission ci-dessous, elle, l'ignorait
+     * completement -- elle declare `Omis` tout mot jamais atteste des lors
+     * qu'assez de mots posterieurs sont definitifs.
+     *
+     * MESURE (session 18:48, Maryam, entree au mot 86 = 19:10) : 151 verdicts,
+     * AUCUN mot jamais juge, la recitation reelle (86..150) integralement
+     * verte -- et 123 mots declares `Omis`, tous d'indice 0 a 85, c'est-a-dire
+     * l'ouverture de la sourate que le recitant n'avait pas a dire.
+     * Ces faux `Omis` alimentaient ensuite les trous, donc le souffleur.
+     */
+    private val nonJugeables: Set<Int> = emptySet(),
     /** De combien de mots la recitation doit avoir depasse un mot avant qu'on
      *  accepte de le condamner. Ce n'est pas une tolerance sur le critere :
      *  c'est le refus de conclure tant que la preuve peut encore arriver. */
     private val depassement: Int = 3,
 ) {
     private val definitifs = HashMap<Int, Couleur>()
+
+    /**
+     * Oublie les verdicts DEFINITIFS a partir du mot [depuis] (inclus).
+     *
+     * ── POURQUOI (specification utilisateur 2026-08-07) ──────────────────────
+     * « Si decrochage est detecte, le plus logique c'est de repeter depuis ce
+     * decrochage et attendre que la personne repete. » Attendre suppose de
+     * pouvoir REJUGER les mots concernes : tant qu'ils restent figes, la
+     * repetition du recitant ne peut produire aucun nouveau verdict et
+     * l'attente serait sans objet.
+     *
+     * On ne touche QUE ce qui est apres le point de reprise : tout ce que le
+     * recitant a deja dit et fait valider avant reste acquis. C'est la
+     * difference avec `reinitialiser()`, qui efface tout -- et c'est pour ca
+     * que cette methode existe plutot que de recreer la chaine (recreation =
+     * perte de TOUS les verdicts de la session, inacceptable en cours de
+     * recitation).
+     */
+    fun oublierDepuis(depuis: Int) {
+        definitifs.keys.filter { it >= depuis }.forEach { definitifs.remove(it) }
+    }
     private val omis = HashSet<Int>()
 
     /** Meilleure couleur PROVISOIRE vue pour chaque mot. Cf. le bloc « SENS
@@ -224,6 +264,8 @@ class Decideur(
                 if (omis.contains(i) && out[i] == null) out[i] = Statut.Omis
                 continue
             }
+            // Un mot qu'on n'a jamais eu a reciter ne peut pas etre « omis ».
+            if (i in nonJugeables) continue
             val posterieurs = definitifsTries.count { it > i }
             if (posterieurs >= motsPosterieursPourOmission) {
                 // ── SECOURS : AVANT DE DIRE « PAS PRONONCE », REGARDER L'AUDIO ──
