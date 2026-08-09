@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/verse.dart';
 import '../services/quran_api.dart';
+import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import 'memorization_game_records_provider.dart';
 
 /// Un verset découpé en mots pour le jeu.
@@ -16,9 +17,21 @@ class GameVerse {
   factory GameVerse.fromVerse(Verse verse) {
     // Split sur les espaces uniquement : les diacritiques (tashkeel) collés
     // aux lettres arabes font partie du mot et ne doivent pas être coupés.
+    //
+    // ── LES SIGNES DE PAUSE EXCLUS (2026-08-09, demande utilisateur) ───────
+    // « exclu les signes dans le jeux, par exemple waqf, on se concentre sur
+    // les mots, les vrais mots du Coran ». Un signe de pause (ۖ ۗ ۚ ۛ ۜ...)
+    // ou une marque décorative (۞ fin de hizb, ۩ sajda) peut apparaître
+    // isolé entre deux espaces dans le texte Uthmani -- ce n'est pas un mot
+    // à mémoriser, le récitant ne le PRONONCE pas. Même filtre déjà utilisé
+    // pour la même raison dans mushaf_screen.dart (désynchronisation de
+    // l'index sinon) : un token qui ne contient AUCUNE lettre arabe une fois
+    // normalisé (`ArabicNormalizer.normalize` ne garde que lettres+harakat)
+    // n'est pas un mot.
     final tokens = verse.textUthmani
         .split(RegExp(r'\s+'))
-        .where((w) => w.trim().isNotEmpty)
+        .where((w) =>
+            w.trim().isNotEmpty && ArabicNormalizer.normalize(w).isNotEmpty)
         .toList();
     return GameVerse(verse: verse, words: tokens);
   }

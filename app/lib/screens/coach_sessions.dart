@@ -505,35 +505,50 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
                       fontSize: 17, color: AppColors.inkLight)),
             ),
           const SizedBox(height: 8),
+          // ── TROIS BOUTONS SUR UNE LIGNE FAISAIENT DEBORDER LE TEXTE
+          // (2026-08-09, constat utilisateur sur capture d'écran) : "Le
+          // récitateur" et "M'entraîner" se retrouvaient coupés sur deux
+          // lignes, `Expanded` divisant la largeur en trois parts trop
+          // étroites. "M'entraîner" (mots "oubli" seulement) passe donc en
+          // pleine largeur, sur sa propre ligne -- les deux boutons du
+          // verdict (Ma voix / Le récitateur) gardent leur ligne à eux,
+          // toujours présents.
           Row(
             children: [
-              _Bouton(
-                icone: Icons.record_voice_over_outlined,
-                texte: 'Ma voix',
-                couleur: AppColors.brass,
-                actif: !_joue && m.audioPath != null,
-                onTap: _maVoix,
+              Expanded(
+                child: _Bouton(
+                  icone: Icons.record_voice_over_outlined,
+                  texte: 'Ma voix',
+                  couleur: AppColors.brass,
+                  actif: !_joue && m.audioPath != null,
+                  onTap: _maVoix,
+                ),
               ),
               const SizedBox(width: 8),
-              _Bouton(
-                icone: Icons.play_circle_outline_rounded,
-                texte: 'Le récitateur',
-                couleur: AppColors.green700,
-                actif: !_joue,
-                onTap: _leRecitateur,
-              ),
-              if (estOubli) ...[
-                const SizedBox(width: 8),
-                _Bouton(
-                  icone: Icons.school_outlined,
-                  texte: 'M\'entraîner',
-                  couleur: Colors.lightBlue.shade700,
+              Expanded(
+                child: _Bouton(
+                  icone: Icons.play_circle_outline_rounded,
+                  texte: 'Le récitateur',
+                  couleur: AppColors.green700,
                   actif: !_joue,
-                  onTap: _entrainer,
+                  onTap: _leRecitateur,
                 ),
-              ],
+              ),
             ],
           ),
+          if (estOubli) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: _Bouton(
+                icone: Icons.school_outlined,
+                texte: 'M\'entraîner',
+                couleur: Colors.lightBlue.shade700,
+                actif: !_joue,
+                onTap: _entrainer,
+              ),
+            ),
+          ],
           if (_message != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -563,22 +578,26 @@ class _Bouton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          side: BorderSide(color: actif ? couleur : AppColors.cream300),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        onPressed: actif ? onTap : null,
-        icon: Icon(icone, size: 18, color: actif ? couleur : AppColors.inkLight),
-        label: Text(texte,
-            style: GoogleFonts.manrope(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: actif ? couleur : AppColors.inkLight)),
+    // Plus d'`Expanded` ici (retiré 2026-08-09) : ce widget doit pouvoir
+    // vivre soit dans un `Row` (deux boutons côte à côte, chacun enveloppé
+    // d'`Expanded` par l'appelant), soit seul en pleine largeur (bouton
+    // "M'entraîner", via `SizedBox(width: double.infinity)`) -- `Expanded`
+    // en dur cassait ce second cas (« Expanded widgets must be placed
+    // inside a Flex widget »).
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        side: BorderSide(color: actif ? couleur : AppColors.cream300),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
+      onPressed: actif ? onTap : null,
+      icon: Icon(icone, size: 18, color: actif ? couleur : AppColors.inkLight),
+      label: Text(texte,
+          style: GoogleFonts.manrope(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: actif ? couleur : AppColors.inkLight)),
     );
   }
 }

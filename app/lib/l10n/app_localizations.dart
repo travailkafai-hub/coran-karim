@@ -3298,7 +3298,7 @@ abstract class AppLocalizations {
   /// Corps de la demande d'invocation
   ///
   /// In fr, this message translates to:
-  /// **'En retour, une seule chose : une invocation. Pour mon père décédé, et pour ma famille.'**
+  /// **'Faites une invocation pour mon père décédé et pour ma famille.'**
   String get duaPourNousAskBody;
 
   /// Invocation en arabe pour le défunt (hadith rapporté par Muslim)

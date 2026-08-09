@@ -1892,8 +1892,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get duaPourNousAskTitle => 'إن نفعك';
 
   @override
-  String get duaPourNousAskBody =>
-      'وفي المقابل، شيء واحد فقط: دعوة صالحة. لوالدي المتوفَّى، ولأهلي.';
+  String get duaPourNousAskBody => 'ادعُ لوالدي المتوفَّى ولأهلي.';
 
   @override
   String get duaPourNousDeceasedArabic =>

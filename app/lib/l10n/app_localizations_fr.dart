@@ -1992,7 +1992,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get duaPourNousAskBody =>
-      'En retour, une seule chose : une invocation. Pour mon père décédé, et pour ma famille.';
+      'Faites une invocation pour mon père décédé et pour ma famille.';
 
   @override
   String get duaPourNousDeceasedArabic =>
