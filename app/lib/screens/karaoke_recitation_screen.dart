@@ -626,25 +626,46 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // une session sans `ended_at` n'apparaît nulle part dans le Coach. Le
     // bilan est calculé ICI (synchrone, l'état est encore lisible) et
     // l'écriture part en fire-and-forget -- `dispose()` ne doit rien attendre.
-    if (SessionArchiveService.instance.sessionCourante != null) {
-      final (total, verts, atteints) = _compterMots();
-      SessionArchiveService.instance.terminer(
-        wordsTotal: total,
-        wordsGreen: verts,
-        wordsReached: atteints,
-      );
-      // BUG CORRIGÉ (2026-08-07, constat utilisateur : « il faut que je me
-      // déconnecte pour revenir pour voir ma dernière récitation ») --
-      // `sessionsArchiveProvider` est un FutureProvider mis en cache : rien
-      // ne le marquait périmé après la clôture d'une session, donc l'écran
-      // Coach continuait de montrer sa dernière lecture, potentiellement
-      // d'avant cette récitation. Invalidation SYNCHRONE ici (sans attendre
-      // `terminer()`, fire-and-forget comme le reste de ce bloc) : la
-      // ré-exécution ne se produit que lors du prochain `watch` (l'écran
-      // Coach n'est pas forcément monté maintenant), ce qui laisse largement
-      // le temps à l'écriture SQLite de se terminer avant d'être relue.
-      ref.invalidate(sessionsArchiveProvider);
-      ref.invalidate(tailleArchiveProvider);
+    //
+    // ── ENTOURÉ D'UN try/catch (2026-08-09) ────────────────────────────────
+    //
+    // BUG CORRIGÉ, constat utilisateur : après pause puis retour en arrière,
+    // le micro restait actif ET le Coach ne montrait pas la récitation --
+    // les DEUX symptômes signalés ensemble, et c'est le même défaut. Ce bloc
+    // vit AVANT le code plus bas qui relâche le micro
+    // (`notifier.stopContinuous()` / `verifier.stop()`, correctif du
+    // 2026-08-06 déjà). Une exception ICI (par ex. `_compterMots()` qui lit
+    // `ref.read(recitationProvider)`, ou `ref.invalidate` sur un `ref` en
+    // cours de démontage -- Riverpod ne garantit pas sa validité à tout
+    // instant de `dispose()`) interrompt la fonction et fait sauter TOUT ce
+    // qui suit, y compris la libération du micro. Le commentaire du
+    // correctif de 2026-08-06 disait « le micro doit être relâché DANS TOUS
+    // LES CAS » -- ce try/catch est ce qui rend ça vrai même quand ce bloc
+    // plus récent échoue.
+    try {
+      if (SessionArchiveService.instance.sessionCourante != null) {
+        final (total, verts, atteints) = _compterMots();
+        SessionArchiveService.instance.terminer(
+          wordsTotal: total,
+          wordsGreen: verts,
+          wordsReached: atteints,
+        );
+        // BUG CORRIGÉ (2026-08-07, constat utilisateur : « il faut que je me
+        // déconnecte pour revenir pour voir ma dernière récitation ») --
+        // `sessionsArchiveProvider` est un FutureProvider mis en cache : rien
+        // ne le marquait périmé après la clôture d'une session, donc l'écran
+        // Coach continuait de montrer sa dernière lecture, potentiellement
+        // d'avant cette récitation. Invalidation SYNCHRONE ici (sans attendre
+        // `terminer()`, fire-and-forget comme le reste de ce bloc) : la
+        // ré-exécution ne se produit que lors du prochain `watch` (l'écran
+        // Coach n'est pas forcément monté maintenant), ce qui laisse largement
+        // le temps à l'écriture SQLite de se terminer avant d'être relue.
+        ref.invalidate(sessionsArchiveProvider);
+        ref.invalidate(tailleArchiveProvider);
+      }
+    } catch (e) {
+      DiagnosticLog.log(
+          'Archive', 'sortie d\'ecran : cloture archive a echoue : $e');
     }
     // ── CAUSE RACINE CORRIGÉE (2026-07-25) ───────────────────────────────
     // Ici, `dispose()` SUPPRIMAIT le dossier temporaire de capture
