@@ -1974,7 +1974,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get duaPourNousAskBody =>
-      'In return, one thing only: a supplication. For my late father, for my parents, and for my family.';
+      'In return, one thing only: a supplication. For my late father, and for my family.';
 
   @override
   String get duaPourNousDeceasedArabic =>

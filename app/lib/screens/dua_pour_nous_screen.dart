@@ -22,7 +22,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:share_plus/share_plus.dart';
+// import 'package:share_plus/share_plus.dart'; -- pour le bouton "Partager"
+// retiré en fonctionnalité future, cf. le commentaire dans build().
 
 import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
@@ -96,24 +97,30 @@ class DuaPourNousScreen extends StatelessWidget {
           const SizedBox(height: 16),
           _CarteInvocation(arabe: t.duaPourNousForYouArabic),
 
-          const SizedBox(height: 30),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              side: const BorderSide(color: AppColors.green700),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () => SharePlus.instance
-                .share(ShareParams(text: t.duaPourNousShareText)),
-            icon: const Icon(Icons.ios_share_rounded,
-                size: 17, color: AppColors.green700),
-            label: Text(t.duaPourNousShare,
-                style: GoogleFonts.manrope(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.green700)),
-          ),
+          // ── PARTAGE RETIRE, FONCTIONNALITE FUTURE (2026-08-09) ───────────
+          // Demande utilisateur : « garde le partage des invocations comme
+          // fonctionnalité future ». Le bouton et sa chaîne (`duaPourNousShare`
+          // /`duaPourNousShareText`) restent définis, simplement pas montés.
+          // Ancien code, gardé en trace (convention projet) :
+          //   const SizedBox(height: 30),
+          //   OutlinedButton.icon(
+          //     style: OutlinedButton.styleFrom(
+          //       padding: const EdgeInsets.symmetric(vertical: 13),
+          //       side: const BorderSide(color: AppColors.green700),
+          //       shape: RoundedRectangleBorder(
+          //           borderRadius: BorderRadius.circular(12)),
+          //     ),
+          //     onPressed: () => SharePlus.instance
+          //         .share(ShareParams(text: t.duaPourNousShareText)),
+          //     icon: const Icon(Icons.ios_share_rounded,
+          //         size: 17, color: AppColors.green700),
+          //     label: Text(t.duaPourNousShare,
+          //         style: GoogleFonts.manrope(
+          //             fontSize: 13.5,
+          //             fontWeight: FontWeight.w600,
+          //             color: AppColors.green700)),
+          //   ),
+          const SizedBox(height: 12),
         ],
       ),
     );

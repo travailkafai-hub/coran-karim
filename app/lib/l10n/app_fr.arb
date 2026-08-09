@@ -2458,7 +2458,7 @@
   "@duaPourNousAskTitle": {
     "description": "Titre de la section demandant une invocation"
   },
-  "duaPourNousAskBody": "En retour, une seule chose : une invocation. Pour mon père décédé, pour mes parents, et pour ma famille.",
+  "duaPourNousAskBody": "En retour, une seule chose : une invocation. Pour mon père décédé, et pour ma famille.",
   "@duaPourNousAskBody": {
     "description": "Corps de la demande d'invocation"
   },
