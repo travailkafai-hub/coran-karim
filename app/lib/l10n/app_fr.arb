@@ -2493,5 +2493,9 @@
   "duaPourNousShareText": "Coran Karim — lire, réciter et mémoriser le Coran, sans publicité.",
   "@duaPourNousShareText": {
     "description": "Texte proposé au partage"
+  },
+  "navDuaPourNous": "Dua",
+  "@navDuaPourNous": {
+    "description": "Libellé court de l'onglet Dua pour nous, dans la barre de navigation"
   }
 }

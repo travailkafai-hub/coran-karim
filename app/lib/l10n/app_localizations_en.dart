@@ -2004,4 +2004,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get duaPourNousShareText =>
       'Coran Karim — read, recite and memorise the Quran, with no ads.';
+
+  @override
+  String get navDuaPourNous => 'Dua';
 }

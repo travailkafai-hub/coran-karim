@@ -11,7 +11,6 @@ import '../providers/recitation_provider.dart' show recitationVerifierProvider;
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
-import 'dua_pour_nous_screen.dart';
 import 'prayer_times_settings_screen.dart';
 import 'qibla_screen.dart';
 import 'reciter_select_screen.dart';
@@ -167,21 +166,16 @@ class SettingsScreen extends ConsumerWidget {
           // Elle mène désormais à AboutScreen, qui porte ce que l'app doit
           // dire avant d'être publiée (données captées, avertissement sur le
           // texte généré, sources, licences).
-          // ── « UNE INVOCATION POUR NOUS » (2026-08-09) ────────────────────
-          //
-          // L'icône est `volunteer_activism_rounded`, celle que l'utilisateur
-          // avait retirée de l'onglet Invocations en disant l'avoir « utilisée
-          // après pour les dons » -- c'est ici sa place : le seul « don »
-          // demandé par cette application est une du'a (cf.
-          // `DuaPourNousScreen`, qui porte la raison au long).
-          _SettingsTile(
-            icon: Icons.volunteer_activism_rounded,
-            title: t.duaPourNousTileTitle,
-            subtitle: t.duaPourNousTileSubtitle,
-            color: AppColors.settingsApp,
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const DuaPourNousScreen())),
-          ),
+          // ── « UNE INVOCATION POUR NOUS » : DEVENUE UN ONGLET (2026-08-09) ─
+          // Cette tuile a d'abord vécu ici (icône `volunteer_activism_rounded`,
+          // retirée le même jour de l'onglet Invocations où l'utilisateur
+          // l'avait jugée « utilisée après pour les dons »). Jugée trop
+          // discrète à son tour (« je veux qu'elle soit visible pour inciter
+          // les users à ne pas oublier »), la page est maintenant son PROPRE
+          // onglet dans la barre de navigation (❤️, entre Coach et Réglages,
+          // cf. `main.dart`) -- la dupliquer ici serait une redondance de
+          // navigation, pas un service. `DuaPourNousScreen` et ses clés
+          // `duaPourNousTile*` restent utilisés par cet onglet.
           _SettingsTile(
             icon: Icons.info_outline_rounded,
             title: t.appTitle,

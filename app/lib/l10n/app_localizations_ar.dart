@@ -1923,4 +1923,7 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get duaPourNousShareText =>
       'قرآن كريم — اقرأ القرآن واتلُه واحفظه، بلا إعلانات.';
+
+  @override
+  String get navDuaPourNous => 'دعاء';
 }

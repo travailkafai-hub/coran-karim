@@ -13,6 +13,7 @@ import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_hub_screen.dart';
 import 'screens/coach_sessions.dart' show sessionsArchiveProvider, tailleArchiveProvider;
+import 'screens/dua_pour_nous_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
@@ -142,10 +143,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   // Keep all tabs alive
+  //
+  // CINQUIÈME ONGLET (2026-08-09, demande utilisateur) : la page "Une
+  // invocation pour nous" (DuaPourNousScreen) était atteignable seulement
+  // depuis une tuile des Réglages, jugée trop discrète -- « je veux qu'elle
+  // soit visible pour inciter les users à ne pas oublier ». Placée ENTRE
+  // Coach et Réglages (demande explicite), ce qui décale l'index des
+  // Réglages de 3 à 4 -- cf. `_openReglages` ci-dessous, seul point qui doit
+  // suivre ce décalage.
   static const _screens = [
     SurahListScreen(),
     DuasScreen(),
     CoachHubScreen(),
+    DuaPourNousScreen(),
     SettingsScreen(),
   ];
 
@@ -227,8 +237,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          // Chaque onglet dans un Expanded : les 4 se partagent la largeur à
-          // parts égales et un libellé long (fr/en "Invocations"/"Réglages",
+          // Chaque onglet dans un Expanded : les cinq se partagent la largeur
+          // à parts égales (cinquième onglet ajouté le 2026-08-09) et un
+          // libellé long (fr/en "Invocations"/"Réglages",
           // plus larges que l'arabe court) rétrécit/ellipse au lieu de faire
           // déborder la Row (bug "RIGHT OVERFLOWED BY N PIXELS" du 2026-07-19,
           // introduit par le passage des libellés arabes aux libellés
@@ -284,11 +295,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               Expanded(
                 child: _NavItem(
+                  // ── CINQUIÈME ONGLET (2026-08-09, demande utilisateur) ──
+                  // « émoticône entre Coach et Réglages » -- la page "Une
+                  // invocation pour nous" (jusque-là une tuile discrète dans
+                  // Réglages) devient un onglet à part entière, à l'endroit
+                  // demandé, pour que les utilisateurs ne l'oublient pas.
+                  icon: null,
+                  emoji: '❤️',
+                  label: t.navDuaPourNous,
+                  active: _tab == 3,
+                  onTap: () => setState(() => _tab = 3),
+                ),
+              ),
+              Expanded(
+                child: _NavItem(
                   icon: null,
                   emoji: '⚙️',
                   label: t.navSettings,
-                  active: _tab == 3,
-                  onTap: () => setState(() => _tab = 3),
+                  active: _tab == 4,
+                  onTap: () => setState(() => _tab = 4),
                 ),
               ),
             ],

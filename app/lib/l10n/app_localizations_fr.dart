@@ -2022,4 +2022,7 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get duaPourNousShareText =>
       'Coran Karim — lire, réciter et mémoriser le Coran, sans publicité.';
+
+  @override
+  String get navDuaPourNous => 'Dua';
 }

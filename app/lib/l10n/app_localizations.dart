@@ -3348,6 +3348,12 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Coran Karim — lire, réciter et mémoriser le Coran, sans publicité.'**
   String get duaPourNousShareText;
+
+  /// Libellé court de l'onglet Dua pour nous, dans la barre de navigation
+  ///
+  /// In fr, this message translates to:
+  /// **'Dua'**
+  String get navDuaPourNous;
 }
 
 class _AppLocalizationsDelegate
