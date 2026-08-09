@@ -2007,4 +2007,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navDuaPourNous => 'Dua';
+
+  @override
+  String get settingsContactTitle => 'Contact us';
+
+  @override
+  String get settingsContactSubtitle => 'Feedback, remarks, suggestions';
+
+  @override
+  String get settingsContactBody =>
+      'A remark, a bug, an idea? Copy the address below and write to us.';
+
+  @override
+  String get settingsContactCopied => 'Address copied';
 }

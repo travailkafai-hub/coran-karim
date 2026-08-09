@@ -648,5 +648,9 @@
   "duaPourNousForYouArabic": "اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي",
   "duaPourNousShare": "Share the application",
   "duaPourNousShareText": "Coran Karim — read, recite and memorise the Quran, with no ads.",
-  "navDuaPourNous": "Dua"
+  "navDuaPourNous": "Dua",
+  "settingsContactTitle": "Contact us",
+  "settingsContactSubtitle": "Feedback, remarks, suggestions",
+  "settingsContactBody": "A remark, a bug, an idea? Copy the address below and write to us.",
+  "settingsContactCopied": "Address copied"
 }

@@ -2025,4 +2025,17 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get navDuaPourNous => 'Dua';
+
+  @override
+  String get settingsContactTitle => 'Nous contacter';
+
+  @override
+  String get settingsContactSubtitle => 'Avis, remarques, suggestions';
+
+  @override
+  String get settingsContactBody =>
+      'Une remarque, un bug, une idee ? Copiez l\'adresse ci-dessous et ecrivez-nous.';
+
+  @override
+  String get settingsContactCopied => 'Adresse copiee';
 }

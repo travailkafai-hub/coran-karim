@@ -1,6 +1,7 @@
 import 'dart:async' show unawaited;
 
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
@@ -176,6 +177,21 @@ class SettingsScreen extends ConsumerWidget {
           // cf. `main.dart`) -- la dupliquer ici serait une redondance de
           // navigation, pas un service. `DuaPourNousScreen` et ses clés
           // `duaPourNousTile*` restent utilisés par cet onglet.
+          // ── « NOUS CONTACTER » (2026-08-09, demande utilisateur) ─────────
+          // « je veux que tu rajoutes nous contacter pour que les users
+          // puissent nous envoyer leurs avis, les remarques ». Même adresse
+          // que `kContactEmail` (about_screen.dart, déjà réservée au
+          // signalement IA) -- une seule boîte, l'utilisateur l'a fournie
+          // lui-même. Copie presse-papiers, pas `mailto:` : marche même sans
+          // application de messagerie configurée (même raison que
+          // `_BlocSignalement` dans about_screen.dart).
+          _SettingsTile(
+            icon: Icons.mail_outline_rounded,
+            title: t.settingsContactTitle,
+            subtitle: t.settingsContactSubtitle,
+            color: AppColors.settingsApp,
+            onTap: () => _ouvrirContact(context, t),
+          ),
           _SettingsTile(
             icon: Icons.info_outline_rounded,
             title: t.appTitle,
@@ -185,6 +201,51 @@ class SettingsScreen extends ConsumerWidget {
                 MaterialPageRoute(builder: (_) => const AboutScreen())),
           ),
         ],
+      ),
+    );
+  }
+
+  void _ouvrirContact(BuildContext context, AppLocalizations t) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 20, 20, 20 + MediaQuery.of(ctx).viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.settingsContactTitle,
+                style: GoogleFonts.scheherazadeNew(
+                    fontSize: 20, color: AppColors.green900)),
+            const SizedBox(height: 10),
+            Text(t.settingsContactBody,
+                style: GoogleFonts.manrope(
+                    fontSize: 13, height: 1.55, color: AppColors.ink)),
+            const SizedBox(height: 16),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(
+                      const ClipboardData(text: kContactEmail));
+                  if (!ctx.mounted) return;
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text(t.settingsContactCopied)));
+                },
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.green900,
+                  side: const BorderSide(color: AppColors.brass),
+                ),
+                label: Text(kContactEmail,
+                    style: GoogleFonts.manrope(
+                        fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

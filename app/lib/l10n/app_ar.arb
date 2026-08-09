@@ -648,5 +648,9 @@
   "duaPourNousForYouArabic": "اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي",
   "duaPourNousShare": "مشاركة التطبيق",
   "duaPourNousShareText": "قرآن كريم — اقرأ القرآن واتلُه واحفظه، بلا إعلانات.",
-  "navDuaPourNous": "دعاء"
+  "navDuaPourNous": "دعاء",
+  "settingsContactTitle": "تواصل معنا",
+  "settingsContactSubtitle": "آراء وملاحظات واقتراحات",
+  "settingsContactBody": "لديك ملاحظة أو خطأ أو فكرة؟ انسخ العنوان أدناه وراسلنا.",
+  "settingsContactCopied": "تم نسخ العنوان"
 }

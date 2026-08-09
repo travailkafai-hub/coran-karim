@@ -67,16 +67,13 @@ const String kAppBuild = '1';
 /// obligations qui reviennent avec lui.
 const bool kTuteurIaEmbarque = false;
 
-/// Adresse de contact affichée pour signaler un texte généré inapproprié.
-///
-/// N'a d'effet que si [kTuteurIaEmbarque] vaut `true`. **VIDE = bloc masqué.**
-/// À renseigner AVANT de publier une version embarquant le tuteur : la
-/// politique « IA générative » de Google Play exige un moyen, accessible DANS
-/// l'application, de signaler le contenu produit par le modèle. Laissée vide
-/// volontairement — choisir d'exposer une adresse personnelle ou une adresse de
-/// support dédiée est une décision de l'éditeur, pas de l'outil qui écrit cet
-/// écran.
-const String kContactEmail = '';
+/// Adresse de contact -- signalement d'un texte IA inapproprié (ici, gardé
+/// masqué tant que [kTuteurIaEmbarque] vaut `false`) ET, depuis le 2026-08-09,
+/// la tuile "Nous contacter" des Réglages (`settings_screen.dart`), pour que
+/// les utilisateurs envoient leurs avis et remarques -- demande explicite de
+/// l'utilisateur, adresse fournie par lui. Les deux usages partagent
+/// volontairement la même adresse : une seule boîte à surveiller.
+const String kContactEmail = 'CoranKarim.Ia@gmail.com';
 
 /// Notices des composants qui ne viennent PAS de pub.dev — `showLicensePage`
 /// ne peut pas les découvrir tout seul.

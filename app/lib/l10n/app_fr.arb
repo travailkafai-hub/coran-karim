@@ -2497,5 +2497,21 @@
   "navDuaPourNous": "Dua",
   "@navDuaPourNous": {
     "description": "Libellé court de l'onglet Dua pour nous, dans la barre de navigation"
+  },
+  "settingsContactTitle": "Nous contacter",
+  "@settingsContactTitle": {
+    "description": "Titre de la tuile Reglages pour contacter les developpeurs"
+  },
+  "settingsContactSubtitle": "Avis, remarques, suggestions",
+  "@settingsContactSubtitle": {
+    "description": "Sous-titre de la tuile"
+  },
+  "settingsContactBody": "Une remarque, un bug, une idee ? Copiez l'adresse ci-dessous et ecrivez-nous.",
+  "@settingsContactBody": {
+    "description": "Corps du panneau de contact"
+  },
+  "settingsContactCopied": "Adresse copiee",
+  "@settingsContactCopied": {
+    "description": "Confirmation apres copie de l'adresse de contact"
   }
 }

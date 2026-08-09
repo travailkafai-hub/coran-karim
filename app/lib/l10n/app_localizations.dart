@@ -3354,6 +3354,30 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Dua'**
   String get navDuaPourNous;
+
+  /// Titre de la tuile Reglages pour contacter les developpeurs
+  ///
+  /// In fr, this message translates to:
+  /// **'Nous contacter'**
+  String get settingsContactTitle;
+
+  /// Sous-titre de la tuile
+  ///
+  /// In fr, this message translates to:
+  /// **'Avis, remarques, suggestions'**
+  String get settingsContactSubtitle;
+
+  /// Corps du panneau de contact
+  ///
+  /// In fr, this message translates to:
+  /// **'Une remarque, un bug, une idee ? Copiez l\'adresse ci-dessous et ecrivez-nous.'**
+  String get settingsContactBody;
+
+  /// Confirmation apres copie de l'adresse de contact
+  ///
+  /// In fr, this message translates to:
+  /// **'Adresse copiee'**
+  String get settingsContactCopied;
 }
 
 class _AppLocalizationsDelegate

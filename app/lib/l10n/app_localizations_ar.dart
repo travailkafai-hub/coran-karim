@@ -1925,4 +1925,17 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get navDuaPourNous => 'دعاء';
+
+  @override
+  String get settingsContactTitle => 'تواصل معنا';
+
+  @override
+  String get settingsContactSubtitle => 'آراء وملاحظات واقتراحات';
+
+  @override
+  String get settingsContactBody =>
+      'لديك ملاحظة أو خطأ أو فكرة؟ انسخ العنوان أدناه وراسلنا.';
+
+  @override
+  String get settingsContactCopied => 'تم نسخ العنوان';
 }
