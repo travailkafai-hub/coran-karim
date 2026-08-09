@@ -38,6 +38,9 @@
   "settingsMyClipsEmpty": "No recordings yet — they are kept for every recitation",
   "settingsMyClipsCount": "{count, plural, =1{1 recording kept — tap to export it} other{{count} recordings kept — tap to export them}}",
   "settingsExportStarted": "Export started — choose where to send the file.",
+  "settingsDisputedTitle": "Disputed verdicts",
+  "settingsDisputedEmpty": "No disputed verdicts yet — use the 👎 under \"My voice\" during a recitation",
+  "settingsDisputedCount": "{count, plural, =1{1 disputed verdict — tap to send it} other{{count} disputed verdicts — tap to send them}}",
   "settingsExportCancelled": "Export cancelled or no clip available.",
   "settingsSectionDisplay": "Display",
   "settingsTajweedColorsTitle": "Tajweed colors",
@@ -45,7 +48,7 @@
   "settingsSectionApp": "Application",
   "settingsLocaleTitle": "Application language",
   "settingsLocaleSheetDescription": "In Arabic, all content (menus and Quran) stays in Arabic, with no translation. In French/English, the Quran always stays in Arabic; only menus and explanations change language.",
-  "settingsAboutSubtitle": "Version 1.0.0  •  Powered by Gemma 4 + Whisper",
+  "settingsAboutSubtitle": "Version, sources, licences and privacy",
   "settingsValidate": "Confirm",
   "settingsRepeatEngineSectionTitle": "INCREMENTAL REPETITION",
   "settingsAdultChunkWordCountTitle": "Words per step (Adult mode)",
@@ -112,6 +115,11 @@
   "tajwidHelpPlusPrevious": "+ previous word",
   "tajwidHelpPlusBoth": "+ previous and next",
   "tajwidHelpPlaying": "Playing…",
+  "tajwidHelpVoiceFeedbackPrompt": "Did the app hear correctly?",
+  "tajwidHelpVoiceFeedbackNeedsListen": "Listen to \"My voice\" above to give feedback",
+  "tajwidHelpVoiceThumbsUp": "Agree, it's a real mistake",
+  "tajwidHelpVoiceThumbsDown": "Disagree, I said it correctly",
+  "tajwidHelpVoiceFeedbackThanks": "Thanks, noted",
   "tajwidHelpRetryThisWord": "RETRY THIS WORD",
   "tajwidHelpCorrectedHeard": "Corrected — heard: \"{text}\"",
   "tajwidHelpNothingHeard": "(nothing heard)",
@@ -167,6 +175,11 @@
   "duaRepeatComplete": "Done — {target}/{target}",
   "duaResetCount": "Reset the count",
   "duaCollectionEmpty": "This collection is still empty.",
+  "duaSequencePlayAll": "Play all",
+  "duaSequenceNoneAudio": "No invocation with audio in this list — only Quranic invocations have a recording.",
+  "duaSequenceProgress": "Invocation {index}/{total}",
+  "duaSequenceStop": "Stop playback",
+  "duaSequenceSkip": "Next invocation",
   "coachSurahLabel": "Surah {number}",
   "coachHeaderLabel": "MEMORIZATION COACH",
   "coachVerificationModeTooltip": "Verification mode",
@@ -223,6 +236,7 @@
   "errorKindHarakat": "Harakat",
   "errorKindTajwid": "Tajwid",
   "errorKindSkippedWord": "Skipped word",
+  "errorKindOubli": "Lapse",
   "errorKindUnknown": "Undetermined",
   "coachHubTitle": "My coach",
   "coachHubResumeLabel": "Resume",
@@ -313,6 +327,11 @@
       }
     }
   },
+  "memorizationGameWordsCount": "{count, plural, =0{No words yet} =1{1 word in a row} other{{count} words in a row}}",
+  "memorizationGameRecordLabel": "Record: {count}",
+  "memorizationGameNewRecord": "New record!",
+  "memorizationGameLoadingNextPage": "Next page…",
+  "memorizationGameFinalScore": "{count, plural, =0{No words this time} =1{1 word in a row} other{{count} words in a row}} — record: {best}",
   "memorizationGameBackToHub": "Back",
   "@memorizationGameBackToHub": {
     "description": "Button returning to the Coach hub from the game completion screen"
@@ -530,5 +549,66 @@
   "recitationPausedTapToResume": "Mic paused — tap to resume",
   "tajwidHelpClose": "Close",
   "mushafBookmarksTitle": "My bookmarks",
-  "mushafNoBookmarks": "No bookmark yet. Tap the icon to mark where you stopped."
+  "mushafNoBookmarks": "No bookmark yet. Tap the icon to mark where you stopped.",
+  "readingSettingsUnitLabel": "Repeat unit",
+  "readingSettingsUnitVerse": "Verses",
+  "readingSettingsUnitWord": "Words",
+  "readingSettingsGroupSizeWords": "1 — What repeats: {n} word(s) at a time",
+  "@readingSettingsGroupSizeWords": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsWordUnitHint": "Word-level repeat slices the reciter's audio using word-by-word timings. If the chosen reciter publishes none, playback falls back to verses.",
+  "readingSettingsGroupSize": "1 — What repeats: {n} verse(s) at a time",
+  "@readingSettingsGroupSize": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsGroupRepeats": "2 — How many times this group: {n}",
+  "@readingSettingsGroupRepeats": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsGlobalRepeats": "3 — How many times the whole surah: {n}",
+  "@readingSettingsGlobalRepeats": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsUnlimited": "unlimited",
+  "readingSettingsLoopSection": "REPEAT AND LOOPS",
+  "readingSettingsLoopDescription": "Example: 3 verses repeated 3 times, and the whole surah restarted 3 times.",
+
+  "aboutTitle": "About",
+  "aboutTagline": "Memorising and reciting the Qur'an, checked right on your device.",
+  "aboutVersionLine": "Version {version} (build {build})",
+  "aboutSectionPrivacy": "Your data",
+  "aboutPrivacyIntro": "Coran Karim runs entirely on your phone: no account, no ads, no trackers, and nothing sent automatically.",
+  "aboutPrivacyMic": "Microphone — your recitation is analysed on the device by the embedded model. It is never sent to any server.",
+  "aboutPrivacyLocation": "Location — used only for the Qibla direction and for computing prayer times. It is kept on the device so the calculation works offline, and is shared with no one.",
+  "aboutPrivacyDiagnostic": "Diagnostics — when enabled in Settings, a log and audio excerpts of your recitations are kept on the device to help understand recognition errors. You can export or delete them at any time from Settings.",
+  "aboutPrivacyNetwork": "Network — used only to download the recitations and supplications you ask for. The Qur'anic text itself is already inside the app.",
+  "aboutSectionAi": "AI tutor",
+  "aboutAiWarning": "Verse explanations are produced by a language model running on your phone. It can be wrong, incomplete or misleading. These texts carry no religious authority: for any question of understanding or jurisprudence, refer to the Qur'an, the Sunnah and qualified scholars.",
+  "aboutAiReportTitle": "Report an inappropriate answer",
+  "aboutAiReportBody": "Write to us at {email}, mentioning the verse concerned and the text that was shown.",
+  "aboutCopied": "Address copied",
+  "aboutSectionSources": "Sources",
+  "aboutSourceQuran": "Qur'anic text, verse and page divisions, and audio recitations: Quran.com (Quran Foundation).",
+  "aboutSourceDuas": "Supplication audio: hisnmuslim.com.",
+  "aboutSourcePrayer": "Prayer times: computed on the device, with no network request.",
+  "aboutSectionLicenses": "Licences",
+  "aboutLicensesIntro": "This application embeds third-party components, each under its own terms.",
+  "aboutLicensesAll": "View all licences"
 }

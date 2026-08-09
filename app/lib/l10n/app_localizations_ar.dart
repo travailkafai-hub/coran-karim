@@ -140,6 +140,24 @@ class AppLocalizationsAr extends AppLocalizations {
   String get settingsExportStarted => 'بدأ التصدير — اختر أين ترسل الملف.';
 
   @override
+  String get settingsDisputedTitle => 'الأحكام المُعترض عليها';
+
+  @override
+  String get settingsDisputedEmpty =>
+      'لا توجد أحكام معترض عليها بعد — استخدم 👎 تحت \"صوتي\" أثناء التلاوة';
+
+  @override
+  String settingsDisputedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count أحكام معترض عليها — اضغط لإرسالها',
+      one: 'حكم واحد معترض عليه — اضغط لإرساله',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get settingsExportCancelled =>
       'أُلغي التصدير أو لا يوجد أي مقطع متاح.';
 
@@ -163,8 +181,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'بالعربية، يبقى كل المحتوى (القوائم والقرآن) بالعربية دون ترجمة. بالفرنسية/الإنجليزية، يبقى القرآن دائمًا بالعربية؛ فقط القوائم والشروحات تتغيّر لغتها.';
 
   @override
-  String get settingsAboutSubtitle =>
-      'الإصدار 1.0.0 • بدعم من Gemma 4 و Whisper';
+  String get settingsAboutSubtitle => 'الإصدار والمصادر والتراخيص والخصوصية';
 
   @override
   String get settingsValidate => 'تأكيد';
@@ -399,6 +416,22 @@ class AppLocalizationsAr extends AppLocalizations {
   String get tajwidHelpPlaying => 'قيد التشغيل…';
 
   @override
+  String get tajwidHelpVoiceFeedbackPrompt => 'هل سمع التطبيق بشكل صحيح؟';
+
+  @override
+  String get tajwidHelpVoiceFeedbackNeedsListen =>
+      'استمع إلى \"صوتي\" أعلاه لإبداء رأيك';
+
+  @override
+  String get tajwidHelpVoiceThumbsUp => 'موافق، هذا خطأ فعلي';
+
+  @override
+  String get tajwidHelpVoiceThumbsDown => 'غير موافق، لقد نطقتها صحيحة';
+
+  @override
+  String get tajwidHelpVoiceFeedbackThanks => 'شكرًا، تم التسجيل';
+
+  @override
   String get tajwidHelpRetryThisWord => 'إعادة المحاولة على هذه الكلمة';
 
   @override
@@ -587,6 +620,24 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get duaCollectionEmpty => 'هذه المجموعة لا تزال فارغة.';
+
+  @override
+  String get duaSequencePlayAll => 'تشغيل الكل';
+
+  @override
+  String get duaSequenceNoneAudio =>
+      'لا توجد تلاوة صوتية في هذه القائمة — التسجيل الصوتي متاح فقط للأدعية القرآنية.';
+
+  @override
+  String duaSequenceProgress(int index, int total) {
+    return 'دعاء $index/$total';
+  }
+
+  @override
+  String get duaSequenceStop => 'إيقاف التشغيل';
+
+  @override
+  String get duaSequenceSkip => 'الدعاء التالي';
 
   @override
   String coachSurahLabel(int number) {
@@ -780,6 +831,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get errorKindSkippedWord => 'كلمة مُسقَطة';
 
   @override
+  String get errorKindOubli => 'نسيان';
+
+  @override
   String get errorKindUnknown => 'غير محدّد';
 
   @override
@@ -929,6 +983,41 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get memorizationGameBackToHub => 'رجوع';
+
+  @override
+  String memorizationGameWordsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count كلمة متتالية',
+      one: 'كلمة واحدة متتالية',
+      zero: 'لا كلمات بعد',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String memorizationGameRecordLabel(int count) {
+    return 'الرقم القياسي: $count';
+  }
+
+  @override
+  String get memorizationGameNewRecord => 'رقم قياسي جديد!';
+
+  @override
+  String get memorizationGameLoadingNextPage => 'الصفحة التالية…';
+
+  @override
+  String memorizationGameFinalScore(int count, int best) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count كلمة متتالية',
+      one: 'كلمة واحدة متتالية',
+      zero: 'لا كلمات هذه المرة',
+    );
+    return '$_temp0 — الرقم القياسي: $best';
+  }
 
   @override
   String get memorizationAyahPickerTitle => 'اختر نقطة البداية';
@@ -1586,4 +1675,124 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get mushafNoBookmarks =>
       'لا توجد علامة بعد. انقر على الأيقونة لتعليم الآية التي توقّفت عندها.';
+
+  @override
+  String get readingSettingsUnitLabel => 'وحدة التكرار';
+
+  @override
+  String get readingSettingsUnitVerse => 'آيات';
+
+  @override
+  String get readingSettingsUnitWord => 'كلمات';
+
+  @override
+  String readingSettingsGroupSizeWords(int n) {
+    return '١ — ما يُكرَّر: $n كلمة في كل مرة';
+  }
+
+  @override
+  String get readingSettingsWordUnitHint =>
+      'التكرار بالكلمة يقطّع صوت القارئ اعتمادًا على توقيت الكلمات. إذا لم يوفّرها القارئ المختار، يعود التشغيل إلى الآيات.';
+
+  @override
+  String readingSettingsGroupSize(int n) {
+    return '١ — ما يُكرَّر: $n آية في كل مرة';
+  }
+
+  @override
+  String readingSettingsGroupRepeats(int n) {
+    return '٢ — عدد مرات هذه المجموعة: $n';
+  }
+
+  @override
+  String readingSettingsGlobalRepeats(int n) {
+    return '٣ — عدد مرات السورة كاملة: $n';
+  }
+
+  @override
+  String get readingSettingsUnlimited => 'بلا حد';
+
+  @override
+  String get readingSettingsLoopSection => 'التكرار والحلقات';
+
+  @override
+  String get readingSettingsLoopDescription =>
+      'مثال: 3 آيات تُكرَّر 3 مرات، والسورة كاملة تُعاد 3 مرات.';
+
+  @override
+  String get aboutTitle => 'حول التطبيق';
+
+  @override
+  String get aboutTagline =>
+      'حفظ القرآن وتلاوته، مع التحقق داخل جهازك مباشرةً.';
+
+  @override
+  String aboutVersionLine(String version, String build) {
+    return 'الإصدار $version (بناء $build)';
+  }
+
+  @override
+  String get aboutSectionPrivacy => 'بياناتك';
+
+  @override
+  String get aboutPrivacyIntro =>
+      'يعمل تطبيق القرآن الكريم بالكامل داخل هاتفك: لا حساب، ولا إعلانات، ولا أدوات تتبُّع، ولا إرسال تلقائي لبياناتك.';
+
+  @override
+  String get aboutPrivacyMic =>
+      'الميكروفون — يُحلَّل صوت تلاوتك داخل الجهاز بواسطة النموذج المدمج، ولا يُرسَل إلى أي خادم.';
+
+  @override
+  String get aboutPrivacyLocation =>
+      'الموقع — يُستخدم فقط لتحديد اتجاه القبلة وحساب مواقيت الصلاة. يُحفَظ داخل الجهاز ليعمل الحساب دون اتصال، ولا يُشارَك مع أحد.';
+
+  @override
+  String get aboutPrivacyDiagnostic =>
+      'التشخيص — عند تفعيله في الإعدادات، يُحفَظ سجلٌّ ومقاطع صوتية من تلاواتك داخل الجهاز لفهم أخطاء التعرُّف. يمكنك تصديرها أو حذفها في أي وقت من الإعدادات.';
+
+  @override
+  String get aboutPrivacyNetwork =>
+      'الشبكة — تُستخدم فقط لتنزيل التلاوات والأذكار التي تطلبها. أمَّا نص القرآن فهو موجود أصلًا داخل التطبيق.';
+
+  @override
+  String get aboutSectionAi => 'المعلِّم الذكي';
+
+  @override
+  String get aboutAiWarning =>
+      'تُنتَج شروح الآيات بواسطة نموذج لغوي يعمل داخل هاتفك، وقد يُخطئ أو يُغفل أو يُحرِّف. وليست لهذه النصوص أي حجية شرعية: فلأي مسألة في الفهم أو الأحكام، ارجع إلى القرآن والسنة وأهل العلم المؤهَّلين.';
+
+  @override
+  String get aboutAiReportTitle => 'الإبلاغ عن إجابة غير لائقة';
+
+  @override
+  String aboutAiReportBody(String email) {
+    return 'راسلنا على $email مع ذكر الآية المعنية والنص الذي ظهر لك.';
+  }
+
+  @override
+  String get aboutCopied => 'تم نسخ العنوان';
+
+  @override
+  String get aboutSectionSources => 'المصادر';
+
+  @override
+  String get aboutSourceQuran =>
+      'نص القرآن وتقسيم الآيات والصفحات والتلاوات الصوتية: موقع Quran.com (مؤسسة Quran).';
+
+  @override
+  String get aboutSourceDuas => 'صوت الأذكار: موقع hisnmuslim.com.';
+
+  @override
+  String get aboutSourcePrayer =>
+      'مواقيت الصلاة: تُحسَب داخل الجهاز دون أي اتصال بالشبكة.';
+
+  @override
+  String get aboutSectionLicenses => 'التراخيص';
+
+  @override
+  String get aboutLicensesIntro =>
+      'يتضمَّن هذا التطبيق مكوِّنات من جهات أخرى، لكلٍّ منها شروط استخدامها الخاصة.';
+
+  @override
+  String get aboutLicensesAll => 'عرض جميع التراخيص';
 }

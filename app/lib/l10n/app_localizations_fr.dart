@@ -144,6 +144,24 @@ class AppLocalizationsFr extends AppLocalizations {
       'Export lancé — choisis où envoyer le fichier.';
 
   @override
+  String get settingsDisputedTitle => 'Verdicts contestés';
+
+  @override
+  String get settingsDisputedEmpty =>
+      'Aucun verdict contesté — utilise le pouce 👎 sous « Ma voix » pendant une récitation';
+
+  @override
+  String settingsDisputedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count verdicts contestés — appuie pour les envoyer',
+      one: '1 verdict contesté — appuie pour l\'envoyer',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get settingsExportCancelled =>
       'Export annulé ou aucun clip disponible.';
 
@@ -169,7 +187,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get settingsAboutSubtitle =>
-      'Version 1.0.0  •  Propulsé par Gemma 4 + Whisper';
+      'Version, sources, licences et confidentialité';
 
   @override
   String get settingsValidate => 'Valider';
@@ -413,6 +431,22 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tajwidHelpPlaying => 'Lecture…';
 
   @override
+  String get tajwidHelpVoiceFeedbackPrompt => 'L\'app a-t-elle bien entendu ?';
+
+  @override
+  String get tajwidHelpVoiceFeedbackNeedsListen =>
+      'Écoute « Ma voix » ci-dessus pour donner ton avis';
+
+  @override
+  String get tajwidHelpVoiceThumbsUp => 'D\'accord, c\'est une vraie erreur';
+
+  @override
+  String get tajwidHelpVoiceThumbsDown => 'Pas d\'accord, je l\'ai bien dit';
+
+  @override
+  String get tajwidHelpVoiceFeedbackThanks => 'Merci, c\'est noté';
+
+  @override
   String get tajwidHelpRetryThisWord => 'RÉESSAYER CE MOT';
 
   @override
@@ -611,6 +645,24 @@ class AppLocalizationsFr extends AppLocalizations {
   String get duaCollectionEmpty => 'Cette collection est encore vide.';
 
   @override
+  String get duaSequencePlayAll => 'Lire tout';
+
+  @override
+  String get duaSequenceNoneAudio =>
+      'Aucune invocation audio dans cette liste — seules les invocations coraniques ont un enregistrement.';
+
+  @override
+  String duaSequenceProgress(int index, int total) {
+    return 'Invocation $index/$total';
+  }
+
+  @override
+  String get duaSequenceStop => 'Arrêter la lecture';
+
+  @override
+  String get duaSequenceSkip => 'Invocation suivante';
+
+  @override
   String coachSurahLabel(int number) {
     return 'Sourate $number';
   }
@@ -805,6 +857,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get errorKindSkippedWord => 'Mot sauté';
 
   @override
+  String get errorKindOubli => 'Oubli';
+
+  @override
   String get errorKindUnknown => 'Indéterminé';
 
   @override
@@ -974,6 +1029,41 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get memorizationGameBackToHub => 'Retour';
+
+  @override
+  String memorizationGameWordsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count mots enchaînés',
+      one: '1 mot enchaîné',
+      zero: 'Aucun mot',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String memorizationGameRecordLabel(int count) {
+    return 'Record : $count';
+  }
+
+  @override
+  String get memorizationGameNewRecord => 'Nouveau record !';
+
+  @override
+  String get memorizationGameLoadingNextPage => 'Page suivante…';
+
+  @override
+  String memorizationGameFinalScore(int count, int best) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count mots enchaînés',
+      one: '1 mot enchaîné',
+      zero: 'Aucun mot enchaîné cette fois',
+    );
+    return '$_temp0 — record : $best';
+  }
 
   @override
   String get memorizationAyahPickerTitle => 'Choisis ton départ';
@@ -1683,4 +1773,124 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get mushafNoBookmarks =>
       'Aucun signet pour l\'instant. Touchez l\'icône pour marquer le verset où vous vous êtes arrêté.';
+
+  @override
+  String get readingSettingsUnitLabel => 'Unité répétée';
+
+  @override
+  String get readingSettingsUnitVerse => 'Versets';
+
+  @override
+  String get readingSettingsUnitWord => 'Mots';
+
+  @override
+  String readingSettingsGroupSizeWords(int n) {
+    return '1 — Ce qu’on répète : $n mot(s) à la fois';
+  }
+
+  @override
+  String get readingSettingsWordUnitHint =>
+      'La répétition au mot découpe l’audio du récitateur grâce à ses repères mot à mot. Si le récitateur choisi n’en publie pas, la lecture revient au verset.';
+
+  @override
+  String readingSettingsGroupSize(int n) {
+    return '1 — Ce qu’on répète : $n verset(s) à la fois';
+  }
+
+  @override
+  String readingSettingsGroupRepeats(int n) {
+    return '2 — Combien de fois ce groupe : $n';
+  }
+
+  @override
+  String readingSettingsGlobalRepeats(int n) {
+    return '3 — Combien de fois la sourate entière : $n';
+  }
+
+  @override
+  String get readingSettingsUnlimited => 'illimité';
+
+  @override
+  String get readingSettingsLoopSection => 'RÉPÉTITION ET BOUCLES';
+
+  @override
+  String get readingSettingsLoopDescription =>
+      'Exemple : 3 versets répétés 3 fois, et la sourate entière reprise 3 fois.';
+
+  @override
+  String get aboutTitle => 'À propos';
+
+  @override
+  String get aboutTagline =>
+      'Mémorisation et récitation du Coran, vérifiées directement sur votre appareil.';
+
+  @override
+  String aboutVersionLine(String version, String build) {
+    return 'Version $version (build $build)';
+  }
+
+  @override
+  String get aboutSectionPrivacy => 'Vos données';
+
+  @override
+  String get aboutPrivacyIntro =>
+      'Coran Karim fonctionne entièrement sur votre téléphone : aucun compte, aucune publicité, aucun traceur, et aucun envoi automatique de vos données.';
+
+  @override
+  String get aboutPrivacyMic =>
+      'Microphone — votre récitation est analysée sur l\'appareil par le modèle embarqué. Elle n\'est envoyée à aucun serveur.';
+
+  @override
+  String get aboutPrivacyLocation =>
+      'Position — utilisée uniquement pour la direction de la Qibla et le calcul des horaires de prière. Elle est conservée sur l\'appareil afin que le calcul fonctionne hors ligne, et n\'est transmise à personne.';
+
+  @override
+  String get aboutPrivacyDiagnostic =>
+      'Diagnostic — s\'il est activé dans les Réglages, un journal et des extraits audio de vos récitations sont conservés sur l\'appareil pour comprendre les erreurs de reconnaissance. Vous pouvez les exporter ou les supprimer à tout moment depuis les Réglages.';
+
+  @override
+  String get aboutPrivacyNetwork =>
+      'Réseau — sollicité seulement pour télécharger les récitations et les invocations que vous demandez. Le texte du Coran, lui, est déjà dans l\'application.';
+
+  @override
+  String get aboutSectionAi => 'Tuteur IA';
+
+  @override
+  String get aboutAiWarning =>
+      'Les explications de versets sont produites par un modèle de langage qui tourne sur votre téléphone. Il peut se tromper, omettre ou déformer. Ces textes n\'ont aucune autorité religieuse : pour toute question de compréhension ou de jurisprudence, référez-vous au Coran, à la Sunna et à des savants qualifiés.';
+
+  @override
+  String get aboutAiReportTitle => 'Signaler une réponse inappropriée';
+
+  @override
+  String aboutAiReportBody(String email) {
+    return 'Écrivez-nous à $email en précisant le verset concerné et le texte affiché.';
+  }
+
+  @override
+  String get aboutCopied => 'Adresse copiée';
+
+  @override
+  String get aboutSectionSources => 'Sources';
+
+  @override
+  String get aboutSourceQuran =>
+      'Texte du Coran, découpage en versets et pages, et récitations audio : Quran.com (Quran Foundation).';
+
+  @override
+  String get aboutSourceDuas => 'Audio des invocations : hisnmuslim.com.';
+
+  @override
+  String get aboutSourcePrayer =>
+      'Horaires de prière : calculés sur l\'appareil, sans aucune requête réseau.';
+
+  @override
+  String get aboutSectionLicenses => 'Licences';
+
+  @override
+  String get aboutLicensesIntro =>
+      'Cette application embarque des composants publiés par des tiers, sous leurs propres conditions.';
+
+  @override
+  String get aboutLicensesAll => 'Voir toutes les licences';
 }

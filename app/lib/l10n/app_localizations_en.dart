@@ -143,6 +143,24 @@ class AppLocalizationsEn extends AppLocalizations {
       'Export started — choose where to send the file.';
 
   @override
+  String get settingsDisputedTitle => 'Disputed verdicts';
+
+  @override
+  String get settingsDisputedEmpty =>
+      'No disputed verdicts yet — use the 👎 under \"My voice\" during a recitation';
+
+  @override
+  String settingsDisputedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count disputed verdicts — tap to send them',
+      one: '1 disputed verdict — tap to send it',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get settingsExportCancelled =>
       'Export cancelled or no clip available.';
 
@@ -167,8 +185,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'In Arabic, all content (menus and Quran) stays in Arabic, with no translation. In French/English, the Quran always stays in Arabic; only menus and explanations change language.';
 
   @override
-  String get settingsAboutSubtitle =>
-      'Version 1.0.0  •  Powered by Gemma 4 + Whisper';
+  String get settingsAboutSubtitle => 'Version, sources, licences and privacy';
 
   @override
   String get settingsValidate => 'Confirm';
@@ -409,6 +426,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tajwidHelpPlaying => 'Playing…';
 
   @override
+  String get tajwidHelpVoiceFeedbackPrompt => 'Did the app hear correctly?';
+
+  @override
+  String get tajwidHelpVoiceFeedbackNeedsListen =>
+      'Listen to \"My voice\" above to give feedback';
+
+  @override
+  String get tajwidHelpVoiceThumbsUp => 'Agree, it\'s a real mistake';
+
+  @override
+  String get tajwidHelpVoiceThumbsDown => 'Disagree, I said it correctly';
+
+  @override
+  String get tajwidHelpVoiceFeedbackThanks => 'Thanks, noted';
+
+  @override
   String get tajwidHelpRetryThisWord => 'RETRY THIS WORD';
 
   @override
@@ -606,6 +639,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get duaCollectionEmpty => 'This collection is still empty.';
 
   @override
+  String get duaSequencePlayAll => 'Play all';
+
+  @override
+  String get duaSequenceNoneAudio =>
+      'No invocation with audio in this list — only Quranic invocations have a recording.';
+
+  @override
+  String duaSequenceProgress(int index, int total) {
+    return 'Invocation $index/$total';
+  }
+
+  @override
+  String get duaSequenceStop => 'Stop playback';
+
+  @override
+  String get duaSequenceSkip => 'Next invocation';
+
+  @override
   String coachSurahLabel(int number) {
     return 'Surah $number';
   }
@@ -800,6 +851,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorKindSkippedWord => 'Skipped word';
 
   @override
+  String get errorKindOubli => 'Lapse';
+
+  @override
   String get errorKindUnknown => 'Undetermined';
 
   @override
@@ -964,6 +1018,41 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memorizationGameBackToHub => 'Back';
+
+  @override
+  String memorizationGameWordsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count words in a row',
+      one: '1 word in a row',
+      zero: 'No words yet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String memorizationGameRecordLabel(int count) {
+    return 'Record: $count';
+  }
+
+  @override
+  String get memorizationGameNewRecord => 'New record!';
+
+  @override
+  String get memorizationGameLoadingNextPage => 'Next page…';
+
+  @override
+  String memorizationGameFinalScore(int count, int best) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count words in a row',
+      one: '1 word in a row',
+      zero: 'No words this time',
+    );
+    return '$_temp0 — record: $best';
+  }
 
   @override
   String get memorizationAyahPickerTitle => 'Choose your start';
@@ -1666,4 +1755,124 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mushafNoBookmarks =>
       'No bookmark yet. Tap the icon to mark where you stopped.';
+
+  @override
+  String get readingSettingsUnitLabel => 'Repeat unit';
+
+  @override
+  String get readingSettingsUnitVerse => 'Verses';
+
+  @override
+  String get readingSettingsUnitWord => 'Words';
+
+  @override
+  String readingSettingsGroupSizeWords(int n) {
+    return '1 — What repeats: $n word(s) at a time';
+  }
+
+  @override
+  String get readingSettingsWordUnitHint =>
+      'Word-level repeat slices the reciter\'s audio using word-by-word timings. If the chosen reciter publishes none, playback falls back to verses.';
+
+  @override
+  String readingSettingsGroupSize(int n) {
+    return '1 — What repeats: $n verse(s) at a time';
+  }
+
+  @override
+  String readingSettingsGroupRepeats(int n) {
+    return '2 — How many times this group: $n';
+  }
+
+  @override
+  String readingSettingsGlobalRepeats(int n) {
+    return '3 — How many times the whole surah: $n';
+  }
+
+  @override
+  String get readingSettingsUnlimited => 'unlimited';
+
+  @override
+  String get readingSettingsLoopSection => 'REPEAT AND LOOPS';
+
+  @override
+  String get readingSettingsLoopDescription =>
+      'Example: 3 verses repeated 3 times, and the whole surah restarted 3 times.';
+
+  @override
+  String get aboutTitle => 'About';
+
+  @override
+  String get aboutTagline =>
+      'Memorising and reciting the Qur\'an, checked right on your device.';
+
+  @override
+  String aboutVersionLine(String version, String build) {
+    return 'Version $version (build $build)';
+  }
+
+  @override
+  String get aboutSectionPrivacy => 'Your data';
+
+  @override
+  String get aboutPrivacyIntro =>
+      'Coran Karim runs entirely on your phone: no account, no ads, no trackers, and nothing sent automatically.';
+
+  @override
+  String get aboutPrivacyMic =>
+      'Microphone — your recitation is analysed on the device by the embedded model. It is never sent to any server.';
+
+  @override
+  String get aboutPrivacyLocation =>
+      'Location — used only for the Qibla direction and for computing prayer times. It is kept on the device so the calculation works offline, and is shared with no one.';
+
+  @override
+  String get aboutPrivacyDiagnostic =>
+      'Diagnostics — when enabled in Settings, a log and audio excerpts of your recitations are kept on the device to help understand recognition errors. You can export or delete them at any time from Settings.';
+
+  @override
+  String get aboutPrivacyNetwork =>
+      'Network — used only to download the recitations and supplications you ask for. The Qur\'anic text itself is already inside the app.';
+
+  @override
+  String get aboutSectionAi => 'AI tutor';
+
+  @override
+  String get aboutAiWarning =>
+      'Verse explanations are produced by a language model running on your phone. It can be wrong, incomplete or misleading. These texts carry no religious authority: for any question of understanding or jurisprudence, refer to the Qur\'an, the Sunnah and qualified scholars.';
+
+  @override
+  String get aboutAiReportTitle => 'Report an inappropriate answer';
+
+  @override
+  String aboutAiReportBody(String email) {
+    return 'Write to us at $email, mentioning the verse concerned and the text that was shown.';
+  }
+
+  @override
+  String get aboutCopied => 'Address copied';
+
+  @override
+  String get aboutSectionSources => 'Sources';
+
+  @override
+  String get aboutSourceQuran =>
+      'Qur\'anic text, verse and page divisions, and audio recitations: Quran.com (Quran Foundation).';
+
+  @override
+  String get aboutSourceDuas => 'Supplication audio: hisnmuslim.com.';
+
+  @override
+  String get aboutSourcePrayer =>
+      'Prayer times: computed on the device, with no network request.';
+
+  @override
+  String get aboutSectionLicenses => 'Licences';
+
+  @override
+  String get aboutLicensesIntro =>
+      'This application embeds third-party components, each under its own terms.';
+
+  @override
+  String get aboutLicensesAll => 'View all licences';
 }

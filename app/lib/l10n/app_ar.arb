@@ -38,6 +38,9 @@
   "settingsMyClipsEmpty": "لا توجد تسجيلات — تُحفظ مع كل تلاوة",
   "settingsMyClipsCount": "{count, plural, =1{تسجيل واحد محفوظ — اضغط لتصديره} other{{count} تسجيلات محفوظة — اضغط لتصديرها}}",
   "settingsExportStarted": "بدأ التصدير — اختر أين ترسل الملف.",
+  "settingsDisputedTitle": "الأحكام المُعترض عليها",
+  "settingsDisputedEmpty": "لا توجد أحكام معترض عليها بعد — استخدم 👎 تحت \"صوتي\" أثناء التلاوة",
+  "settingsDisputedCount": "{count, plural, =1{حكم واحد معترض عليه — اضغط لإرساله} other{{count} أحكام معترض عليها — اضغط لإرسالها}}",
   "settingsExportCancelled": "أُلغي التصدير أو لا يوجد أي مقطع متاح.",
   "settingsSectionDisplay": "العرض",
   "settingsTajweedColorsTitle": "ألوان التجويد",
@@ -45,7 +48,7 @@
   "settingsSectionApp": "التطبيق",
   "settingsLocaleTitle": "لغة التطبيق",
   "settingsLocaleSheetDescription": "بالعربية، يبقى كل المحتوى (القوائم والقرآن) بالعربية دون ترجمة. بالفرنسية/الإنجليزية، يبقى القرآن دائمًا بالعربية؛ فقط القوائم والشروحات تتغيّر لغتها.",
-  "settingsAboutSubtitle": "الإصدار 1.0.0 • بدعم من Gemma 4 و Whisper",
+  "settingsAboutSubtitle": "الإصدار والمصادر والتراخيص والخصوصية",
   "settingsValidate": "تأكيد",
   "settingsRepeatEngineSectionTitle": "التكرار التدريجي",
   "settingsAdultChunkWordCountTitle": "عدد الكلمات في كل مرحلة (وضع البالغ)",
@@ -112,6 +115,11 @@
   "tajwidHelpPlusPrevious": "+ الكلمة السابقة",
   "tajwidHelpPlusBoth": "+ السابقة والتالية",
   "tajwidHelpPlaying": "قيد التشغيل…",
+  "tajwidHelpVoiceFeedbackPrompt": "هل سمع التطبيق بشكل صحيح؟",
+  "tajwidHelpVoiceFeedbackNeedsListen": "استمع إلى \"صوتي\" أعلاه لإبداء رأيك",
+  "tajwidHelpVoiceThumbsUp": "موافق، هذا خطأ فعلي",
+  "tajwidHelpVoiceThumbsDown": "غير موافق، لقد نطقتها صحيحة",
+  "tajwidHelpVoiceFeedbackThanks": "شكرًا، تم التسجيل",
   "tajwidHelpRetryThisWord": "إعادة المحاولة على هذه الكلمة",
   "tajwidHelpCorrectedHeard": "تم التصحيح — المسموع: \"{text}\"",
   "tajwidHelpNothingHeard": "(لم يُسمع شيء)",
@@ -167,6 +175,11 @@
   "duaRepeatComplete": "تم — {target}/{target}",
   "duaResetCount": "إعادة العدّ من جديد",
   "duaCollectionEmpty": "هذه المجموعة لا تزال فارغة.",
+  "duaSequencePlayAll": "تشغيل الكل",
+  "duaSequenceNoneAudio": "لا توجد تلاوة صوتية في هذه القائمة — التسجيل الصوتي متاح فقط للأدعية القرآنية.",
+  "duaSequenceProgress": "دعاء {index}/{total}",
+  "duaSequenceStop": "إيقاف التشغيل",
+  "duaSequenceSkip": "الدعاء التالي",
   "coachSurahLabel": "سورة {number}",
   "coachHeaderLabel": "مدرّب الحفظ",
   "coachVerificationModeTooltip": "وضع التحقق",
@@ -223,6 +236,7 @@
   "errorKindHarakat": "الحركات",
   "errorKindTajwid": "التجويد",
   "errorKindSkippedWord": "كلمة مُسقَطة",
+  "errorKindOubli": "نسيان",
   "errorKindUnknown": "غير محدّد",
   "coachHubTitle": "مدرّبي",
   "coachHubResumeLabel": "متابعة",
@@ -313,6 +327,11 @@
       }
     }
   },
+  "memorizationGameWordsCount": "{count, plural, =0{لا كلمات بعد} =1{كلمة واحدة متتالية} other{{count} كلمة متتالية}}",
+  "memorizationGameRecordLabel": "الرقم القياسي: {count}",
+  "memorizationGameNewRecord": "رقم قياسي جديد!",
+  "memorizationGameLoadingNextPage": "الصفحة التالية…",
+  "memorizationGameFinalScore": "{count, plural, =0{لا كلمات هذه المرة} =1{كلمة واحدة متتالية} other{{count} كلمة متتالية}} — الرقم القياسي: {best}",
   "memorizationGameBackToHub": "رجوع",
   "@memorizationGameBackToHub": {
     "description": "زر العودة إلى مركز المدرّب من شاشة نهاية اللعبة"
@@ -530,5 +549,66 @@
   "recitationPausedTapToResume": "المِيكروفون متوقّف — انقر للمتابعة",
   "tajwidHelpClose": "إغلاق",
   "mushafBookmarksTitle": "علاماتي",
-  "mushafNoBookmarks": "لا توجد علامة بعد. انقر على الأيقونة لتعليم الآية التي توقّفت عندها."
+  "mushafNoBookmarks": "لا توجد علامة بعد. انقر على الأيقونة لتعليم الآية التي توقّفت عندها.",
+  "readingSettingsUnitLabel": "وحدة التكرار",
+  "readingSettingsUnitVerse": "آيات",
+  "readingSettingsUnitWord": "كلمات",
+  "readingSettingsGroupSizeWords": "١ — ما يُكرَّر: {n} كلمة في كل مرة",
+  "@readingSettingsGroupSizeWords": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsWordUnitHint": "التكرار بالكلمة يقطّع صوت القارئ اعتمادًا على توقيت الكلمات. إذا لم يوفّرها القارئ المختار، يعود التشغيل إلى الآيات.",
+  "readingSettingsGroupSize": "١ — ما يُكرَّر: {n} آية في كل مرة",
+  "@readingSettingsGroupSize": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsGroupRepeats": "٢ — عدد مرات هذه المجموعة: {n}",
+  "@readingSettingsGroupRepeats": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsGlobalRepeats": "٣ — عدد مرات السورة كاملة: {n}",
+  "@readingSettingsGlobalRepeats": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsUnlimited": "بلا حد",
+  "readingSettingsLoopSection": "التكرار والحلقات",
+  "readingSettingsLoopDescription": "مثال: 3 آيات تُكرَّر 3 مرات، والسورة كاملة تُعاد 3 مرات.",
+
+  "aboutTitle": "حول التطبيق",
+  "aboutTagline": "حفظ القرآن وتلاوته، مع التحقق داخل جهازك مباشرةً.",
+  "aboutVersionLine": "الإصدار {version} (بناء {build})",
+  "aboutSectionPrivacy": "بياناتك",
+  "aboutPrivacyIntro": "يعمل تطبيق القرآن الكريم بالكامل داخل هاتفك: لا حساب، ولا إعلانات، ولا أدوات تتبُّع، ولا إرسال تلقائي لبياناتك.",
+  "aboutPrivacyMic": "الميكروفون — يُحلَّل صوت تلاوتك داخل الجهاز بواسطة النموذج المدمج، ولا يُرسَل إلى أي خادم.",
+  "aboutPrivacyLocation": "الموقع — يُستخدم فقط لتحديد اتجاه القبلة وحساب مواقيت الصلاة. يُحفَظ داخل الجهاز ليعمل الحساب دون اتصال، ولا يُشارَك مع أحد.",
+  "aboutPrivacyDiagnostic": "التشخيص — عند تفعيله في الإعدادات، يُحفَظ سجلٌّ ومقاطع صوتية من تلاواتك داخل الجهاز لفهم أخطاء التعرُّف. يمكنك تصديرها أو حذفها في أي وقت من الإعدادات.",
+  "aboutPrivacyNetwork": "الشبكة — تُستخدم فقط لتنزيل التلاوات والأذكار التي تطلبها. أمَّا نص القرآن فهو موجود أصلًا داخل التطبيق.",
+  "aboutSectionAi": "المعلِّم الذكي",
+  "aboutAiWarning": "تُنتَج شروح الآيات بواسطة نموذج لغوي يعمل داخل هاتفك، وقد يُخطئ أو يُغفل أو يُحرِّف. وليست لهذه النصوص أي حجية شرعية: فلأي مسألة في الفهم أو الأحكام، ارجع إلى القرآن والسنة وأهل العلم المؤهَّلين.",
+  "aboutAiReportTitle": "الإبلاغ عن إجابة غير لائقة",
+  "aboutAiReportBody": "راسلنا على {email} مع ذكر الآية المعنية والنص الذي ظهر لك.",
+  "aboutCopied": "تم نسخ العنوان",
+  "aboutSectionSources": "المصادر",
+  "aboutSourceQuran": "نص القرآن وتقسيم الآيات والصفحات والتلاوات الصوتية: موقع Quran.com (مؤسسة Quran).",
+  "aboutSourceDuas": "صوت الأذكار: موقع hisnmuslim.com.",
+  "aboutSourcePrayer": "مواقيت الصلاة: تُحسَب داخل الجهاز دون أي اتصال بالشبكة.",
+  "aboutSectionLicenses": "التراخيص",
+  "aboutLicensesIntro": "يتضمَّن هذا التطبيق مكوِّنات من جهات أخرى، لكلٍّ منها شروط استخدامها الخاصة.",
+  "aboutLicensesAll": "عرض جميع التراخيص"
 }

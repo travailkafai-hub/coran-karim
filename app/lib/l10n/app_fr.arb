@@ -177,6 +177,23 @@
   "@settingsExportStarted": {
     "description": "Snackbar après export réussi des clips vocaux"
   },
+  "settingsDisputedTitle": "Verdicts contestés",
+  "@settingsDisputedTitle": {
+    "description": "Réglage : extraits archivés via le pouce vers le bas de la feuille « Ma voix »"
+  },
+  "settingsDisputedEmpty": "Aucun verdict contesté — utilise le pouce 👎 sous « Ma voix » pendant une récitation",
+  "@settingsDisputedEmpty": {
+    "description": "Sous-titre quand aucun verdict contesté n'a encore été archivé"
+  },
+  "settingsDisputedCount": "{count, plural, =1{1 verdict contesté — appuie pour l'envoyer} other{{count} verdicts contestés — appuie pour les envoyer}}",
+  "@settingsDisputedCount": {
+    "description": "Sous-titre : nombre de verdicts contestés archivés",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "settingsExportCancelled": "Export annulé ou aucun clip disponible.",
   "@settingsExportCancelled": {
     "description": "Snackbar après export annulé/impossible des clips vocaux"
@@ -205,7 +222,7 @@
   "@settingsLocaleSheetDescription": {
     "description": "Explique le comportement du choix de langue dans la feuille de sélection"
   },
-  "settingsAboutSubtitle": "Version 1.0.0  •  Propulsé par Gemma 4 + Whisper",
+  "settingsAboutSubtitle": "Version, sources, licences et confidentialité",
   "@settingsAboutSubtitle": {
     "description": "Sous-titre de la tuile \"à propos\""
   },
@@ -548,6 +565,26 @@
   "@tajwidHelpPlaying": {
     "description": "État du bouton d'écoute pendant la lecture audio"
   },
+  "tajwidHelpVoiceFeedbackPrompt": "L'app a-t-elle bien entendu ?",
+  "@tajwidHelpVoiceFeedbackPrompt": {
+    "description": "Question posée sous l'extrait « Ma voix », avant que l'utilisateur ne tranche"
+  },
+  "tajwidHelpVoiceFeedbackNeedsListen": "Écoute « Ma voix » ci-dessus pour donner ton avis",
+  "@tajwidHelpVoiceFeedbackNeedsListen": {
+    "description": "Texte affiché à la place de la question tant qu'aucun extrait n'a encore été écouté"
+  },
+  "tajwidHelpVoiceThumbsUp": "D'accord, c'est une vraie erreur",
+  "@tajwidHelpVoiceThumbsUp": {
+    "description": "Tooltip du pouce vers le haut sous l'extrait « Ma voix »"
+  },
+  "tajwidHelpVoiceThumbsDown": "Pas d'accord, je l'ai bien dit",
+  "@tajwidHelpVoiceThumbsDown": {
+    "description": "Tooltip du pouce vers le bas sous l'extrait « Ma voix »"
+  },
+  "tajwidHelpVoiceFeedbackThanks": "Merci, c'est noté",
+  "@tajwidHelpVoiceFeedbackThanks": {
+    "description": "Confirmation affichée après avoir tapé un des deux pouces"
+  },
   "tajwidHelpRetryThisWord": "RÉESSAYER CE MOT",
   "@tajwidHelpRetryThisWord": {
     "description": "Titre de la boucle de correction (réenregistrement d'un mot)"
@@ -696,6 +733,30 @@
   "duaCollectionEmpty": "Cette collection est encore vide.",
   "@duaCollectionEmpty": {
     "description": "Message quand une collection d'invocations n'a aucune entrée"
+  },
+  "duaSequencePlayAll": "Lire tout",
+  "@duaSequencePlayAll": {
+    "description": "Bouton qui lance la lecture audio enchaînée de toutes les invocations d'une collection"
+  },
+  "duaSequenceNoneAudio": "Aucune invocation audio dans cette liste — seules les invocations coraniques ont un enregistrement.",
+  "@duaSequenceNoneAudio": {
+    "description": "Message si aucune invocation de la collection n'a d'audio disponible pour la lecture enchaînée"
+  },
+  "duaSequenceProgress": "Invocation {index}/{total}",
+  "@duaSequenceProgress": {
+    "description": "Position dans la lecture enchaînée des invocations",
+    "placeholders": {
+      "index": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "duaSequenceStop": "Arrêter la lecture",
+  "@duaSequenceStop": {
+    "description": "Tooltip du bouton qui arrête la lecture enchaînée"
+  },
+  "duaSequenceSkip": "Invocation suivante",
+  "@duaSequenceSkip": {
+    "description": "Tooltip du bouton qui passe à l'invocation suivante dans la lecture enchaînée"
   },
   "coachSurahLabel": "Sourate {number}",
   "@coachSurahLabel": {
@@ -960,6 +1021,10 @@
   "@errorKindSkippedWord": {
     "description": "Type d'erreur de récitation : mot non prononcé"
   },
+  "errorKindOubli": "Oubli",
+  "@errorKindOubli": {
+    "description": "Type d'erreur de récitation : décrochage repris ou souffleur sollicité, pas une faute de prononciation"
+  },
   "errorKindUnknown": "Indéterminé",
   "@errorKindUnknown": {
     "description": "Type d'erreur de récitation : cause non identifiée"
@@ -1181,6 +1246,44 @@
   "memorizationGameBackToHub": "Retour",
   "@memorizationGameBackToHub": {
     "description": "Bouton de retour au hub Coach depuis l'écran de fin de jeu"
+  },
+  "memorizationGameWordsCount": "{count, plural, =0{Aucun mot} =1{1 mot enchaîné} other{{count} mots enchaînés}}",
+  "@memorizationGameWordsCount": {
+    "description": "Score courant de la partie en cours (jeu de mémorisation illimité)",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "memorizationGameRecordLabel": "Record : {count}",
+  "@memorizationGameRecordLabel": {
+    "description": "Record personnel affiché pendant la partie",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "memorizationGameNewRecord": "Nouveau record !",
+  "@memorizationGameNewRecord": {
+    "description": "Message bref affiché quand le joueur bat son record personnel"
+  },
+  "memorizationGameLoadingNextPage": "Page suivante…",
+  "@memorizationGameLoadingNextPage": {
+    "description": "Court état d'attente entre deux pages, la partie étant illimitée"
+  },
+  "memorizationGameFinalScore": "{count, plural, =0{Aucun mot enchaîné cette fois} =1{1 mot enchaîné} other{{count} mots enchaînés}} — record : {best}",
+  "@memorizationGameFinalScore": {
+    "description": "Score final affiché sur l'écran de fin de partie, avec le record personnel",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "best": {
+        "type": "int"
+      }
+    }
   },
   "memorizationAyahPickerTitle": "Choisis ton départ",
   "@memorizationAyahPickerTitle": {
@@ -2108,5 +2211,142 @@
   "recitationPausedTapToResume": "Micro coupé — touchez pour reprendre",
   "tajwidHelpClose": "Fermer",
   "mushafBookmarksTitle": "Mes signets",
-  "mushafNoBookmarks": "Aucun signet pour l'instant. Touchez l'icône pour marquer le verset où vous vous êtes arrêté."
+  "mushafNoBookmarks": "Aucun signet pour l'instant. Touchez l'icône pour marquer le verset où vous vous êtes arrêté.",
+  "readingSettingsUnitLabel": "Unité répétée",
+  "readingSettingsUnitVerse": "Versets",
+  "readingSettingsUnitWord": "Mots",
+  "readingSettingsGroupSizeWords": "1 — Ce qu’on répète : {n} mot(s) à la fois",
+  "@readingSettingsGroupSizeWords": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsWordUnitHint": "La répétition au mot découpe l’audio du récitateur grâce à ses repères mot à mot. Si le récitateur choisi n’en publie pas, la lecture revient au verset.",
+  "readingSettingsGroupSize": "1 — Ce qu’on répète : {n} verset(s) à la fois",
+  "@readingSettingsGroupSize": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsGroupRepeats": "2 — Combien de fois ce groupe : {n}",
+  "@readingSettingsGroupRepeats": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsGlobalRepeats": "3 — Combien de fois la sourate entière : {n}",
+  "@readingSettingsGlobalRepeats": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "readingSettingsUnlimited": "illimité",
+  "readingSettingsLoopSection": "RÉPÉTITION ET BOUCLES",
+  "readingSettingsLoopDescription": "Exemple : 3 versets répétés 3 fois, et la sourate entière reprise 3 fois.",
+
+  "aboutTitle": "À propos",
+  "@aboutTitle": {
+    "description": "Titre de l'écran À propos"
+  },
+  "aboutTagline": "Mémorisation et récitation du Coran, vérifiées directement sur votre appareil.",
+  "@aboutTagline": {
+    "description": "Phrase de présentation sous le nom de l'application"
+  },
+  "aboutVersionLine": "Version {version} (build {build})",
+  "@aboutVersionLine": {
+    "description": "Ligne de version affichée dans l'en-tête de l'écran À propos",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "build": {
+        "type": "String"
+      }
+    }
+  },
+  "aboutSectionPrivacy": "Vos données",
+  "@aboutSectionPrivacy": {
+    "description": "Titre de la section vie privée"
+  },
+  "aboutPrivacyIntro": "Coran Karim fonctionne entièrement sur votre téléphone : aucun compte, aucune publicité, aucun traceur, et aucun envoi automatique de vos données.",
+  "@aboutPrivacyIntro": {
+    "description": "Introduction de la section vie privée"
+  },
+  "aboutPrivacyMic": "Microphone — votre récitation est analysée sur l'appareil par le modèle embarqué. Elle n'est envoyée à aucun serveur.",
+  "@aboutPrivacyMic": {
+    "description": "Explication de l'usage du microphone"
+  },
+  "aboutPrivacyLocation": "Position — utilisée uniquement pour la direction de la Qibla et le calcul des horaires de prière. Elle est conservée sur l'appareil afin que le calcul fonctionne hors ligne, et n'est transmise à personne.",
+  "@aboutPrivacyLocation": {
+    "description": "Explication de l'usage de la localisation"
+  },
+  "aboutPrivacyDiagnostic": "Diagnostic — s'il est activé dans les Réglages, un journal et des extraits audio de vos récitations sont conservés sur l'appareil pour comprendre les erreurs de reconnaissance. Vous pouvez les exporter ou les supprimer à tout moment depuis les Réglages.",
+  "@aboutPrivacyDiagnostic": {
+    "description": "Explication du mode diagnostic et des enregistrements conservés"
+  },
+  "aboutPrivacyNetwork": "Réseau — sollicité seulement pour télécharger les récitations et les invocations que vous demandez. Le texte du Coran, lui, est déjà dans l'application.",
+  "@aboutPrivacyNetwork": {
+    "description": "Explication de l'usage du réseau"
+  },
+  "aboutSectionAi": "Tuteur IA",
+  "@aboutSectionAi": {
+    "description": "Titre de la section avertissement sur le modèle de langage"
+  },
+  "aboutAiWarning": "Les explications de versets sont produites par un modèle de langage qui tourne sur votre téléphone. Il peut se tromper, omettre ou déformer. Ces textes n'ont aucune autorité religieuse : pour toute question de compréhension ou de jurisprudence, référez-vous au Coran, à la Sunna et à des savants qualifiés.",
+  "@aboutAiWarning": {
+    "description": "Avertissement affiché sur le texte généré par le modèle"
+  },
+  "aboutAiReportTitle": "Signaler une réponse inappropriée",
+  "@aboutAiReportTitle": {
+    "description": "Titre du bloc de signalement du contenu généré"
+  },
+  "aboutAiReportBody": "Écrivez-nous à {email} en précisant le verset concerné et le texte affiché.",
+  "@aboutAiReportBody": {
+    "description": "Consigne de signalement d'un contenu généré inapproprié",
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "aboutCopied": "Adresse copiée",
+  "@aboutCopied": {
+    "description": "Confirmation après copie de l'adresse de contact"
+  },
+  "aboutSectionSources": "Sources",
+  "@aboutSectionSources": {
+    "description": "Titre de la section des sources et attributions"
+  },
+  "aboutSourceQuran": "Texte du Coran, découpage en versets et pages, et récitations audio : Quran.com (Quran Foundation).",
+  "@aboutSourceQuran": {
+    "description": "Attribution de la source du texte et de l'audio du Coran"
+  },
+  "aboutSourceDuas": "Audio des invocations : hisnmuslim.com.",
+  "@aboutSourceDuas": {
+    "description": "Attribution de la source audio des invocations"
+  },
+  "aboutSourcePrayer": "Horaires de prière : calculés sur l'appareil, sans aucune requête réseau.",
+  "@aboutSourcePrayer": {
+    "description": "Précision sur le calcul local des horaires de prière"
+  },
+  "aboutSectionLicenses": "Licences",
+  "@aboutSectionLicenses": {
+    "description": "Titre de la section des licences"
+  },
+  "aboutLicensesIntro": "Cette application embarque des composants publiés par des tiers, sous leurs propres conditions.",
+  "@aboutLicensesIntro": {
+    "description": "Introduction de la section des licences"
+  },
+  "aboutLicensesAll": "Voir toutes les licences",
+  "@aboutLicensesAll": {
+    "description": "Bouton ouvrant la page complète des licences"
+  }
 }

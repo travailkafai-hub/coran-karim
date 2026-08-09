@@ -328,6 +328,24 @@ abstract class AppLocalizations {
   /// **'Export lancé — choisis où envoyer le fichier.'**
   String get settingsExportStarted;
 
+  /// Réglage : extraits archivés via le pouce vers le bas de la feuille « Ma voix »
+  ///
+  /// In fr, this message translates to:
+  /// **'Verdicts contestés'**
+  String get settingsDisputedTitle;
+
+  /// Sous-titre quand aucun verdict contesté n'a encore été archivé
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun verdict contesté — utilise le pouce 👎 sous « Ma voix » pendant une récitation'**
+  String get settingsDisputedEmpty;
+
+  /// Sous-titre : nombre de verdicts contestés archivés
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{1 verdict contesté — appuie pour l\'envoyer} other{{count} verdicts contestés — appuie pour les envoyer}}'**
+  String settingsDisputedCount(int count);
+
   /// Snackbar après export annulé/impossible des clips vocaux
   ///
   /// In fr, this message translates to:
@@ -373,7 +391,7 @@ abstract class AppLocalizations {
   /// Sous-titre de la tuile "à propos"
   ///
   /// In fr, this message translates to:
-  /// **'Version 1.0.0  •  Propulsé par Gemma 4 + Whisper'**
+  /// **'Version, sources, licences et confidentialité'**
   String get settingsAboutSubtitle;
 
   /// Bouton de confirmation d'un réglage
@@ -776,6 +794,36 @@ abstract class AppLocalizations {
   /// **'Lecture…'**
   String get tajwidHelpPlaying;
 
+  /// Question posée sous l'extrait « Ma voix », avant que l'utilisateur ne tranche
+  ///
+  /// In fr, this message translates to:
+  /// **'L\'app a-t-elle bien entendu ?'**
+  String get tajwidHelpVoiceFeedbackPrompt;
+
+  /// Texte affiché à la place de la question tant qu'aucun extrait n'a encore été écouté
+  ///
+  /// In fr, this message translates to:
+  /// **'Écoute « Ma voix » ci-dessus pour donner ton avis'**
+  String get tajwidHelpVoiceFeedbackNeedsListen;
+
+  /// Tooltip du pouce vers le haut sous l'extrait « Ma voix »
+  ///
+  /// In fr, this message translates to:
+  /// **'D\'accord, c\'est une vraie erreur'**
+  String get tajwidHelpVoiceThumbsUp;
+
+  /// Tooltip du pouce vers le bas sous l'extrait « Ma voix »
+  ///
+  /// In fr, this message translates to:
+  /// **'Pas d\'accord, je l\'ai bien dit'**
+  String get tajwidHelpVoiceThumbsDown;
+
+  /// Confirmation affichée après avoir tapé un des deux pouces
+  ///
+  /// In fr, this message translates to:
+  /// **'Merci, c\'est noté'**
+  String get tajwidHelpVoiceFeedbackThanks;
+
   /// Titre de la boucle de correction (réenregistrement d'un mot)
   ///
   /// In fr, this message translates to:
@@ -1105,6 +1153,36 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Cette collection est encore vide.'**
   String get duaCollectionEmpty;
+
+  /// Bouton qui lance la lecture audio enchaînée de toutes les invocations d'une collection
+  ///
+  /// In fr, this message translates to:
+  /// **'Lire tout'**
+  String get duaSequencePlayAll;
+
+  /// Message si aucune invocation de la collection n'a d'audio disponible pour la lecture enchaînée
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune invocation audio dans cette liste — seules les invocations coraniques ont un enregistrement.'**
+  String get duaSequenceNoneAudio;
+
+  /// Position dans la lecture enchaînée des invocations
+  ///
+  /// In fr, this message translates to:
+  /// **'Invocation {index}/{total}'**
+  String duaSequenceProgress(int index, int total);
+
+  /// Tooltip du bouton qui arrête la lecture enchaînée
+  ///
+  /// In fr, this message translates to:
+  /// **'Arrêter la lecture'**
+  String get duaSequenceStop;
+
+  /// Tooltip du bouton qui passe à l'invocation suivante dans la lecture enchaînée
+  ///
+  /// In fr, this message translates to:
+  /// **'Invocation suivante'**
+  String get duaSequenceSkip;
 
   /// Nom de repli d'une sourate quand le nom réel n'est pas chargé
   ///
@@ -1442,6 +1520,12 @@ abstract class AppLocalizations {
   /// **'Mot sauté'**
   String get errorKindSkippedWord;
 
+  /// Type d'erreur de récitation : décrochage repris ou souffleur sollicité, pas une faute de prononciation
+  ///
+  /// In fr, this message translates to:
+  /// **'Oubli'**
+  String get errorKindOubli;
+
   /// Type d'erreur de récitation : cause non identifiée
   ///
   /// In fr, this message translates to:
@@ -1711,6 +1795,36 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Retour'**
   String get memorizationGameBackToHub;
+
+  /// Score courant de la partie en cours (jeu de mémorisation illimité)
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Aucun mot} =1{1 mot enchaîné} other{{count} mots enchaînés}}'**
+  String memorizationGameWordsCount(int count);
+
+  /// Record personnel affiché pendant la partie
+  ///
+  /// In fr, this message translates to:
+  /// **'Record : {count}'**
+  String memorizationGameRecordLabel(int count);
+
+  /// Message bref affiché quand le joueur bat son record personnel
+  ///
+  /// In fr, this message translates to:
+  /// **'Nouveau record !'**
+  String get memorizationGameNewRecord;
+
+  /// Court état d'attente entre deux pages, la partie étant illimitée
+  ///
+  /// In fr, this message translates to:
+  /// **'Page suivante…'**
+  String get memorizationGameLoadingNextPage;
+
+  /// Score final affiché sur l'écran de fin de partie, avec le record personnel
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Aucun mot enchaîné cette fois} =1{1 mot enchaîné} other{{count} mots enchaînés}} — record : {best}'**
+  String memorizationGameFinalScore(int count, int best);
 
   /// Titre de l'écran de sélection de l'aya de départ pour le jeu
   ///
@@ -2820,6 +2934,198 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Aucun signet pour l\'instant. Touchez l\'icône pour marquer le verset où vous vous êtes arrêté.'**
   String get mushafNoBookmarks;
+
+  /// No description provided for @readingSettingsUnitLabel.
+  ///
+  /// In fr, this message translates to:
+  /// **'Unité répétée'**
+  String get readingSettingsUnitLabel;
+
+  /// No description provided for @readingSettingsUnitVerse.
+  ///
+  /// In fr, this message translates to:
+  /// **'Versets'**
+  String get readingSettingsUnitVerse;
+
+  /// No description provided for @readingSettingsUnitWord.
+  ///
+  /// In fr, this message translates to:
+  /// **'Mots'**
+  String get readingSettingsUnitWord;
+
+  /// No description provided for @readingSettingsGroupSizeWords.
+  ///
+  /// In fr, this message translates to:
+  /// **'1 — Ce qu’on répète : {n} mot(s) à la fois'**
+  String readingSettingsGroupSizeWords(int n);
+
+  /// No description provided for @readingSettingsWordUnitHint.
+  ///
+  /// In fr, this message translates to:
+  /// **'La répétition au mot découpe l’audio du récitateur grâce à ses repères mot à mot. Si le récitateur choisi n’en publie pas, la lecture revient au verset.'**
+  String get readingSettingsWordUnitHint;
+
+  /// No description provided for @readingSettingsGroupSize.
+  ///
+  /// In fr, this message translates to:
+  /// **'1 — Ce qu’on répète : {n} verset(s) à la fois'**
+  String readingSettingsGroupSize(int n);
+
+  /// No description provided for @readingSettingsGroupRepeats.
+  ///
+  /// In fr, this message translates to:
+  /// **'2 — Combien de fois ce groupe : {n}'**
+  String readingSettingsGroupRepeats(int n);
+
+  /// No description provided for @readingSettingsGlobalRepeats.
+  ///
+  /// In fr, this message translates to:
+  /// **'3 — Combien de fois la sourate entière : {n}'**
+  String readingSettingsGlobalRepeats(int n);
+
+  /// No description provided for @readingSettingsUnlimited.
+  ///
+  /// In fr, this message translates to:
+  /// **'illimité'**
+  String get readingSettingsUnlimited;
+
+  /// No description provided for @readingSettingsLoopSection.
+  ///
+  /// In fr, this message translates to:
+  /// **'RÉPÉTITION ET BOUCLES'**
+  String get readingSettingsLoopSection;
+
+  /// No description provided for @readingSettingsLoopDescription.
+  ///
+  /// In fr, this message translates to:
+  /// **'Exemple : 3 versets répétés 3 fois, et la sourate entière reprise 3 fois.'**
+  String get readingSettingsLoopDescription;
+
+  /// Titre de l'écran À propos
+  ///
+  /// In fr, this message translates to:
+  /// **'À propos'**
+  String get aboutTitle;
+
+  /// Phrase de présentation sous le nom de l'application
+  ///
+  /// In fr, this message translates to:
+  /// **'Mémorisation et récitation du Coran, vérifiées directement sur votre appareil.'**
+  String get aboutTagline;
+
+  /// Ligne de version affichée dans l'en-tête de l'écran À propos
+  ///
+  /// In fr, this message translates to:
+  /// **'Version {version} (build {build})'**
+  String aboutVersionLine(String version, String build);
+
+  /// Titre de la section vie privée
+  ///
+  /// In fr, this message translates to:
+  /// **'Vos données'**
+  String get aboutSectionPrivacy;
+
+  /// Introduction de la section vie privée
+  ///
+  /// In fr, this message translates to:
+  /// **'Coran Karim fonctionne entièrement sur votre téléphone : aucun compte, aucune publicité, aucun traceur, et aucun envoi automatique de vos données.'**
+  String get aboutPrivacyIntro;
+
+  /// Explication de l'usage du microphone
+  ///
+  /// In fr, this message translates to:
+  /// **'Microphone — votre récitation est analysée sur l\'appareil par le modèle embarqué. Elle n\'est envoyée à aucun serveur.'**
+  String get aboutPrivacyMic;
+
+  /// Explication de l'usage de la localisation
+  ///
+  /// In fr, this message translates to:
+  /// **'Position — utilisée uniquement pour la direction de la Qibla et le calcul des horaires de prière. Elle est conservée sur l\'appareil afin que le calcul fonctionne hors ligne, et n\'est transmise à personne.'**
+  String get aboutPrivacyLocation;
+
+  /// Explication du mode diagnostic et des enregistrements conservés
+  ///
+  /// In fr, this message translates to:
+  /// **'Diagnostic — s\'il est activé dans les Réglages, un journal et des extraits audio de vos récitations sont conservés sur l\'appareil pour comprendre les erreurs de reconnaissance. Vous pouvez les exporter ou les supprimer à tout moment depuis les Réglages.'**
+  String get aboutPrivacyDiagnostic;
+
+  /// Explication de l'usage du réseau
+  ///
+  /// In fr, this message translates to:
+  /// **'Réseau — sollicité seulement pour télécharger les récitations et les invocations que vous demandez. Le texte du Coran, lui, est déjà dans l\'application.'**
+  String get aboutPrivacyNetwork;
+
+  /// Titre de la section avertissement sur le modèle de langage
+  ///
+  /// In fr, this message translates to:
+  /// **'Tuteur IA'**
+  String get aboutSectionAi;
+
+  /// Avertissement affiché sur le texte généré par le modèle
+  ///
+  /// In fr, this message translates to:
+  /// **'Les explications de versets sont produites par un modèle de langage qui tourne sur votre téléphone. Il peut se tromper, omettre ou déformer. Ces textes n\'ont aucune autorité religieuse : pour toute question de compréhension ou de jurisprudence, référez-vous au Coran, à la Sunna et à des savants qualifiés.'**
+  String get aboutAiWarning;
+
+  /// Titre du bloc de signalement du contenu généré
+  ///
+  /// In fr, this message translates to:
+  /// **'Signaler une réponse inappropriée'**
+  String get aboutAiReportTitle;
+
+  /// Consigne de signalement d'un contenu généré inapproprié
+  ///
+  /// In fr, this message translates to:
+  /// **'Écrivez-nous à {email} en précisant le verset concerné et le texte affiché.'**
+  String aboutAiReportBody(String email);
+
+  /// Confirmation après copie de l'adresse de contact
+  ///
+  /// In fr, this message translates to:
+  /// **'Adresse copiée'**
+  String get aboutCopied;
+
+  /// Titre de la section des sources et attributions
+  ///
+  /// In fr, this message translates to:
+  /// **'Sources'**
+  String get aboutSectionSources;
+
+  /// Attribution de la source du texte et de l'audio du Coran
+  ///
+  /// In fr, this message translates to:
+  /// **'Texte du Coran, découpage en versets et pages, et récitations audio : Quran.com (Quran Foundation).'**
+  String get aboutSourceQuran;
+
+  /// Attribution de la source audio des invocations
+  ///
+  /// In fr, this message translates to:
+  /// **'Audio des invocations : hisnmuslim.com.'**
+  String get aboutSourceDuas;
+
+  /// Précision sur le calcul local des horaires de prière
+  ///
+  /// In fr, this message translates to:
+  /// **'Horaires de prière : calculés sur l\'appareil, sans aucune requête réseau.'**
+  String get aboutSourcePrayer;
+
+  /// Titre de la section des licences
+  ///
+  /// In fr, this message translates to:
+  /// **'Licences'**
+  String get aboutSectionLicenses;
+
+  /// Introduction de la section des licences
+  ///
+  /// In fr, this message translates to:
+  /// **'Cette application embarque des composants publiés par des tiers, sous leurs propres conditions.'**
+  String get aboutLicensesIntro;
+
+  /// Bouton ouvrant la page complète des licences
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir toutes les licences'**
+  String get aboutLicensesAll;
 }
 
 class _AppLocalizationsDelegate
