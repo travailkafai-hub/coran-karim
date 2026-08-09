@@ -3,12 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/verse.dart';
-import '../services/quran_api.dart';
-import '../services/session_archive_service.dart';
-import '../services/word_correction_audio.dart';
+import '../providers/mind_map_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/quran_api.dart';
+import '../services/recitation_error_log_service.dart';
+import '../services/session_archive_service.dart';
+import '../services/voice_lora_clip_service.dart';
+import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
 import 'memorization_game_screen.dart';
+import 'mind_map_screen.dart';
 
 /// LE COACH REGARDE EN ARRIÈRE (2026-08-06).
 ///
@@ -269,6 +273,35 @@ class SessionDetailScreen extends ConsumerWidget {
               : 'Sourate ${session.surahNumber}',
           style: GoogleFonts.manrope(fontWeight: FontWeight.w700),
         ),
+        // ── CARTE MENTALE IMBRIQUÉE ICI (2026-08-09, demande utilisateur) ──
+        // « garde même format pour session et tu imbriques l'entraînement et
+        // mindmap » -- le jeu (M'entraîner) était déjà accessible par mot
+        // (`_LigneMot._entrainer`, plus bas) ; la carte mentale, elle,
+        // n'existait que dans l'ancien volet "Mes erreurs". Même bouton que
+        // `coach_hub_screen._SurahErrorTile` (masqué si aucun contenu pour
+        // cette sourate -- jamais un bouton mort).
+        actions: [
+          if (session.surahNumber != null)
+            Consumer(builder: (context, ref, _) {
+              final mindMap =
+                  ref.watch(mindMapProvider(session.surahNumber!));
+              if (mindMap.asData?.value == null) {
+                return const SizedBox.shrink();
+              }
+              return IconButton(
+                icon: const Icon(Icons.hub_outlined),
+                tooltip: 'Carte mentale',
+                onPressed: () async {
+                  final surahs = await QuranApi.fetchSurahs();
+                  final surah = surahs
+                      .firstWhere((s) => s.number == session.surahNumber);
+                  if (!context.mounted) return;
+                  Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => MindMapScreen(surah: surah)));
+                },
+              );
+            }),
+        ],
       ),
       body: mots.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -342,6 +375,58 @@ class _LigneMot extends ConsumerStatefulWidget {
 class _LigneMotState extends ConsumerState<_LigneMot> {
   bool _joue = false;
   String? _message;
+
+  // ── POUCES, AUSSI DEPUIS L'ARCHIVE (2026-08-09, demande utilisateur) ─────
+  // « même dans cette session, le user peut valider ou invalider les
+  // pouces ». Même mécanisme que la fiche tajwid en direct
+  // (`tajwid_help_sheet._onPouceHaut`/`_onPouceBas`), adapté : ici l'audio
+  // est DÉJÀ un fichier archivé (`m.audioPath`), pas une extraction v2 à
+  // faire à la demande -- pas besoin de rejouer avant de pouvoir contester.
+  bool _feedbackEnvoye = false;
+  bool _feedbackEnCours = false;
+
+  /// Pouce HAUT : accusé de réception visuel seulement (l'erreur est déjà en
+  /// base depuis le jugement, même choix que la fiche tajwid en direct).
+  void _onPouceHaut() {
+    if (_feedbackEnvoye || _feedbackEnCours) return;
+    setState(() => _feedbackEnvoye = true);
+  }
+
+  /// Pouce BAS : « je l'ai bien dit ». Archive l'extrait déjà présent dans
+  /// l'archive de session (pas une nouvelle extraction, il n'y en a plus à
+  /// faire hors session vivante) pour export manuel ultérieur, et retire
+  /// l'erreur du journal cumulé pour ne pas compter un faux positif que
+  /// l'utilisateur vient lui-même d'invalider.
+  Future<void> _onPouceBas() async {
+    final m = widget.m;
+    if (_feedbackEnvoye || _feedbackEnCours) return;
+    setState(() => _feedbackEnCours = true);
+    try {
+      if (m.audioPath != null) {
+        await VoiceLoraClipService().commitDisputedClip(
+          sourcePath: m.audioPath!,
+          text: m.expectedWord,
+          verdict: 'conteste_par_utilisateur',
+        );
+      }
+      if (m.surahNumber != null &&
+          m.ayahNumber != null &&
+          m.wordInAyah != null) {
+        await RecitationErrorLogService.instance.removeLatestError(
+          surahNumber: m.surahNumber!,
+          ayahNumber: m.ayahNumber!,
+          wordIndex: m.wordInAyah!,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _feedbackEnCours = false;
+          _feedbackEnvoye = true;
+        });
+      }
+    }
+  }
 
   Future<void> _maVoix() async {
     final chemin = widget.m.audioPath;
@@ -549,6 +634,45 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
               ),
             ),
           ],
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text('L\'app a bien vu ?',
+                  style: GoogleFonts.manrope(
+                      fontSize: 11, color: AppColors.inkLight)),
+              const SizedBox(width: 8),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.thumb_up_outlined,
+                    size: 18,
+                    color: _feedbackEnvoye
+                        ? AppColors.green700
+                        : AppColors.inkLight),
+                tooltip: 'D\'accord, c\'est une vraie erreur',
+                onPressed: _feedbackEnvoye || _feedbackEnCours
+                    ? null
+                    : _onPouceHaut,
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: _feedbackEnCours
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(Icons.thumb_down_outlined,
+                        size: 18,
+                        color: _feedbackEnvoye
+                            ? AppColors.inkLight
+                            : Colors.redAccent.shade200),
+                tooltip: 'Pas d\'accord, je l\'ai bien dit',
+                onPressed: _feedbackEnvoye || _feedbackEnCours
+                    ? null
+                    : _onPouceBas,
+              ),
+            ],
+          ),
           if (_message != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
