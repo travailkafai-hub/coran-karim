@@ -12,6 +12,7 @@ import 'screens/recette_screen.dart';
 import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_hub_screen.dart';
+import 'screens/coach_sessions.dart' show sessionsArchiveProvider, tailleArchiveProvider;
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
 import 'services/reciter_download_service.dart';
@@ -164,6 +165,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  /// Ouvre l'onglet Coach en le forçant à relire l'archive des sessions.
+  ///
+  /// BUG CORRIGÉ (2026-08-09), constat utilisateur : après pause puis retour
+  /// arrière depuis une récitation, le Coach ne montrait pas la dernière
+  /// session, MÊME APRÈS le correctif du try/catch dans le `dispose()` de
+  /// l'écran de récitation. `_tab` est géré par un simple `IndexedStack` --
+  /// « Keep all tabs alive » -- donc `CoachHubScreen` ne se reconstruit
+  /// JAMAIS depuis zéro : il ne peut compter que sur l'invalidation faite
+  /// PAR L'ÉCRAN DE RÉCITATION pour savoir qu'une nouvelle session existe.
+  /// C'est fragile par construction -- ça dépend d'un timing et d'un chemin
+  /// de sortie précis dans un écran totalement différent, et toute nouvelle
+  /// façon de quitter la récitation (une de plus s'ajoutera un jour) peut
+  /// la faire manquer.
+  ///
+  /// Le bon endroit pour garantir des données fraîches, c'est là où
+  /// l'utilisateur regarde effectivement le Coach : CE tap. On invalide
+  /// systématiquement en l'ouvrant -- coûte une requête SQLite de plus par
+  /// ouverture d'onglet (négligeable), et rend inutile de deviner tous les
+  /// chemins de sortie possibles d'une récitation.
+  void _openCoachTab() {
+    ref.invalidate(sessionsArchiveProvider);
+    ref.invalidate(tailleArchiveProvider);
+    setState(() => _tab = 2);
+  }
+
   Widget _buildNav() {
     final t = AppLocalizations.of(context)!;
     return Container(
@@ -209,7 +235,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   icon: Icons.psychology_alt_rounded,
                   label: t.navCoach,
                   active: _tab == 2,
-                  onTap: () => setState(() => _tab = 2),
+                  onTap: _openCoachTab,
                 ),
               ),
               Expanded(
