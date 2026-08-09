@@ -189,17 +189,18 @@ class PrayerNotificationService {
 
       final reminderEnabled = settings.reminderEnabled[p] ?? false;
       if (reminderEnabled) {
-        final offset = Duration(minutes: settings.reminderMinutesBefore);
+        final minutesBefore = settings.reminderMinutesBefore[p] ?? 15;
+        final offset = Duration(minutes: minutesBefore);
         await _scheduleOne(
           id: _reminderIdForToday(p),
-          title: 'Bientôt — $label dans ${settings.reminderMinutesBefore} min',
+          title: 'Bientôt — $label dans $minutesBefore min',
           body: 'La prière du $label approche, prépare-toi.',
           when: today[p]!.subtract(offset),
           isAdhan: false,
         );
         await _scheduleOne(
           id: _reminderIdForTomorrow(p),
-          title: 'Bientôt — $label dans ${settings.reminderMinutesBefore} min',
+          title: 'Bientôt — $label dans $minutesBefore min',
           body: 'La prière du $label approche, prépare-toi.',
           when: tomorrow[p]!.subtract(offset),
           isAdhan: false,

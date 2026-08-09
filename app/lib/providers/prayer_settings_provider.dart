@@ -207,11 +207,12 @@ class PrayerSettingsNotifier extends StateNotifier<PrayerState> {
     await _recomputeAndSchedule();
   }
 
-  /// Délai partagé par les 5 prières (cf. commentaire sur PrayerSettings) --
-  /// pas de paramètre PrayerName ici, contrairement à [setReminderEnabled].
-  Future<void> setReminderMinutesBefore(int minutes) async {
+  /// Délai PAR prière depuis le 2026-08-08 (cf. commentaire sur
+  /// PrayerSettings) -- même forme que [setReminderEnabled].
+  Future<void> setReminderMinutesBefore(PrayerName prayer, int minutes) async {
+    final map = {...state.settings.reminderMinutesBefore, prayer: minutes};
     state = state.copyWith(
-        settings: state.settings.copyWith(reminderMinutesBefore: minutes));
+        settings: state.settings.copyWith(reminderMinutesBefore: map));
     await _persist();
     await _recomputeAndSchedule();
   }

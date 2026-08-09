@@ -4,7 +4,11 @@ library;
 /// Les 3 méthodes de calcul demandées par l'utilisateur (2026-07-24) — le
 /// défaut est choisi selon la position GPS (cf. PrayerTimesService), mais
 /// les trois restent toujours sélectionnables manuellement.
-enum PrayerCalculationMethod { muslimWorldLeague, ummAlQura, egyptian }
+/// `franceUoif` ajoutée le 2026-08-08 (demande utilisateur) : n'existe PAS en
+/// préréglage dans adhan_dart (14 méthodes dispo, aucune "France") -- c'est
+/// la convention 12°/12° suivie par la plupart des mosquées françaises,
+/// construite à la main dans PrayerTimesService._params.
+enum PrayerCalculationMethod { muslimWorldLeague, ummAlQura, egyptian, franceUoif }
 
 enum PrayerName { fajr, dhuhr, asr, maghrib, isha }
 
@@ -23,11 +27,12 @@ class PrayerSettings {
 
   /// Rappel configurable AVANT l'adhan, activable prière par prière (pas
   /// seulement Sobh : généralisé le 2026-07-24 sur demande utilisateur, qui
-  /// ne l'a pas limité à une seule prière). Un seul délai partagé par les 5
-  /// prières -- inutile de complexifier avec un délai par prière tant que
-  /// personne ne l'a demandé.
+  /// ne l'a pas limité à une seule prière). Délai lui-même passé PAR PRIÈRE
+  /// le 2026-08-08 (demande utilisateur : "le rappel avant la prière doit
+  /// être adapté par prière") -- un seul délai partagé par les 5 était le
+  /// choix initial du 2026-07-24, explicitement dépassé depuis.
   final Map<PrayerName, bool> reminderEnabled;
-  final int reminderMinutesBefore; // 10/15/20... configurable
+  final Map<PrayerName, int> reminderMinutesBefore; // 10/15/20... par prière
 
   const PrayerSettings({
     required this.method,
@@ -56,7 +61,13 @@ class PrayerSettings {
       PrayerName.maghrib: false,
       PrayerName.isha: false,
     },
-    reminderMinutesBefore: 15,
+    reminderMinutesBefore: {
+      PrayerName.fajr: 15,
+      PrayerName.dhuhr: 15,
+      PrayerName.asr: 15,
+      PrayerName.maghrib: 15,
+      PrayerName.isha: 15,
+    },
   );
 
   PrayerSettings copyWith({
@@ -65,7 +76,7 @@ class PrayerSettings {
     Map<PrayerName, bool>? adhanEnabled,
     bool? vibrateEnabled,
     Map<PrayerName, bool>? reminderEnabled,
-    int? reminderMinutesBefore,
+    Map<PrayerName, int>? reminderMinutesBefore,
   }) {
     return PrayerSettings(
       method: method ?? this.method,
@@ -83,7 +94,8 @@ class PrayerSettings {
         'adhanEnabled': adhanEnabled.map((k, v) => MapEntry(k.name, v)),
         'vibrateEnabled': vibrateEnabled,
         'reminderEnabled': reminderEnabled.map((k, v) => MapEntry(k.name, v)),
-        'reminderMinutesBefore': reminderMinutesBefore,
+        'reminderMinutesBefore':
+            reminderMinutesBefore.map((k, v) => MapEntry(k.name, v)),
       };
 
   factory PrayerSettings.fromJson(Map<String, dynamic> j) {
@@ -97,6 +109,21 @@ class PrayerSettings {
       for (final p in PrayerName.values)
         p: (rawReminder?[p.name] as bool?) ?? defaultValues.reminderEnabled[p]!,
     };
+    // Ancien format : un seul entier partagé (avant le 2026-08-08). Sert de
+    // valeur de repli pour une prière absente du nouveau format map, plutôt
+    // que de perdre le réglage de l'utilisateur en le remettant à 15 muet.
+    final legacyMinutes = j['reminderMinutesBefore'] is int
+        ? j['reminderMinutesBefore'] as int
+        : null;
+    final rawMinutes = j['reminderMinutesBefore'] is Map
+        ? (j['reminderMinutesBefore'] as Map).cast<String, dynamic>()
+        : null;
+    final minutes = <PrayerName, int>{
+      for (final p in PrayerName.values)
+        p: (rawMinutes?[p.name] as int?) ??
+            legacyMinutes ??
+            defaultValues.reminderMinutesBefore[p]!,
+    };
     return PrayerSettings(
       method: PrayerCalculationMethod.values.firstWhere(
           (m) => m.name == j['method'],
@@ -105,7 +132,7 @@ class PrayerSettings {
       adhanEnabled: adhan,
       vibrateEnabled: j['vibrateEnabled'] as bool? ?? true,
       reminderEnabled: reminder,
-      reminderMinutesBefore: j['reminderMinutesBefore'] as int? ?? 15,
+      reminderMinutesBefore: minutes,
     );
   }
 }

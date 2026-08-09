@@ -21,6 +21,14 @@ class PrayerTimesService {
     if (lat >= 20 && lat <= 32 && lng >= -10 && lng < 34) {
       return PrayerCalculationMethod.egyptian;
     }
+    // France métropolitaine (boîte large, même granularité volontairement
+    // grossière que les boîtes ci-dessus) -> convention UOIF 12°/12°,
+    // ajoutée le 2026-08-08 : Muslim World League (17° Ichaa) donnait un
+    // écart de ~40 min avec l'heure retenue par les mosquées françaises,
+    // très visible en été à cette latitude (crépuscule long).
+    if (lat >= 41 && lat <= 51.5 && lng >= -5.5 && lng <= 9.7) {
+      return PrayerCalculationMethod.franceUoif;
+    }
     // Partout ailleurs -> Muslim World League, la plus répandue
     // internationalement, bon défaut neutre.
     return PrayerCalculationMethod.muslimWorldLeague;
@@ -34,6 +42,10 @@ class PrayerTimesService {
         CalculationMethodParameters.ummAlQura(),
       PrayerCalculationMethod.egyptian =>
         CalculationMethodParameters.egyptian(),
+      // Pas de préréglage "France" dans adhan_dart -- construite à la main
+      // (méthode UOIF, angles Fajr/Ichaa 12°/12°, pas d'ajustement connu).
+      PrayerCalculationMethod.franceUoif => CalculationParameters(
+          method: CalculationMethod.other, fajrAngle: 12, ishaAngle: 12),
     };
   }
 

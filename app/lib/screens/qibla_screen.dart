@@ -238,6 +238,16 @@ class _QiblaScreenState extends State<QiblaScreen> {
         }
         final qibla = _qiblaBearing!;
         final facingQibla = QiblaService.angleDiff(qibla, heading) < 5;
+        // Précision fournie par le capteur natif (fusion magnétomètre +
+        // accéléromètre + gyroscope sur Android, cf. flutter_compass) --
+        // c'est la SEULE partie du calcul qui peut se tromper : le cap vers
+        // la Mecque lui-même est de la géométrie GPS pure (QiblaService),
+        // fiable à quelques mètres près. Le magnétomètre, lui, dérive près
+        // d'un objet métallique/aimant (coque, support voiture...) et se
+        // recalibre par un mouvement en huit -- on l'indique plutôt que de
+        // laisser croire que l'aiguille est toujours juste.
+        final accuracy = snapshot.data?.accuracy;
+        final lowAccuracy = accuracy != null && accuracy > 25;
         return Column(
           children: [
             const SizedBox(height: 8),
@@ -252,7 +262,7 @@ class _QiblaScreenState extends State<QiblaScreen> {
             ),
             _distanceCard(),
             const SizedBox(height: 14),
-            _hint(facingQibla),
+            _hint(facingQibla, lowAccuracy),
             const SizedBox(height: 28),
           ],
         );
@@ -287,36 +297,69 @@ class _QiblaScreenState extends State<QiblaScreen> {
     );
   }
 
-  Widget _hint(bool facingQibla) {
+  Widget _hint(bool facingQibla, bool lowAccuracy) {
     final t = AppLocalizations.of(context)!;
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: facingQibla
-          ? Text(
-              t.qiblaFacingQibla,
-              key: const ValueKey('aligned'),
-              style: GoogleFonts.manrope(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.brassLight,
-              ),
-            )
-          : Row(
-              key: const ValueKey('unaligned'),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: facingQibla
+                ? Text(
+                    t.qiblaFacingQibla,
+                    key: const ValueKey('aligned'),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.manrope(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.brassLight,
+                    ),
+                  )
+                : Row(
+                    key: const ValueKey('unaligned'),
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.explore_outlined,
+                          size: 14, color: AppColors.cream.withOpacity(0.5)),
+                      const SizedBox(width: 6),
+                      // Flexible -- sans lui le Text refuse de passer à la
+                      // ligne dans un Row et dépasse en largeur (dépassement
+                      // signalé par l'utilisateur, texte français plus long
+                      // que ce que l'essai initial avait couvert).
+                      Flexible(
+                        child: Text(
+                          t.qiblaTurnPhoneHint,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            color: AppColors.cream.withOpacity(0.5),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+          if (lowAccuracy) ...[
+            const SizedBox(height: 8),
+            Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.explore_outlined,
-                    size: 14, color: AppColors.cream.withOpacity(0.5)),
+                Icon(Icons.warning_amber_rounded, size: 13, color: AppColors.brass),
                 const SizedBox(width: 6),
-                Text(
-                  t.qiblaTurnPhoneHint,
-                  style: GoogleFonts.manrope(
-                    fontSize: 12,
-                    color: AppColors.cream.withOpacity(0.5),
+                Flexible(
+                  child: Text(
+                    'Boussole peu précise -- recalibre en dessinant un "8" avec le téléphone, loin de tout métal/aimant.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.manrope(fontSize: 11, color: AppColors.brass),
                   ),
                 ),
               ],
             ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -450,27 +493,75 @@ class _QiblaDialState extends State<_QiblaDial> with SingleTickerProviderStateMi
     );
   }
 
+  /// Aiguille en forme de tapis de prière (sajjada) : le mihrab (l'arche)
+  /// pointe vers la Mecque, exactement comme on oriente un vrai tapis --
+  /// demande utilisateur 2026-08-09, plus parlant qu'une aiguille abstraite.
   Widget _needle() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.mosque_rounded, color: AppColors.brassLight, size: 26),
-        Container(
-          width: 3,
-          height: 78,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(2),
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                AppColors.brassLight,
-                AppColors.brass.withOpacity(0.15),
-              ],
-            ),
-          ),
-        ),
-      ],
+    return const SizedBox(
+      width: 58,
+      height: 92,
+      child: CustomPaint(painter: _PrayerRugPainter()),
     );
   }
+}
+
+class _PrayerRugPainter extends CustomPainter {
+  const _PrayerRugPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final archHeight = size.height * 0.30;
+    final bodyTop = archHeight - 4; // léger chevauchement, pas de jointure visible
+    final bodyRect = Rect.fromLTWH(4, bodyTop, size.width - 8, size.height - bodyTop - 4);
+    final body = RRect.fromRectAndRadius(bodyRect, const Radius.circular(5));
+
+    // Arche du mihrab -- pointe en (centre, 0), c'est elle qui indique la
+    // direction une fois l'ensemble tourné par Transform.rotate.
+    final archPath = Path()
+      ..moveTo(6, archHeight)
+      ..quadraticBezierTo(6, archHeight * 0.35, size.width / 2, 0)
+      ..quadraticBezierTo(size.width - 6, archHeight * 0.35, size.width - 6, archHeight)
+      ..close();
+
+    final fillGradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [AppColors.brassLight, AppColors.brass.withOpacity(0.65)],
+    );
+    canvas.drawPath(
+      archPath,
+      Paint()..shader = fillGradient.createShader(Rect.fromLTWH(0, 0, size.width, archHeight)),
+    );
+    canvas.drawRRect(body, Paint()..color = AppColors.green800.withOpacity(0.85));
+
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = AppColors.brassLight;
+    canvas.drawPath(archPath, stroke);
+    canvas.drawRRect(body, stroke);
+
+    // Bordure décorative interne, comme le tissage bordant un vrai tapis.
+    final innerRect = bodyRect.deflate(6);
+    if (innerRect.width > 0 && innerRect.height > 0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(innerRect, const Radius.circular(3)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8
+          ..color = AppColors.brassLight.withOpacity(0.5),
+      );
+    }
+
+    // Petit médaillon central, écho du motif déjà utilisé sur les numéros
+    // de verset et le cadran lui-même.
+    canvas.drawCircle(
+      Offset(size.width / 2, bodyTop + (size.height - bodyTop) * 0.42),
+      3,
+      Paint()..color = AppColors.brassLight.withOpacity(0.7),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
