@@ -415,6 +415,11 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
 
   // Explique un mot précis tapé dans le verset (demande utilisateur
   // 2026-07-10 : granularité mot, pas seulement verset entier).
+  //
+  // Plus appelée depuis le 2026-08-09 (retrait du branchement `onWordLongPress`
+  // ci-dessous, demande utilisateur : « à faire après ») -- conservée intacte
+  // pour la rebrancher proprement plus tard, plutôt que de la supprimer.
+  // ignore: unused_element
   void _openWordExplanation(Verse verse, int wordIdx) {
     // Même filtre que tajweedSpansPerWord/TajweedText (source de [wordIdx]
     // via onWordTap) -- sans lui, une marque décorative isolée (ex. "۞")
@@ -1021,24 +1026,18 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           wordEnd: wordEnd,
           onTap: () => setState(() => _activeVerse = idx),
           onLongPress: () => _menuVerset(idx),
-          // Tap sur un mot précis = l'expliquer (demande utilisateur
-          // 2026-07-10), pas le jouer -- la lecture reste accessible via
-          // le bouton "Lire" une fois le verset sélectionné.
+          // ── EXPLICATION PAR MOT RETIRÉE (2026-08-09, demande utilisateur)
           //
-          // ── PASSE EN APPUI LONG (demande utilisateur 2026-08-07) ─────────
-          // « Quand je suis en mode lecture, le clic sur le bord de l'écran
-          // c'est pour passer à l'écran suivant. » Le tap simple est donc
-          // réservé à la navigation : un mot qui le captait aussi empêchait
-          // la page de tourner dès qu'on visait un peu court. L'appui long
-          // ne concurrence rien -- et c'est déjà le geste du menu de verset,
-          // donc le même reflexe pour « j'en veux plus sur ceci ».
+          // « j'enlève les explications des mots Coran, ce sera à faire
+          // après ». `_openWordExplanation` (cf. plus haut) reste intacte --
+          // seul ce branchement disparaît, pour la rebrancher proprement
+          // plus tard. Historique du geste avant ce retrait : tap simple
+          // (2026-07-10), passé en appui long (2026-08-07) pour ne plus
+          // concurrencer le changement de page en mode lecture.
           //
-          // `onWordTap` n'est plus fourni : sans lui, le texte ne pose aucun
-          // détecteur de tap et le geste redescend intact au parent.
-          onWordLongPress: (wordIdx) {
-            setState(() => _activeVerse = idx);
-            _openWordExplanation(verse, wordIdx);
-          },
+          // `onWordTap`/`onWordLongPress` non fournis : sans eux, le texte
+          // ne pose aucun détecteur sur les mots, et le geste redescend
+          // intact au parent (`onLongPress` ci-dessus, menu du verset).
         );
     }
   }
