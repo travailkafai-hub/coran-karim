@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
-import '../models/judgement_options.dart' show TajwidRule;
+import '../models/judgement_options.dart' show TajwidRule, JudgementPreset;
+import '../providers/judgement_provider.dart' show judgementOptionsProvider;
 import '../models/recitation_state.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
@@ -15,6 +16,8 @@ import '../services/pause_profile_service.dart';
 import '../services/quran_api.dart';
 import '../providers/error_review_provider.dart';
 import '../services/recitation_error_log_service.dart';
+import '../services/session_archive_service.dart';
+import 'coach_sessions.dart' show sessionsArchiveProvider, tailleArchiveProvider;
 import '../services/recitation_start_sequence.dart';
 import '../services/reference_timing_extractor.dart';
 import '../services/rule_annotation_service.dart';
@@ -109,6 +112,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   String? _sessionNotice; // confirmation/échec affiché après la session
   StreamSubscription<int>? _wordFailedSub;
   StreamSubscription<int>? _decrochageSub;
+  StreamSubscription<int>? _nonVertSub;
   bool _autoCorrecting = false; // évite deux corrections en même temps
   DateTime? _correctionCooldownUntil; // anti-rafale, voir _onWordFailed
 
@@ -306,6 +310,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     _wordFailedSub = ref.read(recitationProvider.notifier).wordFailed.listen(
         (i) => _onWordFailed(i,
             raison: 'mot precedent egalement en echec (deux consecutifs)'));
+    // ARCHIVE DU COACH : tout mot verrouillé non vert, sans condition.
+    // Distinct de `wordFailed` à dessein -- celui-ci pilote la correction et
+    // est filtré (réglage, anti-rafale, mode) ; un mot rouge qui n'interrompt
+    // pas reste un mot rouge à revoir plus tard.
+    _nonVertSub = ref
+        .read(recitationProvider.notifier)
+        .wordLockedNonGreen
+        .listen(_archiverMotNonVert);
     // DÉCROCHAGE (2026-08-01) : le récitateur dit autre chose que le texte --
     // deux mots décodés consécutifs hors du texte attendu. Flux SÉPARÉ de
     // `wordFailed` (qui, lui, parle d'un mot attendu mal jugé) : ici, ce
@@ -589,6 +601,32 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     _glypheTimer?.cancel();
     _wordFailedSub?.cancel();
     _decrochageSub?.cancel();
+    _nonVertSub?.cancel();
+    // Clôture de l'archive à la SORTIE D'ÉCRAN aussi, pas seulement à la fin
+    // naturelle : quitter en cours de route est le cas le plus fréquent, et
+    // une session sans `ended_at` n'apparaît nulle part dans le Coach. Le
+    // bilan est calculé ICI (synchrone, l'état est encore lisible) et
+    // l'écriture part en fire-and-forget -- `dispose()` ne doit rien attendre.
+    if (SessionArchiveService.instance.sessionCourante != null) {
+      final (total, verts, atteints) = _compterMots();
+      SessionArchiveService.instance.terminer(
+        wordsTotal: total,
+        wordsGreen: verts,
+        wordsReached: atteints,
+      );
+      // BUG CORRIGÉ (2026-08-07, constat utilisateur : « il faut que je me
+      // déconnecte pour revenir pour voir ma dernière récitation ») --
+      // `sessionsArchiveProvider` est un FutureProvider mis en cache : rien
+      // ne le marquait périmé après la clôture d'une session, donc l'écran
+      // Coach continuait de montrer sa dernière lecture, potentiellement
+      // d'avant cette récitation. Invalidation SYNCHRONE ici (sans attendre
+      // `terminer()`, fire-and-forget comme le reste de ce bloc) : la
+      // ré-exécution ne se produit que lors du prochain `watch` (l'écran
+      // Coach n'est pas forcément monté maintenant), ce qui laisse largement
+      // le temps à l'écriture SQLite de se terminer avant d'être relue.
+      ref.invalidate(sessionsArchiveProvider);
+      ref.invalidate(tailleArchiveProvider);
+    }
     // ── CAUSE RACINE CORRIGÉE (2026-07-25) ───────────────────────────────
     // Ici, `dispose()` SUPPRIMAIT le dossier temporaire de capture
     // (`discardTempDir`) sans prévenir le côté natif, qui gardait le chemin
@@ -657,6 +695,119 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     super.dispose();
   }
 
+
+  /// Archive un mot verrouillé non vert : le verdict ET la voix du récitant.
+  ///
+  /// ⚠️ L'EXTRACTION EST URGENTE, pas différable. La voix vit dans un anneau
+  /// de 300 s côté natif et `v2ExtraitVoix` écrit toujours dans le MÊME
+  /// fichier de cache : la prochaine extraction écrase celle-ci. C'est
+  /// exactement ce que l'utilisateur a décrit — « j'ai écouté ma voix sur la
+  /// première erreur, puis il n'y a plus de voix ». On copie donc le fichier
+  /// dans l'archive tout de suite (cf. SessionArchiveService.archiverMot).
+  ///
+  /// La fenêtre est `mot-1 .. mot` (le mot précédent porte la liaison et le
+  /// madd de fin, un mot seul s'écoute mal) — même choix que la fiche d'aide.
+  Future<void> _archiverMotNonVert(int wordIndex) async {
+    if (_isReferenceSession) return;
+    if (SessionArchiveService.instance.sessionCourante == null) return;
+    final words = ref.read(recitationProvider).words;
+    if (wordIndex < 0 || wordIndex >= words.length) return;
+    final mot = words[wordIndex];
+    final verse = _verseContaining(wordIndex);
+    final local = _localIndexInVerse(wordIndex);
+    String? extrait;
+    try {
+      extrait = await ref
+          .read(recitationVerifierProvider)
+          .v2ExtraitVoix(wordIndex > 0 ? wordIndex - 1 : wordIndex, wordIndex);
+    } catch (e) {
+      // Audio sorti de l'anneau, ou chaîne déjà fermée : le verdict s'archive
+      // quand même. Ne jamais laisser une panne d'audio faire perdre la trace.
+      DiagnosticLog.log('Archive', 'extrait voix impossible mot=$wordIndex : $e');
+    }
+    await SessionArchiveService.instance.archiverMot(
+      wordIndex: wordIndex,
+      expectedWord: mot.display,
+      status: mot.status.name,
+      surahNumber: verse?.surahNumber,
+      ayahNumber: verse?.ayahNumber,
+      wordInAyah: local,
+      heardWord: mot.heard,
+      kind: ref.read(recitationProvider.notifier).classifyError(wordIndex).name,
+      audioSource: extrait,
+    );
+  }
+
+  DateTime? _dernierBilan;
+
+  /// Bilan intermédiaire, au plus une fois toutes les 10 s (cf. l'appelant).
+  void _majBilanPeriodique() {
+    if (SessionArchiveService.instance.sessionCourante == null) return;
+    final maintenant = DateTime.now();
+    if (_dernierBilan != null &&
+        maintenant.difference(_dernierBilan!).inSeconds < 10) {
+      return;
+    }
+    _dernierBilan = maintenant;
+    final (total, verts, atteints) = _compterMots();
+    SessionArchiveService.instance.majBilan(
+      wordsTotal: total,
+      wordsGreen: verts,
+      wordsReached: atteints,
+    );
+  }
+
+  /// (total, verts, atteints) — LE DÉNOMINATEUR EST L'ANCRE MAX, pas la cible
+  /// ni le nombre de mots jugés. S'arrêter au milieu d'une sourate n'est pas
+  /// une faute ; et compter sur les mots jugés fait *baisser* le taux d'erreur
+  /// à chaque mot que la chaîne perd (piège mesuré le 2026-07-29 : un
+  /// correctif passait de 7,22 % à 3,45 % en sautant 9 mots que la version
+  /// précédente jugeait verts — lu sur l'ancre max, il montait à 13,40 %).
+  (int, int, int) _compterMots() {
+    final words = ref.read(recitationProvider).words;
+    // `current` EXCLU, pas seulement `pending` (corrigé 2026-08-06 sur la
+    // mesure) : `current` est le mot que le défilement suit, il n'a reçu aucun
+    // verdict. Le compter gonflait le dénominateur d'une unité --
+    // `words_reached = 296` en base pour une ancre réelle de 295, mesuré sur
+    // la recette déterministe. Un mot jamais jugé n'a rien à faire dans un
+    // taux de réussite.
+    final ancreMax = words.lastIndexWhere((w) =>
+            w.status != WordStatus.pending && w.status != WordStatus.current) +
+        1;
+    var verts = 0;
+    for (var i = 0; i < ancreMax; i++) {
+      if (words[i].status == WordStatus.correct) verts++;
+    }
+    return (words.length, verts, ancreMax);
+  }
+
+  /// Clôt l'archive de la session avec son bilan.
+  ///
+  /// LE DÉNOMINATEUR EST L'ANCRE MAX, PAS LA CIBLE. S'arrêter au milieu d'une
+  /// sourate n'est pas une faute : diviser par la cible ferait passer une
+  /// récitation juste pour mauvaise. Et ce n'est pas non plus le nombre de
+  /// mots JUGÉS -- compter là-dessus fait *baisser* le taux d'erreur à chaque
+  /// mot perdu par la chaîne (piège mesuré le 2026-07-29 : un correctif
+  /// passait de 7,22 % à 3,45 % en sautant 9 mots que la version précédente
+  /// jugeait verts ; lu sur l'ancre max, il montait à 13,40 %).
+  ///
+  /// Appelé à la fin naturelle ET à la sortie d'écran : sans `ended_at`, la
+  /// session resterait invisible dans le Coach.
+  Future<void> _cloturerArchive() async {
+    if (SessionArchiveService.instance.sessionCourante == null) return;
+    final (total, verts, atteints) = _compterMots();
+    await SessionArchiveService.instance.terminer(
+      wordsTotal: total,
+      wordsGreen: verts,
+      wordsReached: atteints,
+    );
+    // Cf. le même correctif dans dispose() -- ici l'écriture est ATTENDUE,
+    // donc l'invalidation après coup est sans ambiguïté d'ordre.
+    if (mounted) {
+      ref.invalidate(sessionsArchiveProvider);
+      ref.invalidate(tailleArchiveProvider);
+    }
+  }
 
   /// [surSilence] : appelé par le décrochage v2 (§_decrochageSub), pas
   /// par le flux `wordFailed` -- le récitateur a quitté le texte ou un trou
@@ -745,9 +896,36 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // Avant ce correctif, ce garde-fou barrait AUSSI `surSilence`, donc le
     // décrochage ne partait jamais dès qu'on décochait la correction — alors
     // que c'est justement le cas où l'aide est indispensable.
-    if (!surSilence && !ref.read(autoCorrectionEnabledProvider)) {
+    // ── LA CORRECTION SUR ERREUR ISOLEE EST RETIREE (2026-08-07) ──────────
+    //
+    // Decision utilisateur : « enleve-moi ce mode, en restant sur audio en cas
+    // de decrochage seulement ».
+    //
+    // POURQUOI, ET C'EST UNE RAISON STRUCTURELLE, PAS UN REGLAGE : le verdict
+    // arrive 4 a 8 s apres le mot -- 4 s de fenetre d'analyse, plus souvent
+    // une seconde fenetre pour verrouiller (k=2 observations concordantes).
+    // En 4 a 8 s le recitant a dit 8 a 15 mots de plus. Interrompre porte donc
+    // TOUJOURS sur du passe : « vu le delai, il sera moins utile, il va
+    // generer de la frustration, pas plus ».
+    //
+    // Mesures du jour qui l'illustrent : correction jouee sur `مُصْلِحُونَ`
+    // alors que la fenetre suivante le validait 500 ms plus tard ; correction
+    // jouee sur un mot dont l'application venait elle-meme d'ecrire
+    // `status=WordStatus.correct` 5 ms plus tot.
+    //
+    // CE QUI RESTE : le DECROCHAGE (`surSilence`), c'est-a-dire le cas ou le
+    // recitant a perdu le fil -- la, le delai ne coute rien puisqu'il ne
+    // recite plus. Et rien n'est perdu de ce qu'on n'interrompt plus : les
+    // verdicts ET la voix de chaque mot non vert sont archives (Coach), donc
+    // revisables a froid.
+    //
+    // Le journal d'erreurs ci-dessus est deliberement AVANT ce point : on
+    // continue d'enregistrer tout ce qu'on ne dit plus.
+    if (!surSilence) {
       DiagnosticLog.log('Correction',
-          'IGNORÉ mot $wordIndex : correction automatique désactivée');
+          'mot $wordIndex : erreur isolee, aucune interruption (mode retire '
+          'le 2026-08-07 -- le verdict arrive 4 a 8 s trop tard). Le mot reste '
+          'colore et archive pour revue dans le Coach.');
       return;
     }
     // Jamais de correction pendant une récitation de RÉFÉRENCE (demande
@@ -787,6 +965,23 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // suite.
     final suiviMaintenant =
         words.indexWhere((w) => w.status == WordStatus.current);
+    // ── UN DECROCHAGE SE REPETE TOUJOURS (2026-08-07) ─────────────────────
+    //
+    // Une premiere version ignorait ici un decrochage designant un mot situe
+    // plus de 3 mots en arriere, pour eviter de faire repeter du passe. RETIRE
+    // le jour meme, sur precision de l'utilisateur : « decrochage, c'est
+    // forcement on repete, avec audio ».
+    //
+    // Et il a raison sur le fond : ce filet faisait DOUBLE EMPLOI avec la
+    // correction posee a la source (`ChaineRecitation` : une fenetre qui se
+    // localise efface l'alerte). Les decrochages perimes n'arrivent donc plus
+    // jusqu'ici ; ceux qui arrivent sont reels, et un vrai decrochage doit
+    // toujours etre souffle -- le recitant a perdu le fil, c'est le seul
+    // moment ou le delai ne coute rien puisqu'il ne recite plus.
+    //
+    // Filtrer une seconde fois EN AVAL aurait etouffe de vrais decrochages :
+    // exactement le palliatif que le projet interdit (corriger la ou le defaut
+    // se VOIT et non la ou il NAIT).
     if (!surSilence && suiviMaintenant >= 0 && wordIndex < suiviMaintenant) {
       DiagnosticLog.log('Correction',
           'signal en retard sur le mot $wordIndex alors que le récitateur en '
@@ -1008,6 +1203,39 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       if (!notifier.v2PiloteAffichage) {
         notifier.rewindAndUnlock(rewindTo);
       }
+      // ── L'ANCRE DE LA v2 RECULE, ELLE (2026-08-07) ──────────────────────
+      //
+      // Le commentaire ci-dessus reste VRAI et n'est pas contredit : reculer
+      // l'ancre de la V1 pendant que la v2 pilote faisait remonter l'affichage
+      // a l'envers, et la v2 sait effectivement suivre un recitant qui reprend
+      // en arriere (`bande.recul`). Rien de tout cela ne change.
+      //
+      // CE QUI CHANGE, ET POURQUOI CE N'EST PAS LA MEME CHOSE : la
+      // specification utilisateur du 2026-08-07 ne demande pas de SUIVRE le
+      // recitant -- ca, la v2 le fait deja. Elle demande de L'ATTENDRE :
+      // « repeter depuis ce decrochage et attendre que la personne repete ».
+      // Or attendre n'a de sens que si les mots concernes peuvent etre
+      // REJUGES ; tant qu'ils restent figes dans le Decideur, la repetition
+      // ne produirait aucun verdict et l'attente serait decorative.
+      //
+      // `reculerAncre` fait exactement cela et rien de plus : il oublie les
+      // verdicts POSTERIEURS au point de reprise (ceux d'avant restent
+      // acquis) et redescend le point de recherche. Il ne recree pas la
+      // chaine -- ce qui aurait efface toute la session.
+      //
+      // SORTIES DE L'ATTENTE, faute de reponse a la question posee : il n'y a
+      // pas de minuteur de blocage. La chaine continue d'ecouter ; si le
+      // recitant ne reprend pas et poursuit plus loin, le localisateur le
+      // retrouve et l'ancre repart d'elle-meme. L'attente ne peut donc pas
+      // figer l'application -- c'est le choix le plus sur tant que le
+      // comportement voulu n'est pas tranche.
+      //
+      // JAMAIS EN SUIVI DE PRIERE : `ChaineRecitation.reculerAncre` refuse de
+      // lui-meme quand `sautLibre` est actif.
+      unawaited(ref.read(recitationVerifierProvider).v2ReculerAncre(rewindTo));
+      DiagnosticLog.log('Correction',
+          'ancre v2 reculee au mot $rewindTo -- les verdicts posterieurs sont '
+          'liberes, le passage peut etre repris et rejuge');
       if (mounted) setState(() => _resumeHintIndex = rewindTo);
       final reciter = ref.read(playerProvider).reciter;
       // Ne rejoue QUE le mot précédent + la plage fautive (demande
@@ -1382,6 +1610,23 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // 2026-07-25 (cf. dispose()). L'appel est idempotent.
       await _closeAudioCapture();
       _maybeSaveProfile();
+      // ── LA FIN RÉELLE D'UNE RÉCITATION, C'EST ICI (2026-08-06) ──────────
+      //
+      // DÉFAUT MESURÉ dès le premier essai de l'utilisateur : « j'ai effectué
+      // une récitation, dans Coach aucune récitation n'est enregistrée ».
+      // Vérifié dans la base du téléphone, pas déduit :
+      //     sessions -> (1, '2026-08-06T22:41:13', ended_at=NULL, sourate 113)
+      //     session_words -> 0
+      // La session était donc bien ouverte ; elle n'a jamais été FERMÉE, et la
+      // liste du Coach ne montre que `ended_at IS NOT NULL`.
+      //
+      // CAUSE : je n'avais branché la clôture que sur `RecitationStatus
+      // .finished` et sur `dispose()`. Or la fin ordinaire d'une récitation,
+      // c'est le tap sur le halo -- ce chemin-ci -- et il ne passe par aucun
+      // des deux : le log s'arrête sur `pauseCapture() | micro en pause`, sans
+      // rien après. Les deux hooks d'origine restent en place (fin
+      // automatique, sortie d'écran), celui-ci est le chemin normal.
+      await _cloturerArchive();
     } else if (st.status != RecitationStatus.processing) {
       _profileSaved = false;
       // Repère "reprends ici" (2026-08-05) : sans ce nettoyage, un repère posé
@@ -1503,6 +1748,17 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // journalise aucune erreur (cf. _onWordFailed), donc effacer serait une
       // perte sèche des stats de la dernière vraie récitation.
       if (!_isReferenceSession) {
+        // ── ARCHIVE DE SESSION (2026-08-06) ──────────────────────────────
+        // Ouverte AVANT le premier mot : sans elle, `archiverMot` n'a pas de
+        // session ou se rattacher et l'archivage est silencieusement perdu.
+        // Jamais en session de reference (comme la journalisation d'erreurs
+        // juste en dessous : ce n'est pas une vraie recitation notee).
+        await SessionArchiveService.instance.demarrer(
+          surahNumber: _verses.isEmpty ? null : _verses.first.surahNumber,
+          fromAyah: _verses.isEmpty ? null : _verses.first.ayahNumber,
+          toAyah: _verses.isEmpty ? null : _verses.last.ayahNumber,
+          preset: ref.read(judgementOptionsProvider).preset.name,
+        );
         for (final s in _verses.map((v) => v.surahNumber).toSet()) {
           await RecitationErrorLogService.instance.clearSurah(s);
         }
@@ -1725,7 +1981,6 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         builder: (context, ref, _) {
           final t = AppLocalizations.of(context)!;
           final sensitivity = ref.watch(correctionSensitivityProvider);
-          final autoCorr = ref.watch(autoCorrectionEnabledProvider);
           final strict = ref.watch(strictCorrectionProvider);
           // DEUX positions, plus trois (demande utilisateur 2026-07-26) : le
           // palier central « équilibré » n'apportait pas de choix lisible --
@@ -1830,16 +2085,28 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       // est indisponible -- ce n'est plus qu'un choix
                       // utilisateur qui disparaît, pas le mécanisme.
 
-                      // ── Comportement de correction ────────────────────────
-                      _SheetSwitch(
-                        icon: Icons.hearing_rounded,
-                        title: t.karaokeAutoCorrectionTitle,
-                        subtitle: t.karaokeAutoCorrectionSubtitle,
-                        value: autoCorr,
-                        onChanged: (v) => ref
-                            .read(autoCorrectionEnabledProvider.notifier)
-                            .set(v),
-                      ),
+                      // ── LE REGLAGE DE CORRECTION EST RETIRE (2026-08-07) ──
+                      //
+                      // Le mode qu'il pilotait n'existe plus (cf.
+                      // `_onWordFailed`) : une erreur isolee n'interrompt plus
+                      // jamais, le verdict arrivant 4 a 8 s trop tard. Il ne
+                      // restait donc qu'un interrupteur qui ne commande rien --
+                      // pire qu'un reglage absent.
+                      //
+                      // `autoCorrectionEnabledProvider` est CONSERVE (d'autres
+                      // ecrans le lisent, et le jour ou une correction en temps
+                      // reel deviendra possible, c'est ici qu'elle reviendra) :
+                      // seul le commutateur disparait de cette feuille.
+                      // Ancien code, garde en trace :
+                      //   _SheetSwitch(
+                      //     icon: Icons.hearing_rounded,
+                      //     title: t.karaokeAutoCorrectionTitle,
+                      //     subtitle: t.karaokeAutoCorrectionSubtitle,
+                      //     value: autoCorr,
+                      //     onChanged: (v) => ref
+                      //         .read(autoCorrectionEnabledProvider.notifier)
+                      //         .set(v),
+                      //   ),
                       _SheetSwitch(
                         icon: Icons.rule_rounded,
                         title: t.karaokeStrictnessTitle,
@@ -1906,7 +2173,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       if (next.status == RecitationStatus.finished &&
           prev?.status != RecitationStatus.finished) {
         _maybeSaveProfile();
+        _cloturerArchive();
       }
+      // Bilan écrit AU FIL DE L'EAU, au plus une fois toutes les 10 s : si le
+      // processus meurt (Android, plantage), la session garde des chiffres
+      // réels au lieu d'apparaître vide. Volontairement PAS à chaque mot --
+      // c'est une écriture disque, elle n'a rien à faire dans le chemin de
+      // jugement.
+      _majBilanPeriodique();
       // Enchaînement sur la page suivante du Mushaf (demande utilisateur
       // 2026-07-11, "récitation en flux continu... enchaîner sur une autre
       // sourate", chargement borné page par page après revue le même jour) :
@@ -2010,6 +2284,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               child: Column(
                 children: [
                   _topBar(context, subtitle, st),
+                  // ── ETOILES, EN MODE ENFANT SEULEMENT ────────────────────
+                  //
+                  // Demande utilisateur (2026-08-06) : « améliore l'aspect
+                  // visuel quand c'est en mode enfant : des étoiles gagnées
+                  // quand on réussit [...] de la gamification quand c'est mode
+                  // enfant ».
+                  //
+                  // Une etoile par VERSET entierement vert. Le verset est
+                  // l'unite naturelle -- un mot est trop fin (l'ecran
+                  // clignoterait), la sourate trop grosse (l'enfant
+                  // n'obtiendrait rien avant la fin).
+                  //
+                  // Strictement reserve au preset ENFANT : recompenser un
+                  // adulte qui travaille son tajwid n'a pas le meme sens, et
+                  // l'utilisateur a demande ca POUR le mode enfant.
+                  if (ref.watch(judgementOptionsProvider).preset ==
+                      JudgementPreset.enfant)
+                    _BandeauEtoiles(etoiles: _etoilesGagnees(st)),
                   _referenceBanner(st),
                   Expanded(child: Center(child: _verseArea(st))),
                   _heardCaption(st),
@@ -2124,6 +2416,33 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   // ── Barre supérieure minimale ─────────────────────────────────────────────
+  /// Nombre de versets ENTIEREMENT verts depuis le debut de la session.
+  ///
+  /// Recalcule a chaque rendu plutot que compte a l'evenement : un verdict peut
+  /// etre revise (un `omis` redevient vert, mesure 12 fois sur 90 mots), et un
+  /// compteur incremental garderait une etoile que la chaine vient de retirer.
+  /// Le cout est negligeable -- on ne parcourt que les mots deja juges.
+  int _etoilesGagnees(RecitationSessionState st) {
+    var etoiles = 0;
+    var tousVerts = true;
+    var vuAuMoinsUn = false;
+    for (var i = 0; i < st.words.length; i++) {
+      final w = st.words[i];
+      if (w.status == WordStatus.pending || w.status == WordStatus.current) {
+        tousVerts = false;
+      } else {
+        vuAuMoinsUn = true;
+        if (w.status != WordStatus.correct) tousVerts = false;
+      }
+      if (_isLastWordOfVerse(i)) {
+        if (tousVerts && vuAuMoinsUn) etoiles++;
+        tousVerts = true;
+        vuAuMoinsUn = false;
+      }
+    }
+    return etoiles;
+  }
+
   Widget _topBar(BuildContext context, String subtitle, RecitationSessionState st) {
     return Padding(
       // Marge droite ramenée de 20 à 4 (correctif 2026-07-25, cf. le bouton
@@ -3220,4 +3539,52 @@ class _SheetSwitch extends StatelessWidget {
         ),
         onTap: () => onChanged(!value),
       );
+}
+
+/// Bandeau d'etoiles du mode ENFANT (cf. `_etoilesGagnees`).
+///
+/// Discret par choix : il vit sous la barre du haut, jamais par-dessus le
+/// texte coranique. Une etoile qui vient d'etre gagnee grossit brievement --
+/// c'est le seul mouvement, pour que le regard revienne au texte.
+class _BandeauEtoiles extends StatelessWidget {
+  final int etoiles;
+  const _BandeauEtoiles({required this.etoiles});
+
+  @override
+  Widget build(BuildContext context) {
+    if (etoiles <= 0) return const SizedBox.shrink();
+    // Au-dela de 5, on affiche « xN » plutot qu'une rangee qui deborde.
+    final aDessiner = etoiles.clamp(0, 5);
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < aDessiner; i++)
+            TweenAnimationBuilder<double>(
+              key: ValueKey('etoile-$i'),
+              tween: Tween(begin: 0.6, end: 1.0),
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.elasticOut,
+              builder: (context, t, child) =>
+                  Transform.scale(scale: t, child: child),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 2),
+                child: Icon(Icons.star_rounded,
+                    color: AppColors.brassLight, size: 26),
+              ),
+            ),
+          if (etoiles > 5)
+            Padding(
+              padding: const EdgeInsets.only(left: 6),
+              child: Text('x$etoiles',
+                  style: GoogleFonts.manrope(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.brassLight)),
+            ),
+        ],
+      ),
+    );
+  }
 }

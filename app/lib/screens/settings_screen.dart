@@ -120,6 +120,7 @@ class SettingsScreen extends ConsumerWidget {
                 MaterialPageRoute(builder: (_) => const VoiceCalibrationScreen())),
           ),
           const _VoiceLoraClipsTile(),
+          const _DisputedVerdictsTile(),
 
           const SizedBox(height: 12),
           _SectionHeader(t.settingsSectionDisplay),
@@ -368,6 +369,69 @@ class _VoiceLoraClipsTileState extends State<_VoiceLoraClipsTile> {
           : count == 0
               ? t.settingsMyClipsEmpty
               : t.settingsMyClipsCount(count),
+      trailing: _exporting
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green700))
+          : const Icon(Icons.ios_share_rounded, color: AppColors.green700),
+      onTap: (count != null && count > 0 && !_exporting) ? _export : null,
+    );
+  }
+}
+
+/// Verdicts CONTESTÉS par l'utilisateur (pouce vers le bas sous l'extrait
+/// « Ma voix », `tajwid_help_sheet.dart` -- demande utilisateur 2026-08-07) :
+/// des faux positifs confirmés par la personne qui a récité, la matière la
+/// plus utile pour recalibrer un futur entraînement. Même contrat que
+/// [_VoiceLoraClipsTile] : export MANUEL uniquement (partage natif), aucune
+/// synchronisation automatique, donnée vocale sensible.
+class _DisputedVerdictsTile extends StatefulWidget {
+  const _DisputedVerdictsTile();
+
+  @override
+  State<_DisputedVerdictsTile> createState() => _DisputedVerdictsTileState();
+}
+
+class _DisputedVerdictsTileState extends State<_DisputedVerdictsTile> {
+  final _service = VoiceLoraClipService();
+  int? _count;
+  bool _exporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final c = await _service.disputedClipCount();
+    if (mounted) setState(() => _count = c);
+  }
+
+  Future<void> _export() async {
+    setState(() => _exporting = true);
+    final ok = await _service.exportDisputedClips();
+    if (!mounted) return;
+    setState(() => _exporting = false);
+    final t = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? t.settingsExportStarted : t.settingsExportCancelled),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final count = _count;
+    return _SettingsTile(
+      icon: Icons.rate_review_outlined,
+      title: t.settingsDisputedTitle,
+      subtitle: count == null
+          ? t.settingsMyClipsLoading
+          : count == 0
+              ? t.settingsDisputedEmpty
+              : t.settingsDisputedCount(count),
       trailing: _exporting
           ? const SizedBox(
               width: 20,

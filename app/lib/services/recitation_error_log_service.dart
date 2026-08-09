@@ -339,4 +339,30 @@ class RecitationErrorLogService {
     await db.delete('recitation_errors',
         where: 'surah_number = ?', whereArgs: [surahNumber]);
   }
+
+  /// Retire l'entrée la PLUS RÉCENTE pour ce mot précis (demande utilisateur
+  /// 2026-08-07 : le pouce vers le bas de la feuille "Ma voix" conteste un
+  /// verdict -- le journal ne doit pas garder une erreur que l'utilisateur a
+  /// lui-même invalidée, sous peine de fausser les stats du Coach avec un
+  /// faux positif connu comme tel). `logError` est appelé SANS condition à
+  /// chaque jugement (`karaoke_recitation_screen.dart`) ; c'est CETTE entrée,
+  /// la dernière pour (sourate, verset, mot), qu'on retire -- jamais un
+  /// historique plus ancien du même mot lors d'une session précédente.
+  Future<void> removeLatestError({
+    required int surahNumber,
+    required int ayahNumber,
+    required int wordIndex,
+  }) async {
+    final db = await _database;
+    final rows = await db.query(
+      'recitation_errors',
+      columns: ['id'],
+      where: 'surah_number = ? AND ayah_number = ? AND word_index = ?',
+      whereArgs: [surahNumber, ayahNumber, wordIndex],
+      orderBy: 'created_at DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    await db.delete('recitation_errors', where: 'id = ?', whereArgs: [rows.first['id']]);
+  }
 }

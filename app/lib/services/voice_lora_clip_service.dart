@@ -39,6 +39,7 @@ class VoiceLoraClipService {
   static const _kDirName = 'voice_lora_clips';
   static const _kManifestFile = 'manifest.jsonl';
   static const _kRecitationDirName = 'recitation_captures';
+  static const _kDisputedDirName = 'disputed_verdicts';
 
   /// Racine durable des captures de diagnostic des récitations.
   Future<Directory> _recitationDir() async {
@@ -209,6 +210,81 @@ class VoiceLoraClipService {
     final result = await SharePlus.instance.share(ShareParams(
       files: [XFile(zipPath)],
       text: 'Clips de récitation vérifiés — Coran Karim (personnalisation voix)',
+    ));
+    return result.status == ShareResultStatus.success;
+  }
+
+  // ── Verdicts contestés (demande utilisateur 2026-08-07) ──────────────────
+  //
+  // Troisième espace, distinct des deux ci-dessus : quand l'utilisateur tape
+  // le pouce vers le bas sur l'extrait "Ma voix" (tajwid_help_sheet.dart), il
+  // dit "l'app a jugé ce mot faux/incertain à tort". L'extrait exact déjà
+  // rejoué (issu du flux brut, cf. `v2ExtraitVoix`) est archivé ici -- un
+  // faux positif confirmé par l'utilisateur est exactement la matière qui
+  // manque pour recalibrer un futur entraînement. Même contrat que les deux
+  // espaces existants : stockage on-device uniquement, export MANUEL via le
+  // partage natif, aucune synchronisation automatique.
+  Future<Directory> _disputedDir() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final dir = Directory('${docs.path}/$_kDisputedDirName');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir;
+  }
+
+  /// Copie (jamais déplace -- la source est un fichier de cache partagé,
+  /// réécrasé à la prochaine écoute) l'extrait contesté vers le stockage
+  /// permanent, avec le texte attendu et le verdict contesté dans le
+  /// manifest.
+  Future<void> commitDisputedClip({
+    required String sourcePath,
+    required String text,
+    required String verdict,
+  }) async {
+    final src = File(sourcePath);
+    if (!await src.exists()) return;
+    final dir = await _disputedDir();
+    final destName = 'clip_${DateTime.now().microsecondsSinceEpoch}.wav';
+    await src.copy('${dir.path}/$destName');
+    final manifestFile = File('${dir.path}/$_kManifestFile');
+    final entry = jsonEncode({
+      'clip': destName,
+      'text': text,
+      'verdict': verdict,
+      'capturedAt': DateTime.now().toIso8601String(),
+    });
+    await manifestFile.writeAsString('$entry\n', mode: FileMode.append, flush: true);
+  }
+
+  /// Nombre de verdicts contestés déjà archivés (affiché dans Réglages).
+  Future<int> disputedClipCount() async {
+    final dir = await _disputedDir();
+    final manifestFile = File('${dir.path}/$_kManifestFile');
+    if (!await manifestFile.exists()) return 0;
+    final lines = await manifestFile.readAsLines();
+    return lines.where((l) => l.trim().isNotEmpty).length;
+  }
+
+  /// Empaquette les verdicts contestés + le manifest dans un .zip et ouvre le
+  /// partage natif -- même contrat que [exportViaShare]/[exportRecitationCaptures].
+  Future<bool> exportDisputedClips() async {
+    final dir = await _disputedDir();
+    if (!await dir.exists()) return false;
+    final files = await dir.list().where((e) => e is File).cast<File>().toList();
+    if (files.isEmpty) return false;
+
+    final tmp = await getTemporaryDirectory();
+    final zipPath =
+        '${tmp.path}/coran_karim_verdicts_contestes_${DateTime.now().millisecondsSinceEpoch}.zip';
+    final encoder = ZipFileEncoder();
+    encoder.create(zipPath);
+    for (final f in files) {
+      encoder.addFile(f);
+    }
+    encoder.close();
+
+    final result = await SharePlus.instance.share(ShareParams(
+      files: [XFile(zipPath)],
+      text: 'Verdicts contestés — Coran Karim (amélioration du modèle)',
     ));
     return result.status == ShareResultStatus.success;
   }

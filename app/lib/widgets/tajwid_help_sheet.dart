@@ -9,7 +9,9 @@ import '../models/verse.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
 import '../services/fastconformer_verifier.dart';
+import '../services/recitation_error_log_service.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
+import '../services/voice_lora_clip_service.dart';
 import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
 import 'tajweed_text.dart';
@@ -387,6 +389,7 @@ void showTajwidHelpSheet(
                         verse: verse,
                         localWordIndex: localWordIndex,
                         globalWordIndex: wordIndex,
+                        focusWord: focusWord,
                       ),
                     ],
                     if (wordIndex != null && focusWord != null) ...[
@@ -452,9 +455,14 @@ class _ListenRangeControl extends ConsumerStatefulWidget {
   /// du récitateur, que la chaîne v2 indexe globalement (pas par verset).
   /// `null` hors session (feuille ouverte depuis la lecture normale).
   final int? globalWordIndex;
+
+  /// Mot attendu -- nécessaire pour archiver l'extrait contesté avec son
+  /// texte (cf. `_onPouceBas`, demande utilisateur 2026-08-07).
+  final String focusWord;
   const _ListenRangeControl({
     required this.verse,
     required this.localWordIndex,
+    required this.focusWord,
     this.globalWordIndex,
   });
 
@@ -476,6 +484,15 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
   bool _playing = false;
   bool _playingVoix = false;
   String? _erreurVoix;
+
+  // ── Pouces "d'accord" / "pas d'accord" (demande utilisateur 2026-08-07) ──
+  // Chemin du dernier extrait "Ma voix" rejoué -- c'est LUI que le pouce vers
+  // le bas archive (même fichier, pas une nouvelle extraction). Réinitialisé
+  // à chaque nouvelle écoute : les pouces ne portent que sur le DERNIER
+  // extrait entendu, jamais un précédent qu'on ne réentendrait pas.
+  String? _cheminVoixActuel;
+  bool _feedbackEnvoye = false;
+  bool _feedbackEnCours = false;
 
   (int, int) get _bounds => switch (_range) {
         _Range.wordOnly => (0, 0),
@@ -513,6 +530,10 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
     setState(() {
       _playingVoix = true;
       _erreurVoix = null;
+      // Nouvel extrait en cours : les pouces d'un extrait précédent ne
+      // portent plus sur ce qui va être entendu maintenant.
+      _cheminVoixActuel = null;
+      _feedbackEnvoye = false;
     });
     try {
       final (before, after) = _bounds;
@@ -527,11 +548,55 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
         setState(() => _erreurVoix = 'Audio plus disponible');
         return;
       }
+      setState(() => _cheminVoixActuel = chemin);
       await WordCorrectionAudio.playFile(chemin);
     } catch (e) {
       if (mounted) setState(() => _erreurVoix = 'Lecture impossible');
     } finally {
       if (mounted) setState(() => _playingVoix = false);
+    }
+  }
+
+  /// Pouce vers le HAUT : « d'accord, l'app a bien vu ». L'erreur est déjà
+  /// enregistrée sans condition au moment du jugement
+  /// (`RecitationErrorLogService.logError`, appelé par
+  /// `karaoke_recitation_screen.dart` pour CHAQUE mot faux/incertain) --
+  /// rien à écrire de plus, ce pouce n'est qu'un accusé de réception visuel
+  /// (décision utilisateur 2026-08-07 : pas de nouvelle colonne en base pour
+  /// l'instant).
+  void _onPouceHaut() {
+    if (_feedbackEnvoye || _feedbackEnCours) return;
+    setState(() => _feedbackEnvoye = true);
+  }
+
+  /// Pouce vers le BAS : « pas d'accord, je l'ai bien dit ». Archive
+  /// l'extrait exact déjà entendu (pas une nouvelle extraction) pour un
+  /// export manuel ultérieur depuis Réglages, ET retire l'erreur du journal
+  /// pour que les statistiques du Coach ne comptent pas un faux positif que
+  /// l'utilisateur vient lui-même d'invalider (décision utilisateur
+  /// 2026-08-07).
+  Future<void> _onPouceBas() async {
+    final chemin = _cheminVoixActuel;
+    if (chemin == null || _feedbackEnvoye || _feedbackEnCours) return;
+    setState(() => _feedbackEnCours = true);
+    try {
+      await VoiceLoraClipService().commitDisputedClip(
+        sourcePath: chemin,
+        text: widget.focusWord,
+        verdict: 'conteste_par_utilisateur',
+      );
+      await RecitationErrorLogService.instance.removeLatestError(
+        surahNumber: widget.verse.surahNumber,
+        ayahNumber: widget.verse.ayahNumber,
+        wordIndex: widget.localWordIndex,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _feedbackEnCours = false;
+          _feedbackEnvoye = true;
+        });
+      }
     }
   }
 
@@ -630,8 +695,147 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
                       fontSize: 11, color: AppColors.green700.withOpacity(0.7)),
                 ),
               ),
+            // ── D'ACCORD / PAS D'ACCORD (2026-08-07) ────────────────────────
+            // TOUJOURS visible dès qu'on est en session (retour utilisateur :
+            // « c'est mieux qu'il soit visible » -- une première version ne
+            // l'affichait qu'après avoir écouté "Ma voix", ce qui la rendait
+            // indécouvrable). Les boutons restent grisés/inactifs tant
+            // qu'aucun extrait n'a encore été entendu (`_cheminVoixActuel`) :
+            // voter sur un son qu'on n'a pas écouté n'a pas de sens, mais la
+            // ligne elle-même ne doit plus se cacher.
+            if (widget.globalWordIndex != null) ...[
+              const SizedBox(height: 10),
+              _PouceFeedbackRow(
+                pret: _cheminVoixActuel != null,
+                envoye: _feedbackEnvoye,
+                enCours: _feedbackEnCours,
+                onHaut: _onPouceHaut,
+                onBas: _onPouceBas,
+              ),
+            ],
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Pouces "d'accord" / "pas d'accord" avec le verdict, sous l'extrait "Ma
+/// voix" (demande utilisateur 2026-08-07). Une fois un choix envoyé, les deux
+/// se figent sur le choix fait (pastille pleine + libellé de remerciement) --
+/// pas de retour en arrière, cohérent avec le reste de l'app (un verdict
+/// verrouillé ne se rejuge pas, cf. `_judge` dans `recitation_provider.dart`).
+class _PouceFeedbackRow extends StatelessWidget {
+  /// Un extrait "Ma voix" a déjà été entendu -- sinon les pouces restent
+  /// visibles (retour utilisateur : « c'est mieux qu'il soit visible ») mais
+  /// grisés, voter sur un son qu'on n'a pas écouté n'a pas de sens.
+  final bool pret;
+  final bool envoye;
+  final bool enCours;
+  final VoidCallback onHaut;
+  final VoidCallback onBas;
+  const _PouceFeedbackRow({
+    required this.pret,
+    required this.envoye,
+    required this.enCours,
+    required this.onHaut,
+    required this.onBas,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    if (envoye) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.green700.withAlpha(20),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle_rounded,
+                size: 16, color: AppColors.green700),
+            const SizedBox(width: 8),
+            Text(
+              t.tajwidHelpVoiceFeedbackThanks,
+              style: GoogleFonts.manrope(
+                  fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.green700),
+            ),
+          ],
+        ),
+      );
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            pret
+                ? t.tajwidHelpVoiceFeedbackPrompt
+                : t.tajwidHelpVoiceFeedbackNeedsListen,
+            style: GoogleFonts.manrope(fontSize: 11.5, color: AppColors.inkLight),
+          ),
+        ),
+        const SizedBox(width: 8),
+        _PouceButton(
+          icon: Icons.thumb_up_alt_rounded,
+          color: AppColors.green700,
+          tooltip: t.tajwidHelpVoiceThumbsUp,
+          active: pret,
+          onTap: (pret && !enCours) ? onHaut : null,
+        ),
+        const SizedBox(width: 8),
+        _PouceButton(
+          icon: Icons.thumb_down_alt_rounded,
+          color: _kPouceBasColor,
+          tooltip: t.tajwidHelpVoiceThumbsDown,
+          active: pret,
+          onTap: (pret && !enCours) ? onBas : null,
+        ),
+      ],
+    );
+  }
+}
+
+// Rouge chaud, cohérent avec la palette terre/vert/laiton du reste de l'app
+// -- ne réutilise pas `recitationTajwidError` (violet, sens différent : écart
+// de règle tajwid, pas un désaccord utilisateur).
+const _kPouceBasColor = Color(0xFFC0392B);
+
+class _PouceButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final bool active;
+  final VoidCallback? onTap;
+  const _PouceButton({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = active ? color : AppColors.inkLight;
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: c.withAlpha(active ? 24 : 14),
+            shape: BoxShape.circle,
+            border: Border.all(color: c.withAlpha(active ? 90 : 50)),
+          ),
+          child: Icon(icon, size: 17, color: c),
+        ),
       ),
     );
   }
