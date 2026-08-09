@@ -882,11 +882,30 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final ancreMax = words.lastIndexWhere((w) =>
             w.status != WordStatus.pending && w.status != WordStatus.current) +
         1;
+    // ── LA BISMILLAH EXCLUE DU TAUX (2026-08-09, constat utilisateur : « 70 %
+    // alors qu'un seul mot en erreur ») ────────────────────────────────────
+    //
+    // `ancreMax` marque la DERNIÈRE position jugée, pas une plage sans trou :
+    // la Bismillah (mots 0..3) est structurellement `pending` pour toujours
+    // (décision 2026-07-20, « jamais jugée »), mais dès qu'un vrai mot PLUS
+    // LOIN dans le texte est jugé, elle se retrouve comprise dans la plage
+    // `0..ancreMax` -- la boucle ci-dessous la comptait alors comme « atteinte
+    // mais pas verte », en plein milieu d'une plage par ailleurs correcte.
+    // Sur une courte sourate (peu de mots au dénominateur), 4 mots jamais
+    // jugés suffisent à faire chuter le taux très fort pour une seule vraie
+    // faute.
+    //
+    // Un mot que le produit a explicitement choisi de ne jamais juger n'est
+    // ni un succès ni un échec : il sort des deux compteurs, numérateur et
+    // dénominateur.
     var verts = 0;
+    var comptes = 0;
     for (var i = 0; i < ancreMax; i++) {
+      if (words[i].isBasmala) continue;
+      comptes++;
       if (words[i].status == WordStatus.correct) verts++;
     }
-    return (words.length, verts, ancreMax);
+    return (words.length, verts, comptes);
   }
 
   /// Clôt l'archive de la session avec son bilan.
