@@ -3286,7 +3286,7 @@ abstract class AppLocalizations {
   /// Introduction de l'écran de dua
   ///
   /// In fr, this message translates to:
-  /// **'Cette application est offerte librement, sans publicité, sans compte et sans collecte de vos données. Elle a été écrite dans un seul but : que la récitation et l\'apprentissage du Coran vous soient plus faciles.'**
+  /// **'Cette application a été écrite pour que la récitation et l\'apprentissage du Coran vous soient plus faciles.'**
   String get duaPourNousIntro;
 
   /// Titre de la section demandant une invocation
@@ -3298,7 +3298,7 @@ abstract class AppLocalizations {
   /// Corps de la demande d'invocation
   ///
   /// In fr, this message translates to:
-  /// **'Aucun paiement n\'est demandé. La seule chose que nous vous demandons, si cette application vous aide, est une invocation : pour mon père décédé, pour mes parents, pour ma famille, et pour tous ceux qui ont contribué à ce travail.'**
+  /// **'En retour, une seule chose : une invocation. Pour mon père décédé, pour mes parents, et pour ma famille.'**
   String get duaPourNousAskBody;
 
   /// Invocation en arabe pour le défunt (hadith rapporté par Muslim)

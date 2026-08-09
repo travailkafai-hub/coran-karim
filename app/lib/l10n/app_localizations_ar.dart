@@ -1886,14 +1886,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get duaPourNousIntro =>
-      'هذا التطبيق مُقدَّم مجانًا: بلا إعلانات، وبلا حساب، ودون جمع أي من بياناتك. وقد كُتب لغاية واحدة، هي أن تكون تلاوة القرآن وتعلّمه أيسر عليك.';
+      'كُتب هذا التطبيق ليكون تلاوة القرآن وتعلّمه أيسر عليك.';
 
   @override
   String get duaPourNousAskTitle => 'إن نفعك';
 
   @override
   String get duaPourNousAskBody =>
-      'لا نطلب منك مالًا. وكل ما نسألك إياه، إن نفعك هذا التطبيق، دعوة صالحة: لوالدي المتوفَّى، ولوالديّ، ولأهلي، ولكل من أسهم في هذا العمل.';
+      'وفي المقابل، شيء واحد فقط: دعوة صالحة. لوالدي المتوفَّى، ولوالديّ، ولأهلي.';
 
   @override
   String get duaPourNousDeceasedArabic =>

@@ -1967,14 +1967,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get duaPourNousIntro =>
-      'This application is given freely: no ads, no account, and none of your data is collected. It was written with a single aim — to make reciting and learning the Quran easier for you.';
+      'This application was written to make reciting and learning the Quran easier for you.';
 
   @override
   String get duaPourNousAskTitle => 'If it helps you';
 
   @override
   String get duaPourNousAskBody =>
-      'No payment is asked of you. The only thing we ask, if this application helps you, is a supplication: for my late father, for my parents, for my family, and for everyone who contributed to this work.';
+      'In return, one thing only: a supplication. For my late father, for my parents, and for my family.';
 
   @override
   String get duaPourNousDeceasedArabic =>
