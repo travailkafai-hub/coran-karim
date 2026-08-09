@@ -3378,6 +3378,36 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Adresse copiee'**
   String get settingsContactCopied;
+
+  /// Instruction de l'etape Entraine, refonte 2026-08-09
+  ///
+  /// In fr, this message translates to:
+  /// **'Recite tout le verset, depuis le debut. Recommence autant de fois que necessaire.'**
+  String get coachTrainInstruction;
+
+  /// Statut mic avant enregistrement, etape Entraine
+  ///
+  /// In fr, this message translates to:
+  /// **'Appuie et recite le verset'**
+  String get coachTapToTrain;
+
+  /// Statut mic pendant l'ecoute, etape Entraine
+  ///
+  /// In fr, this message translates to:
+  /// **'Je t\'ecoute...'**
+  String get coachTrainListening;
+
+  /// Statut apres un tour d'entrainement
+  ///
+  /// In fr, this message translates to:
+  /// **'Tour termine'**
+  String get coachTrainDone;
+
+  /// Bouton de l'etape Entraine vers Controle
+  ///
+  /// In fr, this message translates to:
+  /// **'Passer au controle'**
+  String get coachMoveToControl;
 }
 
 class _AppLocalizationsDelegate

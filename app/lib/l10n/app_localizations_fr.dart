@@ -2038,4 +2038,20 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get settingsContactCopied => 'Adresse copiee';
+
+  @override
+  String get coachTrainInstruction =>
+      'Recite tout le verset, depuis le debut. Recommence autant de fois que necessaire.';
+
+  @override
+  String get coachTapToTrain => 'Appuie et recite le verset';
+
+  @override
+  String get coachTrainListening => 'Je t\'ecoute...';
+
+  @override
+  String get coachTrainDone => 'Tour termine';
+
+  @override
+  String get coachMoveToControl => 'Passer au controle';
 }

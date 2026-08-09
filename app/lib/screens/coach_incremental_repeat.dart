@@ -2,6 +2,13 @@
 // Coach (demande utilisateur 2026-07-24, remplace l'ancien mode "répéter le
 // texte entier N fois depuis le début").
 //
+// ⚠️ PLUS BRANCHÉ DEPUIS LE 2026-08-09 -- retiré de `coach_screen.dart` :
+// « enlève ce deuxième palier [...] en répétant tout le temps depuis le
+// début du verset ». La fenêtre glissante qu'il implémente est justement ce
+// que l'utilisateur a demandé de retirer (le texte jugé rétrécissait et se
+// déplaçait au lieu de rester le verset complet -- cause du décalage
+// signalé). Fichier conservé intact (convention projet).
+//
 // Principe : le verset est découpé en UNITÉS (1 mot en mode Enfant, un
 // nombre de mots configurable approximant une "ligne" sinon --
 // `adultChunkWordCountProvider`, cf. app_settings_provider.dart). Une

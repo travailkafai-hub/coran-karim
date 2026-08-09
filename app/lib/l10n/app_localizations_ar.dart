@@ -1938,4 +1938,20 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get settingsContactCopied => 'تم نسخ العنوان';
+
+  @override
+  String get coachTrainInstruction =>
+      'اتلُ الآية كاملة من البداية. أعد المحاولة كلما احتجت.';
+
+  @override
+  String get coachTapToTrain => 'اضغط واتلُ الآية';
+
+  @override
+  String get coachTrainListening => 'أستمع إليك...';
+
+  @override
+  String get coachTrainDone => 'انتهت الجولة';
+
+  @override
+  String get coachMoveToControl => 'الانتقال إلى المراقبة';
 }

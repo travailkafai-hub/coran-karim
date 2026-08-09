@@ -15,7 +15,9 @@ import '../providers/recitation_provider.dart';
 import '../services/recitation_verifier.dart';
 import '../services/voice_fingerprint_service.dart';
 import '../theme/app_theme.dart';
-import 'coach_incremental_repeat.dart';
+// Retiré du flux le 2026-08-09 (sous-étape "Répète" à fenêtre glissante,
+// remplacée par _ApprentissageMode) -- le fichier existe toujours.
+// import 'coach_incremental_repeat.dart';
 import 'tajwid_rules_screen.dart';
 import '../widgets/tajwid_help_sheet.dart';
 import '../widgets/tajweed_text.dart';
@@ -381,7 +383,104 @@ class _LectureMode extends ConsumerStatefulWidget {
   ConsumerState<_LectureMode> createState() => _LectureModeState();
 }
 
-class _LectureModeState extends ConsumerState<_LectureMode>
+// ── LECTURE REDEVIENT UNE ÉCOUTE (2026-08-09, demande utilisateur) ─────────
+//
+// « Lecture c'est l'audio qui récite tout le verset » -- avant ce correctif,
+// Lecture demandait au contraire à l'utilisateur de réciter et calculait un
+// score (baseline), servant à comparer avec le Contrôle final. L'utilisateur
+// a choisi explicitement : Lecture = écoute seule (récitateur audio), sans
+// mic. Reprend le corps de l'ancienne sous-étape "Écoute" du mode Entraîne
+// (aujourd'hui retiré, cf. `_ApprentissageMode`).
+//
+// CONSÉQUENCE ASSUMÉE : `baselineAccuracy`/`difficultWords` (modèle
+// `CoachSessionState`) ne sont plus jamais renseignés -- Lecture ne produit
+// plus de score. `_GapCard` (comparaison Lecture/Contrôle) dans
+// `_ControleMode` ne s'affichera donc plus jamais (son garde
+// `session.baselineAccuracy != null` reste faux) : pas cassé, juste éteint.
+// Champs et widget conservés intacts (convention projet).
+class _LectureModeState extends ConsumerState<_LectureMode> {
+  bool _audioStarted = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final player = ref.watch(playerProvider);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        children: [
+          InfoBanner(
+            icon: Icons.headphones_outlined,
+            text: t.coachListenInstruction,
+          ),
+          const SizedBox(height: 16),
+          VerseDisplay(words: const [], verses: widget.verses),
+          const SizedBox(height: 28),
+          _PlayButton(
+            isPlaying: player.isPlaying,
+            onTap: () {
+              setState(() => _audioStarted = true);
+              if (player.isPlaying) {
+                ref.read(playerProvider.notifier).pause();
+              } else if (player.isPaused) {
+                ref.read(playerProvider.notifier).resume();
+              } else {
+                ref.read(playerProvider.notifier).play(
+                      widget.verses.first,
+                      widget.verses,
+                    );
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            player.isPlaying ? t.coachListeningAudio : t.coachTapToListen,
+            style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight),
+          ),
+          if (_audioStarted) ...[
+            const SizedBox(height: 28),
+            ActionButton(
+              label: t.coachTrainButton,
+              icon: Icons.arrow_forward_rounded,
+              primary: true,
+              onTap: () {
+                ref.read(playerProvider.notifier).stop();
+                ref.read(coachProvider.notifier).setMode(CoachMode.apprentissage);
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODE 2 — Entraîne (2026-08-09 : un seul palier, le verset ENTIER à chaque fois)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Remplace les 3 sous-étapes Écoute/Imite/Répète (retirées, cf. leurs classes
+// conservées plus bas). Demande utilisateur : « pour s'entraîner y a deux
+// options, soit avec le jeu, soit avec l'entraînement avec les paliers [...]
+// enlève ce deuxième palier [...] en répétant tout le temps depuis le début
+// du verset, en affiche pas entendu, on fait juste colorié [...] vérifie
+// bien si on utilise la même chose déjà bien recette dans la récitation ».
+//
+// CE QUI CAUSAIT LE DÉCALAGE SIGNALÉ : `IncrementalRepeatStep` ne vérifiait
+// JAMAIS le verset entier -- il découpait en unités et faisait glisser une
+// fenêtre de taille fixe, donc le texte affiché/jugé rétrécissait et se
+// déplaçait au fil des tours au lieu de rester le verset complet. Ce widget
+// utilise `recitationProvider.setup(_text)` avec le TEXTE ENTIER, exactement
+// comme `_ControleMode` -- même moteur, même appel, aucune fenêtre.
+class _ApprentissageMode extends ConsumerStatefulWidget {
+  final List<Verse> verses;
+  const _ApprentissageMode({super.key, required this.verses});
+
+  @override
+  ConsumerState<_ApprentissageMode> createState() => _ApprentissageModeState();
+}
+
+class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulse;
   final _fingerprint = VoiceFingerprintService();
@@ -414,27 +513,16 @@ class _LectureModeState extends ConsumerState<_LectureMode>
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final rst = ref.watch(recitationProvider);
-    final coach = ref.watch(coachProvider);
     final listening = rst.status == RecitationStatus.listening;
     final finished = rst.status == RecitationStatus.finished && rst.total > 0;
 
-    if (finished && coach.baselineAccuracy == null) {
-      final difficult = rst.words
-          .where((w) =>
-              w.status == WordStatus.error ||
-              w.status == WordStatus.unclear ||
-              w.status == WordStatus.skipped)
-          .map((w) => w.display)
-          .toList();
+    // Référence d'empreinte vocale (niveau 1) : sauvée depuis ICI maintenant
+    // que Lecture n'enregistre plus rien (cf. `_LectureModeState`). Même
+    // garde qu'avant (accuracy >= 60) : un tour d'entraînement raté n'est
+    // pas une vérité de référence.
+    if (finished) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
-        ref.read(coachProvider.notifier).saveBaseline(rst.accuracy, difficult);
-
-        // Empreinte vocale (niveau 1, voir SKILL.md "Vérification par
-        // embeddings audio-à-audio") : on ne garde CETTE lecture comme
-        // référence QUE si elle est déjà jugée raisonnablement correcte —
-        // piège identifié dès l'idée de départ (une 1ère lecture peut
-        // contenir des erreurs, ce n'est pas une vérité en soi).
         final audioPath = ref.read(recitationVerifierProvider).lastAudioPath;
         if (audioPath != null && rst.accuracy >= 60) {
           final ok = await _fingerprint.saveReference(audioPath, _passageKey);
@@ -448,8 +536,8 @@ class _LectureModeState extends ConsumerState<_LectureMode>
       child: Column(
         children: [
           InfoBanner(
-            icon: Icons.auto_stories_outlined,
-            text: t.coachReadAloudInstruction,
+            icon: Icons.record_voice_over_outlined,
+            text: t.coachTrainInstruction,
           ),
           const SizedBox(height: 20),
           VerseDisplay(words: rst.words, verses: widget.verses),
@@ -460,10 +548,10 @@ class _LectureModeState extends ConsumerState<_LectureMode>
             finished: finished,
             pulse: _pulse,
             statusText: listening
-                ? t.coachListeningLecture
+                ? t.coachTrainListening
                 : finished
-                    ? t.coachDoneLecture
-                    : t.coachTapToRead,
+                    ? t.coachTrainDone
+                    : t.coachTapToTrain,
             onTap: () {
               final n = ref.read(recitationProvider.notifier);
               if (listening) {
@@ -478,7 +566,9 @@ class _LectureModeState extends ConsumerState<_LectureMode>
               ref.read(recitationProvider.notifier).reset();
             },
           ),
-          RawTranscriptBox(text: rst.rawTranscript),
+          // PAS de RawTranscriptBox ici (demande utilisateur : « n'affiche
+          // pas entendu, on fait juste colorié ») -- contrairement à Lecture
+          // et Contrôle, qui le montrent toujours.
           if (finished) ...[
             const SizedBox(height: 20),
             _ScoreRow(accuracy: rst.accuracy),
@@ -492,35 +582,16 @@ class _LectureModeState extends ConsumerState<_LectureMode>
                       w.status == WordStatus.skipped)
                   .map((w) => w.display)
                   .toList(),
-              mode: CoachMode.lecture,
+              mode: CoachMode.apprentissage,
               baseline: null,
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ActionButton(
-                    label: t.coachAlreadyKnow,
-                    icon: Icons.fast_forward_rounded,
-                    primary: false,
-                    onTap: () => ref
-                        .read(coachProvider.notifier)
-                        .setMode(CoachMode.controle),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 2,
-                  child: ActionButton(
-                    label: t.coachTrainButton,
-                    icon: Icons.arrow_forward_rounded,
-                    primary: true,
-                    onTap: () => ref
-                        .read(coachProvider.notifier)
-                        .setMode(CoachMode.apprentissage),
-                  ),
-                ),
-              ],
+            ActionButton(
+              label: t.coachMoveToControl,
+              icon: Icons.arrow_forward_rounded,
+              primary: true,
+              onTap: () =>
+                  ref.read(coachProvider.notifier).setMode(CoachMode.controle),
             ),
           ],
         ],
@@ -529,206 +600,14 @@ class _LectureModeState extends ConsumerState<_LectureMode>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MODE 2 — Apprentissage (3 sous-étapes)
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── SOUS-ÉTAPES ÉCOUTE/IMITE/RÉPÈTE RETIRÉES (2026-08-09) ──────────────────
+// Remplacées par `_ApprentissageMode` ci-dessus (un seul palier, verset
+// entier). Classes conservées intactes (convention projet), plus référencées.
+// ignore: unused_element
 List<String> _appStepLabels(AppLocalizations t) =>
     [t.coachSubStepListen, t.coachSubStepImitate, t.coachSubStepRepeat];
 
-class _ApprentissageMode extends ConsumerStatefulWidget {
-  final List<Verse> verses;
-  const _ApprentissageMode({super.key, required this.verses});
-
-  @override
-  ConsumerState<_ApprentissageMode> createState() => _ApprentissageModeState();
-}
-
-class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulse;
-  bool _audioStarted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final session = ref.watch(coachProvider);
-    final step = session.appStep;
-    final player = ref.watch(playerProvider);
-    final coach = ref.read(coachProvider.notifier);
-
-    return Column(
-      children: [
-        _AppSubStepBar(currentStep: step, onTap: (i) {
-          if (i <= step) coach.setAppStep(i);
-        }),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-            child: Column(
-              children: [
-                // ── Étape 0 : Écoute ──────────────────────────────────────
-                if (step == 0) ...[
-                  InfoBanner(
-                    icon: Icons.headphones_outlined,
-                    text: t.coachListenInstruction,
-                  ),
-                  const SizedBox(height: 16),
-                  VerseDisplay(words: const [], verses: widget.verses),
-                  const SizedBox(height: 28),
-                  _PlayButton(
-                    isPlaying: player.isPlaying,
-                    onTap: () {
-                      setState(() => _audioStarted = true);
-                      if (player.isPlaying) {
-                        ref.read(playerProvider.notifier).pause();
-                      } else if (player.isPaused) {
-                        ref.read(playerProvider.notifier).resume();
-                      } else {
-                        ref.read(playerProvider.notifier).play(
-                              widget.verses.first,
-                              widget.verses,
-                            );
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    player.isPlaying
-                        ? t.coachListeningAudio
-                        : t.coachTapToListen,
-                    style: GoogleFonts.manrope(
-                        fontSize: 12, color: AppColors.inkLight),
-                  ),
-                  if (_audioStarted) ...[
-                    const SizedBox(height: 28),
-                    ActionButton(
-                      label: t.coachMoveToImitation,
-                      icon: Icons.arrow_forward_rounded,
-                      primary: true,
-                      onTap: () {
-                        ref.read(playerProvider.notifier).stop();
-                        coach.nextAppStep();
-                      },
-                    ),
-                  ],
-                ],
-
-                // ── Étape 1 : Imite ───────────────────────────────────────
-                if (step == 1) ...[
-                  InfoBanner(
-                    icon: Icons.record_voice_over_outlined,
-                    text: t.coachImitateInstruction,
-                  ),
-                  const SizedBox(height: 16),
-                  VerseDisplay(words: const [], verses: widget.verses),
-                  const SizedBox(height: 28),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _PlayButton(
-                        isPlaying: player.isPlaying,
-                        onTap: () {
-                          setState(() => _audioStarted = true);
-                          if (player.isPlaying) {
-                            ref.read(playerProvider.notifier).pause();
-                          } else if (player.isPaused) {
-                            ref.read(playerProvider.notifier).resume();
-                          } else {
-                            ref.read(playerProvider.notifier).play(
-                                  widget.verses.first,
-                                  widget.verses,
-                                );
-                          }
-                        },
-                      ),
-                      const SizedBox(width: 24),
-                      AnimatedBuilder(
-                        animation: _pulse,
-                        builder: (context2, child2) => Transform.scale(
-                          scale: player.isPlaying
-                              ? (0.94 + _pulse.value * 0.12)
-                              : 1.0,
-                          child: Container(
-                            width: 62,
-                            height: 62,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: player.isPlaying
-                                  ? AppColors.brass.withAlpha(25)
-                                  : Colors.grey.withAlpha(18),
-                              border: Border.all(
-                                color: player.isPlaying
-                                    ? AppColors.brass
-                                    : Colors.grey.shade300,
-                                width: 2,
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.mic,
-                              color: player.isPlaying
-                                  ? AppColors.brass
-                                  : Colors.grey,
-                              size: 28,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    player.isPlaying
-                        ? t.coachSpeakAlong
-                        : t.coachLaunchAndImitate,
-                    style: GoogleFonts.manrope(
-                        fontSize: 12, color: AppColors.inkLight),
-                  ),
-                  const SizedBox(height: 28),
-                  ActionButton(
-                    label: t.coachImitatedNext,
-                    icon: Icons.arrow_forward_rounded,
-                    primary: true,
-                    onTap: () {
-                      ref.read(playerProvider.notifier).stop();
-                      coach.nextAppStep();
-                    },
-                  ),
-                ],
-
-                // ── Étape 2 : Répète (moteur incrémental) ──────────────────
-                if (step == 2)
-                  IncrementalRepeatStep(
-                    key: ValueKey('incremental-${widget.verses.first.key}'),
-                    verse: widget.verses.first,
-                    isLastVerse: session.isLastVerse,
-                    onAllVersesDone: () =>
-                        coach.setMode(CoachMode.controle),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
+// ignore: unused_element
 class _AppSubStepBar extends StatelessWidget {
   final int currentStep;
   final void Function(int) onTap;
@@ -768,6 +647,7 @@ class _AppSubStepBar extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _SubStepDot extends StatelessWidget {
   final int index;
   final String label;

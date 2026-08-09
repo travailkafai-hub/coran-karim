@@ -2513,5 +2513,25 @@
   "settingsContactCopied": "Adresse copiee",
   "@settingsContactCopied": {
     "description": "Confirmation apres copie de l'adresse de contact"
+  },
+  "coachTrainInstruction": "Recite tout le verset, depuis le debut. Recommence autant de fois que necessaire.",
+  "@coachTrainInstruction": {
+    "description": "Instruction de l'etape Entraine, refonte 2026-08-09"
+  },
+  "coachTapToTrain": "Appuie et recite le verset",
+  "@coachTapToTrain": {
+    "description": "Statut mic avant enregistrement, etape Entraine"
+  },
+  "coachTrainListening": "Je t'ecoute...",
+  "@coachTrainListening": {
+    "description": "Statut mic pendant l'ecoute, etape Entraine"
+  },
+  "coachTrainDone": "Tour termine",
+  "@coachTrainDone": {
+    "description": "Statut apres un tour d'entrainement"
+  },
+  "coachMoveToControl": "Passer au controle",
+  "@coachMoveToControl": {
+    "description": "Bouton de l'etape Entraine vers Controle"
   }
 }

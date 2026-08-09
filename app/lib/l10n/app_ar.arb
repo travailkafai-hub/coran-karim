@@ -652,5 +652,10 @@
   "settingsContactTitle": "تواصل معنا",
   "settingsContactSubtitle": "آراء وملاحظات واقتراحات",
   "settingsContactBody": "لديك ملاحظة أو خطأ أو فكرة؟ انسخ العنوان أدناه وراسلنا.",
-  "settingsContactCopied": "تم نسخ العنوان"
+  "settingsContactCopied": "تم نسخ العنوان",
+  "coachTrainInstruction": "اتلُ الآية كاملة من البداية. أعد المحاولة كلما احتجت.",
+  "coachTapToTrain": "اضغط واتلُ الآية",
+  "coachTrainListening": "أستمع إليك...",
+  "coachTrainDone": "انتهت الجولة",
+  "coachMoveToControl": "الانتقال إلى المراقبة"
 }

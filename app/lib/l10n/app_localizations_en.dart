@@ -2020,4 +2020,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsContactCopied => 'Address copied';
+
+  @override
+  String get coachTrainInstruction =>
+      'Recite the whole verse, from the start. Repeat as many times as needed.';
+
+  @override
+  String get coachTapToTrain => 'Tap and recite the verse';
+
+  @override
+  String get coachTrainListening => 'Listening...';
+
+  @override
+  String get coachTrainDone => 'Round finished';
+
+  @override
+  String get coachMoveToControl => 'Move to control';
 }

@@ -652,5 +652,10 @@
   "settingsContactTitle": "Contact us",
   "settingsContactSubtitle": "Feedback, remarks, suggestions",
   "settingsContactBody": "A remark, a bug, an idea? Copy the address below and write to us.",
-  "settingsContactCopied": "Address copied"
+  "settingsContactCopied": "Address copied",
+  "coachTrainInstruction": "Recite the whole verse, from the start. Repeat as many times as needed.",
+  "coachTapToTrain": "Tap and recite the verse",
+  "coachTrainListening": "Listening...",
+  "coachTrainDone": "Round finished",
+  "coachMoveToControl": "Move to control"
 }
