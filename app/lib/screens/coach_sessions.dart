@@ -38,6 +38,13 @@ final motsDeSessionProvider =
 final tailleArchiveProvider =
     FutureProvider<int>((ref) => SessionArchiveService.instance.octetsAudio());
 
+// Plus montée depuis le 2026-08-09 (coach_hub_screen.dart) : fusionnée dans
+// `_ErrorsSection`/`_AyahErrorDetails`, demande utilisateur « une seule liste
+// fusionnée, groupée par sourate » -- doublon avec le cumul par sourate.
+// Conservée intacte, code toujours valide. `sessionsArchiveProvider` /
+// `tailleArchiveProvider` restent utilisés ailleurs (main.dart, invalidation
+// à l'ouverture de l'onglet Coach), ne pas les retirer.
+// ignore: unused_element
 class SessionsSection extends ConsumerWidget {
   const SessionsSection({super.key});
 

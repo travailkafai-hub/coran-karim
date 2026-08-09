@@ -293,6 +293,32 @@ class SessionArchiveService {
     return rows.map(MotArchive.fromMap).toList();
   }
 
+  /// La plus RÉCENTE archive avec audio pour un mot précis (sourate/verset/
+  /// position dans le verset), toutes sessions confondues.
+  ///
+  /// ── POURQUOI (2026-08-09) : fusion Coach hub ──────────────────────────
+  /// Le volet "Mes erreurs" (cumul par sourate, `RecitationErrorLogService`)
+  /// n'a jamais porté de voix -- seule l'archive par session en a. Demande
+  /// utilisateur : « une seule liste fusionnée, groupée par sourate » --
+  /// chaque mot fautif doit donc pouvoir retrouver SA voix la plus récente
+  /// sans passer par un écran de session séparé. `word_in_ayah` existe déjà
+  /// dans `session_words` (rempli par `karaoke_recitation_screen._archiverMotNonVert`
+  /// / `_archiverOubli`), donc la recherche est directe.
+  Future<MotArchive?> dernierMotAvecAudio(
+      int surahNumber, int ayahNumber, int wordInAyah) async {
+    final db = await _database;
+    final rows = await db.query(
+      'session_words',
+      where: 'surah_number = ? AND ayah_number = ? AND word_in_ayah = ? '
+          'AND audio_path IS NOT NULL',
+      whereArgs: [surahNumber, ayahNumber, wordInAyah],
+      orderBy: 'created_at DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return MotArchive.fromMap(rows.first);
+  }
+
   /// Efface sessions et fichiers audio au-delà de la rétention. L'audio est
   /// supprimé AVANT la ligne : si l'app meurt entre les deux, on garde un
   /// fichier orphelin (récupéré au passage suivant par le balayage du
