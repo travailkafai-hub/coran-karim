@@ -7,22 +7,23 @@
 // n'ouvrait rien, et son sous-titre annonçait « Whisper » alors que la chaîne
 // de vérification tourne sur FastConformer CTC depuis longtemps.
 //
-// Une application qui capte le micro, lit la position et produit du texte
-// d'explication religieuse par un modèle de langage ne peut pas être publiée
-// sans dire, DANS l'app :
+// Une application qui capte le micro et juge une récitation ne peut pas être
+// publiée sans dire, DANS l'app :
 //   1. ce qu'elle enregistre, où ça reste, comment l'effacer ;
-//   2. ce que vaut le texte généré (aucune autorité religieuse) et comment en
-//      signaler un mauvais — la politique « IA générative » de Google Play
-//      exige ce moyen de signalement dans l'application ;
-//   3. sous quelles conditions vivent les composants embarqués. La licence de
-//      Gemma impose en particulier de TRANSMETTRE ses conditions d'utilisation
-//      à l'utilisateur final : ce n'est pas une politesse, c'est la condition
-//      de la redistribution du modèle.
+//   2. ce qui juge la récitation, et d'où ce modèle vient.
+//
+// LE POINT 2 EST UNE OBLIGATION, PAS UNE POLITESSE. Le modèle de
+// reconnaissance descend de `nvidia/stt_ar_fastconformer_hybrid_large_pcd_v1`,
+// publié sous **CC BY 4.0** (vérifié sur la fiche du modèle le 2026-08-09, et
+// non supposé). Cette licence impose quatre éléments dans l'attribution :
+// le créateur, le titre du modèle, un lien vers la source, la licence avec son
+// lien — ET l'indication que l'œuvre a été MODIFIÉE. Un modèle affiné reste une
+// œuvre dérivée : l'entraînement maison n'efface pas l'attribution due.
 //
 // Les licences des paquets Dart/Flutter ne sont PAS recopiées à la main ici :
 // `showLicensePage` les collecte déjà toutes, exactement, depuis les paquets
 // eux-mêmes. Ce fichier n'ajoute au registre que ce qui vient d'AILLEURS que
-// pub.dev (modèles ASR/LLM, ONNX Runtime, polices) — sinon la liste affichée
+// pub.dev (modèle ASR, ONNX Runtime, polices) — sinon la liste affichée
 // mentirait par omission.
 
 import 'package:flutter/material.dart';
@@ -32,7 +33,6 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_localizations.dart';
-import '../services/diagnostic_log.dart';
 import '../theme/app_theme.dart';
 
 /// Version affichée à l'utilisateur. **À garder synchronisée avec le champ
@@ -45,14 +45,37 @@ import '../theme/app_theme.dart';
 const String kAppVersion = '1.0.0';
 const String kAppBuild = '1';
 
+/// Le tuteur textuel (Gemma) est-il EMBARQUÉ dans la version distribuée ?
+///
+/// **`false` aujourd'hui, et c'est un constat vérifié, pas une supposition**
+/// (2026-08-09) : aucun chemin de l'application n'embarque ni ne télécharge le
+/// `.litertlm`. `TutorLlmService.ensureLoaded` cherche le fichier dans le
+/// stockage privé, ne le trouve pas, journalise « Modèle absent — ignoré » et
+/// `explainVerse` rend `null`. Aucun texte n'est donc produit chez un
+/// utilisateur final, et les conditions d'utilisation de Gemma — qui portent
+/// sur la DISTRIBUTION du modèle — ne s'appliquent pas.
+///
+/// ⚠️ Ce que ce drapeau NE dit PAS : que le code est débranché. Le chemin IHM
+/// est bien vivant (`showCoachExplanation`, appelé depuis coach_hub_screen et
+/// deux fois depuis mushaf_screen) — en production cela donne un bouton qui
+/// n'aboutit jamais. À trancher séparément : soit embarquer le modèle, soit
+/// retirer ces entrées.
+///
+/// **Le jour où le modèle est embarqué, repasser ce drapeau à `true`** : cela
+/// rétablit d'un coup l'avertissement sur le texte généré, le bloc de
+/// signalement et la notice Gemma au registre des licences — les trois
+/// obligations qui reviennent avec lui.
+const bool kTuteurIaEmbarque = false;
+
 /// Adresse de contact affichée pour signaler un texte généré inapproprié.
 ///
-/// ⚠️ **VIDE = la section de signalement est masquée.** À renseigner AVANT
-/// toute publication : la politique « IA générative » de Google Play exige un
-/// moyen, accessible DANS l'application, de signaler le contenu produit par le
-/// modèle. Laissée vide volontairement — choisir d'exposer une adresse
-/// personnelle ou une adresse de support dédiée est une décision de l'éditeur,
-/// pas de l'outil qui écrit cet écran.
+/// N'a d'effet que si [kTuteurIaEmbarque] vaut `true`. **VIDE = bloc masqué.**
+/// À renseigner AVANT de publier une version embarquant le tuteur : la
+/// politique « IA générative » de Google Play exige un moyen, accessible DANS
+/// l'application, de signaler le contenu produit par le modèle. Laissée vide
+/// volontairement — choisir d'exposer une adresse personnelle ou une adresse de
+/// support dédiée est une décision de l'éditeur, pas de l'outil qui écrit cet
+/// écran.
 const String kContactEmail = '';
 
 /// Notices des composants qui ne viennent PAS de pub.dev — `showLicensePage`
@@ -61,28 +84,59 @@ const String kContactEmail = '';
 /// Enregistré une seule fois (le registre est global et `showLicensePage`
 /// relit tous les fournisseurs à chaque ouverture : sans ce garde, rouvrir
 /// l'écran dupliquerait chaque notice).
+/// ── ATTRIBUTION DU MODÈLE DE RECONNAISSANCE ──────────────────────────────
+/// Notice COMPLÈTE, réservée à la page des licences.
+///
+/// Elle ne s'affiche PAS sur la page « À propos » (retour utilisateur
+/// 2026-08-09 : « t'as trop détaillé, tu parles de ONNX, HuggingFace, mets
+/// juste le nécessaire »). Un récitateur n'a que faire du nom du checkpoint,
+/// du format d'export et d'une URL de dépôt de modèles ; la page ne garde donc
+/// qu'un crédit court (`aboutAsrCredit`), et le détail vit ici.
+///
+/// C'est conforme : CC BY 4.0 demande une attribution « raisonnable au regard
+/// du support », ce qui admet un renvoi vers un écran de licences accessible
+/// en un geste — pas que tout figure sur l'écran d'accueil.
+///
+/// Volontairement NON TRADUIT : c'est une mention légale, pas un message
+/// d'interface. Les noms propres, l'URL de la source et l'identifiant de
+/// licence doivent rester identiques dans les trois langues.
+const String kNoticeAsrTitre = 'Modèle de reconnaissance de la récitation';
+const String kNoticeAsr =
+    'Ce produit utilise un modèle dérivé de '
+    '« stt_ar_fastconformer_hybrid_large_pcd_v1 » de NVIDIA '
+    '(huggingface.co/nvidia/stt_ar_fastconformer_hybrid_large_pcd_v1.0), '
+    'distribué sous licence Creative Commons Attribution 4.0 International '
+    '(CC BY 4.0) — creativecommons.org/licenses/by/4.0/\n\n'
+    'MODIFICATIONS : le modèle a été affiné (fine-tuning) sur un corpus de '
+    'récitation coranique, puis exporté au format ONNX pour fonctionner '
+    "hors ligne sur l'appareil. NVIDIA n'endosse ni ne valide cette "
+    'application ni cet usage.';
+
 var _licencesEnregistrees = false;
 
 void enregistrerLicencesTierces() {
   if (_licencesEnregistrees) return;
   _licencesEnregistrees = true;
   LicenseRegistry.addLicense(() async* {
+    // Le socle de l'application : c'est CE modèle qui juge la récitation.
+    // Attribution CC BY 4.0 complète — les quatre éléments exigés y sont
+    // (créateur, titre, lien vers la source, licence + lien) plus le cinquième
+    // que l'on oublie systématiquement : DIRE QUE L'ŒUVRE A ÉTÉ MODIFIÉE.
     yield const LicenseEntryWithLineBreaks(
-      ['Gemma (modèle de langage embarqué)'],
-      'Gemma is provided under and subject to the Gemma Terms of Use found at '
-      'ai.google.dev/gemma/terms\n\n'
-      "Le tuteur de cette application utilise un modèle Gemma de Google, "
-      "affiné pour l'explication de versets. Son utilisation est soumise aux "
-      "conditions ci-dessus ainsi qu'à la Gemma Prohibited Use Policy "
-      '(ai.google.dev/gemma/prohibited_use_policy).',
+      [kNoticeAsrTitre],
+      kNoticeAsr,
     );
-    yield const LicenseEntryWithLineBreaks(
-      ['Modèle de reconnaissance de récitation'],
-      "La vérification de la récitation repose sur un modèle FastConformer CTC "
-      "affiné pour la récitation coranique à partir du modèle de base "
-      "nvidia/stt_ar_fastconformer_hybrid_large_pcd_v1 (NVIDIA NeMo). "
-      "Attribution à NVIDIA au titre de la licence du modèle de base.",
-    );
+    if (kTuteurIaEmbarque) {
+      yield const LicenseEntryWithLineBreaks(
+        ['Gemma (modèle de langage embarqué)'],
+        'Gemma is provided under and subject to the Gemma Terms of Use found at '
+        'ai.google.dev/gemma/terms\n\n'
+        "Le tuteur de cette application utilise un modèle Gemma de Google, "
+        "affiné pour l'explication de versets. Son utilisation est soumise aux "
+        "conditions ci-dessus ainsi qu'à la Gemma Prohibited Use Policy "
+        '(ai.google.dev/gemma/prohibited_use_policy).',
+      );
+    }
     yield const LicenseEntryWithLineBreaks(
       ['ONNX Runtime'],
       'ONNX Runtime — Copyright (c) Microsoft Corporation. Distribué sous '
@@ -144,28 +198,50 @@ class AboutScreen extends StatelessWidget {
             ],
           ),
 
-          // ── 2. Avertissement sur le texte généré ────────────────────────
+          // ── 2. Le moteur de reconnaissance : LE SOCLE ───────────────────
+          // Placé haut, avant les sources et les licences : c'est ce qui juge
+          // la récitation. L'utilisateur a le droit de savoir ce qui le
+          // corrige, et NVIDIA a le droit d'être cité là où ça se lit.
           _Section(
-            titre: t.aboutSectionAi,
-            // Fond ambré : cet encadré n'est pas une information de plus, c'est
-            // une mise en garde. Elle doit se distinguer au premier coup d'œil
-            // du reste de la page.
-            fond: const Color(0xFFFDF4E0),
-            bordure: AppColors.brass,
+            titre: t.aboutSectionAsr,
             enfants: [
-              _Paragraphe(t.aboutAiWarning),
-              if (kContactEmail.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                _BlocSignalement(
-                  titre: t.aboutAiReportTitle,
-                  corps: t.aboutAiReportBody(kContactEmail),
-                  confirmation: t.aboutCopied,
-                ),
-              ],
+              _Paragraphe(t.aboutAsrBody),
+              const SizedBox(height: 10),
+              // Crédit COURT : le créateur, la licence, et le fait que le
+              // modèle a été modifié. Le reste (nom du checkpoint, lien vers
+              // la source, exclusion de garantie) est dans les licences.
+              _Mention(t.aboutAsrCredit),
             ],
           ),
 
-          // ── 3. Sources ──────────────────────────────────────────────────
+          // ── 3. Avertissement sur le texte généré ────────────────────────
+          // Affiché SEULEMENT si le tuteur est réellement embarqué : avertir
+          // sur un texte qu'aucun utilisateur ne verra jamais n'informe
+          // personne et brouille les mises en garde qui, elles, comptent.
+          if (kTuteurIaEmbarque)
+            _Section(
+              titre: t.aboutSectionAi,
+              // Fond ambré : cet encadré n'est pas une information de plus,
+              // c'est une mise en garde. Elle doit se distinguer au premier
+              // coup d'œil du reste de la page.
+              fond: const Color(0xFFFDF4E0),
+              bordure: AppColors.brass,
+              enfants: [
+                _Paragraphe(t.aboutAiWarning),
+                if (kContactEmail.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  _BlocSignalement(
+                    titre: t.aboutAiReportTitle,
+                    corps: t.aboutAiReportBody(kContactEmail),
+                    confirmation: t.aboutCopied,
+                  ),
+                ],
+              ],
+            ),
+
+          // ── 4. Sources ──────────────────────────────────────────────────
+          // Deux attributions, pas trois : la ligne « horaires calculés sur
+          // l'appareil » disait la même chose que la puce Réseau ci-dessus.
           _Section(
             titre: t.aboutSectionSources,
             enfants: [
@@ -174,24 +250,24 @@ class AboutScreen extends StatelessWidget {
               _Puce(
                   icone: Icons.volunteer_activism_rounded,
                   texte: t.aboutSourceDuas),
-              _Puce(
-                  icone: Icons.access_time_rounded, texte: t.aboutSourcePrayer),
             ],
           ),
 
-          // ── 4. Licences ─────────────────────────────────────────────────
+          // ── 5. Licences ─────────────────────────────────────────────────
           _Section(
             titre: t.aboutSectionLicenses,
             enfants: [
-              _Paragraphe(t.aboutLicensesIntro),
-              const SizedBox(height: 4),
-              // Notice Gemma reproduite EN CLAIR sur la page, en plus du
-              // registre : sa licence exige qu'elle soit transmise, pas
-              // qu'elle soit trouvable au bout de deux écrans.
-              const _NoticeBrute(
-                'Gemma is provided under and subject to the Gemma Terms of Use '
-                'found at ai.google.dev/gemma/terms',
-              ),
+              // Pas de phrase d'introduction : le bouton dit déjà ce qu'il
+              // fait, une ligne pour l'annoncer n'apprend rien.
+              if (kTuteurIaEmbarque) ...[
+                // Notice Gemma reproduite EN CLAIR, en plus du registre : ses
+                // conditions exigent d'être transmises, pas d'être trouvables
+                // au bout de deux écrans.
+                const _NoticeBrute(
+                  'Gemma is provided under and subject to the Gemma Terms of '
+                  'Use found at ai.google.dev/gemma/terms',
+                ),
+              ],
               const SizedBox(height: 12),
               _BoutonLicences(libelle: t.aboutLicensesAll),
             ],
@@ -211,15 +287,18 @@ class _Entete extends StatelessWidget {
     final t = AppLocalizations.of(context)!;
     return Column(
       children: [
-        Container(
-          width: 68,
-          height: 68,
-          decoration: BoxDecoration(
-            color: AppColors.green800,
-            borderRadius: BorderRadius.circular(20),
+        // Icone reelle de l'app (2026-08-09, demande utilisateur : « meme
+        // dans a propos, remets l'icone de l'app ») -- remplace le
+        // `Icons.menu_book_rounded` generique qui servait de repli avant que
+        // l'icone finale (icone.png, cf. le launcher Android) existe.
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Image.asset(
+            'assets/icon/app_icon.png',
+            width: 68,
+            height: 68,
+            fit: BoxFit.cover,
           ),
-          child: const Icon(Icons.menu_book_rounded,
-              color: AppColors.brassLight, size: 36),
         ),
         const SizedBox(height: 12),
         Text(t.appTitle,
@@ -241,15 +320,12 @@ class _Entete extends StatelessWidget {
               fontWeight: FontWeight.w600,
               letterSpacing: 0.4),
         ),
-        // Identifiant du code embarqué — la même chaîne que celle inscrite en
-        // tête de chaque journal de diagnostic. Sans elle, un utilisateur qui
-        // signale un problème ne peut pas dire quelle version il utilise, et
-        // un journal reçu ne peut pas être rattaché à un binaire.
-        Text(
-          DiagnosticLog.buildTag,
-          style: GoogleFonts.manrope(
-              fontSize: 10, color: AppColors.inkLight.withAlpha(140)),
-        ),
+        // Le tag de code interne (DiagnosticLog.buildTag, ex.
+        // « v146-decrochage-a-3-fenetres ») s'affichait ici. RETIRÉ le
+        // 2026-08-09 : c'est du jargon de développement, illisible pour un
+        // récitateur. Il reste inscrit en tête de chaque journal de
+        // diagnostic — donc toujours disponible quand on analyse une session,
+        // qui est le seul moment où il sert.
       ],
     );
   }
@@ -335,6 +411,17 @@ class _Puce extends StatelessWidget {
           ],
         ),
       );
+}
+
+/// Ligne de crédit discrète, en bas d'une section : plus petite et plus pâle
+/// que le corps du texte — présente et lisible, sans peser sur la lecture.
+class _Mention extends StatelessWidget {
+  final String texte;
+  const _Mention(this.texte);
+  @override
+  Widget build(BuildContext context) => Text(texte,
+      style: GoogleFonts.manrope(
+          fontSize: 11, color: AppColors.inkLight, height: 1.5));
 }
 
 /// Notice légale reproduite telle quelle (jamais traduite : c'est le texte

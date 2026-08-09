@@ -216,7 +216,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               Expanded(
                 child: _NavItem(
-                  icon: Icons.menu_book_rounded,
+                  // ── LES QUATRE ONGLETS EN EMOJI (2026-08-09, demande
+                  // utilisateur, apres l'emoji des Invocations) : « l'emoji
+                  // invocation est bien, mais les autres sont vieux [les
+                  // icones Material] » -- uniformise les quatre plutot que de
+                  // laisser un seul onglet moderne au milieu de trois datés.
+                  icon: null,
+                  emoji: '📖',
                   label: t.navQuran,
                   active: _tab == 0,
                   onTap: () => setState(() => _tab = 0),
@@ -248,7 +254,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               Expanded(
                 child: _NavItem(
-                  icon: Icons.psychology_alt_rounded,
+                  icon: null,
+                  emoji: '🎓',
                   label: t.navCoach,
                   active: _tab == 2,
                   onTap: _openCoachTab,
@@ -256,7 +263,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               Expanded(
                 child: _NavItem(
-                  icon: Icons.settings_rounded,
+                  icon: null,
+                  emoji: '⚙️',
                   label: t.navSettings,
                   active: _tab == 3,
                   onTap: () => setState(() => _tab = 3),
@@ -311,12 +319,26 @@ class _NavItem extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               emoji != null
-                  // Emoji couleur : la teinte active/inactive ne peut pas s'y
-                  // appliquer (glyphe polychrome de la police système) --
-                  // l'opacité seule marque l'état inactif.
+                  // ── DÉCALAGE CORRIGÉ (2026-08-09, constat utilisateur) ────
+                  // Un `Text` d'emoji n'a PAS le même encombrement vertical
+                  // qu'une `Icon` : sa hauteur de ligne vient de la police
+                  // système (marge au-dessus/en-dessous du glyphe), pas d'une
+                  // boîte carrée de `size`. Ligne "Invocations" décalée par
+                  // rapport aux trois autres onglets (Coran, Coach...). On
+                  // force donc le même encombrement 24x24 que `Icon(size: 24)`
+                  // ci-dessous, `Center` recadrant le glyphe dedans -- même
+                  // teinte active/inactive que le reste faite par `Opacity`
+                  // (impossible de teinter un emoji couleur autrement).
                   ? Opacity(
                       opacity: active ? 1.0 : 0.55,
-                      child: Text(emoji!, style: const TextStyle(fontSize: 22)),
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Center(
+                          child: Text(emoji!,
+                              style: const TextStyle(fontSize: 20, height: 1)),
+                        ),
+                      ),
                     )
                   : Icon(icon,
                       color:

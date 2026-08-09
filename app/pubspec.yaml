@@ -83,6 +83,7 @@ flutter:
   uses-material-design: true
   generate: true
   assets:
+    - assets/icon/app_icon.png
     - assets/mindmaps/fr/
     - assets/mindmaps/en/
     - assets/mindmaps/ar/
