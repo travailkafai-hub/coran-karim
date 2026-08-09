@@ -3010,7 +3010,7 @@ abstract class AppLocalizations {
   /// Phrase de présentation sous le nom de l'application
   ///
   /// In fr, this message translates to:
-  /// **'Mémorisation et récitation du Coran, vérifiées directement sur votre appareil.'**
+  /// **'Réciter le Coran, vérifié sur votre appareil.'**
   String get aboutTagline;
 
   /// Ligne de version affichée dans l'en-tête de l'écran À propos
@@ -3028,32 +3028,50 @@ abstract class AppLocalizations {
   /// Introduction de la section vie privée
   ///
   /// In fr, this message translates to:
-  /// **'Coran Karim fonctionne entièrement sur votre téléphone : aucun compte, aucune publicité, aucun traceur, et aucun envoi automatique de vos données.'**
+  /// **'Tout se passe sur votre téléphone : aucun compte, aucune publicité, aucun traceur.'**
   String get aboutPrivacyIntro;
 
   /// Explication de l'usage du microphone
   ///
   /// In fr, this message translates to:
-  /// **'Microphone — votre récitation est analysée sur l\'appareil par le modèle embarqué. Elle n\'est envoyée à aucun serveur.'**
+  /// **'Micro — votre récitation est analysée sur l\'appareil, jamais envoyée ailleurs.'**
   String get aboutPrivacyMic;
 
   /// Explication de l'usage de la localisation
   ///
   /// In fr, this message translates to:
-  /// **'Position — utilisée uniquement pour la direction de la Qibla et le calcul des horaires de prière. Elle est conservée sur l\'appareil afin que le calcul fonctionne hors ligne, et n\'est transmise à personne.'**
+  /// **'Position — pour la Qibla et les horaires de prière. Elle reste sur l\'appareil.'**
   String get aboutPrivacyLocation;
 
   /// Explication du mode diagnostic et des enregistrements conservés
   ///
   /// In fr, this message translates to:
-  /// **'Diagnostic — s\'il est activé dans les Réglages, un journal et des extraits audio de vos récitations sont conservés sur l\'appareil pour comprendre les erreurs de reconnaissance. Vous pouvez les exporter ou les supprimer à tout moment depuis les Réglages.'**
+  /// **'Diagnostic — s\'il est activé dans les Réglages, des extraits audio et un journal sont conservés sur l\'appareil. Vous pouvez les supprimer à tout moment.'**
   String get aboutPrivacyDiagnostic;
 
   /// Explication de l'usage du réseau
   ///
   /// In fr, this message translates to:
-  /// **'Réseau — sollicité seulement pour télécharger les récitations et les invocations que vous demandez. Le texte du Coran, lui, est déjà dans l\'application.'**
+  /// **'Réseau — seulement pour télécharger les récitations et invocations que vous demandez.'**
   String get aboutPrivacyNetwork;
+
+  /// Titre de la section décrivant le modèle de reconnaissance
+  ///
+  /// In fr, this message translates to:
+  /// **'Ce qui vérifie votre récitation'**
+  String get aboutSectionAsr;
+
+  /// Explication du fonctionnement et des limites du modèle de reconnaissance
+  ///
+  /// In fr, this message translates to:
+  /// **'Un modèle de reconnaissance de la parole arabe, entraîné sur des récitations, compare ce que vous dites au texte. Il peut se tromper : un mot signalé n\'est pas toujours une faute.'**
+  String get aboutAsrBody;
+
+  /// No description provided for @aboutAsrCredit.
+  ///
+  /// In fr, this message translates to:
+  /// **'Modèle dérivé d\'un modèle NVIDIA, sous licence CC BY 4.0, modifié pour la récitation coranique.'**
+  String get aboutAsrCredit;
 
   /// Titre de la section avertissement sur le modèle de langage
   ///
@@ -3094,7 +3112,7 @@ abstract class AppLocalizations {
   /// Attribution de la source du texte et de l'audio du Coran
   ///
   /// In fr, this message translates to:
-  /// **'Texte du Coran, découpage en versets et pages, et récitations audio : Quran.com (Quran Foundation).'**
+  /// **'Texte du Coran et récitations : Quran.com.'**
   String get aboutSourceQuran;
 
   /// Attribution de la source audio des invocations
@@ -3103,29 +3121,233 @@ abstract class AppLocalizations {
   /// **'Audio des invocations : hisnmuslim.com.'**
   String get aboutSourceDuas;
 
-  /// Précision sur le calcul local des horaires de prière
-  ///
-  /// In fr, this message translates to:
-  /// **'Horaires de prière : calculés sur l\'appareil, sans aucune requête réseau.'**
-  String get aboutSourcePrayer;
-
   /// Titre de la section des licences
   ///
   /// In fr, this message translates to:
   /// **'Licences'**
   String get aboutSectionLicenses;
 
-  /// Introduction de la section des licences
-  ///
-  /// In fr, this message translates to:
-  /// **'Cette application embarque des composants publiés par des tiers, sous leurs propres conditions.'**
-  String get aboutLicensesIntro;
-
   /// Bouton ouvrant la page complète des licences
   ///
   /// In fr, this message translates to:
   /// **'Voir toutes les licences'**
   String get aboutLicensesAll;
+
+  /// Bouton pour sauter la présentation au premier lancement
+  ///
+  /// In fr, this message translates to:
+  /// **'Passer'**
+  String get onboardingSkip;
+
+  /// Bouton page suivante de la présentation
+  ///
+  /// In fr, this message translates to:
+  /// **'Suivant'**
+  String get onboardingNext;
+
+  /// Bouton final de la présentation
+  ///
+  /// In fr, this message translates to:
+  /// **'Commencer'**
+  String get onboardingStart;
+
+  /// Titre page 1 de la présentation
+  ///
+  /// In fr, this message translates to:
+  /// **'Bienvenue'**
+  String get onboardingWelcomeTitle;
+
+  /// Corps page 1
+  ///
+  /// In fr, this message translates to:
+  /// **'Lire, réciter et mémoriser le Coran, à votre rythme. Sans publicité, sans compte, sans être dérangé.'**
+  String get onboardingWelcomeBody;
+
+  /// Dédicace affichée sur la page d'accueil de la présentation
+  ///
+  /// In fr, this message translates to:
+  /// **'Cette application est dédiée à la mémoire de mon père. Qu\'Allah lui fasse miséricorde et lui pardonne. Et qu\'Il facilite à chacun de vous la récitation et l\'apprentissage de Son Livre.'**
+  String get onboardingWelcomeDedication;
+
+  /// Titre page 2
+  ///
+  /// In fr, this message translates to:
+  /// **'Lire le Coran'**
+  String get onboardingReadTitle;
+
+  /// Corps page 2
+  ///
+  /// In fr, this message translates to:
+  /// **'Le Mushaf complet, avec les couleurs du tajwid pour voir les règles en lisant. Écoutez le récitateur de votre choix, posez un signet pour reprendre où vous en étiez.'**
+  String get onboardingReadBody;
+
+  /// Astuce page 2
+  ///
+  /// In fr, this message translates to:
+  /// **'Trois ambiances de lecture : claire, sépia reposante, ou fond noir pour la nuit.'**
+  String get onboardingReadHint;
+
+  /// Titre page 3
+  ///
+  /// In fr, this message translates to:
+  /// **'Réciter et être corrigé'**
+  String get onboardingReciteTitle;
+
+  /// Corps page 3
+  ///
+  /// In fr, this message translates to:
+  /// **'Récitez à voix haute : l\'application écoute et colore chaque mot au fur et à mesure. Vert, le mot est juste ; orange ou rouge, il mérite d\'être revu.'**
+  String get onboardingReciteBody;
+
+  /// Astuce page 3
+  ///
+  /// In fr, this message translates to:
+  /// **'Un trou de mémoire ? Le souffleur vous fait entendre le mot attendu, sans jugement.'**
+  String get onboardingReciteHint;
+
+  /// Titre page 4
+  ///
+  /// In fr, this message translates to:
+  /// **'Mémoriser en jouant'**
+  String get onboardingMemorizeTitle;
+
+  /// Corps page 4
+  ///
+  /// In fr, this message translates to:
+  /// **'Le jeu de mémorisation vous fait reconstruire le texte mot après mot. La partie ne s\'arrête pas en fin de page : elle continue tant que vous enchaînez.'**
+  String get onboardingMemorizeBody;
+
+  /// Astuce page 4
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre record personnel de mots enchaînés est conservé d\'une partie à l\'autre.'**
+  String get onboardingMemorizeHint;
+
+  /// Titre page 5
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre coach'**
+  String get onboardingCoachTitle;
+
+  /// Corps page 5
+  ///
+  /// In fr, this message translates to:
+  /// **'Après chaque récitation, retrouvez ce qui a coincé : les mots signalés, votre propre voix sur chacun, et la lecture du récitateur pour comparer.'**
+  String get onboardingCoachBody;
+
+  /// Astuce page 5
+  ///
+  /// In fr, this message translates to:
+  /// **'Les erreurs sont regroupées par sourate et par règle de tajwid, pour voir ce qui revient.'**
+  String get onboardingCoachHint;
+
+  /// Titre page 6
+  ///
+  /// In fr, this message translates to:
+  /// **'Invocations et prière'**
+  String get onboardingDuasTitle;
+
+  /// Corps page 6
+  ///
+  /// In fr, this message translates to:
+  /// **'Les invocations du quotidien, avec leur audio et le nombre de répétitions. Les horaires de prière calculés pour votre position, l\'adhan, et la direction de la Qibla.'**
+  String get onboardingDuasBody;
+
+  /// Titre page 7
+  ///
+  /// In fr, this message translates to:
+  /// **'Vos données restent chez vous'**
+  String get onboardingPrivacyTitle;
+
+  /// Corps page 7
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre récitation est analysée sur l\'appareil, elle n\'est jamais envoyée ailleurs. Aucun compte, aucune publicité, aucun traceur. Le réseau ne sert qu\'à télécharger les récitations que vous demandez.'**
+  String get onboardingPrivacyBody;
+
+  /// Titre de la tuile Réglages menant à la page de dua
+  ///
+  /// In fr, this message translates to:
+  /// **'Une invocation pour nous'**
+  String get duaPourNousTileTitle;
+
+  /// Sous-titre de la tuile
+  ///
+  /// In fr, this message translates to:
+  /// **'Cette application est offerte, sans publicité'**
+  String get duaPourNousTileSubtitle;
+
+  /// Titre de l'écran de dua
+  ///
+  /// In fr, this message translates to:
+  /// **'Une invocation'**
+  String get duaPourNousTitle;
+
+  /// Introduction de l'écran de dua
+  ///
+  /// In fr, this message translates to:
+  /// **'Cette application est offerte librement, sans publicité, sans compte et sans collecte de vos données. Elle a été écrite dans un seul but : que la récitation et l\'apprentissage du Coran vous soient plus faciles.'**
+  String get duaPourNousIntro;
+
+  /// Titre de la section demandant une invocation
+  ///
+  /// In fr, this message translates to:
+  /// **'Si elle vous est utile'**
+  String get duaPourNousAskTitle;
+
+  /// Corps de la demande d'invocation
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun paiement n\'est demandé. La seule chose que nous vous demandons, si cette application vous aide, est une invocation : pour mon père décédé, pour mes parents, pour ma famille, et pour tous ceux qui ont contribué à ce travail.'**
+  String get duaPourNousAskBody;
+
+  /// Invocation en arabe pour le défunt (hadith rapporté par Muslim)
+  ///
+  /// In fr, this message translates to:
+  /// **'اللَّهُمَّ اغْفِرْ لَهُ وَارْحَمْهُ، وَعَافِهِ وَاعْفُ عَنْهُ، وَأَكْرِمْ نُزُلَهُ، وَوَسِّعْ مُدْخَلَهُ'**
+  String get duaPourNousDeceasedArabic;
+
+  /// Traduction de l'invocation pour le défunt
+  ///
+  /// In fr, this message translates to:
+  /// **'Ô Allah, pardonne-lui, fais-lui miséricorde, préserve-le et efface ses fautes ; réserve-lui un généreux accueil et élargis son entrée.'**
+  String get duaPourNousDeceasedTranslation;
+
+  /// Source de l'invocation pour le défunt
+  ///
+  /// In fr, this message translates to:
+  /// **'Rapporté par Muslim'**
+  String get duaPourNousDeceasedSource;
+
+  /// Titre de la section d'invocation en faveur de l'utilisateur
+  ///
+  /// In fr, this message translates to:
+  /// **'Et pour vous'**
+  String get duaPourNousForYouTitle;
+
+  /// Invocation en faveur de l'utilisateur
+  ///
+  /// In fr, this message translates to:
+  /// **'Qu\'Allah vous facilite la récitation de Son Livre, qu\'Il affermisse sa mémorisation dans votre cœur, qu\'Il agrée votre effort et fasse de ce Coran le printemps de votre cœur et la lumière de votre poitrine.'**
+  String get duaPourNousForYouBody;
+
+  /// Invocation en arabe en faveur de l'utilisateur
+  ///
+  /// In fr, this message translates to:
+  /// **'اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي'**
+  String get duaPourNousForYouArabic;
+
+  /// Bouton de partage sur l'écran de dua
+  ///
+  /// In fr, this message translates to:
+  /// **'Partager l\'application'**
+  String get duaPourNousShare;
+
+  /// Texte proposé au partage
+  ///
+  /// In fr, this message translates to:
+  /// **'Coran Karim — lire, réciter et mémoriser le Coran, sans publicité.'**
+  String get duaPourNousShareText;
 }
 
 class _AppLocalizationsDelegate

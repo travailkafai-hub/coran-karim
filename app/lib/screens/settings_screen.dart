@@ -10,10 +10,14 @@ import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart' show recitationVerifierProvider;
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
+import 'about_screen.dart';
+import 'dua_pour_nous_screen.dart';
 import 'prayer_times_settings_screen.dart';
 import 'qibla_screen.dart';
 import 'reciter_select_screen.dart';
-import 'voice_calibration_screen.dart';
+// Conservé en commentaire : l'écran de calibrage existe toujours, seule son
+// entrée dans les Réglages est retirée de la v1 (cf. plus bas).
+// import 'voice_calibration_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -113,37 +117,39 @@ class SettingsScreen extends ConsumerWidget {
                 MaterialPageRoute(builder: (_) => const PrayerTimesSettingsScreen())),
           ),
 
+          // ── CINQ RÉGLAGES RETIRÉS DE LA v1 (2026-08-09) ──────────────────
+          //
+          // Décision utilisateur, une raison donnée pour chacun :
+          //
+          //   1. « Calibrage des lettres confusables » -- « ça sert à rien ».
+          //      `VoiceCalibrationScreen` existe toujours (écran + données),
+          //      seule l'entrée disparaît.
+          //   2. « Mes enregistrements de récitation » (`_VoiceLoraClipsTile`)
+          //      -- « sera pas utilisé pour la prod » : c'est un outil de
+          //      collecte de données d'entraînement, pas une fonction pour le
+          //      récitateur.
+          //   3. « Couleurs tajweed » -- l'interrupteur ne persistait rien
+          //      (`value: true, onChanged: (_) {}`, TODO jamais fait) : il
+          //      MENTAIT à l'utilisateur, qui pouvait le basculer sans le
+          //      moindre effet. Un réglage inopérant est pire qu'absent.
+          //   4. « Journal de diagnostic » (`_DiagnosticTile`) -- outil de
+          //      développement. Le journal lui-même reste (il est désormais
+          //      coupé par défaut en release, cf. `DiagnosticLog.enabled`),
+          //      c'est son commutateur qui quitte l'IHM.
+          //   5. « Suppression de bruit » (`_NoiseSuppressTile`) -- « pas
+          //      efficace », ce que la mesure du projet disait déjà (banc du
+          //      2026-07-23 : la désactiver donnait 22,8 % de WER contre
+          //      70,2 % activée -- elle DÉGRADE la reconnaissance).
+          //
+          // Les widgets `_VoiceLoraClipsTile`, `_DiagnosticTile` et
+          // `_NoiseSuppressTile` restent définis plus bas dans ce fichier
+          // (convention projet : on n'efface pas ce qui a été conçu), ils ne
+          // sont simplement plus montés. Deux sections entières disparaissent
+          // avec eux (« Affichage » et « Diagnostic ») : elles n'auraient plus
+          // contenu que du vide.
           const SizedBox(height: 12),
           _SectionHeader(t.settingsSectionVoicePersonalization),
-          _SettingsTile(
-            icon: Icons.tune_rounded,
-            title: t.settingsVoiceCalibTitle,
-            subtitle: t.settingsVoiceCalibSubtitle,
-            color: AppColors.settingsVoice,
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const VoiceCalibrationScreen())),
-          ),
-          const _VoiceLoraClipsTile(),
           const _DisputedVerdictsTile(),
-
-          const SizedBox(height: 12),
-          _SectionHeader(t.settingsSectionDisplay),
-          _SettingsTile(
-            icon: Icons.color_lens_rounded,
-            title: t.settingsTajweedColorsTitle,
-            subtitle: t.settingsTajweedColorsSubtitle,
-            color: AppColors.settingsDisplay,
-            trailing: Switch.adaptive(
-              value: true, // TODO: persist
-              onChanged: (_) {},
-              activeColor: AppColors.green700,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-          _SectionHeader(t.settingsSectionDiagnostic),
-          const _DiagnosticTile(),
-          const _NoiseSuppressTile(),
 
           const SizedBox(height: 12),
           _SectionHeader(t.settingsSectionApp),
@@ -161,6 +167,21 @@ class SettingsScreen extends ConsumerWidget {
           // Elle mène désormais à AboutScreen, qui porte ce que l'app doit
           // dire avant d'être publiée (données captées, avertissement sur le
           // texte généré, sources, licences).
+          // ── « UNE INVOCATION POUR NOUS » (2026-08-09) ────────────────────
+          //
+          // L'icône est `volunteer_activism_rounded`, celle que l'utilisateur
+          // avait retirée de l'onglet Invocations en disant l'avoir « utilisée
+          // après pour les dons » -- c'est ici sa place : le seul « don »
+          // demandé par cette application est une du'a (cf.
+          // `DuaPourNousScreen`, qui porte la raison au long).
+          _SettingsTile(
+            icon: Icons.volunteer_activism_rounded,
+            title: t.duaPourNousTileTitle,
+            subtitle: t.duaPourNousTileSubtitle,
+            color: AppColors.settingsApp,
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const DuaPourNousScreen())),
+          ),
           _SettingsTile(
             icon: Icons.info_outline_rounded,
             title: t.appTitle,
@@ -278,6 +299,9 @@ class _SettingsTile extends StatelessWidget {
 /// Le natif est poussé ICI en plus du démarrage de session
 /// (RecitationNotifier._applyDiagnosticCapture) pour que le basculement soit
 /// effectif immédiatement, sans avoir à relancer une récitation.
+// Plus monté depuis le 2026-08-09 (retiré des Réglages de la v1, cf. le bloc
+// de commentaire dans `build`) -- conservé intact pour le rebrancher.
+// ignore: unused_element
 class _DiagnosticTile extends ConsumerWidget {
   const _DiagnosticTile();
 
@@ -313,6 +337,10 @@ class _DiagnosticTile extends ConsumerWidget {
 ///
 /// Prend effet au DÉMARRAGE de la prochaine récitation : la valeur est lue à
 /// l'ouverture du flux micro, la changer en cours de session ne fait rien.
+// Plus monté depuis le 2026-08-09 : « pas efficace » (utilisateur), ce que la
+// mesure disait déjà -- le banc du 2026-07-23 donnait 22,8 % de WER sans
+// suppression contre 70,2 % avec. Conservé intact.
+// ignore: unused_element
 class _NoiseSuppressTile extends ConsumerWidget {
   const _NoiseSuppressTile();
 

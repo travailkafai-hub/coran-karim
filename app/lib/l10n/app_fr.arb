@@ -2256,7 +2256,7 @@
   "@aboutTitle": {
     "description": "Titre de l'écran À propos"
   },
-  "aboutTagline": "Mémorisation et récitation du Coran, vérifiées directement sur votre appareil.",
+  "aboutTagline": "Réciter le Coran, vérifié sur votre appareil.",
   "@aboutTagline": {
     "description": "Phrase de présentation sous le nom de l'application"
   },
@@ -2276,25 +2276,34 @@
   "@aboutSectionPrivacy": {
     "description": "Titre de la section vie privée"
   },
-  "aboutPrivacyIntro": "Coran Karim fonctionne entièrement sur votre téléphone : aucun compte, aucune publicité, aucun traceur, et aucun envoi automatique de vos données.",
+  "aboutPrivacyIntro": "Tout se passe sur votre téléphone : aucun compte, aucune publicité, aucun traceur.",
   "@aboutPrivacyIntro": {
     "description": "Introduction de la section vie privée"
   },
-  "aboutPrivacyMic": "Microphone — votre récitation est analysée sur l'appareil par le modèle embarqué. Elle n'est envoyée à aucun serveur.",
+  "aboutPrivacyMic": "Micro — votre récitation est analysée sur l'appareil, jamais envoyée ailleurs.",
   "@aboutPrivacyMic": {
     "description": "Explication de l'usage du microphone"
   },
-  "aboutPrivacyLocation": "Position — utilisée uniquement pour la direction de la Qibla et le calcul des horaires de prière. Elle est conservée sur l'appareil afin que le calcul fonctionne hors ligne, et n'est transmise à personne.",
+  "aboutPrivacyLocation": "Position — pour la Qibla et les horaires de prière. Elle reste sur l'appareil.",
   "@aboutPrivacyLocation": {
     "description": "Explication de l'usage de la localisation"
   },
-  "aboutPrivacyDiagnostic": "Diagnostic — s'il est activé dans les Réglages, un journal et des extraits audio de vos récitations sont conservés sur l'appareil pour comprendre les erreurs de reconnaissance. Vous pouvez les exporter ou les supprimer à tout moment depuis les Réglages.",
+  "aboutPrivacyDiagnostic": "Diagnostic — s'il est activé dans les Réglages, des extraits audio et un journal sont conservés sur l'appareil. Vous pouvez les supprimer à tout moment.",
   "@aboutPrivacyDiagnostic": {
     "description": "Explication du mode diagnostic et des enregistrements conservés"
   },
-  "aboutPrivacyNetwork": "Réseau — sollicité seulement pour télécharger les récitations et les invocations que vous demandez. Le texte du Coran, lui, est déjà dans l'application.",
+  "aboutPrivacyNetwork": "Réseau — seulement pour télécharger les récitations et invocations que vous demandez.",
   "@aboutPrivacyNetwork": {
     "description": "Explication de l'usage du réseau"
+  },
+  "aboutSectionAsr": "Ce qui vérifie votre récitation",
+  "@aboutSectionAsr": {
+    "description": "Titre de la section décrivant le modèle de reconnaissance"
+  },
+  "aboutAsrBody": "Un modèle de reconnaissance de la parole arabe, entraîné sur des récitations, compare ce que vous dites au texte. Il peut se tromper : un mot signalé n'est pas toujours une faute.",
+  "aboutAsrCredit": "Modèle dérivé d'un modèle NVIDIA, sous licence CC BY 4.0, modifié pour la récitation coranique.",
+  "@aboutAsrBody": {
+    "description": "Explication du fonctionnement et des limites du modèle de reconnaissance"
   },
   "aboutSectionAi": "Tuteur IA",
   "@aboutSectionAi": {
@@ -2325,7 +2334,7 @@
   "@aboutSectionSources": {
     "description": "Titre de la section des sources et attributions"
   },
-  "aboutSourceQuran": "Texte du Coran, découpage en versets et pages, et récitations audio : Quran.com (Quran Foundation).",
+  "aboutSourceQuran": "Texte du Coran et récitations : Quran.com.",
   "@aboutSourceQuran": {
     "description": "Attribution de la source du texte et de l'audio du Coran"
   },
@@ -2333,20 +2342,156 @@
   "@aboutSourceDuas": {
     "description": "Attribution de la source audio des invocations"
   },
-  "aboutSourcePrayer": "Horaires de prière : calculés sur l'appareil, sans aucune requête réseau.",
-  "@aboutSourcePrayer": {
-    "description": "Précision sur le calcul local des horaires de prière"
-  },
   "aboutSectionLicenses": "Licences",
   "@aboutSectionLicenses": {
     "description": "Titre de la section des licences"
   },
-  "aboutLicensesIntro": "Cette application embarque des composants publiés par des tiers, sous leurs propres conditions.",
-  "@aboutLicensesIntro": {
-    "description": "Introduction de la section des licences"
-  },
   "aboutLicensesAll": "Voir toutes les licences",
   "@aboutLicensesAll": {
     "description": "Bouton ouvrant la page complète des licences"
+  },
+  "onboardingSkip": "Passer",
+  "@onboardingSkip": {
+    "description": "Bouton pour sauter la présentation au premier lancement"
+  },
+  "onboardingNext": "Suivant",
+  "@onboardingNext": {
+    "description": "Bouton page suivante de la présentation"
+  },
+  "onboardingStart": "Commencer",
+  "@onboardingStart": {
+    "description": "Bouton final de la présentation"
+  },
+  "onboardingWelcomeTitle": "Bienvenue",
+  "@onboardingWelcomeTitle": {
+    "description": "Titre page 1 de la présentation"
+  },
+  "onboardingWelcomeBody": "Lire, réciter et mémoriser le Coran, à votre rythme. Sans publicité, sans compte, sans être dérangé.",
+  "@onboardingWelcomeBody": {
+    "description": "Corps page 1"
+  },
+  "onboardingWelcomeDedication": "Cette application est dédiée à la mémoire de mon père. Qu'Allah lui fasse miséricorde et lui pardonne. Et qu'Il facilite à chacun de vous la récitation et l'apprentissage de Son Livre.",
+  "@onboardingWelcomeDedication": {
+    "description": "Dédicace affichée sur la page d'accueil de la présentation"
+  },
+  "onboardingReadTitle": "Lire le Coran",
+  "@onboardingReadTitle": {
+    "description": "Titre page 2"
+  },
+  "onboardingReadBody": "Le Mushaf complet, avec les couleurs du tajwid pour voir les règles en lisant. Écoutez le récitateur de votre choix, posez un signet pour reprendre où vous en étiez.",
+  "@onboardingReadBody": {
+    "description": "Corps page 2"
+  },
+  "onboardingReadHint": "Trois ambiances de lecture : claire, sépia reposante, ou fond noir pour la nuit.",
+  "@onboardingReadHint": {
+    "description": "Astuce page 2"
+  },
+  "onboardingReciteTitle": "Réciter et être corrigé",
+  "@onboardingReciteTitle": {
+    "description": "Titre page 3"
+  },
+  "onboardingReciteBody": "Récitez à voix haute : l'application écoute et colore chaque mot au fur et à mesure. Vert, le mot est juste ; orange ou rouge, il mérite d'être revu.",
+  "@onboardingReciteBody": {
+    "description": "Corps page 3"
+  },
+  "onboardingReciteHint": "Un trou de mémoire ? Le souffleur vous fait entendre le mot attendu, sans jugement.",
+  "@onboardingReciteHint": {
+    "description": "Astuce page 3"
+  },
+  "onboardingMemorizeTitle": "Mémoriser en jouant",
+  "@onboardingMemorizeTitle": {
+    "description": "Titre page 4"
+  },
+  "onboardingMemorizeBody": "Le jeu de mémorisation vous fait reconstruire le texte mot après mot. La partie ne s'arrête pas en fin de page : elle continue tant que vous enchaînez.",
+  "@onboardingMemorizeBody": {
+    "description": "Corps page 4"
+  },
+  "onboardingMemorizeHint": "Votre record personnel de mots enchaînés est conservé d'une partie à l'autre.",
+  "@onboardingMemorizeHint": {
+    "description": "Astuce page 4"
+  },
+  "onboardingCoachTitle": "Votre coach",
+  "@onboardingCoachTitle": {
+    "description": "Titre page 5"
+  },
+  "onboardingCoachBody": "Après chaque récitation, retrouvez ce qui a coincé : les mots signalés, votre propre voix sur chacun, et la lecture du récitateur pour comparer.",
+  "@onboardingCoachBody": {
+    "description": "Corps page 5"
+  },
+  "onboardingCoachHint": "Les erreurs sont regroupées par sourate et par règle de tajwid, pour voir ce qui revient.",
+  "@onboardingCoachHint": {
+    "description": "Astuce page 5"
+  },
+  "onboardingDuasTitle": "Invocations et prière",
+  "@onboardingDuasTitle": {
+    "description": "Titre page 6"
+  },
+  "onboardingDuasBody": "Les invocations du quotidien, avec leur audio et le nombre de répétitions. Les horaires de prière calculés pour votre position, l'adhan, et la direction de la Qibla.",
+  "@onboardingDuasBody": {
+    "description": "Corps page 6"
+  },
+  "onboardingPrivacyTitle": "Vos données restent chez vous",
+  "@onboardingPrivacyTitle": {
+    "description": "Titre page 7"
+  },
+  "onboardingPrivacyBody": "Votre récitation est analysée sur l'appareil, elle n'est jamais envoyée ailleurs. Aucun compte, aucune publicité, aucun traceur. Le réseau ne sert qu'à télécharger les récitations que vous demandez.",
+  "@onboardingPrivacyBody": {
+    "description": "Corps page 7"
+  },
+  "duaPourNousTileTitle": "Une invocation pour nous",
+  "@duaPourNousTileTitle": {
+    "description": "Titre de la tuile Réglages menant à la page de dua"
+  },
+  "duaPourNousTileSubtitle": "Cette application est offerte, sans publicité",
+  "@duaPourNousTileSubtitle": {
+    "description": "Sous-titre de la tuile"
+  },
+  "duaPourNousTitle": "Une invocation",
+  "@duaPourNousTitle": {
+    "description": "Titre de l'écran de dua"
+  },
+  "duaPourNousIntro": "Cette application est offerte librement, sans publicité, sans compte et sans collecte de vos données. Elle a été écrite dans un seul but : que la récitation et l'apprentissage du Coran vous soient plus faciles.",
+  "@duaPourNousIntro": {
+    "description": "Introduction de l'écran de dua"
+  },
+  "duaPourNousAskTitle": "Si elle vous est utile",
+  "@duaPourNousAskTitle": {
+    "description": "Titre de la section demandant une invocation"
+  },
+  "duaPourNousAskBody": "Aucun paiement n'est demandé. La seule chose que nous vous demandons, si cette application vous aide, est une invocation : pour mon père décédé, pour mes parents, pour ma famille, et pour tous ceux qui ont contribué à ce travail.",
+  "@duaPourNousAskBody": {
+    "description": "Corps de la demande d'invocation"
+  },
+  "duaPourNousDeceasedArabic": "اللَّهُمَّ اغْفِرْ لَهُ وَارْحَمْهُ، وَعَافِهِ وَاعْفُ عَنْهُ، وَأَكْرِمْ نُزُلَهُ، وَوَسِّعْ مُدْخَلَهُ",
+  "@duaPourNousDeceasedArabic": {
+    "description": "Invocation en arabe pour le défunt (hadith rapporté par Muslim)"
+  },
+  "duaPourNousDeceasedTranslation": "Ô Allah, pardonne-lui, fais-lui miséricorde, préserve-le et efface ses fautes ; réserve-lui un généreux accueil et élargis son entrée.",
+  "@duaPourNousDeceasedTranslation": {
+    "description": "Traduction de l'invocation pour le défunt"
+  },
+  "duaPourNousDeceasedSource": "Rapporté par Muslim",
+  "@duaPourNousDeceasedSource": {
+    "description": "Source de l'invocation pour le défunt"
+  },
+  "duaPourNousForYouTitle": "Et pour vous",
+  "@duaPourNousForYouTitle": {
+    "description": "Titre de la section d'invocation en faveur de l'utilisateur"
+  },
+  "duaPourNousForYouBody": "Qu'Allah vous facilite la récitation de Son Livre, qu'Il affermisse sa mémorisation dans votre cœur, qu'Il agrée votre effort et fasse de ce Coran le printemps de votre cœur et la lumière de votre poitrine.",
+  "@duaPourNousForYouBody": {
+    "description": "Invocation en faveur de l'utilisateur"
+  },
+  "duaPourNousForYouArabic": "اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي",
+  "@duaPourNousForYouArabic": {
+    "description": "Invocation en arabe en faveur de l'utilisateur"
+  },
+  "duaPourNousShare": "Partager l'application",
+  "@duaPourNousShare": {
+    "description": "Bouton de partage sur l'écran de dua"
+  },
+  "duaPourNousShareText": "Coran Karim — lire, réciter et mémoriser le Coran, sans publicité.",
+  "@duaPourNousShareText": {
+    "description": "Texte proposé au partage"
   }
 }

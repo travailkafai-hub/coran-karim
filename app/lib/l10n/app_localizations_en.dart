@@ -1803,8 +1803,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutTitle => 'About';
 
   @override
-  String get aboutTagline =>
-      'Memorising and reciting the Qur\'an, checked right on your device.';
+  String get aboutTagline => 'Reciting the Qur\'an, checked on your device.';
 
   @override
   String aboutVersionLine(String version, String build) {
@@ -1816,23 +1815,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutPrivacyIntro =>
-      'Coran Karim runs entirely on your phone: no account, no ads, no trackers, and nothing sent automatically.';
+      'Everything happens on your phone: no account, no ads, no trackers.';
 
   @override
   String get aboutPrivacyMic =>
-      'Microphone — your recitation is analysed on the device by the embedded model. It is never sent to any server.';
+      'Microphone — your recitation is analysed on the device, never sent anywhere.';
 
   @override
   String get aboutPrivacyLocation =>
-      'Location — used only for the Qibla direction and for computing prayer times. It is kept on the device so the calculation works offline, and is shared with no one.';
+      'Location — for the Qibla and prayer times. It stays on the device.';
 
   @override
   String get aboutPrivacyDiagnostic =>
-      'Diagnostics — when enabled in Settings, a log and audio excerpts of your recitations are kept on the device to help understand recognition errors. You can export or delete them at any time from Settings.';
+      'Diagnostics — when enabled in Settings, audio excerpts and a log are kept on the device. You can delete them at any time.';
 
   @override
   String get aboutPrivacyNetwork =>
-      'Network — used only to download the recitations and supplications you ask for. The Qur\'anic text itself is already inside the app.';
+      'Network — only to download the recitations and supplications you ask for.';
+
+  @override
+  String get aboutSectionAsr => 'What checks your recitation';
+
+  @override
+  String get aboutAsrBody =>
+      'An Arabic speech recognition model, trained on recitations, compares what you say against the text. It can be wrong: a flagged word is not always a mistake.';
+
+  @override
+  String get aboutAsrCredit =>
+      'Model derived from an NVIDIA model, licensed CC BY 4.0, modified for Qur\'anic recitation.';
 
   @override
   String get aboutSectionAi => 'AI tutor';
@@ -1856,23 +1866,142 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutSectionSources => 'Sources';
 
   @override
-  String get aboutSourceQuran =>
-      'Qur\'anic text, verse and page divisions, and audio recitations: Quran.com (Quran Foundation).';
+  String get aboutSourceQuran => 'Qur\'anic text and recitations: Quran.com.';
 
   @override
   String get aboutSourceDuas => 'Supplication audio: hisnmuslim.com.';
 
   @override
-  String get aboutSourcePrayer =>
-      'Prayer times: computed on the device, with no network request.';
-
-  @override
   String get aboutSectionLicenses => 'Licences';
 
   @override
-  String get aboutLicensesIntro =>
-      'This application embeds third-party components, each under its own terms.';
+  String get aboutLicensesAll => 'View all licences';
 
   @override
-  String get aboutLicensesAll => 'View all licences';
+  String get onboardingSkip => 'Skip';
+
+  @override
+  String get onboardingNext => 'Next';
+
+  @override
+  String get onboardingStart => 'Get started';
+
+  @override
+  String get onboardingWelcomeTitle => 'Welcome';
+
+  @override
+  String get onboardingWelcomeBody =>
+      'Read, recite and memorise the Quran, at your own pace. No ads, no account, no interruptions.';
+
+  @override
+  String get onboardingWelcomeDedication =>
+      'This application is dedicated to the memory of my father. May Allah have mercy on him and forgive him. And may He make the recitation and learning of His Book easy for each of you.';
+
+  @override
+  String get onboardingReadTitle => 'Read the Quran';
+
+  @override
+  String get onboardingReadBody =>
+      'The complete Mushaf, with tajweed colours so you can see the rules as you read. Listen to the reciter of your choice, and drop a bookmark to pick up where you left off.';
+
+  @override
+  String get onboardingReadHint =>
+      'Three reading moods: light, restful sepia, or black background for night-time.';
+
+  @override
+  String get onboardingReciteTitle => 'Recite and be corrected';
+
+  @override
+  String get onboardingReciteBody =>
+      'Recite out loud: the app listens and colours each word as you go. Green means the word is right; orange or red means it deserves another look.';
+
+  @override
+  String get onboardingReciteHint =>
+      'Drawing a blank? The prompter plays the expected word for you, no judgement.';
+
+  @override
+  String get onboardingMemorizeTitle => 'Memorise through play';
+
+  @override
+  String get onboardingMemorizeBody =>
+      'The memorisation game has you rebuild the text word by word. The round does not stop at the end of a page: it carries on as long as you keep going.';
+
+  @override
+  String get onboardingMemorizeHint =>
+      'Your personal record of consecutive words is kept from one round to the next.';
+
+  @override
+  String get onboardingCoachTitle => 'Your coach';
+
+  @override
+  String get onboardingCoachBody =>
+      'After each recitation, find what went wrong: the flagged words, your own voice on each of them, and the reciter\'s reading to compare.';
+
+  @override
+  String get onboardingCoachHint =>
+      'Mistakes are grouped by surah and by tajweed rule, so you can see what keeps coming back.';
+
+  @override
+  String get onboardingDuasTitle => 'Supplications and prayer';
+
+  @override
+  String get onboardingDuasBody =>
+      'Everyday supplications, with their audio and repetition counts. Prayer times calculated for your location, the adhan, and the direction of the Qibla.';
+
+  @override
+  String get onboardingPrivacyTitle => 'Your data stays with you';
+
+  @override
+  String get onboardingPrivacyBody =>
+      'Your recitation is analysed on the device and never sent anywhere. No account, no ads, no trackers. The network is only used to download the recitations you ask for.';
+
+  @override
+  String get duaPourNousTileTitle => 'A supplication for us';
+
+  @override
+  String get duaPourNousTileSubtitle =>
+      'This application is given freely, with no ads';
+
+  @override
+  String get duaPourNousTitle => 'A supplication';
+
+  @override
+  String get duaPourNousIntro =>
+      'This application is given freely: no ads, no account, and none of your data is collected. It was written with a single aim — to make reciting and learning the Quran easier for you.';
+
+  @override
+  String get duaPourNousAskTitle => 'If it helps you';
+
+  @override
+  String get duaPourNousAskBody =>
+      'No payment is asked of you. The only thing we ask, if this application helps you, is a supplication: for my late father, for my parents, for my family, and for everyone who contributed to this work.';
+
+  @override
+  String get duaPourNousDeceasedArabic =>
+      'اللَّهُمَّ اغْفِرْ لَهُ وَارْحَمْهُ، وَعَافِهِ وَاعْفُ عَنْهُ، وَأَكْرِمْ نُزُلَهُ، وَوَسِّعْ مُدْخَلَهُ';
+
+  @override
+  String get duaPourNousDeceasedTranslation =>
+      'O Allah, forgive him and have mercy on him, keep him safe and pardon him; honour his resting place and make his entrance wide.';
+
+  @override
+  String get duaPourNousDeceasedSource => 'Reported by Muslim';
+
+  @override
+  String get duaPourNousForYouTitle => 'And for you';
+
+  @override
+  String get duaPourNousForYouBody =>
+      'May Allah make the recitation of His Book easy for you, firmly establish its memorisation in your heart, accept your effort, and make this Quran the spring of your heart and the light of your breast.';
+
+  @override
+  String get duaPourNousForYouArabic =>
+      'اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي';
+
+  @override
+  String get duaPourNousShare => 'Share the application';
+
+  @override
+  String get duaPourNousShareText =>
+      'Coran Karim — read, recite and memorise the Quran, with no ads.';
 }

@@ -13,6 +13,7 @@ import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_hub_screen.dart';
 import 'screens/coach_sessions.dart' show sessionsArchiveProvider, tailleArchiveProvider;
+import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
 import 'services/reciter_download_service.dart';
@@ -119,6 +120,14 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tab = 0;
 
+  /// Présentation du premier lancement (2026-08-09). `null` tant que la
+  /// réponse des préférences n'est pas arrivée : on affiche alors l'app
+  /// normalement plutôt qu'un écran d'attente. Lire un booléen dans
+  /// SharedPreferences prend quelques millisecondes -- imposer un splash pour
+  /// ça coûterait plus cher que le rare cas où la présentation apparaît une
+  /// fraction de seconde après le premier rendu.
+  bool _montrerOnboarding = false;
+
   @override
   void initState() {
     super.initState();
@@ -127,6 +136,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // a declencher son _bootstrap() (position GPS + calcul + programmation
     // des 5 prieres + rappel Sobh, cf. prayer_settings_provider.dart).
     Future.microtask(() => ref.read(prayerSettingsProvider));
+    onboardingARegarder().then((aRegarder) {
+      if (aRegarder && mounted) setState(() => _montrerOnboarding = true);
+    });
   }
 
   // Keep all tabs alive
@@ -139,6 +151,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // La présentation couvre l'app au lieu d'être poussée en route : les
+    // quatre onglets restent montés dessous (`IndexedStack`, « keep all tabs
+    // alive »), donc rien n'est reconstruit à sa fermeture, et l'utilisateur
+    // retombe exactement sur l'app déjà chargée.
+    if (_montrerOnboarding) {
+      return OnboardingScreen(
+        onTermine: () => setState(() => _montrerOnboarding = false),
+      );
+    }
     return Scaffold(
       body: IndexedStack(index: _tab, children: _screens),
       // ── LES BOUTONS DE DEVELOPPEMENT SONT RETIRES (2026-08-06) ───────────

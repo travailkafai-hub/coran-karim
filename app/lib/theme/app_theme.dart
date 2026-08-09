@@ -21,12 +21,23 @@ class AppColors {
 
   // Curseur de lecture audio (verset en cours de récitation par le réciteur,
   // distinct du surlignage vert "verset sélectionné au tap")
-  static const readingCursorBg     = Color(0xFFe3f0fb);
-  static const readingCursorBorder = Color(0xFF4a90d9);
+  //
+  // ── PASSÉ AU VERT (2026-08-09, demande utilisateur) ─────────────────────
+  // « le surlignement de la bismillah et le verset, comme code couleur app
+  // vert, choisis un dégradé du vert transparent au lieu de ce bleu
+  // transparent ». Bleu retiré (0xFFe3f0fb / 0xFF4a90d9, jamais choisi pour
+  // une raison de fond -- juste la couleur "sélection" par défaut d'un thème
+  // Material). `readingCursorBg` reste utilisée comme COULEUR DE DÉPART d'un
+  // dégradé (cf. `VerseTile`, `isPlayingCursorGradient`), plus comme aplat
+  // uni : un dégradé se lit mieux à deux teintes qu'à une couleur + alpha.
+  static const readingCursorBg     = Color(0xFFdcf1e7);
+  static const readingCursorBgEnd  = Color(0xFFeef8f3);
+  static const readingCursorBorder = green600;
 
   // Mode Kindle (demande utilisateur 2026-08-01) -- thème repos-yeux,
-  // volontairement SANS AUCUNE composante bleue dominante (contrairement à
-  // readingCursorBg/readingCursorBorder ci-dessus, réservés au mode normal) :
+  // volontairement SANS AUCUNE composante bleue dominante (à l'époque,
+  // readingCursorBg/Border ci-dessus étaient bleus ; ils sont passés au vert
+  // le 2026-08-09, mais le sépia reste un traitement distinct) :
   // fond chaud sépia proche du "warm light" des liseuses e-ink, texte brun
   // foncé plutôt que noir pur -- moins de contraste dur, plus reposant en
   // lecture longue.

@@ -114,13 +114,27 @@ class VerseTile extends StatelessWidget {
           // le verset en cours se repere deja par sa bordure.
           color: modeSombre
               ? Colors.transparent
-              : isPlayingCursor
+              : isPlayingCursor && kindleMode
                   ? fondProfond
-                  : isActive
-                      ? (kindleMode
-                          ? fondProfond.withAlpha(140)
-                          : AppColors.green50)
-                      : Colors.transparent,
+                  : isPlayingCursor
+                      ? null // le dégradé ci-dessous porte la couleur
+                      : isActive
+                          ? (kindleMode
+                              ? fondProfond.withAlpha(140)
+                              : AppColors.green50)
+                          : Colors.transparent,
+          // Dégradé de vert transparent (2026-08-09, demande utilisateur :
+          // « choisis un dégradé du vert transparent au lieu de ce bleu
+          // transparent ») -- uniquement en thème clair, normal : le mode
+          // Kindle/sombre a déjà sa propre teinte (`fondProfond`, ci-dessus)
+          // et ne doit pas y ajouter un second traitement.
+          gradient: (!modeSombre && !kindleMode && isPlayingCursor)
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.readingCursorBg, AppColors.readingCursorBgEnd],
+                )
+              : null,
           borderRadius: BorderRadius.circular(12),
           border: isPlayingCursor
               ? Border.all(

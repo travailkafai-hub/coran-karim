@@ -1723,8 +1723,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get aboutTitle => 'حول التطبيق';
 
   @override
-  String get aboutTagline =>
-      'حفظ القرآن وتلاوته، مع التحقق داخل جهازك مباشرةً.';
+  String get aboutTagline => 'تلاوة القرآن، مع التحقق داخل جهازك.';
 
   @override
   String aboutVersionLine(String version, String build) {
@@ -1736,23 +1735,34 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get aboutPrivacyIntro =>
-      'يعمل تطبيق القرآن الكريم بالكامل داخل هاتفك: لا حساب، ولا إعلانات، ولا أدوات تتبُّع، ولا إرسال تلقائي لبياناتك.';
+      'كل شيء يجري داخل هاتفك: لا حساب، ولا إعلانات، ولا أدوات تتبُّع.';
 
   @override
   String get aboutPrivacyMic =>
-      'الميكروفون — يُحلَّل صوت تلاوتك داخل الجهاز بواسطة النموذج المدمج، ولا يُرسَل إلى أي خادم.';
+      'الميكروفون — تُحلَّل تلاوتك داخل الجهاز، ولا تُرسَل إلى أي جهة.';
 
   @override
   String get aboutPrivacyLocation =>
-      'الموقع — يُستخدم فقط لتحديد اتجاه القبلة وحساب مواقيت الصلاة. يُحفَظ داخل الجهاز ليعمل الحساب دون اتصال، ولا يُشارَك مع أحد.';
+      'الموقع — للقبلة ومواقيت الصلاة. ويبقى داخل الجهاز.';
 
   @override
   String get aboutPrivacyDiagnostic =>
-      'التشخيص — عند تفعيله في الإعدادات، يُحفَظ سجلٌّ ومقاطع صوتية من تلاواتك داخل الجهاز لفهم أخطاء التعرُّف. يمكنك تصديرها أو حذفها في أي وقت من الإعدادات.';
+      'التشخيص — عند تفعيله في الإعدادات، تُحفَظ مقاطع صوتية وسجلٌّ داخل الجهاز. ويمكنك حذفها في أي وقت.';
 
   @override
   String get aboutPrivacyNetwork =>
-      'الشبكة — تُستخدم فقط لتنزيل التلاوات والأذكار التي تطلبها. أمَّا نص القرآن فهو موجود أصلًا داخل التطبيق.';
+      'الشبكة — فقط لتنزيل التلاوات والأذكار التي تطلبها.';
+
+  @override
+  String get aboutSectionAsr => 'ما الذي يتحقَّق من تلاوتك';
+
+  @override
+  String get aboutAsrBody =>
+      'نموذج للتعرُّف على الكلام العربي، دُرِّب على تلاوات، يقارن ما تقوله بالنص. وقد يُخطئ: فالكلمة المُشار إليها ليست خطأً دائمًا.';
+
+  @override
+  String get aboutAsrCredit =>
+      'نموذج مشتق من نموذج NVIDIA، بترخيص CC BY 4.0، عُدِّل للتلاوة القرآنية.';
 
   @override
   String get aboutSectionAi => 'المعلِّم الذكي';
@@ -1776,23 +1786,141 @@ class AppLocalizationsAr extends AppLocalizations {
   String get aboutSectionSources => 'المصادر';
 
   @override
-  String get aboutSourceQuran =>
-      'نص القرآن وتقسيم الآيات والصفحات والتلاوات الصوتية: موقع Quran.com (مؤسسة Quran).';
+  String get aboutSourceQuran => 'نص القرآن والتلاوات: Quran.com.';
 
   @override
-  String get aboutSourceDuas => 'صوت الأذكار: موقع hisnmuslim.com.';
-
-  @override
-  String get aboutSourcePrayer =>
-      'مواقيت الصلاة: تُحسَب داخل الجهاز دون أي اتصال بالشبكة.';
+  String get aboutSourceDuas => 'صوت الأذكار: hisnmuslim.com.';
 
   @override
   String get aboutSectionLicenses => 'التراخيص';
 
   @override
-  String get aboutLicensesIntro =>
-      'يتضمَّن هذا التطبيق مكوِّنات من جهات أخرى، لكلٍّ منها شروط استخدامها الخاصة.';
+  String get aboutLicensesAll => 'عرض جميع التراخيص';
 
   @override
-  String get aboutLicensesAll => 'عرض جميع التراخيص';
+  String get onboardingSkip => 'تخطّي';
+
+  @override
+  String get onboardingNext => 'التالي';
+
+  @override
+  String get onboardingStart => 'لنبدأ';
+
+  @override
+  String get onboardingWelcomeTitle => 'مرحبًا';
+
+  @override
+  String get onboardingWelcomeBody =>
+      'اقرأ القرآن واتلُه واحفظه على وتيرتك. بلا إعلانات، بلا حساب، وبلا إزعاج.';
+
+  @override
+  String get onboardingWelcomeDedication =>
+      'هذا التطبيق مُهدى إلى روح والدي، رحمه الله وغفر له. ويسّر الله لكم جميعًا تلاوة كتابه وحفظه.';
+
+  @override
+  String get onboardingReadTitle => 'قراءة القرآن';
+
+  @override
+  String get onboardingReadBody =>
+      'المصحف كاملًا بألوان التجويد لترى الأحكام أثناء القراءة. استمع إلى القارئ الذي تختاره، وضع علامة لتتابع من حيث توقّفت.';
+
+  @override
+  String get onboardingReadHint =>
+      'ثلاثة أجواء للقراءة: فاتح، وبنّي مريح للعين، وخلفية سوداء لليل.';
+
+  @override
+  String get onboardingReciteTitle => 'اتلُ وصحِّح';
+
+  @override
+  String get onboardingReciteBody =>
+      'اتلُ بصوت مسموع: يستمع التطبيق ويلوّن كل كلمة تباعًا. الأخضر يعني أن الكلمة صحيحة، والبرتقالي أو الأحمر يعني أنها تحتاج مراجعة.';
+
+  @override
+  String get onboardingReciteHint =>
+      'نسيت الكلمة؟ يُسمعك المُلقِّن الكلمة المنتظرة دون أي حكم عليك.';
+
+  @override
+  String get onboardingMemorizeTitle => 'الحفظ باللعب';
+
+  @override
+  String get onboardingMemorizeBody =>
+      'تجعلك لعبة الحفظ تعيد بناء النص كلمة بعد كلمة. ولا تتوقف الجولة عند نهاية الصفحة، بل تستمر ما دمت تتابع.';
+
+  @override
+  String get onboardingMemorizeHint =>
+      'يُحفظ رقمك القياسي في عدد الكلمات المتتالية من جولة إلى أخرى.';
+
+  @override
+  String get onboardingCoachTitle => 'مدرّبك';
+
+  @override
+  String get onboardingCoachBody =>
+      'بعد كل تلاوة، تجد ما تعثّرت فيه: الكلمات المُشار إليها، وصوتك أنت في كل منها، وقراءة القارئ للمقارنة.';
+
+  @override
+  String get onboardingCoachHint =>
+      'تُجمَع الأخطاء حسب السورة وحسب حكم التجويد، لترى ما يتكرّر منها.';
+
+  @override
+  String get onboardingDuasTitle => 'الأذكار والصلاة';
+
+  @override
+  String get onboardingDuasBody =>
+      'أذكار اليوم والليلة بصوتها وعدد تكرارها. ومواقيت الصلاة محسوبة حسب موقعك، والأذان، واتجاه القبلة.';
+
+  @override
+  String get onboardingPrivacyTitle => 'بياناتك تبقى عندك';
+
+  @override
+  String get onboardingPrivacyBody =>
+      'تُحلَّل تلاوتك على الجهاز ولا تُرسل إلى أي مكان. لا حساب، ولا إعلانات، ولا متتبّعات. ولا تُستخدم الشبكة إلا لتنزيل التلاوات التي تطلبها.';
+
+  @override
+  String get duaPourNousTileTitle => 'دعوة لنا';
+
+  @override
+  String get duaPourNousTileSubtitle => 'هذا التطبيق مجاني وبلا إعلانات';
+
+  @override
+  String get duaPourNousTitle => 'دعوة';
+
+  @override
+  String get duaPourNousIntro =>
+      'هذا التطبيق مُقدَّم مجانًا: بلا إعلانات، وبلا حساب، ودون جمع أي من بياناتك. وقد كُتب لغاية واحدة، هي أن تكون تلاوة القرآن وتعلّمه أيسر عليك.';
+
+  @override
+  String get duaPourNousAskTitle => 'إن نفعك';
+
+  @override
+  String get duaPourNousAskBody =>
+      'لا نطلب منك مالًا. وكل ما نسألك إياه، إن نفعك هذا التطبيق، دعوة صالحة: لوالدي المتوفَّى، ولوالديّ، ولأهلي، ولكل من أسهم في هذا العمل.';
+
+  @override
+  String get duaPourNousDeceasedArabic =>
+      'اللَّهُمَّ اغْفِرْ لَهُ وَارْحَمْهُ، وَعَافِهِ وَاعْفُ عَنْهُ، وَأَكْرِمْ نُزُلَهُ، وَوَسِّعْ مُدْخَلَهُ';
+
+  @override
+  String get duaPourNousDeceasedTranslation =>
+      'اللهم اغفر له وارحمه، وعافه واعف عنه، وأكرم نزله، ووسّع مدخله.';
+
+  @override
+  String get duaPourNousDeceasedSource => 'رواه مسلم';
+
+  @override
+  String get duaPourNousForYouTitle => 'ولك أنت';
+
+  @override
+  String get duaPourNousForYouBody =>
+      'يسّر الله عليك تلاوة كتابه، وثبّت حفظه في قلبك، وتقبّل منك سعيك، وجعل القرآن ربيع قلبك ونور صدرك.';
+
+  @override
+  String get duaPourNousForYouArabic =>
+      'اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي';
+
+  @override
+  String get duaPourNousShare => 'مشاركة التطبيق';
+
+  @override
+  String get duaPourNousShareText =>
+      'قرآن كريم — اقرأ القرآن واتلُه واحفظه، بلا إعلانات.';
 }

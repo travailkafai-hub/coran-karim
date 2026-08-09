@@ -1472,7 +1472,21 @@ class _BismillahBanner extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: modeSombre ? AppColors.sombreBgDeep : AppColors.green50,
+          // Même dégradé de vert que le verset en cours de lecture
+          // (`VerseTile`) -- demande utilisateur 2026-08-09 : le bandeau de la
+          // Bismillah et le surlignage du verset doivent porter le code
+          // couleur vert de l'app, en dégradé, pas un aplat.
+          color: modeSombre ? AppColors.sombreBgDeep : null,
+          gradient: modeSombre
+              ? null
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.readingCursorBg,
+                    AppColors.readingCursorBgEnd
+                  ],
+                ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
               color: modeSombre

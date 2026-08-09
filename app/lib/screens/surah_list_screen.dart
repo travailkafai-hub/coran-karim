@@ -9,7 +9,9 @@ import '../widgets/quran_shazam_sheet.dart';
 import '../widgets/quran_pattern_background.dart';
 import 'mushaf_screen.dart';
 import '../providers/app_settings_provider.dart';
-import 'prayer_follow_screen.dart';
+// Import conservé volontairement, en commentaire : le bouton « Suivre une
+// prière » est retiré de la v1 (cf. plus bas), l'écran lui existe toujours.
+// import 'prayer_follow_screen.dart';
 
 class SurahListScreen extends ConsumerStatefulWidget {
   const SurahListScreen({super.key});
@@ -101,12 +103,27 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
                 tooltip: t.homeIdentifyTooltip,
                 onPressed: _openShazamFromHome,
               ),
-              IconButton(
-                icon: const Icon(Icons.mosque_rounded, color: AppColors.cream),
-                tooltip: t.homeFollowPrayerTooltip,
-                onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const PrayerFollowScreen())),
-              ),
+              // ── « SUIVRE UNE PRIÈRE » RETIRÉ DE LA v1 (2026-08-09) ────────
+              //
+              // Décision utilisateur : « désactive le mode prière, je ne vais
+              // pas l'inclure dans la première version [...] reste dans l'app
+              // mais pas utilisé ».
+              //
+              // RIEN N'EST SUPPRIMÉ : `PrayerFollowScreen`, le mode `PRIERE`
+              // de la chaîne v2 (`sautLibre`), l'identification de sourate et
+              // tout le cycle takbir/Fatiha/cible restent en place et
+              // fonctionnels -- c'est un gros chantier mesuré, pas un
+              // brouillon. Seul CE bouton disparaît, donc le seul chemin qui
+              // y menait depuis l'IHM. Le rebrancher = rétablir ces six
+              // lignes, rien d'autre.
+              //
+              // Ancien code, gardé en trace (convention projet) :
+              //   IconButton(
+              //     icon: const Icon(Icons.mosque_rounded, color: AppColors.cream),
+              //     tooltip: t.homeFollowPrayerTooltip,
+              //     onPressed: () => Navigator.push(context,
+              //         MaterialPageRoute(builder: (_) => const PrayerFollowScreen())),
+              //   ),
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
