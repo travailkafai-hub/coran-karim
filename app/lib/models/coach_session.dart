@@ -22,21 +22,18 @@ class CoachSessionState {
   const CoachSessionState({
     this.verses = const [],
     this.currentVerseIndex = 0,
-    // ── ON DEMARRE SUR L'ENTRAINEMENT (demande utilisateur 2026-08-06) ────
+    // ── RETOUR AU DEPART SUR LECTURE (2026-08-09) ──────────────────────────
     //
-    // « dans mémorisation par verset, on démarre directement par entraîner ;
-    // il y a écoute puis imite puis répète puis contrôle -- la première
-    // lecture ne sert à rien ».
-    //
-    // Elle servait de REFERENCE : c'est elle qui alimentait `baselineAccuracy`
-    // et le message « 1ère lecture : X % → De mémoire : Y % ». Choix de
-    // l'utilisateur, question posee explicitement : SCORE ABSOLU. La
-    // comparaison disparait donc, et `baselineAccuracy` reste simplement null.
-    //
-    // Le mode `lecture` n'est PAS supprime : il reste accessible par la barre
-    // d'etapes pour qui veut lire avant de travailler. Seul le point de DEPART
-    // change.
-    this.mode = CoachMode.apprentissage,
+    // Le 2026-08-06, ce champ avait ete mis a `apprentissage` : « la premiere
+    // lecture ne sert a rien » -- vrai a l'epoque, parce que Lecture etait
+    // alors une RECITATION NOTEE (baseline), une corvee avant le vrai
+    // entrainement. Le 2026-08-09, Lecture a change de sens (elle est
+    // devenue une simple ECOUTE du reciteur, sans micro, cf.
+    // `coach_screen._LectureModeState`) -- l'objection d'origine ne tient
+    // plus : ecouter le verset avant de s'entrainer est utile, ce n'est plus
+    // une etape morte. Demande utilisateur explicite : « il faut afficher
+    // les paliers et commencer la page avec le premier, l'ecoute ».
+    this.mode = CoachMode.lecture,
     this.appStep = 0,
     this.baselineAccuracy,
     this.difficultWords = const [],
