@@ -2,12 +2,16 @@
 // Coach (demande utilisateur 2026-07-24, remplace l'ancien mode "répéter le
 // texte entier N fois depuis le début").
 //
-// ⚠️ PLUS BRANCHÉ DEPUIS LE 2026-08-09 -- retiré de `coach_screen.dart` :
-// « enlève ce deuxième palier [...] en répétant tout le temps depuis le
-// début du verset ». La fenêtre glissante qu'il implémente est justement ce
-// que l'utilisateur a demandé de retirer (le texte jugé rétrécissait et se
-// déplaçait au lieu de rester le verset complet -- cause du décalage
-// signalé). Fichier conservé intact (convention projet).
+// ── CORRECTIF DU 2026-08-09 : PLUS DE FENÊTRE GLISSANTE ────────────────────
+// Bref aller-retour le même jour : j'avais d'abord retiré ce widget du flux
+// en croyant que le palier lui-même devait disparaître. Correction de
+// l'utilisateur : « le fonctionnement de l'entraînement c'est par palier » --
+// c'est le mécanisme voulu. Ce qui devait vraiment changer : la fenêtre
+// (`_currentWindow`) GLISSAIT (elle oubliait les premières unités une fois
+// `repeatWindowSizeProvider` dépassé), donc le texte jugé/affiché se
+// déplaçait au lieu de rester ancré au début -- cf. `_currentWindow`
+// ci-dessous pour le correctif (toujours [0, fin de l'unité courante]) et
+// pour le décalage texte/audio, probablement une piste distincte.
 //
 // Principe : le verset est découpé en UNITÉS (1 mot en mode Enfant, un
 // nombre de mots configurable approximant une "ligne" sinon --
@@ -47,7 +51,7 @@ import '../providers/recitation_provider.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
-import 'coach_screen.dart' show InfoBanner, MicSection, RawTranscriptBox, VerseDisplay;
+import 'coach_screen.dart' show InfoBanner, MicSection, VerseDisplay;
 
 enum _RoundPhase { loadingModel, playingAudio, listening, processing, retryReady }
 
@@ -105,14 +109,25 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     return (start, end);
   }
 
-  /// Bornes de la fenêtre courante (curseur glissant, taille fixe).
+  /// Bornes de la fenêtre courante -- CUMULATIVE depuis l'unité 0, jamais
+  /// glissante (corrigé le 2026-08-09, demande utilisateur : « en répétant
+  /// tout le temps depuis le début du verset »).
+  ///
+  /// AVANT : `firstUnit = max(0, _unitsIntroduced - windowSize)` faisait
+  /// GLISSER le début de la fenêtre -- une fois `windowSize` unités
+  /// introduites, les premières sortaient de la plage jugée/affichée. Le
+  /// texte visible et vérifié se déplaçait donc au fil des tours au lieu de
+  /// rester ancré au premier mot du verset -- symptôme décrit par
+  /// l'utilisateur comme un « décalage ».
+  ///
+  /// `repeatWindowSizeProvider` n'est plus lu ici : le réglage qu'il pilotait
+  /// (taille du curseur glissant) n'a plus d'objet sans glissement. Laissé
+  /// intact côté provider/réglages (convention projet), simplement plus
+  /// consulté par ce point d'usage.
   (int, int) _currentWindow() {
-    final windowSize = ref.read(repeatWindowSizeProvider);
-    final firstUnit = math.max(0, _unitsIntroduced - windowSize);
     final lastUnit = _unitsIntroduced - 1;
-    final (start, _) = _unitWordRange(firstUnit);
     final (_, end) = _unitWordRange(lastUnit);
-    return (start, end);
+    return (0, end);
   }
 
   @override
@@ -274,7 +289,8 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
                 onReset: () => _startRound(playAudio: false),
               ),
             ),
-          RawTranscriptBox(text: rst.rawTranscript),
+          // PAS de RawTranscriptBox (retiré 2026-08-09, demande utilisateur :
+          // « n'affiche pas entendu, on fait juste colorié »).
         ],
       ),
     );

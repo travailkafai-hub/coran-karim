@@ -15,9 +15,7 @@ import '../providers/recitation_provider.dart';
 import '../services/recitation_verifier.dart';
 import '../services/voice_fingerprint_service.dart';
 import '../theme/app_theme.dart';
-// Retiré du flux le 2026-08-09 (sous-étape "Répète" à fenêtre glissante,
-// remplacée par _ApprentissageMode) -- le fichier existe toujours.
-// import 'coach_incremental_repeat.dart';
+import 'coach_incremental_repeat.dart';
 import 'tajwid_rules_screen.dart';
 import '../widgets/tajwid_help_sheet.dart';
 import '../widgets/tajweed_text.dart';
@@ -456,153 +454,53 @@ class _LectureModeState extends ConsumerState<_LectureMode> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MODE 2 — Entraîne (2026-08-09 : un seul palier, le verset ENTIER à chaque fois)
+// MODE 2 — Entraîne (corrigé le 2026-08-09, deux passes le même jour)
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Remplace les 3 sous-étapes Écoute/Imite/Répète (retirées, cf. leurs classes
-// conservées plus bas). Demande utilisateur : « pour s'entraîner y a deux
-// options, soit avec le jeu, soit avec l'entraînement avec les paliers [...]
-// enlève ce deuxième palier [...] en répétant tout le temps depuis le début
-// du verset, en affiche pas entendu, on fait juste colorié [...] vérifie
-// bien si on utilise la même chose déjà bien recette dans la récitation ».
+// PREMIÈRE PASSE (erronée, gardée en trace) : j'avais compris qu'il fallait
+// retirer le mécanisme par palier et vérifier le verset entier d'un coup.
+// Correction de l'utilisateur : « le fonctionnement de l'entraînement c'est
+// PAR PALIER, et ça commence toujours par l'audio qui dit le palier » -- le
+// palier reste la mécanique voulue. Ce qui devait changer, relu avec ce
+// correctif :
+//   - « enlève ce deuxième palier » = les sous-étapes Écoute et Imite
+//     (préambules avant la répétition), PAS le mécanisme de palier lui-même
+//     -- `IncrementalRepeatStep` joue déjà l'audio du palier avant l'écoute
+//     (`_startRound(playAudio: true)`), donc les fusionner avec lui les rend
+//     redondantes ;
+//   - « en répétant tout le temps depuis le début du verset » = la fenêtre
+//     ne doit plus GLISSER (oublier les premières unités une fois
+//     `repeatWindowSizeProvider` dépassé) -- elle doit rester CUMULATIVE
+//     depuis l'unité 0 ;
+//   - « n'affiche pas entendu, on fait juste colorié » = retirer
+//     `RawTranscriptBox` de `IncrementalRepeatStep` ;
+//   - le décalage texte/audio signalé : cf. le commentaire sur
+//     `_currentWindow` dans `coach_incremental_repeat.dart`.
 //
-// CE QUI CAUSAIT LE DÉCALAGE SIGNALÉ : `IncrementalRepeatStep` ne vérifiait
-// JAMAIS le verset entier -- il découpait en unités et faisait glisser une
-// fenêtre de taille fixe, donc le texte affiché/jugé rétrécissait et se
-// déplaçait au fil des tours au lieu de rester le verset complet. Ce widget
-// utilise `recitationProvider.setup(_text)` avec le TEXTE ENTIER, exactement
-// comme `_ControleMode` -- même moteur, même appel, aucune fenêtre.
-class _ApprentissageMode extends ConsumerStatefulWidget {
+// `_ApprentissageMode` n'est donc plus qu'un habillage fin autour
+// d'`IncrementalRepeatStep` -- plus de sous-barre d'étapes.
+class _ApprentissageMode extends ConsumerWidget {
   final List<Verse> verses;
   const _ApprentissageMode({super.key, required this.verses});
 
   @override
-  ConsumerState<_ApprentissageMode> createState() => _ApprentissageModeState();
-}
-
-class _ApprentissageModeState extends ConsumerState<_ApprentissageMode>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulse;
-  final _fingerprint = VoiceFingerprintService();
-
-  String get _text => widget.verses.map((v) => v.textUthmani).join(' ');
-  String get _passageKey => widget.verses.map((v) => v.key).join('-');
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref.read(recitationProvider.notifier).setup(_text);
-    });
-    _fingerprint.ensureLoaded();
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    _fingerprint.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final rst = ref.watch(recitationProvider);
-    final listening = rst.status == RecitationStatus.listening;
-    final finished = rst.status == RecitationStatus.finished && rst.total > 0;
-
-    // Référence d'empreinte vocale (niveau 1) : sauvée depuis ICI maintenant
-    // que Lecture n'enregistre plus rien (cf. `_LectureModeState`). Même
-    // garde qu'avant (accuracy >= 60) : un tour d'entraînement raté n'est
-    // pas une vérité de référence.
-    if (finished) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted) return;
-        final audioPath = ref.read(recitationVerifierProvider).lastAudioPath;
-        if (audioPath != null && rst.accuracy >= 60) {
-          final ok = await _fingerprint.saveReference(audioPath, _passageKey);
-          debugPrint('[VoiceFingerprint] Référence "$_passageKey" sauvegardée : $ok');
-        }
-      });
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      child: Column(
-        children: [
-          InfoBanner(
-            icon: Icons.record_voice_over_outlined,
-            text: t.coachTrainInstruction,
-          ),
-          const SizedBox(height: 20),
-          VerseDisplay(words: rst.words, verses: widget.verses),
-          const SizedBox(height: 28),
-          MicSection(
-            listening: listening,
-            processing: rst.status == RecitationStatus.processing,
-            finished: finished,
-            pulse: _pulse,
-            statusText: listening
-                ? t.coachTrainListening
-                : finished
-                    ? t.coachTrainDone
-                    : t.coachTapToTrain,
-            onTap: () {
-              final n = ref.read(recitationProvider.notifier);
-              if (listening) {
-                n.stop();
-              } else {
-                n.setup(_text);
-                n.start();
-              }
-            },
-            onReset: () {
-              ref.read(recitationProvider.notifier).setup(_text);
-              ref.read(recitationProvider.notifier).reset();
-            },
-          ),
-          // PAS de RawTranscriptBox ici (demande utilisateur : « n'affiche
-          // pas entendu, on fait juste colorié ») -- contrairement à Lecture
-          // et Contrôle, qui le montrent toujours.
-          if (finished) ...[
-            const SizedBox(height: 20),
-            _ScoreRow(accuracy: rst.accuracy),
-            const SizedBox(height: 12),
-            _CoachBubble(
-              accuracy: rst.accuracy,
-              difficultWords: rst.words
-                  .where((w) =>
-                      w.status == WordStatus.error ||
-                      w.status == WordStatus.unclear ||
-                      w.status == WordStatus.skipped)
-                  .map((w) => w.display)
-                  .toList(),
-              mode: CoachMode.apprentissage,
-              baseline: null,
-            ),
-            const SizedBox(height: 16),
-            ActionButton(
-              label: t.coachMoveToControl,
-              icon: Icons.arrow_forward_rounded,
-              primary: true,
-              onTap: () =>
-                  ref.read(coachProvider.notifier).setMode(CoachMode.controle),
-            ),
-          ],
-        ],
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(coachProvider);
+    return IncrementalRepeatStep(
+      key: ValueKey('incremental-${verses.first.key}'),
+      verse: verses.first,
+      isLastVerse: session.isLastVerse,
+      onAllVersesDone: () =>
+          ref.read(coachProvider.notifier).setMode(CoachMode.controle),
     );
   }
 }
 
-// ── SOUS-ÉTAPES ÉCOUTE/IMITE/RÉPÈTE RETIRÉES (2026-08-09) ──────────────────
-// Remplacées par `_ApprentissageMode` ci-dessus (un seul palier, verset
-// entier). Classes conservées intactes (convention projet), plus référencées.
+// ── SOUS-ÉTAPES ÉCOUTE/IMITE RETIRÉES (2026-08-09) ─────────────────────────
+// La sous-étape "Répète" reste (`IncrementalRepeatStep`, monté directement
+// par `_ApprentissageMode` ci-dessus) -- seules Écoute et Imite disparaissent
+// du flux, désormais redondantes avec l'audio joué à chaque tour du palier.
+// Classes conservées intactes (convention projet), plus référencées.
 // ignore: unused_element
 List<String> _appStepLabels(AppLocalizations t) =>
     [t.coachSubStepListen, t.coachSubStepImitate, t.coachSubStepRepeat];
