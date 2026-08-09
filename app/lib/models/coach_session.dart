@@ -22,7 +22,21 @@ class CoachSessionState {
   const CoachSessionState({
     this.verses = const [],
     this.currentVerseIndex = 0,
-    this.mode = CoachMode.lecture,
+    // ── ON DEMARRE SUR L'ENTRAINEMENT (demande utilisateur 2026-08-06) ────
+    //
+    // « dans mémorisation par verset, on démarre directement par entraîner ;
+    // il y a écoute puis imite puis répète puis contrôle -- la première
+    // lecture ne sert à rien ».
+    //
+    // Elle servait de REFERENCE : c'est elle qui alimentait `baselineAccuracy`
+    // et le message « 1ère lecture : X % → De mémoire : Y % ». Choix de
+    // l'utilisateur, question posee explicitement : SCORE ABSOLU. La
+    // comparaison disparait donc, et `baselineAccuracy` reste simplement null.
+    //
+    // Le mode `lecture` n'est PAS supprime : il reste accessible par la barre
+    // d'etapes pour qui veut lire avant de travailler. Seul le point de DEPART
+    // change.
+    this.mode = CoachMode.apprentissage,
     this.appStep = 0,
     this.baselineAccuracy,
     this.difficultWords = const [],
