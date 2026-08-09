@@ -181,7 +181,21 @@ class RecitedWord {
 /// de fautes délibérées » n'existe pas (cf. REFONTE_IHM.md §12), cette
 /// catégorie doit être lue comme « écart non expliqué par les lettres ni les
 /// harakat, sur un mot qui porte une règle » — pas comme une preuve.
-enum RecitationErrorKind { lettre, harakat, tajwid, saute, inconnu }
+// `oubli` (2026-08-09, demande utilisateur) : NI une faute de lettre/harakat
+// NI du tajwid -- le mot était correctement récitable, mais absent de la
+// mémoire au moment T. Deux origines, toutes deux hors du jugement acoustique
+// normal :
+//   - décrochage suivi d'une reprise qui redevient VERTE : sans cette
+//     catégorie, le lapsus disparaissait purement et simplement dès que la
+//     reprise était bonne (le mot finit vert, rien ne dit qu'il a fallu s'y
+//     reprendre) ;
+//   - souffleur manuel sollicité (haut-parleur) : jusqu'ici « on ne juge
+//     rien » (délibéré, 2026-07-16) -- demander le mot EST la preuve d'un
+//     oubli, que le jugement doit refléter.
+// Comptée à part des vraies fautes de récitation : mélanger les deux fausse
+// la lecture « sur quoi je me trompe » (lettre/harakat/tajwid restent des
+// écarts de PRONONCIATION, l'oubli est un écart de MÉMOIRE).
+enum RecitationErrorKind { lettre, harakat, tajwid, saute, oubli, inconnu }
 
 String recitationErrorKindLabel(AppLocalizations t, RecitationErrorKind k) =>
     switch (k) {
@@ -189,6 +203,7 @@ String recitationErrorKindLabel(AppLocalizations t, RecitationErrorKind k) =>
       RecitationErrorKind.harakat => t.errorKindHarakat,
       RecitationErrorKind.tajwid => t.errorKindTajwid,
       RecitationErrorKind.saute => t.errorKindSkippedWord,
+      RecitationErrorKind.oubli => t.errorKindOubli,
       RecitationErrorKind.inconnu => t.errorKindUnknown,
     };
 
@@ -199,6 +214,7 @@ String recitationErrorFamilyLabel(RecitationErrorKind k) => switch (k) {
         'Prononciation',
       RecitationErrorKind.tajwid => 'Tajwid',
       RecitationErrorKind.saute => 'Mot sauté',
+      RecitationErrorKind.oubli => 'Oubli',
       RecitationErrorKind.inconnu => 'Indéterminé',
     };
 

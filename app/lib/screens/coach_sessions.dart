@@ -8,6 +8,7 @@ import '../services/session_archive_service.dart';
 import '../services/word_correction_audio.dart';
 import '../providers/player_provider.dart';
 import '../theme/app_theme.dart';
+import 'memorization_game_screen.dart';
 
 /// LE COACH REGARDE EN ARRIÈRE (2026-08-06).
 ///
@@ -393,14 +394,60 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
     }
   }
 
+  /// Lance le jeu de mémorisation en partant DEUX VERSETS AVANT le mot oublié
+  /// (demande utilisateur 2026-08-09 : « rajoute côté coach un lien [...] par
+  /// exemple commencer deux versets avant et faire le jeu pour voir s'il se
+  /// souvient — seulement pour le souffleur et le décrochage »).
+  ///
+  /// Deux versets, pas le verset du mot lui-même : le lapsus se produit
+  /// souvent à la TRANSITION vers un nouveau verset (cf. le correctif du
+  /// même jour dans `memorization_game_provider.dart`) -- reprendre pile sur
+  /// le mot oublié ne testerait pas le fil qui y mène.
+  Future<void> _entrainer() async {
+    final m = widget.m;
+    if (m.surahNumber == null || m.ayahNumber == null) {
+      setState(() => _message = 'Position du mot inconnue');
+      return;
+    }
+    setState(() {
+      _joue = true;
+      _message = null;
+    });
+    try {
+      final surahs = await QuranApi.fetchSurahs();
+      final surah = surahs.firstWhere((s) => s.number == m.surahNumber);
+      final tousVersets = await QuranApi.fetchVerses(m.surahNumber!);
+      final depart = (m.ayahNumber! - 2).clamp(1, m.ayahNumber!);
+      final versets =
+          tousVersets.where((v) => v.ayahNumber >= depart).toList();
+      if (versets.isEmpty || !mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              MemorizationGameScreen(surah: surah, verses: versets),
+        ),
+      );
+    } catch (_) {
+      if (mounted) setState(() => _message = 'Jeu indisponible');
+    } finally {
+      if (mounted) setState(() => _joue = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final m = widget.m;
+    // 'oubli' (2026-08-09) : décrochage repris ou souffleur sollicité -- ni
+    // une erreur de prononciation (rouge) ni une approximation (brass), donc
+    // une couleur à part. Cf. `_archiverOubli` dans karaoke_recitation_screen.
     final couleur = switch (m.status) {
       'error' => Colors.redAccent.shade200,
       'unclear' => AppColors.brass,
+      'oubli' => Colors.lightBlue.shade300,
       _ => AppColors.inkLight,
     };
+    final estOubli = m.kind == 'oubli';
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
@@ -422,6 +469,24 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
                     style: GoogleFonts.scheherazadeNew(
                         fontSize: 24, color: AppColors.ink)),
               ),
+              if (estOubli)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.lightBlue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.lightBlue.shade200),
+                    ),
+                    child: Text('Oubli',
+                        style: GoogleFonts.manrope(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.lightBlue.shade700)),
+                  ),
+                ),
               if (m.ayahNumber != null)
                 Text('${m.surahNumber}:${m.ayahNumber}',
                     style: GoogleFonts.manrope(
@@ -457,6 +522,16 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
                 actif: !_joue,
                 onTap: _leRecitateur,
               ),
+              if (estOubli) ...[
+                const SizedBox(width: 8),
+                _Bouton(
+                  icone: Icons.school_outlined,
+                  texte: 'M\'entraîner',
+                  couleur: Colors.lightBlue.shade700,
+                  actif: !_joue,
+                  onTap: _entrainer,
+                ),
+              ],
             ],
           ),
           if (_message != null)

@@ -29,11 +29,27 @@ class RecitationStartOverlay extends StatelessWidget {
     //
     // La SEQUENCE n'est pas touchee (chargement du modele, ouverture du micro,
     // memes etapes, memes durees) -- seul son affichage change.
+    //
+    // ── ETENDUE A TOUTE LA SEQUENCE, MODELE INCLUS (demande utilisateur) ──
+    //
+    // « je veux a3oudo billah pour cacher le chargement du modele ; une fois
+    // le modele charge, on enleve a3oudo billah ». La formule n'apparaissait
+    // qu'a partir du decompte, PAS pendant `loadingModel` ni `startingCapture`
+    // -- deux trous dans la sequence. Le chargement technique restait donc
+    // visible en clair, et la formule DISPARAISSAIT puis REVENAIT entre le
+    // decompte et le « go » (retiree a `startingCapture`, remise a `go`) :
+    // l'AnimatedSwitcher rejouait sa transition d'entree pour le meme texte,
+    // ce qui donnait l'impression qu'elle se rechargeait plusieurs fois.
+    //
+    // Elle couvre maintenant tout le trajet (sauf l'echec de chargement) :
+    // un seul affichage continu, du premier instant jusqu'au « go ».
     const isti3adhaTexte = 'أَعُوذُ بِٱللَّهِ مِنَ ٱلشَّيْطَٰنِ ٱلرَّجِيمِ';
     final isti3adha = switch (stage) {
+      RecitationStartStage.loadingModel ||
       RecitationStartStage.countdown3 ||
       RecitationStartStage.countdown2 ||
       RecitationStartStage.countdown1 ||
+      RecitationStartStage.startingCapture ||
       RecitationStartStage.go => isti3adhaTexte,
       _ => null,
     };

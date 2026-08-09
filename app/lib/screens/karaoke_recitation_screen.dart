@@ -340,6 +340,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             'ignoré : premier mot réel (mot=$premierReel) pas encore verrouillé');
         return;
       }
+      // OUBLI archivé ICI, indépendamment du verdict final du mot (2026-08-09,
+      // cf. `_archiverOubli`) : que la reprise soit jugée verte ou non, le
+      // décrochage a bien eu lieu.
+      unawaited(_archiverOubli(ancre, avecAudio: true));
       _onWordFailed(ancre,
           surSilence: true, raison: 'decrochage v2 (hors texte ou trou)');
     });
@@ -522,7 +526,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// SEULE sur une erreur détectée, rejoue une PLAGE (mot précédent + mots
   /// sautés) puis FORCE à refaire cette plage (`rewindAndUnlock`). Ici on ne
   /// juge rien et on ne recule rien : le réciteur a juste un trou de mémoire,
-  /// il demande le mot, il l'entend, il continue. Aucun mot n'est marqué.
+  /// il demande le mot, il l'entend, il continue.
+  ///
+  /// ⚠️ MIS À JOUR (2026-08-09) : « Aucun mot n'est marqué » n'est plus tout
+  /// à fait vrai -- demander le mot est désormais archivé comme un OUBLI
+  /// (`_archiverOubli`, cf. sa doc), demande utilisateur explicite. Ce qui
+  /// reste vrai : le MOT lui-même (sa couleur à l'écran, son statut de
+  /// jugement acoustique) n'est ni jugé ni reculé ici -- seule une trace est
+  /// ajoutée, séparée du jugement.
   ///
   /// Réutilise le même garde-fou audio que la correction automatique, pour une
   /// raison non négociable : pendant la lecture, le HAUT-PARLEUR est capté par
@@ -547,6 +558,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final verse = _verseContaining(pointer);
     final local = _localIndexInVerse(pointer);
     if (verse == null || local == null) return;
+
+    // OUBLI archivé (2026-08-09, demande utilisateur) : demander le mot AU
+    // SOUFFLEUR est la preuve qu'il manquait -- jusqu'ici « on ne juge rien »
+    // (délibéré, 2026-07-16, cf. la doc de cette fonction), mais ne rien
+    // enregistrer faisait disparaître un vrai trou de mémoire. Sans audio
+    // (`avecAudio` défaut false) : l'anneau ne contient à cet instant que le
+    // silence qui a précédé la demande, rien à en tirer.
+    unawaited(_archiverOubli(pointer));
 
     setState(() => _promptingWord = true);
     final verifier = ref.read(recitationVerifierProvider);
@@ -734,6 +753,74 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       wordInAyah: local,
       heardWord: mot.heard,
       kind: ref.read(recitationProvider.notifier).classifyError(wordIndex).name,
+      audioSource: extrait,
+    );
+  }
+
+  /// Archive un OUBLI : décrochage repris, ou souffleur manuel sollicité.
+  ///
+  /// Demande utilisateur (2026-08-09) : « quand je fais un décrochage puis je
+  /// répète, malgré que j'ai bien répété ça se met en vert, mais quand même
+  /// c'est un oubli à renseigner ; ou bien quand il clique sur haut-parleur
+  /// pour qu'il écoute le souffleur, ça doit être considéré comme erreur ».
+  ///
+  /// ⚠️ DISTINCT de `_archiverMotNonVert` : celui-là attend le verdict FINAL
+  /// (`wordLockedNonGreen`, qui ne se déclenche QUE si le mot reste non vert).
+  /// Ici on archive IMMÉDIATEMENT, sans attendre ce verdict -- si on
+  /// attendait, un mot qui redevient vert après reprise ne laisserait AUCUNE
+  /// trace du lapsus, exactement le défaut signalé.
+  ///
+  /// `status: 'oubli'` est un troisième état de l'archive, à côté de
+  /// error/unclear/correct : il ne dit rien sur la PRONONCIATION (elle peut
+  /// être parfaite à la reprise), seulement qu'une aide extérieure a été
+  /// nécessaire pour continuer.
+  ///
+  /// [avecAudio] : tentative d'extraction de la voix récitée, pertinente pour
+  /// un décrochage (on veut entendre ce qui a fait perdre le fil) mais pas
+  /// pour le souffleur manuel (l'anneau ne contient alors que le SILENCE qui
+  /// a précédé la demande d'aide -- rien à en tirer, et ça consommerait la
+  /// même fenêtre urgente qu'une vraie erreur en attente ailleurs).
+  Future<void> _archiverOubli(int wordIndex, {bool avecAudio = false}) async {
+    if (_isReferenceSession) return;
+    final words = ref.read(recitationProvider).words;
+    if (wordIndex < 0 || wordIndex >= words.length) return;
+    final mot = words[wordIndex];
+    final verse = _verseContaining(wordIndex);
+    final local = _localIndexInVerse(wordIndex);
+    if (verse == null || local == null) return;
+
+    // Coach hub (stats cumulées, `RecitationErrorLogService`) : kind FORCÉ à
+    // `oubli`, jamais `classifyError()` -- ce dernier compare attendu/entendu
+    // pour qualifier une MAUVAISE PRONONCIATION, question qui ne se pose pas
+    // ici (le mot n'a pas été mal dit, il a fallu de l'aide pour le dire).
+    RecitationErrorLogService.instance.logError(
+      surahNumber: verse.surahNumber,
+      ayahNumber: verse.ayahNumber,
+      wordIndex: local,
+      expectedWord: mot.display,
+      kind: RecitationErrorKind.oubli,
+    );
+
+    if (SessionArchiveService.instance.sessionCourante == null) return;
+    String? extrait;
+    if (avecAudio) {
+      try {
+        extrait = await ref
+            .read(recitationVerifierProvider)
+            .v2ExtraitVoix(wordIndex > 0 ? wordIndex - 1 : wordIndex, wordIndex);
+      } catch (e) {
+        DiagnosticLog.log(
+            'Archive', 'extrait voix (oubli) impossible mot=$wordIndex : $e');
+      }
+    }
+    await SessionArchiveService.instance.archiverMot(
+      wordIndex: wordIndex,
+      expectedWord: mot.display,
+      status: 'oubli',
+      surahNumber: verse.surahNumber,
+      ayahNumber: verse.ayahNumber,
+      wordInAyah: local,
+      kind: 'oubli',
       audioSource: extrait,
     );
   }
@@ -1508,14 +1595,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   /// Vrai si LANCER une récitation maintenant en ferait une session de
-  /// référence (pas de profil dédié pour ce passage, ET profil global pas
-  /// encore stable -- cf. `_toggle`). Reflète exactement la décision qui y
-  /// est prise, pour que les bandeaux/labels affichés AVANT le tap restent
-  /// cohérents avec ce qui se passera réellement (demande utilisateur
-  /// 2026-07-12 : ne plus laisser croire à une session de référence une fois
-  /// le profil global stable).
-  bool get _willBeReferenceSession =>
-      _hasProfile == false && _globalStable != true;
+  /// référence. TOUJOURS FAUX depuis le 2026-08-05 : ce getter calculait la
+  /// condition (pas de profil dédié, profil global pas stable) qui menait
+  /// autrefois au dialogue « référence ou correction ? ». Ce dialogue a été
+  /// retiré (cf. le commentaire sur `_isReferenceSession` dans `_toggle` :
+  /// « LA REFERENCE QUITTE L'INTERFACE, PAS LE PROJET ») -- toute récitation
+  /// lancée depuis cet écran est désormais NORMALE, sans exception.
+  ///
+  /// BUG CORRIGÉ (constat utilisateur : « il y a toujours un message sur la
+  /// récitation de référence sur la page de récitation ») : ce getter n'avait
+  /// pas été mis à jour lors du retrait du dialogue, donc le bandeau
+  /// `_referenceBanner` et l'indication `_bottomHint` continuaient d'annoncer
+  /// une session de référence qui ne se produirait jamais -- vrai dès qu'un
+  /// passage n'avait pas encore de profil de pauses dédié, donc quasiment
+  /// toujours. Cf. `_isReferenceSession` pour le mode réellement fonctionnel,
+  /// qui reste accessible au banc de recette via `autoDemarrer`.
+  bool get _willBeReferenceSession => false;
 
   Future<void> _startWithCountdown(RecitationNotifier notifier) async {
     if (_startStage != null) return;

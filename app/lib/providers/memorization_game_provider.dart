@@ -68,6 +68,10 @@ class MemorizationGameState {
   GameVerse get currentVerse => verses[currentVerseIndex];
   String get currentWord => currentVerse.words[currentWordIndex];
   bool get isFirstWordOfVerse => currentWordIndex == 0;
+  /// Vrai UNIQUEMENT pour le tout premier mot de TOUTE la partie -- distinct
+  /// de [isFirstWordOfVerse]. Cf. `_prepareChoicesIfNeeded` pour pourquoi la
+  /// distinction existe.
+  bool get isVeryFirstWord => currentVerseIndex == 0 && currentWordIndex == 0;
   bool get isLastVerse => currentVerseIndex == verses.length - 1;
   bool get isLastWordOfVerse => currentWordIndex == currentVerse.words.length - 1;
 
@@ -133,15 +137,28 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
   /// Nombre de leurres proposés en plus du mot correct.
   static const int _distractorCount = 3;
 
-  /// Construit un jeu de choix mélangés pour `currentWordIndex` si ce n'est
-  /// pas le tout premier mot du verset courant (le mot 0 s'affiche seul).
-  /// Préserve `justBeatRecord` tel quel (ne PAS re-suivre le défaut `??
+  /// Construit un jeu de choix mélangés pour `currentWordIndex`, SAUF pour le
+  /// tout premier mot de toute la partie (affiché seul, rien à tester avant
+  /// lui). Préserve `justBeatRecord` tel quel (ne PAS re-suivre le défaut `??
   /// false` de `copyWith`) : cette méthode est appelée juste après que
   /// `submitWord`/`_loadNextPage` l'aient positionné pour LE mot qui vient
   /// d'être validé -- l'écraser ici ferait disparaître le flash "record
   /// battu" avant même le premier rebuild qui aurait pu l'afficher.
+  ///
+  /// ── LE PREMIER MOT D'UN NOUVEAU VERSET EST DÉSORMAIS TESTÉ (2026-08-09) ──
+  ///
+  /// Demande utilisateur : « dans l'enchaînement des ayat, il commence
+  /// toujours par le premier mot du verset, alors que c'est là qu'il y a
+  /// l'oubli -- souvent les gens n'arrivent pas à se souvenir du premier
+  /// mot ». Avant ce correctif, `isFirstWordOfVerse` (mot 0 de N'IMPORTE
+  /// QUEL verset) sautait le QCM et AFFICHAIT le mot -- la transition, qui
+  /// est précisément l'endroit où la mémoire lâche, n'était donc jamais
+  /// vérifiée, seulement révélée.
+  ///
+  /// Seul le tout premier mot de la PARTIE ([isVeryFirstWord]) garde
+  /// l'affichage seul : rien ne le précède, il n'y a rien à tester avant lui.
   void _prepareChoicesIfNeeded() {
-    if (state.isFirstWordOfVerse) {
+    if (state.isVeryFirstWord) {
       state = state.copyWith(
           choices: const [], justBeatRecord: state.justBeatRecord);
       return;

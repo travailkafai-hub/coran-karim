@@ -19,7 +19,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_localizations.dart';
-import '../models/judgement_options.dart' show TajwidRule;
 import '../models/recitation_state.dart'
     show RecitationErrorKind, recitationErrorKindLabel;
 import '../models/verse.dart';
@@ -29,6 +28,7 @@ import '../providers/mind_map_provider.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
 import '../theme/app_theme.dart';
+import 'coach_sessions.dart';
 import '../widgets/coach_explanation_sheet.dart';
 import '../widgets/tajwid_help_sheet.dart' show kTajwidRuleInfo;
 import 'coach_screen.dart';
@@ -83,16 +83,29 @@ class CoachHubScreen extends ConsumerWidget {
             style: GoogleFonts.scheherazadeNew(
                 fontSize: 22, color: AppColors.brassLight)),
       ),
+      // ── LE COACH N'EST PLUS UN LANCEUR (2026-08-06) ────────────────────
+      //
+      // Demande utilisateur : « comme maintenant la récitation, le jeu et la
+      // mémorisation ça se fait depuis l'écran du Mushaf, je veux que le
+      // coach se concentre sur les erreurs [...] pour se concentrer sur tout
+      // ce qui est résultat ».
+      //
+      // Les quatre sections de lancement (`_ResumeSection`,
+      // `_MemorizeSection`, `_GameSection`, `_ReciteSection`) faisaient
+      // doublon avec la bulle du Mushaf, qui propose les mêmes actions AU
+      // VERSET PRÈS -- donc mieux placée qu'un bouton générique ici. Elles
+      // sont CONSERVÉES plus bas dans ce fichier, intactes : elles portent
+      // leurs propres décisions (choix de préréglage, garde-fous de reprise)
+      // et redeviendront utiles si le Coach reprend un rôle de lancement.
+      //
+      // Ce qui reste répond à une seule question : « qu'est-ce que j'ai fait,
+      // et qu'est-ce qui a coincé ? » — d'abord session par session (avec la
+      // voix), puis en cumul par sourate et par règle.
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: const [
-          _ResumeSection(),
-          _MemorizeSection(),
-          SizedBox(height: 22),
-          _GameSection(),
-          SizedBox(height: 22),
-          _ReciteSection(),
-          SizedBox(height: 22),
+          SessionsSection(),
+          SizedBox(height: 26),
           _ErrorsSection(),
         ],
       ),
@@ -105,6 +118,9 @@ class CoachHubScreen extends ConsumerWidget {
 /// Dernier verset travaillé, persisté par [CoachScreen]. Affiché en tête pour
 /// que l'action la plus fréquente (« je continue là où j'en étais ») ne demande
 /// jamais de re-naviguer.
+// Retiree du hub le 2026-08-06 (cf. CoachHubScreen.build) et conservee
+// volontairement : regle projet, on n'efface pas ce qui a ete concu.
+// ignore: unused_element
 class _ResumeSection extends ConsumerWidget {
   const _ResumeSection();
 
@@ -201,6 +217,9 @@ Future<void> _openCoachForVerse(
 
 // ── Zone B — Mémoriser (ayah par ayah) ───────────────────────────────────────
 
+// Retiree du hub le 2026-08-06 (cf. CoachHubScreen.build) et conservee
+// volontairement : regle projet, on n'efface pas ce qui a ete concu.
+// ignore: unused_element
 class _MemorizeSection extends StatelessWidget {
   const _MemorizeSection();
 
@@ -247,6 +266,9 @@ class _MemorizeSection extends StatelessWidget {
 /// complément de `CoachScreen` (3 étapes classiques). Décision utilisateur
 /// 2026-07-22, mécanique détaillée dans
 /// `.claude/skills/jeux-memorisation/SKILL.md`.
+// Retiree du hub le 2026-08-06 (cf. CoachHubScreen.build) et conservee
+// volontairement : regle projet, on n'efface pas ce qui a ete concu.
+// ignore: unused_element
 class _GameSection extends StatelessWidget {
   const _GameSection();
 
@@ -324,6 +346,9 @@ class _GameSection extends StatelessWidget {
 /// `_openVerificationSheet`) -- ils ne servent que là, et souvent EN COURS de
 /// récitation. Le RÉCITATEUR est retourné dans les Réglages généraux (choix
 /// transverse : écoute, souffleur, corrections audio).
+// Retiree du hub le 2026-08-06 (cf. CoachHubScreen.build) et conservee
+// volontairement : regle projet, on n'efface pas ce qui a ete concu.
+// ignore: unused_element
 class _ReciteSection extends StatelessWidget {
   const _ReciteSection();
 
@@ -1047,6 +1072,7 @@ class _ErrorKindBreakdown extends ConsumerWidget {
     RecitationErrorKind.harakat,
     RecitationErrorKind.tajwid,
     RecitationErrorKind.saute,
+    RecitationErrorKind.oubli,
     RecitationErrorKind.inconnu,
   ];
 
@@ -1055,6 +1081,7 @@ class _ErrorKindBreakdown extends ConsumerWidget {
         RecitationErrorKind.harakat => AppColors.mindmapEthique,
         RecitationErrorKind.tajwid => AppColors.green700,
         RecitationErrorKind.saute => AppColors.inkLight,
+        RecitationErrorKind.oubli => Colors.lightBlue.shade300,
         RecitationErrorKind.inconnu => AppColors.cream300,
       };
 
