@@ -266,6 +266,29 @@ sur un chemin voisin jamais essayé (lire puis revenir en arrière).
   preuve — si elle repose sur un résultat non revérifié, c'est de
   l'invention, pas un diagnostic.
 
+- **QUAND PLUSIEURS AGENTS TRAVAILLENT EN PARALLÈLE SUR LE DÉPÔT, NE LANCER
+  UN BUILD QUE SI TOUTES LES FENÊTRES/SESSIONS SONT DANS UN ÉTAT STABLE**
+  (consigne utilisateur 2026-08-09). Un `flutter build` (ou toute compilation
+  du projet entier) lit l'ARBRE DE TRAVAIL complet, pas seulement les
+  fichiers qu'on vient de modifier soi-même : si un autre agent a une
+  modification en cours ailleurs dans le dépôt (fichier à moitié édité,
+  refactor en plusieurs étapes non terminé), le build échoue sur DU CODE
+  QU'ON N'A PAS TOUCHÉ, et rien ne distingue à l'œil « j'ai cassé quelque
+  chose » de « quelqu'un d'autre est en plein milieu d'une modification ».
+  Fait vécu le même jour : un build a échoué sur `player_provider.dart`/
+  `player_state_model.dart`/`reading_settings_sheet.dart` — trois fichiers
+  jamais touchés dans la session en cours — pendant qu'un autre agent y
+  travaillait en parallèle.
+  ⇒ Avant de lancer un build alors qu'un travail parallèle est connu ou
+  suspecté (cf. `git status` montrant des fichiers modifiés hors de ce qu'on
+  vient soi-même d'éditer, ou fichiers signalés « modifié depuis la dernière
+  lecture ») : vérifier d'abord si l'échec vient de ses propres changements
+  (`flutter analyze` ciblé sur les fichiers qu'on a modifiés) avant de
+  conclure à une régression introduite par soi-même.
+  ⇒ Si le build échoue sur des fichiers qu'on n'a pas touchés, le dire
+  clairement à l'utilisateur plutôt que de tenter de réparer le travail d'un
+  autre agent à l'aveugle — ce n'est ni le rôle ni le contexte pour le faire.
+
 ## Spécificités de CETTE machine (Ubuntu, RTX 5080 16 Go)
 
 - **Chemin projet** : `/media/kafai/NouveauNom/Coran Karim` (espace dans le
