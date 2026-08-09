@@ -224,7 +224,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               Expanded(
                 child: _NavItem(
-                  icon: Icons.volunteer_activism_rounded,
+                  // ── ICONE DES INVOCATIONS (2026-08-09, demande utilisateur)
+                  //
+                  // « il y a l'icone des invocations, je l'ai utilisee apres
+                  // pour les dons, remplace-la par deux mains ouvertes, signe
+                  // pour les invocations ». `volunteer_activism_rounded`
+                  // (main + coeur) est en effet l'icone standard du DON en
+                  // Material Design -- ambigu ici, et reserve pour plus tard.
+                  //
+                  // Aucune icone Material ne represente DEUX mains ouvertes en
+                  // un seul glyphe (le jeu d'icones ne va pas jusque-la). On
+                  // compose donc deux `front_hand_rounded` (paume ouverte)
+                  // en miroir l'une de l'autre -- cf. `pairedHands` sur
+                  // `_NavItem`, seul endroit qui en a besoin.
+                  icon: Icons.front_hand_rounded,
+                  pairedHands: true,
                   label: t.navDuas,
                   active: _tab == 1,
                   onTap: () => setState(() => _tab = 1),
@@ -259,8 +273,13 @@ class _NavItem extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
+  /// Rend [icon] DEUX FOIS, la seconde retournée en miroir horizontal --
+  /// pensé pour composer « deux mains ouvertes » à partir d'une icône Material
+  /// à une seule main (cf. l'appel pour l'onglet Invocations, aucun glyphe
+  /// Material ne représentant nativement deux mains).
+  final bool pairedHands;
   const _NavItem({required this.icon, required this.label,
-      required this.active, required this.onTap});
+      required this.active, required this.onTap, this.pairedHands = false});
 
   @override
   Widget build(BuildContext context) {
@@ -290,9 +309,16 @@ class _NavItem extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon,
-                  color: active ? AppColors.brass : AppColors.cream.withAlpha(140),
-                  size: 24),
+              pairedHands
+                  ? _PairedHandsIcon(
+                      icon: icon,
+                      color:
+                          active ? AppColors.brass : AppColors.cream.withAlpha(140),
+                    )
+                  : Icon(icon,
+                      color:
+                          active ? AppColors.brass : AppColors.cream.withAlpha(140),
+                      size: 24),
               const SizedBox(height: 2),
               Text(
                 label,
@@ -305,5 +331,31 @@ class _NavItem extends StatelessWidget {
           ),
         ),
       );
+  }
+}
+
+/// Deux mains ouvertes, composées à partir d'une icône Material à une seule
+/// main (cf. `_NavItem.pairedHands`). Chaque main est réduite (18 au lieu de
+/// 24) et rapprochée pour occuper un encombrement comparable aux icônes
+/// pleines des trois autres onglets, malgré la largeur double.
+class _PairedHandsIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  const _PairedHandsIcon({required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 18),
+        // Miroir horizontal : la même paume, mais côté opposé -- c'est ce
+        // qui fait lire « deux mains » plutôt que « une main dupliquée ».
+        Transform.flip(
+          flipX: true,
+          child: Icon(icon, color: color, size: 18),
+        ),
+      ],
+    );
   }
 }
