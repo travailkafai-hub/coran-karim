@@ -267,6 +267,19 @@ class FastConformerVerifier {
   static const _kRulesFile = 'rules.json';
 
   bool _loaded = false;
+
+  /// Détail EXPLICITE du dernier échec de chargement -- nul si le modèle est
+  /// chargé ou si `ensureLoaded()` n'a encore jamais échoué.
+  ///
+  /// ── POURQUOI (2026-08-09, demande utilisateur) ───────────────────────────
+  /// Avant ce champ, un modèle absent produisait UNIQUEMENT « Le modèle de
+  /// récitation est indisponible. » -- vrai mais inexploitable : ni le NOM du
+  /// modèle attendu (`trois-tetes-2026-08-04-combine`, change à chaque
+  /// déploiement), ni le fichier précis manquant, ni le chemin où le chercher.
+  /// Un `pm clear` (ou une désinstallation) l'efface silencieusement, et rien
+  /// ne dit ensuite QUOI repousser ni OÙ.
+  String? _dernierEchecChargement;
+  String? get dernierEchecChargement => _dernierEchecChargement;
   bool _hasRuleHead = false;
 
   /// Le modèle déployé expose-t-il une TÊTE TAJWID (architecture à deux têtes) ?
@@ -306,9 +319,21 @@ class FastConformerVerifier {
     final vocabFile = File('${appDir.path}/$_kModelSubdir/$_kVocabFile');
     final wordTokensFile = File('${appDir.path}/$_kModelSubdir/$_kWordTokensFile');
     if (!await modelFile.exists() || !await vocabFile.exists()) {
-      debugPrint('[FastConformer] Modèle/vocab absents (${modelFile.path}) — ignoré');
+      final manquant = <String>[
+        if (!await modelFile.exists()) _kModelFile,
+        if (!await vocabFile.exists()) _kVocabFile,
+      ].join(', ');
+      _dernierEchecChargement =
+          'modèle "$_kModelSubdir" : $manquant introuvable dans '
+          '${appDir.path}/$_kModelSubdir/';
+      debugPrint('[FastConformer] ${_dernierEchecChargement!} — ignoré');
+      DiagnosticLog.log('FastConformer', _dernierEchecChargement!);
       return false;
     }
+    // Fichiers présents : tout échec suivant vient d'ailleurs (chargement
+    // natif), pas d'un modèle absent -- efface la trace du dernier échec pour
+    // ne pas ré-afficher une cause qui n'est plus la bonne.
+    _dernierEchecChargement = null;
     final rulesFile = File('${appDir.path}/$_kModelSubdir/$_kRulesFile');
     _hasRuleHead = await rulesFile.exists();
     final tete3File = File('${appDir.path}/$_kModelSubdir/$_kTete3File');
@@ -375,9 +400,17 @@ class FastConformerVerifier {
       if (_loaded && kDebugMode) {
         unawaited(setRescoringEnabled(true));
       }
+      if (!_loaded) {
+        _dernierEchecChargement =
+            'modèle "$_kModelSubdir" : le natif a refusé de le charger '
+            '(fichiers présents, cf. journal natif pour la cause)';
+      }
       return _loaded;
     } catch (e) {
+      _dernierEchecChargement =
+          'modèle "$_kModelSubdir" : erreur au chargement natif -- $e';
       debugPrint('[FastConformer] Échec chargement modèle : $e');
+      DiagnosticLog.log('FastConformer', _dernierEchecChargement!);
       return false;
     }
   }

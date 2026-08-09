@@ -1686,10 +1686,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         },
       );
       if (!mounted || started || !modelUnavailable) return;
+      // ── MESSAGE EXPLICITE (2026-08-09, demande utilisateur) ──────────────
+      // « les messages d'erreur [doivent être] explicites, exemple absence
+      // du modèle IA : donner le nom du modèle ». Le texte traduit générique
+      // reste la première ligne (compréhensible sans connaître le projet) ;
+      // le détail technique de `verifier.dernierEchecChargementModele`
+      // (nom du modèle attendu, fichier manquant, chemin) s'ajoute EN DESSOUS
+      // quand il existe -- c'est lui qui dit quoi repousser et où, au lieu de
+      // devoir relire le code pour le retrouver (ce qui vient de coûter du
+      // temps réel, cf. le modèle effacé par erreur le même jour).
+      final detail = verifier.dernierEchecChargementModele;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text(AppLocalizations.of(context)!.karaokeModelUnavailable),
+          duration: detail == null
+              ? const Duration(seconds: 4)
+              : const Duration(seconds: 8),
+          content: Text(detail == null
+              ? AppLocalizations.of(context)!.karaokeModelUnavailable
+              : '${AppLocalizations.of(context)!.karaokeModelUnavailable}\n$detail'),
         ),
       );
     } catch (e, st) {

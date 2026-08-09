@@ -325,6 +325,12 @@ abstract class RecitationVerifier {
   /// mots porteurs d'une règle. Toujours tester ceci avant de juger le tajwid.
   bool get hasRuleHead;
 
+  /// Détail explicite du dernier échec de chargement du modèle (nom du modèle
+  /// attendu, fichier manquant, chemin) -- nul si chargé ou jamais tenté.
+  /// Cf. FastConformerVerifier.dernierEchecChargement pour pourquoi ce champ
+  /// existe (2026-08-09, demande utilisateur : messages d'erreur explicites).
+  String? get dernierEchecChargementModele;
+
   /// Repositionne l'ancre d'alignement natif (correction/recul) — la prochaine
   /// passe compare l'audio au mot [index], pas à la suite du texte.
   Future<void> setAlignmentAnchor(int index);
@@ -575,6 +581,10 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   bool get alignmentActive => _alignmentActive;
   @override
   bool get hasRuleHead => _fastConformer.hasRuleHead;
+
+  @override
+  String? get dernierEchecChargementModele =>
+      _fastConformer.dernierEchecChargement;
   @override
   String? get lastAudioPath => _lastAudioPath;
 
@@ -1487,6 +1497,8 @@ class MockRecitationVerifier implements RecitationVerifier {
   // Mock : pas de modèle, donc pas de tête tajwid -- la vérification tajwid
   // reste inactive, ce qui est le comportement sûr (cf. unrealizedRulesFor).
   bool get hasRuleHead => false;
+  @override
+  String? get dernierEchecChargementModele => null;
   @override
   Future<void> setAlignmentAnchor(int index) async {}
   @override
