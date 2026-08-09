@@ -99,14 +99,19 @@ class CoachHubScreen extends ConsumerWidget {
       // et redeviendront utiles si le Coach reprend un rôle de lancement.
       //
       // Ce qui reste répond à une seule question : « qu'est-ce que j'ai fait,
-      // et qu'est-ce qui a coincé ? » — d'abord session par session (avec la
-      // voix), puis en cumul par sourate et par règle.
+      // et qu'est-ce qui a coincé ? » — session par session, avec la voix.
+      //
+      // ── LE CUMUL PAR SOURATE EST RETIRÉ (2026-08-09) ─────────────────────
+      // Demande utilisateur, après le retour à la vue par session (cfea1f3) :
+      // « du coup, supprimer le pavé Mes erreurs ». `_ErrorsSection` faisait
+      // doublon avec `SessionsSection` -- la carte mentale et l'entraînement
+      // qu'elle seule proposait vivent maintenant DANS la vue par session
+      // (`coach_sessions.dart`, commit 5d63bb3). Classes conservées intactes
+      // plus bas (convention projet), simplement non montées.
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: const [
           SessionsSection(),
-          SizedBox(height: 26),
-          _ErrorsSection(),
         ],
       ),
     );
@@ -436,7 +441,9 @@ class _ReciteSection extends StatelessWidget {
 }
 
 // ── Zone D — Mes erreurs, par sourate ────────────────────────────────────────
-
+// Plus montée depuis le 2026-08-09 (« supprimer le pavé Mes erreurs »,
+// doublon avec SessionsSection). Conservée intacte.
+// ignore: unused_element
 class _ErrorsSection extends ConsumerWidget {
   const _ErrorsSection();
 

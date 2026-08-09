@@ -11,8 +11,11 @@ import '../services/session_archive_service.dart';
 import '../services/voice_lora_clip_service.dart';
 import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
+import 'coach_screen.dart';
 import 'memorization_game_screen.dart';
 import 'mind_map_screen.dart';
+
+enum _ChoixEntrainement { jeu, paliers }
 
 /// LE COACH REGARDE EN ARRIÈRE (2026-08-06).
 ///
@@ -479,29 +482,67 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
     }
   }
 
-  /// Lance le jeu de mémorisation en partant DEUX VERSETS AVANT le mot oublié
-  /// (demande utilisateur 2026-08-09 : « rajoute côté coach un lien [...] par
-  /// exemple commencer deux versets avant et faire le jeu pour voir s'il se
-  /// souvient — seulement pour le souffleur et le décrochage »).
+  /// Demande QUEL entraînement, avant de lancer quoi que ce soit (demande
+  /// utilisateur 2026-08-09 : « pour s'entraîner y a deux options, soit avec
+  /// le jeu, soit avec l'entraînement avec les paliers, la mémorisation, le
+  /// verset qui contient le mot »).
   ///
-  /// Deux versets, pas le verset du mot lui-même : le lapsus se produit
-  /// souvent à la TRANSITION vers un nouveau verset (cf. le correctif du
-  /// même jour dans `memorization_game_provider.dart`) -- reprendre pile sur
-  /// le mot oublié ne testerait pas le fil qui y mène.
+  /// Les deux options ne ciblent PAS le même texte, à dessein :
+  ///   - le JEU part deux versets AVANT (cf. sa doc plus bas) : le lapsus se
+  ///     produit souvent à la transition vers un nouveau verset ;
+  ///   - les PALIERS (CoachScreen, écoute/imite/contrôle) ciblent le SEUL
+  ///     verset qui contient le mot -- c'est le mode qui approfondit un
+  ///     passage précis, pas celui qui teste l'enchaînement.
   Future<void> _entrainer() async {
     final m = widget.m;
     if (m.surahNumber == null || m.ayahNumber == null) {
       setState(() => _message = 'Position du mot inconnue');
       return;
     }
+    final choix = await showModalBottomSheet<_ChoixEntrainement>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.videogame_asset_rounded,
+                  color: Colors.lightBlue),
+              title: const Text('Jeu de mémorisation'),
+              subtitle: const Text('En partant deux versets avant'),
+              onTap: () =>
+                  Navigator.pop(ctx, _ChoixEntrainement.jeu),
+            ),
+            ListTile(
+              leading: const Icon(Icons.school_rounded,
+                  color: AppColors.green700),
+              title: const Text('Entraînement par paliers'),
+              subtitle: const Text('Écoute, imite, contrôle -- sur ce verset'),
+              onTap: () =>
+                  Navigator.pop(ctx, _ChoixEntrainement.paliers),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choix == null || !mounted) return;
     setState(() {
       _joue = true;
       _message = null;
     });
     try {
+      final tousVersets = await QuranApi.fetchVerses(m.surahNumber!);
+      if (choix == _ChoixEntrainement.paliers) {
+        final verset = tousVersets.firstWhere(
+            (v) => v.ayahNumber == m.ayahNumber,
+            orElse: () => tousVersets.first);
+        if (!mounted) return;
+        await Navigator.push(context, MaterialPageRoute(
+            builder: (_) => CoachScreen(verses: [verset])));
+        return;
+      }
       final surahs = await QuranApi.fetchSurahs();
       final surah = surahs.firstWhere((s) => s.number == m.surahNumber);
-      final tousVersets = await QuranApi.fetchVerses(m.surahNumber!);
       final depart = (m.ayahNumber! - 2).clamp(1, m.ayahNumber!);
       final versets =
           tousVersets.where((v) => v.ayahNumber >= depart).toList();
@@ -514,7 +555,7 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
         ),
       );
     } catch (_) {
-      if (mounted) setState(() => _message = 'Jeu indisponible');
+      if (mounted) setState(() => _message = 'Entraînement indisponible');
     } finally {
       if (mounted) setState(() => _joue = false);
     }
