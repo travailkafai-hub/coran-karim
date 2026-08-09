@@ -232,13 +232,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   // (main + coeur) est en effet l'icone standard du DON en
                   // Material Design -- ambigu ici, et reserve pour plus tard.
                   //
-                  // Aucune icone Material ne represente DEUX mains ouvertes en
-                  // un seul glyphe (le jeu d'icones ne va pas jusque-la). On
-                  // compose donc deux `front_hand_rounded` (paume ouverte)
-                  // en miroir l'une de l'autre -- cf. `pairedHands` sur
-                  // `_NavItem`, seul endroit qui en a besoin.
-                  icon: Icons.front_hand_rounded,
-                  pairedHands: true,
+                  // PREMIER ESSAI (retire le meme jour, jugé par l'utilisateur
+                  // « ne ressemble pas vraiment ») : composer deux
+                  // `front_hand_rounded` en miroir, faute de glyphe Material à
+                  // deux mains. L'ÉMOJI 🤲 (U+1F932, PALMS UP TOGETHER) est
+                  // littéralement le geste de l'invocation dans la norme
+                  // Unicode -- plus fidèle qu'une composition d'icônes, et
+                  // rendu par la police système, pas par un dessin approché.
+                  icon: null,
+                  emoji: '🤲',
                   label: t.navDuas,
                   active: _tab == 1,
                   onTap: () => setState(() => _tab = 1),
@@ -269,17 +271,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 class _NavItem extends StatelessWidget {
-  final IconData icon;
+  /// Nul quand [emoji] est fourni -- les deux sont mutuellement exclusifs,
+  /// cf. l'onglet Invocations (🤲, aucune icône Material équivalente).
+  final IconData? icon;
+  final String? emoji;
   final String label;
   final bool active;
   final VoidCallback onTap;
-  /// Rend [icon] DEUX FOIS, la seconde retournée en miroir horizontal --
-  /// pensé pour composer « deux mains ouvertes » à partir d'une icône Material
-  /// à une seule main (cf. l'appel pour l'onglet Invocations, aucun glyphe
-  /// Material ne représentant nativement deux mains).
-  final bool pairedHands;
-  const _NavItem({required this.icon, required this.label,
-      required this.active, required this.onTap, this.pairedHands = false});
+  const _NavItem({this.icon, this.emoji, required this.label,
+      required this.active, required this.onTap})
+      : assert(icon != null || emoji != null);
 
   @override
   Widget build(BuildContext context) {
@@ -309,11 +310,13 @@ class _NavItem extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              pairedHands
-                  ? _PairedHandsIcon(
-                      icon: icon,
-                      color:
-                          active ? AppColors.brass : AppColors.cream.withAlpha(140),
+              emoji != null
+                  // Emoji couleur : la teinte active/inactive ne peut pas s'y
+                  // appliquer (glyphe polychrome de la police système) --
+                  // l'opacité seule marque l'état inactif.
+                  ? Opacity(
+                      opacity: active ? 1.0 : 0.55,
+                      child: Text(emoji!, style: const TextStyle(fontSize: 22)),
                     )
                   : Icon(icon,
                       color:
@@ -331,31 +334,5 @@ class _NavItem extends StatelessWidget {
           ),
         ),
       );
-  }
-}
-
-/// Deux mains ouvertes, composées à partir d'une icône Material à une seule
-/// main (cf. `_NavItem.pairedHands`). Chaque main est réduite (18 au lieu de
-/// 24) et rapprochée pour occuper un encombrement comparable aux icônes
-/// pleines des trois autres onglets, malgré la largeur double.
-class _PairedHandsIcon extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  const _PairedHandsIcon({required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 18),
-        // Miroir horizontal : la même paume, mais côté opposé -- c'est ce
-        // qui fait lire « deux mains » plutôt que « une main dupliquée ».
-        Transform.flip(
-          flipX: true,
-          child: Icon(icon, color: color, size: 18),
-        ),
-      ],
-    );
   }
 }
