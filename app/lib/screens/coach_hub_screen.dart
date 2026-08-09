@@ -25,12 +25,10 @@ import '../models/verse.dart';
 import '../providers/error_review_provider.dart';
 import '../providers/last_coach_verse_provider.dart';
 import '../providers/mind_map_provider.dart';
-import '../providers/player_provider.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
-import '../services/session_archive_service.dart' show MotArchive;
-import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
+import 'coach_sessions.dart';
 import '../widgets/coach_explanation_sheet.dart';
 import '../widgets/tajwid_help_sheet.dart' show kTajwidRuleInfo;
 import 'coach_screen.dart';
@@ -101,29 +99,13 @@ class CoachHubScreen extends ConsumerWidget {
       // et redeviendront utiles si le Coach reprend un rôle de lancement.
       //
       // Ce qui reste répond à une seule question : « qu'est-ce que j'ai fait,
-      // et qu'est-ce qui a coincé ? »
-      //
-      // ── FUSION EN UNE SEULE LISTE (2026-08-09) ───────────────────────────
-      //
-      // Avant : deux blocs empilés qui montraient chacun « les mots à revoir »
-      // sous une forme différente -- `SessionsSection` (les sessions, datées,
-      // avec la voix du récitant CE jour-là) puis `_ErrorsSection` (le cumul
-      // par sourate/règle, sans date, sans voix). Constat utilisateur : « ça
-      // fait doublon », en demandant explicitement « une seule liste
-      // fusionnée, groupée par sourate ».
-      //
-      // `_ErrorsSection` reste la charpente (groupement par sourate, carte
-      // mentale, puces de règles tajwid) : c'est elle qui portait déjà le
-      // classement par sourate que la fusion demande. Ce qui change, c'est
-      // `_AyahErrorDetails` (plus bas) : chaque mot y affiche désormais AUSSI
-      // sa voix la plus récente (si l'archive de session l'a encore, 7 jours
-      // de rétention) et, pour un « oubli », le lien vers le jeu -- tout ce
-      // que `SessionsSection` apportait de propre, sans dupliquer l'affichage.
-      // `SessionsSection` elle-même n'est plus montée nulle part (cf.
-      // coach_sessions.dart, code conservé pour référence).
+      // et qu'est-ce qui a coincé ? » — d'abord session par session (avec la
+      // voix), puis en cumul par sourate et par règle.
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: const [
+          SessionsSection(),
+          SizedBox(height: 26),
           _ErrorsSection(),
         ],
       ),
@@ -910,10 +892,6 @@ class _AyahErrorRowState extends State<_AyahErrorRow> {
 /// Liste mot par mot des erreurs d'un verset, avec le type et -- pour les
 /// règles "frontière" (ikhafa/iqlab/idgham à cheval sur deux mots) -- la
 /// PAIRE de mots plutôt qu'un seul mot isolé (demande utilisateur 2026-07-22).
-///
-/// Étendue le 2026-08-09 (fusion des deux volets, cf. le commentaire dans
-/// `CoachHubScreen.build`) : chaque mot est désormais une `_MotErreurRow`
-/// complète (voix + entraînement), plus une simple ligne de texte.
 class _AyahErrorDetails extends ConsumerWidget {
   final int surahNumber;
   final int ayahNumber;
@@ -921,6 +899,7 @@ class _AyahErrorDetails extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final async = ref.watch(ayahErrorDetailsProvider(
         (surahNumber: surahNumber, ayahNumber: ayahNumber)));
     return async.maybeWhen(
@@ -933,276 +912,61 @@ class _AyahErrorDetails extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final e in entries)
-                _MotErreurRow(
-                    surahNumber: surahNumber, ayahNumber: ayahNumber, entry: e),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          e.pairWord != null
+                              ? '${e.expectedWord}  ${e.pairWord}'
+                              : e.expectedWord,
+                          style: GoogleFonts.amiri(
+                              fontSize: 16, color: AppColors.ink),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 4,
+                          runSpacing: 2,
+                          children: [
+                            if (e.rules.isEmpty)
+                              Text(recitationErrorKindLabel(t, e.kind),
+                                  style: GoogleFonts.manrope(
+                                      fontSize: 10.5,
+                                      color: AppColors.inkLight))
+                            else
+                              for (final r in e.rules)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: (kTajwidRuleInfo[r.key]?.color ??
+                                            AppColors.inkLight)
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    kTajwidRuleInfo[r.key]?.name(t) ?? r.key,
+                                    style: GoogleFonts.manrope(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.ink),
+                                  ),
+                                ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         );
       },
-    );
-  }
-}
-
-/// Un mot fautif, avec le cumul (type/règles, déjà existant) ET, fusionnés
-/// depuis l'ancienne `SessionsSection` (2026-08-09) : sa voix la plus
-/// récente si l'archive de session l'a encore (7 jours), et -- pour un
-/// « oubli » (décrochage repris ou souffleur sollicité, cf.
-/// `karaoke_recitation_screen._archiverOubli`) -- le lien vers le jeu de
-/// mémorisation, 2 versets avant.
-class _MotErreurRow extends ConsumerStatefulWidget {
-  final int surahNumber;
-  final int ayahNumber;
-  final RecitationErrorEntry entry;
-  const _MotErreurRow(
-      {required this.surahNumber, required this.ayahNumber, required this.entry});
-
-  @override
-  ConsumerState<_MotErreurRow> createState() => _MotErreurRowState();
-}
-
-class _MotErreurRowState extends ConsumerState<_MotErreurRow> {
-  bool _joue = false;
-  String? _message;
-
-  Future<void> _maVoix(String cheminAudio) async {
-    setState(() {
-      _joue = true;
-      _message = null;
-    });
-    try {
-      await WordCorrectionAudio.playFile(cheminAudio);
-    } catch (_) {
-      if (mounted) setState(() => _message = 'Lecture impossible');
-    } finally {
-      if (mounted) setState(() => _joue = false);
-    }
-  }
-
-  Future<void> _leRecitateur() async {
-    setState(() {
-      _joue = true;
-      _message = null;
-    });
-    try {
-      final versets = await QuranApi.fetchVerses(widget.surahNumber);
-      final Verse verset = versets.firstWhere(
-          (v) => v.ayahNumber == widget.ayahNumber,
-          orElse: () => versets.first);
-      await WordCorrectionAudio.playWordRange(
-        verset,
-        ref.read(playerProvider).reciter,
-        errorWordIndex: widget.entry.wordIndex,
-        wordsBefore: 1,
-        wordsAfter: 0,
-      );
-    } catch (_) {
-      if (mounted) setState(() => _message = 'Audio du récitateur indisponible');
-    } finally {
-      if (mounted) setState(() => _joue = false);
-    }
-  }
-
-  /// Lance le jeu de mémorisation deux versets avant ce mot -- même choix
-  /// que `coach_sessions.dart._entrainer` (le lapsus se joue souvent à la
-  /// transition vers un nouveau verset, pas sur le mot lui-même).
-  Future<void> _entrainer() async {
-    setState(() {
-      _joue = true;
-      _message = null;
-    });
-    try {
-      final surahs = await QuranApi.fetchSurahs();
-      final surah = surahs.firstWhere((s) => s.number == widget.surahNumber);
-      final tousVersets = await QuranApi.fetchVerses(widget.surahNumber);
-      final depart = (widget.ayahNumber - 2).clamp(1, widget.ayahNumber);
-      final versets =
-          tousVersets.where((v) => v.ayahNumber >= depart).toList();
-      if (versets.isEmpty || !mounted) return;
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MemorizationGameScreen(surah: surah, verses: versets),
-        ),
-      );
-    } catch (_) {
-      if (mounted) setState(() => _message = 'Jeu indisponible');
-    } finally {
-      if (mounted) setState(() => _joue = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final e = widget.entry;
-    final estOubli = e.kind == RecitationErrorKind.oubli;
-    final audioAsync = ref.watch(derniereVoixPourMotProvider((
-      surahNumber: widget.surahNumber,
-      ayahNumber: widget.ayahNumber,
-      wordInAyah: e.wordIndex,
-    )));
-    final MotArchive? archive = audioAsync.asData?.value;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-        decoration: BoxDecoration(
-          color: AppColors.cream200,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    e.pairWord != null
-                        ? '${e.expectedWord}  ${e.pairWord}'
-                        : e.expectedWord,
-                    style: GoogleFonts.amiri(fontSize: 16, color: AppColors.ink),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: 4,
-                    runSpacing: 2,
-                    children: [
-                      if (estOubli)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.lightBlue.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border:
-                                Border.all(color: Colors.lightBlue.shade200),
-                          ),
-                          child: Text(recitationErrorKindLabel(t, e.kind),
-                              style: GoogleFonts.manrope(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.lightBlue.shade700)),
-                        )
-                      else if (e.rules.isEmpty)
-                        Text(recitationErrorKindLabel(t, e.kind),
-                            style: GoogleFonts.manrope(
-                                fontSize: 10.5, color: AppColors.inkLight))
-                      else
-                        for (final r in e.rules)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: (kTajwidRuleInfo[r.key]?.color ??
-                                      AppColors.inkLight)
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              kTajwidRuleInfo[r.key]?.name(t) ?? r.key,
-                              style: GoogleFonts.manrope(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.ink),
-                            ),
-                          ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (archive?.heardWord != null && archive!.heardWord!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text('entendu : ${archive.heardWord}',
-                    textDirection: TextDirection.rtl,
-                    style: GoogleFonts.scheherazadeNew(
-                        fontSize: 15, color: AppColors.inkLight)),
-              ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: _PetitBouton(
-                    icone: Icons.record_voice_over_outlined,
-                    texte: 'Ma voix',
-                    couleur: AppColors.brass,
-                    actif: !_joue && archive?.audioPath != null,
-                    onTap: () => _maVoix(archive!.audioPath!),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _PetitBouton(
-                    icone: Icons.play_circle_outline_rounded,
-                    texte: 'Le récitateur',
-                    couleur: AppColors.green700,
-                    actif: !_joue,
-                    onTap: _leRecitateur,
-                  ),
-                ),
-              ],
-            ),
-            if (estOubli) ...[
-              const SizedBox(height: 6),
-              SizedBox(
-                width: double.infinity,
-                child: _PetitBouton(
-                  icone: Icons.school_outlined,
-                  texte: 'M\'entraîner',
-                  couleur: Colors.lightBlue.shade700,
-                  actif: !_joue,
-                  onTap: _entrainer,
-                ),
-              ),
-            ],
-            if (_message != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(_message!,
-                    style: GoogleFonts.manrope(
-                        fontSize: 10.5, color: AppColors.inkLight)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PetitBouton extends StatelessWidget {
-  final IconData icone;
-  final String texte;
-  final Color couleur;
-  final bool actif;
-  final VoidCallback onTap;
-  const _PetitBouton({
-    required this.icone,
-    required this.texte,
-    required this.couleur,
-    required this.actif,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 7),
-        side: BorderSide(color: actif ? couleur : AppColors.cream300),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-      ),
-      onPressed: actif ? onTap : null,
-      icon: Icon(icone, size: 16, color: actif ? couleur : AppColors.inkLight),
-      label: Text(texte,
-          style: GoogleFonts.manrope(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              color: actif ? couleur : AppColors.inkLight)),
     );
   }
 }

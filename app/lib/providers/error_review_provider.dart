@@ -4,7 +4,6 @@ import '../models/recitation_state.dart' show RecitationErrorKind;
 import '../models/verse.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
-import '../services/session_archive_service.dart';
 
 /// Erreurs d'une sourate, agrégées (REFONTE_IHM.md §11.3).
 ///
@@ -71,18 +70,6 @@ final ayahErrorDetailsProvider = FutureProvider.autoDispose
         (ref, key) async {
   return RecitationErrorLogService.instance
       .errorsForAyah(key.surahNumber, key.ayahNumber);
-});
-
-/// La voix la plus récente disponible pour UN mot précis, fusion Coach hub
-/// (2026-08-09) : « une seule liste fusionnée, groupée par sourate » -- cf.
-/// `SessionArchiveService.dernierMotAvecAudio` pour le pourquoi. `null` si
-/// aucun enregistrement n'existe (jamais archivé, ou archive expirée après
-/// 7 jours) -- pas une erreur, juste rien à écouter.
-final derniereVoixPourMotProvider = FutureProvider.autoDispose
-    .family<MotArchive?, ({int surahNumber, int ayahNumber, int wordInAyah})>(
-        (ref, key) async {
-  return SessionArchiveService.instance
-      .dernierMotAvecAudio(key.surahNumber, key.ayahNumber, key.wordInAyah);
 });
 
 /// Journal d'erreurs regroupé par sourate, trié par nombre d'erreurs
