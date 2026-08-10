@@ -40,14 +40,11 @@ class TajwidRulesScreen extends ConsumerWidget {
           children: [
             _PresetRow(current: options.preset, notifier: notifier),
             const SizedBox(height: 20),
-            SwitchListTile(
-              title: const Text('Harakat exigées'),
-              subtitle: const Text(
-                  'Désactivé : les voyelles courtes ne comptent pas comme erreur'),
-              value: options.strictHarakat,
-              onChanged: notifier.setStrictHarakat,
-              activeTrackColor: AppColors.green700,
-            ),
+            // « Harakat exigées » (rigueur de correction) retiré le
+            // 2026-08-10 (demande utilisateur : « la rigueur de correction
+            // n'est plus intéressante »). `strictHarakat` reste dans le
+            // modèle/le moteur de jugement (presets tajwid/adulte/enfant le
+            // pilotent toujours) -- seul ce réglage manuel disparaît.
             SwitchListTile(
               title: const Text('Tolérer les lettres proches'),
               subtitle: const Text(
@@ -59,7 +56,13 @@ class TajwidRulesScreen extends ConsumerWidget {
             const Divider(height: 32),
             _RepeatEngineSettings(preset: options.preset),
             const Divider(height: 32),
-            Text('RÈGLES DE TAJWID',
+            // « (bêta) » ajouté et bascules retirées le 2026-08-10 (demande
+            // utilisateur : « les toggles sur toutes les règles avec la
+            // fiabilité, ça sert à rien, ils seront pour information »). Les
+            // presets (Tajwid/Adulte/Enfant) pilotent toujours `activeRules`
+            // -- cette liste devient une référence, plus un réglage manuel
+            // règle par règle.
+            Text('RÈGLES DE TAJWID (BÊTA)',
                 style: GoogleFonts.manrope(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -67,7 +70,7 @@ class TajwidRulesScreen extends ConsumerWidget {
                     color: AppColors.inkLight)),
             const SizedBox(height: 4),
             Text(
-              'Choisissez les règles que l\'app doit vérifier pendant votre récitation.',
+              'Règles vérifiées selon le mode choisi ci-dessus, à titre indicatif.',
               style: GoogleFonts.manrope(fontSize: 12.5, color: AppColors.inkLight),
             ),
             const SizedBox(height: 8),
@@ -76,7 +79,6 @@ class TajwidRulesScreen extends ConsumerWidget {
                 rule: rule,
                 active: options.activeRules.contains(rule),
                 reliability: reliability[rule],
-                onChanged: (v) => notifier.toggleRule(rule, v),
               ),
           ],
         ),
@@ -92,7 +94,22 @@ class _PresetRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget chip(JudgementPreset preset, String label, IconData icon) {
+    // ── BÊTA sur le preset Tajwid (2026-08-10) ──────────────────────────
+    //
+    // Demande utilisateur, après mesure sur une session réelle (sourate 90,
+    // tableau attendu/détecté mot par mot) : la tête de détection des règles
+    // tajwid (modèle "trois-têtes") sort des règles très bruitées -- sur 20
+    // mots consécutifs, AUCUN ne correspond proprement à l'attendu, et des
+    // mots sans aucune règle attendue se voient quand même attribuer 4 à 6
+    // règles détectées. Conclusion utilisateur : « ça augmente la raison de
+    // mettre bêta dans ce mode ».
+    //
+    // Le mode reste UTILISABLE (il ne verrouille jamais un rouge sur un
+    // écart de règle, seulement un orange -- cf. `_capByRuleReliability`
+    // dans recitation_provider.dart) mais l'étiquette prévient qu'il ne faut
+    // pas encore s'y fier comme verdict fiable.
+    Widget chip(JudgementPreset preset, String label, IconData icon,
+        {bool beta = false}) {
       final selected = current == preset;
       return Expanded(
         child: Padding(
@@ -101,7 +118,7 @@ class _PresetRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             onTap: () => notifier.applyPreset(preset),
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.fromLTRB(0, 14, 0, 14),
               decoration: BoxDecoration(
                 color: selected ? AppColors.green800 : AppColors.cream200,
                 borderRadius: BorderRadius.circular(14),
@@ -109,18 +126,41 @@ class _PresetRow extends StatelessWidget {
                     color: selected ? AppColors.brass : AppColors.cream300,
                     width: selected ? 1.6 : 1),
               ),
-              child: Column(
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  Icon(icon,
-                      color: selected ? AppColors.brassLight : AppColors.inkLight,
-                      size: 22),
-                  const SizedBox(height: 6),
-                  Text(label,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.manrope(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: selected ? AppColors.cream : AppColors.ink)),
+                  Column(
+                    children: [
+                      Icon(icon,
+                          color: selected ? AppColors.brassLight : AppColors.inkLight,
+                          size: 22),
+                      const SizedBox(height: 6),
+                      Text(label,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.manrope(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: selected ? AppColors.cream : AppColors.ink)),
+                    ],
+                  ),
+                  if (beta)
+                    Positioned(
+                      top: -8,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.brass,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text('BÊTA',
+                            style: GoogleFonts.manrope(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.4,
+                                color: AppColors.green900)),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -131,7 +171,7 @@ class _PresetRow extends StatelessWidget {
 
     return Row(
       children: [
-        chip(JudgementPreset.tajwid, 'Tajwid', Icons.auto_awesome),
+        chip(JudgementPreset.tajwid, 'Tajwid', Icons.auto_awesome, beta: true),
         chip(JudgementPreset.adulte, 'Adulte', Icons.person),
         chip(JudgementPreset.enfant, 'Enfant', Icons.child_care),
       ],
@@ -324,13 +364,11 @@ class _RuleTile extends StatelessWidget {
   final TajwidRule rule;
   final bool active;
   final RuleReliability? reliability;
-  final ValueChanged<bool> onChanged;
 
   const _RuleTile({
     required this.rule,
     required this.active,
     required this.reliability,
-    required this.onChanged,
   });
 
   @override
@@ -348,6 +386,9 @@ class _RuleTile extends StatelessWidget {
 
     return ListTile(
         contentPadding: EdgeInsets.zero,
+        // Grisée si hors du preset courant -- pure indication, plus un
+        // réglage : cf. bascule retirée le 2026-08-10.
+        enabled: active,
         leading: Container(
           width: 12,
           height: 12,
@@ -357,32 +398,25 @@ class _RuleTile extends StatelessWidget {
             shape: BoxShape.circle,
           ),
         ),
-        title: Row(
-          children: [
-            Flexible(
-              child: Text(label,
-                  style: GoogleFonts.manrope(
-                      fontSize: 14, fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(width: 8),
-            if (r != null)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: caps
-                      ? AppColors.brass.withValues(alpha: 0.18)
-                      : AppColors.green50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(r.badgeLabel(t),
-                    style: GoogleFonts.manrope(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        color: caps ? AppColors.brass : AppColors.green700)),
-              ),
-          ],
-        ),
+        // ── BADGE DE POURCENTAGE RETIRÉ (2026-08-10) ──────────────────────
+        //
+        // Demande utilisateur, après avoir vu ces pourcentages sans pouvoir
+        // se fier à leur origine : « enlève aussi la fiabilité qui ne veut
+        // rien dire, je ne comprends comment on a ces pourcentages ». La
+        // documentation du calcul (cf. `RuleReliability` ci-dessus, décision
+        // du 2026-07-20) confirme le doute : la mesure évalue l'INVERSE de
+        // ce qui compte pour juger (« le modèle émet-il le symbole quand la
+        // règle est bien faite », pas « la détecte-t-il quand elle est
+        // ratée »), sur des échantillons parfois minuscules (n=3, n=32) --
+        // un pourcentage qui ne dit pas ce qu'il prétend dire. À revérifier
+        // sur la machine Ubuntu (accès à `rule_reliability.json` et aux
+        // scripts d'éval qui l'ont produit).
+        //
+        // `capsToUnclear` continue de s'appliquer dans le JUGEMENT
+        // (`recitation_provider.dart`, jamais de vert franc sur une règle
+        // non fiable) -- seul l'AFFICHAGE du pourcentage disparaît ici.
+        title: Text(label,
+            style: GoogleFonts.manrope(fontSize: 14, fontWeight: FontWeight.w600)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -401,11 +435,6 @@ class _RuleTile extends StatelessWidget {
                 ),
               ),
           ],
-        ),
-        trailing: Switch(
-          value: active,
-          onChanged: onChanged,
-          activeTrackColor: AppColors.green700,
         ),
     );
   }
