@@ -801,8 +801,35 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// pour le souffleur manuel (l'anneau ne contient alors que le SILENCE qui
   /// a précédé la demande d'aide -- rien à en tirer, et ça consommerait la
   /// même fenêtre urgente qu'une vraie erreur en attente ailleurs).
+  // ── UN SEUL "OUBLI" PAR ÉPISODE DE DÉCROCHAGE, PAS UN PAR SIGNAL
+  // (2026-08-10) ──────────────────────────────────────────────────────────
+  //
+  // Constat utilisateur, capture d'écran à l'appui : le même mot ("لُّبَدًا",
+  // 90:6) archivé CINQ fois de suite dans une même session. Log confirmé
+  // (`recitation_diagnostic.log`, 19:06:39 à 19:07:04) : le natif [v2] fait
+  // le point toutes les ~3 fenêtres hors texte ; tant que le récitateur reste
+  // coincé sur le MÊME mot, il resignale un `DECROCHAGE (saut)` avec la MÊME
+  // `reprise=29 "لُّبَدًا"` à chaque nouveau lot de 3 fenêtres -- quatre
+  // signaux natifs pour un seul épisode réel de blocage.
+  //
+  // Le natif a raison de continuer à insister (c'est ce qui permet au
+  // souffleur/à la reprise de fonctionner tant que le récitateur ne
+  // redémarre pas) -- le défaut n'est PAS dans la détection, il est dans
+  // L'ARCHIVAGE : cette méthode n'avait aucune mémoire du dernier mot déjà
+  // consigné, donc chaque signal redondant devenait une ligne d'historique
+  // séparée, gonflant artificiellement le nombre d'erreurs affiché.
+  //
+  // Le garde-fou vit ICI (la seule fois où l'app écrit dans l'historique),
+  // pas côté natif : `_dernierMotArchiveOubli` ne bloque qu'un DOUBLON
+  // immédiat sur le MÊME mot -- un vrai nouvel oubli sur ce mot, plus tard
+  // dans la session après qu'un autre mot ait progressé, sera de nouveau
+  // archivé normalement (la variable aura changé entre-temps).
+  int? _dernierMotArchiveOubli;
+
   Future<void> _archiverOubli(int wordIndex, {bool avecAudio = false}) async {
     if (_isReferenceSession) return;
+    if (_dernierMotArchiveOubli == wordIndex) return;
+    _dernierMotArchiveOubli = wordIndex;
     final words = ref.read(recitationProvider).words;
     if (wordIndex < 0 || wordIndex >= words.length) return;
     final mot = words[wordIndex];
@@ -2099,6 +2126,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// (jeux-memorisation SKILL.md) : jamais toute la sourate d'un coup,
   /// seulement les versets de LA MÊME PAGE du Mushaf à partir du premier
   /// verset de ce passage.
+  // Plus appelé depuis le retrait de l'icône jeu de l'AppBar (2026-08-10,
+  // cf. plus haut) ; gardé pour un futur appelant.
+  // ignore: unused_element
   Future<void> _openMemorizationGame(BuildContext context) async {
     final first = widget.verses.first;
     final surahs = await QuranApi.fetchSurahs();
@@ -2130,7 +2160,6 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         builder: (context, ref, _) {
           final t = AppLocalizations.of(context)!;
           final sensitivity = ref.watch(correctionSensitivityProvider);
-          final strict = ref.watch(strictCorrectionProvider);
           // DEUX positions, plus trois (demande utilisateur 2026-07-26) : le
           // palier central « équilibré » n'apportait pas de choix lisible --
           // on tranche entre tolérant et strict. Le seuil du garde-fou
@@ -2256,17 +2285,27 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       //         .read(autoCorrectionEnabledProvider.notifier)
                       //         .set(v),
                       //   ),
-                      _SheetSwitch(
-                        icon: Icons.rule_rounded,
-                        title: t.karaokeStrictnessTitle,
-                        subtitle: strict
-                            ? t.karaokeStrictnessStrictSubtitle
-                            : t.karaokeStrictnessTolerantSubtitle,
-                        value: strict,
-                        onChanged: (v) => ref
-                            .read(strictCorrectionProvider.notifier)
-                            .set(v),
-                      ),
+                      // ── RIGUEUR DE LA CORRECTION RETIRÉE (2026-08-10) ──
+                      //
+                      // Demande utilisateur : « enlève rigueur de correction,
+                      // ne sert à plus grand chose ». `strictCorrectionProvider`
+                      // reste lu tel quel dans `_onWordFailed` (rouge ET orange
+                      // déclenchent la correction par défaut, cf. sa doc) --
+                      // seul ce commutateur disparaît, le comportement actuel
+                      // (STRICT, valeur par défaut) ne change pas, il n'est
+                      // simplement plus modifiable depuis cette feuille.
+                      // Ancien code, gardé en trace :
+                      //   _SheetSwitch(
+                      //     icon: Icons.rule_rounded,
+                      //     title: t.karaokeStrictnessTitle,
+                      //     subtitle: strict
+                      //         ? t.karaokeStrictnessStrictSubtitle
+                      //         : t.karaokeStrictnessTolerantSubtitle,
+                      //     value: strict,
+                      //     onChanged: (v) => ref
+                      //         .read(strictCorrectionProvider.notifier)
+                      //         .set(v),
+                      //   ),
                       // "Suivre sans bloquer" DÉPLACÉ vers l'écran Suivre
                       // prière le 2026-08-01 (demande utilisateur : "c'est je
                       // pense côté suivre prière, du coup mets-le dans page
@@ -2472,7 +2511,17 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             // ce qui ressemble a une chaine qui rame, pas a un micro coupe.
             if (_glypheEtatJusqua != null)
               Positioned.fill(child: _glypheEtat()),
-            if (_startStage case final stage?)
+            // PAS D'OVERLAY PENDANT loadingModel (demande utilisateur
+            // 2026-08-09 : « toujours trois écrans » -- chargement modèle,
+            // décompte, préparation micro -- « pas besoin de montrer que le
+            // modèle charge, ça doit être en arrière-plan »). L'écran de
+            // récitation normal reste donc visible pendant le chargement ;
+            // l'isti'adha ne couvre l'écran qu'à partir du décompte, une fois
+            // le modèle prêt. `RecitationStartOverlay` sait toujours peindre
+            // `loadingModel` (cf. son commentaire) -- ce n'est simplement plus
+            // demandé à cet écran-ci.
+            if (_startStage case final stage?
+                when stage != RecitationStartStage.loadingModel)
               Positioned.fill(child: RecitationStartOverlay(stage: stage)),
           ],
         ),
@@ -2659,26 +2708,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 26),
             onPressed: () => _openVerificationSheet(context),
           ),
-          // Bascule vers le jeu de mémorisation (QCM mot par mot) pour ce
-          // même passage (demande utilisateur 2026-07-24) -- c'est l'écran
-          // de récitation qui active ce chemin, pas la page de lecture.
+          // ── ACCÈS AU JEU RETIRÉ D'ICI (2026-08-10) ──────────────────────
           //
-          // Masqué PENDANT l'écoute (correctif 2026-07-25) : sur un écran de
-          // 360 dp, cinq boutons de 48 dp + les marges (28 dp) ne laissaient
-          // que 92 dp au titre et **rognaient le bouton pause hors de l'écran**
-          // -- l'utilisateur ne pouvait plus mettre en pause du tout
-          // (capture d'écran à l'appui, `RIGHT OVERFLOWED BY 12 PIXELS`).
-          // C'est cette icône, ajoutée le 2026-07-24, qui a fait déborder la
-          // rangée. On ne basculait de toute façon jamais vers un QCM en
-          // pleine récitation : la cacher pendant l'écoute est aussi le bon
-          // choix fonctionnel, pas seulement un gain de place.
-          if (st.status != RecitationStatus.listening)
-            IconButton(
-              tooltip: AppLocalizations.of(context)!.coachHubGameActionTitle,
-              icon: const Icon(Icons.videogame_asset_rounded,
-                  color: Colors.white70, size: 20),
-              onPressed: () => _openMemorizationGame(context),
-            ),
+          // Demande utilisateur : « y'a en haut l'accès au jeu, y'a plus
+          // intérêt d'être enlevé » -- Réciter/Enchaînement (ex-Jeu) ont
+          // depuis reçu leur propre icône dans la barre du bas du Mushaf
+          // (2026-08-09), rendant ce raccourci redondant ici.
+          // `_openMemorizationGame` reste défini plus bas (marqué
+          // unused_element) : seul cet appelant disparaît.
           // Pendant l'écoute : bouton pause/reprise (demande utilisateur
           // 2026-07-10). Sinon, à l'arrêt : geste explicite pour refaire
           // volontairement la référence.
@@ -3656,6 +3693,10 @@ class _SheetRow extends StatelessWidget {
       );
 }
 
+// Plus appelé depuis le retrait de "Rigueur de la correction" (2026-08-10,
+// dernier appelant), gardé : réutilisable pour un futur commutateur de
+// cette feuille de réglages.
+// ignore: unused_element
 class _SheetSwitch extends StatelessWidget {
   final IconData icon;
   final String title;
