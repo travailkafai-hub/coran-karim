@@ -263,30 +263,44 @@ class _QiblaScreenState extends State<QiblaScreen> {
         // recette sur device si une perturbation magnétique forte est
         // reproductible.
         final lowAccuracy = accuracy == null || accuracy > 25;
-        return Column(
+        return Stack(
           children: [
-            const SizedBox(height: 8),
-            if (lowAccuracy) _magneticAlert(),
-            // ── FLÈCHE AU-DESSUS DE LA BOUSSOLE (2026-08-10) ────────────────
-            // Demande utilisateur : « la flèche doit être au-dessus de la
-            // boussole qui montre la direction de la rotation » -- avant,
-            // `_hint` (badge aligné / flèche de rotation) vivait sous le
-            // cadran, après la distance ; déplacé ICI, avant `_QiblaDial`,
-            // pour que le sens à tourner se voie AVANT même de regarder
-            // l'aiguille, pas après.
-            _hint(facingQibla, qibla, heading),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Center(
-                child: _QiblaDial(
-                  headingDeg: heading,
-                  qiblaBearingDeg: qibla,
-                  aligned: facingQibla,
+            Column(
+              children: [
+                const SizedBox(height: 8),
+                if (lowAccuracy) _magneticAlert(),
+                // ── FLÈCHE AU-DESSUS DE LA BOUSSOLE (2026-08-10) ──────────
+                // Demande utilisateur : « la flèche doit être au-dessus de
+                // la boussole qui montre la direction de la rotation » --
+                // avant, `_hint` (badge aligné / flèche de rotation) vivait
+                // sous le cadran, après la distance ; déplacé ICI, avant
+                // `_QiblaDial`, pour que le sens à tourner se voie AVANT
+                // même de regarder l'aiguille, pas après.
+                _hint(facingQibla, qibla, heading),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Center(
+                    child: _QiblaDial(
+                      headingDeg: heading,
+                      qiblaBearingDeg: qibla,
+                      aligned: facingQibla,
+                    ),
+                  ),
                 ),
-              ),
+                _distanceCard(),
+                const SizedBox(height: 28),
+              ],
             ),
-            _distanceCard(),
-            const SizedBox(height: 28),
+            // ── GRANDE FLÈCHE SUR LE CÔTÉ (2026-08-10) ──────────────────────
+            // Demande utilisateur : « je veux des grandes flèches dans le
+            // côté gauche pour signaler quand il faut tourner à gauche et
+            // l'inverse » puis « fais un travail global » -- la petite icône
+            // inline de `_turnHint` (au-dessus du cadran) ne suffisait pas :
+            // un repère massif, ancré sur le BORD de l'écran du côté vers
+            // lequel tourner, se voit du coin de l'œil sans devoir fixer
+            // l'écran. Coexiste avec `_hint` (qui garde le texte
+            // d'explication) plutôt que de le remplacer.
+            if (!facingQibla) _bigSideArrow(_signedTurn(qibla, heading) > 0),
           ],
         );
       },
@@ -472,6 +486,32 @@ class _QiblaScreenState extends State<QiblaScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Grand repère de direction ancré sur le BORD de l'écran (2026-08-10,
+  /// demande utilisateur : « des grandes flèches dans le côté gauche pour
+  /// signaler quand il faut tourner à gauche et l'inverse »). [turnRight]
+  /// vrai -> flèche à droite pointant à droite ; faux -> flèche à gauche
+  /// pointant à gauche -- le côté ET le sens de la flèche coïncident
+  /// toujours avec le côté vers lequel tourner. Semi-transparente : un
+  /// repère qui se voit du coin de l'œil pendant qu'on regarde le cadran,
+  /// pas un élément qu'on doit fixer.
+  Widget _bigSideArrow(bool turnRight) {
+    return Positioned(
+      left: turnRight ? null : 4,
+      right: turnRight ? 4 : null,
+      top: 0,
+      bottom: 0,
+      child: Center(
+        child: Icon(
+          turnRight
+              ? Icons.arrow_forward_ios_rounded
+              : Icons.arrow_back_ios_new_rounded,
+          size: 72,
+          color: AppColors.brassLight.withOpacity(0.4),
+        ),
       ),
     );
   }
