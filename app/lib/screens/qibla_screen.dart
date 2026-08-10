@@ -247,9 +247,34 @@ class _QiblaScreenState extends State<QiblaScreen> {
         // recalibre par un mouvement en huit -- on l'indique plutôt que de
         // laisser croire que l'aiguille est toujours juste.
         final accuracy = snapshot.data?.accuracy;
-        final lowAccuracy = accuracy != null && accuracy > 25;
+        // accuracy == null INCLUS dans le déclencheur (2026-08-10, audit de
+        // la demande utilisateur « message clair pour qu'il se réaimante »)
+        // -- pas seulement `accuracy > 25`. Preuve dans le plugin natif
+        // (flutter_compass 0.8.1, FlutterCompassPlugin.java#getAccuracy) :
+        // sur Android, seuls 3 paliers HIGH=15/MEDIUM=30/LOW=45 sont
+        // renvoyés ; le 4e statut natif SENSOR_STATUS_UNRELIABLE -- le PIRE
+        // cas, celui pour lequel Android recommande justement de recalibrer
+        // en huit -- tombe dans le `else` de ce mapping et vaut -1, traduit
+        // par le plugin (CompassEvent.fromList) en `accuracy == null`. Avec
+        // `accuracy != null && accuracy > 25`, ce pire cas ne déclenchait
+        // PAS l'alerte (null échoue le premier `&&`) alors que les paliers
+        // MEDIUM/LOW, pourtant moins graves, la déclenchaient bien -- trou
+        // trouvé par lecture du code natif du plugin, à confirmer par
+        // recette sur device si une perturbation magnétique forte est
+        // reproductible.
+        final lowAccuracy = accuracy == null || accuracy > 25;
         return Column(
           children: [
+            const SizedBox(height: 8),
+            if (lowAccuracy) _magneticAlert(),
+            // ── FLÈCHE AU-DESSUS DE LA BOUSSOLE (2026-08-10) ────────────────
+            // Demande utilisateur : « la flèche doit être au-dessus de la
+            // boussole qui montre la direction de la rotation » -- avant,
+            // `_hint` (badge aligné / flèche de rotation) vivait sous le
+            // cadran, après la distance ; déplacé ICI, avant `_QiblaDial`,
+            // pour que le sens à tourner se voie AVANT même de regarder
+            // l'aiguille, pas après.
+            _hint(facingQibla, qibla, heading),
             const SizedBox(height: 8),
             Expanded(
               child: Center(
@@ -261,8 +286,6 @@ class _QiblaScreenState extends State<QiblaScreen> {
               ),
             ),
             _distanceCard(),
-            const SizedBox(height: 14),
-            _hint(facingQibla, lowAccuracy),
             const SizedBox(height: 28),
           ],
         );
@@ -297,67 +320,157 @@ class _QiblaScreenState extends State<QiblaScreen> {
     );
   }
 
-  Widget _hint(bool facingQibla, bool lowAccuracy) {
+  Widget _hint(bool facingQibla, double qibla, double heading) {
     final t = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        // Fondu + léger zoom -- juste le fondu par défaut d'AnimatedSwitcher
+        // rendait l'arrivée du badge "aligné" (cf. `_alignedBadge`) trop
+        // discrète pour l'effet de renfort recherché ; le zoom accompagne
+        // le fond/la bordure/le halo qui apparaissent en même temps.
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: ScaleTransition(scale: anim, child: child),
+        ),
+        child: facingQibla
+            ? _alignedBadge(t)
+            : _turnHint(t, qibla, heading),
+      ),
+    );
+  }
+
+  /// État "aligné" rendu NETTEMENT plus visible (2026-08-10, demande
+  /// utilisateur « je veux quand qibla trouvé que ça soit plus visible »).
+  /// Avant ce changement, le seul texte spécifique à l'alignement était un
+  /// `Text` brassLight à peine plus gras (w700 vs w500 par défaut) que le
+  /// hint "non aligné" juste à côté -- la vraie différence venait du cadran
+  /// (`_pulseRing`, cf. `_QiblaDial`), pas de cette zone-ci. Ici : badge à
+  /// fond et bordure laiton, halo, icône de validation, texte plus grand et
+  /// plus gras -- pour que l'état se voie aussi là où le regard se pose
+  /// après avoir levé les yeux du cadran.
+  Widget _alignedBadge(AppLocalizations t) {
+    return Container(
+      key: const ValueKey('aligned'),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.brass.withOpacity(0.22),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.brassLight, width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.brassLight.withOpacity(0.35),
+            blurRadius: 18,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: facingQibla
-                ? Text(
-                    t.qiblaFacingQibla,
-                    key: const ValueKey('aligned'),
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.manrope(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.brassLight,
-                    ),
-                  )
-                : Row(
-                    key: const ValueKey('unaligned'),
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.explore_outlined,
-                          size: 14, color: AppColors.cream.withOpacity(0.5)),
-                      const SizedBox(width: 6),
-                      // Flexible -- sans lui le Text refuse de passer à la
-                      // ligne dans un Row et dépasse en largeur (dépassement
-                      // signalé par l'utilisateur, texte français plus long
-                      // que ce que l'essai initial avait couvert).
-                      Flexible(
-                        child: Text(
-                          t.qiblaTurnPhoneHint,
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.manrope(
-                            fontSize: 12,
-                            color: AppColors.cream.withOpacity(0.5),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-          if (lowAccuracy) ...[
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.warning_amber_rounded, size: 13, color: AppColors.brass),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    'Boussole peu précise -- recalibre en dessinant un "8" avec le téléphone, loin de tout métal/aimant.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.manrope(fontSize: 11, color: AppColors.brass),
-                  ),
-                ),
-              ],
+          const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.brassLight),
+          const SizedBox(width: 8),
+          Text(
+            t.qiblaFacingQibla,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.manrope(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+              color: AppColors.brassLight,
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Flèche directionnelle (2026-08-10, demande utilisateur « si on décale
+  /// qu'il affiche une flèche qui montre où tourner le tel »). Remplace
+  /// l'icône boussole générique `explore_outlined` qui disait "tourne" sans
+  /// jamais dire de quel côté. Le sens vient de `_signedTurn`, calculé avec
+  /// la MÊME convention de signe que l'aiguille du cadran (`needleAngle`
+  /// dans `_QiblaDial.build`, plus bas dans ce fichier) : positif = la Qibla
+  /// est à droite de l'écran, donc tourner à droite (sens horaire) rapproche
+  /// le cap de la cible. Repris tel quel plutôt que d'inventer une deuxième
+  /// convention qui contredirait l'aiguille affichée à l'écran.
+  Widget _turnHint(AppLocalizations t, double qibla, double heading) {
+    final turnRight = _signedTurn(qibla, heading) > 0;
+    return Row(
+      // Clé CONSTANTE (pas dépendante de `turnRight`) -- volontaire : la clé
+      // ne doit changer que sur le vrai basculement aligné/non-aligné géré
+      // par l'AnimatedSwitcher parent, pas à chaque fois que le cap oscille
+      // autour de 0° et fait sauter la flèche de sens -- sinon le badge se
+      // recréerait (fondu+zoom) en boucle au lieu de simplement changer
+      // d'icône.
+      key: const ValueKey('unaligned'),
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          turnRight ? Icons.turn_right_rounded : Icons.turn_left_rounded,
+          size: 16,
+          color: AppColors.cream.withOpacity(0.6),
+        ),
+        const SizedBox(width: 6),
+        // Flexible -- sans lui le Text refuse de passer à la ligne dans un
+        // Row et dépasse en largeur (dépassement signalé par l'utilisateur,
+        // texte français plus long que ce que l'essai initial avait couvert).
+        Flexible(
+          child: Text(
+            t.qiblaTurnPhoneHint,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.manrope(
+              fontSize: 12,
+              color: AppColors.cream.withOpacity(0.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Écart signé entre le cap Qibla et le cap courant, dans ]-180, 180] --
+  /// MÊME convention que `needleAngle` dans `_QiblaDial.build`
+  /// (`qiblaBearingDeg - headingDeg`, positif = rotation horaire à l'écran =
+  /// cible à droite) : `QiblaService.angleDiff` ne donne que l'écart absolu
+  /// (0-180°), utile pour juger "aligné ou pas" mais insuffisant pour dire
+  /// de quel côté tourner -- d'où cette variante signée, gardée ici plutôt
+  /// que dans `QiblaService` puisqu'elle n'a qu'un seul appelant.
+  static double _signedTurn(double qiblaBearingDeg, double headingDeg) {
+    final raw = (qiblaBearingDeg - headingDeg) % 360; // Dart : toujours dans [0, 360)
+    return raw > 180 ? raw - 360 : raw;
+  }
+
+  /// Alerte visible dès qu'un champ magnétique perturbe le magnétomètre --
+  /// demande utilisateur 2026-08-09. Placée EN HAUT (avant même le cadran) :
+  /// une aiguille fausse sans avertissement est pire qu'une aiguille absente,
+  /// mieux vaut le dire avant que l'utilisateur ne s'oriente dessus.
+  Widget _magneticAlert() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.brass.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.brass.withOpacity(0.6)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: AppColors.brassLight, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Champ magnétique détecté — éloigne-toi du métal ou d\'un aimant (coque, support, enceinte...), puis recalibre en dessinant un « 8 » avec le téléphone.',
+              style: GoogleFonts.manrope(
+                fontSize: 11.5,
+                color: AppColors.cream,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -457,22 +570,52 @@ class _QiblaDialState extends State<_QiblaDial> with SingleTickerProviderStateMi
     );
   }
 
+  /// Médaillon : bordure et halo renforcés une fois aligné (2026-08-10,
+  /// demande utilisateur « je veux quand qibla trouvé que ça soit plus
+  /// visible »). Avant ce changement, le médaillon avait EXACTEMENT le même
+  /// tracé aligné ou pas -- seule la pulsation passagère (`_pulseRing`,
+  /// visible seulement pendant l'aller-retour de l'anneau) marquait la
+  /// différence. `AnimatedContainer` fait la transition en douceur entre les
+  /// deux décorations sans contrôleur dédié (pas besoin, c'est un simple
+  /// aller-retour, pas une animation qui boucle).
   Widget _medallion() {
-    return Container(
+    final aligned = widget.aligned;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
       width: 236,
       height: 236,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.white.withOpacity(0.05),
-        border: Border.all(color: AppColors.brass.withOpacity(0.55), width: 1.5),
+        color: Colors.white.withOpacity(aligned ? 0.08 : 0.05),
+        border: Border.all(
+          color: aligned ? AppColors.brassLight : AppColors.brass.withOpacity(0.55),
+          width: aligned ? 2.2 : 1.5,
+        ),
+        boxShadow: aligned
+            ? [
+                BoxShadow(
+                  color: AppColors.brassLight.withOpacity(0.4),
+                  blurRadius: 26,
+                  spreadRadius: 2,
+                ),
+              ]
+            : null,
       ),
       child: Center(
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
           width: 206,
           height: 206,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: AppColors.brassLight.withOpacity(0.45), width: 1),
+            border: Border.all(
+              color: aligned
+                  ? AppColors.brassLight.withOpacity(0.85)
+                  : AppColors.brassLight.withOpacity(0.45),
+              width: aligned ? 1.6 : 1,
+            ),
           ),
         ),
       ),
@@ -541,25 +684,56 @@ class _PrayerRugPainter extends CustomPainter {
     canvas.drawPath(archPath, stroke);
     canvas.drawRRect(body, stroke);
 
-    // Bordure décorative interne, comme le tissage bordant un vrai tapis.
-    final innerRect = bodyRect.deflate(6);
-    if (innerRect.width > 0 && innerRect.height > 0) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(innerRect, const Radius.circular(3)),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.8
-          ..color = AppColors.brassLight.withOpacity(0.5),
-      );
+    // Bordure tissée : DEUX liserés (pas un seul) avec un fin espace entre
+    // les deux, comme la double bande qui borde un vrai sajjada -- demande
+    // utilisateur 2026-08-09 ("une image jolie"), un seul trait paraissait
+    // trop nu pour évoquer un tapis plutôt qu'un simple rectangle.
+    final thinStroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7
+      ..color = AppColors.brassLight.withOpacity(0.55);
+    for (final inset in [5.0, 9.0]) {
+      final r = bodyRect.deflate(inset);
+      if (r.width > 0 && r.height > 0) {
+        canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(3)), thinStroke);
+      }
     }
+
+    // Lampe de mosquée suspendue dans le mihrab -- motif classique des
+    // tapis de prière, accroche l'œil sur la pointe qui indique la Qibla.
+    final lampCenter = Offset(size.width / 2, archHeight * 0.62);
+    final lampPaint = Paint()..color = AppColors.green800.withOpacity(0.9);
+    canvas.drawLine(
+      Offset(size.width / 2, 2),
+      Offset(size.width / 2, lampCenter.dy - 4),
+      Paint()
+        ..strokeWidth = 1
+        ..color = AppColors.green800.withOpacity(0.8),
+    );
+    final lampPath = Path()
+      ..moveTo(lampCenter.dx - 4, lampCenter.dy)
+      ..lineTo(lampCenter.dx + 4, lampCenter.dy)
+      ..lineTo(lampCenter.dx + 2.5, lampCenter.dy + 6)
+      ..lineTo(lampCenter.dx - 2.5, lampCenter.dy + 6)
+      ..close();
+    canvas.drawPath(lampPath, lampPaint);
 
     // Petit médaillon central, écho du motif déjà utilisé sur les numéros
     // de verset et le cadran lui-même.
-    canvas.drawCircle(
-      Offset(size.width / 2, bodyTop + (size.height - bodyTop) * 0.42),
-      3,
-      Paint()..color = AppColors.brassLight.withOpacity(0.7),
-    );
+    final medallionCenter = Offset(size.width / 2, bodyTop + (size.height - bodyTop) * 0.5);
+    canvas.drawCircle(medallionCenter, 4.5, Paint()..color = AppColors.brassLight.withOpacity(0.75));
+    canvas.drawCircle(medallionCenter, 4.5, thinStroke..color = AppColors.green800.withOpacity(0.5));
+
+    // Pompons du bas -- trois petites franges, comme la lisière tissée au
+    // pied d'un vrai tapis (le bord qu'on ne pose jamais vers la Qibla).
+    final fringePaint = Paint()
+      ..strokeWidth = 1.2
+      ..color = AppColors.brassLight.withOpacity(0.7);
+    final fringeY = bodyRect.bottom;
+    for (final dx in [0.28, 0.5, 0.72]) {
+      final x = bodyRect.left + bodyRect.width * dx;
+      canvas.drawLine(Offset(x, fringeY), Offset(x, fringeY + 4), fringePaint);
+    }
   }
 
   @override
