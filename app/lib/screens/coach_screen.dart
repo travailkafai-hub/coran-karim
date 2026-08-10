@@ -12,6 +12,7 @@ import '../providers/coach_provider.dart';
 import '../providers/last_coach_verse_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
+import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart';
 import '../services/voice_fingerprint_service.dart';
 import '../theme/app_theme.dart';
@@ -33,39 +34,84 @@ class CoachScreen extends ConsumerStatefulWidget {
 }
 
 class _CoachScreenState extends ConsumerState<CoachScreen> {
+  // ── JAMAIS DÉMARRER UNE SESSION SUR LA SEULE BISMILLAH (2026-08-09) ───────
+  //
+  // Demande utilisateur : « il ne faut jamais se lancer sur Bismillah, ça
+  // doit passer directement au suivant ». Seul verset qui EST la Bismillah
+  // dans les données de l'app : Al-Fatiha 1:1 (`QuranApi.fetchBismillah`
+  // pointe dessus). Partout ailleurs (récitation live), elle est exclue de
+  // tout jugement -- ce n'est pas un contenu à mémoriser en soi, l'y lancer
+  // (ex. Mushaf positionné dessus au moment d'ouvrir "Mémoriser", qui ne
+  // passe qu'UN verset) donnerait une session sans objet.
+  //
+  // Résolu ICI plutôt qu'à chaque point d'entrée (Mushaf, fiche d'un mot en
+  // erreur, hub Coach...) pour n'exister qu'à un seul endroit. `_verses` est
+  // `null` tant que la résolution n'est pas faite -- `build()` affiche un
+  // simple indicateur de chargement pendant ce temps plutôt que de risquer
+  // un flash de la Bismillah le temps d'un premier frame (elle était encore
+  // lisible via `widget.verses.first` avant que `setup()` ne s'exécute).
+  List<Verse>? _verses;
+
   @override
   void initState() {
     super.initState();
+    // ⚠️ DANS le post-frame, pas directement dans initState : lire
+    // AppLocalizations (donc `context`) avant le premier frame lève
+    // « dependOnInheritedWidgetOfExactType<_LocalizationsScope>() was called
+    // before _CoachScreenState.initState() completed » et l'écran entier
+    // s'affiche en rouge d'erreur (constaté sur device 2026-07-22). Toute la
+    // résolution (Bismillah comprise) est donc faite APRÈS ce premier frame,
+    // pas seulement la lecture d'AppLocalizations.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref.read(coachProvider.notifier).setup(widget.verses);
-      // Mémorise le verset travaillé pour la carte « Reprendre » du hub Coach
-      // (REFONTE_IHM.md §11.2 zone A). Silencieux : un échec d'écriture ne doit
-      // jamais empêcher la session de démarrer.
-      //
-      // ⚠️ DANS le post-frame, pas directement dans initState : lire
-      // AppLocalizations (donc `context`) pendant initState lève
-      // « dependOnInheritedWidgetOfExactType<_LocalizationsScope>() was called
-      // before _CoachScreenState.initState() completed » et l'écran entier
-      // s'affiche en rouge d'erreur (constaté sur device 2026-07-22). Le
-      // contexte n'est utilisable qu'une fois le premier frame construit.
-      final v = widget.verses.first;
-      unawaited(recordLastCoachVerse(
-        surahNumber: v.surahNumber,
-        ayahNumber: v.ayahNumber,
-        surahName: AppLocalizations.of(context)!.coachSurahLabel(v.surahNumber),
-      ));
+      if (mounted) unawaited(_resoudreVersets());
     });
+  }
+
+  Future<void> _resoudreVersets() async {
+    var v = widget.verses;
+    if (v.isNotEmpty && v.first.surahNumber == 1 && v.first.ayahNumber == 1) {
+      if (v.length > 1) {
+        v = v.sublist(1);
+      } else {
+        final fatiha = await QuranApi.fetchVerses(1);
+        final suivant = fatiha.where((x) => x.ayahNumber == 2);
+        if (suivant.isNotEmpty) v = [suivant.first];
+      }
+    }
+    if (!mounted) return;
+    ref.read(coachProvider.notifier).setup(v);
+    // Mémorise le verset travaillé pour la carte « Reprendre » du hub Coach
+    // (REFONTE_IHM.md §11.2 zone A). Silencieux : un échec d'écriture ne doit
+    // jamais empêcher la session de démarrer.
+    final premier = v.first;
+    unawaited(recordLastCoachVerse(
+      surahNumber: premier.surahNumber,
+      ayahNumber: premier.ayahNumber,
+      surahName:
+          AppLocalizations.of(context)!.coachSurahLabel(premier.surahNumber),
+    ));
+    setState(() => _verses = v);
   }
 
   @override
   Widget build(BuildContext context) {
+    // Tant que la résolution (Bismillah comprise, cf. `_resoudreVersets`)
+    // n'est pas faite, aucun contenu à afficher -- surtout pas
+    // `widget.verses.first` en repli, qui redonnerait exactement le flash
+    // qu'on cherche à éviter si ce premier verset est la Bismillah.
+    final verses = _verses;
+    if (verses == null) {
+      return const Scaffold(
+        backgroundColor: AppColors.cream,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     final session = ref.watch(coachProvider);
     // Ayah par ayah même sur une sourate entière (demande utilisateur
     // 2026-07-24) : les 3 modes ne travaillent QUE sur le verset courant
-    // (session.currentVerse), jamais sur widget.verses entier concaténé.
-    final currentVerse = session.verses.isEmpty ? widget.verses.first : session.currentVerse;
-    final multiVerse = widget.verses.length > 1;
+    // (session.currentVerse), jamais sur `verses` entier concaténé.
+    final currentVerse = session.verses.isEmpty ? verses.first : session.currentVerse;
+    final multiVerse = verses.length > 1;
 
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -76,7 +122,7 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
             if (multiVerse)
               _VerseNavBar(
                 current: session.currentVerseIndex,
-                total: widget.verses.length,
+                total: verses.length,
                 onPrevious: session.hasPreviousVerse
                     ? () => ref.read(coachProvider.notifier).previousVerse()
                     : null,
@@ -616,6 +662,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
   final _fingerprint = VoiceFingerprintService();
   double? _fingerprintScore;
   bool _fingerprintChecked = false;
+  bool _avanceAutoDeclenchee = false;
 
   String get _text => widget.verses.map((v) => v.textUthmani).join(' ');
   String get _passageKey => widget.verses.map((v) => v.key).join('-');
@@ -676,6 +723,37 @@ class _ControleModeState extends ConsumerState<_ControleMode>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ref.read(coachProvider.notifier).saveControlScore(rst.accuracy);
+      });
+    }
+
+    // ── ENCHAÎNEMENT AUTOMATIQUE SUR CONTRÔLE PARFAIT (2026-08-09) ─────────
+    //
+    // Demande utilisateur : « une fois le contrôle d'un verset validé, on
+    // passe au verset suivant [...] je veux limiter les clics ». Précisé au
+    // clarifiement : « validé » = AUCUNE erreur signalée, tous les mots
+    // verts -- une seule orange ou rouge garde l'utilisateur sur ce verset,
+    // avec les boutons Réessayer / Retour entraînement déjà en place plus
+    // bas. Pas de déclenchement sur un score simplement "bon" : ce serait
+    // déplacer le critère de ce qu'est une mémorisation réussie, ce que le
+    // projet interdit (cf. skill `solution-de-fond`).
+    final controleParfait = finished &&
+        rst.words.isNotEmpty &&
+        rst.words.every((w) => w.status == WordStatus.correct);
+    if (controleParfait && !_avanceAutoDeclenchee && session.hasNextVerse) {
+      _avanceAutoDeclenchee = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(t.coachIncrementalVerseAdvance),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        // Court délai pour laisser voir le score parfait avant de changer
+        // d'écran -- un enchaînement instantané ne laisserait rien à voir.
+        await Future.delayed(const Duration(milliseconds: 900));
+        if (!mounted) return;
+        ref.read(coachProvider.notifier).advanceAfterPerfectControl();
       });
     }
 

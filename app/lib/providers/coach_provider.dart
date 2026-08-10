@@ -31,6 +31,24 @@ class CoachNotifier extends StateNotifier<CoachSessionState> {
     }
   }
 
+  /// Enchaîne SEUL sur le verset suivant, en sautant directement à
+  /// l'Entraîne -- PAS à `nextVerse()`, qui repart en Lecture (juste, pour
+  /// une navigation manuelle délibérée avec les flèches/le glissement).
+  ///
+  /// Demande utilisateur (2026-08-09) : « une fois le contrôle d'un verset
+  /// validé, on passe au verset suivant, du coup on passe la première étape
+  /// [Lecture] [...] je veux limiter les clics ». Appelé uniquement quand le
+  /// Contrôle vient d'être réussi à 100 % (cf.
+  /// `coach_screen._ControleModeState`) -- l'audio de référence du nouveau
+  /// palier se déclenche alors tout seul, `IncrementalRepeatStep.initState`
+  /// s'en charge déjà sans intervention supplémentaire ici.
+  void advanceAfterPerfectControl() {
+    if (!state.hasNextVerse) return;
+    state = state
+        .withVerseIndex(state.currentVerseIndex + 1)
+        .copyWith(mode: CoachMode.apprentissage);
+  }
+
   void nextAppStep() {
     if (state.appStep < 2) state = state.copyWith(appStep: state.appStep + 1);
   }
