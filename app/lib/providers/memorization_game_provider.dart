@@ -66,6 +66,14 @@ class MemorizationGameState {
   final int totalWordsCompleted; // mots validés depuis le début de LA partie
   final bool justBeatRecord; // le mot qui vient d'être validé a battu le record
 
+  /// Index global (cf. [globalWordIndex]) du mot le plus loin jamais validé
+  /// dans LA PARTIE -- traverse les retours en arrière de
+  /// [afterVerseRestart] SANS être réinitialisé (décision 2026-08-10, cf. le
+  /// bug documenté sur [globalWordIndex] et `submitWord`). `-1` = rien
+  /// validé encore (le tout premier mot, index global 0, est alors bien une
+  /// progression : `0 > -1`).
+  final int furthestGlobalWordIndex;
+
   /// Mot qui vient d'être raté -- reste affiché en surbrillance parmi les
   /// choix le temps que le joueur le voie, PUIS le verset redémarre (demande
   /// utilisateur 2026-08-10 : « une fois il rate, on lui montre la bonne
@@ -93,7 +101,25 @@ class MemorizationGameState {
     this.totalWordsCompleted = 0,
     this.justBeatRecord = false,
     this.revealedAnswer,
+    this.furthestGlobalWordIndex = -1,
   });
+
+  /// Index global cumulé (sur tous les versets déjà chargés, dans l'ordre) du
+  /// mot (verseIndex, wordIndex) -- ex. verset 0 de 3 mots puis verset 1 : le
+  /// mot 0 du verset 1 a l'index global 3. Sert de base de comparaison stable
+  /// à [furthestGlobalWordIndex] pour distinguer un mot qui fait progresser
+  /// LE SCORE (jamais atteint avant dans la partie) d'un mot déjà validé
+  /// qu'on retape après un retour en arrière ([afterVerseRestart]).
+  /// Stable dans le temps car [withMoreVerses] n'ajoute des versets qu'À LA
+  /// FIN de la liste -- la longueur des versets déjà chargés ne change
+  /// jamais après coup.
+  int globalWordIndex(int verseIndex, int wordIndex) {
+    var offset = 0;
+    for (var vi = 0; vi < verseIndex; vi++) {
+      offset += verses[vi].words.length;
+    }
+    return offset + wordIndex;
+  }
 
   GameVerse get currentVerse => verses[currentVerseIndex];
   String get currentWord => currentVerse.words[currentWordIndex];
@@ -115,6 +141,7 @@ class MemorizationGameState {
     int? totalWordsCompleted,
     bool? justBeatRecord,
     String? revealedAnswer,
+    int? furthestGlobalWordIndex,
   }) =>
       MemorizationGameState(
         verses: verses,
@@ -127,6 +154,8 @@ class MemorizationGameState {
         totalWordsCompleted: totalWordsCompleted ?? this.totalWordsCompleted,
         justBeatRecord: justBeatRecord ?? false,
         revealedAnswer: revealedAnswer ?? this.revealedAnswer,
+        furthestGlobalWordIndex:
+            furthestGlobalWordIndex ?? this.furthestGlobalWordIndex,
       );
 
   /// Nouvelle liste avec des versets supplémentaires -- seul champ qui ne
@@ -144,6 +173,7 @@ class MemorizationGameState {
         totalWordsCompleted: totalWordsCompleted,
         justBeatRecord: justBeatRecord,
         revealedAnswer: revealedAnswer,
+        furthestGlobalWordIndex: furthestGlobalWordIndex,
       );
 
   /// Relance LE VERSET COURANT depuis son premier mot -- même geste que le
@@ -166,12 +196,18 @@ class MemorizationGameState {
   /// Construction directe plutôt que `copyWith` : il faut pouvoir remettre
   /// `revealedAnswer` à `null`, ce que le motif `champ ?? this.champ` de
   /// `copyWith` ne permet pas de faire explicitement.
+  /// `furthestGlobalWordIndex` est explicitement PRÉSERVÉ (pas omis comme
+  /// `totalWordsCompleted` en serait tenté) : c'est précisément le champ qui
+  /// doit survivre à ce retour en arrière pour empêcher `submitWord` de
+  /// recréditer le score sur des mots déjà validés une première fois --
+  /// cf. sa doc et le commentaire dans `submitWord`.
   MemorizationGameState afterVerseRestart() => MemorizationGameState(
         verses: verses,
         currentVerseIndex: currentVerseIndex > 0 ? currentVerseIndex - 1 : 0,
         currentWordIndex: 0,
         choices: const [],
         totalWordsCompleted: totalWordsCompleted,
+        furthestGlobalWordIndex: furthestGlobalWordIndex,
       );
 }
 
@@ -274,14 +310,41 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
       return;
     }
 
-    final total = state.totalWordsCompleted + 1;
-    final beatRecord =
-        _ref.read(memorizationGameRecordProvider.notifier).reportScore(total);
+    // ── LE SCORE NE COMPTE QUE LA PROGRESSION AU-DELÀ DU POINT LE PLUS LOIN
+    // JAMAIS ATTEINT (bug signalé par l'utilisateur, corrigé 2026-08-10) ────
+    // `afterVerseRestart` (juste au-dessus) ramène volontairement au verset
+    // PRÉCÉDENT après une erreur, pour que le joueur reparte avec un peu
+    // d'élan avant de rattaquer le passage qui a fait échouer -- cf. sa doc.
+    // Mais retaper ces mots déjà validés une première fois incrémentait
+    // encore `totalWordsCompleted` : en bouclant volontairement sur un cycle
+    // court (échouer au verset N+1, revenir à N, retaper N, re-échouer...),
+    // le score grimpait indéfiniment sans jamais avancer réellement dans le
+    // texte. `furthestGlobalWordIndex` retient l'index global (cf.
+    // `MemorizationGameState.globalWordIndex`) du mot le plus loin jamais
+    // validé dans LA PARTIE ; il n'est JAMAIS réinitialisé par
+    // `afterVerseRestart`. Un mot qui ne dépasse pas strictement ce point
+    // avance quand même normalement (même feedback de succès, expérience de
+    // jeu inchangée) mais n'ajoute rien au score.
+    final wordGlobalIndex =
+        state.globalWordIndex(state.currentVerseIndex, state.currentWordIndex);
+    final isNewProgress = wordGlobalIndex > state.furthestGlobalWordIndex;
+    final total = isNewProgress
+        ? state.totalWordsCompleted + 1
+        : state.totalWordsCompleted;
+    final furthest =
+        isNewProgress ? wordGlobalIndex : state.furthestGlobalWordIndex;
+    // Le record ne peut être battu que par une progression réelle : si le
+    // score ne bouge pas, `reportScore` n'aurait de toute façon rien à faire
+    // (même `total` déjà signalé), pas la peine de l'appeler.
+    final beatRecord = isNewProgress
+        ? _ref.read(memorizationGameRecordProvider.notifier).reportScore(total)
+        : false;
 
     if (!state.isLastWordOfVerse) {
       state = state.copyWith(
         currentWordIndex: state.currentWordIndex + 1,
         totalWordsCompleted: total,
+        furthestGlobalWordIndex: furthest,
         justBeatRecord: beatRecord,
       );
       _prepareChoicesIfNeeded();
@@ -292,6 +355,7 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
         currentVerseIndex: state.currentVerseIndex + 1,
         currentWordIndex: 0,
         totalWordsCompleted: total,
+        furthestGlobalWordIndex: furthest,
         justBeatRecord: beatRecord,
       );
       _prepareChoicesIfNeeded();
@@ -299,7 +363,10 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
     }
     // Dernier mot du dernier verset CHARGÉ : la partie ne s'arrête pas ici
     // (cf. commentaire de la classe) -- va chercher la page suivante.
-    state = state.copyWith(totalWordsCompleted: total, justBeatRecord: beatRecord);
+    state = state.copyWith(
+        totalWordsCompleted: total,
+        furthestGlobalWordIndex: furthest,
+        justBeatRecord: beatRecord);
     unawaited(_loadNextPage());
   }
 
