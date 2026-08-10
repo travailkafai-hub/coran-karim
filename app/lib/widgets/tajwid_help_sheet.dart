@@ -8,7 +8,10 @@ import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
+import '../screens/coach_screen.dart';
+import '../screens/memorization_game_screen.dart';
 import '../services/fastconformer_verifier.dart';
+import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../services/voice_lora_clip_service.dart';
@@ -190,6 +193,22 @@ void showTajwidHelpSheet(
   String? entendu,
   int? wordIndex,
   int? localWordIndex,
+  /// Chemin d'un extrait "Ma voix" DÉJÀ archivé (2026-08-09).
+  ///
+  /// Demande utilisateur : « cette même page, je veux l'utiliser dans
+  /// l'affichage coach » -- le Coach regarde une session PASSÉE, il n'y a
+  /// plus de flux brut v2 en mémoire pour en extraire quoi que ce soit
+  /// (`_ListenRangeControl._playVoix` s'appuie sinon sur
+  /// `recitationVerifierProvider().v2ExtraitVoix`, qui n'a de sens qu'en
+  /// session vivante). Quand ce chemin est fourni, "Ma voix" le rejoue
+  /// directement au lieu d'extraire -- même bouton, même feuille, deux
+  /// sources d'audio selon le contexte d'ouverture.
+  String? archivedAudioPath,
+  /// Appelé quand "Réessayer ce mot" réussit DEPUIS L'ARCHIVE (pas de
+  /// session live, donc pas de `markWordCorrected` possible) -- l'appelant
+  /// décide quoi faire (ex. retirer l'erreur du journal cumulé). Cf.
+  /// `_CorrectionLoop.onCorrectedArchived`.
+  VoidCallback? onArchivedWordCorrected,
   /// Plage de mots à AFFICHER, en indices locaux au verset (2026-08-05).
   ///
   /// Demande utilisateur : « quand je clique sur le mot en erreur j'ai toute
@@ -390,11 +409,45 @@ void showTajwidHelpSheet(
                         localWordIndex: localWordIndex,
                         globalWordIndex: wordIndex,
                         focusWord: focusWord,
+                        archivedAudioPath: archivedAudioPath,
                       ),
                     ],
-                    if (wordIndex != null && focusWord != null) ...[
+                    // ── DISPONIBLE AUSSI DEPUIS L'ARCHIVE (2026-08-10) ───────
+                    // Demande utilisateur : « depuis Coach on n'a pas le
+                    // moyen de refaire le nouvel enregistrement, il faut
+                    // l'avoir même ici, pas que quand on fait la
+                    // récitation ». Condition alignée sur `_ListenRangeControl`
+                    // ci-dessus (`localWordIndex`, dispo dans les deux
+                    // contextes) plutôt que sur `wordIndex` (global, LIVE
+                    // seulement) -- `_CorrectionLoop` sait maintenant
+                    // fonctionner sans session live, cf. sa doc.
+                    if (localWordIndex != null && focusWord != null) ...[
                       const SizedBox(height: 18),
-                      _CorrectionLoop(wordIndex: wordIndex, focusWord: focusWord),
+                      _CorrectionLoop(
+                        wordIndex: wordIndex,
+                        focusWord: focusWord,
+                        verse: verse,
+                        localWordIndex: localWordIndex,
+                        onCorrectedArchived: onArchivedWordCorrected,
+                      ),
+                    ],
+                    // ── S'ENTRAÎNER SUR CE VERSET (2026-08-09) ──────────────
+                    //
+                    // Demande utilisateur : « je veux rajouter dans cette
+                    // page un lien pour lancer la mémorisation et le jeu sur
+                    // ce verset ». Valable qu'on ouvre la feuille EN DIRECT
+                    // (Karaoké/Contrôle) ou depuis l'archive Coach -- dans les
+                    // deux cas on sait déjà quel verset et quel mot. Utilise
+                    // le `context` EXTÉRIEUR (celui de l'écran appelant, pas
+                    // celui du bottom sheet) pour la navigation, car la
+                    // feuille se ferme avant de pousser le nouvel écran.
+                    if (localWordIndex != null) ...[
+                      const SizedBox(height: 18),
+                      _EntrainementLauncher(
+                        outerContext: context,
+                        verse: verse,
+                        localWordIndex: localWordIndex,
+                      ),
                     ],
                   ],
                 ),
@@ -459,11 +512,17 @@ class _ListenRangeControl extends ConsumerStatefulWidget {
   /// Mot attendu -- nécessaire pour archiver l'extrait contesté avec son
   /// texte (cf. `_onPouceBas`, demande utilisateur 2026-08-07).
   final String focusWord;
+
+  /// Extrait "Ma voix" déjà archivé sur disque (session Coach passée) --
+  /// voir la doc sur `showTajwidHelpSheet`. Quand fourni, "Ma voix" le
+  /// rejoue directement au lieu d'extraire depuis le flux v2 en direct.
+  final String? archivedAudioPath;
   const _ListenRangeControl({
     required this.verse,
     required this.localWordIndex,
     required this.focusWord,
     this.globalWordIndex,
+    this.archivedAudioPath,
   });
 
   @override
@@ -525,8 +584,9 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
   /// seule façon de trancher « j'ai mal dit » contre « le modèle a mal
   /// entendu » — question posée en boucle pendant les analyses de session.
   Future<void> _playVoix() async {
+    final archive = widget.archivedAudioPath;
     final g = widget.globalWordIndex;
-    if (g == null) return;
+    if (archive == null && g == null) return;
     setState(() {
       _playingVoix = true;
       _erreurVoix = null;
@@ -536,10 +596,11 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
       _feedbackEnvoye = false;
     });
     try {
-      final (before, after) = _bounds;
-      final chemin = await ref
-          .read(recitationVerifierProvider)
-          .v2ExtraitVoix(g - before, g + after);
+      // Session ARCHIVÉE (Coach) : l'extrait est déjà sur disque, rien à
+      // extraire -- cf. doc sur `showTajwidHelpSheet.archivedAudioPath`.
+      final chemin = archive ??
+          await ref.read(recitationVerifierProvider).v2ExtraitVoix(
+              g! - _bounds.$1, g + _bounds.$2);
       if (!mounted) return;
       if (chemin == null) {
         // Cas légitimes : audio sorti de l'anneau (session longue), ou mots
@@ -657,11 +718,12 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
               ),
             ),
           ),
-          // ── MA VOIX (2026-08-06) ──────────────────────────────────────────
-          // Seulement EN SESSION : hors récitation il n'y a aucun flux brut à
-          // rejouer, et un bouton qui ne peut pas marcher ne doit pas
-          // s'afficher.
-          if (widget.globalWordIndex != null) ...[
+          // ── MA VOIX (2026-08-06, étendu 2026-08-09) ─────────────────────
+          // EN SESSION (`globalWordIndex`) ou depuis une archive Coach
+          // (`archivedAudioPath`) : dans les deux cas un extrait existe déjà
+          // quelque part. Hors des deux, il n'y a aucun flux brut à rejouer,
+          // et un bouton qui ne peut pas marcher ne doit pas s'afficher.
+          if (widget.globalWordIndex != null || widget.archivedAudioPath != null) ...[
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
@@ -703,7 +765,7 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
             // qu'aucun extrait n'a encore été entendu (`_cheminVoixActuel`) :
             // voter sur un son qu'on n'a pas écouté n'a pas de sens, mais la
             // ligne elle-même ne doit plus se cacher.
-            if (widget.globalWordIndex != null) ...[
+            if (widget.globalWordIndex != null || widget.archivedAudioPath != null) ...[
               const SizedBox(height: 10),
               _PouceFeedbackRow(
                 pret: _cheminVoixActuel != null,
@@ -714,6 +776,170 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
               ),
             ],
           ],
+        ],
+      ),
+    );
+  }
+}
+
+enum _ChoixEntrainement { jeu, paliers }
+
+/// Lance le jeu de mémorisation ou l'entraînement par paliers sur le verset
+/// du mot signalé (2026-08-09, demande utilisateur : « je veux rajouter dans
+/// cette page un lien pour lancer la mémorisation et le jeu sur ce verset »,
+/// puis, sur le réemploi dans Coach : « on ne sait jamais que l'utilisateur
+/// ne fait rien [dans l'immédiat], il faut pouvoir revenir dessus via
+/// coach »).
+///
+/// Reprend la logique qui vivait avant dans
+/// `coach_sessions._LigneMot._entrainer` -- déplacée ici pour n'exister qu'à
+/// UN seul endroit : la feuille est désormais ouverte aussi bien depuis la
+/// récitation en direct que depuis l'archive Coach, les deux doivent pouvoir
+/// lancer le même entraînement plutôt que d'avoir chacune sa copie.
+///
+/// [outerContext] est le `context` de l'ÉCRAN qui a ouvert la feuille (pas
+/// celui, éphémère, du bottom sheet) : la feuille se ferme AVANT de pousser
+/// le nouvel écran, donc la navigation doit partir d'un contexte qui survit
+/// à cette fermeture.
+class _EntrainementLauncher extends StatefulWidget {
+  final BuildContext outerContext;
+  final Verse verse;
+  final int localWordIndex;
+  const _EntrainementLauncher({
+    required this.outerContext,
+    required this.verse,
+    required this.localWordIndex,
+  });
+
+  @override
+  State<_EntrainementLauncher> createState() => _EntrainementLauncherState();
+}
+
+class _EntrainementLauncherState extends State<_EntrainementLauncher> {
+  bool _busy = false;
+  String? _erreur;
+
+  Future<void> _choisir() async {
+    final choix = await showModalBottomSheet<_ChoixEntrainement>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.videogame_asset_rounded,
+                  color: Colors.lightBlue),
+              title: const Text('Jeu de mémorisation'),
+              subtitle: const Text('En partant deux versets avant'),
+              onTap: () => Navigator.pop(ctx, _ChoixEntrainement.jeu),
+            ),
+            ListTile(
+              leading: const Icon(Icons.school_rounded,
+                  color: AppColors.green700),
+              title: const Text('Entraînement par paliers'),
+              subtitle: const Text('Écoute, imite, contrôle -- sur ce verset'),
+              onTap: () => Navigator.pop(ctx, _ChoixEntrainement.paliers),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choix == null || !mounted) return;
+    setState(() {
+      _busy = true;
+      _erreur = null;
+    });
+    try {
+      final verse = widget.verse;
+      final tousVersets = await QuranApi.fetchVerses(verse.surahNumber);
+      if (!mounted) return;
+      final outer = widget.outerContext;
+      if (choix == _ChoixEntrainement.paliers) {
+        final verset = tousVersets.firstWhere(
+            (v) => v.ayahNumber == verse.ayahNumber,
+            orElse: () => tousVersets.first);
+        // Ferme la feuille AVANT de pousser le nouvel écran -- sinon elle
+        // reste ouverte par-dessus (même geste que le bouton "Fermer" plus
+        // bas, juste déclenché par ce choix-ci).
+        Navigator.of(context).pop();
+        if (!outer.mounted) return;
+        Navigator.push(outer,
+            MaterialPageRoute(builder: (_) => CoachScreen(verses: [verset])));
+        return;
+      }
+      final surahs = await QuranApi.fetchSurahs();
+      final surah = surahs.firstWhere((s) => s.number == verse.surahNumber);
+      final depart = (verse.ayahNumber - 2).clamp(1, verse.ayahNumber);
+      final versets =
+          tousVersets.where((v) => v.ayahNumber >= depart).toList();
+      if (versets.isEmpty || !mounted) return;
+      Navigator.of(context).pop();
+      if (!outer.mounted) return;
+      Navigator.push(
+        outer,
+        MaterialPageRoute(
+          builder: (_) => MemorizationGameScreen(surah: surah, verses: versets),
+        ),
+      );
+    } catch (_) {
+      if (mounted) setState(() => _erreur = 'Entraînement indisponible');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.cream200,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cream300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'S\'ENTRAÎNER SUR CE VERSET',
+            style: GoogleFonts.manrope(
+              fontSize: 10,
+              letterSpacing: 1.2,
+              fontWeight: FontWeight.w700,
+              color: AppColors.brass,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                side: const BorderSide(color: AppColors.brass),
+                shape:
+                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _busy ? null : _choisir,
+              icon: Icon(
+                _busy ? Icons.hourglass_top_rounded : Icons.school_outlined,
+                color: AppColors.brass,
+              ),
+              label: Text(
+                'Jeu ou entraînement par paliers',
+                style: GoogleFonts.manrope(
+                    fontWeight: FontWeight.w700, color: AppColors.brass),
+              ),
+            ),
+          ),
+          if (_erreur != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                _erreur!,
+                style: GoogleFonts.manrope(fontSize: 11, color: AppColors.inkLight),
+              ),
+            ),
         ],
       ),
     );
@@ -847,10 +1073,49 @@ enum _LoopState { idle, recording, analyzing, success, retry }
 /// isolément (moteur FastConformer déjà chargé, mono-shot — pas le flux
 /// bufferisé continu), compare au mot attendu, et si ça correspond, marque le
 /// mot corrigé dans l'état de la récitation (verrouillé vert définitivement).
+///
+/// ── LE MOT EST DIT AVEC SON CONTEXTE, PAS SEUL (2026-08-10) ─────────────
+///
+/// Diagnostic utilisateur, confirmé par le code : le clip envoyé au modèle
+/// ne contenait QUE le mot retenté, sans rien avant -- exactement la
+/// condition où le skill `solution-de-fond` documente que le modèle décode
+/// mal (« il lit correctement chaque mot dès qu'on lui donne une fenêtre de
+/// 2 à 4 s où le mot n'est pas au bord »). Deux pistes écartées : coller de
+/// l'audio RÉCITATEUR devant (impossible sans décodeur MP3->PCM, absent du
+/// projet -- ajouter FFmpeg ou du code natif MediaCodec est un chantier en
+/// soi) ; coller le PCM déjà capté de la session live (faisable mais c'est
+/// alors la propre voix -- potentiellement fautive -- de l'utilisateur qui
+/// sert de contexte, pas un modèle de bonne prononciation).
+///
+/// Solution retenue (proposée par l'utilisateur) : ne plus fabriquer un
+/// clip isolé du tout -- demander de redire aussi le(s) mot(s) qui
+/// précèdent, dans LE MÊME enregistrement. Le mot à juger n'est alors plus
+/// au bord de la fenêtre, sans toucher à un seul octet du pipeline audio.
+/// Le critère de validation porte sur le DERNIER mot transcrit (la fin de
+/// la phrase dite), pas sur la transcription entière.
 class _CorrectionLoop extends ConsumerStatefulWidget {
-  final int wordIndex;
+  /// Position GLOBALE dans la session EN DIRECT -- `null` quand la feuille
+  /// est ouverte depuis l'archive Coach (2026-08-10, demande utilisateur :
+  /// « depuis Coach on n'a pas le moyen de refaire le nouvel enregistrement,
+  /// il faut l'avoir même ici, pas que quand on fait la récitation »). Ne
+  /// sert plus qu'à `markWordCorrected` sur la session live -- la
+  /// comparaison et le contexte affiché reposent désormais sur [verse] +
+  /// [localWordIndex], disponibles dans les deux contextes.
+  final int? wordIndex;
   final String focusWord;
-  const _CorrectionLoop({required this.wordIndex, required this.focusWord});
+  final Verse verse;
+  final int localWordIndex;
+  /// Appelé à la place de `markWordCorrected` quand [wordIndex] est `null`
+  /// (archive) -- l'appelant décide ce que "corrigé" veut dire hors session
+  /// live (ex. retirer l'erreur du journal cumulé).
+  final VoidCallback? onCorrectedArchived;
+  const _CorrectionLoop({
+    required this.wordIndex,
+    required this.focusWord,
+    required this.verse,
+    required this.localWordIndex,
+    this.onCorrectedArchived,
+  });
 
   @override
   ConsumerState<_CorrectionLoop> createState() => _CorrectionLoopState();
@@ -861,6 +1126,34 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
   final _engine = FastConformerVerifier();
   _LoopState _state = _LoopState.idle;
   String? _heardText;
+
+  /// Jusqu'à 2 mots avant [focusWord], pour donner du contexte au modèle --
+  /// moins près du début du verset s'il y en a moins. Lu depuis le TEXTE du
+  /// verset ([Verse.textUthmani]), pas depuis `recitationProvider` : ce
+  /// dernier n'existe qu'en session live, alors que cette boucle doit aussi
+  /// fonctionner depuis l'archive Coach (2026-08-10).
+  List<String> _motsDeContexte() {
+    final mots = ArabicNormalizer.splitExpectedWords(widget.verse.textUthmani);
+    final debut = (widget.localWordIndex - 2).clamp(0, widget.localWordIndex);
+    return [
+      for (var i = debut; i < widget.localWordIndex && i < mots.length; i++)
+        mots[i]
+    ];
+  }
+
+  /// Le mot qui suit [focusWord], s'il y en a un (2026-08-10, demande
+  /// utilisateur : « il faut aussi dire un mot en plus après, pour bien
+  /// cibler le mot entier »). Avoir un mot après, pas seulement avant, sort
+  /// le mot ciblé du BORD de la fenêtre -- exactement la condition que le
+  /// skill `solution-de-fond` documente comme celle où le modèle décode
+  /// fiablement (« une fenêtre de 2 à 4 s où le mot n'est pas au bord »).
+  /// `null` si [focusWord] est le tout dernier mot du verset -- rien à dire
+  /// après lui.
+  String? _motApres() {
+    final mots = ArabicNormalizer.splitExpectedWords(widget.verse.textUthmani);
+    final apres = widget.localWordIndex + 1;
+    return apres < mots.length ? mots[apres] : null;
+  }
 
   @override
   void dispose() {
@@ -894,9 +1187,12 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
       await File(path).delete();
     } catch (_) {}
 
-    final words = ref.read(recitationProvider).words;
-    if (widget.wordIndex >= words.length) return;
-    final expected = words[widget.wordIndex];
+    // Attendu tiré de `focusWord` (pas de `recitationProvider.words`) : ce
+    // dernier n'existe qu'en session live, cette boucle doit aussi marcher
+    // depuis l'archive Coach (2026-08-10) -- même normalisation que celle
+    // qui construit `RecitedWord.normalized` ailleurs dans l'app, donc
+    // équivalente pour ce mot précis.
+    final expectedNorm = ArabicNormalizer.normalize(widget.focusWord);
 
     // ── LE MOT REDIT DOIT ÊTRE LE MOT ATTENDU, PAS « À 75 % » ───────────
     //
@@ -918,8 +1214,30 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
     // harakat) et non `strict` : la boucle de correction sert à redire le MOT,
     // et une harakat approximative se juge dans la chaîne, pas ici -- durcir
     // jusque-là serait un second changement, non demandé et non mesuré.
-    final heardNorm = ArabicNormalizer.normalize(text ?? '');
-    final matches = heardNorm.isNotEmpty && heardNorm == expected.normalized;
+    //
+    // ── ON JUGE LE MOT À SA POSITION DANS LA PHRASE, PAS TOUTE LA PHRASE
+    // (2026-08-10) ── Le clip contient maintenant le(s) mot(s) de contexte
+    // AVANT, le mot ciblé, ET un mot après quand il y en a un (cf. doc de la
+    // classe et `_motApres` : le mot ciblé sort ainsi du BORD de la fenêtre,
+    // condition où le modèle décode le mieux). Comparer `text` en entier à
+    // `expected.normalized` échouerait dès qu'un mot de contexte est
+    // prononcé -- on isole donc le mot à la position attendue, PAS forcément
+    // le dernier ni le premier.
+    //
+    // Limite acceptée : cette position suppose que la transcription segmente
+    // le contexte AVANT en autant de mots qu'attendu. Une fusion/coupure de
+    // segmentation sur le contexte décale l'index et peut faire échouer un
+    // mot pourtant bien dit -- un faux négatif (redemande), jamais un faux
+    // positif (jamais moins strict), donc acceptable pour cette boucle dont
+    // le rôle est justement de ne jamais valider à tort.
+    final heardTokens = ArabicNormalizer.splitExpectedWords(text ?? '')
+        .map((w) => ArabicNormalizer.normalize(w))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    final positionCible = _motsDeContexte().length;
+    final heardNorm =
+        positionCible < heardTokens.length ? heardTokens[positionCible] : '';
+    final matches = heardNorm.isNotEmpty && heardNorm == expectedNorm;
 
     setState(() {
       _heardText = (text == null || text.trim().isEmpty)
@@ -929,7 +1247,12 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
     });
 
     if (matches) {
-      ref.read(recitationProvider.notifier).markWordCorrected(widget.wordIndex);
+      final wi = widget.wordIndex;
+      if (wi != null) {
+        ref.read(recitationProvider.notifier).markWordCorrected(wi);
+      } else {
+        widget.onCorrectedArchived?.call();
+      }
     }
   }
 
@@ -956,6 +1279,41 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
               color: AppColors.green700,
             ),
           ),
+          const SizedBox(height: 6),
+          // ── LA PHRASE À DIRE, PAS SEULEMENT LE MOT (2026-08-10) ─────────
+          // Sans ce rappel, rien ne dit à l'utilisateur qu'il doit redire
+          // aussi ce qui précède -- il redirait naturellement le seul mot
+          // affiché en haut de la feuille (`focusWord`), reproduisant
+          // exactement le clip isolé qu'on cherche à éviter.
+          //
+          // ── + UN MOT APRÈS (2026-08-10) ─────────────────────────────────
+          // Demande utilisateur : « pour réessayer le mot, il faut aussi
+          // dire un mot en plus après, pour bien cibler le mot entier » --
+          // cf. `_motApres`.
+          Builder(builder: (context) {
+            final contexte = _motsDeContexte();
+            final apres = _motApres();
+            final aUnePhrase = contexte.isNotEmpty || apres != null;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  aUnePhrase
+                      ? t.tajwidHelpRecordWithContext
+                      : t.tajwidHelpRecordWithContextNone,
+                  style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight),
+                ),
+                if (aUnePhrase) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    [...contexte, widget.focusWord, ?apres].join(' '),
+                    textDirection: TextDirection.rtl,
+                    style: GoogleFonts.scheherazadeNew(fontSize: 18, color: AppColors.ink),
+                  ),
+                ],
+              ],
+            );
+          }),
           const SizedBox(height: 8),
           if (_state == _LoopState.success)
             Row(

@@ -4,18 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../models/verse.dart';
 import '../providers/mind_map_provider.dart';
-import '../providers/player_provider.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/session_archive_service.dart';
-import '../services/voice_lora_clip_service.dart';
-import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
-import 'coach_screen.dart';
-import 'memorization_game_screen.dart';
+import '../widgets/tajwid_help_sheet.dart';
 import 'mind_map_screen.dart';
-
-enum _ChoixEntrainement { jeu, paliers }
 
 /// LE COACH REGARDE EN ARRIÈRE (2026-08-06).
 ///
@@ -76,6 +70,28 @@ class SessionsSection extends ConsumerWidget {
                           fontSize: 10.5, color: AppColors.inkLight)),
                   orElse: () => const SizedBox.shrink(),
                 ),
+            // ── BOUTON RAFRAÎCHISSEMENT (2026-08-10) ────────────────────────
+            //
+            // Demande utilisateur, après constat sur device : « il faut que je
+            // sorte et revienne pour qu'elle s'affiche [...] c'est compliqué,
+            // ajoute un bouton rafraîchissement ». `sessionsArchiveProvider`
+            // est un FutureProvider mis en cache -- sa tentative d'invalidation
+            // automatique à la sortie de l'écran de récitation
+            // (`karaoke_recitation_screen.dart`, dispose()) peut échouer
+            // silencieusement (`ref` parfois invalide à cet instant précis,
+            // déjà journalisé sous `[Archive] cloture archive a echoue`) : la
+            // liste reste alors périmée jusqu'au prochain remontage. Ce bouton
+            // permet de forcer un nouvel essai sans quitter toute l'app.
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Actualiser',
+              icon: const Icon(Icons.refresh_rounded,
+                  size: 18, color: AppColors.green800),
+              onPressed: () {
+                ref.invalidate(sessionsArchiveProvider);
+                ref.invalidate(tailleArchiveProvider);
+              },
+            ),
           ],
         ),
         const SizedBox(height: 10),
@@ -367,6 +383,24 @@ class _Bilan extends StatelessWidget {
   }
 }
 
+// ── UNE SEULE FICHE MOT, PARTAGÉE AVEC LA RÉCITATION EN DIRECT (2026-08-09) ──
+//
+// Demande utilisateur : « lors de la récitation CTR, on a après les mots en
+// erreur, on clique dessus, y a une page avec Ma voix / récitateur [...] je
+// veux rajouter dans cette page un lien pour lancer la mémorisation et le
+// jeu sur ce verset, cette même page je veux l'utiliser dans l'affichage
+// coach [...] elle contient également les règles de tajweed, elle est bien
+// faite ». Puis, sur la raison d'être : « on ne sait jamais que l'utilisateur
+// ne fait rien [dans l'immédiat], il faut pouvoir revenir dessus via coach ».
+//
+// Avant : cette carte réimplémentait Ma voix / Le récitateur / M'entraîner /
+// pouces avec sa PROPRE logique (fichier archivé plutôt qu'extraction v2),
+// séparée de `tajwid_help_sheet.dart` -- deux endroits à faire évoluer pour
+// le même geste, et aucune règle de tajwid ni lancement de jeu ici.
+// Maintenant : `_LigneMot` n'est qu'un résumé tappable ; tout le détail (voix,
+// règles, entraînement, pouces) vit dans la fiche partagée, ouverte avec
+// `archivedAudioPath: m.audioPath` pour lui dire de rejouer le fichier déjà
+// sur disque plutôt que d'extraire un flux v2 qui n'existe plus hors session.
 class _LigneMot extends ConsumerStatefulWidget {
   final MotArchive m;
   const _LigneMot(this.m);
@@ -376,188 +410,54 @@ class _LigneMot extends ConsumerStatefulWidget {
 }
 
 class _LigneMotState extends ConsumerState<_LigneMot> {
-  bool _joue = false;
-  String? _message;
+  bool _chargement = false;
+  String? _erreur;
 
-  // ── POUCES, AUSSI DEPUIS L'ARCHIVE (2026-08-09, demande utilisateur) ─────
-  // « même dans cette session, le user peut valider ou invalider les
-  // pouces ». Même mécanisme que la fiche tajwid en direct
-  // (`tajwid_help_sheet._onPouceHaut`/`_onPouceBas`), adapté : ici l'audio
-  // est DÉJÀ un fichier archivé (`m.audioPath`), pas une extraction v2 à
-  // faire à la demande -- pas besoin de rejouer avant de pouvoir contester.
-  bool _feedbackEnvoye = false;
-  bool _feedbackEnCours = false;
-
-  /// Pouce HAUT : accusé de réception visuel seulement (l'erreur est déjà en
-  /// base depuis le jugement, même choix que la fiche tajwid en direct).
-  void _onPouceHaut() {
-    if (_feedbackEnvoye || _feedbackEnCours) return;
-    setState(() => _feedbackEnvoye = true);
-  }
-
-  /// Pouce BAS : « je l'ai bien dit ». Archive l'extrait déjà présent dans
-  /// l'archive de session (pas une nouvelle extraction, il n'y en a plus à
-  /// faire hors session vivante) pour export manuel ultérieur, et retire
-  /// l'erreur du journal cumulé pour ne pas compter un faux positif que
-  /// l'utilisateur vient lui-même d'invalider.
-  Future<void> _onPouceBas() async {
+  Future<void> _ouvrir() async {
     final m = widget.m;
-    if (_feedbackEnvoye || _feedbackEnCours) return;
-    setState(() => _feedbackEnCours = true);
-    try {
-      if (m.audioPath != null) {
-        await VoiceLoraClipService().commitDisputedClip(
-          sourcePath: m.audioPath!,
-          text: m.expectedWord,
-          verdict: 'conteste_par_utilisateur',
-        );
-      }
-      if (m.surahNumber != null &&
-          m.ayahNumber != null &&
-          m.wordInAyah != null) {
-        await RecitationErrorLogService.instance.removeLatestError(
-          surahNumber: m.surahNumber!,
-          ayahNumber: m.ayahNumber!,
-          wordIndex: m.wordInAyah!,
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _feedbackEnCours = false;
-          _feedbackEnvoye = true;
-        });
-      }
-    }
-  }
-
-  Future<void> _maVoix() async {
-    final chemin = widget.m.audioPath;
-    if (chemin == null) {
-      setState(() => _message = 'Voix non enregistrée pour ce mot');
+    if (m.surahNumber == null || m.ayahNumber == null) {
+      setState(() => _erreur = 'Position du mot inconnue');
       return;
     }
     setState(() {
-      _joue = true;
-      _message = null;
-    });
-    try {
-      await WordCorrectionAudio.playFile(chemin);
-    } catch (_) {
-      if (mounted) setState(() => _message = 'Lecture impossible');
-    } finally {
-      if (mounted) setState(() => _joue = false);
-    }
-  }
-
-  /// Le récitateur sur le MÊME mot. Le verset n'est pas en base (l'archive ne
-  /// stocke que la position) : on va le chercher au moment du tap plutôt que
-  /// de dupliquer le texte coranique dans une seconde base.
-  Future<void> _leRecitateur() async {
-    final m = widget.m;
-    if (m.surahNumber == null || m.ayahNumber == null || m.wordInAyah == null) {
-      setState(() => _message = 'Position du mot inconnue');
-      return;
-    }
-    setState(() {
-      _joue = true;
-      _message = null;
+      _chargement = true;
+      _erreur = null;
     });
     try {
       final versets = await QuranApi.fetchVerses(m.surahNumber!);
       final Verse verset = versets.firstWhere(
           (v) => v.ayahNumber == m.ayahNumber,
           orElse: () => versets.first);
-      await WordCorrectionAudio.playWordRange(
-        verset,
-        ref.read(playerProvider).reciter,
-        errorWordIndex: m.wordInAyah!,
-        wordsBefore: 1,
-        wordsAfter: 0,
-      );
-    } catch (_) {
-      if (mounted) setState(() => _message = 'Audio du récitateur indisponible');
-    } finally {
-      if (mounted) setState(() => _joue = false);
-    }
-  }
-
-  /// Demande QUEL entraînement, avant de lancer quoi que ce soit (demande
-  /// utilisateur 2026-08-09 : « pour s'entraîner y a deux options, soit avec
-  /// le jeu, soit avec l'entraînement avec les paliers, la mémorisation, le
-  /// verset qui contient le mot »).
-  ///
-  /// Les deux options ne ciblent PAS le même texte, à dessein :
-  ///   - le JEU part deux versets AVANT (cf. sa doc plus bas) : le lapsus se
-  ///     produit souvent à la transition vers un nouveau verset ;
-  ///   - les PALIERS (CoachScreen, écoute/imite/contrôle) ciblent le SEUL
-  ///     verset qui contient le mot -- c'est le mode qui approfondit un
-  ///     passage précis, pas celui qui teste l'enchaînement.
-  Future<void> _entrainer() async {
-    final m = widget.m;
-    if (m.surahNumber == null || m.ayahNumber == null) {
-      setState(() => _message = 'Position du mot inconnue');
-      return;
-    }
-    final choix = await showModalBottomSheet<_ChoixEntrainement>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.videogame_asset_rounded,
-                  color: Colors.lightBlue),
-              title: const Text('Jeu de mémorisation'),
-              subtitle: const Text('En partant deux versets avant'),
-              onTap: () =>
-                  Navigator.pop(ctx, _ChoixEntrainement.jeu),
-            ),
-            ListTile(
-              leading: const Icon(Icons.school_rounded,
-                  color: AppColors.green700),
-              title: const Text('Entraînement par paliers'),
-              subtitle: const Text('Écoute, imite, contrôle -- sur ce verset'),
-              onTap: () =>
-                  Navigator.pop(ctx, _ChoixEntrainement.paliers),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (choix == null || !mounted) return;
-    setState(() {
-      _joue = true;
-      _message = null;
-    });
-    try {
-      final tousVersets = await QuranApi.fetchVerses(m.surahNumber!);
-      if (choix == _ChoixEntrainement.paliers) {
-        final verset = tousVersets.firstWhere(
-            (v) => v.ayahNumber == m.ayahNumber,
-            orElse: () => tousVersets.first);
-        if (!mounted) return;
-        await Navigator.push(context, MaterialPageRoute(
-            builder: (_) => CoachScreen(verses: [verset])));
-        return;
-      }
-      final surahs = await QuranApi.fetchSurahs();
-      final surah = surahs.firstWhere((s) => s.number == m.surahNumber);
-      final depart = (m.ayahNumber! - 2).clamp(1, m.ayahNumber!);
-      final versets =
-          tousVersets.where((v) => v.ayahNumber >= depart).toList();
-      if (versets.isEmpty || !mounted) return;
-      await Navigator.push(
+      if (!mounted) return;
+      showTajwidHelpSheet(
         context,
-        MaterialPageRoute(
-          builder: (_) =>
-              MemorizationGameScreen(surah: surah, verses: versets),
-        ),
+        ref,
+        verse: verset,
+        playlist: versets,
+        focusWord: m.expectedWord,
+        entendu: m.heardWord,
+        localWordIndex: m.wordInAyah,
+        archivedAudioPath: m.audioPath,
+        extraitDebut: m.wordInAyah,
+        extraitFin: m.wordInAyah == null ? null : m.wordInAyah! + 1,
+        // "Réessayer ce mot" réussi depuis l'archive (2026-08-10, demande
+        // utilisateur) : pas de session live à corriger, on retire plutôt
+        // l'erreur du journal cumulé -- le récitateur vient de prouver qu'il
+        // sait le dire.
+        onArchivedWordCorrected: (m.surahNumber == null ||
+                m.ayahNumber == null ||
+                m.wordInAyah == null)
+            ? null
+            : () => RecitationErrorLogService.instance.removeLatestError(
+                  surahNumber: m.surahNumber!,
+                  ayahNumber: m.ayahNumber!,
+                  wordIndex: m.wordInAyah!,
+                ),
       );
     } catch (_) {
-      if (mounted) setState(() => _message = 'Entraînement indisponible');
+      if (mounted) setState(() => _erreur = 'Verset indisponible');
     } finally {
-      if (mounted) setState(() => _joue = false);
+      if (mounted) setState(() => _chargement = false);
     }
   }
 
@@ -574,195 +474,89 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
       _ => AppColors.inkLight,
     };
     final estOubli = m.kind == 'oubli';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cream300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(width: 4, height: 26, color: couleur),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(m.expectedWord,
-                    textDirection: TextDirection.rtl,
-                    style: GoogleFonts.scheherazadeNew(
-                        fontSize: 24, color: AppColors.ink)),
-              ),
-              if (estOubli)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.lightBlue.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.lightBlue.shade200),
-                    ),
-                    child: Text('Oubli',
-                        style: GoogleFonts.manrope(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.lightBlue.shade700)),
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: _chargement ? null : _ouvrir,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.cream300),
+        ),
+        child: Row(
+          children: [
+            Container(width: 4, height: 30, color: couleur),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(m.expectedWord,
+                          textDirection: TextDirection.rtl,
+                          style: GoogleFonts.scheherazadeNew(
+                              fontSize: 22, color: AppColors.ink)),
+                      if (estOubli) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.lightBlue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border:
+                                Border.all(color: Colors.lightBlue.shade200),
+                          ),
+                          child: Text('Oubli',
+                              style: GoogleFonts.manrope(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.lightBlue.shade700)),
+                        ),
+                      ],
+                    ],
                   ),
-                ),
-              if (m.ayahNumber != null)
-                Text('${m.surahNumber}:${m.ayahNumber}',
+                  // Ce que la chaîne a entendu : la seule information qui
+                  // permette de repérer un verdict à contester avant même
+                  // d'ouvrir la fiche.
+                  if (m.heardWord != null && m.heardWord!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text('entendu : ${m.heardWord}',
+                          textDirection: TextDirection.rtl,
+                          style: GoogleFonts.scheherazadeNew(
+                              fontSize: 15, color: AppColors.inkLight)),
+                    ),
+                  if (_erreur != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(_erreur!,
+                          style: GoogleFonts.manrope(
+                              fontSize: 11, color: AppColors.inkLight)),
+                    ),
+                ],
+              ),
+            ),
+            if (m.ayahNumber != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 6, right: 4),
+                child: Text('${m.surahNumber}:${m.ayahNumber}',
                     style: GoogleFonts.manrope(
                         fontSize: 11, color: AppColors.inkLight)),
-            ],
-          ),
-          // Ce que la chaîne a entendu : la seule information qui permette à
-          // l'utilisateur de contester un verdict. Un signalement sans elle
-          // n'est pas vérifiable.
-          if (m.heardWord != null && m.heardWord!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 4, left: 14),
-              child: Text('entendu : ${m.heardWord}',
-                  textDirection: TextDirection.rtl,
-                  style: GoogleFonts.scheherazadeNew(
-                      fontSize: 17, color: AppColors.inkLight)),
-            ),
-          const SizedBox(height: 8),
-          // ── TROIS BOUTONS SUR UNE LIGNE FAISAIENT DEBORDER LE TEXTE
-          // (2026-08-09, constat utilisateur sur capture d'écran) : "Le
-          // récitateur" et "M'entraîner" se retrouvaient coupés sur deux
-          // lignes, `Expanded` divisant la largeur en trois parts trop
-          // étroites. "M'entraîner" (mots "oubli" seulement) passe donc en
-          // pleine largeur, sur sa propre ligne -- les deux boutons du
-          // verdict (Ma voix / Le récitateur) gardent leur ligne à eux,
-          // toujours présents.
-          Row(
-            children: [
-              Expanded(
-                child: _Bouton(
-                  icone: Icons.record_voice_over_outlined,
-                  texte: 'Ma voix',
-                  couleur: AppColors.brass,
-                  actif: !_joue && m.audioPath != null,
-                  onTap: _maVoix,
-                ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _Bouton(
-                  icone: Icons.play_circle_outline_rounded,
-                  texte: 'Le récitateur',
-                  couleur: AppColors.green700,
-                  actif: !_joue,
-                  onTap: _leRecitateur,
-                ),
-              ),
-            ],
-          ),
-          if (estOubli) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: _Bouton(
-                icone: Icons.school_outlined,
-                texte: 'M\'entraîner',
-                couleur: Colors.lightBlue.shade700,
-                actif: !_joue,
-                onTap: _entrainer,
-              ),
-            ),
+            _chargement
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.inkLight),
           ],
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text('L\'app a bien vu ?',
-                  style: GoogleFonts.manrope(
-                      fontSize: 11, color: AppColors.inkLight)),
-              const SizedBox(width: 8),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: Icon(Icons.thumb_up_outlined,
-                    size: 18,
-                    color: _feedbackEnvoye
-                        ? AppColors.green700
-                        : AppColors.inkLight),
-                tooltip: 'D\'accord, c\'est une vraie erreur',
-                onPressed: _feedbackEnvoye || _feedbackEnCours
-                    ? null
-                    : _onPouceHaut,
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: _feedbackEnCours
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : Icon(Icons.thumb_down_outlined,
-                        size: 18,
-                        color: _feedbackEnvoye
-                            ? AppColors.inkLight
-                            : Colors.redAccent.shade200),
-                tooltip: 'Pas d\'accord, je l\'ai bien dit',
-                onPressed: _feedbackEnvoye || _feedbackEnCours
-                    ? null
-                    : _onPouceBas,
-              ),
-            ],
-          ),
-          if (_message != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(_message!,
-                  style: GoogleFonts.manrope(
-                      fontSize: 11, color: AppColors.inkLight)),
-            ),
-        ],
+        ),
       ),
-    );
-  }
-}
-
-class _Bouton extends StatelessWidget {
-  final IconData icone;
-  final String texte;
-  final Color couleur;
-  final bool actif;
-  final VoidCallback onTap;
-  const _Bouton({
-    required this.icone,
-    required this.texte,
-    required this.couleur,
-    required this.actif,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Plus d'`Expanded` ici (retiré 2026-08-09) : ce widget doit pouvoir
-    // vivre soit dans un `Row` (deux boutons côte à côte, chacun enveloppé
-    // d'`Expanded` par l'appelant), soit seul en pleine largeur (bouton
-    // "M'entraîner", via `SizedBox(width: double.infinity)`) -- `Expanded`
-    // en dur cassait ce second cas (« Expanded widgets must be placed
-    // inside a Flex widget »).
-    return OutlinedButton.icon(
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        side: BorderSide(color: actif ? couleur : AppColors.cream300),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      onPressed: actif ? onTap : null,
-      icon: Icon(icone, size: 18, color: actif ? couleur : AppColors.inkLight),
-      label: Text(texte,
-          style: GoogleFonts.manrope(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: actif ? couleur : AppColors.inkLight)),
     );
   }
 }
