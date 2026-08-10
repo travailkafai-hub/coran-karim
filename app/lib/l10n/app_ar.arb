@@ -95,9 +95,8 @@
   "readingSettingsSpeedSlow": "بطيء",
   "readingSettingsSpeedNormal": "عادي",
   "readingSettingsSpeedFast": "سريع",
-  "readingSettingsKindleSection": "وضع القراءة الهادئة",
-  "readingSettingsKindleDescription": "سمة مريحة للعين تقلل الضوء الأزرق، مع تنقل بالصفحات كجهاز القراءة الإلكتروني.",
-  "readingSettingsKindleToggle": "تفعيل وضع القراءة الهادئة",
+  "readingSettingsKindleSection": "سمة القراءة",
+  "readingSettingsKindleDescription": "اختر أجواء القراءة: عادية، بيج كجهاز القراءة الإلكتروني، أو أسود للقراءة الليلية.",
   "readingSettingsKindleAutoTurn": "تقليب الصفحات تلقائيًا",
   "readingSettingsKindleSpeed": "السرعة: {seconds} ث / صفحة",
   "coachExplanationListen": "استماع",
@@ -127,6 +126,8 @@
   "tajwidHelpAnalyzing": "التحليل جارٍ…",
   "tajwidHelpFinishRecording": "إنهاء التسجيل",
   "tajwidHelpRecordThisWord": "سجّل هذه الكلمة",
+  "tajwidHelpRecordWithContext": "قل أيضًا الكلمات المحيطة بها، وليس هذه الكلمة فقط:",
+  "tajwidHelpRecordWithContextNone": "قل هذه الكلمة، فهي أول كلمة في الآية.",
   "tajwidRuleMaddaNecessaryName": "مدّ لازم (٦ حركات)",
   "tajwidRuleMaddaNecessaryExplanation": "مدّ إلزامي مقداره ست حركات.",
   "tajwidRuleMaddaObligatoryName": "مدّ واجب (٤ أو ٥ حركات)",
@@ -294,11 +295,13 @@
   "@coachHubPickerGameSubtitle": {
     "description": "العنوان الفرعي لمُنتقي السورة للعبة الحفظ"
   },
-  "memorizationGameTitle": "لعبة الحفظ",
+  "memorizationGameTitle": "سلسلة",
   "@memorizationGameTitle": {
     "description": "عنوان شاشة لعبة الحفظ"
   },
   "memorizationGameRestartVerseTooltip": "إعادة هذه الآية",
+  "memorizationGameRulesHint": "ابحث عن الكلمة التالية. الخطأ يكلف -5 ويعيدك إلى الآية السابقة.",
+  "memorizationGameWrongAnswerBanner": "العودة إلى الآية السابقة (-5)",
   "@memorizationGameRestartVerseTooltip": {
     "description": "تلميح زر إعادة ضبط الآية الحالية"
   },
@@ -550,18 +553,6 @@
   "tajwidHelpClose": "إغلاق",
   "mushafBookmarksTitle": "علاماتي",
   "mushafNoBookmarks": "لا توجد علامة بعد. انقر على الأيقونة لتعليم الآية التي توقّفت عندها.",
-  "readingSettingsUnitLabel": "وحدة التكرار",
-  "readingSettingsUnitVerse": "آيات",
-  "readingSettingsUnitWord": "كلمات",
-  "readingSettingsGroupSizeWords": "١ — ما يُكرَّر: {n} كلمة في كل مرة",
-  "@readingSettingsGroupSizeWords": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
-  "readingSettingsWordUnitHint": "التكرار بالكلمة يقطّع صوت القارئ اعتمادًا على توقيت الكلمات. إذا لم يوفّرها القارئ المختار، يعود التشغيل إلى الآيات.",
   "readingSettingsGroupSize": "١ — ما يُكرَّر: {n} آية في كل مرة",
   "@readingSettingsGroupSize": {
     "placeholders": {
@@ -651,8 +642,6 @@
   "navDuaPourNous": "دعاء",
   "settingsContactTitle": "تواصل معنا",
   "settingsContactSubtitle": "آراء وملاحظات واقتراحات",
-  "settingsContactBody": "لديك ملاحظة أو خطأ أو فكرة؟ انسخ العنوان أدناه وراسلنا.",
-  "settingsContactCopied": "تم نسخ العنوان",
   "coachTrainInstruction": "اتلُ الآية كاملة من البداية. أعد المحاولة كلما احتجت.",
   "coachTapToTrain": "اضغط واتلُ الآية",
   "coachTrainListening": "أستمع إليك...",

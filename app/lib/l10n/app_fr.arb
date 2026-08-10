@@ -339,7 +339,7 @@
   "@mushafMemorize": {
     "description": "Bouton barre du bas : travailler ce verset (mémorisation)"
   },
-  "mushafTranslation": "Trad.",
+  "mushafTranslation": "Traduction",
   "@mushafTranslation": {
     "description": "Bouton barre du bas : afficher/masquer la traduction (abrégé, contrainte de largeur)"
   },
@@ -460,21 +460,17 @@
   "@readingSettingsSpeedFast": {
     "description": "Vitesse de défilement automatique : rapide"
   },
-  "readingSettingsKindleSection": "MODE KINDLE",
+  "readingSettingsKindleSection": "THÈME DE LECTURE",
   "@readingSettingsKindleSection": {
-    "description": "Titre de section : mode de lecture façon liseuse"
+    "description": "Titre de section : choix du thème de lecture (normal/sépia/nuit)"
   },
-  "readingSettingsKindleDescription": "Thème reposant, sans lumière bleue : navigation par pages, comme une liseuse.",
+  "readingSettingsKindleDescription": "Choisis l'ambiance de lecture : normal, sépia façon liseuse, ou fond noir pour la nuit.",
   "@readingSettingsKindleDescription": {
-    "description": "Description du mode Kindle"
-  },
-  "readingSettingsKindleToggle": "Activer le mode Kindle",
-  "@readingSettingsKindleToggle": {
-    "description": "Interrupteur d'activation du mode Kindle"
+    "description": "Description du choix de thème de lecture"
   },
   "readingSettingsKindleAutoTurn": "Tourner les pages automatiquement",
   "@readingSettingsKindleAutoTurn": {
-    "description": "Interrupteur du tournage de page automatique en mode Kindle"
+    "description": "Interrupteur du tournage de page automatique"
   },
   "readingSettingsKindleSpeed": "Vitesse : {seconds} s / page",
   "@readingSettingsKindleSpeed": {
@@ -622,6 +618,14 @@
   "tajwidHelpRecordThisWord": "S'enregistrer sur ce mot",
   "@tajwidHelpRecordThisWord": {
     "description": "Bouton : démarrer l'enregistrement du mot"
+  },
+  "tajwidHelpRecordWithContext": "Dis aussi le(s) mot(s) autour, pas seulement celui-ci :",
+  "@tajwidHelpRecordWithContext": {
+    "description": "Consigne pour dire le mot AVEC son contexte (2026-08-10) : un clip isolé d'un seul mot se décode mal ; demander un court contexte met le modèle dans de meilleures conditions."
+  },
+  "tajwidHelpRecordWithContextNone": "Dis ce mot, c'est le tout premier du verset.",
+  "@tajwidHelpRecordWithContextNone": {
+    "description": "Cas où le mot ciblé est le tout premier du verset -- aucun contexte à ajouter avant lui"
   },
   "tajwidRuleMaddaNecessaryName": "Madd — 6 temps (obligatoire)",
   "tajwidRuleMaddaNecessaryExplanation": "Allongement obligatoire de 6 temps (madd lâzim).",
@@ -1210,13 +1214,21 @@
   "@coachHubPickerGameSubtitle": {
     "description": "Sous-titre du sélecteur de sourate pour le jeu de mémorisation"
   },
-  "memorizationGameTitle": "Jeu de mémorisation",
+  "memorizationGameTitle": "Enchaînement",
   "@memorizationGameTitle": {
-    "description": "Titre de l'écran du jeu de mémorisation"
+    "description": "Titre de l'écran du jeu de mémorisation (mode qui enchaîne les mots rappelés, avec un record -- renommé le 2026-08-09, \"Jeu\" jugé trop éloigné de l'univers du Coran)"
   },
   "memorizationGameRestartVerseTooltip": "Recommencer ce verset",
   "@memorizationGameRestartVerseTooltip": {
     "description": "Tooltip du bouton de réinitialisation du verset courant"
+  },
+  "memorizationGameRulesHint": "Trouve le mot suivant. Erreur = -5 et retour au verset précédent.",
+  "@memorizationGameRulesHint": {
+    "description": "Rappel permanent des règles en haut de l'écran du jeu (demande utilisateur 2026-08-10 : « que les règles du jeu soient claires »)"
+  },
+  "memorizationGameWrongAnswerBanner": "Retour au verset précédent (-5)",
+  "@memorizationGameWrongAnswerBanner": {
+    "description": "Bandeau affiché pendant la révélation de la bonne réponse, pour expliquer pourquoi le jeu recule (demande utilisateur 2026-08-10 : « qu'on montre qu'on revient en arrière, sinon celui qui joue ne va pas comprendre »)"
   },
   "memorizationGameVerseProgress": "Verset {current} sur {total}",
   "@memorizationGameVerseProgress": {
@@ -2212,18 +2224,6 @@
   "tajwidHelpClose": "Fermer",
   "mushafBookmarksTitle": "Mes signets",
   "mushafNoBookmarks": "Aucun signet pour l'instant. Touchez l'icône pour marquer le verset où vous vous êtes arrêté.",
-  "readingSettingsUnitLabel": "Unité répétée",
-  "readingSettingsUnitVerse": "Versets",
-  "readingSettingsUnitWord": "Mots",
-  "readingSettingsGroupSizeWords": "1 — Ce qu’on répète : {n} mot(s) à la fois",
-  "@readingSettingsGroupSizeWords": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
-  "readingSettingsWordUnitHint": "La répétition au mot découpe l’audio du récitateur grâce à ses repères mot à mot. Si le récitateur choisi n’en publie pas, la lecture revient au verset.",
   "readingSettingsGroupSize": "1 — Ce qu’on répète : {n} verset(s) à la fois",
   "@readingSettingsGroupSize": {
     "placeholders": {
@@ -2505,14 +2505,6 @@
   "settingsContactSubtitle": "Avis, remarques, suggestions",
   "@settingsContactSubtitle": {
     "description": "Sous-titre de la tuile"
-  },
-  "settingsContactBody": "Une remarque, un bug, une idee ? Copiez l'adresse ci-dessous et ecrivez-nous.",
-  "@settingsContactBody": {
-    "description": "Corps du panneau de contact"
-  },
-  "settingsContactCopied": "Adresse copiee",
-  "@settingsContactCopied": {
-    "description": "Confirmation apres copie de l'adresse de contact"
   },
   "coachTrainInstruction": "Recite tout le verset, depuis le debut. Recommence autant de fois que necessaire.",
   "@coachTrainInstruction": {

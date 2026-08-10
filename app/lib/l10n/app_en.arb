@@ -68,7 +68,7 @@
   "mushafPause": "Pause",
   "mushafFavorites": "Bookmark",
   "mushafMemorize": "Memorize",
-  "mushafTranslation": "Transl.",
+  "mushafTranslation": "Translation",
   "mushafCoachAi": "AI Coach",
   "mushafMore": "More",
   "mushafAutoScroll": "Auto-scroll",
@@ -95,9 +95,8 @@
   "readingSettingsSpeedSlow": "Slow",
   "readingSettingsSpeedNormal": "Normal",
   "readingSettingsSpeedFast": "Fast",
-  "readingSettingsKindleSection": "KINDLE MODE",
-  "readingSettingsKindleDescription": "Restful, low blue light theme with page-based navigation, like an e-reader.",
-  "readingSettingsKindleToggle": "Enable Kindle mode",
+  "readingSettingsKindleSection": "READING THEME",
+  "readingSettingsKindleDescription": "Choose the reading mood: normal, e-reader sepia, or black for night reading.",
   "readingSettingsKindleAutoTurn": "Turn pages automatically",
   "readingSettingsKindleSpeed": "Speed: {seconds}s / page",
   "coachExplanationListen": "Listen",
@@ -127,6 +126,8 @@
   "tajwidHelpAnalyzing": "Analyzing…",
   "tajwidHelpFinishRecording": "Finish recording",
   "tajwidHelpRecordThisWord": "Record yourself on this word",
+  "tajwidHelpRecordWithContext": "Also say the surrounding word(s), not only this one:",
+  "tajwidHelpRecordWithContextNone": "Say this word — it's the very first of the verse.",
   "tajwidRuleMaddaNecessaryName": "Madd — 6 beats (mandatory)",
   "tajwidRuleMaddaNecessaryExplanation": "Mandatory elongation of 6 beats (madd lazim).",
   "tajwidRuleMaddaObligatoryName": "Madd — 4 or 5 beats (mandatory)",
@@ -294,11 +295,13 @@
   "@coachHubPickerGameSubtitle": {
     "description": "Subtitle of the surah picker for the memorization game"
   },
-  "memorizationGameTitle": "Memorization game",
+  "memorizationGameTitle": "Chain",
   "@memorizationGameTitle": {
     "description": "Title of the memorization game screen"
   },
   "memorizationGameRestartVerseTooltip": "Restart this verse",
+  "memorizationGameRulesHint": "Find the next word. A mistake costs -5 and sends you back to the previous verse.",
+  "memorizationGameWrongAnswerBanner": "Back to the previous verse (-5)",
   "@memorizationGameRestartVerseTooltip": {
     "description": "Tooltip for the button resetting the current verse"
   },
@@ -550,18 +553,6 @@
   "tajwidHelpClose": "Close",
   "mushafBookmarksTitle": "My bookmarks",
   "mushafNoBookmarks": "No bookmark yet. Tap the icon to mark where you stopped.",
-  "readingSettingsUnitLabel": "Repeat unit",
-  "readingSettingsUnitVerse": "Verses",
-  "readingSettingsUnitWord": "Words",
-  "readingSettingsGroupSizeWords": "1 — What repeats: {n} word(s) at a time",
-  "@readingSettingsGroupSizeWords": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
-  "readingSettingsWordUnitHint": "Word-level repeat slices the reciter's audio using word-by-word timings. If the chosen reciter publishes none, playback falls back to verses.",
   "readingSettingsGroupSize": "1 — What repeats: {n} verse(s) at a time",
   "@readingSettingsGroupSize": {
     "placeholders": {
@@ -651,8 +642,6 @@
   "navDuaPourNous": "Dua",
   "settingsContactTitle": "Contact us",
   "settingsContactSubtitle": "Feedback, remarks, suggestions",
-  "settingsContactBody": "A remark, a bug, an idea? Copy the address below and write to us.",
-  "settingsContactCopied": "Address copied",
   "coachTrainInstruction": "Recite the whole verse, from the start. Repeat as many times as needed.",
   "coachTapToTrain": "Tap and recite the verse",
   "coachTrainListening": "Listening...",

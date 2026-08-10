@@ -344,14 +344,11 @@ class AppLocalizationsAr extends AppLocalizations {
   String get readingSettingsSpeedFast => 'سريع';
 
   @override
-  String get readingSettingsKindleSection => 'وضع القراءة الهادئة';
+  String get readingSettingsKindleSection => 'سمة القراءة';
 
   @override
   String get readingSettingsKindleDescription =>
-      'سمة مريحة للعين تقلل الضوء الأزرق، مع تنقل بالصفحات كجهاز القراءة الإلكتروني.';
-
-  @override
-  String get readingSettingsKindleToggle => 'تفعيل وضع القراءة الهادئة';
+      'اختر أجواء القراءة: عادية، بيج كجهاز القراءة الإلكتروني، أو أسود للقراءة الليلية.';
 
   @override
   String get readingSettingsKindleAutoTurn => 'تقليب الصفحات تلقائيًا';
@@ -455,6 +452,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get tajwidHelpRecordThisWord => 'سجّل هذه الكلمة';
+
+  @override
+  String get tajwidHelpRecordWithContext =>
+      'قل أيضًا الكلمات المحيطة بها، وليس هذه الكلمة فقط:';
+
+  @override
+  String get tajwidHelpRecordWithContextNone =>
+      'قل هذه الكلمة، فهي أول كلمة في الآية.';
 
   @override
   String get tajwidRuleMaddaNecessaryName => 'مدّ لازم (٦ حركات)';
@@ -963,10 +968,18 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachHubPickerGameSubtitle => 'اختر السورة التي تريد حفظها باللعب';
 
   @override
-  String get memorizationGameTitle => 'لعبة الحفظ';
+  String get memorizationGameTitle => 'سلسلة';
 
   @override
   String get memorizationGameRestartVerseTooltip => 'إعادة هذه الآية';
+
+  @override
+  String get memorizationGameRulesHint =>
+      'ابحث عن الكلمة التالية. الخطأ يكلف -5 ويعيدك إلى الآية السابقة.';
+
+  @override
+  String get memorizationGameWrongAnswerBanner =>
+      'العودة إلى الآية السابقة (-5)';
 
   @override
   String memorizationGameVerseProgress(int current, int total) {
@@ -1677,24 +1690,6 @@ class AppLocalizationsAr extends AppLocalizations {
       'لا توجد علامة بعد. انقر على الأيقونة لتعليم الآية التي توقّفت عندها.';
 
   @override
-  String get readingSettingsUnitLabel => 'وحدة التكرار';
-
-  @override
-  String get readingSettingsUnitVerse => 'آيات';
-
-  @override
-  String get readingSettingsUnitWord => 'كلمات';
-
-  @override
-  String readingSettingsGroupSizeWords(int n) {
-    return '١ — ما يُكرَّر: $n كلمة في كل مرة';
-  }
-
-  @override
-  String get readingSettingsWordUnitHint =>
-      'التكرار بالكلمة يقطّع صوت القارئ اعتمادًا على توقيت الكلمات. إذا لم يوفّرها القارئ المختار، يعود التشغيل إلى الآيات.';
-
-  @override
   String readingSettingsGroupSize(int n) {
     return '١ — ما يُكرَّر: $n آية في كل مرة';
   }
@@ -1931,13 +1926,6 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get settingsContactSubtitle => 'آراء وملاحظات واقتراحات';
-
-  @override
-  String get settingsContactBody =>
-      'لديك ملاحظة أو خطأ أو فكرة؟ انسخ العنوان أدناه وراسلنا.';
-
-  @override
-  String get settingsContactCopied => 'تم نسخ العنوان';
 
   @override
   String get coachTrainInstruction =>

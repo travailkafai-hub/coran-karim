@@ -265,7 +265,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mushafMemorize => 'Memorize';
 
   @override
-  String get mushafTranslation => 'Transl.';
+  String get mushafTranslation => 'Translation';
 
   @override
   String get mushafCoachAi => 'AI Coach';
@@ -354,14 +354,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get readingSettingsSpeedFast => 'Fast';
 
   @override
-  String get readingSettingsKindleSection => 'KINDLE MODE';
+  String get readingSettingsKindleSection => 'READING THEME';
 
   @override
   String get readingSettingsKindleDescription =>
-      'Restful, low blue light theme with page-based navigation, like an e-reader.';
-
-  @override
-  String get readingSettingsKindleToggle => 'Enable Kindle mode';
+      'Choose the reading mood: normal, e-reader sepia, or black for night reading.';
 
   @override
   String get readingSettingsKindleAutoTurn => 'Turn pages automatically';
@@ -465,6 +462,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tajwidHelpRecordThisWord => 'Record yourself on this word';
+
+  @override
+  String get tajwidHelpRecordWithContext =>
+      'Also say the surrounding word(s), not only this one:';
+
+  @override
+  String get tajwidHelpRecordWithContextNone =>
+      'Say this word — it\'s the very first of the verse.';
 
   @override
   String get tajwidRuleMaddaNecessaryName => 'Madd — 6 beats (mandatory)';
@@ -998,10 +1003,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose the surah to memorize by playing';
 
   @override
-  String get memorizationGameTitle => 'Memorization game';
+  String get memorizationGameTitle => 'Chain';
 
   @override
   String get memorizationGameRestartVerseTooltip => 'Restart this verse';
+
+  @override
+  String get memorizationGameRulesHint =>
+      'Find the next word. A mistake costs -5 and sends you back to the previous verse.';
+
+  @override
+  String get memorizationGameWrongAnswerBanner =>
+      'Back to the previous verse (-5)';
 
   @override
   String memorizationGameVerseProgress(int current, int total) {
@@ -1757,24 +1770,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'No bookmark yet. Tap the icon to mark where you stopped.';
 
   @override
-  String get readingSettingsUnitLabel => 'Repeat unit';
-
-  @override
-  String get readingSettingsUnitVerse => 'Verses';
-
-  @override
-  String get readingSettingsUnitWord => 'Words';
-
-  @override
-  String readingSettingsGroupSizeWords(int n) {
-    return '1 — What repeats: $n word(s) at a time';
-  }
-
-  @override
-  String get readingSettingsWordUnitHint =>
-      'Word-level repeat slices the reciter\'s audio using word-by-word timings. If the chosen reciter publishes none, playback falls back to verses.';
-
-  @override
   String readingSettingsGroupSize(int n) {
     return '1 — What repeats: $n verse(s) at a time';
   }
@@ -2013,13 +2008,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsContactSubtitle => 'Feedback, remarks, suggestions';
-
-  @override
-  String get settingsContactBody =>
-      'A remark, a bug, an idea? Copy the address below and write to us.';
-
-  @override
-  String get settingsContactCopied => 'Address copied';
 
   @override
   String get coachTrainInstruction =>

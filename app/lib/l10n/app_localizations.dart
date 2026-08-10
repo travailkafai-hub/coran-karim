@@ -515,7 +515,7 @@ abstract class AppLocalizations {
   /// Bouton barre du bas : afficher/masquer la traduction (abrégé, contrainte de largeur)
   ///
   /// In fr, this message translates to:
-  /// **'Trad.'**
+  /// **'Traduction'**
   String get mushafTranslation;
 
   /// Bouton barre du bas : ouvrir le coach IA
@@ -674,25 +674,19 @@ abstract class AppLocalizations {
   /// **'Rapide'**
   String get readingSettingsSpeedFast;
 
-  /// Titre de section : mode de lecture façon liseuse
+  /// Titre de section : choix du thème de lecture (normal/sépia/nuit)
   ///
   /// In fr, this message translates to:
-  /// **'MODE KINDLE'**
+  /// **'THÈME DE LECTURE'**
   String get readingSettingsKindleSection;
 
-  /// Description du mode Kindle
+  /// Description du choix de thème de lecture
   ///
   /// In fr, this message translates to:
-  /// **'Thème reposant, sans lumière bleue : navigation par pages, comme une liseuse.'**
+  /// **'Choisis l\'ambiance de lecture : normal, sépia façon liseuse, ou fond noir pour la nuit.'**
   String get readingSettingsKindleDescription;
 
-  /// Interrupteur d'activation du mode Kindle
-  ///
-  /// In fr, this message translates to:
-  /// **'Activer le mode Kindle'**
-  String get readingSettingsKindleToggle;
-
-  /// Interrupteur du tournage de page automatique en mode Kindle
+  /// Interrupteur du tournage de page automatique
   ///
   /// In fr, this message translates to:
   /// **'Tourner les pages automatiquement'**
@@ -865,6 +859,18 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'S\'enregistrer sur ce mot'**
   String get tajwidHelpRecordThisWord;
+
+  /// Consigne pour dire le mot AVEC son contexte (2026-08-10) : un clip isolé d'un seul mot se décode mal ; demander un court contexte met le modèle dans de meilleures conditions.
+  ///
+  /// In fr, this message translates to:
+  /// **'Dis aussi le(s) mot(s) autour, pas seulement celui-ci :'**
+  String get tajwidHelpRecordWithContext;
+
+  /// Cas où le mot ciblé est le tout premier du verset -- aucun contexte à ajouter avant lui
+  ///
+  /// In fr, this message translates to:
+  /// **'Dis ce mot, c\'est le tout premier du verset.'**
+  String get tajwidHelpRecordWithContextNone;
 
   /// No description provided for @tajwidRuleMaddaNecessaryName.
   ///
@@ -1760,10 +1766,10 @@ abstract class AppLocalizations {
   /// **'Choisis la sourate à mémoriser en jouant'**
   String get coachHubPickerGameSubtitle;
 
-  /// Titre de l'écran du jeu de mémorisation
+  /// Titre de l'écran du jeu de mémorisation (mode qui enchaîne les mots rappelés, avec un record -- renommé le 2026-08-09, "Jeu" jugé trop éloigné de l'univers du Coran)
   ///
   /// In fr, this message translates to:
-  /// **'Jeu de mémorisation'**
+  /// **'Enchaînement'**
   String get memorizationGameTitle;
 
   /// Tooltip du bouton de réinitialisation du verset courant
@@ -1771,6 +1777,18 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Recommencer ce verset'**
   String get memorizationGameRestartVerseTooltip;
+
+  /// Rappel permanent des règles en haut de l'écran du jeu (demande utilisateur 2026-08-10 : « que les règles du jeu soient claires »)
+  ///
+  /// In fr, this message translates to:
+  /// **'Trouve le mot suivant. Erreur = -5 et retour au verset précédent.'**
+  String get memorizationGameRulesHint;
+
+  /// Bandeau affiché pendant la révélation de la bonne réponse, pour expliquer pourquoi le jeu recule (demande utilisateur 2026-08-10 : « qu'on montre qu'on revient en arrière, sinon celui qui joue ne va pas comprendre »)
+  ///
+  /// In fr, this message translates to:
+  /// **'Retour au verset précédent (-5)'**
+  String get memorizationGameWrongAnswerBanner;
 
   /// Indicateur de progression dans la sourate
   ///
@@ -2935,36 +2953,6 @@ abstract class AppLocalizations {
   /// **'Aucun signet pour l\'instant. Touchez l\'icône pour marquer le verset où vous vous êtes arrêté.'**
   String get mushafNoBookmarks;
 
-  /// No description provided for @readingSettingsUnitLabel.
-  ///
-  /// In fr, this message translates to:
-  /// **'Unité répétée'**
-  String get readingSettingsUnitLabel;
-
-  /// No description provided for @readingSettingsUnitVerse.
-  ///
-  /// In fr, this message translates to:
-  /// **'Versets'**
-  String get readingSettingsUnitVerse;
-
-  /// No description provided for @readingSettingsUnitWord.
-  ///
-  /// In fr, this message translates to:
-  /// **'Mots'**
-  String get readingSettingsUnitWord;
-
-  /// No description provided for @readingSettingsGroupSizeWords.
-  ///
-  /// In fr, this message translates to:
-  /// **'1 — Ce qu’on répète : {n} mot(s) à la fois'**
-  String readingSettingsGroupSizeWords(int n);
-
-  /// No description provided for @readingSettingsWordUnitHint.
-  ///
-  /// In fr, this message translates to:
-  /// **'La répétition au mot découpe l’audio du récitateur grâce à ses repères mot à mot. Si le récitateur choisi n’en publie pas, la lecture revient au verset.'**
-  String get readingSettingsWordUnitHint;
-
   /// No description provided for @readingSettingsGroupSize.
   ///
   /// In fr, this message translates to:
@@ -3366,18 +3354,6 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Avis, remarques, suggestions'**
   String get settingsContactSubtitle;
-
-  /// Corps du panneau de contact
-  ///
-  /// In fr, this message translates to:
-  /// **'Une remarque, un bug, une idee ? Copiez l\'adresse ci-dessous et ecrivez-nous.'**
-  String get settingsContactBody;
-
-  /// Confirmation apres copie de l'adresse de contact
-  ///
-  /// In fr, this message translates to:
-  /// **'Adresse copiee'**
-  String get settingsContactCopied;
 
   /// Instruction de l'etape Entraine, refonte 2026-08-09
   ///
