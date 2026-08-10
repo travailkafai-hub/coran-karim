@@ -636,7 +636,12 @@ class NoiseSuppressNotifier extends StateNotifier<bool> {
 }
 
 class DiagnosticEnabledNotifier extends StateNotifier<bool> {
-  DiagnosticEnabledNotifier() : super(true) {
+  /// État initial aligné sur `DiagnosticLog.enabled` (soit `!kReleaseMode`
+  /// depuis le 2026-08-09) et NON sur `true` en dur : sans cet alignement,
+  /// l'interrupteur des Réglages afficherait « activé » dans un build release
+  /// où la journalisation est en réalité éteinte — un réglage qui ment sur
+  /// l'état de la collecte de la voix de l'utilisateur.
+  DiagnosticEnabledNotifier() : super(DiagnosticLog.enabled) {
     _restore();
   }
 
@@ -707,5 +712,39 @@ class MarquePagesNotifier extends StateNotifier<Set<String>> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_kPrefMarquePages, suivant.toList());
     return ajoute;
+  }
+}
+
+const _kPrefPortionGranularity = 'portion_granularity';
+
+/// Granularité de découpe des sourates trop longues pour être suivies en un
+/// bloc dans le Coach (suivi permanent par portion, décision utilisateur
+/// 2026-08-08 : « on va dire par 1/2 Hizb ou Hizb selon le réciteur »). Une
+/// sourate qui tient dans un seul Hizb n'est JAMAIS découpée, quel que soit ce
+/// réglage (cf. `PortionService.resolve`) -- il ne s'applique qu'aux sourates
+/// qui s'étalent sur plusieurs Hizb (Al-Baqarah, Al-Imran, An-Nisa...).
+enum PortionGranularity { hizb, demiHizb }
+
+final portionGranularityProvider = StateNotifierProvider<
+    PortionGranularitySettingNotifier, PortionGranularity>((ref) {
+  return PortionGranularitySettingNotifier();
+});
+
+class PortionGranularitySettingNotifier
+    extends StateNotifier<PortionGranularity> {
+  PortionGranularitySettingNotifier() : super(PortionGranularity.hizb) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_kPrefPortionGranularity);
+    if (saved == 'demiHizb' && mounted) state = PortionGranularity.demiHizb;
+  }
+
+  Future<void> set(PortionGranularity value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefPortionGranularity, value.name);
   }
 }

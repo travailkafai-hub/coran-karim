@@ -13,6 +13,7 @@ import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
 import '../services/diagnostic_log.dart';
 import '../services/pause_profile_service.dart';
+import '../services/portion_service.dart';
 import '../services/quran_api.dart';
 import '../providers/error_review_provider.dart';
 import '../services/recitation_error_log_service.dart';
@@ -113,6 +114,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   StreamSubscription<int>? _wordFailedSub;
   StreamSubscription<int>? _decrochageSub;
   StreamSubscription<int>? _nonVertSub;
+  StreamSubscription<int>? _lockedSub;
   bool _autoCorrecting = false; // évite deux corrections en même temps
   DateTime? _correctionCooldownUntil; // anti-rafale, voir _onWordFailed
 
@@ -318,6 +320,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         .read(recitationProvider.notifier)
         .wordLockedNonGreen
         .listen(_archiverMotNonVert);
+    // SUIVI PERMANENT PAR PORTION (sourate/Hizb, 2026-08-10) : TOUT mot
+    // verrouillé, vert compris (cf. `wordLocked`, distinct de
+    // `wordLockedNonGreen` ci-dessus) -- une portion doit pouvoir passer un
+    // mot déjà connu comme faux au vert si une récitation ultérieure le
+    // réussit, ce que le flux non-vert seul ne permet jamais de voir.
+    _lockedSub = ref
+        .read(recitationProvider.notifier)
+        .wordLocked
+        .listen(_archiverMotDansPortion);
     // DÉCROCHAGE (2026-08-01) : le récitateur dit autre chose que le texte --
     // deux mots décodés consécutifs hors du texte attendu. Flux SÉPARÉ de
     // `wordFailed` (qui, lui, parle d'un mot attendu mal jugé) : ici, ce
@@ -621,6 +632,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     _wordFailedSub?.cancel();
     _decrochageSub?.cancel();
     _nonVertSub?.cancel();
+    _lockedSub?.cancel();
     // Clôture de l'archive à la SORTIE D'ÉCRAN aussi, pas seulement à la fin
     // naturelle : quitter en cours de route est le cas le plus fréquent, et
     // une session sans `ended_at` n'apparaît nulle part dans le Coach. Le
@@ -776,6 +788,63 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       kind: ref.read(recitationProvider.notifier).classifyError(wordIndex).name,
       audioSource: extrait,
     );
+  }
+
+  /// Suivi PERMANENT par portion (sourate, ou tranche de Hizb/demi-Hizb) --
+  /// distinct de [_archiverMotNonVert] : celui-ci écrit pour TOUT mot
+  /// verrouillé (vert compris), dans `portion_words` (verdict qui ne meurt
+  /// jamais), pas dans `session_words` (journal daté à 7 jours). Les DEUX
+  /// écritures coexistent, chacune alimente son propre écran du Coach.
+  ///
+  /// L'extrait audio n'est tenté QUE pour un mot non vert -- inutile de
+  /// consommer l'anneau natif (300 s, urgent) pour un mot déjà correct dont
+  /// personne n'aura besoin de réentendre la preuve.
+  Future<void> _archiverMotDansPortion(int wordIndex) async {
+    if (_isReferenceSession) return;
+    final words = ref.read(recitationProvider).words;
+    if (wordIndex < 0 || wordIndex >= words.length) return;
+    final mot = words[wordIndex];
+    if (mot.isBasmala) return; // jamais jugée, cf. _compterMots -- rien à suivre
+    final verse = _verseContaining(wordIndex);
+    final local = _localIndexInVerse(wordIndex);
+    if (verse == null || local == null) return;
+    String? extrait;
+    if (mot.status != WordStatus.correct) {
+      try {
+        extrait = await ref
+            .read(recitationVerifierProvider)
+            .v2ExtraitVoix(wordIndex > 0 ? wordIndex - 1 : wordIndex, wordIndex);
+      } catch (e) {
+        DiagnosticLog.log(
+            'Archive', 'extrait voix (portion) impossible mot=$wordIndex : $e');
+      }
+    }
+    try {
+      final granularite = ref.read(portionGranularityProvider);
+      final portion =
+          await PortionService.resolve(verse: verse, granularity: granularite);
+      await SessionArchiveService.instance.upsertPortionWord(
+        surahNumber: verse.surahNumber,
+        unitKey: portion.unitKey,
+        label: portion.label,
+        firstAyah: portion.firstAyah,
+        lastAyah: portion.lastAyah,
+        wordsTotal: portion.wordsTotal,
+        ayahNumber: verse.ayahNumber,
+        wordInAyah: local,
+        expectedWord: mot.display,
+        status: mot.status.name,
+        heardWord: mot.heard,
+        kind: mot.status == WordStatus.correct
+            ? null
+            : ref.read(recitationProvider.notifier).classifyError(wordIndex).name,
+        audioSource: extrait,
+      );
+    } catch (e) {
+      // La portion est un suivi en plus, jamais une condition de la
+      // récitation en cours : une panne ici ne doit rien bloquer.
+      DiagnosticLog.log('Archive', 'archivage portion impossible mot=$wordIndex : $e');
+    }
   }
 
   /// Archive un OUBLI : décrochage repris, ou souffleur manuel sollicité.

@@ -39,6 +39,407 @@ final motsDeSessionProvider =
 final tailleArchiveProvider =
     FutureProvider<int>((ref) => SessionArchiveService.instance.octetsAudio());
 
+// ── SUIVI PERMANENT PAR PORTION (sourate/Hizb, 2026-08-10) ─────────────────
+//
+// Troisième échelle de temps, à côté des deux ci-dessus : ni la SESSION datée
+// (`sessionsArchiveProvider`, 7 jours) ni le CUMUL d'erreurs par sourate
+// (`RecitationErrorLogService`), mais le dernier verdict connu de CHAQUE mot
+// d'une portion (sourate entière, ou tranche de Hizb/demi-Hizb pour une
+// sourate qui s'étale sur plusieurs Hizb), mis à jour -- jamais dupliqué --
+// à chaque récitation qui rejoue ce mot. Répond à la demande utilisateur
+// 2026-08-08 : suivre une sourate dans la durée, avec un badge de réussite
+// quand elle est intégralement couverte et juste (mots contestés inclus).
+//
+// Coexiste avec `sessionsArchiveProvider`, ne le remplace pas : la session
+// datée garde son rôle (voix du jour, suppression au geste, budget 7 jours).
+final portionsProvider = FutureProvider<List<PortionResume>>(
+    (ref) => SessionArchiveService.instance.portions());
+
+final motsDePortionProvider =
+    FutureProvider.family<List<PortionMot>, int>((ref, portionId) =>
+        SessionArchiveService.instance.motsDePortion(portionId));
+
+class PortionsSection extends ConsumerWidget {
+  const PortionsSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final portions = ref.watch(portionsProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text('MES PORTIONS',
+                style: GoogleFonts.manrope(
+                  fontSize: 11,
+                  letterSpacing: 1.3,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.green800,
+                )),
+            const Spacer(),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Actualiser',
+              icon: const Icon(Icons.refresh_rounded,
+                  size: 18, color: AppColors.green800),
+              onPressed: () => ref.invalidate(portionsProvider),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        portions.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+          error: (e, _) => Text('Portions illisibles : $e',
+              style: GoogleFonts.manrope(
+                  fontSize: 12, color: AppColors.inkLight)),
+          data: (list) => list.isEmpty
+              ? Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.cream200,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.cream300),
+                  ),
+                  child: Text(
+                    'Aucune portion suivie pour l’instant. Chaque sourate '
+                    '(ou tranche de Hizb pour les plus longues) que vous '
+                    'récitez apparaîtra ici avec sa progression cumulée.',
+                    style: GoogleFonts.manrope(
+                        fontSize: 12.5, height: 1.45, color: AppColors.inkLight),
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (final p in list) _CartePortion(p),
+                  ],
+                ),
+        ),
+        const SizedBox(height: 18),
+      ],
+    );
+  }
+}
+
+class _CartePortion extends StatelessWidget {
+  final PortionResume p;
+  const _CartePortion(this.p);
+
+  @override
+  Widget build(BuildContext context) {
+    final r = p.reussite;
+    final couleur = r == null
+        ? AppColors.inkLight
+        : r >= 0.95
+            ? AppColors.green700
+            : r >= 0.85
+                ? AppColors.brass
+                : Colors.redAccent.shade200;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: p.badge ? AppColors.brass : AppColors.cream300,
+            width: p.badge ? 1.4 : 1),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        leading: p.badge
+            ? const Icon(Icons.verified_rounded,
+                color: AppColors.brass, size: 26)
+            : null,
+        title: Text(p.label,
+            style: GoogleFonts.manrope(
+                fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink)),
+        subtitle: Text(
+          '${p.wordsReached}/${p.wordsTotal} mot(s) couvert(s)'
+          '${p.wordsReached < p.wordsTotal ? '' : ' · couverture complète'}',
+          style: GoogleFonts.manrope(fontSize: 11.5, color: AppColors.inkLight),
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(r == null ? '—' : '${(r * 100).round()}%',
+                style: GoogleFonts.manrope(
+                    fontSize: 17, fontWeight: FontWeight.w800, color: couleur)),
+            Text('justes',
+                style: GoogleFonts.manrope(fontSize: 9, color: AppColors.inkLight)),
+          ],
+        ),
+        onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => PortionDetailScreen(portion: p))),
+      ),
+    );
+  }
+}
+
+/// Le détail d'une portion : chaque mot NON ENCORE VERT (le reste est déjà
+/// acquis, pas la peine de le relister -- même philosophie que le Coach
+/// « se concentre sur les erreurs », cf. l'en-tête de ce fichier), avec sa
+/// voix archivée quand elle existe encore (7 jours).
+class PortionDetailScreen extends ConsumerWidget {
+  final PortionResume portion;
+  const PortionDetailScreen({super.key, required this.portion});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mots = ref.watch(motsDePortionProvider(portion.id));
+    return Scaffold(
+      backgroundColor: AppColors.cream,
+      appBar: AppBar(
+        backgroundColor: AppColors.green900,
+        foregroundColor: AppColors.cream,
+        elevation: 0,
+        title: Text(portion.label,
+            style: GoogleFonts.manrope(fontWeight: FontWeight.w700)),
+      ),
+      body: mots.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('$e')),
+        data: (list) {
+          final aRevoir =
+              list.where((m) => m.status != 'correct' && m.status != 'conteste').toList();
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            children: [
+              _BilanPortion(portion),
+              const SizedBox(height: 18),
+              if (aRevoir.isEmpty)
+                Text(
+                  list.isEmpty
+                      ? 'Aucun mot récité pour l’instant sur cette portion.'
+                      : 'Aucun mot à revoir sur cette portion.',
+                  style: GoogleFonts.manrope(
+                      fontSize: 13, color: AppColors.inkLight),
+                )
+              else
+                for (final m in aRevoir) _LignePortionMot(portion: portion, m: m),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _BilanPortion extends StatelessWidget {
+  final PortionResume p;
+  const _BilanPortion(this.p);
+
+  @override
+  Widget build(BuildContext context) {
+    final r = p.reussite;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.green900,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (p.badge)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_rounded,
+                      color: AppColors.brassLight, size: 20),
+                  const SizedBox(width: 6),
+                  Text('Portion réussie',
+                      style: GoogleFonts.manrope(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.brassLight)),
+                ],
+              ),
+            ),
+          Text(r == null ? '—' : '${(r * 100).round()} % de mots justes',
+              style: GoogleFonts.manrope(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.brassLight)),
+          const SizedBox(height: 6),
+          Text(
+            '${p.wordsGreen} mots justes sur ${p.wordsReached} récités, '
+            'sur ${p.wordsTotal} au total dans cette portion. Un mot contesté '
+            'compte comme juste.',
+            style: GoogleFonts.manrope(
+                fontSize: 12,
+                height: 1.4,
+                color: AppColors.cream.withValues(alpha: 0.75)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LignePortionMot extends ConsumerStatefulWidget {
+  final PortionResume portion;
+  final PortionMot m;
+  const _LignePortionMot({required this.portion, required this.m});
+
+  @override
+  ConsumerState<_LignePortionMot> createState() => _LignePortionMotState();
+}
+
+class _LignePortionMotState extends ConsumerState<_LignePortionMot> {
+  bool _chargement = false;
+  String? _erreur;
+
+  Future<void> _ouvrir() async {
+    final portion = widget.portion;
+    final m = widget.m;
+    setState(() {
+      _chargement = true;
+      _erreur = null;
+    });
+    try {
+      final versets = await QuranApi.fetchVerses(portion.surahNumber);
+      final Verse verset = versets.firstWhere((v) => v.ayahNumber == m.ayahNumber,
+          orElse: () => versets.first);
+      if (!mounted) return;
+      showTajwidHelpSheet(
+        context,
+        ref,
+        verse: verset,
+        playlist: versets,
+        focusWord: m.expectedWord,
+        entendu: m.heardWord,
+        localWordIndex: m.wordInAyah,
+        archivedAudioPath: m.audioPath,
+        extraitDebut: m.wordInAyah,
+        extraitFin: m.wordInAyah + 1,
+        // "Réessayer ce mot" réussi depuis une portion : le mot est marqué
+        // correct dans SA portion (pas juste retiré d'un journal d'erreurs),
+        // c'est ce qui fait avancer la couverture et, à terme, le badge.
+        onArchivedWordCorrected: () async {
+          await SessionArchiveService.instance.upsertPortionWord(
+            surahNumber: portion.surahNumber,
+            unitKey: portion.unitKey,
+            label: portion.label,
+            firstAyah: portion.firstAyah,
+            lastAyah: portion.lastAyah,
+            wordsTotal: portion.wordsTotal,
+            ayahNumber: m.ayahNumber,
+            wordInAyah: m.wordInAyah,
+            expectedWord: m.expectedWord,
+            status: 'correct',
+          );
+          ref.invalidate(portionsProvider);
+          ref.invalidate(motsDePortionProvider(portion.id));
+        },
+      );
+    } catch (_) {
+      if (mounted) setState(() => _erreur = 'Verset indisponible');
+    } finally {
+      if (mounted) setState(() => _chargement = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.m;
+    final couleur = switch (m.status) {
+      'error' => Colors.redAccent.shade200,
+      'unclear' => AppColors.brass,
+      'oubli' => Colors.lightBlue.shade300,
+      _ => AppColors.inkLight,
+    };
+    final estOubli = m.kind == 'oubli';
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: _chargement ? null : _ouvrir,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.cream300),
+        ),
+        child: Row(
+          children: [
+            Container(width: 4, height: 30, color: couleur),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(m.expectedWord,
+                          textDirection: TextDirection.rtl,
+                          style: GoogleFonts.scheherazadeNew(
+                              fontSize: 22, color: AppColors.ink)),
+                      if (estOubli) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.lightBlue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border:
+                                Border.all(color: Colors.lightBlue.shade200),
+                          ),
+                          child: Text('Oubli',
+                              style: GoogleFonts.manrope(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.lightBlue.shade700)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (m.heardWord != null && m.heardWord!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text('entendu : ${m.heardWord}',
+                          textDirection: TextDirection.rtl,
+                          style: GoogleFonts.scheherazadeNew(
+                              fontSize: 15, color: AppColors.inkLight)),
+                    ),
+                  if (_erreur != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(_erreur!,
+                          style: GoogleFonts.manrope(
+                              fontSize: 11, color: AppColors.inkLight)),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 6, right: 4),
+              child: Text('${widget.portion.surahNumber}:${m.ayahNumber}',
+                  style:
+                      GoogleFonts.manrope(fontSize: 11, color: AppColors.inkLight)),
+            ),
+            _chargement
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.inkLight),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class SessionsSection extends ConsumerWidget {
   const SessionsSection({super.key});
 

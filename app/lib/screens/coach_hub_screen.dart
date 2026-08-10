@@ -111,6 +111,12 @@ class CoachHubScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: const [
+          // Suivi PERMANENT par portion (sourate/Hizb, 2026-08-10), au-dessus
+          // du journal daté par session -- cf. l'en-tête de
+          // `coach_sessions.dart` (PortionsSection) pour la distinction des
+          // deux échelles de temps.
+          PortionsSection(),
+          SizedBox(height: 4),
           SessionsSection(),
         ],
       ),

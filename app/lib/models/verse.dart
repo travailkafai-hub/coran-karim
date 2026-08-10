@@ -11,6 +11,12 @@ class Verse {
   // Al-Baqarah, 286 versets, chargeait tout instantanément). Null seulement
   // si l'appelant n'a pas demandé le champ `page_number` à l'API.
   final int? pageNumber;
+  // Numérotation GLOBALE sur tout le Coran (hizb 1-60, rub' 1-240) --
+  // présente dans assets/data/quran_verses.json, utilisée pour découper une
+  // sourate longue en portions de suivi Coach (cf. SUITE portions/Hizb).
+  // Null seulement si l'appelant n'a pas demandé ces champs à l'API.
+  final int? hizbNumber;
+  final int? rubElHizbNumber;
 
   const Verse({
     required this.surahNumber,
@@ -19,6 +25,8 @@ class Verse {
     this.textUthmaniTajweed,
     this.translationFr,
     this.pageNumber,
+    this.hizbNumber,
+    this.rubElHizbNumber,
   });
 
   String get key => '$surahNumber:$ayahNumber';
@@ -32,6 +40,8 @@ class Verse {
       textUthmani: json['text_uthmani'] as String? ?? json['text'] as String,
       textUthmaniTajweed: json['text_uthmani_tajweed'] as String?,
       pageNumber: json['page_number'] as int?,
+      hizbNumber: json['hizb_number'] as int?,
+      rubElHizbNumber: json['rub_el_hizb_number'] as int?,
     );
   }
 }

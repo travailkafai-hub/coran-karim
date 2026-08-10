@@ -42,6 +42,8 @@ class QuranApi {
       textUthmani: verse.textUthmani,
       textUthmaniTajweed: map['text_uthmani_tajweed'] as String?,
       pageNumber: verse.pageNumber,
+      hizbNumber: verse.hizbNumber,
+      rubElHizbNumber: verse.rubElHizbNumber,
       translationFr: translations?.isNotEmpty == true
           ? translations!.first['text'] as String?
           : null,

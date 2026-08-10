@@ -230,6 +230,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   final _nonVertCtrl = StreamController<int>.broadcast();
   Stream<int> get wordLockedNonGreen => _nonVertCtrl.stream;
 
+  // Meme principe que ci-dessus, mais SANS filtre de couleur -- ajoute pour
+  // le suivi permanent par portion (sourate/Hizb) du Coach : une portion doit
+  // pouvoir mettre a jour un mot deja connu comme faux si une recitation
+  // ulterieure le rejoue et le reussit, ce que `wordLockedNonGreen` seul ne
+  // permet pas de voir (il ne signale jamais un mot devenu vert).
+  final _wordLockedCtrl = StreamController<int>.broadcast();
+  Stream<int> get wordLocked => _wordLockedCtrl.stream;
+
   // ── DÉCROCHAGE : le récitateur dit AUTRE CHOSE (2026-08-01) ───────────────
   // MÉCANISME ENTIÈREMENT NEUF, volontairement isolé (demande utilisateur :
   // « éviter de toucher les fonctions qui sont appelées par un autre mode...
@@ -3780,6 +3788,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     var touche = false;
     final nouveauxEchecs = <int>[];
     final nouveauxNonVerts = <int>[];
+    final nouveauxVerrouilles = <int>[];
     for (final c in changements) {
       if (c.index < 0 || c.index >= words.length) continue;
       final definitif = c.statut.startsWith('definitif:');
@@ -3917,11 +3926,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // la correction automatique ne declenchera pas (cf. `wordLockedNonGreen`).
       // `etaitVerrouille` evite le doublon quand la v2 reconfirme un mot deja
       // fige ; on n'archive que la PREMIERE fois.
-      if (definitif &&
-          !etaitVerrouille &&
-          words[c.index].locked &&
-          statutFinal != WordStatus.correct) {
-        nouveauxNonVerts.add(c.index);
+      if (definitif && !etaitVerrouille && words[c.index].locked) {
+        nouveauxVerrouilles.add(c.index);
+        if (statutFinal != WordStatus.correct) {
+          nouveauxNonVerts.add(c.index);
+        }
       }
       // ── FIN D'AL-FATIHA LUE A L'ANCRE (2026-08-07) ────────────────────
       //
@@ -4017,6 +4026,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // deja verrouille.
       for (final i in nouveauxEchecs) _wordFailedCtrl.add(i);
       for (final i in nouveauxNonVerts) _nonVertCtrl.add(i);
+      for (final i in nouveauxVerrouilles) _wordLockedCtrl.add(i);
     }
   }
 
@@ -5464,6 +5474,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _detectingTargetFallbackTimer?.cancel();
     _wordFailedCtrl.close();
     _nonVertCtrl.close();
+    _wordLockedCtrl.close();
     _sautPresumeCtrl.close();
     _decrochageCtrl.close();
 

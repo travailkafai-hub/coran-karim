@@ -14,6 +14,7 @@ import '../services/fastconformer_verifier.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
+import '../services/session_archive_service.dart';
 import '../services/voice_lora_clip_service.dart';
 import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
@@ -650,6 +651,16 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
         surahNumber: widget.verse.surahNumber,
         ayahNumber: widget.verse.ayahNumber,
         wordIndex: widget.localWordIndex,
+      );
+      // Suivi permanent par portion (Coach, 2026-08-10) : un mot contesté
+      // compte comme correct pour le badge de réussite (cf.
+      // PortionResume.badge) -- même geste, même instant, indépendant du
+      // journal cumulé d'erreurs ci-dessus (deux services distincts, cf.
+      // session_archive_service.dart pour pourquoi ils ne fusionnent pas).
+      await SessionArchiveService.instance.contesterMotDePortion(
+        surahNumber: widget.verse.surahNumber,
+        ayahNumber: widget.verse.ayahNumber,
+        wordInAyah: widget.localWordIndex,
       );
     } finally {
       if (mounted) {

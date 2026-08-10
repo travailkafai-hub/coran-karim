@@ -54,7 +54,7 @@ class SessionArchiveService {
     final chemin = p.join(await getDatabasesPath(), 'session_archive.db');
     return openDatabase(
       chemin,
-      version: 1,
+      version: 2,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE sessions(
@@ -93,8 +93,63 @@ class SessionArchiveService {
         ''');
         await db.execute(
             'CREATE INDEX idx_session_words ON session_words(session_id)');
+        await _creerTablesPortions(db);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        // v1 -> v2 (2026-08-10) : suivi PERMANENT par sourate/Hizb, à côté de
+        // `sessions`/`session_words` qui restent le journal daté par
+        // tentative (7 jours, inchangé). Aucune table existante n'est
+        // touchée : pas de perte des sessions déjà archivées.
+        if (oldVersion < 2) {
+          await _creerTablesPortions(db);
+        }
       },
     );
+  }
+
+  /// Tables du suivi permanent (cf. le plan "Suivi permanent par
+  /// sourate/Hizb dans Coach"). `portions` = une ligne par portion suivie
+  /// (sourate entière, ou tranche de Hizb/demi-Hizb pour une sourate qui
+  /// s'étale sur plusieurs Hizb) ; `portion_words` = le dernier verdict connu
+  /// de CHAQUE mot de la portion, mis à jour (pas dupliqué) à chaque
+  /// récitation qui rejoue ce mot.
+  Future<void> _creerTablesPortions(Database db) async {
+    await db.execute('''
+      CREATE TABLE portions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        surah_number INTEGER NOT NULL,
+        unit_key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        first_ayah INTEGER NOT NULL,
+        last_ayah INTEGER NOT NULL,
+        words_total INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        last_recited_at TEXT NOT NULL,
+        UNIQUE(surah_number, unit_key)
+      )
+    ''');
+    // `status` inclut 'conteste' (pouce vers le bas sur "Ma voix") : un mot
+    // contesté par l'utilisateur compte comme correct pour le badge de
+    // réussite (cf. PortionResume.reussite/badge) sans effacer sa trace --
+    // on garde `heard_word`/`audio_path` pour pouvoir revenir dessus.
+    await db.execute('''
+      CREATE TABLE portion_words(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        portion_id INTEGER NOT NULL REFERENCES portions(id) ON DELETE CASCADE,
+        ayah_number INTEGER NOT NULL,
+        word_in_ayah INTEGER NOT NULL,
+        expected_word TEXT NOT NULL,
+        heard_word TEXT,
+        status TEXT NOT NULL,
+        kind TEXT,
+        audio_path TEXT,
+        audio_expires_at TEXT,
+        updated_at TEXT NOT NULL,
+        UNIQUE(portion_id, ayah_number, word_in_ayah)
+      )
+    ''');
+    await db.execute(
+        'CREATE INDEX idx_portion_words ON portion_words(portion_id)');
   }
 
   Future<Directory> get _audioDir async {
@@ -293,6 +348,188 @@ class SessionArchiveService {
     return rows.map(MotArchive.fromMap).toList();
   }
 
+  // ── SUIVI PERMANENT PAR PORTION (sourate/Hizb) ──────────────────────────
+  //
+  // Distinct de sessions/session_words : ici le VERDICT ne meurt jamais
+  // (contrairement à la rétention 7 jours ci-dessus), seul l'audio non vert
+  // suit encore cette durée de vie (`audio_expires_at`, purgé par
+  // [purgerAnciennes]). Une récitation qui rejoue un mot déjà connu MET À
+  // JOUR sa ligne (upsert sur `UNIQUE(portion_id, ayah_number, word_in_ayah)`)
+  // au lieu d'en créer une nouvelle -- c'est ce qui permet au badge de
+  // réussite de refléter le dernier verdict, pas un historique de tentatives.
+
+  /// Retrouve la portion `(surahNumber, unitKey)` ou la crée, et rafraîchit
+  /// `last_recited_at` (+ le reste, au cas où le texte ait changé de forme
+  /// entre deux appels -- ne devrait pas arriver, mais rester correct ne
+  /// coûte rien ici).
+  Future<int> _upsertPortion({
+    required int surahNumber,
+    required String unitKey,
+    required String label,
+    required int firstAyah,
+    required int lastAyah,
+    required int wordsTotal,
+  }) async {
+    final db = await _database;
+    final now = DateTime.now().toIso8601String();
+    final existantes = await db.query('portions',
+        where: 'surah_number = ? AND unit_key = ?',
+        whereArgs: [surahNumber, unitKey]);
+    if (existantes.isNotEmpty) {
+      final id = existantes.first['id'] as int;
+      await db.update(
+        'portions',
+        {
+          'label': label,
+          'first_ayah': firstAyah,
+          'last_ayah': lastAyah,
+          'words_total': wordsTotal,
+          'last_recited_at': now,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return id;
+    }
+    final id = await db.insert('portions', {
+      'surah_number': surahNumber,
+      'unit_key': unitKey,
+      'label': label,
+      'first_ayah': firstAyah,
+      'last_ayah': lastAyah,
+      'words_total': wordsTotal,
+      'created_at': now,
+      'last_recited_at': now,
+    });
+    DiagnosticLog.log('Archive',
+        'portion $id creee : $label ($firstAyah-$lastAyah, $wordsTotal mots)');
+    return id;
+  }
+
+  /// Archive/actualise LE VERDICT COURANT d'un mot dans sa portion -- appelé
+  /// pour CHAQUE mot verrouillé (vert compris, cf. `RecitationNotifier.wordLocked`
+  /// dans `karaoke_recitation_screen.dart`), contrairement à [archiverMot] qui
+  /// ne voit que les mots non verts. [audioSource] suit la même règle que
+  /// [archiverMot] : copié tout de suite (l'anneau natif est volatil), et
+  /// seulement si fourni -- une mise à jour sans nouvel audio NE TOUCHE PAS à
+  /// l'audio déjà archivé (un mot redevenu vert garde la preuve de son
+  /// ancienne erreur au lieu de l'effacer silencieusement).
+  Future<void> upsertPortionWord({
+    required int surahNumber,
+    required String unitKey,
+    required String label,
+    required int firstAyah,
+    required int lastAyah,
+    required int wordsTotal,
+    required int ayahNumber,
+    required int wordInAyah,
+    required String expectedWord,
+    required String status,
+    String? heardWord,
+    String? kind,
+    String? audioSource,
+  }) async {
+    final portionId = await _upsertPortion(
+      surahNumber: surahNumber,
+      unitKey: unitKey,
+      label: label,
+      firstAyah: firstAyah,
+      lastAyah: lastAyah,
+      wordsTotal: wordsTotal,
+    );
+    String? destination;
+    String? expiration;
+    if (audioSource != null) {
+      try {
+        final src = File(audioSource);
+        if (await src.exists()) {
+          final d = await _audioDir;
+          destination =
+              p.join(d.path, 'p${portionId}_a${ayahNumber}_w$wordInAyah.wav');
+          await src.copy(destination);
+          expiration = DateTime.now()
+              .add(const Duration(days: retentionJours))
+              .toIso8601String();
+        }
+      } catch (e) {
+        DiagnosticLog.log('Archive',
+            'copie audio portion impossible ayah=$ayahNumber mot=$wordInAyah : $e');
+      }
+    }
+    final db = await _database;
+    final now = DateTime.now().toIso8601String();
+    final existant = await db.query('portion_words',
+        where: 'portion_id = ? AND ayah_number = ? AND word_in_ayah = ?',
+        whereArgs: [portionId, ayahNumber, wordInAyah]);
+    final valeurs = {
+      'expected_word': expectedWord,
+      'heard_word': heardWord,
+      'status': status,
+      'kind': kind,
+      'updated_at': now,
+      if (destination != null) 'audio_path': destination,
+      if (expiration != null) 'audio_expires_at': expiration,
+    };
+    if (existant.isNotEmpty) {
+      await db.update('portion_words', valeurs,
+          where: 'id = ?', whereArgs: [existant.first['id'] as int]);
+    } else {
+      await db.insert('portion_words', {
+        'portion_id': portionId,
+        'ayah_number': ayahNumber,
+        'word_in_ayah': wordInAyah,
+        'audio_path': destination,
+        'audio_expires_at': expiration,
+        ...valeurs,
+      });
+    }
+  }
+
+  /// Pouce vers le bas ("Ma voix", cf. `tajwid_help_sheet.dart._onPouceBas`) :
+  /// marque le mot comme contesté dans TOUTES les portions de cette sourate
+  /// qui le contiennent (normalement une seule -- les portions d'une même
+  /// sourate ne se chevauchent pas, sauf changement du réglage de granularité
+  /// entre deux récitations, cas limite sans conséquence à traiter ici que de
+  /// marquer les deux). Un mot contesté compte comme correct pour le badge de
+  /// réussite (cf. `PortionResume.reussite`/`badge`) sans perdre sa trace
+  /// (verdict/audio d'origine conservés) -- décision utilisateur 2026-08-08 :
+  /// « 90% [...] les 10% il n'est pas d'accord, donc c'est 100% ».
+  /// Ne fait rien si le mot n'a encore jamais été archivé (rien à contester).
+  Future<void> contesterMotDePortion({
+    required int surahNumber,
+    required int ayahNumber,
+    required int wordInAyah,
+  }) async {
+    final db = await _database;
+    await db.rawUpdate('''
+      UPDATE portion_words SET status = 'conteste', updated_at = ?
+      WHERE ayah_number = ? AND word_in_ayah = ?
+        AND portion_id IN (SELECT id FROM portions WHERE surah_number = ?)
+    ''', [DateTime.now().toIso8601String(), ayahNumber, wordInAyah, surahNumber]);
+  }
+
+  Future<List<PortionResume>> portions({int limit = 60}) async {
+    final db = await _database;
+    final rows = await db.rawQuery('''
+      SELECT p.*,
+        (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id) AS words_reached,
+        (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status IN ('correct','conteste')) AS words_green
+      FROM portions p
+      ORDER BY p.last_recited_at DESC
+      LIMIT ?
+    ''', [limit]);
+    return rows.map(PortionResume.fromMap).toList();
+  }
+
+  Future<List<PortionMot>> motsDePortion(int portionId) async {
+    final db = await _database;
+    final rows = await db.query('portion_words',
+        where: 'portion_id = ?',
+        whereArgs: [portionId],
+        orderBy: 'ayah_number, word_in_ayah');
+    return rows.map(PortionMot.fromMap).toList();
+  }
+
   /// Efface sessions et fichiers audio au-delà de la rétention. L'audio est
   /// supprimé AVANT la ligne : si l'app meurt entre les deux, on garde un
   /// fichier orphelin (récupéré au passage suivant par le balayage du
@@ -322,6 +559,34 @@ class SessionArchiveService {
     await db.delete('sessions', where: 'id IN ($marks)', whereArgs: ids);
     DiagnosticLog.log('Archive',
         '${ids.length} session(s) de plus de $retentionJours jours purgee(s)');
+    await _purgerAudioPortions();
+  }
+
+  /// Purge de l'audio des `portion_words` (7 jours, comme l'audio des
+  /// sessions), SANS toucher aux lignes ni au verdict -- c'est tout l'objet
+  /// du suivi permanent : `audio_expires_at` est comparé à MAINTENANT (posé
+  /// au moment de l'écriture, +7 jours), pas à `started_at` d'une session
+  /// (cf. [purgerAnciennes] ci-dessus, qui purge un objet différent).
+  Future<void> _purgerAudioPortions() async {
+    final db = await _database;
+    final maintenant = DateTime.now().toIso8601String();
+    final fichiers = await db.rawQuery(
+        'SELECT id, audio_path FROM portion_words WHERE audio_path IS NOT NULL AND audio_expires_at < ?',
+        [maintenant]);
+    if (fichiers.isEmpty) return;
+    for (final f in fichiers) {
+      try {
+        final file = File(f['audio_path'] as String);
+        if (await file.exists()) await file.delete();
+      } catch (_) {
+        // Fichier déjà parti ou stockage indisponible : sans conséquence.
+      }
+    }
+    await db.rawUpdate(
+        'UPDATE portion_words SET audio_path = NULL, audio_expires_at = NULL WHERE audio_path IS NOT NULL AND audio_expires_at < ?',
+        [maintenant]);
+    DiagnosticLog.log('Archive',
+        '${fichiers.length} audio(s) de portion de plus de $retentionJours jours purge(s) (verdicts conserves)');
   }
 
   /// Taille occupée par l'audio archivé, pour l'afficher à l'utilisateur —
@@ -373,6 +638,8 @@ class SessionArchiveService {
     final db = await _database;
     await db.delete('session_words');
     await db.delete('sessions');
+    await db.delete('portion_words');
+    await db.delete('portions');
     try {
       final d = await _audioDir;
       await for (final e in d.list()) {
@@ -465,6 +732,98 @@ class MotArchive {
         surahNumber: m['surah_number'] as int?,
         ayahNumber: m['ayah_number'] as int?,
         wordInAyah: m['word_in_ayah'] as int?,
+        expectedWord: m['expected_word'] as String,
+        heardWord: m['heard_word'] as String?,
+        status: m['status'] as String,
+        kind: m['kind'] as String?,
+        audioPath: m['audio_path'] as String?,
+      );
+}
+
+/// Bilan d'une PORTION (sourate entière, ou tranche de Hizb/demi-Hizb) --
+/// suivi permanent, distinct de [SessionResume] qui décrit une tentative
+/// datée. `wordsReached`/`wordsGreen` sont dérivés en base (COUNT sur
+/// `portion_words`), jamais stockés : ils ne peuvent donc pas diverger des
+/// lignes réellement écrites.
+class PortionResume {
+  final int id;
+  final int surahNumber;
+  final String unitKey;
+  final String label;
+  final int firstAyah;
+  final int lastAyah;
+  final int wordsTotal;
+  final DateTime createdAt;
+  final DateTime lastRecitedAt;
+  final int wordsReached;
+  final int wordsGreen;
+
+  const PortionResume({
+    required this.id,
+    required this.surahNumber,
+    required this.unitKey,
+    required this.label,
+    required this.firstAyah,
+    required this.lastAyah,
+    required this.wordsTotal,
+    required this.createdAt,
+    required this.lastRecitedAt,
+    required this.wordsReached,
+    required this.wordsGreen,
+  });
+
+  /// Part de mots corrects (mots contestés inclus, cf.
+  /// `SessionArchiveService.contesterMotDePortion`) sur les mots ATTEINTS --
+  /// même principe que `SessionResume.reussite`.
+  double? get reussite => wordsReached == 0 ? null : wordsGreen / wordsReached;
+
+  /// Badge de réussite (règle utilisateur du 2026-08-08, remplace le seuil de
+  /// 95% initialement envisagé) : la portion doit être couverte à 100% ET
+  /// 100% des mots atteints sont corrects ou contestés -- pas de seuil
+  /// intermédiaire.
+  bool get badge =>
+      wordsTotal > 0 && wordsReached >= wordsTotal && wordsGreen == wordsReached;
+
+  factory PortionResume.fromMap(Map<String, Object?> m) => PortionResume(
+        id: m['id'] as int,
+        surahNumber: m['surah_number'] as int,
+        unitKey: m['unit_key'] as String,
+        label: m['label'] as String,
+        firstAyah: m['first_ayah'] as int,
+        lastAyah: m['last_ayah'] as int,
+        wordsTotal: m['words_total'] as int,
+        createdAt: DateTime.parse(m['created_at'] as String),
+        lastRecitedAt: DateTime.parse(m['last_recited_at'] as String),
+        wordsReached: (m['words_reached'] as int?) ?? 0,
+        wordsGreen: (m['words_green'] as int?) ?? 0,
+      );
+}
+
+class PortionMot {
+  final int id;
+  final int ayahNumber;
+  final int wordInAyah;
+  final String expectedWord;
+  final String? heardWord;
+  final String status; // 'correct' | 'error' | 'unclear' | 'oubli' | 'skipped' | 'conteste'
+  final String? kind;
+  final String? audioPath;
+
+  const PortionMot({
+    required this.id,
+    required this.ayahNumber,
+    required this.wordInAyah,
+    required this.expectedWord,
+    required this.status,
+    this.heardWord,
+    this.kind,
+    this.audioPath,
+  });
+
+  factory PortionMot.fromMap(Map<String, Object?> m) => PortionMot(
+        id: m['id'] as int,
+        ayahNumber: m['ayah_number'] as int,
+        wordInAyah: m['word_in_ayah'] as int,
         expectedWord: m['expected_word'] as String,
         heardWord: m['heard_word'] as String?,
         status: m['status'] as String,
