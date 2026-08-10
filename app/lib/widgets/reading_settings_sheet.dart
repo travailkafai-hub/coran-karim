@@ -9,7 +9,20 @@ import '../theme/app_theme.dart';
 /// Réglages de lecture (demande utilisateur 2026-07-06) : taille du texte
 /// ("zoomer") et défilement automatique à vitesse réglable ("lire le Coran
 /// et ça scroll selon sa vitesse"). Regroupés dans un même tiroir "Plus".
-void showReadingSettingsSheet(BuildContext context, WidgetRef ref) {
+///
+/// [showTranslation]/[onToggleTranslation] (2026-08-09, demande utilisateur :
+/// « mettre traduction dans les trois points ») : la traduction avait sa
+/// propre icône dans la barre du bas du Mushaf, aux côtés de Mémoriser --
+/// sortie d'ici pour lui laisser la place. L'état vit toujours dans
+/// `_MushafScreenState._showTranslation` (pas un réglage persistant comme les
+/// autres de cette feuille) ; `onToggleTranslation` null masque simplement la
+/// section, pour un futur appelant qui n'aurait pas ce concept.
+void showReadingSettingsSheet(
+  BuildContext context,
+  WidgetRef ref, {
+  bool showTranslation = false,
+  VoidCallback? onToggleTranslation,
+}) {
   showModalBottomSheet(
     context: context,
     backgroundColor: AppColors.cream,
@@ -22,16 +35,27 @@ void showReadingSettingsSheet(BuildContext context, WidgetRef ref) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (ctx) => const _ReadingSettingsSheet(),
+    builder: (ctx) => _ReadingSettingsSheet(
+      showTranslation: showTranslation,
+      onToggleTranslation: onToggleTranslation,
+    ),
   );
 }
 
 class _ReadingSettingsSheet extends ConsumerWidget {
-  const _ReadingSettingsSheet();
+  final bool showTranslation;
+  final VoidCallback? onToggleTranslation;
+  const _ReadingSettingsSheet({
+    required this.showTranslation,
+    required this.onToggleTranslation,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
+    // Pas de traduction en mode 100% arabe (REFONTE_IHM.md §7bis) -- même
+    // règle que l'ex-icône de la barre du bas.
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final scale = ref.watch(textScaleProvider);
     final kindleMode = ref.watch(kindleModeProvider);
     final modeSombre = ref.watch(modeSombreProvider);
@@ -119,6 +143,19 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                 ),
               ),
             ),
+            if (!isArabic && onToggleTranslation != null) ...[
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  t.mushafTranslation,
+                  style: GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink),
+                ),
+                value: showTranslation,
+                activeColor: AppColors.green700,
+                onChanged: (_) => onToggleTranslation!(),
+              ),
+            ],
             // Défilement automatique (off/slow/normal/fast) RETIRÉ
             // 2026-08-01 (demande utilisateur : "plus raison d'être" une fois
             // le mode Kindle en place, qui couvre ce besoin -- cf. §Kindle
@@ -203,50 +240,12 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                   fontSize: 12, height: 1.4, color: AppColors.inkLight),
             ),
             const SizedBox(height: 8),
-            // L'unite repetee : le verset (defaut) ou le MOT (demande
-            // utilisateur 2026-08-06). Au mot, la lecture change de moteur --
-            // plages temporelles decoupees dans l'audio du recitateur grace a
-            // ses reperes mot-a-mot, cf. `PlayerNotifier._boucleMots`. Le
-            // texte d'aide dit franchement la dependance : tous les
-            // recitateurs ne publient pas ces reperes.
-            Row(
-              children: [
-                Text(t.readingSettingsUnitLabel,
-                    style: GoogleFonts.manrope(
-                        fontSize: 12, color: AppColors.inkLight)),
-                const Spacer(),
-                SegmentedButton<bool>(
-                  style: ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    textStyle: WidgetStatePropertyAll(
-                        GoogleFonts.manrope(fontSize: 12)),
-                  ),
-                  segments: [
-                    ButtonSegment(
-                        value: false, label: Text(t.readingSettingsUnitVerse)),
-                    ButtonSegment(
-                        value: true, label: Text(t.readingSettingsUnitWord)),
-                  ],
-                  selected: {playerState.uniteMot},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (s) => ref
-                      .read(playerProvider.notifier)
-                      .setUniteMot(s.first),
-                ),
-              ],
-            ),
-            if (playerState.uniteMot) ...[
-              const SizedBox(height: 4),
-              Text(t.readingSettingsWordUnitHint,
-                  style: GoogleFonts.manrope(
-                      fontSize: 11, height: 1.35, color: AppColors.inkLight)),
-            ],
-            const SizedBox(height: 6),
-            Text(
-                playerState.uniteMot
-                    ? t.readingSettingsGroupSizeWords(
-                        playerState.groupeVersets)
-                    : t.readingSettingsGroupSize(playerState.groupeVersets),
+            // Répétition PAR VERSET uniquement (2026-08-09, demande
+            // utilisateur : « corrige la répétition en boucle, supprime par
+            // mot, garde que par verset »). L'unité MOT (moteur séparé par
+            // plages temporelles, `PlayerNotifier._boucleMots`) a été
+            // retirée -- source de la boucle mal maîtrisée signalée.
+            Text(t.readingSettingsGroupSize(playerState.groupeVersets),
                 style: GoogleFonts.manrope(
                     fontSize: 12, color: AppColors.inkLight)),
             Slider(
@@ -320,76 +319,85 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                 color: AppColors.inkLight,
               ),
             ),
-            const SizedBox(height: 6),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                t.readingSettingsKindleToggle,
-                style: GoogleFonts.manrope(
-                    fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.ink),
-              ),
-              value: kindleMode,
-              activeColor: AppColors.kindleAccent,
-              onChanged: (v) => ref.read(kindleModeProvider.notifier).set(v),
-            ),
-            // ── LECTURE SUR FOND NOIR (demande utilisateur 2026-08-07) ─────
-            // Reglage SEPARE du mode Kindle, pas une de ses options : le
-            // sepia sert le confort diurne, le noir la lecture nocturne. On
-            // peut vouloir l'un sans l'autre. Quand les deux sont coches, le
-            // FOND est noir (il ne peut pas etre les deux) et la pagination
-            // du mode Kindle reste active.
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                'Fond noir',
-                style: GoogleFonts.manrope(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.ink),
-              ),
-              subtitle: Text(
-                'Ecriture claire sur fond noir, pour la lecture de nuit',
-                style: GoogleFonts.manrope(
-                    fontSize: 11.5, color: AppColors.inkLight),
-              ),
-              value: modeSombre,
-              activeColor: AppColors.sombreAccent,
-              onChanged: (v) => ref.read(modeSombreProvider.notifier).set(v),
-            ),
-            if (kindleMode) ...[
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  t.readingSettingsKindleAutoTurn,
-                  style: GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink),
+            const SizedBox(height: 10),
+            // ── CURSEUR 3 COULEURS (2026-08-09, demande utilisateur) ────────
+            // Remplace les deux interrupteurs texte (Mode Kindle / Fond noir)
+            // -- « un curseur avec trois positions vert/beige/noir, sans
+            // texte, les codes couleur ». Trois pastilles, une par thème de
+            // lecture : vert = normal (couleur de marque), beige/marron =
+            // sépia façon liseuse, noir = lecture nocturne. Mutuellement
+            // exclusifs (contrairement aux deux interrupteurs d'avant, qui
+            // pouvaient être cochés ensemble).
+            Row(
+              children: [
+                _ThemeSwatch(
+                  color: AppColors.green700,
+                  selected: !kindleMode && !modeSombre,
+                  onTap: () {
+                    ref.read(kindleModeProvider.notifier).set(false);
+                    ref.read(modeSombreProvider.notifier).set(false);
+                  },
                 ),
-                value: kindleAutoTurn,
-                activeColor: AppColors.kindleAccent,
-                onChanged: (v) =>
-                    ref.read(kindleAutoTurnProvider.notifier).state = v,
+                const SizedBox(width: 14),
+                _ThemeSwatch(
+                  color: AppColors.kindleAccent,
+                  selected: kindleMode && !modeSombre,
+                  onTap: () {
+                    ref.read(kindleModeProvider.notifier).set(true);
+                    ref.read(modeSombreProvider.notifier).set(false);
+                  },
+                ),
+                const SizedBox(width: 14),
+                _ThemeSwatch(
+                  color: AppColors.sombreBg,
+                  selected: modeSombre,
+                  onTap: () {
+                    ref.read(modeSombreProvider.notifier).set(true);
+                    ref.read(kindleModeProvider.notifier).set(false);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Tournage automatique -- SORTI du `if (kindleMode)` (2026-08-09,
+            // demande utilisateur : « pas un bug, juste qu'il soit proposé
+            // sur toutes les configurations, pas que pour Kindle »). Le
+            // mécanisme (`MushafScreen._kindleJumpPage`) fait défiler le
+            // ScrollController d'un écran, peu importe le thème actif -- rien
+            // dans son fonctionnement ne dépendait réellement du mode Kindle,
+            // seule la visibilité du réglage l'était.
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                t.readingSettingsKindleAutoTurn,
+                style: GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink),
               ),
-              // ── LE CURSEUR DE VITESSE A ÉTÉ RETIRÉ (2026-08-05) ───────────
-              //
-              // Demande utilisateur : « il y a un temps, je ne veux même pas
-              // qu'on affiche ce temps-là ». Le réglage était une question à
-              // laquelle personne ne sait répondre : combien de secondes met-on
-              // à lire une page ? On ne le sait qu'après, et cela change avec
-              // le passage, la fatigue et le jour.
-              //
-              // La cadence s'APPREND désormais du geste qui la porte déjà :
-              // tourner la page à la main avant l'échéance dit « trop lent »,
-              // revenir en arrière dit « trop rapide »
-              // (cf. KindlePageSecondsNotifier.apprendre, branché dans
-              // MushafScreen._tapManuel). Le `kindlePageSecondsProvider`
-              // existe donc toujours et reste persisté -- il n'est simplement
-              // plus exposé, ni affiché.
-              //
-              // ⚠️ Ne pas remettre ce curseur « pour laisser le choix » sans
-              // remettre en cause l'apprentissage : deux sources qui écrivent
-              // la même valeur, l'une par geste l'autre par réglage, se
-              // contrediraient en silence -- l'utilisateur règlerait 12 s et
-              // verrait la valeur bouger toute seule.
-            ],
+              value: kindleAutoTurn,
+              activeColor: AppColors.green700,
+              onChanged: (v) =>
+                  ref.read(kindleAutoTurnProvider.notifier).state = v,
+            ),
+            // ── LE CURSEUR DE VITESSE A ÉTÉ RETIRÉ (2026-08-05) ───────────
+            //
+            // Demande utilisateur : « il y a un temps, je ne veux même pas
+            // qu'on affiche ce temps-là ». Le réglage était une question à
+            // laquelle personne ne sait répondre : combien de secondes met-on
+            // à lire une page ? On ne le sait qu'après, et cela change avec
+            // le passage, la fatigue et le jour.
+            //
+            // La cadence s'APPREND désormais du geste qui la porte déjà :
+            // tourner la page à la main avant l'échéance dit « trop lent »,
+            // revenir en arrière dit « trop rapide »
+            // (cf. KindlePageSecondsNotifier.apprendre, branché dans
+            // MushafScreen._tapManuel). Le `kindlePageSecondsProvider`
+            // existe donc toujours et reste persisté -- il n'est simplement
+            // plus exposé, ni affiché.
+            //
+            // ⚠️ Ne pas remettre ce curseur « pour laisser le choix » sans
+            // remettre en cause l'apprentissage : deux sources qui écrivent
+            // la même valeur, l'une par geste l'autre par réglage, se
+            // contrediraient en silence -- l'utilisateur règlerait 12 s et
+            // verrait la valeur bouger toute seule.
               ],
             ),
           ),
@@ -423,6 +431,45 @@ class _EnTeteIntention extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Pastille de couleur du sélecteur de thème de lecture -- volontairement
+/// SANS TEXTE (demande utilisateur 2026-08-09 : « sans texte, tu mets les
+/// trois codes couleur ») : la couleur EST le libellé.
+class _ThemeSwatch extends StatelessWidget {
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ThemeSwatch({required this.color, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? AppColors.green900 : AppColors.cream300,
+            width: selected ? 2.5 : 1,
+          ),
+          boxShadow: selected
+              ? [BoxShadow(color: color.withOpacity(0.5), blurRadius: 6, spreadRadius: 1)]
+              : null,
+        ),
+        child: selected
+            ? Icon(Icons.check_rounded,
+                size: 18,
+                color: color.computeLuminance() > 0.5 ? Colors.black87 : Colors.white)
+            : null,
+      ),
     );
   }
 }

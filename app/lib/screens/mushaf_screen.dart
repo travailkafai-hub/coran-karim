@@ -388,7 +388,13 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
       );
 
   void _openReadingSettings() {
-    showReadingSettingsSheet(context, ref);
+    showReadingSettingsSheet(
+      context,
+      ref,
+      showTranslation: _showTranslation,
+      onToggleTranslation: () =>
+          setState(() => _showTranslation = !_showTranslation),
+    );
   }
 
   // Explique l'aya actuellement sélectionnée (celle sur laquelle l'utilisateur
@@ -398,6 +404,15 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   // même si ce verset a par ailleurs été raté en récitation ; le registre
   // doit rester "sens du verset", pas "mot que j'ai du mal à retenir"
   // (demande utilisateur 2026-07-10, cette page partait sur la mémorisation).
+  //
+  // Icône retirée de la barre du bas le 2026-08-10 (constat utilisateur :
+  // « une icône coach IA qui n'est plus utilisée » -- le tuteur Gemma qui
+  // alimentait ce sheet a été retiré le même jour, cf. pubspec.yaml). Le
+  // sheet (`CoachExplanationSheet`) reste utile via sa cascade non-IA ;
+  // méthode conservée intacte (même logique que `_openWordExplanation`
+  // juste en dessous) pour la rebrancher proprement si un jour cette entrée
+  // directe redevient utile, plutôt que de la supprimer.
+  // ignore: unused_element
   void _openCoachExplanation() {
     if (_verses.isEmpty) return;
     final verse = _verses[_activeVerse];
@@ -544,7 +559,20 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                                   width: 44,
                                   height: 4,
                                   decoration: BoxDecoration(
-                                    color: AppColors.green800.withAlpha(150),
+                                    // Le vert foncé à 59 % d'opacité tient sur
+                                    // le fond crème et sur le sépia du mode
+                                    // Kindle, mais devient INVISIBLE sur le
+                                    // fond noir (`sombreBg` = #0B0B0B) --
+                                    // constat utilisateur 2026-08-09. En mode
+                                    // sombre on passe donc à l'or du thème
+                                    // (`sombreAccent`), et à pleine opacité :
+                                    // ce repère est le SEUL moyen de faire
+                                    // revenir l'entête une fois masqué, un
+                                    // repère qu'on ne voit pas est un écran
+                                    // sans issue.
+                                    color: modeSombre
+                                        ? AppColors.sombreAccent
+                                        : AppColors.green800.withAlpha(150),
                                     borderRadius: BorderRadius.circular(2),
                                   ),
                                 ),
@@ -651,9 +679,9 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                             onMicLongPress: _verses.isEmpty ? null : _openKaraoke,
                             onMicDoubleTap:
                                 _verses.isEmpty ? null : _openContinuousRecitation,
-                            onTranslationTap: () =>
-                                setState(() => _showTranslation = !_showTranslation),
-                            onCoachTap: _verses.isEmpty ? null : _openCoachExplanation,
+                            onReciteTap: _verses.isEmpty ? null : _openKaraoke,
+                            onChainTap:
+                                _verses.isEmpty ? null : _openJeuMemorisation,
                             onMoreTap: _openReadingSettings,
                             onBookmarkTap:
                                 _verses.isEmpty ? null : _basculerMarquePage,
@@ -666,7 +694,6 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                                         _verses[_activeVerse].ayahNumber,
                                       ),
                                     ),
-                            showTranslation: _showTranslation,
                             isPlaying: playerState.isPlaying,
                           ),
                         ),
@@ -1000,7 +1027,14 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     switch (entry.kind) {
       case _EntryKind.bismillah:
         return _BismillahBanner(
-            text: entry.bismillah!.textUthmani, modeSombre: modeSombre);
+            text: entry.bismillah!.textUthmani,
+            // `kindleMode` était disponible ici mais n'était pas transmis :
+            // le bandeau ne connaissait que le mode sombre, donc en mode
+            // Kindle il retombait sur la palette du thème CLAIR (dégradé
+            // vert, bordure green100, encre green800) posée sur un fond
+            // sépia. Constat utilisateur 2026-08-09.
+            kindleMode: kindleMode,
+            modeSombre: modeSombre);
       case _EntryKind.surahBanner:
         return _SurahBanner(surah: entry.surah!, modeSombre: modeSombre);
       case _EntryKind.verse:
@@ -1464,8 +1498,10 @@ class _SurahBanner extends StatelessWidget {
 
 class _BismillahBanner extends StatelessWidget {
   final String text;
+  final bool kindleMode;
   final bool modeSombre;
-  const _BismillahBanner({required this.text, this.modeSombre = false});
+  const _BismillahBanner(
+      {required this.text, this.kindleMode = false, this.modeSombre = false});
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1476,8 +1512,14 @@ class _BismillahBanner extends StatelessWidget {
           // (`VerseTile`) -- demande utilisateur 2026-08-09 : le bandeau de la
           // Bismillah et le surlignage du verset doivent porter le code
           // couleur vert de l'app, en dégradé, pas un aplat.
-          color: modeSombre ? AppColors.sombreBgDeep : null,
-          gradient: modeSombre
+          // Même résolution de palette que `VerseTile` : sombre > kindle >
+          // clair. Le dégradé vert n'appartient qu'au thème clair ; les deux
+          // autres modes ont déjà leur teinte de fond et ne doivent pas
+          // recevoir un second traitement par-dessus.
+          color: modeSombre
+              ? AppColors.sombreBgDeep
+              : (kindleMode ? AppColors.kindleBgDeep : null),
+          gradient: (modeSombre || kindleMode)
               ? null
               : const LinearGradient(
                   begin: Alignment.topLeft,
@@ -1491,7 +1533,9 @@ class _BismillahBanner extends StatelessWidget {
           border: Border.all(
               color: modeSombre
                   ? AppColors.sombreAccent.withAlpha(90)
-                  : AppColors.green100,
+                  : (kindleMode
+                      ? AppColors.kindleAccent.withAlpha(120)
+                      : AppColors.green100),
               width: 1),
         ),
         child: Center(
@@ -1500,7 +1544,9 @@ class _BismillahBanner extends StatelessWidget {
             textDirection: TextDirection.rtl,
             style: GoogleFonts.scheherazadeNew(
               fontSize: 24,
-              color: modeSombre ? AppColors.sombreInk : AppColors.green800,
+              color: modeSombre
+                  ? AppColors.sombreInk
+                  : (kindleMode ? AppColors.kindleInk : AppColors.green800),
               height: 1.8),
           ),
         ),
@@ -1512,8 +1558,14 @@ class _BottomBar extends StatelessWidget {
   final VoidCallback? onMicTap;
   final VoidCallback? onMicLongPress;
   final VoidCallback? onMicDoubleTap;
-  final VoidCallback? onTranslationTap;
-  final VoidCallback? onCoachTap;
+  /// Réciter (karaoké) -- icône dédiée (2026-08-09, demande utilisateur :
+  /// « où sont Réciter et Jeu dans ce menu principal ? »). Avant cette date,
+  /// `_openKaraoke` n'était atteignable que par appui long sur un verset
+  /// (bulle `_menuVerset`) -- pas depuis la barre, jugée trop discrète.
+  final VoidCallback? onReciteTap;
+  /// Enchaînement (ex-"Jeu de mémorisation", renommé le 2026-08-09 -- "Jeu"
+  /// jugé hors de l'univers du Coran) -- même raison que [onReciteTap].
+  final VoidCallback? onChainTap;
   final VoidCallback? onMoreTap;
   final VoidCallback? onBookmarkTap;
   final VoidCallback? onBookmarkLongPress;
@@ -1521,23 +1573,20 @@ class _BottomBar extends StatelessWidget {
   final bool modeSombre;
   /// Le verset actif est-il marque ? Pilote l'icone du signet.
   final bool estMarque;
-  final bool showTranslation;
   final bool isPlaying;
 
   const _BottomBar({
     this.onPlayTap, this.onMicTap, this.onMicLongPress, this.onMicDoubleTap,
-    this.onTranslationTap, this.onCoachTap, this.onMoreTap,
+    this.onReciteTap, this.onChainTap,
+    this.onMoreTap,
     this.onBookmarkTap, this.onBookmarkLongPress, this.estMarque = false,
-    this.showTranslation = false, this.isPlaying = false,
+    this.isPlaying = false,
     this.modeSombre = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    // Pas de traduction disponible en mode 100% arabe (REFONTE_IHM.md §7bis)
-    // -- bouton retiré plutôt que laissé inactif.
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     return Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         decoration: BoxDecoration(
@@ -1600,29 +1649,43 @@ class _BottomBar extends StatelessWidget {
                 // double-tap = écran de test interne. La RÉCITATION (karaoké,
                 // continu) vit désormais dans le hub Coach, zone « Réciter »,
                 // avec tous ses réglages (REFONTE_IHM.md §11.2 zone C).
-                // Seul le raccourci « travailler ce verset » reste ici, en
-                // bouton discret ci-dessous (décision verrouillée §11.6.1) :
-                // pratique quand on bute sur un verset en lisant, et ce n'est
-                // pas une duplication (l'écran de mémorisation reste unique et
-                // vit dans Coach, la lecture ne fait qu'y renvoyer).
+                // Seul le raccourci « travailler ce verset » restait ici.
+                //
+                // ── RÉCITER ET ENCHAÎNEMENT REVIENNENT DANS LA BARRE
+                // (2026-08-09) ── Demande utilisateur : « où sont Réciter et
+                // Jeu dans ce menu principal ? ». Ils n'étaient atteignables
+                // que par appui long sur un verset (bulle `_menuVerset`) --
+                // pas assez visible. Ne remplace pas la bulle (garde son
+                // utilité : agir "à partir de CE verset" précis), s'ajoute à
+                // elle comme raccourci depuis la barre principale.
+                _BarButton(
+                  icon: Icons.mic_rounded,
+                  label: t.mushafRecite,
+                  onTap: onReciteTap ?? () {},
+                ),
                 _BarButton(
                   icon: Icons.school_rounded,
                   label: t.mushafMemorize,
                   onTap: onMicTap ?? () {},
                 ),
-                if (!isArabic)
-                  _BarButton(
-                    icon: showTranslation
-                        ? Icons.translate : Icons.translate_outlined,
-                    label: t.mushafTranslation,
-                    color: showTranslation ? AppColors.brass : null,
-                    onTap: onTranslationTap ?? () {},
-                  ),
+                // ── "JEU" RENOMMÉ "ENCHAÎNEMENT" (2026-08-09) ──────────────
+                // Demande utilisateur : « Jeu » ne colle pas à l'univers du
+                // Coran. Le mécanisme enchaîne les mots rappelés avec un
+                // record de longueur -- `Icons.link_rounded` (chaîne) illustre
+                // ça directement plutôt qu'une icône de manette de jeu.
+                //
+                // Traduction sortie d'ici le même jour (demande utilisateur :
+                // « mettre traduction dans les trois points ») -- déplacée
+                // dans la feuille "Plus" (`reading_settings_sheet.dart`).
                 _BarButton(
-                  icon: Icons.psychology_alt_rounded,
-                  label: t.mushafCoachAi,
-                  onTap: onCoachTap ?? () {},
+                  icon: Icons.link_rounded,
+                  label: t.memorizationGameTitle,
+                  onTap: onChainTap ?? () {},
                 ),
+                // "Coach IA" retiré d'ici le 2026-08-10 (constat utilisateur :
+                // icône plus utilisée -- le tuteur Gemma qui l'alimentait a
+                // été retiré le même jour). Cf. `_openCoachExplanation` dans
+                // MushafScreen, conservée pour un rebranchement futur.
                 // "Identifier" retire d'ici (2026-07-19) -- remonte sur la
                 // page principale a cote de "Suivre une priere" (icones app
                 // bar, cf. surah_list_screen.dart), plus l'entree naturelle
