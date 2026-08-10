@@ -133,6 +133,42 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
   @override
   void initState() {
     super.initState();
+    // ── ÉVITER LE FLASH D'UN AUTRE VERSET (2026-08-09) ──────────────────────
+    //
+    // Constat utilisateur : « depuis Mushaf la mémorisation s'arrête bien au
+    // verset, mais depuis la page erreur non » -- capture d'écran à l'appui,
+    // le palier 1 affichait plusieurs versets de suite au lieu du seul
+    // verset attendu.
+    //
+    // Cause : `recitationProvider` est un état PARTAGÉ entre écrans. En
+    // arrivant depuis la fiche d'un mot en erreur (juste après une
+    // récitation CTR), il porte encore les mots de TOUTE la récitation
+    // précédente (plusieurs versets). `VerseDisplay` (plus bas) affiche
+    // `rst.words` par priorité sur `verses: [widget.verse]` -- et
+    // `setup(windowText)` (dans `_startRound`) ne remplace cet état
+    // qu'APRÈS le chargement du modèle et la lecture de l'audio de
+    // référence, deux `await`. Pendant cette attente, l'écran montre donc
+    // les mots PÉRIMÉS de l'écran précédent, pas le verset qu'on est censé
+    // travailler ici. Depuis Mushaf le défaut ne se voyait pas : l'état y
+    // était déjà vide avant d'arriver (pas de récitation multi-versets
+    // juste avant).
+    //
+    // Correctif à la RACINE, pas un rattrapage sur l'affichage : vider
+    // l'état tout de suite, avant la première image, plutôt que d'ajouter
+    // une condition à `VerseDisplay` pour ignorer un état qu'il n'aurait
+    // jamais dû recevoir. `VerseDisplay` retombe alors sur son repli
+    // (`verses: [widget.verse]`, toujours correctement borné à CE verset)
+    // tant que le vrai `setup()` de ce palier n'a pas encore eu lieu.
+    //
+    // `Future.microtask` -- PAS un appel synchrone ici (2026-08-10, crash
+    // observé : « Tried to modify a provider while the widget tree was
+    // building », `RecitationNotifier.setup` appelé depuis `initState`).
+    // Riverpod interdit de modifier un provider pendant TOUTE la phase de
+    // construction, `initState` inclus. Le microtask s'exécute juste après
+    // cette phase mais AVANT que le premier visuel ne soit peint (contrairement
+    // à `addPostFrameCallback`, qui attendrait ce premier rendu et laisserait
+    // passer le flash que ce correctif visait justement à éviter).
+    Future.microtask(() => ref.read(recitationProvider.notifier).setup(''));
     final reciter = ref.read(playerProvider).reciter;
     unawaited(WordCorrectionAudio.prefetch(widget.verse, reciter));
     WidgetsBinding.instance.addPostFrameCallback((_) {
