@@ -83,6 +83,77 @@ class MemorizationGameScreen extends ConsumerWidget {
                       record: ref.watch(memorizationGameRecordProvider),
                       justBeatRecord: state.justBeatRecord,
                     ),
+                    // ── RÈGLES TOUJOURS VISIBLES (2026-08-10) ────────────────
+                    // Demande utilisateur : « que les règles du jeu soient
+                    // claires ». Rien n'expliquait avant ce qui se passe sur
+                    // une erreur -- annoncé une fois pour toutes ici, plutôt
+                    // que de compter sur le joueur pour le deviner.
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                      child: Text(
+                        t.memorizationGameRulesHint,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.manrope(
+                            fontSize: 11.5, color: AppColors.inkLight),
+                      ),
+                    ),
+                    // ── BANDEAU DE RECUL, LE TEMPS DE LA RÉVÉLATION ──────────
+                    // Demande utilisateur : « qu'on montre qu'on revient en
+                    // arrière, sinon celui qui joue ne va pas comprendre ».
+                    // Le halo vert sur la bonne réponse (`_ChoiceGrid`) dit
+                    // QUEL mot fallait taper ; ce bandeau dit ce qui va SE
+                    // PASSER (retour au verset précédent, pénalité) --
+                    // les deux ensemble, pas l'un à la place de l'autre.
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: state.revealedAnswer != null
+                          ? Padding(
+                              key: const ValueKey('wrong-banner'),
+                              padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.gameWrong.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                      color: AppColors.gameWrong.withValues(alpha: 0.4)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.replay_rounded,
+                                        color: AppColors.gameWrong, size: 18),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        t.memorizationGameWrongAnswerBanner,
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.manrope(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.gameWrong),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : const SizedBox(key: ValueKey('no-banner')),
+                    ),
+                    // ── LE TEXTE S'ÉCRIT AU FUR ET À MESURE (2026-08-10) ─────
+                    // Demande utilisateur : « je me demande si le mot est
+                    // validé, qu'on réserve une partie de l'écran où le texte
+                    // s'écrit, c'est visuel -- mais n'oublie pas les numéros
+                    // de verset ». Montre ce qui vient d'être validé dans LE
+                    // VERSET EN COURS (réponse au clarifiement : « il affiche
+                    // ce qui vient d'être validé ») -- se vide avec lui à
+                    // chaque nouveau verset ou relance après erreur.
+                    _ValidatedTextPanel(
+                      verse: state.currentVerse,
+                      validatedCount: state.currentWordIndex,
+                    ),
                     Expanded(
                       child: Center(
                         child: state.isLoadingNextPage
@@ -96,6 +167,7 @@ class MemorizationGameScreen extends ConsumerWidget {
                                 : _ChoiceGrid(
                                     choices: state.choices,
                                     wrongFlash: state.wrongFlash,
+                                    revealedAnswer: state.revealedAnswer,
                                     onChoiceTap: notifier.submitWord,
                                   ),
                       ),
@@ -212,6 +284,69 @@ class _StatChip extends StatelessWidget {
       );
 }
 
+/// Le texte du verset EN COURS, révélé mot par mot au fil des validations
+/// (2026-08-10, demande utilisateur : « qu'on réserve une partie de l'écran
+/// où le texte s'écrit [...] mais n'oublie pas les numéros de verset »).
+///
+/// Hauteur RÉSERVÉE fixe (`minHeight`) même à 0 mot validé : sans ça, le
+/// reste de l'écran (grille de choix) sauterait verticalement à chaque mot
+/// gagné -- l'utilisateur ne doit voir que le texte grandir, pas la mise en
+/// page bouger. Vide -> tiret discret plutôt qu'un cadre qui semble cassé.
+class _ValidatedTextPanel extends StatelessWidget {
+  final GameVerse verse;
+  final int validatedCount;
+  const _ValidatedTextPanel({required this.verse, required this.validatedCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final texte = verse.words.take(validatedCount).join(' ');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 64),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 6,
+                offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              verse.verse.key,
+              style: GoogleFonts.manrope(
+                fontSize: 10.5,
+                letterSpacing: 1,
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkLight,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Center(
+              child: Text(
+                texte.isEmpty ? '—' : texte,
+                textDirection: TextDirection.rtl,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.scheherazadeNew(
+                  fontSize: 24,
+                  color: texte.isEmpty ? AppColors.inkLight : AppColors.ink,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Court état d'attente pendant que la page suivante se charge (quasi
 /// instantané -- les données du Coran sont 100% locales, cf.
 /// `QuranApi` -- mais un état visuel évite un dernier mot qui semble figé).
@@ -291,16 +426,26 @@ class _FirstWordBubbleState extends State<_FirstWordBubble>
 }
 
 /// Grille de choix mélangés (mot correct + leurres), rendus en gros boutons
-/// ronds colorés type appli de jeu enfant. Tremble brièvement (sans pénalité)
-/// sur un mauvais tap -- `wrongFlash` piloté par le provider.
+/// ronds colorés type appli de jeu enfant. Tremble brièvement sur un mauvais
+/// tap -- `wrongFlash` piloté par le provider.
+///
+/// [revealedAnswer] (2026-08-10, demande utilisateur : « une fois il rate, on
+/// lui montre la bonne réponse [...] cherche une option pour l'aider à le
+/// retrouver, des effets sur le mot en question ») -- non-null pendant la
+/// courte fenêtre où le provider a déjà figé le verset en échec et s'apprête
+/// à le relancer (cf. `MemorizationGameNotifier._restartVerseAfterReveal`) :
+/// la puce qui porte ce mot se distingue des autres (halo vert, coche) pour
+/// que l'œil s'y arrête avant la répétition.
 class _ChoiceGrid extends StatefulWidget {
   final List<String> choices;
   final bool wrongFlash;
+  final String? revealedAnswer;
   final void Function(String) onChoiceTap;
 
   const _ChoiceGrid({
     required this.choices,
     required this.wrongFlash,
+    required this.revealedAnswer,
     required this.onChoiceTap,
   });
 
@@ -331,6 +476,11 @@ class _ChoiceGridState extends State<_ChoiceGrid>
 
   @override
   Widget build(BuildContext context) {
+    // Verrouillé pendant la révélation : un tap pendant cette fenêtre est déjà
+    // ignoré côté provider (`submitWord` sort tôt si `revealedAnswer != null`)
+    // -- désactiver le geste ici évite en plus le petit "enfoncement" visuel
+    // d'une puce qui ne va rien déclencher.
+    final locked = widget.revealedAnswer != null;
     return AnimatedBuilder(
       animation: _shake,
       builder: (context, child) {
@@ -349,7 +499,9 @@ class _ChoiceGridState extends State<_ChoiceGrid>
                 word: widget.choices[i],
                 color: AppColors.gameChipColors[i % AppColors.gameChipColors.length],
                 flashWrong: widget.wrongFlash,
-                onTap: () => widget.onChoiceTap(widget.choices[i]),
+                revealed: widget.choices[i] == widget.revealedAnswer,
+                locked: locked,
+                onTap: locked ? null : () => widget.onChoiceTap(widget.choices[i]),
               ),
           ],
         ),
@@ -362,12 +514,16 @@ class _ChoiceChip extends StatefulWidget {
   final String word;
   final Color color;
   final bool flashWrong;
-  final VoidCallback onTap;
+  final bool revealed;
+  final bool locked;
+  final VoidCallback? onTap;
 
   const _ChoiceChip({
     required this.word,
     required this.color,
     required this.flashWrong,
+    required this.revealed,
+    required this.locked,
     required this.onTap,
   });
 
@@ -380,32 +536,50 @@ class _ChoiceChipState extends State<_ChoiceChip> {
 
   @override
   Widget build(BuildContext context) {
+    // Le mot révélé se distingue par un halo vert franc + une coche, plutôt
+    // qu'une simple bordure -- il doit sauter aux yeux au premier coup d'œil,
+    // pas se remarquer seulement en cherchant.
+    final glow = widget.revealed ? AppColors.gameCorrect : widget.color;
     return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTapUp: (_) => setState(() => _pressed = false),
+      onTapDown: widget.locked ? null : (_) => setState(() => _pressed = true),
+      onTapCancel: widget.locked ? null : () => setState(() => _pressed = false),
+      onTapUp: widget.locked ? null : (_) => setState(() => _pressed = false),
       onTap: widget.onTap,
       child: AnimatedScale(
-        scale: _pressed ? 0.9 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: Container(
+        scale: widget.revealed ? 1.08 : (_pressed ? 0.9 : 1.0),
+        duration: const Duration(milliseconds: 220),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
           padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 18),
           decoration: BoxDecoration(
             color: widget.color,
             borderRadius: BorderRadius.circular(28),
+            border: widget.revealed
+                ? Border.all(color: Colors.white, width: 3)
+                : null,
             boxShadow: [
               BoxShadow(
-                color: widget.color.withValues(alpha: 0.5),
-                blurRadius: 10,
+                color: glow.withValues(alpha: widget.revealed ? 0.9 : 0.5),
+                blurRadius: widget.revealed ? 22 : 10,
+                spreadRadius: widget.revealed ? 3 : 0,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: Text(
-            widget.word,
-            textDirection: TextDirection.rtl,
-            style: GoogleFonts.scheherazadeNew(
-                fontSize: 26, color: Colors.white, fontWeight: FontWeight.w600),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.word,
+                textDirection: TextDirection.rtl,
+                style: GoogleFonts.scheherazadeNew(
+                    fontSize: 26, color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+              if (widget.revealed) ...[
+                const SizedBox(width: 8),
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 22),
+              ],
+            ],
           ),
         ),
       ),

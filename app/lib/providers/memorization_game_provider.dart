@@ -66,6 +66,22 @@ class MemorizationGameState {
   final int totalWordsCompleted; // mots validés depuis le début de LA partie
   final bool justBeatRecord; // le mot qui vient d'être validé a battu le record
 
+  /// Mot qui vient d'être raté -- reste affiché en surbrillance parmi les
+  /// choix le temps que le joueur le voie, PUIS le verset redémarre (demande
+  /// utilisateur 2026-08-10 : « une fois il rate, on lui montre la bonne
+  /// réponse et il doit recommencer, ça entre dans la répétition pour se
+  /// mémoriser [...] cherche une option pour l'aider à le retrouver, des
+  /// effets sur le mot en question »). Pas de jauge de vies : CHAQUE erreur
+  /// relance le verset -- l'ancien "aucune pénalité, mêmes choix retentés"
+  /// est remplacé par cette révélation + répétition, jugée plus utile pour
+  /// mémoriser qu'un essai-erreur silencieux et illimité.
+  ///
+  /// `null` hors de cette révélation. Le NOM du champ (pas juste
+  /// `wrongFlash: true`) est nécessaire : l'écran doit savoir QUEL mot
+  /// mettre en évidence, et `state.currentWord` aura déjà changé de sens une
+  /// fois le verset relancé.
+  final String? revealedAnswer;
+
   const MemorizationGameState({
     required this.verses,
     required this.currentVerseIndex,
@@ -76,6 +92,7 @@ class MemorizationGameState {
     this.isLoadingNextPage = false,
     this.totalWordsCompleted = 0,
     this.justBeatRecord = false,
+    this.revealedAnswer,
   });
 
   GameVerse get currentVerse => verses[currentVerseIndex];
@@ -97,6 +114,7 @@ class MemorizationGameState {
     bool? isLoadingNextPage,
     int? totalWordsCompleted,
     bool? justBeatRecord,
+    String? revealedAnswer,
   }) =>
       MemorizationGameState(
         verses: verses,
@@ -108,6 +126,7 @@ class MemorizationGameState {
         isLoadingNextPage: isLoadingNextPage ?? this.isLoadingNextPage,
         totalWordsCompleted: totalWordsCompleted ?? this.totalWordsCompleted,
         justBeatRecord: justBeatRecord ?? false,
+        revealedAnswer: revealedAnswer ?? this.revealedAnswer,
       );
 
   /// Nouvelle liste avec des versets supplémentaires -- seul champ qui ne
@@ -124,6 +143,35 @@ class MemorizationGameState {
         isLoadingNextPage: isLoadingNextPage,
         totalWordsCompleted: totalWordsCompleted,
         justBeatRecord: justBeatRecord,
+        revealedAnswer: revealedAnswer,
+      );
+
+  /// Relance LE VERSET COURANT depuis son premier mot -- même geste que le
+  /// bouton "recommencer" manuel, mais déclenché seul après une révélation
+  /// (demande utilisateur 2026-08-10 : « il doit recommencer, ça entre dans
+  /// la répétition pour se mémoriser »). Volontairement PAS toute la partie
+  /// (« on ne va pas commencer depuis tout le début ») : la progression
+  /// (mots enchaînés, pages déjà chargées) reste acquise.
+  ///
+  /// ── UN PALIER EN ARRIÈRE, PAS LE VERSET RATÉ LUI-MÊME (2026-08-10) ──────
+  /// Retour utilisateur après le premier essai (palier = le verset raté lui-
+  /// même) : « le mieux c'est de revenir à un palier avant pour continuer le
+  /// jeu ». Repartir du verset PRÉCÉDENT (déjà validé -- on ne peut être sur
+  /// `currentVerseIndex` qu'après avoir fini `currentVerseIndex - 1`, cf.
+  /// `submitWord`) donne un petit élan de mots déjà sûrs avant de rattaquer
+  /// le passage qui a fait échouer, au lieu de retomber immédiatement dessus.
+  /// Verset 0 : rien avant, reste sur place (`currentVerseIndex - 1` borné à
+  /// 0 par le `? :` ci-dessous).
+  ///
+  /// Construction directe plutôt que `copyWith` : il faut pouvoir remettre
+  /// `revealedAnswer` à `null`, ce que le motif `champ ?? this.champ` de
+  /// `copyWith` ne permet pas de faire explicitement.
+  MemorizationGameState afterVerseRestart() => MemorizationGameState(
+        verses: verses,
+        currentVerseIndex: currentVerseIndex > 0 ? currentVerseIndex - 1 : 0,
+        currentWordIndex: 0,
+        choices: const [],
+        totalWordsCompleted: totalWordsCompleted,
       );
 }
 
@@ -196,13 +244,33 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
     state = state.copyWith(choices: choices, justBeatRecord: state.justBeatRecord);
   }
 
+  /// Coût d'une erreur sur le compteur de mots enchaînés (demande
+  /// utilisateur 2026-08-10 : « le nombre de mots enchaînés doit être avec
+  /// punition en cas d'erreur, exemple -5 points »). Le compteur ne descend
+  /// jamais sous 0 -- "-3 mots enchaînés" n'aurait aucun sens affiché.
+  static const int _wrongAnswerPenalty = 5;
+
   /// Appelé quand l'utilisateur tape un mot (le premier mot affiché seul, ou
-  /// un des choix du QCM). Si c'est le bon mot, avance ; sinon, déclenche un
-  /// bref feedback visuel sans rien changer d'autre.
+  /// un des choix du QCM). Si c'est le bon mot, avance ; sinon, retire
+  /// [_wrongAnswerPenalty] au compteur, RÉVÈLE la bonne réponse (mise en
+  /// évidence dans `_ChoiceGrid`) puis relance un palier plus tôt après un
+  /// court délai -- cf. `MemorizationGameState.revealedAnswer` et
+  /// `afterVerseRestart` pour le raisonnement complet.
   void submitWord(String tapped) {
-    if (state.isGameComplete || state.isLoadingNextPage) return;
+    if (state.isGameComplete ||
+        state.isLoadingNextPage ||
+        state.revealedAnswer != null) {
+      return;
+    }
     if (tapped != state.currentWord) {
-      state = state.copyWith(wrongFlash: true);
+      final correct = state.currentWord;
+      state = state.copyWith(
+        wrongFlash: true,
+        revealedAnswer: correct,
+        totalWordsCompleted:
+            max(0, state.totalWordsCompleted - _wrongAnswerPenalty),
+      );
+      unawaited(_restartVerseAfterReveal());
       return;
     }
 
@@ -279,6 +347,19 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
   void restartVerse() {
     state = state.copyWith(
         currentWordIndex: 0, choices: const [], isGameComplete: false);
+    _prepareChoicesIfNeeded();
+  }
+
+  /// Laisse la bonne réponse en évidence le temps que le joueur la voie, puis
+  /// relance LE VERSET (le "palier" invisible le plus récemment validé --
+  /// demande utilisateur 2026-08-10 : « ces paliers sont invisibles, quand il
+  /// enchaîne et dépasse un palier sans erreur il est validé, après s'il
+  /// rate il revient à ce palier » -- un palier = un verset : le précédent
+  /// est acquis dès qu'on l'a quitté, seul le verset EN COURS se répète).
+  Future<void> _restartVerseAfterReveal() async {
+    await Future.delayed(const Duration(milliseconds: 1400));
+    if (!mounted) return;
+    state = state.afterVerseRestart();
     _prepareChoicesIfNeeded();
   }
 }
