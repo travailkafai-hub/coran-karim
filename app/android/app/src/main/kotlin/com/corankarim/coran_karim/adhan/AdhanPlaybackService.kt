@@ -12,6 +12,9 @@ import android.media.MediaPlayer
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import com.corankarim.coran_karim.R
 
@@ -37,6 +40,7 @@ import com.corankarim.coran_karim.R
 class AdhanPlaybackService : Service() {
     private var player: MediaPlayer? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var vibrator: Vibrator? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -62,6 +66,7 @@ class AdhanPlaybackService : Service() {
             // `onCompletion`/`onError` ne se declenchaient pas.
             acquire(3 * 60 * 1000L)
         }
+        if (vibrate) startVibration()
 
         player?.release()
         player = MediaPlayer().apply {
@@ -91,10 +96,49 @@ class AdhanPlaybackService : Service() {
             p.release()
         }
         player = null
+        stopVibration()
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    /**
+     * Vibreur en plus du son (demande utilisateur 2026-08-11 : « je veux
+     * aussi gerer les vibreurs apres priere »). Declenche ici, en meme temps
+     * que le MediaPlayer, plutot que via `builder.setVibrate()` sur la
+     * notification (cf. commentaire dans `buildNotification` ci-dessous) :
+     * c'est le seul moyen fiable de piloter la vibration a la demande sur
+     * Android 8+, pour la meme raison que le son passe par un vrai
+     * MediaPlayer plutot que par le canal de notification.
+     */
+    private fun startVibration() {
+        // VIBRATOR_SERVICE est deprecie au profit de VIBRATOR_MANAGER_SERVICE
+        // depuis Android 12 (API 31) -- les deux chemins sont necessaires pour
+        // couvrir le parc reel d'appareils.
+        val vib = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+        if (vib == null || !vib.hasVibrator()) return
+        vibrator = vib
+        // Motif qui se repete (indice de bouclage 0) tant que l'adhan joue,
+        // comme le son -- un seul buzz initial se perdrait facilement si le
+        // telephone est en poche ou sur une table au moment precis du signal.
+        val pattern = longArrayOf(0, 700, 500)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vib.vibrate(VibrationEffect.createWaveform(pattern, 0))
+        } else {
+            @Suppress("DEPRECATION")
+            vib.vibrate(pattern, 0)
+        }
+    }
+
+    private fun stopVibration() {
+        vibrator?.cancel()
+        vibrator = null
     }
 
     override fun onDestroy() {
@@ -134,6 +178,19 @@ class AdhanPlaybackService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .addAction(0, "Arrêter", stopPending)
         if (vibrate) {
+            // NOTE 2026-08-11 : ce `setVibrate()` sur le builder est en
+            // pratique un NO-OP sur Android 8+ (API 26) -- une fois un canal
+            // de notification cree (`ensureChannel` ci-dessus), c'est LUI qui
+            // decide du comportement de vibration, pas le builder par
+            // notification ; et ce canal ne configure jamais de vibration
+            // (`enableVibration`/`setVibrationPattern` jamais appeles). C'est
+            // le defaut a l'origine du symptome signale par l'utilisateur
+            // (« je veux aussi gerer les vibreurs ») alors que le reglage
+            // existait deja de bout en bout (Dart -> EXTRA_VIBRATE -> ici).
+            // Garde tel quel (harmless, peut encore servir sur un appareil
+            // pre-O reel) mais la vibration effective vient desormais de
+            // `startVibration()` (Vibrator direct, cf. `startPlayback`) qui,
+            // lui, n'est pas soumis a cette limitation de canal.
             builder.setVibrate(longArrayOf(0, 400, 200, 400))
         }
         return builder.build()

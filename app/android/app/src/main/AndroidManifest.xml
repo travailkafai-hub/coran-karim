@@ -20,6 +20,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Vibreur accompagnant l'adhan (2026-08-11, AdhanPlaybackService.startVibration) :
+         permission "normale", accordee automatiquement a l'installation, mais
+         DOIT etre declaree ici sinon Vibrator.vibrate() leve une
+         SecurityException au moment de sonner. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- SAUVEGARDE AUTOMATIQUE COUPEE (2026-08-10).
 

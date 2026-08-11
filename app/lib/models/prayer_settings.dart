@@ -23,6 +23,17 @@ class PrayerSettings {
   /// vibration d'un canal est figé à sa création, comme le son (cf.
   /// PrayerNotificationService) -- il faut donc deux canaux, pas un seul
   /// paramètre modifiable à la volée.
+  ///
+  /// CORRECTIF 2026-08-11 : ce paragraphe décrit une intention qui n'a
+  /// finalement PAS été construite ainsi côté natif -- `AdhanPlaybackService`
+  /// utilise un seul canal (jamais configuré pour vibrer) et pilotait la
+  /// vibration via `NotificationCompat.Builder.setVibrate()`, qui est un
+  /// NO-OP sur Android 8+ dès qu'un canal existe. Résultat mesuré : ce
+  /// réglage était actif par défaut (`true`) sans jamais réellement faire
+  /// vibrer le téléphone. Corrigé en pilotant un `Vibrator` directement dans
+  /// le service, en parallèle du `MediaPlayer` -- pas besoin d'un second
+  /// canal, ni de figer quoi que ce soit à la création : ce flag continue de
+  /// n'être qu'un simple booléen passé jusqu'au natif via `EXTRA_VIBRATE`.
   final bool vibrateEnabled;
 
   /// Rappel configurable AVANT l'adhan, activable prière par prière (pas
