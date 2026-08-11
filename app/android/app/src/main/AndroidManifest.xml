@@ -14,10 +14,48 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Lecture reelle de l'adhan complet (AdhanPlaybackService, 2026-08-09) :
+         le son de canal de notification ne peut pas jouer un fichier de
+         2 min 11 de facon fiable, cf. commentaire du service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- SAUVEGARDE AUTOMATIQUE COUPEE (2026-08-10).
+
+         Sans cette ligne, Android considere l'app consentante et copie son
+         stockage prive vers le Google Drive de l'utilisateur. Verifie sur
+         l'appareil avant correction :
+             adb shell dumpsys package com.corankarim.coran_karim
+             donne : flags=[ ... ALLOW_BACKUP ... ]
+
+         Ce qui partait ainsi : `recitation_captures/*.wav` (les enregistrements
+         de la VOIX de l'utilisateur, dont le service dit lui-meme que « rien ne
+         les supprime »), `voice_fingerprints/*.bin` (donnee de nature
+         biometrique), `disputed_verdicts/`, les bases SQLite, et le journal de
+         diagnostic.
+
+         C'etait la SEULE contradiction directe entre ce que l'app promet et ce
+         qu'elle fait : l'ecran « A propos » affirme « Tout se passe sur votre
+         telephone » et « votre recitation [...] n'est envoyee nulle part ».
+         C'etait vrai du code (l'app n'envoie rien) mais faux du point de vue
+         de l'utilisateur, puisque le systeme le faisait a sa place.
+
+         VOLONTAIREMENT `false` PLUTOT QUE DES REGLES D'EXCLUSION : on perd la
+         restauration des signets et reglages sur un nouveau telephone, et c'est
+         assume. `dataExtractionRules` permettrait de garder ce confort en
+         excluant les seuls dossiers de voix, mais une regle mal ecrite
+         renverrait la voix en sauvegarde EN SILENCE. Sur une promesse de
+         confidentialite, une solution qui ne peut pas echouer vaut mieux
+         qu'une solution plus fine qui le peut. A revoir si la restauration
+         devient une vraie demande, en traitant alors les DEUX canaux
+         (sauvegarde cloud ET transfert d'appareil a appareil).
+
+         NB : pas de « double tiret » dans ce commentaire, XML l'interdit. -->
     <application
         android:label="Coran Karim"
         android:name="${applicationName}"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -62,6 +100,14 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
+
+        <!-- Lecture reelle de l'adhan complet (2026-08-09), cf.
+             AdhanPlaybackService : remplace le son de canal pour l'adhan
+             (toujours utilise par le RAPPEL, un simple bip court, inchange). -->
+        <receiver android:name=".adhan.AdhanAlarmReceiver" android:exported="false" />
+        <service android:name=".adhan.AdhanPlaybackService"
+                 android:exported="false"
+                 android:foregroundServiceType="mediaPlayback" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
@@ -76,6 +122,12 @@
         <!-- Visibilite du moteur de synthese vocale (Android 11+) pour flutter_tts. -->
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
+        <!-- "Nous contacter" (2026-08-09) : visibilite de l'appli mail pour
+             url_launcher (Android 11+ masque les apps non declarees ici). -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO"/>
+            <data android:scheme="mailto"/>
         </intent>
     </queries>
 </manifest>

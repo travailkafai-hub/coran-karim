@@ -43,8 +43,24 @@ dependencies:
 
   # Icons
   cupertino_icons: ^1.0.8
-  flutter_gemma: ^1.2.2
-  flutter_gemma_litertlm: ^1.0.2
+
+  # flutter_gemma / flutter_gemma_litertlm RETIRÉS le 2026-08-10.
+  #
+  # Le tuteur textuel Gemma n'a jamais été livré : le `.litertlm` n'était ni
+  # embarqué ni téléchargé, `explainVerse` rendait toujours `null`, et aucun
+  # utilisateur n'a vu une ligne produite par ce modèle.
+  #
+  # Mesuré sur l'APK release du 2026-08-10, ces deux paquets apportaient
+  # ~90 Mo de bibliothèques natives PAR ARCHITECTURE (libLiteRtLm 24,8 Mo,
+  # quatre libQnnHtpV*Skel 42,4 Mo, deux accélérateurs LiteRT 15,7 Mo,
+  # libGemmaModelConstraintProvider, libQnnSystem) — plus de la moitié de la
+  # charge utile arm64.
+  #
+  # Ce que ça libère : de la place pour le modèle ASR dans le paquet lui-même
+  # (cf. PUBLICATION_PLAY.md §2.2). Les remettre le jour où le tuteur est
+  # réellement embarqué — et repasser alors `kTuteurIaEmbarque` à `true` dans
+  # `about_screen.dart`, qui rétablit la notice Gemma et l'avertissement sur
+  # le texte généré.
 
   # Boussole Qibla (direction de la Mecque)
   flutter_compass: ^0.8.1
@@ -67,6 +83,13 @@ dependencies:
   # Carte mentale des sourates (REFONTE_IHM.md §7) — rendu eventail gauche/droite
   graphview: ^1.2.0
   flutter_svg: ^2.3.0
+
+  # "Nous contacter" (2026-08-09) : écran de composition dans l'app, envoi
+  # via mailto: au moment de "Envoyer" -- aucun backend/Firebase, l'appli
+  # mail du téléphone fait le transport (cf. décision utilisateur : pas de
+  # cause à ajouter un serveur pour un simple formulaire de contact).
+  url_launcher: ^6.3.1
+  package_info_plus: ^10.2.0
 
 dev_dependencies:
   flutter_test:
@@ -99,4 +122,8 @@ flutter:
     - assets/illumination/medallion.svg
     - assets/illumination/quran_pattern_tile.svg
     - assets/audio/adhan_makkah.mp3
-    - assets/audio/duas/
+    # Dossier retiré le 2026-08-10 avec les 11 `*_cut.mp3` (copies découpées de
+    # hisnmuslim.com, redistribuées sans licence). La coupe se fait désormais à
+    # la lecture, cf. `Dua.audioCutMs`. À rétablir le jour où des
+    # enregistrements dont on possède les droits seront embarqués.
+    # - assets/audio/duas/

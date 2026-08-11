@@ -1,7 +1,6 @@
 import 'dart:async' show unawaited;
 
 import 'package:flutter/material.dart' hide RepeatMode;
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
@@ -12,6 +11,7 @@ import '../providers/recitation_provider.dart' show recitationVerifierProvider;
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
+import 'contact_screen.dart';
 import 'prayer_times_settings_screen.dart';
 import 'qibla_screen.dart';
 import 'reciter_select_screen.dart';
@@ -182,15 +182,21 @@ class SettingsScreen extends ConsumerWidget {
           // puissent nous envoyer leurs avis, les remarques ». Même adresse
           // que `kContactEmail` (about_screen.dart, déjà réservée au
           // signalement IA) -- une seule boîte, l'utilisateur l'a fournie
-          // lui-même. Copie presse-papiers, pas `mailto:` : marche même sans
-          // application de messagerie configurée (même raison que
-          // `_BlocSignalement` dans about_screen.dart).
+          // lui-même.
+          // ── PASSÉ À UN ÉCRAN DE COMPOSITION (2026-08-09, correction
+          // utilisateur) : la première version (copie presse-papiers) a été
+          // jugée insuffisante -- « tu n'as que affiché mon mail, moi je veux
+          // une fenêtre pour écrire ce qu'il veut nous transmettre ». Ouvre
+          // désormais `ContactScreen` (objet + message dans l'app), qui
+          // bascule sur `mailto:` déjà rempli au moment d'"Envoyer" -- pas de
+          // backend/Firebase pour un simple formulaire de contact.
           _SettingsTile(
             icon: Icons.mail_outline_rounded,
             title: t.settingsContactTitle,
             subtitle: t.settingsContactSubtitle,
             color: AppColors.settingsApp,
-            onTap: () => _ouvrirContact(context, t),
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ContactScreen())),
           ),
           _SettingsTile(
             icon: Icons.info_outline_rounded,
@@ -201,51 +207,6 @@ class SettingsScreen extends ConsumerWidget {
                 MaterialPageRoute(builder: (_) => const AboutScreen())),
           ),
         ],
-      ),
-    );
-  }
-
-  void _ouvrirContact(BuildContext context, AppLocalizations t) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            20, 20, 20, 20 + MediaQuery.of(ctx).viewInsets.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(t.settingsContactTitle,
-                style: GoogleFonts.scheherazadeNew(
-                    fontSize: 20, color: AppColors.green900)),
-            const SizedBox(height: 10),
-            Text(t.settingsContactBody,
-                style: GoogleFonts.manrope(
-                    fontSize: 13, height: 1.55, color: AppColors.ink)),
-            const SizedBox(height: 16),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(
-                      const ClipboardData(text: kContactEmail));
-                  if (!ctx.mounted) return;
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                      SnackBar(content: Text(t.settingsContactCopied)));
-                },
-                icon: const Icon(Icons.copy_rounded, size: 16),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.green900,
-                  side: const BorderSide(color: AppColors.brass),
-                ),
-                label: Text(kContactEmail,
-                    style: GoogleFonts.manrope(
-                        fontSize: 13, fontWeight: FontWeight.w600)),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

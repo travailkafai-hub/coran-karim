@@ -308,12 +308,32 @@ class FastConformerVerifier {
     // build debuggable), sinon repli sur le storage privé habituel. A retirer
     // pour le deploiement definitif.
     Directory appDir = await getApplicationSupportDirectory();
-    final ext = await getExternalStorageDirectory();
-    if (ext != null &&
-        await File('${ext.path}/$_kModelSubdir/$_kModelFile').exists()) {
-      appDir = ext;
-      debugPrint('[FastConformer] TEST: modele depuis storage EXTERNE '
-          '(${ext.path}/$_kModelSubdir)');
+    // ── FERMÉ EN RELEASE (2026-08-10, demande utilisateur) ──────────────────
+    //
+    // Le commentaire ci-dessus disait déjà « À retirer pour le deploiement
+    // definitif ». Deux raisons, et la seconde est la grave :
+    //
+    //  1. `/sdcard/Android/data/<pkg>/files` est l'endroit le plus simple pour
+    //     EXTRAIRE le modèle : `adb pull`, sans root, y compris sur un build
+    //     release.
+    //  2. Surtout, n'importe qui peut y DÉPOSER un ONNX fabriqué, que l'app
+    //     préférerait au sien puisque l'externe gagnait sur l'interne. Un
+    //     modèle substitué falsifie silencieusement TOUS les verdicts, c'est-à-
+    //     dire la raison d'être de l'application. La substitution est ici un
+    //     risque plus grave que la copie.
+    //
+    // Conditionné au drapeau debuggable plutôt que supprimé, exactement comme
+    // l'entrée de recette de `MainActivity` : le confort de test est conservé
+    // (pousser un checkpoint sur un build de dev sans `run-as`), la porte est
+    // fermée dans le binaire publié.
+    if (kDebugMode) {
+      final ext = await getExternalStorageDirectory();
+      if (ext != null &&
+          await File('${ext.path}/$_kModelSubdir/$_kModelFile').exists()) {
+        appDir = ext;
+        debugPrint('[FastConformer] TEST: modele depuis storage EXTERNE '
+            '(${ext.path}/$_kModelSubdir)');
+      }
     }
     final modelFile = File('${appDir.path}/$_kModelSubdir/$_kModelFile');
     final vocabFile = File('${appDir.path}/$_kModelSubdir/$_kVocabFile');
@@ -485,11 +505,17 @@ class FastConformerVerifier {
     }
     if (_streamingLoaded) return true;
     Directory appDir = await getApplicationSupportDirectory();
-    final ext = await getExternalStorageDirectory();
-    if (ext != null &&
-        await File('${ext.path}/$_kStreamingModelSubdir/$_kStreamingModelFile')
-            .exists()) {
-      appDir = ext;
+    // Même verrou que dans `ensureLoaded()` (2026-08-10) : le modèle externe ne
+    // l'emporte qu'en build de développement. Ce second chemin, plus discret
+    // que le premier, aurait suffi à laisser la porte ouverte — un verrou posé
+    // sur un seul des deux points d'entrée n'en est pas un.
+    if (kDebugMode) {
+      final ext = await getExternalStorageDirectory();
+      if (ext != null &&
+          await File('${ext.path}/$_kStreamingModelSubdir/$_kStreamingModelFile')
+              .exists()) {
+        appDir = ext;
+      }
     }
     final modelFile = File('${appDir.path}/$_kStreamingModelSubdir/$_kStreamingModelFile');
     final vocabFile = File('${appDir.path}/$_kStreamingModelSubdir/$_kVocabFile');

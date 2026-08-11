@@ -188,9 +188,17 @@ class AboutScreen extends StatelessWidget {
               _Puce(
                   icone: Icons.location_on_rounded,
                   texte: t.aboutPrivacyLocation),
-              _Puce(
-                  icone: Icons.bug_report_rounded,
-                  texte: t.aboutPrivacyDiagnostic),
+              // Puce « Diagnostic » RETIRÉE le 2026-08-09 (demande
+              // utilisateur), en cohérence avec le retrait du commutateur
+              // `_DiagnosticTile` dans les Réglages (cf. le commentaire dans
+              // `settings_screen.dart`, « CINQ RÉGLAGES RETIRÉS DE LA v1 »,
+              // point 4). Le texte disait « s'il est activé dans les
+              // Réglages » — devenu faux : il n'y a plus AUCUN moyen pour
+              // l'utilisateur de l'activer, le journal restant coupé par
+              // défaut en release. Une puce de confidentialité qui décrit un
+              // réglage introuvable induirait en erreur ; `t.aboutPrivacyDiagnostic`
+              // reste défini dans les fichiers `.arb` (convention projet :
+              // on n'efface pas), prêt si le commutateur revient.
               _Puce(icone: Icons.cloud_off_rounded, texte: t.aboutPrivacyNetwork),
             ],
           ),

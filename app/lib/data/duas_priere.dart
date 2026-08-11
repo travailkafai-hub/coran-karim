@@ -433,7 +433,7 @@ const kDuasPriere = <Dua>[
         "« Multipliez la prière sur moi le jour du vendredi, car vos prières me sont présentées. »",
     tags: ['joumoua'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/98.mp3',
-    audioAsset: 'audio/duas/98_cut.mp3',
+    audioCutMs: 4650,
     // repeat corrigé 100 -> 10 (2026-08-07) : 100 était une estimation sans
     // source précise ("multipliez" dans le hadith ne donne pas de chiffre).
     // Le texte source de hisnmuslim.com précise explicitement "عشرَ مرَّاتٍ"

@@ -1,9 +1,10 @@
 import 'package:audioplayers/audioplayers.dart' show AssetSource, UrlSource;
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/dua.dart';
+import '../models/player_state_model.dart' show RepeatMode;
 import '../providers/dua_prefs_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/dua_audio_service.dart';
@@ -343,6 +344,19 @@ class _DuaCardState extends ConsumerState<DuaCard> {
         // Un seul son à la fois dans l'app : coupe l'éventuelle lecture
         // hadith en cours avant de prendre la main sur le lecteur partagé.
         await DuaAudioService.instance.stop();
+        // Le lecteur (`playerProvider`) est PARTAGÉ avec le Mushaf, où
+        // l'utilisateur peut avoir laissé une boucle avancée active (« répéter
+        // la sourate 3 fois », réglages de groupe/mot -- cf.
+        // `reading_settings_sheet.dart`). Sans cette remise à zéro, ce réglage
+        // survit au changement d'écran et ré-applique sa boucle ICI : constat
+        // utilisateur 2026-08-09 sur les muʿawwidhāt (Al-Ikhlās/Al-Falaq/
+        // An-Nās en une seule passe) qui se sont mises à répéter chaque
+        // sourate plusieurs fois au lieu de dérouler la passe une fois --
+        // exactement ce que ce bloc est censé éviter (cf. commentaire
+        // ci-dessous, "une seule lecture, pas de répétition ici").
+        ref.read(playerProvider.notifier)
+          ..setRepeatMode(RepeatMode.off)
+          ..setBoucle(groupe: 1, repGroupe: 1, repGlobal: 1);
         final ranges = dua.verseRanges;
         if (ranges != null) {
           // Plusieurs versets (potentiellement plusieurs sourates, ex. les
@@ -365,6 +379,9 @@ class _DuaCardState extends ConsumerState<DuaCard> {
         await DuaAudioService.instance.play(
           asset != null ? AssetSource(asset) : UrlSource(dua.audioUrl!),
           key: dua.audioKey!,
+          // Coupe après une occurrence quand le fichier source en enchaîne
+          // plusieurs (cf. Dua.audioCutMs).
+          cutMs: dua.audioCutMs,
         );
       }
     } catch (e) {

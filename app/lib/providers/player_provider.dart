@@ -6,8 +6,6 @@ import '../models/verse.dart';
 import '../models/reciter.dart';
 import '../models/player_state_model.dart';
 import '../services/audio_player_service.dart';
-import '../services/quran_api.dart';
-import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../services/word_correction_audio.dart';
 
 const _kPrefReciterId = 'preferred_reciter_id';
@@ -67,18 +65,7 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       duration: Duration.zero,
       repeatDone: 0,
       error: null,
-      // Un NOUVEAU depart repart du premier mot du verset. Sans cette remise a
-      // zero, taper un autre verset en mode mot reprenait au `debutMot` du
-      // precedent (`_boucleMots` le relit pour pouvoir reprendre apres pause)
-      // -- on serait tombe en plein milieu, sans rien qui l'explique.
-      debutMot: 0,
     );
-    if (state.uniteMot) {
-      // Autre moteur de lecture (cf. `_boucleMots`) : plages temporelles dans
-      // un fichier, pas enchainement de fichiers.
-      await _boucleMots();
-      return;
-    }
     final ok = await _svc.playVerse(verse, rc);
     if (!ok) {
       state = state.copyWith(
@@ -87,28 +74,11 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   Future<void> pause() async {
-    if (state.uniteMot) {
-      // La boucle au mot ne tient pas son etat dans le plugin audio mais dans
-      // une boucle Dart : la mettre en "pause" reviendrait a suspendre un
-      // `await` au milieu d'une plage, sans point de reprise propre. On
-      // l'ARRETE, et `resume` la relance au groupe de mots courant
-      // (`debutMot`) -- ce qui est aussi le comportement attendu en
-      // memorisation : on reprend au debut de l'unite, pas au milieu d'un mot.
-      _generationMots++;
-      await WordCorrectionAudio.stop();
-      state = state.copyWith(status: PlayerStatus.paused);
-      return;
-    }
     await _svc.pause();
     state = state.copyWith(status: PlayerStatus.paused);
   }
 
   Future<void> resume() async {
-    if (state.uniteMot) {
-      state = state.copyWith(status: PlayerStatus.playing);
-      await _boucleMots();
-      return;
-    }
     await _svc.resume();
     state = state.copyWith(status: PlayerStatus.playing);
   }
@@ -122,10 +92,12 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
   }
 
   Future<void> stop() async {
-    _generationMots++; // coupe la boucle au mot si elle tourne
+    // Coupe aussi un eventuel clip de correction en cours (WordCorrectionAudio
+    // est un lecteur partage, cf. coach_incremental_repeat.dart) -- un seul
+    // son a la fois dans l'app.
     await WordCorrectionAudio.stop();
     await _svc.stop();
-    state = state.copyWith(status: PlayerStatus.idle, debutMot: 0);
+    state = state.copyWith(status: PlayerStatus.idle);
   }
 
   Future<void> next() async {
@@ -188,12 +160,6 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     // le statut à `playing` en fin de piste (l'événement `completed` n'est pas
     // écouté), donc l'enchaînement normal passe bien ce test.
     if (state.status != PlayerStatus.playing) return;
-    // En mode MOT, la sequence est portee par `_boucleMots`, pas par les
-    // evenements du plugin : un `completed` residuel du moteur par versets
-    // (celui d'avant la bascule, arrive apres coup) relancerait `play()` et
-    // demarrerait une SECONDE boucle. Le compteur de generation la ferait
-    // converger, mais autant ne pas la creer.
-    if (state.uniteMot) return;
     final current = state.currentVerse;
     if (current == null) return; // `state.currentVerse!` levait ici
     // ── DEUX BOUCLES IMBRIQUEES : LE GROUPE, PUIS LE PASSAGE ──────────────
@@ -299,143 +265,6 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       groupeVersets: groupe,
       repetitionsGroupe: repGroupe,
       repetitionsGlobales: repGlobal,
-      debutGroupe: 0,
-      groupeFait: 0,
-      globalFait: 0,
-    );
-  }
-
-  // ── BOUCLE AU MOT ────────────────────────────────────────────────────────
-  //
-  // Demande utilisateur 2026-08-06, juste apres la validation des trois
-  // curseurs : « on peut descendre au mot ? ». L'unite repetee devient le MOT
-  // et non plus le verset ; `groupeVersets` se lit alors en nombre de mots.
-  //
-  // ⚠️ CE N'EST PAS UN CURSEUR DE PLUS, C'EST UN SECOND MOTEUR DE LECTURE.
-  // Le chemin normal enchaine des FICHIERS de verset et se pilote aux
-  // evenements du plugin (`_svc.onComplete` -> `_onComplete`). Ici il n'y a
-  // qu'un fichier et des PLAGES TEMPORELLES dedans : la sequence est portee
-  // par cette boucle Dart, et `WordCorrectionAudio.playWordWindow` rend la
-  // main a la fin de chaque plage. Les deux moteurs ne doivent jamais jouer
-  // en meme temps -- d'ou le `_svc.stop()` en entree.
-  //
-  // Les timings mot-a-mot viennent de quran.com (`fetchAyahSegments`) et ne
-  // sont PAS garantis pour tous les recitateurs : quand ils manquent,
-  // `playWordRange` abandonne en journalisant (`Correction-Audio ABANDON`) et
-  // la plage est silencieuse. On ne fait pas semblant de jouer : on repasse
-  // alors le verset entier par le moteur normal (repli explicite ci-dessous),
-  // plutot que de boucler dans le vide.
-  //
-  // `_generationMots` est le seul moyen d'arreter une boucle deja engagee
-  // dans un `await` : chaque pause/stop/nouveau depart l'incremente, et toute
-  // iteration qui constate un ecart se retire sans toucher a l'etat.
-  int _generationMots = 0;
-
-  Future<void> _boucleMots() async {
-    final gen = ++_generationMots;
-    await _svc.stop();
-
-    final playlist = state.playlist;
-    if (playlist.isEmpty) return;
-    var index = state.currentIndex.clamp(0, playlist.length - 1);
-    final sourate = playlist[index].surahNumber;
-    // Bornes de la SOURATE (et non de la playlist : dans le Mushaf elle suit
-    // les pages et peut couvrir plusieurs sourates -- meme raison qu'en
-    // lecture par versets, cf. `_onComplete`).
-    var borneBas = index;
-    while (borneBas > 0 && playlist[borneBas - 1].surahNumber == sourate) {
-      borneBas--;
-    }
-    var borneHaut = index;
-    while (borneHaut + 1 < playlist.length &&
-        playlist[borneHaut + 1].surahNumber == sourate) {
-      borneHaut++;
-    }
-
-    // Preflight : ce recitateur publie-t-il des timings mot-a-mot ?
-    // Sans ce controle, l'absence de timings ne se voit pas -- la boucle
-    // tournerait a vide en silence, ce qui se lit comme « l'app est cassee ».
-    // Un seul appel, deja mis en cache par `playWordRange` ensuite.
-    final segments = await QuranApi.fetchAyahSegments(
-        state.reciter.id, playlist[index].key);
-    if (!mounted || gen != _generationMots) return;
-    if (segments.isEmpty) {
-      state = state.copyWith(
-        uniteMot: false,
-        error: 'Ce récitateur ne fournit pas de repères mot à mot — '
-            'répétition au verset',
-      );
-      final ok = await _svc.playVerse(playlist[index], state.reciter);
-      if (!ok && mounted) {
-        state = state.copyWith(
-            status: PlayerStatus.error, error: 'Audio introuvable');
-      }
-      return;
-    }
-
-    final taille = state.groupeVersets.clamp(1, 50); // en MOTS ici
-    final repGroupe = state.repetitionsGroupe;
-    final repGlobal = state.repetitionsGlobales;
-    var toursSourate = state.globalFait;
-
-    state = state.copyWith(status: PlayerStatus.playing);
-
-    while (mounted && gen == _generationMots) {
-      final verse = playlist[index];
-      final nbMots =
-          ArabicNormalizer.splitExpectedWords(verse.textUthmani).length;
-      if (nbMots == 0) {
-        if (index < borneHaut) { index++; continue; }
-        break;
-      }
-      // Reprise apres pause : on repart du groupe courant, pas du debut du
-      // verset (cf. commentaire de `pause`).
-      var debut = index == state.currentIndex ? state.debutMot : 0;
-      if (debut >= nbMots) debut = 0;
-
-      while (debut < nbMots) {
-        final fin = (debut + taille - 1).clamp(0, nbMots - 1);
-        state = state.copyWith(
-            currentVerse: verse, currentIndex: index, debutMot: debut);
-        var fois = 0;
-        while (repGroupe == 0 || fois < repGroupe) {
-          if (!mounted || gen != _generationMots) return;
-          await WordCorrectionAudio.playWordWindow(verse, state.reciter,
-              startWordIdx: debut, endWordIdx: fin);
-          fois++;
-        }
-        if (!mounted || gen != _generationMots) return;
-        debut = fin + 1;
-      }
-
-      if (index < borneHaut) {
-        index++;
-        state = state.copyWith(debutMot: 0);
-        continue;
-      }
-      // Sourate terminee : la reprend-on ?
-      toursSourate++;
-      if (repGlobal == 0 || toursSourate < repGlobal) {
-        index = borneBas;
-        state = state.copyWith(globalFait: toursSourate, debutMot: 0);
-        continue;
-      }
-      break;
-    }
-
-    if (mounted && gen == _generationMots) {
-      state = state.copyWith(
-          status: PlayerStatus.idle, debutMot: 0, globalFait: 0);
-    }
-  }
-
-  /// Bascule l'unite de repetition entre le verset et le mot.
-  void setUniteMot(bool mot) {
-    _generationMots++;
-    WordCorrectionAudio.stop();
-    state = state.copyWith(
-      uniteMot: mot,
-      debutMot: 0,
       debutGroupe: 0,
       groupeFait: 0,
       globalFait: 0,

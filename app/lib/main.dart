@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
-import 'package:flutter_gemma_litertlm/flutter_gemma_litertlm.dart';
+// flutter_gemma / flutter_gemma_litertlm retirés le 2026-08-10, cf. l'appel
+// supprimé dans main() plus bas.
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/prayer_settings_provider.dart';
+import 'providers/recitation_provider.dart' show recitationVerifierProvider;
+import 'services/garde_micro.dart';
 import 'screens/recette_screen.dart';
 import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_hub_screen.dart';
-import 'screens/coach_sessions.dart' show sessionsArchiveProvider, tailleArchiveProvider;
+import 'screens/coach_sessions.dart'
+    show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider;
 import 'screens/dua_pour_nous_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
@@ -30,17 +33,44 @@ void main() async {
   // sans ça `localPathIfPresent` renvoie toujours null et une sourate pourtant
   // téléchargée repart en streaming, sans le moindre message d'erreur.
   await ReciterDownloadService().ensureReady();
-  // Moteur LiteRT-LM pour le Coach IA (Gemma 4 E2B, .litertlm) — moteur
-  // opt-in de flutter_gemma, doit être enregistré avant tout usage.
-  await FlutterGemma.initialize(inferenceEngines: [LiteRtLmEngine()]);
+  // Le moteur LiteRT-LM du Coach IA (Gemma 4 E2B) était initialisé ici.
+  // RETIRÉ le 2026-08-10 : le modèle `.litertlm` n'a jamais été livré, donc
+  // aucune explication n'a jamais été produite — mais ses bibliothèques
+  // natives pesaient ~90 Mo par architecture dans l'APK, soit plus de la
+  // moitié de la charge utile arm64. Détail et mesures dans
+  // `coach_explanation_sheet._loadGemmaFallback`.
   runApp(const ProviderScope(child: CoranKarimApp()));
 }
 
-class CoranKarimApp extends ConsumerWidget {
+/// `ConsumerStatefulWidget` et non `ConsumerWidget` — uniquement pour pouvoir
+/// construire [GardeMicro] UNE SEULE FOIS (2026-08-10). Un observateur de
+/// navigation recréé à chaque `build` serait réenregistré à chaque changement
+/// de langue ou de thème, et perdrait la profondeur de pile qu'il suit.
+class CoranKarimApp extends ConsumerStatefulWidget {
   const CoranKarimApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CoranKarimApp> createState() => _CoranKarimAppState();
+}
+
+class _CoranKarimAppState extends ConsumerState<CoranKarimApp> {
+  /// Relâche le micro dès qu'on quitte l'écran qui récitait, et quand l'app
+  /// passe en arrière-plan. Enregistré ici, au-dessus de toute navigation :
+  /// c'est ce qui le rend valable pour les TROIS écrans qui démarrent une
+  /// récitation aujourd'hui — et pour ceux de demain, sans que personne ait à
+  /// y penser. Cf. `services/garde_micro.dart` pour l'historique du défaut
+  /// (corrigé trois fois au mauvais endroit).
+  late final GardeMicro _gardeMicro =
+      GardeMicro(() => ref.read(recitationVerifierProvider));
+
+  @override
+  void dispose() {
+    _gardeMicro.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final locale = ref.watch(appLocaleProvider);
     return MaterialApp(
       title: 'Coran Karim',
@@ -54,6 +84,7 @@ class CoranKarimApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      navigatorObservers: [_gardeMicro],
       home: const _PointDEntree(),
     );
   }
@@ -218,6 +249,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _openCoachTab() {
     ref.invalidate(sessionsArchiveProvider);
     ref.invalidate(tailleArchiveProvider);
+    // Suivi permanent par portion (2026-08-10) : même raison que les deux
+    // lignes ci-dessus -- l'onglet Coach reste monté (IndexedStack), sans
+    // ça il continuerait d'afficher les portions telles qu'elles étaient à
+    // la dernière ouverture.
+    ref.invalidate(portionsProvider);
     setState(() => _tab = 2);
   }
 

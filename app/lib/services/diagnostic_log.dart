@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kReleaseMode;
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -51,7 +51,19 @@ class DiagnosticLog {
   /// Quand c'est faux : aucune écriture fichier, aucun `debugPrint`, et aucun
   /// WAV capturé côté natif (cf. RecitationNotifier.startContinuous). Le
   /// natif est coupé par le même interrupteur (méthode `setLogEnabled`).
-  static bool enabled = true;
+  ///
+  /// ⚠️ DÉFAUT INVERSÉ EN RELEASE (2026-08-09, décision utilisateur). Ce
+  /// journal et les WAV qui l'accompagnent sont un outil de DÉVELOPPEMENT.
+  /// Laissé actif par défaut sur le téléphone d'un utilisateur final, il
+  /// conserve indéfiniment des extraits de sa voix (`recitation_captures/`,
+  /// dont le service dit lui-même que « rien ne les supprime ») et un fichier
+  /// qui « grandit en annexe, jamais tronqué » : une collecte qu'il n'a pas
+  /// demandée, et un stockage sans borne.
+  /// Le défaut devient donc `!kReleaseMode` — strictement inchangé pour les
+  /// builds de développement ET pour le banc à deux téléphones, qui installe
+  /// un APK DEBUGGABLE (`run-as` en dépend, cf. benchmark/recette_2tel.sh) —
+  /// et opt-in explicite en production, via le réglage existant.
+  static bool enabled = !kReleaseMode;
 
   static String? get path => _file?.path;
 
@@ -100,9 +112,17 @@ class DiagnosticLog {
     // à son insu — exactement le contraire de ce que le réglage promet.
     try {
       final prefs = await SharedPreferences.getInstance();
-      enabled = prefs.getBool('diagnostic_enabled') ?? true;
+      // Absence de réglage = utilisateur qui n'a jamais tranché : on retombe
+      // sur le défaut du mode de compilation (cf. [enabled]), pas sur `true`.
+      enabled = prefs.getBool('diagnostic_enabled') ?? !kReleaseMode;
     } catch (_) {
       // Défaut sûr : le diagnostic reste actif.
+      // Précision 2026-08-09 : « actif » vaut désormais pour les builds de
+      // développement seulement. Si la lecture des préférences échoue,
+      // `enabled` garde la valeur de son initialiseur (`!kReleaseMode`) —
+      // donc actif en debug, éteint en release. C'est bien le défaut sûr dans
+      // les deux cas : on n'enregistre jamais la voix d'un utilisateur final
+      // à cause d'une erreur de lecture de préférences.
     }
     try {
       final dir = await getExternalStorageDirectory();

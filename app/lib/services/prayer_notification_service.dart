@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
@@ -8,13 +8,25 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../models/prayer_settings.dart';
 
-/// Programme l'adhan (5 prières + rappel configurable par prière) via des
-/// notifications locales EXACTES (pas d'API réseau, pas de serveur --
-/// tout se joue sur l'appareil à l'heure calculée par PrayerTimesService).
+/// Programme l'adhan (5 prières + rappel configurable par prière).
 ///
-/// Persistance au redémarrage du téléphone : gérée NATIVEMENT par le plugin
-/// (ScheduledNotificationBootReceiver, cf. AndroidManifest.xml) -- aucun code
-/// Dart supplémentaire nécessaire pour ça.
+/// Deux mécanismes distincts depuis le 2026-08-09 (constat utilisateur :
+/// la notification d'adhan s'affichait mais AUCUN son ne sortait) :
+///  - le RAPPEL (bref, avant l'heure) reste un son de canal Android via
+///    `flutter_local_notifications` -- adapté à un bip court.
+///  - l'ADHAN LUI-MÊME (2 min 11, `adhan_makkah.mp3`) passe par
+///    `AdhanSchedulerPlugin`/`AdhanAlarmReceiver`/`AdhanPlaybackService`
+///    (natif Kotlin) : un vrai lecteur audio démarré par une alarme système
+///    au bon instant, avec bouton "Arrêter" sur sa propre notification. Le
+///    son de canal ne peut PAS jouer un fichier aussi long de façon fiable
+///    (conçu pour de courts bips d'alerte) -- vérifié par mesure
+///    (`ffprobe`) avant de changer de mécanisme.
+///
+/// Persistance au redémarrage du téléphone pour le RAPPEL : gérée NATIVEMENT
+/// par flutter_local_notifications (ScheduledNotificationBootReceiver, cf.
+/// AndroidManifest.xml). L'ADHAN, lui, est reprogrammé comme tout le reste à
+/// chaque ouverture de l'app (cf. [scheduleUpcoming]) -- même modèle de
+/// fiabilité que ce qui existait déjà, pas de régression.
 ///
 /// IDs stables et réutilisés (1-5 aujourd'hui, 11-15 demain pour l'adhan ;
 /// 20-24 aujourd'hui, 30-34 demain pour le rappel avant chaque prière) :
@@ -27,17 +39,10 @@ class PrayerNotificationService {
   static final instance = PrayerNotificationService._();
 
   final _plugin = FlutterLocalNotificationsPlugin();
+  static const _adhanAlarmChannel = MethodChannel('coran_karim/adhan_alarm');
   bool _initialized = false;
 
-  static const _adhanChannelId = 'adhan_channel';
-  // Canal séparé pour le vibreur (demande utilisateur 2026-07-24) : sur
-  // Android O+, le pattern de vibration d'un canal est figé à sa création,
-  // comme le son -- impossible de le rendre modifiable à la volée avec un
-  // seul canal, d'où ce deuxième canal identique sauf sur la vibration.
-  static const _adhanChannelVibrateId = 'adhan_channel_vibrate';
   static const _reminderChannelId = 'prayer_reminder_channel';
-
-  static final _vibrationPattern = Int64List.fromList([0, 400, 200, 400]);
 
   static const _prayerLabels = {
     PrayerName.fajr: 'Sobh',
@@ -66,29 +71,10 @@ class PrayerNotificationService {
     if (Platform.isAndroid) {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
-      // Canal ADHAN : son personnalisé (fichier natif res/raw/, cf.
-      // build.gradle/copie -- PAS le chemin assets/ Flutter, Android exige un
-      // raw resource pour le son d'un canal de notification). Le son d'un
-      // canal Android est figé à sa CRÉATION -- recréer le canal avec un ID
-      // différent serait nécessaire pour changer le son plus tard.
-      await android?.createNotificationChannel(const AndroidNotificationChannel(
-        _adhanChannelId,
-        'Adhan',
-        description: 'Appel à la prière programmé',
-        importance: Importance.max,
-        sound: RawResourceAndroidNotificationSound('adhan_makkah'),
-        audioAttributesUsage: AudioAttributesUsage.alarm,
-      ));
-      await android?.createNotificationChannel(AndroidNotificationChannel(
-        _adhanChannelVibrateId,
-        'Adhan (avec vibreur)',
-        description: 'Appel à la prière programmé, avec vibration',
-        importance: Importance.max,
-        sound: const RawResourceAndroidNotificationSound('adhan_makkah'),
-        audioAttributesUsage: AudioAttributesUsage.alarm,
-        enableVibration: true,
-        vibrationPattern: _vibrationPattern,
-      ));
+      // Canal du RAPPEL uniquement -- le canal "adhan" à son personnalisé
+      // (RawResourceAndroidNotificationSound) a été retiré le 2026-08-09,
+      // remplacé par AdhanPlaybackService (cf. commentaire de la classe) :
+      // il ne servait plus à rien, son son ne jouait jamais en pratique.
       await android?.createNotificationChannel(const AndroidNotificationChannel(
         _reminderChannelId,
         'Rappel avant la prière',
@@ -106,42 +92,58 @@ class PrayerNotificationService {
   int _reminderIdForToday(PrayerName p) => 20 + PrayerName.values.indexOf(p);
   int _reminderIdForTomorrow(PrayerName p) => 30 + PrayerName.values.indexOf(p);
 
-  Future<void> _scheduleOne({
+  /// Programme l'ADHAN natif (AdhanPlaybackService) pour un [id]/[when]/
+  /// [label] donnés. Contrairement au rappel, aucun passage par
+  /// `flutter_local_notifications` : l'alarme est posée directement côté
+  /// Kotlin (`AdhanSchedulerPlugin`), seul chemin capable de démarrer un
+  /// Service au bon instant.
+  Future<void> _scheduleAdhan({
+    required int id,
+    required String label,
+    required DateTime when,
+    required bool vibrate,
+  }) async {
+    if (when.isBefore(DateTime.now())) {
+      // Déjà passé (ex. réouverture de l'app en fin de journée) -- annule
+      // plutôt que de programmer dans le passé (déclencherait immédiatement).
+      await _adhanAlarmChannel.invokeMethod('cancel', {'id': id});
+      return;
+    }
+    await _adhanAlarmChannel.invokeMethod('schedule', {
+      'id': id,
+      'whenMillis': when.toUtc().millisecondsSinceEpoch,
+      'label': label,
+      'vibrate': vibrate,
+    });
+  }
+
+  Future<void> _cancelAdhan(int id) async {
+    await _adhanAlarmChannel.invokeMethod('cancel', {'id': id});
+  }
+
+  Future<void> _scheduleReminder({
     required int id,
     required String title,
     required String body,
     required DateTime when,
-    required bool isAdhan,
-    bool vibrate = false,
   }) async {
     final scheduled = tz.TZDateTime.from(when, tz.local);
     if (scheduled.isBefore(tz.TZDateTime.now(tz.local))) {
-      // Deja passe (ex. reouverture de l'app en fin de journee) -- annuler
-      // l'eventuel ancien creneau au lieu de programmer dans le passe
-      // (zonedSchedule sur une date passee declenche immediatement, ce qui
-      // spammerait une notif a chaque ouverture d'app).
       await _plugin.cancel(id);
       return;
     }
-    final channelId = isAdhan
-        ? (vibrate ? _adhanChannelVibrateId : _adhanChannelId)
-        : _reminderChannelId;
-    final channelName = isAdhan
-        ? (vibrate ? 'Adhan (avec vibreur)' : 'Adhan')
-        : 'Rappel avant la prière';
     await _plugin.zonedSchedule(
       id,
       title,
       body,
       scheduled,
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
-          channelId,
-          channelName,
-          importance: isAdhan ? Importance.max : Importance.high,
-          priority: isAdhan ? Priority.max : Priority.high,
+          _reminderChannelId,
+          'Rappel avant la prière',
+          importance: Importance.high,
+          priority: Priority.high,
           category: AndroidNotificationCategory.alarm,
-          fullScreenIntent: isAdhan,
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -166,44 +168,38 @@ class PrayerNotificationService {
       final enabled = settings.adhanEnabled[p] ?? true;
       final label = _prayerLabels[p]!;
       if (enabled) {
-        await _scheduleOne(
+        await _scheduleAdhan(
           id: _idForToday(p),
-          title: 'Adhan — $label',
-          body: 'C\'est l\'heure de la prière du $label.',
+          label: label,
           when: today[p]!,
-          isAdhan: true,
           vibrate: settings.vibrateEnabled,
         );
-        await _scheduleOne(
+        await _scheduleAdhan(
           id: _idForTomorrow(p),
-          title: 'Adhan — $label',
-          body: 'C\'est l\'heure de la prière du $label.',
+          label: label,
           when: tomorrow[p]!,
-          isAdhan: true,
           vibrate: settings.vibrateEnabled,
         );
       } else {
-        await _plugin.cancel(_idForToday(p));
-        await _plugin.cancel(_idForTomorrow(p));
+        await _cancelAdhan(_idForToday(p));
+        await _cancelAdhan(_idForTomorrow(p));
       }
 
       final reminderEnabled = settings.reminderEnabled[p] ?? false;
       if (reminderEnabled) {
         final minutesBefore = settings.reminderMinutesBefore[p] ?? 15;
         final offset = Duration(minutes: minutesBefore);
-        await _scheduleOne(
+        await _scheduleReminder(
           id: _reminderIdForToday(p),
           title: 'Bientôt — $label dans $minutesBefore min',
           body: 'La prière du $label approche, prépare-toi.',
           when: today[p]!.subtract(offset),
-          isAdhan: false,
         );
-        await _scheduleOne(
+        await _scheduleReminder(
           id: _reminderIdForTomorrow(p),
           title: 'Bientôt — $label dans $minutesBefore min',
           body: 'La prière du $label approche, prépare-toi.',
           when: tomorrow[p]!.subtract(offset),
-          isAdhan: false,
         );
       } else {
         await _plugin.cancel(_reminderIdForToday(p));

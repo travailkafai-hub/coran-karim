@@ -187,6 +187,7 @@ class _DuaCollectionScreenState extends ConsumerState<DuaCollectionScreen> {
         asset != null ? AssetSource(asset) : UrlSource(dua.audioUrl!),
         key: dua.audioKey!,
         repeat: dua.repeat,
+        cutMs: dua.audioCutMs,
       );
     } catch (_) {
       _advanceSequence();
@@ -317,7 +318,12 @@ class _DuaCollectionScreenState extends ConsumerState<DuaCollectionScreen> {
         slivers: [
           SliverAppBar(
             pinned: true,
-            expandedHeight: 132,
+            // 132 -> 100 (2026-08-09) : les 32 px rendus par l'emoji du
+            // bandeau (28 px + 4 px d'écart, cf. `background` plus bas).
+            // Cette valeur est ce qui fait réellement gagner de la place :
+            // le contenu du FlexibleSpaceBar ne dicte pas la hauteur, c'est
+            // elle qui la dicte.
+            expandedHeight: 100,
             backgroundColor: accent,
             foregroundColor: AppColors.cream,
             actions: [
@@ -362,11 +368,15 @@ class _DuaCollectionScreenState extends ConsumerState<DuaCollectionScreen> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          collection?.emoji ?? '🤲',
-                          style: const TextStyle(fontSize: 28),
-                        ),
-                        const SizedBox(height: 4),
+                        // Emoji du bandeau retiré (2026-08-09, demande
+                        // utilisateur : gagner de la place sur cette page).
+                        // Il occupait 28 px + 4 px d'écart ; `expandedHeight`
+                        // a été réduit d'autant, sans quoi le bandeau aurait
+                        // gardé sa hauteur et le gain aurait été nul --
+                        // l'espace libéré se serait juste redistribué autour
+                        // du titre arabe.
+                        // `collection.emoji` reste dans les données (il sert
+                        // encore à l'onglet Invocations).
                         Text(
                           collection?.labelAr ?? '',
                           textDirection: TextDirection.rtl,

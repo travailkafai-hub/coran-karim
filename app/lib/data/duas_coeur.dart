@@ -102,7 +102,7 @@ const kDuasCoeur = <Dua>[
         "« Aucun serviteur ne rend visite à un malade dont le terme n'est pas arrivé et ne dit cela sept fois sans qu'Allah ne le guérisse. »",
     tags: ['maladie'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/148.mp3',
-    audioAsset: 'audio/duas/148_cut.mp3',
+    audioCutMs: 5850,
     repeat: 7,
   ),
   Dua(
@@ -281,7 +281,7 @@ const kDuasCoeur = <Dua>[
         "« Ô gens, repentez-vous à Allah : moi-même je me repens à Lui cent fois par jour. » Le modèle le plus élevé demandait pardon plus que quiconque.",
     tags: ['istighfar'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/96.mp3',
-    audioAsset: 'audio/duas/96_cut.mp3',
+    audioCutMs: 3950,
     repeat: 100,
   ),
   Dua(

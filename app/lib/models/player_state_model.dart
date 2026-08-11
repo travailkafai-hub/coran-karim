@@ -41,19 +41,6 @@ class PlayerStateModel {
   /// Repetitions GLOBALES deja faites.
   final int globalFait;
 
-  /// L'unite repetee est-elle le MOT plutot que le verset ?
-  /// (demande utilisateur 2026-08-06 : « on peut descendre au mot ? »)
-  /// `groupeVersets` se lit alors en NOMBRE DE MOTS a l'interieur du verset
-  /// courant. Ce mode change de moteur de lecture : au lieu d'enchainer des
-  /// FICHIERS de verset (`AudioPlayerService`), il joue des PLAGES
-  /// TEMPORELLES dans un meme fichier via `WordCorrectionAudio.playWordRange`
-  /// et les timings mot-a-mot officiels du recitateur. Consequence assumee :
-  /// si le recitateur choisi ne publie pas ces timings, ce mode est
-  /// indisponible (l'ecran de reglages le dit).
-  final bool uniteMot;
-
-  /// Premier mot du groupe en cours, dans le verset courant (0-based).
-  final int debutMot;
   final double speed;
   final Reciter reciter;
   final Duration position;
@@ -74,8 +61,6 @@ class PlayerStateModel {
     this.debutGroupe = 0,
     this.groupeFait = 0,
     this.globalFait = 0,
-    this.uniteMot = false,
-    this.debutMot = 0,
     this.speed = 1.0,
     this.reciter = kDefaultReciter,
     this.position = Duration.zero,
@@ -121,8 +106,6 @@ class PlayerStateModel {
     int? debutGroupe,
     int? groupeFait,
     int? globalFait,
-    bool? uniteMot,
-    int? debutMot,
     double? speed,
     Reciter? reciter,
     Duration? position,
@@ -142,8 +125,6 @@ class PlayerStateModel {
     debutGroupe: debutGroupe ?? this.debutGroupe,
     groupeFait: groupeFait ?? this.groupeFait,
     globalFait: globalFait ?? this.globalFait,
-    uniteMot: uniteMot ?? this.uniteMot,
-    debutMot: debutMot ?? this.debutMot,
     repeatCount: repeatCount ?? this.repeatCount,
     repeatDone: repeatDone ?? this.repeatDone,
     speed: speed ?? this.speed,

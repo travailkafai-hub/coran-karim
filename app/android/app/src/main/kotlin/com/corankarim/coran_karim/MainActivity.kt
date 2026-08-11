@@ -1,5 +1,6 @@
 package com.corankarim.coran_karim
 
+import com.corankarim.coran_karim.adhan.AdhanSchedulerPlugin
 import com.corankarim.coran_karim.fastconformer.FastConformerCtcPlugin
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -24,12 +25,38 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         flutterEngine.plugins.add(FastConformerCtcPlugin())
+        flutterEngine.plugins.add(AdhanSchedulerPlugin())
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL)
             .setMethodCallHandler { call, result ->
                 if (call.method == "lire") {
+                    // ── VERROU DE PRODUCTION (2026-08-09, decision
+                    // utilisateur) ────────────────────────────────────────
+                    // MainActivity est `exported=true` (c'est le lanceur) :
+                    // N'IMPORTE QUELLE application installee peut donc lancer
+                    // cette activite avec ces extras, dont un chemin `wav`
+                    // arbitraire, et detourner l'app vers l'ecran de RECETTE.
+                    // Aucun degat direct (l'app ne lit qu'un fichier qu'elle a
+                    // deja le droit de lire), mais c'est une porte de
+                    // developpement laissee ouverte dans un binaire publie.
+                    //
+                    // Le banc a deux telephones n'est pas affecte : il installe
+                    // un APK DEBUGGABLE, parce que `run-as` -- donc la
+                    // recuperation des WAV de session -- ne marche pas
+                    // autrement (cf. benchmark/recette_2tel.sh, ~l.73). Le test
+                    // porte sur ce meme drapeau, pas sur BuildConfig.DEBUG :
+                    // `buildConfig` n'est pas active dans le module et le
+                    // drapeau debuggable est justement le critere dont depend
+                    // deja le banc.
+                    //
+                    // Pas de retour anticipe ici : on neutralise `m`, et le
+                    // chemin `if (m == null) null` tout en bas -- qui existe
+                    // deja et renvoie l'accueil normal -- fait le reste. Un
+                    // seul chemin de sortie, rien a reindenter.
+                    val debogable = (applicationInfo.flags and
+                        android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
                     // Consomme une seule fois : un retour au premier plan ne
                     // doit pas relancer la recette a l'insu de l'operateur.
-                    val m = intent?.getStringExtra("recette")
+                    val m = if (debogable) intent?.getStringExtra("recette") else null
                     val s = intent?.getIntExtra("sourate", 2) ?: 2
                     intent?.removeExtra("recette")
                     val n = intent?.getIntExtra("versets", 20) ?: 20

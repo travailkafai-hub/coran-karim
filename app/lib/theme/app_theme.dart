@@ -30,8 +30,20 @@ class AppColors {
   // Material). `readingCursorBg` reste utilisée comme COULEUR DE DÉPART d'un
   // dégradé (cf. `VerseTile`, `isPlayingCursorGradient`), plus comme aplat
   // uni : un dégradé se lit mieux à deux teintes qu'à une couleur + alpha.
-  static const readingCursorBg     = Color(0xFFdcf1e7);
-  static const readingCursorBgEnd  = Color(0xFFeef8f3);
+  //
+  // ── VERT RENFORCÉ (2026-08-09, même journée) ────────────────────────────
+  // « même quand je mets en vert, je veux que cette couleur soit proche du
+  // vert ». Le premier passage au vert était trop timide : 0xFFdcf1e7 ->
+  // 0xFFeef8f3 partait d'un vert déjà très délavé pour finir à deux doigts du
+  // blanc -- sur fond crème (0xFFfbf7ee), le surlignage se lisait comme une
+  // nuance de blanc, pas comme du vert.
+  // La rampe est décalée d'un cran vers la couleur de l'app : le DÉPART
+  // devient franchement vert, et l'ARRIVÉE reprend l'ancien départ. On garde
+  // donc un dégradé (deux teintes, pas un aplat) sans virer au vif.
+  // Le texte posé dessus reste `green800` (0xFF114d39) : le contraste tient
+  // largement, c'est le fond qui s'assombrit à peine.
+  static const readingCursorBg     = Color(0xFFb9e3d1);
+  static const readingCursorBgEnd  = Color(0xFFdcf1e7);
   static const readingCursorBorder = green600;
 
   // Mode Kindle (demande utilisateur 2026-08-01) -- thème repos-yeux,

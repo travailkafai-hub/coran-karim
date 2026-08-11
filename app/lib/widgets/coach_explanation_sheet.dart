@@ -9,7 +9,10 @@ import '../services/quran_api.dart';
 import '../services/explanation_tts_service.dart';
 import '../services/quran_sciences_service.dart';
 import '../services/recitation_error_log_service.dart';
-import '../services/tutor_llm_service.dart';
+// `services/tutor_llm_service.dart` a été retiré le 2026-08-10, avec les
+// paquets flutter_gemma / flutter_gemma_litertlm : ~90 Mo de bibliothèques
+// natives par architecture pour un modèle qui n'a jamais été livré.
+// Cf. `_loadGemmaFallback` plus bas pour le détail et ce que ça libère.
 import '../theme/app_theme.dart';
 
 /// Ouvre la feuille d'explication Coach IA pour un verset (ou un mot précis
@@ -187,41 +190,41 @@ class _CoachExplanationSheetState extends ConsumerState<CoachExplanationSheet> {
     }
   }
 
+  /// Repli quand la cascade de tafsir n'a rien pour ce passage.
+  ///
+  /// ── LE TUTEUR GEMMA A ÉTÉ RETIRÉ (2026-08-10) ────────────────────────────
+  ///
+  /// Cette méthode appelait `TutorLlmService.instance.explainVerse(...)`, qui
+  /// faisait tourner un modèle Gemma sur l'appareil. Retiré avec les paquets
+  /// `flutter_gemma` et `flutter_gemma_litertlm`.
+  ///
+  /// POURQUOI. Le modèle n'a jamais été livré : `ensureLoaded()` cherchait un
+  /// `.litertlm` dans le stockage privé, ne le trouvait pas, journalisait
+  /// « Modèle absent — ignoré », et `explainVerse` rendait `null`. Aucun
+  /// utilisateur n'a donc jamais vu une seule ligne produite par ce modèle.
+  ///
+  /// Ce qu'il coûtait quand même, mesuré sur l'APK release du 2026-08-10 :
+  /// **~90 Mo de bibliothèques natives par architecture** — `libLiteRtLm.so`
+  /// (24,8 Mo), quatre `libQnnHtpV*Skel.so` (42,4 Mo à elles seules), les deux
+  /// accélérateurs LiteRT (15,7 Mo), `libGemmaModelConstraintProvider.so`,
+  /// `libQnnSystem.so`. Plus de la moitié de la charge utile arm64, pour du
+  /// code qui ne s'exécutait jamais.
+  ///
+  /// Ce que ça libère : le modèle ASR quantifié pourrait tenir dans le paquet
+  /// lui-même au lieu d'un pack séparé (cf. PUBLICATION_PLAY.md §2.2).
+  ///
+  /// LA CASCADE DE TAFSIR, ELLE, RESTE (`QuranSciencesService`) : c'est la
+  /// vraie source d'explications, du texte écrit et sourcé, et le jour où ses
+  /// fichiers sont livrés cet écran fonctionne. Le message ci-dessous n'est
+  /// donc pas un aveu d'échec, c'est l'état exact : rien de sourcé pour ce
+  /// passage sur cet appareil.
   Future<void> _loadGemmaFallback() async {
-    try {
-      final results = await Future.wait([
-        QuranApi.fetchVerses(widget.surahNumber),
-        widget.useErrorLog
-            ? RecitationErrorLogService.instance
-                .errorsForAyah(widget.surahNumber, widget.ayahNumber)
-            : Future.value(const <RecitationErrorEntry>[]),
-      ]);
-      final verses = results[0] as List<Verse>;
-      final errors = results[1] as List<RecitationErrorEntry>;
-      final verse = verses.firstWhere((v) => v.ayahNumber == widget.ayahNumber);
-      final mistakenWords = errors.isNotEmpty
-          ? errors.map((e) => e.expectedWord).toList()
-          : (widget.testMistakenWord != null ? [widget.testMistakenWord!] : null);
-      final explanation = await TutorLlmService.instance.explainVerse(
-        surahNumber: widget.surahNumber,
-        ayahNumber: widget.ayahNumber,
-        verseText: verse.textUthmani,
-        mistakenWords: mistakenWords,
-        focusWord: widget.focusWord,
-      );
-      if (!mounted) return;
-      setState(() {
-        _gemmaExplanation = explanation ??
-            AppLocalizations.of(context)!.coachExplanationNoneAvailable;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      _gemmaExplanation =
+          AppLocalizations.of(context)!.coachExplanationNoneAvailable;
+      _loading = false;
+    });
   }
 
   void _changeLanguage(String lang) {

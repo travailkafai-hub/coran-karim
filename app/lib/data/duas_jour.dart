@@ -107,7 +107,7 @@ const kDuasJour = <Dua>[
     virtue: "« Allah lui suffira pour ce qui le préoccupe, de ce monde et de l'autre. »",
     tags: ['matin', 'soir', 'angoisse', 'peur'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/83.mp3',
-    audioAsset: 'audio/duas/83_cut.mp3',
+    audioCutMs: 7650,
     repeat: 7,
   ),
   Dua(
@@ -124,6 +124,12 @@ const kDuasJour = <Dua>[
         "Cent fois dans la journée : l'équivalent d'affranchir dix esclaves, cent bonnes actions inscrites, cent mauvaises effacées, et une protection contre le diable jusqu'au soir.",
     tags: ['matin', 'apres_priere'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/2.mp3',
+    // Clip local ajouté le 2026-08-09 (constat utilisateur : "ça coupe") --
+    // la source brute (32 s) enchaîne ~5 récitations à la suite ; le bouton
+    // "Écouter" n'a besoin que d'UNE occurrence propre, comme pour les
+    // autres invocations à répétition (cf. 69_cut.mp3, même traitement pour
+    // tasbih_fatima ×33).
+    audioCutMs: 4800,
     repeat: 100,
   ),
   Dua(
@@ -152,7 +158,7 @@ const kDuasJour = <Dua>[
         "Quatre paroles qui pèsent plus lourd que tout ce que l'on aurait pu dire depuis l'aube.",
     tags: ['matin'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/94.mp3',
-    audioAsset: 'audio/duas/94_cut.mp3',
+    audioCutMs: 11750,
     repeat: 3,
   ),
   Dua(
@@ -215,7 +221,7 @@ const kDuasJour = <Dua>[
     virtue: "« Rien ne lui nuira. »",
     tags: ['matin', 'soir', 'peur'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/86.mp3',
-    audioAsset: 'audio/duas/86_cut.mp3',
+    audioCutMs: 8750,
     repeat: 3,
   ),
   Dua(
@@ -230,17 +236,22 @@ const kDuasJour = <Dua>[
     virtue: "« Il incombe à Allah de le satisfaire au Jour de la Résurrection. »",
     tags: ['matin', 'soir'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/87.mp3',
-    audioAsset: 'audio/duas/87_cut.mp3',
+    audioCutMs: 10650,
     repeat: 3,
   ),
   Dua(
     id: 'afiya',
     titleFr: 'Demande de préservation',
     titleAr: 'دعاء العافية',
+    // Texte complété le 2026-08-09 (constat utilisateur : l'audio hisnmuslim
+    // dure 36 s, bien plus que ce texte tronqué) -- le hadith (Abou Dawoud,
+    // Ibn Majah, rapporté par Ibn 'Umar) continue après "آمن روعاتي" par la
+    // demande de protection "de devant/derrière/droite/gauche/au-dessus",
+    // absente jusqu'ici alors que le récitateur la dit.
     textAr:
-        'اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَفْوَ وَالْعَافِيَةَ فِي الدُّنْيَا وَالْآخِرَةِ، اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَفْوَ وَالْعَافِيَةَ فِي دِينِي وَدُنْيَايَ وَأَهْلِي وَمَالِي، اللَّهُمَّ اسْتُرْ عَوْرَاتِي وَآمِنْ رَوْعَاتِي',
+        'اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَفْوَ وَالْعَافِيَةَ فِي الدُّنْيَا وَالْآخِرَةِ، اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَفْوَ وَالْعَافِيَةَ فِي دِينِي وَدُنْيَايَ وَأَهْلِي وَمَالِي، اللَّهُمَّ اسْتُرْ عَوْرَاتِي وَآمِنْ رَوْعَاتِي، اللَّهُمَّ احْفَظْنِي مِنْ بَيْنِ يَدَيَّ وَمِنْ خَلْفِي وَعَنْ يَمِينِي وَعَنْ شِمَالِي وَمِنْ فَوْقِي، وَأَعُوذُ بِعَظَمَتِكَ أَنْ أُغْتَالَ مِنْ تَحْتِي',
     translationFr:
-        "Ô Allah, je Te demande le pardon et la préservation dans ce monde et dans l'au-delà. Ô Allah, je Te demande le pardon et la préservation dans ma religion, ma vie ici-bas, ma famille et mes biens. Ô Allah, couvre ce que je voudrais cacher et apaise mes frayeurs.",
+        "Ô Allah, je Te demande le pardon et la préservation dans ce monde et dans l'au-delà. Ô Allah, je Te demande le pardon et la préservation dans ma religion, ma vie ici-bas, ma famille et mes biens. Ô Allah, couvre ce que je voudrais cacher et apaise mes frayeurs. Ô Allah, protège-moi de devant moi, de derrière moi, de ma droite, de ma gauche et d'au-dessus de moi, et je cherche refuge en Ta grandeur contre le fait d'être surpris par-dessous moi.",
     source: 'Rapporté par Abou Dawoud et Ibn Majah',
     tags: ['matin', 'soir', 'peur'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/84.mp3',
@@ -283,6 +294,26 @@ const kDuasJour = <Dua>[
     source: 'Rapporté par Mouslim',
     tags: ['soir'],
   ),
+  // 'soir_bika' ajoutée le 2026-08-09 (constat utilisateur : certaines
+  // invocations changent de mots selon le matin/le soir, et 'matin_bika'
+  // n'avait pas son pendant du soir). Vérifié : le hadith (Abou Dawoud,
+  // At-Tirmidhi, rapporté par Abou Hourayra, "حسن" selon At-Tirmidhi) donne
+  // DEUX formules distinctes, pas la même phrase recyclée --
+  //   le matin : "...وَإِلَيْكَ النُّشُورُ" (déjà 'matin_bika' ci-dessus)
+  //   le soir  : ordre أمسينا/أصبحنا inversé ET "...وَإِلَيْكَ الْمَصِيرُ"
+  // Les servir identiques aux deux moments aurait fait dire au soir une
+  // formule qui n'est authentiquement rapportée que pour le matin.
+  Dua(
+    id: 'soir_bika',
+    titleFr: "C'est par Toi que le soir tombe",
+    titleAr: 'اللهم بك أمسينا',
+    textAr:
+        'اللَّهُمَّ بِكَ أَمْسَيْنَا، وَبِكَ أَصْبَحْنَا، وَبِكَ نَحْيَا، وَبِكَ نَمُوتُ، وَإِلَيْكَ الْمَصِيرُ',
+    translationFr:
+        "Ô Allah, c'est par Toi que nous entrons dans le soir, par Toi que nous entrons dans le matin, par Toi que nous vivons, par Toi que nous mourons, et c'est vers Toi qu'est le retour.",
+    source: 'Rapporté par Abou Dawoud et At-Tirmidhi (variante du soir -- mots finaux différents du matin)',
+    tags: ['soir'],
+  ),
   Dua(
     id: 'soir_ishhad',
     titleFr: 'Je Te prends à témoin',
@@ -308,7 +339,7 @@ const kDuasJour = <Dua>[
     virtue: "« Rien ne lui nuira jusqu'au matin. » Également dite en s'arrêtant en voyage.",
     tags: ['soir', 'peur', 'voyage'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/97.mp3',
-    audioAsset: 'audio/duas/97_cut.mp3',
+    audioCutMs: 5550,
     repeat: 3,
   ),
   Dua(
@@ -376,7 +407,7 @@ const kDuasJour = <Dua>[
         "Le Prophète ﷺ l'enseigna à sa fille qui demandait un serviteur : « Cela vaut mieux pour vous qu'un serviteur. »",
     tags: ['sommeil'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/69.mp3',
-    audioAsset: 'audio/duas/69_cut.mp3',
+    audioCutMs: 6350,
     repeat: 33,
   ),
   Dua(
@@ -389,6 +420,13 @@ const kDuasJour = <Dua>[
     source: 'Rapporté par Abou Dawoud et At-Tirmidhi — trois fois, la main droite sous la joue',
     tags: ['sommeil'],
     audioUrl: 'https://www.hisnmuslim.com/audio/ar/104.mp3',
+    // Clip local ajouté le 2026-08-09 (constat utilisateur : "ça coupe") --
+    // vérifié par analyse de silence (ffmpeg silencedetect) : la source
+    // brute (8 s) contient une 1ʳᵉ récitation complète (0,8-4,6 s) puis une
+    // 2ᵉ qui démarre et s'arrête net à 7,17 s, trop courte pour être
+    // complète -- le fichier source lui-même est coupé en plein mot. Le
+    // clip local ne garde que la 1ʳᵉ récitation, propre.
+    audioCutMs: 4300,
     repeat: 3,
   ),
 

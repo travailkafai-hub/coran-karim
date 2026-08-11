@@ -95,6 +95,24 @@ class Dua {
   /// majorité reste en streaming via `audioUrl`.
   final String? audioAsset;
 
+  /// Arrêter la lecture à cette position (ms) au lieu d'aller au bout du
+  /// fichier. `null` = lire en entier.
+  ///
+  /// Onze fichiers de hisnmuslim.com enchaînent la MÊME invocation quatre ou
+  /// cinq fois (le tahlīl : 32 s pour cinq occurrences), alors que l'app gère
+  /// déjà la répétition elle-même via [repeat].
+  ///
+  /// La version du 2026-08-09 embarquait des copies DÉCOUPÉES de leurs
+  /// fichiers (`assets/audio/duas/*_cut.mp3`). Retirées le 2026-08-10 :
+  /// redistribuer une œuvre dérivée d'un enregistrement sans licence était le
+  /// risque juridique le plus net de l'app, et une publication en test fermé
+  /// reste une distribution.
+  ///
+  /// Les valeurs ci-dessous ont été mesurées à `ffprobe` sur ces clips avant
+  /// leur suppression, + 150 ms de marge pour ne pas avaler la dernière
+  /// syllabe. On ne conserve donc qu'une DURÉE — une mesure, pas une œuvre.
+  final int? audioCutMs;
+
   const Dua({
     required this.id,
     required this.titleFr,
@@ -111,6 +129,7 @@ class Dua {
     this.verseRanges,
     this.audioUrl,
     this.audioAsset,
+    this.audioCutMs,
   });
 
   bool get isQuranic => surahNumber != null && ayahNumber != null;

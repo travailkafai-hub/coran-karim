@@ -43,6 +43,18 @@ class RecitationStartOverlay extends StatelessWidget {
     //
     // Elle couvre maintenant tout le trajet (sauf l'echec de chargement) :
     // un seul affichage continu, du premier instant jusqu'au « go ».
+    //
+    // ── NUANCE (2026-08-09, demande utilisateur) ───────────────────────
+    //
+    // « toujours trois ecrans » (chargement modele / decompte / preparation
+    // micro) puis « pas besoin de montrer que le modele charge, ca doit etre
+    // en arriere-plan ». Ce widget sait TOUJOURS peindre `loadingModel` (le
+    // switch juste en dessous ne change pas) : l'ecran de recitation
+    // (`karaoke_recitation_screen.dart`) ne monte simplement plus ce widget
+    // tant que le stage vaut `loadingModel` -- l'ecran normal reste visible,
+    // le chargement se fait sans overlay, et cette page-ci n'apparait qu'au
+    // decompte, modele deja pret. Le cas `loadingModel` reste gere ICI pour
+    // ne pas casser un futur appelant qui voudrait le montrer.
     const isti3adhaTexte = 'أَعُوذُ بِٱللَّهِ مِنَ ٱلشَّيْطَٰنِ ٱلرَّجِيمِ';
     final isti3adha = switch (stage) {
       RecitationStartStage.loadingModel ||

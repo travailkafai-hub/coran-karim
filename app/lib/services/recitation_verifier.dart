@@ -403,6 +403,20 @@ abstract class RecitationVerifier {
   /// juste apres start(), repasser a [stopIfCurrentSession] au dispose.
   int get sessionGeneration;
 
+  /// Le micro est-il actuellement DÉTENU par une capture continue ?
+  ///
+  /// Ajouté le 2026-08-10 pour `GardeMicro` (cf. `services/garde_micro.dart`).
+  /// C'est la seule question qu'un garde extérieur a besoin de poser, et elle
+  /// doit être posée à celui qui tient réellement la ressource — pas à un
+  /// écran, pas au notifier : `recitationVerifierProvider` n'est pas
+  /// autoDispose, cette instance survit aux écrans qui la pilotent.
+  ///
+  /// ⚠️ Vrai pendant une PAUSE : `pause()` ne rend pas le micro, seul `stop()`
+  /// le rend (Android garde l'`AudioRecord` vivant, donc son indicateur de
+  /// confidentialité allumé). C'est voulu — décision utilisateur 2026-08-10 :
+  /// la pause conserve le micro, seule la SORTIE le relâche.
+  bool get captureEnCours;
+
   /// Comme stop()+resetBuffer(), mais NE FAIT RIEN si [expectedGeneration]
   /// ne correspond plus a la session actuelle (une session plus recente a
   /// deja demarre entre-temps). A utiliser depuis un nettoyage fire-and-
@@ -565,6 +579,13 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// repasse a [stopIfCurrentSession] pour que le nettoyage ne s'applique
   /// QUE si aucune session plus recente n'a pris le relais depuis.
   int get sessionGeneration => _generation;
+
+  /// `_pcmSub` est l'abonnement au flux PCM : il n'existe QUE entre
+  /// `startStream()` et `stop()`. C'est donc l'image exacte de « le micro est
+  /// détenu », et non une variable d'intention qu'on pourrait oublier de
+  /// remettre à jour.
+  @override
+  bool get captureEnCours => _pcmSub != null;
 
   @override
   Stream<RecognizedToken> get tokens => _tokenCtrl.stream;
@@ -1529,6 +1550,10 @@ class MockRecitationVerifier implements RecitationVerifier {
   int _generation = 0;
   @override
   int get sessionGeneration => _generation;
+
+  /// Le mock ne détient jamais de micro.
+  @override
+  bool get captureEnCours => false;
 
   @override
   Future<void> stopIfCurrentSession(int expectedGeneration) async {

@@ -1,7 +1,39 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// ── SIGNATURE DE PUBLICATION (2026-08-10) ────────────────────────────────────
+//
+// Les identifiants du keystore vivent dans `android/key.properties`, un fichier
+// DELIBEREMENT ABSENT DU DEPOT (deja couvert par android/.gitignore, avec
+// *.jks et *.keystore). Aucun mot de passe ne doit apparaitre dans un fichier
+// suivi par git.
+//
+// Le fichier n'existe pas encore : c'est a l'editeur de le creer, parce que
+// generer le keystore ailleurs ferait transiter son mot de passe hors de ses
+// mains. Modele attendu :
+//
+//     storeFile=/chemin/absolu/coran-karim-release.jks
+//     storePassword=...
+//     keyAlias=coran-karim
+//     keyPassword=...
+//
+// Et la commande qui produit le keystore :
+//
+//     keytool -genkey -v -keystore ~/coran-karim-release.jks \
+//       -keyalg RSA -keysize 2048 -validity 10000 -alias coran-karim
+//
+// ATTENTION : perdre ce keystore rend TOUTE mise a jour de l'application
+// impossible, definitivement. En faire une sauvegarde hors machine avant meme
+// le premier televersement, et activer Play App Signing cote console.
+val fichierCles = rootProject.file("key.properties")
+val cles = Properties().apply {
+    if (fichierCles.exists()) FileInputStream(fichierCles).use { load(it) }
 }
 
 android {
@@ -29,11 +61,40 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            // Renseigne uniquement si key.properties existe. Sinon la config
+            // reste vide et n'est pas utilisee (cf. buildTypes ci-dessous).
+            if (fichierCles.exists()) {
+                storeFile = file(cles["storeFile"] as String)
+                storePassword = cles["storePassword"] as String
+                keyAlias = cles["keyAlias"] as String
+                keyPassword = cles["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            //
+            // FAIT le 2026-08-10 (le TODO ci-dessus est conserve pour l'histoire) :
+            // la config `release` est utilisee des que `android/key.properties`
+            // existe. Tant qu'il est absent, on RETOMBE sur la cle de debug pour
+            // que `flutter build --release` continue de fonctionner sur une
+            // machine qui n'a pas le keystore.
+            //
+            // ⚠️ Ce repli est un piege s'il passe inapercu : un binaire signe en
+            // debug est REFUSE par Play, y compris en test interne. D'ou le
+            // message ci-dessous, qui s'affiche a chaque build concerne.
+            signingConfig = if (fichierCles.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn("ATTENTION : android/key.properties absent -> build " +
+                    "release signe avec la cle de DEBUG. Non publiable sur Play.")
+                signingConfigs.getByName("debug")
+            }
             // Crash natif ONNX (2026-07-23) : R8 renommait ai.onnxruntime.**,
             // que le code natif cherche par nom via FindClass -> java_class ==
             // null -> SIGABRT des la 1re inference. On coupe R8 (garanti) ET on
