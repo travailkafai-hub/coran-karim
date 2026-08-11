@@ -195,6 +195,19 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
 
     final (start, end) = _currentWindow();
 
+    // `setup()` AVANT l'audio, pas après (correctif 2026-08-11 : décalage
+    // audio/texte signalé par l'utilisateur, déjà pressenti comme "piste
+    // distincte" par le correctif du 2026-08-09 sur `_currentWindow`).
+    // `VerseDisplay` lit `rst.words`, qui ne venait à jour qu'APRÈS la
+    // lecture de l'audio de ce palier -- pendant toute sa durée, l'écran
+    // montrait donc encore le texte (plus court) du palier PRÉCÉDENT,
+    // pendant que l'audio couvrait déjà le nouveau palier (plus long,
+    // cumulatif depuis le mot 0). `setup()` est un simple reset d'état (tous
+    // les mots en attente, aucun effet sur le micro/modèle -- `start()` s'en
+    // charge séparément) : rien n'empêche de l'appeler avant l'audio.
+    final windowText = _words.sublist(start, end + 1).join(' ');
+    ref.read(recitationProvider.notifier).setup(windowText);
+
     if (playAudio) {
       setState(() => _phase = _RoundPhase.playingAudio);
       final reciter = ref.read(playerProvider).reciter;
@@ -204,9 +217,7 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     }
 
     _handledThisSession = false;
-    final windowText = _words.sublist(start, end + 1).join(' ');
     setState(() => _phase = _RoundPhase.listening);
-    ref.read(recitationProvider.notifier).setup(windowText);
     ref.read(recitationProvider.notifier).start();
   }
 
