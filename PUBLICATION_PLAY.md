@@ -162,27 +162,50 @@ fois dans sa copie extraite pour ONNX Runtime (458,8 Mo). Argument de plus en
 faveur de mesurer l'INT8 (~110 Mo, un seul exemplaire) avant de valider le
 FP32 en pack séparé.
 
-⚠️ **Taille du module de base après cet ajout — mesure NON fiable, à refaire.**
-Un `unzip -l | awk` sur le `.aab` produit par `flutter build appbundle --debug`
-donne **1066 Mo** pour le module de base (hors `model_pack`), ce qui
-**contredit** la conclusion « largement sous la limite de 200 Mo » tirée à côté
-de ce même chiffre dans le rapport de session — contradiction non résolue,
-donc à ne pas tenir pour acquise (cf. §9, « un résultat inattendu ne s'habille
-pas d'une explication non vérifiée »). Cause probable, **non confirmée** : un
-`.aab` **debug** empile les 4 ABI (arm/arm64/x86/x86_64) non splittées et le
-code non minifié, alors que Play ne livre jamais que l'ABI de l'appareil — les
-~52 Mo cités plus haut venaient d'un calcul par-ABI sur un APK **release**, pas
-d'une somme brute sur un bundle **debug** : les deux chiffres ne mesurent pas
-la même chose. **Mesure correcte à faire avant de conclure quoi que ce soit** :
-`bundletool build-apks` + `get-size total` sur un `.aab` **release**, ciblé sur
-un profil d'appareil réel.
+**Taille mesurée le 2026-08-11 avec l'outil officiel — le chiffre de 1066 Mo
+ci-dessus était bien faux, cause confirmée.** `flutter build appbundle
+--release` (retombe sur la clé de debug faute de `key.properties`, sans
+conséquence pour une mesure de taille) puis :
+```
+java -jar bundletool.jar build-apks --bundle=app-release.aab --output=out.apks \
+  --connected-device --adb=<chemin adb>
+java -jar bundletool.jar get-size total --apks=out.apks --modules=base
+java -jar bundletool.jar get-size total --apks=out.apks
+```
+ciblé sur un Xiaomi 22101316UG réel (arm64) :
 
-### 2.3 — Politique de confidentialité + Data safety — **À FAIRE**
+| | Taille réelle par appareil |
+|---|---|
+| Module de base seul | **29,2 Mo** — largement sous la limite de 200 Mo, confirmé |
+| Total installé (base + `model_pack`) | **435,8 Mo** |
+
+Cause du chiffre de 1066 Mo confirmée : un `unzip -l` brut sur un `.aab`
+**debug** somme les 4 ABI non splittées et le code non minifié -- ce n'est
+pas ce qu'un appareil reçoit. `bundletool` reproduit exactement ce que Play
+sert à un appareil donné ; c'est la mesure qui fait foi désormais.
+
+### 2.3 — Politique de confidentialité + Data safety — **PAGE RÉDIGÉE, HÉBERGEMENT À FAIRE**
 
 Play l'exige dès qu'on demande le micro et la position. **Le contenu existe
 déjà** : c'est le texte de l'écran « À propos »
 (`app/lib/screens/about_screen.dart` et les clés `about*` des `.arb`). Il n'y a
 qu'à le publier sur une page web accessible et coller l'URL dans la console.
+
+**Page rédigée le 2026-08-11** : `docs/politique-confidentialite.html`
+(autonome, sans dépendance externe). Reprend les points vérifiés ailleurs dans
+ce dossier : micro/position traités sur l'appareil, réseau limité aux
+téléchargements demandés, `allowBackup=false` (§3.4), pas de compte/pub/
+traceur, sources et licence CC BY 4.0 du modèle ASR.
+
+**Reste à faire, hors de portée sans accès à un hébergeur** :
+1. **Héberger** cette page (aucun remote git n'est configuré sur ce dépôt —
+   GitHub Pages est l'option la plus simple si un dépôt GitHub existe/est créé,
+   sinon tout hébergeur statique convient) et obtenir une URL publique.
+2. Coller l'URL dans Play Console → Présence sur le Store → Politique de
+   confidentialité.
+3. Remplir le formulaire **Data safety** de la console à partir des mêmes
+   faits : micro (traité sur l'appareil, non transmis), position (traitée sur
+   l'appareil, non transmise), aucune collecte, aucun partage à des tiers.
 
 Le formulaire Data safety doit dire la vérité, qui est simple depuis
 le 2026-08-10 : **aucune donnée ne quitte l'appareil**. Micro et position sont
