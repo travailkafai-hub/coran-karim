@@ -213,11 +213,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
      *  sur un mot (cf. `v2ExtraitVoix`). Capture ici parce que le plugin n'a
      *  aucun autre acces au contexte. */
     private var cacheDir: java.io.File? = null
+    // Contexte applicatif (2026-08-11, livraison Play Asset Delivery) : seul
+    // moyen d'atteindre AssetManager pour lire les fichiers du pack
+    // `model_pack` (delivery install-time), cf. "extractModelFromAssetPack"
+    // plus bas. Meme motif que cacheDir juste au-dessus.
+    private var appContext: android.content.Context? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(binding.binaryMessenger, "com.corankarim/fastconformer_ctc")
         channel.setMethodCallHandler(this)
         cacheDir = binding.applicationContext.cacheDir
+        appContext = binding.applicationContext
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -371,6 +377,75 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         )
                     )
                 }
+            }
+            // ── LIVRAISON PLAY ASSET DELIVERY, pack `install-time` (2026-08-11) ──
+            //
+            // Le pack `model_pack` (module Gradle a part, cf.
+            // app/android/model_pack/) livre le modele (458,8 Mo) AVEC
+            // l'installation de l'app -- indispensable, le module de base
+            // d'un AAB est plafonne a 200 Mo (cf. PUBLICATION_PLAY.md §2.2).
+            //
+            // PIEGE VERIFIE (doc officielle Android) : un pack `install-time`
+            // ne donne PAS de chemin de fichier reel comme le ferait
+            // `AssetPackManager.getPackLocation()` pour `fast-follow`/
+            // `on-demand` -- il s'ouvre en flux, via l'AssetManager standard,
+            // exactement comme un asset Android classique
+            // (`context.assets.open(...)`). Onnxruntime, lui, exige un
+            // CHEMIN de fichier (cf. FastConformerCtc plus bas, qui recoit
+            // modelPath tel quel). D'ou cette copie unique du flux vers le
+            // stockage prive de l'app -- APRES cette copie, le chemin normal
+            // (`modelPath` sous getApplicationSupportDirectory()) fonctionne
+            // sans aucun autre changement cote chargement.
+            //
+            // Idempotente : saute un fichier deja copie (renommage atomique
+            // depuis un ".tmp" a la fin de la copie -> une destination
+            // presente est TOUJOURS une copie complete, jamais une copie
+            // interrompue par un crash/kill en plein milieu).
+            //
+            // Silencieuse quand le pack est absent (FileNotFoundException) :
+            // c'est le cas normal de tout build qui n'est pas un vrai AAB
+            // installe par Play (`flutter run`, `flutter build apk`) --
+            // aucune de ces deux commandes ne fusionne les asset packs, seul
+            // `bundletool`/Play le fait a partir d'un `.aab`. Le repli habituel
+            // (push manuel sur getApplicationSupportDirectory(), ou storage
+            // externe en debug, cf. fastconformer_verifier.dart) reste donc
+            // intact et INCHANGE pour tout le flux de developpement courant.
+            "extractModelFromAssetPack" -> scope.launch {
+                val ctx = appContext
+                val destDir = call.argument<String>("destDir")
+                val subdir = call.argument<String>("subdir")
+                val files = call.argument<List<String>>("files")
+                if (ctx == null || destDir == null || subdir == null || files == null) {
+                    withContext(Dispatchers.Main) { result.success(false) }
+                    return@launch
+                }
+                var copieEffectuee = false
+                for (nom in files) {
+                    val cheminAsset = "$subdir/$nom"
+                    val destination = java.io.File(destDir, "$subdir/$nom")
+                    if (destination.exists()) continue // deja materialise (cf. renommage atomique ci-dessous)
+                    try {
+                        ctx.assets.open(cheminAsset).use { entree ->
+                            destination.parentFile?.mkdirs()
+                            val tmp = java.io.File(destination.parentFile, "${destination.name}.tmp")
+                            java.io.FileOutputStream(tmp).use { sortie -> entree.copyTo(sortie) }
+                            // Renommage APRES fermeture complete du flux de sortie
+                            // (le .use ci-dessus la garantit) : une destination
+                            // finale visible est donc toujours une copie entiere.
+                            if (!tmp.renameTo(destination)) tmp.delete()
+                        }
+                        copieEffectuee = true
+                        DiagnosticLog.log(TAG, "[PAD] modele materialise depuis le pack : $nom")
+                    } catch (e: java.io.FileNotFoundException) {
+                        // Fichier absent du pack (optionnel, ex. tete3.json/
+                        // rules.json/word_tokens.json sur un modele qui ne les
+                        // porte pas) OU pack lui-meme absent (build sans AAB) --
+                        // pas une erreur, cf. commentaire au-dessus.
+                    } catch (e: Exception) {
+                        DiagnosticLog.log(TAG, "[PAD] echec extraction $nom depuis le pack : ${e.message}")
+                    }
+                }
+                withContext(Dispatchers.Main) { result.success(copieEffectuee) }
             }
             "loadModel" -> scope.launch {
                 try {

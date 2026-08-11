@@ -307,7 +307,37 @@ class FastConformerVerifier {
     // modele depuis là s'il y est present (teste un nouveau checkpoint sans
     // build debuggable), sinon repli sur le storage privé habituel. A retirer
     // pour le deploiement definitif.
-    Directory appDir = await getApplicationSupportDirectory();
+    final appSupportDir = await getApplicationSupportDirectory();
+    Directory appDir = appSupportDir;
+    // ── LIVRAISON PLAY ASSET DELIVERY, pack `install-time` (2026-08-11) ─────
+    //
+    // Le modèle (458,8 Mo) dépasse largement les 200 Mo du module de base
+    // d'un AAB (cf. PUBLICATION_PLAY.md §2.2) : il est livré à part, dans le
+    // module Gradle `model_pack` (`android { assetPacks += ":model_pack" }`,
+    // cf. app/android/model_pack/). En delivery `install-time`, Play installe
+    // ce pack EN MÊME TEMPS que l'app -- l'utilisateur n'a rien à attendre,
+    // et le modèle est là dès le premier lancement, hors ligne ensuite.
+    //
+    // PIÈGE VÉRIFIÉ (doc officielle Android, 2026-08-11) : contrairement à ce
+    // qu'espérait PUBLICATION_PLAY.md §2.2, un pack `install-time` NE donne
+    // PAS de chemin de fichier réel. Seuls `fast-follow`/`on-demand` le font
+    // via `AssetPackManager.getPackLocation()` ; `install-time` s'ouvre
+    // UNIQUEMENT en flux via `AssetManager` (`context.assets.open(...)`),
+    // exactement comme un asset Android classique. Or ONNX Runtime a besoin
+    // d'un CHEMIN DE FICHIER (cf. `_kModelFile` plus bas, passé tel quel au
+    // natif) -- un flux ne suffit pas.
+    //
+    // D'où cette étape : `_extraireModeleDepuisAssetPack` demande au natif
+    // (`FastConformerCtcPlugin.extractModelFromAssetPack`, qui lit le pack
+    // via `AssetManager`) de copier UNE FOIS les fichiers du modèle vers CE
+    // MÊME dossier `appSupportDir/$_kModelSubdir/` -- le chemin que la suite
+    // de cette fonction vérifie de toute façon. Idempotente (le natif saute
+    // la copie si le fichier de destination existe déjà) et sans effet quand
+    // le pack n'est pas présent (`flutter run`/`flutter build apk` direct ne
+    // fusionnent PAS les asset packs, seul un `.aab` le fait) : dans ce cas
+    // le flux de dev habituel (push manuel, ou storage externe ci-dessous en
+    // debug) prend le relais sans rien changer.
+    await _extraireModeleDepuisAssetPack(appSupportDir);
     // ── FERMÉ EN RELEASE (2026-08-10, demande utilisateur) ──────────────────
     //
     // Le commentaire ci-dessus disait déjà « À retirer pour le deploiement
@@ -432,6 +462,42 @@ class FastConformerVerifier {
       debugPrint('[FastConformer] Échec chargement modèle : $e');
       DiagnosticLog.log('FastConformer', _dernierEchecChargement!);
       return false;
+    }
+  }
+
+  /// Matérialise le modèle du pack Play Asset Delivery `install-time` en
+  /// fichiers réels sous `<dir>/$_kModelSubdir/` -- cf. le commentaire long
+  /// dans `ensureLoaded()` pour le POURQUOI (ONNX Runtime exige un chemin de
+  /// fichier, un pack `install-time` ne donne qu'un flux `AssetManager`).
+  ///
+  /// Best-effort et SILENCIEUX : une erreur ici ne doit jamais empêcher
+  /// `ensureLoaded()` de continuer sur son repli habituel (le fichier
+  /// manquera simplement à la vérification qui suit, avec son message
+  /// d'échec explicite déjà en place). Ne lève jamais.
+  Future<void> _extraireModeleDepuisAssetPack(Directory dir) async {
+    try {
+      await _channel.invokeMethod<bool>('extractModelFromAssetPack', {
+        'destDir': dir.path,
+        'subdir': _kModelSubdir,
+        // Tous les fichiers optionnels sont inclus : le natif ignore
+        // silencieusement (FileNotFoundException) ceux absents du pack, la
+        // même tolérance que le reste de cette fonction applique déjà à
+        // rules.json/tete3.json/word_tokens.json.
+        'files': [
+          _kModelFile,
+          _kVocabFile,
+          _kRulesFile,
+          _kTete3File,
+          _kWordTokensFile,
+        ],
+      });
+    } catch (e) {
+      // Pas de DiagnosticLog ici : au tout premier appel (avant même le
+      // chargement), le fichier de log natif peut ne pas encore être relié
+      // (cf. setLogFile plus bas) -- un simple debugPrint suffit, la cause
+      // réelle d'un modèle absent reste de toute façon rapportée par
+      // `_dernierEchecChargement` juste après.
+      debugPrint('[FastConformer] extraction pack asset ignorée : $e');
     }
   }
 

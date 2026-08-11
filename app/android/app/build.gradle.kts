@@ -112,6 +112,12 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    // Rattache le pack Play Asset Delivery portant le modele ASR (2026-08-11)
+    // -- cf. app/android/model_pack/build.gradle.kts pour le pourquoi (limite
+    // de 200 Mo du module de base, PUBLICATION_PLAY.md §2.2). Syntaxe
+    // verifiee sur la documentation officielle Android le 2026-08-11.
+    assetPacks += listOf(":model_pack")
 }
 
 kotlin {

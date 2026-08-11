@@ -24,3 +24,6 @@ plugins {
 }
 
 include(":app")
+// Pack Play Asset Delivery portant le modele ASR (2026-08-11) -- cf. le
+// commentaire d'en-tete de model_pack/build.gradle.kts pour le pourquoi.
+include(":model_pack")
