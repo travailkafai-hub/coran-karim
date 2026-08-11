@@ -54,7 +54,7 @@ class SessionArchiveService {
     final chemin = p.join(await getDatabasesPath(), 'session_archive.db');
     return openDatabase(
       chemin,
-      version: 3,
+      version: 4,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE sessions(
@@ -68,7 +68,8 @@ class SessionArchiveService {
             preset TEXT,
             words_total INTEGER NOT NULL DEFAULT 0,
             words_green INTEGER NOT NULL DEFAULT 0,
-            words_reached INTEGER NOT NULL DEFAULT 0
+            words_reached INTEGER NOT NULL DEFAULT 0,
+            words_skipped INTEGER NOT NULL DEFAULT 0
           )
         ''');
         // Un mot NON VERT d'une session. `audio_path` peut être null : l'audio
@@ -110,6 +111,19 @@ class SessionArchiveService {
         if (oldVersion == 2) {
           await db.execute(
               'ALTER TABLE portion_words ADD COLUMN deja_rate INTEGER NOT NULL DEFAULT 0');
+        }
+        // v3 -> v4 (2026-08-11) : `sessions.words_skipped` -- mots que
+        // l'ancre a dépassés sans que la chaîne ne fige de verdict. Stocké
+        // À CÔTÉ de `words_green`/`words_reached` (jamais à leur place) pour
+        // que le taux montré à l'utilisateur cesse de pénaliser un défaut de
+        // l'application SANS faire perdre au diagnostic la lecture brute
+        // (cf. le piège du 2026-07-29 rappelé dans `_compterMots`).
+        // Les sessions déjà archivées restent à 0 : on ne peut pas
+        // reconstituer après coup ce que la chaîne n'a pas su juger, et un 0
+        // rend exactement le comportement d'avant pour ces lignes-là.
+        if (oldVersion < 4) {
+          await db.execute(
+              'ALTER TABLE sessions ADD COLUMN words_skipped INTEGER NOT NULL DEFAULT 0');
         }
       },
     );
@@ -214,10 +228,27 @@ class SessionArchiveService {
     required int wordsTotal,
     required int wordsGreen,
     required int wordsReached,
+    int wordsSkipped = 0,
   }) async {
     final id = _sessionCourante;
     if (id == null) return;
     final db = await _database;
+    // ── UNE SESSION SANS AUCUN MOT JUGÉ N'EST PAS UNE RÉCITATION ─────────
+    // (2026-08-11, constat utilisateur sur le log device : `session 11
+    // fermee : 0 vert(s) / 0 atteint(s)` après 3 secondes d'écran, archivée
+    // et affichée dans « Mes récitations » comme les autres.) Ouvrir l'écran
+    // puis ressortir aussitôt -- ce qui arrive constamment en navigation --
+    // créait une ligne vide de plus à chaque fois. On SUPPRIME la ligne au
+    // lieu de la fermer : il n'y a rien à y perdre (aucun mot jugé, donc
+    // aucun `session_words` rattaché, donc aucun audio non plus).
+    if (wordsReached == 0) {
+      await db.delete('session_words', where: 'session_id = ?', whereArgs: [id]);
+      await db.delete('sessions', where: 'id = ?', whereArgs: [id]);
+      DiagnosticLog.log(
+          'Archive', 'session $id vide (aucun mot juge) : supprimee au lieu d\'etre archivee');
+      _sessionCourante = null;
+      return;
+    }
     await db.update(
       'sessions',
       {
@@ -225,12 +256,15 @@ class SessionArchiveService {
         'words_total': wordsTotal,
         'words_green': wordsGreen,
         'words_reached': wordsReached,
+        'words_skipped': wordsSkipped,
       },
       where: 'id = ?',
       whereArgs: [id],
     );
-    DiagnosticLog.log('Archive',
-        'session $id fermee : $wordsGreen vert(s) / $wordsReached atteint(s)');
+    DiagnosticLog.log(
+        'Archive',
+        'session $id fermee : $wordsGreen vert(s) / $wordsReached atteint(s)'
+        '${wordsSkipped > 0 ? ' -- $wordsSkipped non juge(s) par la chaine' : ''}');
     _sessionCourante = null;
   }
 
@@ -294,6 +328,7 @@ class SessionArchiveService {
     required int wordsTotal,
     required int wordsGreen,
     required int wordsReached,
+    int wordsSkipped = 0,
   }) async {
     final id = _sessionCourante;
     if (id == null) return;
@@ -304,6 +339,7 @@ class SessionArchiveService {
         'words_total': wordsTotal,
         'words_green': wordsGreen,
         'words_reached': wordsReached,
+        'words_skipped': wordsSkipped,
       },
       where: 'id = ?',
       whereArgs: [id],
@@ -549,6 +585,38 @@ class SessionArchiveService {
     ''', [DateTime.now().toIso8601String(), ayahNumber, wordInAyah, surahNumber]);
   }
 
+  /// Même geste que [contesterMotDePortion], côté SESSION cette fois --
+  /// constat utilisateur (2026-08-11, exemple chiffré : session à 91 %,
+  /// 5 mots contestés, doit passer à 100 %) : une contestation mettait déjà à
+  /// jour la portion, mais pas la session d'où le mot avait été ouvert. Sa
+  /// carte restait figée à un pourcentage que l'utilisateur venait pourtant de
+  /// prouver faux.
+  ///
+  /// Cible UNE ligne `session_words` précise par son `id` (pas par position
+  /// sourate/ayah/mot comme `contesterMotDePortion`) : contrairement à une
+  /// portion, une même position peut apparaître dans PLUSIEURS sessions
+  /// passées -- on ne corrige que celle depuis laquelle la fiche a été
+  /// ouverte, pas tout l'historique.
+  ///
+  /// `words_green` de la session est incrémenté UNE SEULE FOIS (idempotent :
+  /// si la ligne est déjà `conteste`, `changes` vaut 0 et rien d'autre ne
+  /// bouge) -- `words_reached` ne change pas, un mot contesté était déjà
+  /// compté comme atteint.
+  Future<void> contesterMotDeSession(int motSessionId) async {
+    final db = await _database;
+    final lignes = await db.query('session_words',
+        columns: ['session_id', 'status'],
+        where: 'id = ? AND status != ?',
+        whereArgs: [motSessionId, 'conteste']);
+    if (lignes.isEmpty) return; // deja conteste, ou id inconnu
+    final sessionId = lignes.first['session_id'] as int;
+    await db.update('session_words', {'status': 'conteste'},
+        where: 'id = ?', whereArgs: [motSessionId]);
+    await db.rawUpdate(
+        'UPDATE sessions SET words_green = words_green + 1 WHERE id = ?',
+        [sessionId]);
+  }
+
   /// Triée dans l'ORDRE DU CORAN (sourate puis premier verset de la portion),
   /// pas par date de dernière récitation (constat utilisateur 2026-08-11 :
   /// « les sourates doivent respecter l'ordre dans le Coran »). C'est une
@@ -557,10 +625,13 @@ class SessionArchiveService {
   /// on parcourt le Mushaf.
   Future<List<PortionResume>> portions({int limit = 60}) async {
     final db = await _database;
+    // `words_green` = mots ACQUIS : corrects, contestés par l'utilisateur, ou
+    // laissés sans verdict par la chaîne ('skipped') -- ces derniers ne
+    // pénalisent pas (règle utilisateur 2026-08-11, cf. `PortionResume.reussite`).
     final rows = await db.rawQuery('''
       SELECT p.*,
         (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id) AS words_reached,
-        (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status IN ('correct','conteste')) AS words_green,
+        (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status IN ('correct','conteste','skipped')) AS words_green,
         (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status = 'skipped') AS words_skipped
       FROM portions p
       ORDER BY p.surah_number ASC, p.first_ayah ASC
@@ -711,6 +782,14 @@ class SessionResume {
   final int wordsReached;
   final int nonVerts;
 
+  /// Mots que l'ancre a dépassés sans que la chaîne ne fige de verdict
+  /// (2026-08-11). Stocké À CÔTÉ de [wordsGreen]/[wordsReached], jamais à
+  /// leur place : ces deux-là gardent leur sens brut pour le diagnostic
+  /// (cf. le piège du 2026-07-29 documenté dans `_compterMots`), et c'est
+  /// [reussite] qui applique la règle utilisateur « un mot non jugé ne
+  /// pénalise pas ».
+  final int wordsSkipped;
+
   const SessionResume({
     required this.id,
     required this.startedAt,
@@ -724,12 +803,29 @@ class SessionResume {
     this.wordsGreen = 0,
     this.wordsReached = 0,
     this.nonVerts = 0,
+    this.wordsSkipped = 0,
   });
 
-  /// Part de mots verts sur les mots RÉELLEMENT ATTEINTS (l'ancre max), pas
+  /// Mots ACQUIS : les verts, PLUS ceux que la chaîne n'a pas su juger.
+  ///
+  /// Règle utilisateur du 2026-08-11 : « les mots non jugés dans récitation
+  /// ne doivent pas pénaliser, ils doivent être jugés justes dans le
+  /// pourcentage ». Un mot que l'ancre a dépassé sans verdict figé est un
+  /// défaut de l'application, pas une faute du récitateur. Même règle que
+  /// côté portion (`PortionResume.reussite`) -- les deux écrans répondaient
+  /// différemment à une question identique, ce qui était le TROISIÈME écart
+  /// relevé sur les pourcentages ce jour-là.
+  int get wordsAcquis => wordsGreen + wordsSkipped;
+
+  /// Part de mots acquis sur les mots RÉELLEMENT ATTEINTS (l'ancre max), pas
   /// sur la cible : s'arrêter au milieu d'une sourate n'est pas une erreur, et
   /// diviser par la cible ferait passer une récitation juste pour mauvaise.
-  double? get reussite => wordsReached == 0 ? null : wordsGreen / wordsReached;
+  ///
+  /// Le DÉNOMINATEUR reste l'ancre max, inchangé : un mot perdu par la chaîne
+  /// n'en sort pas (sinon une chaîne qui casse afficherait un meilleur taux,
+  /// piège mesuré le 2026-07-29). Il passe au NUMÉRATEUR, ce qui neutralise
+  /// son effet sans fausser le compte des mots parcourus.
+  double? get reussite => wordsReached == 0 ? null : wordsAcquis / wordsReached;
 
   factory SessionResume.fromMap(Map<String, Object?> m) => SessionResume(
         id: m['id'] as int,
@@ -746,6 +842,7 @@ class SessionResume {
         wordsGreen: (m['words_green'] as int?) ?? 0,
         wordsReached: (m['words_reached'] as int?) ?? 0,
         nonVerts: (m['non_verts'] as int?) ?? 0,
+        wordsSkipped: (m['words_skipped'] as int?) ?? 0,
       );
 }
 
@@ -829,41 +926,34 @@ class PortionResume {
     this.wordsSkipped = 0,
   });
 
-  /// Mots réellement JUGEABLES de la portion -- le total MOINS ceux que le
-  /// modèle n'a jamais réussi à juger (cf. [wordsSkipped]). C'est ce
-  /// dénominateur-là, pas [wordsTotal] brut, qui doit porter le pourcentage :
-  /// un mot que la chaîne a laissé sans verdict ne doit pas peser contre le
-  /// récitateur, qui ne peut rien y faire.
-  int get wordsJugeables => wordsTotal - wordsSkipped;
-
-  /// Part de mots corrects (mots contestés inclus, cf.
-  /// `SessionArchiveService.contesterMotDePortion`) sur le TOTAL JUGEABLE de
-  /// la portion (sourate ou tranche de Hizb), PAS sur les seuls mots
-  /// atteints.
+  /// Part de mots ACQUIS sur le total de la portion (Bismillah déjà exclue du
+  /// total en amont, cf. `PortionService.resolve`).
   ///
-  /// ── CORRIGÉ (2026-08-11), constat utilisateur ────────────────────────
-  /// Diviser par `wordsReached` (comme le fait volontairement
-  /// `SessionResume.reussite`, une TENTATIVE datée où s'arrêter en cours de
-  /// route n'est pas une faute) donnait ici un chiffre trompeur : 53 mots
-  /// récités sur une portion qui en compte bien plus affichaient 98% --
-  /// un score qui semble presque acquis alors que la portion est à peine
-  /// entamée. Une PORTION n'est pas une tentative, elle représente la
-  /// maîtrise de TOUTE la sourate/Hizb dans la durée : le pourcentage doit
-  /// donc refléter le chemin qui reste, pas seulement la justesse de ce qui
-  /// a été tenté. « Mes récitations » (sessions) garde son calcul inchangé
-  /// -- CE choix-là reste "où j'en suis arrivé dans la récitation",
-  /// explicitement confirmé par l'utilisateur.
-  double? get reussite =>
-      wordsJugeables <= 0 ? null : wordsGreen / wordsJugeables;
+  /// « Acquis » = correct, OU contesté par l'utilisateur, OU laissé sans
+  /// verdict par la chaîne alors que l'ancre l'avait dépassé -- ces trois cas
+  /// sont comptés au NUMÉRATEUR (`words_green` en base, cf.
+  /// `SessionArchiveService.portions`).
+  ///
+  /// ── RÈGLE POSÉE PAR L'UTILISATEUR (2026-08-11) ────────────────────────
+  /// « les mots non jugés alors qu'on a déjà passé l'ancre, pour les
+  /// distinguer des mots pas encore traités : du coup on ne pénalise pas, ça
+  /// compte correct [...] on va partir du 100 % et on enlève les mots en
+  /// erreur ». Un mot que la chaîne n'a pas su figer est un défaut de
+  /// l'application, pas une faute du récitateur : il ne doit rien lui coûter.
+  /// Le pourcentage se lit donc « 100 % moins mes vraies erreurs ».
+  ///
+  /// Le dénominateur reste le TOTAL de la portion, jamais les seuls mots
+  /// atteints (choix explicite de l'utilisateur, exemple arbitré le même
+  /// jour : 53 mots justes sur une portion de 300 doivent afficher 18 %, pas
+  /// 100 %). Une portion représente la maîtrise de TOUTE la sourate/Hizb dans
+  /// la durée -- contrairement à `SessionResume.reussite`, qui décrit UNE
+  /// tentative datée et garde volontairement son calcul d'origine.
+  double? get reussite => wordsTotal <= 0 ? null : wordsGreen / wordsTotal;
 
-  /// Badge de réussite (règle utilisateur du 2026-08-08) : portion couverte à
-  /// 100% ET 100% des mots JUGEABLES corrects ou contestés -- pas de seuil
-  /// intermédiaire, et un mot que la chaîne n'a jamais su juger ne bloque
-  /// plus le badge (2026-08-11).
-  bool get badge =>
-      wordsTotal > 0 &&
-      wordsReached >= wordsTotal &&
-      wordsGreen == (wordsReached - wordsSkipped);
+  /// Badge de réussite : toute la portion acquise (cf. [reussite]).
+  /// Comparaison d'entiers plutôt qu'une égalité en point flottant sur
+  /// `reussite == 1.0`.
+  bool get badge => wordsTotal > 0 && wordsGreen >= wordsTotal;
 
   factory PortionResume.fromMap(Map<String, Object?> m) => PortionResume(
         id: m['id'] as int,

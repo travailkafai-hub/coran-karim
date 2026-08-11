@@ -1964,10 +1964,28 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String coachPortionWordsAcquired(int green, int total) {
+    return '$green/$total كلمة متقنة';
+  }
+
+  @override
+  String coachPortionCoveredSuffix(int reached) {
+    return ' · $reached متلوة';
+  }
+
+  @override
+  String coachSessionWordsCorrect(int green, int reached) {
+    return '$green/$reached كلمة صحيحة';
+  }
+
+  @override
+  String get coachSessionAccuracyLabel => 'من الكلمات المتلوة';
+
+  @override
   String get coachPortionFullCoverage => ' · تغطية كاملة';
 
   @override
-  String get coachPortionAccuracyLabel => 'صحيحة';
+  String get coachPortionAccuracyLabel => 'من القسم';
 
   @override
   String get coachPortionBadgeLabel => 'قسم مُتقَن';

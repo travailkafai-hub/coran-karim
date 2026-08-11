@@ -2046,10 +2046,28 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String coachPortionWordsAcquired(int green, int total) {
+    return '$green/$total word(s) mastered';
+  }
+
+  @override
+  String coachPortionCoveredSuffix(int reached) {
+    return ' · $reached recited';
+  }
+
+  @override
+  String coachSessionWordsCorrect(int green, int reached) {
+    return '$green/$reached word(s) correct';
+  }
+
+  @override
+  String get coachSessionAccuracyLabel => 'of words recited';
+
+  @override
   String get coachPortionFullCoverage => ' · full coverage';
 
   @override
-  String get coachPortionAccuracyLabel => 'correct';
+  String get coachPortionAccuracyLabel => 'of the portion';
 
   @override
   String get coachPortionBadgeLabel => 'Portion mastered';

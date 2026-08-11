@@ -675,11 +675,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // plus récent échoue.
     try {
       if (SessionArchiveService.instance.sessionCourante != null) {
-        final (total, verts, atteints) = _compterMots();
+        final (total, verts, atteints, nonJuges) = _compterMots();
         SessionArchiveService.instance.terminer(
           wordsTotal: total,
           wordsGreen: verts,
           wordsReached: atteints,
+          wordsSkipped: nonJuges,
         );
       }
     } catch (e) {
@@ -909,12 +910,37 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             w.status != WordStatus.pending && w.status != WordStatus.current) +
         1;
     for (var i = 0; i < ancreMax; i++) {
-      if (words[i].status != WordStatus.pending) continue; // pas un trou
+      // `!locked` plutôt que `status == pending` (corrigé 2026-08-11) : un mot
+      // PROVISOIRE (ex. `provisoire:rouge`) porte déjà un statut mais n'a
+      // jamais été figé, donc `wordLocked` ne s'est jamais déclenché dessus et
+      // il n'existe nulle part en base -- exactement le cas du mot 20
+      // (صِرَٰطَ) de la session Al-Fatiha du 2026-08-11 : rouge à l'écran,
+      // absent des compteurs, et surtout IMPOSSIBLE À CONTESTER faute de
+      // ligne à mettre à jour. Le test sur `pending` seul le manquait.
+      if (words[i].locked) continue; // déjà jugé et archivé par `wordLocked`
       if (words[i].isBasmala) continue;
       if (!_motsNonJugesArchives.add(i)) continue; // déjà traité
       final verse = _verseContaining(i);
       final local = _localIndexInVerse(i);
       if (verse == null || local == null) continue;
+      // ── UN PROVISOIRE VERT N'EST PAS UN « NON JUGÉ » (2026-08-11) ─────────
+      //
+      // Correctif du correctif ci-dessus, sur remarque utilisateur directe :
+      // « il s'affiche vert à l'écran donc c'est ok, pourquoi le considérer
+      // [comme une] faute ». Cas mesuré : mot لَيُنۢبَذَنَّ passé
+      // `provisoire:orange` -> `provisoire:vert` sans jamais être verrouillé
+      // -- `_compterMots()` (session) le compte déjà comme un vert normal
+      // (il lit la COULEUR affichée, pas l'état verrouillé), et c'est le bon
+      // comportement, confirmé par l'utilisateur. Ce scanner-ci neutralisait
+      // AVEUGLÉMENT tout mot non verrouillé, vert compris -- deux règles
+      // différentes pour la même question, sans raison de fond. La bonne
+      // distinction n'est pas « verrouillé ou non », c'est « la couleur
+      // affichée est-elle positive » : un provisoire ROUGE/ORANGE jamais
+      // confirmé reste neutralisé (c'est lui le vrai défaut d'origine, cf.
+      // le mot 20 cité plus haut) ; un provisoire VERT compte comme un mot
+      // acquis normal, exactement comme le fait déjà la session.
+      final status =
+          words[i].status == WordStatus.correct ? 'correct' : 'skipped';
       try {
         final granularite = ref.read(portionGranularityProvider);
         final portion = await PortionService.resolve(
@@ -929,7 +955,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           ayahNumber: verse.ayahNumber,
           wordInAyah: local,
           expectedWord: words[i].display,
-          status: 'skipped',
+          heardWord: words[i].heard,
+          status: status,
         );
       } catch (e) {
         DiagnosticLog.log(
@@ -1044,22 +1071,29 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       return;
     }
     _dernierBilan = maintenant;
-    final (total, verts, atteints) = _compterMots();
+    final (total, verts, atteints, nonJuges) = _compterMots();
     SessionArchiveService.instance.majBilan(
       wordsTotal: total,
       wordsGreen: verts,
       wordsReached: atteints,
+      wordsSkipped: nonJuges,
     );
     unawaited(_archiverMotsNonJugesDansPortions());
   }
 
-  /// (total, verts, atteints) — LE DÉNOMINATEUR EST L'ANCRE MAX, pas la cible
-  /// ni le nombre de mots jugés. S'arrêter au milieu d'une sourate n'est pas
-  /// une faute ; et compter sur les mots jugés fait *baisser* le taux d'erreur
-  /// à chaque mot que la chaîne perd (piège mesuré le 2026-07-29 : un
-  /// correctif passait de 7,22 % à 3,45 % en sautant 9 mots que la version
-  /// précédente jugeait verts — lu sur l'ancre max, il montait à 13,40 %).
-  (int, int, int) _compterMots() {
+  /// (total, verts, atteints, nonJuges) — LE DÉNOMINATEUR EST L'ANCRE MAX,
+  /// pas la cible ni le nombre de mots jugés. S'arrêter au milieu d'une
+  /// sourate n'est pas une faute ; et compter sur les mots jugés fait
+  /// *baisser* le taux d'erreur à chaque mot que la chaîne perd (piège mesuré
+  /// le 2026-07-29 : un correctif passait de 7,22 % à 3,45 % en sautant
+  /// 9 mots que la version précédente jugeait verts — lu sur l'ancre max, il
+  /// montait à 13,40 %).
+  ///
+  /// `nonJuges` (2026-08-11) est rendu À CÔTÉ de ces trois-là, sans les
+  /// modifier : il sert au taux montré à l'utilisateur (un mot que la chaîne
+  /// n'a pas su figer ne le pénalise pas) tout en laissant le diagnostic lire
+  /// les chiffres bruts. Cf. le bloc de commentaire dans le corps.
+  (int, int, int, int) _compterMots() {
     // `_dernierEtatConnu` (mis à jour à chaque `build`, cf. sa doc) plutôt
     // que `ref.read(recitationProvider)` : cette méthode est appelée depuis
     // `dispose()`, où `ref` n'est plus fiable (cf. le commentaire du champ).
@@ -1094,14 +1128,40 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // Un mot que le produit a explicitement choisi de ne jamais juger n'est
     // ni un succès ni un échec : il sort des deux compteurs, numérateur et
     // dénominateur.
+    // ── LES MOTS QUE LA CHAÎNE N'A PAS SU JUGER SONT COMPTÉS À PART
+    // (2026-08-11, règle utilisateur) ──────────────────────────────────────
+    //
+    // « les mots non jugés dans récitation ne doivent pas pénaliser, ils
+    // doivent être jugés justes dans le pourcentage [...] on part du 100 % et
+    // on enlève les mots en erreur ». Un mot que l'ancre a dépassé sans
+    // verdict figé (jamais `locked` : soit resté `pending`, soit un
+    // `provisoire:*` que le Décideur n'a pas confirmé) est un défaut de
+    // l'application, pas une faute du récitateur -- il ne doit rien lui
+    // coûter. Même règle que côté portion (`PortionResume.reussite`).
+    //
+    // ⚠️ LE COMPTEUR DE DIAGNOSTIC EST PRÉSERVÉ, c'est tout l'objet du
+    // TROISIÈME retour. Le piège du 2026-07-29 rappelé ci-dessus reste
+    // entier : si un mot perdu SORTAIT du dénominateur, une chaîne qui casse
+    // afficherait un meilleur taux (mesuré : 7,22 % -> 3,45 % en sautant
+    // 9 mots verts, alors que la vérité était 13,40 %). On ne touche donc NI
+    // `comptes` (toujours l'ancre max, Bismillah exclue) NI `verts`
+    // (toujours les seuls mots réellement jugés corrects) : le non-jugé est
+    // rendu SÉPARÉMENT et stocké dans sa propre colonne, ce qui laisse les
+    // deux lectures possibles -- celle de l'utilisateur (« ça ne me pénalise
+    // pas ») et celle du diagnostic (« la chaîne a perdu N mots »).
     var verts = 0;
     var comptes = 0;
+    var nonJuges = 0;
     for (var i = 0; i < ancreMax; i++) {
       if (words[i].isBasmala) continue;
       comptes++;
-      if (words[i].status == WordStatus.correct) verts++;
+      if (words[i].status == WordStatus.correct) {
+        verts++;
+      } else if (!words[i].locked) {
+        nonJuges++;
+      }
     }
-    return (words.length, verts, comptes);
+    return (words.length, verts, comptes, nonJuges);
   }
 
   /// Clôt l'archive de la session avec son bilan.
@@ -1118,11 +1178,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// session resterait invisible dans le Coach.
   Future<void> _cloturerArchive() async {
     if (SessionArchiveService.instance.sessionCourante == null) return;
-    final (total, verts, atteints) = _compterMots();
+    final (total, verts, atteints, nonJuges) = _compterMots();
     await SessionArchiveService.instance.terminer(
       wordsTotal: total,
       wordsGreen: verts,
       wordsReached: atteints,
+      wordsSkipped: nonJuges,
     );
     // Derniers mots que l'ancre a dépassés sans jugement, avant de fermer --
     // cf. `_archiverMotsNonJugesDansPortions`. Sans cet appel ici, un mot

@@ -172,9 +172,26 @@ class _CartePortion extends StatelessWidget {
         title: Text(p.label,
             style: GoogleFonts.manrope(
                 fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink)),
+        // ── LA FRACTION AFFICHÉE DOIT ÊTRE CELLE QUI PRODUIT LE POURCENTAGE
+        // (2026-08-11, constat utilisateur : « ils ont tous les deux 22/24
+        // mais deux pourcentages différents ») ─────────────────────────────
+        //
+        // Ce sous-titre montrait `wordsReached/wordsTotal` (les mots
+        // COUVERTS) alors que le pourcentage à droite vaut
+        // `wordsGreen/wordsTotal` (les mots ACQUIS) : le numérateur du calcul
+        // n'apparaissait nulle part sur la carte. Cas réel relevé sur le
+        // device, portion Al-Fil : « 22/23 mot(s) couvert(s) » et « 87 % » --
+        // 22/23 fait 96 %, et 87 % vient de 20/23, un 20 invisible. Le
+        // pourcentage semblait donc faux alors qu'il était juste, et il
+        // devenait impossible de le rapprocher de celui d'une récitation.
+        // On affiche maintenant la fraction du calcul ; la couverture reste
+        // dite, mais en complément et seulement quand elle apporte une
+        // information (portion pas encore entièrement récitée).
         subtitle: Text(
-          t.coachPortionWordsCovered(p.wordsReached, p.wordsTotal) +
-              (p.wordsReached < p.wordsTotal ? '' : t.coachPortionFullCoverage),
+          t.coachPortionWordsAcquired(p.wordsGreen, p.wordsTotal) +
+              (p.wordsReached < p.wordsTotal
+                  ? t.coachPortionCoveredSuffix(p.wordsReached)
+                  : t.coachPortionFullCoverage),
           style: GoogleFonts.manrope(fontSize: 11.5, color: AppColors.inkLight),
         ),
         trailing: Column(
@@ -653,6 +670,7 @@ class _CarteSession extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final r = s.reussite;
     final couleur = r == null
         ? AppColors.inkLight
@@ -694,8 +712,21 @@ class _CarteSession extends ConsumerWidget {
           style: GoogleFonts.manrope(
               fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink),
         ),
+        // Même correctif que sur `_CartePortion` ci-dessus : ce sous-titre ne
+        // donnait QUE le dénominateur (« 14 mot(s) récité(s) ») à côté d'un
+        // pourcentage calculé sur `wordsGreen/wordsReached` -- le numérateur
+        // restait invisible. Cas réel du device, Al-'Asr : la carte récitation
+        // annonçait « 14 mot(s) récité(s) · 93 % » sans un seul mot listé « à
+        // revoir », pendant que la carte portion de la MÊME sourate annonçait
+        // 14 mots sur 14 et 100 %. Deux nombres identiques, deux pourcentages
+        // différents, et aucun moyen de comprendre lequel disait quoi.
         subtitle: Text(
-          '${_dateCourte(s.startedAt)} · ${s.wordsReached} mot(s) récité(s)'
+          '${_dateCourte(s.startedAt)} · '
+          // `wordsAcquis` et non `wordsGreen` : c'est bien le numérateur du
+          // pourcentage affiché à droite (un mot non jugé par la chaîne y est
+          // compté, cf. `SessionResume.reussite`) -- afficher `wordsGreen`
+          // ici rouvrirait exactement l'écart que ce sous-titre corrige.
+          '${t.coachSessionWordsCorrect(s.wordsAcquis, s.wordsReached)}'
           '${s.nonVerts > 0 ? ' · ${s.nonVerts} à revoir' : ''}',
           style:
               GoogleFonts.manrope(fontSize: 11.5, color: AppColors.inkLight),
@@ -709,7 +740,11 @@ class _CarteSession extends ConsumerWidget {
                 Text(r == null ? '—' : '${(r * 100).round()}%',
                     style: GoogleFonts.manrope(
                         fontSize: 17, fontWeight: FontWeight.w800, color: couleur)),
-                Text('justes',
+                // Nomme le DÉNOMINATEUR, pas la qualité : disait « justes »,
+                // exactement l'étiquette de la carte portion, alors que les
+                // deux pourcentages ne répondent pas à la même question (une
+                // tentative datée / la maîtrise de toute la portion).
+                Text(t.coachSessionAccuracyLabel,
                     style: GoogleFonts.manrope(
                         fontSize: 9, color: AppColors.inkLight)),
               ],
@@ -940,11 +975,18 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
                   ayahNumber: m.ayahNumber!,
                   wordIndex: m.wordInAyah!,
                 ),
-        // Contestation (pouce vers le bas) : le mot peut appartenir à une
-        // portion suivie (indépendant de CETTE session) -- rafraîchir la
-        // liste des portions pour que son pourcentage en tienne compte
-        // (2026-08-11, constat utilisateur).
-        onWordContested: () => ref.invalidate(portionsProvider),
+        // Contestation (pouce vers le bas) -- constat utilisateur (2026-08-11,
+        // exemple chiffré : session à 91 %, 5 mots contestés, doit passer à
+        // 100 %) : « ça met à jour aussi, un contesté ça met à jour partout ».
+        // Met à jour LA SESSION d'où le mot a été ouvert (pas une portion
+        // indépendante -- `contesterMotDeSession` cible la ligne précise, cf.
+        // sa doc) ET rafraîchit la liste des portions, qui peut contenir le
+        // même mot.
+        onWordContested: () async {
+          await SessionArchiveService.instance.contesterMotDeSession(m.id);
+          ref.invalidate(sessionsArchiveProvider);
+          ref.invalidate(portionsProvider);
+        },
       );
     } catch (_) {
       if (mounted) setState(() => _erreur = 'Verset indisponible');

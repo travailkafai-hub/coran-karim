@@ -2560,13 +2560,50 @@
       }
     }
   },
+  "coachPortionWordsAcquired": "{green}/{total} mot(s) acquis",
+  "@coachPortionWordsAcquired": {
+    "description": "Sous-titre d'une carte portion : LA FRACTION QUI PRODUIT le pourcentage affiché à côté (mots acquis sur le total de la portion). Ne pas la remplacer par mots couverts/total : c'est ce qui rendait le pourcentage incompréhensible.",
+    "placeholders": {
+      "green": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "coachPortionCoveredSuffix": " · {reached} récité(s)",
+  "@coachPortionCoveredSuffix": {
+    "description": "Complément d'une carte portion : nombre de mots déjà récités, quand la portion n'est pas encore entièrement couverte",
+    "placeholders": {
+      "reached": {
+        "type": "int"
+      }
+    }
+  },
+  "coachSessionWordsCorrect": "{green}/{reached} mot(s) justes",
+  "@coachSessionWordsCorrect": {
+    "description": "Sous-titre d'une carte récitation : LA FRACTION QUI PRODUIT le pourcentage affiché à côté (mots justes sur mots récités)",
+    "placeholders": {
+      "green": {
+        "type": "int"
+      },
+      "reached": {
+        "type": "int"
+      }
+    }
+  },
+  "coachSessionAccuracyLabel": "des mots récités",
+  "@coachSessionAccuracyLabel": {
+    "description": "Petite étiquette sous le pourcentage d'une carte récitation : nomme le DÉNOMINATEUR, pour le distinguer de celui d'une portion"
+  },
   "coachPortionFullCoverage": " · couverture complète",
   "@coachPortionFullCoverage": {
     "description": "Suffixe ajouté quand une portion est intégralement couverte"
   },
-  "coachPortionAccuracyLabel": "justes",
+  "coachPortionAccuracyLabel": "de la portion",
   "@coachPortionAccuracyLabel": {
-    "description": "Petite étiquette sous le pourcentage d'une carte portion"
+    "description": "Petite étiquette sous le pourcentage d'une carte portion : nomme le DÉNOMINATEUR (toute la portion), pour le distinguer de celui d'une récitation (les seuls mots récités). Disait 'justes' avant le 2026-08-11, exactement le même mot que sur une carte récitation — deux pourcentages différents portaient donc la même étiquette."
   },
   "coachPortionBadgeLabel": "Portion réussie",
   "@coachPortionBadgeLabel": {

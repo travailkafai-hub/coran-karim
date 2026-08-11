@@ -3415,16 +3415,40 @@ abstract class AppLocalizations {
   /// **'{reached}/{total} mot(s) couvert(s)'**
   String coachPortionWordsCovered(int reached, int total);
 
+  /// Sous-titre d'une carte portion : LA FRACTION QUI PRODUIT le pourcentage affiché à côté (mots acquis sur le total de la portion). Ne pas la remplacer par mots couverts/total : c'est ce qui rendait le pourcentage incompréhensible.
+  ///
+  /// In fr, this message translates to:
+  /// **'{green}/{total} mot(s) acquis'**
+  String coachPortionWordsAcquired(int green, int total);
+
+  /// Complément d'une carte portion : nombre de mots déjà récités, quand la portion n'est pas encore entièrement couverte
+  ///
+  /// In fr, this message translates to:
+  /// **' · {reached} récité(s)'**
+  String coachPortionCoveredSuffix(int reached);
+
+  /// Sous-titre d'une carte récitation : LA FRACTION QUI PRODUIT le pourcentage affiché à côté (mots justes sur mots récités)
+  ///
+  /// In fr, this message translates to:
+  /// **'{green}/{reached} mot(s) justes'**
+  String coachSessionWordsCorrect(int green, int reached);
+
+  /// Petite étiquette sous le pourcentage d'une carte récitation : nomme le DÉNOMINATEUR, pour le distinguer de celui d'une portion
+  ///
+  /// In fr, this message translates to:
+  /// **'des mots récités'**
+  String get coachSessionAccuracyLabel;
+
   /// Suffixe ajouté quand une portion est intégralement couverte
   ///
   /// In fr, this message translates to:
   /// **' · couverture complète'**
   String get coachPortionFullCoverage;
 
-  /// Petite étiquette sous le pourcentage d'une carte portion
+  /// Petite étiquette sous le pourcentage d'une carte portion : nomme le DÉNOMINATEUR (toute la portion), pour le distinguer de celui d'une récitation (les seuls mots récités). Disait 'justes' avant le 2026-08-11, exactement le même mot que sur une carte récitation — deux pourcentages différents portaient donc la même étiquette.
   ///
   /// In fr, this message translates to:
-  /// **'justes'**
+  /// **'de la portion'**
   String get coachPortionAccuracyLabel;
 
   /// Libellé du badge de réussite d'une portion

@@ -93,8 +93,25 @@ class PortionService {
     }
 
     if (versetsDeLaPortion.isEmpty) versetsDeLaPortion = [verse];
-    final wordsTotal = versetsDeLaPortion.fold<int>(
-        0, (sum, v) => sum + ArabicNormalizer.splitExpectedWords(v.textUthmani).length);
+    // ── LA BISMILLAH SORT DU TOTAL (2026-08-11, décision utilisateur : « les
+    // mots Bismillah exclus carrément du comptage ») ──────────────────────
+    //
+    // Elle n'est JAMAIS jugée (décision 2026-07-20) : la compter au
+    // dénominateur rendait 100 % inatteignable sur Al-Fatiha -- 4 mots sur 29
+    // impossibles à valider quoi que fasse le récitateur, soit 83 % maximum
+    // avec zéro faute (constat utilisateur, mesuré sur sa session du
+    // 2026-08-11). Même principe que `_compterMots` côté session : « un mot
+    // que le produit a explicitement choisi de ne jamais juger n'est ni un
+    // succès ni un échec ».
+    //
+    // SEULE AL-FATIHA est concernée : ailleurs la Bismillah n'appartient pas
+    // au texte du verset (elle est insérée à l'affichage par `_buildChunk`,
+    // cf. karaoke_recitation_screen), donc elle n'a jamais été dans ce total.
+    // Ici elle EST le verset 1:1, d'où ce cas particulier explicite.
+    final wordsTotal = versetsDeLaPortion.fold<int>(0, (sum, v) {
+      if (v.surahNumber == 1 && v.ayahNumber == 1) return sum;
+      return sum + ArabicNormalizer.splitExpectedWords(v.textUthmani).length;
+    });
 
     return PortionInfo(
       unitKey: unitKey,
