@@ -97,6 +97,16 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.4.15
   riverpod_generator: ^2.6.1
+  # Icone de lancement (PUBLICATION_PLAY.md §2.4) : genere les mipmap-* Android
+  # a partir de assets/icon/app_icon.png, qui remplacait jusqu'ici le logo
+  # Flutter par defaut UNIQUEMENT dans l'app (about_screen), pas sur l'icone
+  # de lancement elle-meme. `dart run flutter_launcher_icons` regenere les PNG.
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/icon/app_icon.png"
+  # Pas de remove_alpha_ios : app Android uniquement (pas de cible iOS ici).
 
 dependency_overrides:
   record_linux:
