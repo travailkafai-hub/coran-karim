@@ -36,6 +36,18 @@ final motsDeSessionProvider =
     FutureProvider.family<List<MotArchive>, int>((ref, sessionId) =>
         SessionArchiveService.instance.motsDeSession(sessionId));
 
+/// Numéro -> nom de sourate (2026-08-11, constat utilisateur : « mes
+/// récitations, mets les noms de sourate au lieu de "Sourate 113" »).
+/// `sessions.surah_name` n'a jamais été renseigné à l'écriture (colonne
+/// prévue mais jamais alimentée par `demarrer()`) -- résoudre le nom ICI, à
+/// l'affichage, corrige aussi rétroactivement toutes les sessions déjà
+/// archivées, sans migration. Source locale déjà chargée par ailleurs
+/// (`QuranApi.fetchSurahs()`, mise en cache statique), pas d'appel réseau.
+final surahNamesProvider = FutureProvider<Map<int, String>>((ref) async {
+  final surahs = await QuranApi.fetchSurahs();
+  return {for (final s in surahs) s.number: s.nameSimple};
+});
+
 final tailleArchiveProvider =
     FutureProvider<int>((ref) => SessionArchiveService.instance.octetsAudio());
 
@@ -532,6 +544,17 @@ class SessionsSection extends ConsumerWidget {
   }
 }
 
+/// Titre d'une carte/écran de session : nom de sourate résolu via
+/// [surahNamesProvider], repli sur "Sourate N" tant que le nom n'est pas
+/// encore chargé (le provider est déjà en cache la plupart du temps --
+/// `QuranApi.fetchSurahs()` est statique et quasi gratuit une fois chargé).
+String _titreSession(WidgetRef ref, SessionResume s) {
+  if (s.surahNumber == null) return 'Récitation';
+  final noms = ref.watch(surahNamesProvider).asData?.value;
+  final nom = noms?[s.surahNumber] ?? 'Sourate ${s.surahNumber}';
+  return s.fromAyah != null ? '$nom · v.${s.fromAyah}-${s.toAyah}' : nom;
+}
+
 class _CarteSession extends ConsumerWidget {
   final SessionResume s;
   const _CarteSession(this.s);
@@ -599,10 +622,7 @@ class _CarteSession extends ConsumerWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         title: Text(
-          s.surahNumber == null
-              ? 'Récitation'
-              : 'Sourate ${s.surahNumber}'
-                  '${s.fromAyah != null ? ' · v.${s.fromAyah}-${s.toAyah}' : ''}',
+          _titreSession(ref, s),
           style: GoogleFonts.manrope(
               fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink),
         ),
@@ -688,9 +708,7 @@ class SessionDetailScreen extends ConsumerWidget {
         foregroundColor: AppColors.cream,
         elevation: 0,
         title: Text(
-          session.surahNumber == null
-              ? 'Récitation'
-              : 'Sourate ${session.surahNumber}',
+          _titreSession(ref, session),
           style: GoogleFonts.manrope(fontWeight: FontWeight.w700),
         ),
         // ── CARTE MENTALE IMBRIQUÉE ICI (2026-08-09, demande utilisateur) ──

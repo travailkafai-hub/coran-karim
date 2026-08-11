@@ -362,6 +362,22 @@ class SessionArchiveService {
   /// `last_recited_at` (+ le reste, au cas où le texte ait changé de forme
   /// entre deux appels -- ne devrait pas arriver, mais rester correct ne
   /// coûte rien ici).
+  ///
+  /// ── COURSE CORRIGÉE (2026-08-11) ──────────────────────────────────────
+  /// Constat utilisateur, session Al-Falaq : 21/23 mots couverts au lieu de
+  /// 23. Cause, confirmée par le log device : au tout premier lot de mots
+  /// jugés d'une session (plusieurs mots verrouillés dans la même passe
+  /// synchrone, cf. `nouveauxVerrouilles` dans `recitation_provider.dart`),
+  /// DEUX appels à `upsertPortionWord` s'entrelacent -- le premier fait son
+  /// `SELECT` (rien trouvé), commence son `INSERT`, mais avant qu'il ne se
+  /// termine le second fait AUSSI son `SELECT` (toujours rien trouvé, le
+  /// premier n'a pas fini) puis tente aussi d'insérer :
+  /// `UNIQUE constraint failed: portions.surah_number, portions.unit_key`
+  /// -- l'exception a fait perdre les 2 mots de ce second appel, sans
+  /// qu'aucune autre tentative ne les rattrape ensuite (portion déjà créée
+  /// par le premier appel, plus jamais recréée). `INSERT OR IGNORE` rend le
+  /// scénario impossible : les deux appels peuvent insérer en concurrence
+  /// sans qu'aucun n'échoue, on relit ensuite l'id dans tous les cas.
   Future<int> _upsertPortion({
     required int surahNumber,
     required String unitKey,
@@ -372,37 +388,36 @@ class SessionArchiveService {
   }) async {
     final db = await _database;
     final now = DateTime.now().toIso8601String();
-    final existantes = await db.query('portions',
+    await db.insert(
+      'portions',
+      {
+        'surah_number': surahNumber,
+        'unit_key': unitKey,
+        'label': label,
+        'first_ayah': firstAyah,
+        'last_ayah': lastAyah,
+        'words_total': wordsTotal,
+        'created_at': now,
+        'last_recited_at': now,
+      },
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+    final rows = await db.query('portions',
         where: 'surah_number = ? AND unit_key = ?',
         whereArgs: [surahNumber, unitKey]);
-    if (existantes.isNotEmpty) {
-      final id = existantes.first['id'] as int;
-      await db.update(
-        'portions',
-        {
-          'label': label,
-          'first_ayah': firstAyah,
-          'last_ayah': lastAyah,
-          'words_total': wordsTotal,
-          'last_recited_at': now,
-        },
-        where: 'id = ?',
-        whereArgs: [id],
-      );
-      return id;
-    }
-    final id = await db.insert('portions', {
-      'surah_number': surahNumber,
-      'unit_key': unitKey,
-      'label': label,
-      'first_ayah': firstAyah,
-      'last_ayah': lastAyah,
-      'words_total': wordsTotal,
-      'created_at': now,
-      'last_recited_at': now,
-    });
-    DiagnosticLog.log('Archive',
-        'portion $id creee : $label ($firstAyah-$lastAyah, $wordsTotal mots)');
+    final id = rows.first['id'] as int;
+    await db.update(
+      'portions',
+      {
+        'label': label,
+        'first_ayah': firstAyah,
+        'last_ayah': lastAyah,
+        'words_total': wordsTotal,
+        'last_recited_at': now,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
     return id;
   }
 
@@ -773,14 +788,30 @@ class PortionResume {
   });
 
   /// Part de mots corrects (mots contestés inclus, cf.
-  /// `SessionArchiveService.contesterMotDePortion`) sur les mots ATTEINTS --
-  /// même principe que `SessionResume.reussite`.
-  double? get reussite => wordsReached == 0 ? null : wordsGreen / wordsReached;
+  /// `SessionArchiveService.contesterMotDePortion`) sur le TOTAL de la
+  /// portion (sourate ou tranche de Hizb), PAS sur les seuls mots atteints.
+  ///
+  /// ── CORRIGÉ (2026-08-11), constat utilisateur ────────────────────────
+  /// Diviser par `wordsReached` (comme le fait volontairement
+  /// `SessionResume.reussite`, une TENTATIVE datée où s'arrêter en cours de
+  /// route n'est pas une faute) donnait ici un chiffre trompeur : 53 mots
+  /// récités sur une portion qui en compte bien plus affichaient 98% --
+  /// un score qui semble presque acquis alors que la portion est à peine
+  /// entamée. Une PORTION n'est pas une tentative, elle représente la
+  /// maîtrise de TOUTE la sourate/Hizb dans la durée : le pourcentage doit
+  /// donc refléter le chemin qui reste, pas seulement la justesse de ce qui
+  /// a été tenté. « Mes récitations » (sessions) garde son calcul inchangé
+  /// -- CE choix-là reste "où j'en suis arrivé dans la récitation",
+  /// explicitement confirmé par l'utilisateur.
+  double? get reussite => wordsTotal == 0 ? null : wordsGreen / wordsTotal;
 
-  /// Badge de réussite (règle utilisateur du 2026-08-08, remplace le seuil de
-  /// 95% initialement envisagé) : la portion doit être couverte à 100% ET
-  /// 100% des mots atteints sont corrects ou contestés -- pas de seuil
-  /// intermédiaire.
+  /// Badge de réussite (règle utilisateur du 2026-08-08) : portion couverte à
+  /// 100% ET 100% des mots corrects ou contestés -- pas de seuil
+  /// intermédiaire. Avec la nouvelle définition de [reussite] ci-dessus,
+  /// cette condition équivaut exactement à `reussite == 1.0` (si
+  /// wordsGreen == wordsTotal, alors wordsReached == wordsTotal aussi,
+  /// puisque wordsGreen <= wordsReached <= wordsTotal toujours) -- gardée
+  /// explicite ici pour ne pas dépendre d'une égalité en point flottant.
   bool get badge =>
       wordsTotal > 0 && wordsReached >= wordsTotal && wordsGreen == wordsReached;
 

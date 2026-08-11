@@ -18,7 +18,8 @@ import '../services/quran_api.dart';
 import '../providers/error_review_provider.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/session_archive_service.dart';
-import 'coach_sessions.dart' show sessionsArchiveProvider, tailleArchiveProvider;
+import 'coach_sessions.dart'
+    show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider;
 import '../services/recitation_start_sequence.dart';
 import '../services/reference_timing_extractor.dart';
 import '../services/rule_annotation_service.dart';
@@ -115,6 +116,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   StreamSubscription<int>? _decrochageSub;
   StreamSubscription<int>? _nonVertSub;
   StreamSubscription<int>? _lockedSub;
+
+  // ── ÉTAT MIS À JOUR À CHAQUE `build`, LU PAR `dispose()` (2026-08-11) ─────
+  //
+  // Constat utilisateur, log device à l'appui : `dispose()` échoue à CHAQUE
+  // sortie d'écran avec `Bad state: Cannot use "ref" after the widget was
+  // disposed` sur `_compterMots()` (qui fait `ref.read(recitationProvider)`)
+  // -- donc `SessionArchiveService.terminer()` n'écrit jamais `ended_at`, et
+  // la session la plus récente reste invisible dans « Mes récitations »,
+  // INDÉPENDAMMENT de tout rafraîchissement (le rafraîchissement relit une
+  // donnée qui n'a simplement jamais été écrite). Reproduit deux fois de
+  // suite, sur deux sorties d'écran différentes -- pas un cas rare.
+  //
+  // Ce champ retient le DERNIER état vu par `build()` (mis à jour à chaque
+  // frame via le `ref.watch` déjà fait pour l'affichage, cf. plus bas) :
+  // `_compterMots()` s'appuie dessus au lieu de relire `ref` directement,
+  // ce qui rend le bilan de clôture indépendant de la validité de `ref` au
+  // moment de `dispose()`.
+  RecitationSessionState? _dernierEtatConnu;
   bool _autoCorrecting = false; // évite deux corrections en même temps
   DateTime? _correctionCooldownUntil; // anti-rafale, voir _onWordFailed
 
@@ -662,22 +681,33 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           wordsGreen: verts,
           wordsReached: atteints,
         );
-        // BUG CORRIGÉ (2026-08-07, constat utilisateur : « il faut que je me
-        // déconnecte pour revenir pour voir ma dernière récitation ») --
-        // `sessionsArchiveProvider` est un FutureProvider mis en cache : rien
-        // ne le marquait périmé après la clôture d'une session, donc l'écran
-        // Coach continuait de montrer sa dernière lecture, potentiellement
-        // d'avant cette récitation. Invalidation SYNCHRONE ici (sans attendre
-        // `terminer()`, fire-and-forget comme le reste de ce bloc) : la
-        // ré-exécution ne se produit que lors du prochain `watch` (l'écran
-        // Coach n'est pas forcément monté maintenant), ce qui laisse largement
-        // le temps à l'écriture SQLite de se terminer avant d'être relue.
-        ref.invalidate(sessionsArchiveProvider);
-        ref.invalidate(tailleArchiveProvider);
       }
     } catch (e) {
       DiagnosticLog.log(
           'Archive', 'sortie d\'ecran : cloture archive a echoue : $e');
+    }
+    // ── INVALIDATION DU CACHE, DANS SON PROPRE try/catch (2026-08-11) ──────
+    //
+    // Séparée du bloc ci-dessus : `terminer()` (l'écriture qui compte
+    // réellement -- sans elle la session reste invisible pour toujours,
+    // cf. la doc de `_dernierEtatConnu`) ne doit JAMAIS être empêchée par un
+    // échec de CE geste, purement cosmétique (`_openCoachTab()` dans
+    // main.dart réinvalide de toute façon systématiquement à l'ouverture de
+    // l'onglet Coach -- ce bloc n'est qu'un raccourci pour l'avoir déjà à
+    // jour si l'onglet était déjà ouvert derrière). BUG CORRIGÉ (2026-08-07,
+    // doc d'origine) : sans invalidation, l'écran Coach déjà monté montrait
+    // sa dernière lecture. `ref.invalidate` peut lever `Bad state: Cannot
+    // use "ref" after the widget was disposed` selon le chemin de sortie --
+    // mesuré reproductible sur ce fichier avant qu'il ne soit séparé de
+    // `_compterMots()`/`terminer()` ci-dessus, qui n'a plus besoin de `ref`
+    // du tout depuis ce même correctif.
+    try {
+      ref.invalidate(sessionsArchiveProvider);
+      ref.invalidate(tailleArchiveProvider);
+      ref.invalidate(portionsProvider);
+    } catch (e) {
+      DiagnosticLog.log(
+          'Archive', 'sortie d\'ecran : invalidation cache a echoue (sans consequence) : $e');
     }
     // ── CAUSE RACINE CORRIGÉE (2026-07-25) ───────────────────────────────
     // Ici, `dispose()` SUPPRIMAIT le dossier temporaire de capture
@@ -968,7 +998,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// correctif passait de 7,22 % à 3,45 % en sautant 9 mots que la version
   /// précédente jugeait verts — lu sur l'ancre max, il montait à 13,40 %).
   (int, int, int) _compterMots() {
-    final words = ref.read(recitationProvider).words;
+    // `_dernierEtatConnu` (mis à jour à chaque `build`, cf. sa doc) plutôt
+    // que `ref.read(recitationProvider)` : cette méthode est appelée depuis
+    // `dispose()`, où `ref` n'est plus fiable (cf. le commentaire du champ).
+    // Fallback sur `ref.read` seulement si jamais aucun build n'a encore eu
+    // lieu (ne devrait pas arriver ici, mais reste correct sans dépendre de
+    // l'ordre d'initialisation).
+    final RecitationSessionState etat =
+        _dernierEtatConnu ?? ref.read(recitationProvider);
+    final words = etat.words;
     // `current` EXCLU, pas seulement `pending` (corrigé 2026-08-06 sur la
     // mesure) : `current` est le mot que le défilement suit, il n'a reçu aucun
     // verdict. Le compter gonflait le dénominateur d'une unité --
@@ -1029,6 +1067,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     if (mounted) {
       ref.invalidate(sessionsArchiveProvider);
       ref.invalidate(tailleArchiveProvider);
+      ref.invalidate(portionsProvider);
     }
   }
 
@@ -2473,6 +2512,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       }
     });
     final st = ref.watch(recitationProvider);
+    _dernierEtatConnu = st;
     // Défilement automatique vers le mot en cours (demande utilisateur
     // 2026-07-05 : suivre la vitesse de lecture pendant la récitation).
     // Calculé directement depuis l'état affiché par CE build (plutôt que via
