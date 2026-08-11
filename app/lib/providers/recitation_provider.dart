@@ -3797,6 +3797,39 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         'definitif:orange' || 'provisoire:orange' => WordStatus.unclear,
         'definitif:rouge' || 'provisoire:rouge' => WordStatus.error,
         'omis' => WordStatus.skipped,
+        // ── « DIT, MAIS PAS À SA PLACE » (2026-08-11) ────────────────────────
+        //
+        // Défaut fermé : le récitateur disait les groupes d'un verset DANS LE
+        // DÉSORDRE (« pour AB CD EF, j'ai dit AB EF CD ») et tout ressortait
+        // vert. Côté Kotlin, `Statut.Deplace` établit que le mot a bien été
+        // prononcé, mais que son audio arrive après celui d'un mot qui le suit
+        // dans le texte, sans aucune lecture antérieure qui l'aurait mis à sa
+        // place (cf. Decideur.OrdreTemporel pour le discriminant
+        // inversion / répétition légitime).
+        //
+        // POURQUOI `unclear` (orange), ET PAS AUTRE CHOSE :
+        //  - PAS `error` : rien ne dit que la PRONONCIATION est fautive, et la
+        //    règle projet est explicite -- « un mot hors de sa place ne doit
+        //    pas devenir rouge par le gop ». Rouge accuserait de la mauvaise
+        //    faute.
+        //  - PAS `skipped` : ce rendu est `underline = true` SANS AUCUN FOND,
+        //    et un mot sans couleur a déjà été jugé pénible par l'utilisateur
+        //    (défaut corrigé le 2026-08-04 sur `omis`). Il affirmerait en plus
+        //    « vous n'avez pas dit ce mot », alors qu'il l'a dit.
+        //  - PAS `correct` : c'est précisément le défaut qu'on ferme.
+        //  Reste `unclear` : visible (orange), non accusatoire, et surtout
+        //  TAPPABLE (`karaoke_recitation_screen._openWordHelp` n'ouvre la fiche
+        //  que sur `error`/`unclear`) -- l'utilisateur peut donc réécouter ce
+        //  qu'il a dit et comprendre, ce que `skipped` ne permet pas.
+        //
+        // ⚠️ LIMITE ASSUMÉE ET NOMMÉE : à l'écran, « pas à sa place » et
+        // « articulation approximative » portent aujourd'hui la MÊME couleur.
+        // Les distinguer demande un `WordStatus` de plus, donc une couleur et
+        // un libellé traduits (3 langues) dans tous les écrans qui peignent un
+        // mot -- c'est une décision d'IHM à arbitrer, pas à prendre au passage
+        // dans un correctif de la chaîne. La distinction est en attendant
+        // lisible dans le journal (`[V2] ... -> deplace`).
+        'deplace' => WordStatus.unclear,
         _ => null, // `inconnu` : aucune preuve, donc aucune couleur
       };
       if (statut == null) continue;

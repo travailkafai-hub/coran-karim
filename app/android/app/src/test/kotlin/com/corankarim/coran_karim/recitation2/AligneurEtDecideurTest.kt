@@ -138,10 +138,131 @@ class AligneurEtDecideurTest {
         assertFalse("OMIS n'est pas un rouge", s[0] is Statut.Definitif)
     }
 
-    private fun obs(fenetre: Long, mot: Int, gop: Float, interieur: Boolean) =
+    // ── ORDRE DE LECTURE : « dit, mais pas a sa place » (2026-08-11) ────────
+    //
+    // DEFAUT FERME. Le recitateur dit les groupes d'un verset dans le DESORDRE
+    // (« pour AB CD EF, j'ai dit AB EF CD ») et TOUT ressortait vert -- alors
+    // que reciter le Coran dans le desordre est une vraie faute, que l'app
+    // existe pour detecter. Journal du telephone, sourate 103 verset 3 : la
+    // fenetre qui entend la FIN du verset avant son DEBUT est celle qui ne juge
+    // rien (`bande=inconnue`), et les mots ressortent `definitif:vert` par les
+    // AUTRES fenetres, sans un seul `SAUT REFUSE`.
+    //
+    // Les deux tests qui suivent vont PAR PAIRE : le premier prouve que
+    // l'inversion est signalee, le second qu'une repetition legitime ne l'est
+    // pas. Pris seul, chacun se satisfait d'une regle idiote (tout signaler /
+    // ne rien signaler) -- c'est leur conjonction qui prouve le discriminant.
+
+    /**
+     * « AB CD EF » recite « AB EF CD ».
+     *
+     * Les temps sont ceux de l'AUDIO (`debutAbs`/`finAbs`), pas ceux des
+     * fenetres : c'est toute la difference. Les mots 4 et 5 sont prononces
+     * AVANT les mots 2 et 3, et ces derniers n'ont aucune lecture anterieure
+     * qui les aurait mis a leur place.
+     */
+    @Test
+    fun `deux groupes inverses -- le groupe dit trop tard est signale DEPLACE`() {
+        val registre = RegistreDePreuves()
+        val decideur = Decideur()
+        // Le recitateur dit AB (0,1), puis EF (4,5), puis CD (2,3).
+        // Deux fenetres par groupe : c'est le chemin normal de verrouillage.
+        fun groupe(f0: Long, mots: IntRange, t0: Long) {
+            for ((n, m) in mots.withIndex()) {
+                val d = t0 + n * 100
+                registre.ajouter(obs(f0, m, -0.01f, true, d, d + 90))
+                registre.ajouter(obs(f0 + 1, m, -0.01f, true, d, d + 90))
+            }
+        }
+        groupe(1, 0..1, 0)
+        decideur.statuts(registre, 6)
+        groupe(3, 4..5, 1000)
+        decideur.statuts(registre, 6)
+        groupe(5, 2..3, 2000)
+        val s = decideur.statuts(registre, 6)
+
+        assertTrue("le mot 2, dit apres le mot 4, est hors de sa place : ${s[2]}",
+            s[2] is Statut.Deplace)
+        assertTrue("idem pour le mot 3 : ${s[3]}", s[3] is Statut.Deplace)
+        // Ce qui a ete lu dans l'ordre reste acquis : on ne repeint pas la
+        // moitie de l'ecran parce qu'un groupe est arrive en retard.
+        for (i in listOf(0, 1, 4, 5)) {
+            assertEquals("le mot $i a ete dit a sa place",
+                Statut.Definitif(Couleur.VERT), s[i])
+        }
+        // ET SURTOUT : jamais rouge. Le mot a bien ete prononce -- l'accuser
+        // d'une faute de PRONONCIATION serait faux (regle projet : « un mot
+        // hors de sa place ne doit pas devenir rouge par le gop »).
+        assertFalse("DEPLACE n'est pas une couleur", s[2] is Statut.Definitif)
+    }
+
+    /**
+     * Le RECITATEUR QUI REPETE ne doit rien recevoir -- meme quand le mot repete
+     * n'avait PAS pu voter lors de son premier passage.
+     *
+     * C'est le cas limite du discriminant, et celui qui casserait la regle si
+     * elle se contentait de « l'audio du mot i doit preceder celui du mot i+1 » :
+     * une repetition est elle aussi NON LINEAIRE dans le temps. Ici le mot 4 n'a
+     * ete vu qu'au BORD d'une fenetre pendant la lecture en place (donc sans
+     * droit de vote, cf. `observationsVotantes`), puis correctement lors de la
+     * repetition -- ses seules preuves VOTANTES sont donc posterieures a celles
+     * du mot 5. Ce qui le disculpe est l'observation de bord : le mot etait bien
+     * la, a sa place, au premier passage.
+     */
+    @Test
+    fun `une repetition legitime n'est jamais signalee DEPLACE`() {
+        val registre = RegistreDePreuves()
+        val decideur = Decideur()
+        // Passage en place : 0..5 dans l'ordre. Le mot 4 n'est vu qu'au bord.
+        for (m in 0..5) {
+            val d = m * 100L
+            val auBord = m == 4
+            registre.ajouter(obs(1, m, -0.01f, !auBord, d, d + 90))
+            if (!auBord) registre.ajouter(obs(2, m, -0.01f, true, d, d + 90))
+        }
+        decideur.statuts(registre, 6)
+        // Il repete 3..5, dans leur ORDRE INTERNE -- le cas AUTORISE.
+        for ((n, m) in (3..5).withIndex()) {
+            val d = 1000L + n * 100
+            registre.ajouter(obs(3, m, -0.01f, true, d, d + 90))
+            registre.ajouter(obs(4, m, -0.01f, true, d, d + 90))
+        }
+        val s = decideur.statuts(registre, 6)
+
+        assertTrue(
+            "aucun mot ne doit etre DEPLACE par une repetition : " +
+                (0..5).filter { s[it] is Statut.Deplace },
+            (0..5).none { s[it] is Statut.Deplace }
+        )
+        assertEquals(
+            "le mot repete se juge normalement une fois qu'il a pu voter",
+            Statut.Definitif(Couleur.VERT), s[4]
+        )
+    }
+
+    /** Le controle d'ordre ne doit pas se declencher sur des mots CONTIGUS :
+     *  le CTC est peaky et deux mots voisins se touchent a la frame pres. */
+    @Test
+    fun `une lecture lineaire ne produit aucun DEPLACE`() {
+        val registre = RegistreDePreuves()
+        val decideur = Decideur()
+        for (m in 0..5) {
+            val d = m * 100L
+            registre.ajouter(obs(1, m, -0.01f, true, d, d + 100)) // fin == debut du suivant
+            registre.ajouter(obs(2, m, -0.01f, true, d, d + 100))
+        }
+        val s = decideur.statuts(registre, 6)
+        assertTrue("aucun DEPLACE sur une lecture lineaire",
+            (0..5).none { s[it] is Statut.Deplace })
+    }
+
+    private fun obs(
+        fenetre: Long, mot: Int, gop: Float, interieur: Boolean,
+        debutAbs: Long = 0, finAbs: Long = 100,
+    ) =
         RegistreDePreuves.Observation(
             fenetreId = fenetre, motIndex = mot, gop = gop, forced = gop, free = 0f,
             entendu = "x", frames = 5, interieur = interieur, couvert = true,
-            fenetrePleine = true, debutAbs = 0, finAbs = 100,
+            fenetrePleine = true, debutAbs = debutAbs, finAbs = finAbs,
         )
 }

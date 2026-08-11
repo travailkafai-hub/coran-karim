@@ -1504,6 +1504,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         is com.corankarim.coran_karim.recitation2.Statut.Definitif ->
             "definitif:${s.couleur.name.lowercase()}"
         is com.corankarim.coran_karim.recitation2.Statut.Omis -> "omis"
+        // « Dit, mais pas a sa place » (2026-08-11, cf. Statut.Deplace). Comme
+        // `omis`, ce n'est PAS une couleur et ce n'est PAS prefixe
+        // `definitif:` : Dart ne doit donc pas le verrouiller -- la chaine le
+        // recalcule a chaque fenetre et peut se dementir si le recitateur
+        // reprend le mot a sa place.
+        is com.corankarim.coran_karim.recitation2.Statut.Deplace -> "deplace"
     }
 
     /** PCM16 little-endian (format `AudioEncoder.pcm16bits` du package `record`) -> float [-1,1]. */

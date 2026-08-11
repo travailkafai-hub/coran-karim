@@ -14,6 +14,39 @@ sealed class Statut {
     data class Provisoire(val couleur: Couleur) : Statut()
     data class Definitif(val couleur: Couleur) : Statut()
     object Omis : Statut()
+
+    /**
+     * « Ce mot a bien ete dit, mais pas a sa place. »
+     *
+     * CE QU'IL REMPLACE, ET LE DEFAUT QU'IL FERME (2026-08-11). Le recitateur
+     * dit les groupes d'un verset DANS LE DESORDRE -- « pour AB CD EF, j'ai dit
+     * AB EF CD » -- et tout ressortait VERT. Reciter le Coran dans le desordre
+     * est une vraie faute, que l'app existe pour detecter.
+     *
+     * L'ordre etait pourtant deja verifie A L'INTERIEUR d'une fenetre (chaine
+     * LCS strictement croissante dans [Localisateur.apparier], treillis Viterbi
+     * monotone dans [AligneurForce.aligner]) -- mais une violation d'ordre y
+     * produisait du SILENCE, jamais un verdict : le groupe declasse sortait de
+     * `attestes` sans aucun signal, et `sansCreneau` retirait a l'observation le
+     * droit de voter. Le desordre etait traite comme une ABSENCE DE PREUVE.
+     * Journal du 2026-08-11 (sourate 103, verset 3) : la fenetre f=17 entend
+     * `صَبْرَ وَتَوَاصَوْا۟ بِ بِٱلْحَقِّ` -- la FIN du verset avant son DEBUT --
+     * et c'est precisement la fenetre qui ne juge rien (`bande=inconnue`) ; les
+     * mots 14, 15 et 17 ressortent `definitif:vert`, zero `SAUT REFUSE`.
+     *
+     * POURQUOI UN STATUT A PART ET NON UN ROUGE. Regle projet : « un mot hors de
+     * sa place ne doit pas devenir rouge par le gop » -- le mot a bien ete
+     * prononce, et souvent correctement ; le condamner comme une faute de
+     * PRONONCIATION serait faux. Meme raisonnement que [Omis], qui existe deja
+     * pour la meme raison : toutes les fautes ne sont pas des couleurs.
+     *
+     * ⚠️ N'ENTRE JAMAIS DANS `definitifs` -- comme [Omis], il est RECALCULE a
+     * chaque fenetre, donc revisable par conception : si le recitateur redit le
+     * mot a sa place, la preuve nouvelle rouvre le jugement. C'est exactement la
+     * lecon du 2026-08-04 (« `omis` NE VERROUILLE PLUS »), ou figer un verdict
+     * de position empechait la chaine de se dementir elle-meme.
+     */
+    object Deplace : Statut()
 }
 
 /**
@@ -115,9 +148,117 @@ class Decideur(
      *  un mot n'ayant pas a ecraser celle qui l'avait entendu entier. */
     private val meilleurProvisoire = HashMap<Int, Couleur>()
 
+    /**
+     * LE TEMPS EST UNE DIMENSION DU JUGEMENT (2026-08-11).
+     *
+     * ── L'INFORMATION EXISTAIT DEJA ET N'ETAIT LUE PAR PERSONNE ─────────────
+     *
+     * Chaque [RegistreDePreuves.Observation] porte `debutAbs`/`finAbs`, sa
+     * position EXACTE dans le flux brut. Grep exhaustif au 2026-08-11 : ces deux
+     * champs n'etaient lus que par `voixSurPlage` (rejouer l'audio d'un mot) et
+     * `tracerMot` (journal). AUCUNE decision ne les regardait -- tout raisonnait
+     * sur des index de mots. D'ou le defaut de [Statut.Deplace] : la chaine
+     * savait a quel instant chaque preuve avait ete captee, et ne s'en servait
+     * jamais pour verifier que la lecture etait LINEAIRE.
+     *
+     * ── LE DISCRIMINANT : INVERSION CONTRE REPETITION LEGITIME ──────────────
+     *
+     * Contrainte absolue du graphe : NE JAMAIS INTERDIRE LE RECUL.
+     * [PIEGE] findResyncOffset ne cherche QU'EN AVANT -- « un recitateur qui
+     * REPETE ne peut STRUCTURELLEMENT pas etre suivi ». Une repetition
+     * legitime est elle aussi non lineaire dans le temps : on ne peut donc pas
+     * se contenter de « l'audio du mot i doit preceder celui du mot i+1 ».
+     *
+     * Ce qui les separe n'est pas la non-linearite, c'est l'EXISTENCE D'UNE
+     * LECTURE EN PLACE :
+     *   - REPETITION : « il redit un passage DEJA DIT, dans son ordre interne ».
+     *     Les mots concernes ont donc AUSSI une preuve ANTERIEURE, prise quand
+     *     ils etaient a leur place. Et les mots qui les suivent ont eux-memes
+     *     ete redits, donc leur preuve la PLUS TARDIVE est posterieure.
+     *   - INVERSION : « il a inverse deux groupes sans rien redire ». Le groupe
+     *     deplace n'a AUCUNE preuve anterieure -- il n'a jamais ete lu a sa
+     *     place, sa seule occurrence est celle qui arrive trop tard.
+     *
+     * Le test s'ecrit donc, pour le mot i : la preuve la PLUS PRECOCE de i
+     * commence-t-elle apres la FIN de la preuve la PLUS TARDIVE d'un mot
+     * POSTERIEUR j > i ? Si oui, il n'existe aucune lecture de i qui soit en
+     * place, et aucune relecture de j qui expliquerait ce desordre.
+     *
+     * ── DEUX MESURES ASYMETRIQUES, ET C'EST VOULU ──────────────────────────
+     *
+     * `debutPropre` (cote ACCUSE) est PERMISSIF : toute observation ayant un
+     * creneau acoustique a elle compte, meme au BORD d'une fenetre, meme non
+     * votante. Un mot vu au bord a bel et bien ete prononce a cet instant --
+     * c'est assez pour le DISCULPER, pas assez pour le condamner. C'est ce qui
+     * protege le cas ou le modele n'a pas VOTE sur un mot pendant la lecture en
+     * place (fenetre qui le tronque) et ou le recitateur repete ensuite le
+     * passage : sans cette permissivite, une repetition legitime serait
+     * signalee comme une inversion.
+     * `finVotante` (cote ACCUSATEUR) est STRICT : seules les observations
+     * VOTANTES peuvent servir a dire d'un autre mot qu'il est hors de sa place.
+     * Le doute profite au recitateur, comme partout ailleurs dans cette couche.
+     *
+     * DEUX EXCLUSIONS, DES DEUX COTES, ET AUCUNE N'EST UNE TOLERANCE :
+     *  - `sansCreneau` : un mot que l'alignement force a pose sur l'audio d'un
+     *    VOISIN n'a aucune position propre, son horodatage est celui de
+     *    quelqu'un d'autre (cf. AligneurForce.sansCreneau) ;
+     *  - `entendu` VIDE : les frames attribuees au mot n'emettent RIEN -- la DP
+     *    l'a pose sur du silence. C'est la regle deja etablie dans
+     *    [RegistreDePreuves.observationsVotantes] (« aucun verdict sur entendu
+     *    vide »), et elle vaut ici dans les deux sens : un mot pose sur du
+     *    silence n'a pas ete dit a cet instant, donc ce silence ne peut ni le
+     *    disculper ni accuser un autre. Sans cette exclusion, l'extension de
+     *    bande vers l'arriere (cf. Localisateur, « l'audio libre EN TETE de
+     *    bloc ») donnerait a un mot deplace un faux horodatage PRECOCE, pris
+     *    dans la pause qui precede le passage -- et le controle ne verrait plus
+     *    rien.
+     *
+     * Comparaison STRICTE (`>`), jamais une marge inventee : deux mots
+     * consecutifs se touchent (le CTC est peaky), et un chevauchement d'une
+     * frame ne doit rien declencher. Il faut que tout l'audio de j soit fini
+     * AVANT que celui de i ne commence.
+     */
+    private class OrdreTemporel(private val debutPropre: LongArray,
+                                private val finApres: LongArray) {
+        fun horsDeSaPlace(i: Int): Boolean =
+            i in debutPropre.indices &&
+                debutPropre[i] != ABSENT && finApres[i] != ABSENT &&
+                debutPropre[i] > finApres[i]
+
+        companion object { const val ABSENT = Long.MAX_VALUE }
+    }
+
+    private fun ordreTemporel(registre: RegistreDePreuves, nbMots: Int): OrdreTemporel {
+        val debutPropre = LongArray(nbMots) { OrdreTemporel.ABSENT }
+        val finVotante = LongArray(nbMots) { -1L }
+        // On ne parcourt QUE les mots reellement observes : sur une sourate
+        // longue (2498 mots pour la 9), balayer tout le texte a chaque fenetre
+        // couterait plus cher que l'inference elle-meme.
+        for (i in registre.motsObserves) {
+            if (i < 0 || i >= nbMots) continue
+            for (o in registre.observations(i)) {
+                if (o.sansCreneau || o.debutAbs < 0 || o.finAbs < 0) continue
+                if (o.entendu.isBlank()) continue
+                if (o.debutAbs < debutPropre[i]) debutPropre[i] = o.debutAbs
+                if (o.interieur && o.finAbs > finVotante[i]) finVotante[i] = o.finAbs
+            }
+        }
+        // Suffixe : le mot POSTERIEUR dont l'audio se termine le plus TOT. Une
+        // seule passe -- la question « existe-t-il un j > i qui finit avant que
+        // i ne commence ? » se ramene a comparer i a ce minimum.
+        val finApres = LongArray(nbMots) { OrdreTemporel.ABSENT }
+        var mini = OrdreTemporel.ABSENT
+        for (i in nbMots - 1 downTo 0) {
+            finApres[i] = mini
+            if (finVotante[i] >= 0 && finVotante[i] < mini) mini = finVotante[i]
+        }
+        return OrdreTemporel(debutPropre, finApres)
+    }
+
     /** @return statut courant de chaque mot ayant au moins une observation. */
     fun statuts(registre: RegistreDePreuves, nbMots: Int): Map<Int, Statut> {
         val out = HashMap<Int, Statut>()
+        val ordre = ordreTemporel(registre, nbMots)
 
         for (i in 0 until nbMots) {
             val dejaFige = definitifs[i]
@@ -125,6 +266,33 @@ class Decideur(
 
             val votantes = registre.observationsVotantes(i)
             if (votantes.isEmpty()) continue
+
+            // ── LE CONTROLE D'ORDRE PASSE AVANT TOUTE COULEUR ───────────────
+            //
+            // Place ICI et non dans chacune des regles ci-dessous : les deux
+            // chemins qui figent un VERT sur UNE SEULE observation (`nette`
+            // plus bas, et le secours anti-`Omis` en fin de fonction) n'ont
+            // aucun terme de position -- ce sont les deux fuites par lesquelles
+            // une permutation devenait verte. Une regle posee ailleurs qu'en
+            // amont de tous les chemins serait contournee par eux.
+            //
+            // Et il passe avant la couleur parce qu'une preuve prise au mauvais
+            // MOMENT ne dit rien de la PRONONCIATION : juger sur elle, ce
+            // serait juger un mot sur l'audio d'un autre passage.
+            //
+            // ⚠️ CE QUE CA COUTE, ET C'EST ASSUME : un mot deja affiche
+            // PROVISOIRE:VERT peut basculer en `Deplace`, ce qui contredit en
+            // apparence la regle « un provisoire ne se degrade jamais » (bloc
+            // SENS UNIQUE plus bas). La regle du sens unique repond a une autre
+            // question : elle interdit qu'une observation MOINS BONNE du meme
+            // audio (mot tronque par une fenetre) ecrase une meilleure. Ici,
+            // rien n'est reevalue sur le meme audio -- c'est une information
+            // NOUVELLE qui arrive, celle d'un mot POSTERIEUR prononce plus tot,
+            // et qui n'existait a aucun moment quand le vert a ete affiche.
+            // La monotonie qui compte reste intacte : un verdict DEFINITIF ne
+            // change jamais, et ce controle ne s'applique qu'aux mots pas
+            // encore figes (`dejaFige` a deja fait `continue`).
+            if (ordre.horsDeSaPlace(i)) { out[i] = Statut.Deplace; continue }
 
             val couleurs = votantes.map { couleur(it) }
             val fenetres = votantes.map { it.fenetreId }
@@ -307,6 +475,23 @@ class Decideur(
                     it.atteste && it.entendu.isNotBlank() && !it.sansCreneau
                 }
                 if (preuve != null) {
+                    // ── MEME CONTROLE D'ORDRE QUE PLUS HAUT (2026-08-11) ────
+                    //
+                    // Ce secours fige un VERT sur UNE SEULE observation, sans
+                    // aucun terme de position : c'est la SECONDE fuite par
+                    // laquelle une permutation devenait verte. Il l'atteint par
+                    // un chemin que le controle du haut ne voit pas -- un mot
+                    // atteste vu SEULEMENT au bord n'a aucune observation
+                    // votante, donc il n'entre jamais dans la boucle
+                    // precedente. Sans cette ligne, il suffisait qu'un mot
+                    // deplace soit vu au bord d'une fenetre pour retrouver son
+                    // vert, et tout le mecanisme serait contournable.
+                    //
+                    // `Deplace` plutot que `Omis` : le mot a bel et bien ete
+                    // dit (c'est justement ce que `preuve` etablit), affirmer
+                    // « vous ne l'avez pas prononce » serait faux -- et c'est
+                    // le verdict le plus grave que l'app puisse rendre.
+                    if (ordre.horsDeSaPlace(i)) { out[i] = Statut.Deplace; continue }
                     definitifs[i] = Couleur.VERT
                     out[i] = Statut.Definitif(Couleur.VERT)
                     continue

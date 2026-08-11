@@ -209,6 +209,82 @@ class ChaineRecitationTest {
             s is Statut.Definitif && s.couleur == Couleur.ROUGE
         }
         assertTrue("aucun mot repete ne doit devenir rouge, rouges = $rouges", rouges.isEmpty())
+        // ── NI SIGNALES « HORS DE LEUR PLACE » (2026-08-11) ─────────────────
+        //
+        // Le controle d'ordre temporel introduit ce jour-la (cf.
+        // Decideur.OrdreTemporel) fait du TEMPS une dimension du jugement. Une
+        // repetition est NON LINEAIRE dans le temps elle aussi : c'est la
+        // premiere chose qu'une telle regle casse si son discriminant est faux.
+        // Contrainte du graphe : [PIEGE] findResyncOffset ne cherche QU'EN
+        // AVANT -- « un recitateur qui REPETE ne peut STRUCTURELLEMENT pas etre
+        // suivi ». On verrouille donc ici que le recul reste gratuit.
+        val deplaces = (0..c.preuves.indexMaxVotant()).filter { statuts[it] is Statut.Deplace }
+        assertTrue(
+            "une repetition legitime ne doit produire AUCUN mot deplace : $deplaces",
+            deplaces.isEmpty()
+        )
+    }
+
+    /**
+     * LE DESORDRE EST UNE FAUTE, ET ELLE DOIT SE VOIR (2026-08-11).
+     *
+     * Constate par l'utilisateur puis confirme sur le journal du telephone
+     * (sourate 103 Al-'Asr, verset 3, deux groupes de deux mots permutables) :
+     * « pour AB CD EF, j'ai dit AB EF CD » et TOUT etait valide vert.
+     *
+     * POURQUOI RIEN NE LE VOYAIT. L'ordre est bien verifie A L'INTERIEUR d'une
+     * fenetre -- la chaine LCS du [Localisateur] est strictement croissante, le
+     * treillis de [AligneurForce] est monotone. Mais une violation d'ordre y
+     * produit du SILENCE : la fenetre f=17 du journal entend
+     * `صَبْرَ وَتَوَاصَوْا۟ بِ بِٱلْحَقِّ` -- la FIN du verset avant son DEBUT --
+     * et c'est exactement celle qui ne juge rien (`bande=inconnue`). Les
+     * verdicts verts venaient des AUTRES fenetres, chacune parfaitement
+     * coherente prise SEULE. Aucune couche ne comparait deux fenetres entre
+     * elles dans le TEMPS.
+     *
+     * Et l'ecart de deux mots passe sous [ChaineRecitation.sautMaxMots] = 2 :
+     * une permutation COURTE tombe exactement dans l'angle mort du refus de
+     * saut. C'est bien le cas reproduit ici.
+     */
+    @Test
+    fun `deux groupes recites dans le desordre sont signales, jamais rouges`() {
+        val journal = ArrayList<String>()
+        val c = chaine { journal.add(it) }
+        // « AB CD EF » recite « AB EF CD » : il dit 0..7, puis 10-11, PUIS 8-9,
+        // puis reprend a 12. L'ecart 7 -> 10 vaut deux mots, donc aucun saut
+        // n'est refuse -- c'est tout le probleme.
+        val prononce = texte.subList(0, 8) + texte.subList(10, 12) +
+            texte.subList(8, 10) + texte.subList(12, 16)
+        // Une pause toutes les DEUX phrases : chaque groupe permute tombe dans
+        // sa propre fenetre, comme sur le telephone ou les groupes d'un verset
+        // sont separes par une respiration. Sans cela une seule fenetre
+        // porterait le desordre, et le localisateur le noierait tout seul
+        // (`bande=inconnue`) -- ce n'est pas ce cas-la qu'on teste ici.
+        jouer(c, avecQueue(Synthese.pcm(prononce, tok, blank, 3, 3, pauseTousLes = 2)))
+
+        val statuts = c.statuts
+        val deplaces = (0..15).filter { statuts[it] is Statut.Deplace }
+        assertTrue(
+            "les mots 8 et 9, dits APRES les mots 10 et 11, doivent etre " +
+                "signales hors de leur place -- deplaces=$deplaces\n" +
+                c.tracerMot(8) + "\n" + c.tracerMot(9) + "\n" +
+                journal.joinToString("\n"),
+            deplaces.containsAll(listOf(8, 9))
+        )
+        // AUCUN ROUGE : le mot a bel et bien ete prononce, et correctement.
+        // Le condamner comme une faute de PRONONCIATION serait faux -- regle
+        // projet : « un mot hors de sa place ne doit pas devenir rouge par le
+        // gop ».
+        val rouges = (0..15).filter { i ->
+            val s = statuts[i]
+            s is Statut.Definitif && s.couleur == Couleur.ROUGE
+        }
+        assertTrue("le desordre ne doit produire aucun rouge : $rouges", rouges.isEmpty())
+        // Et ce qui a ete lu dans l'ordre reste acquis.
+        assertTrue(
+            "les mots lus dans l'ordre restent verts",
+            (0..5).all { statuts[it] == Statut.Definitif(Couleur.VERT) }
+        )
     }
 
     /**
