@@ -184,18 +184,27 @@ Cause du chiffre de 1066 Mo confirmée : un `unzip -l` brut sur un `.aab`
 pas ce qu'un appareil reçoit. `bundletool` reproduit exactement ce que Play
 sert à un appareil donné ; c'est la mesure qui fait foi désormais.
 
-### 2.3 — Politique de confidentialité + Data safety — **PAGE RÉDIGÉE, HÉBERGEMENT À FAIRE**
+### 2.3 — Politique de confidentialité + Data safety — **URL DISPONIBLE, À COLLER DANS LA CONSOLE**
 
 Play l'exige dès qu'on demande le micro et la position. **Le contenu existe
 déjà** : c'est le texte de l'écran « À propos »
-(`app/lib/screens/about_screen.dart` et les clés `about*` des `.arb`). Il n'y a
-qu'à le publier sur une page web accessible et coller l'URL dans la console.
+(`app/lib/screens/about_screen.dart` et les clés `about*` des `.arb`).
 
 **Page rédigée le 2026-08-11** : `docs/politique-confidentialite.html`
 (autonome, sans dépendance externe). Reprend les points vérifiés ailleurs dans
 ce dossier : micro/position traités sur l'appareil, réseau limité aux
 téléchargements demandés, `allowBackup=false` (§3.4), pas de compte/pub/
 traceur, sources et licence CC BY 4.0 du modèle ASR.
+
+**Hébergée le 2026-08-11** sur un dépôt GitHub dédié (public, contient
+UNIQUEMENT cette page -- pas le code de l'app), Pages activé :
+
+**URL à coller dans la console Play : <https://travailkafai-hub.github.io/coran-karim-legal/politique-confidentialite.html>**
+
+(vérifiée en ligne, réponse HTTP 200). Dépôt source :
+<https://github.com/travailkafai-hub/coran-karim-legal>. Pour mettre à jour la
+page, modifier `docs/politique-confidentialite.html` ici puis copier vers ce
+dépôt et pousser -- les deux copies ne sont pas synchronisées automatiquement.
 
 **Reste à faire, hors de portée sans accès à un hébergeur** :
 1. **Héberger** cette page (aucun remote git n'est configuré sur ce dépôt —
