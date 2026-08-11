@@ -13,7 +13,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- USE_EXACT_ALARM retiree (2026-08-11, PUBLICATION_PLAY.md §6) : reservee
+         par Play aux applications d'alarme/agenda, une app de priere qui la
+         demande risque un refus en revue. SCHEDULE_EXACT_ALARM ci-dessus
+         suffit (accordable via son formulaire de declaration en console) :
+         AdhanSchedulerPlugin.scheduleAlarm() a deja son repli sur une alarme
+         INEXACTE (setAndAllowWhileIdle) si la permission n'est pas accordee,
+         donc l'adhan sonne toujours, avec un delai possible au lieu de rien.
+         NB : pas de double tiret dans ce commentaire, XML l'interdit. -->
     <!-- Lecture reelle de l'adhan complet (AdhanPlaybackService, 2026-08-09) :
          le son de canal de notification ne peut pas jouer un fichier de
          2 min 11 de facon fiable, cf. commentaire du service. -->
