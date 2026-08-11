@@ -137,6 +137,46 @@ l'ai pas testé.
 Le FP32 à 405 Mo, lui, ne rentrera jamais dans le module de base : même sans
 Gemma, on serait à ~460 Mo.
 
+**Implémenté le 2026-08-11 (session parallèle, non commité) — voie 2 (PAD
+install-time, FP32) directement, sans passer par l'étape 1 ci-dessus (mesure
+INT8).** ⚠️ **À confirmer avec l'utilisateur** : l'ordre recommandé n'a pas été
+suivi, l'INT8 n'a donc pas été comparé au FP32 avant ce choix.
+
+Module Gradle `app/android/model_pack` (`com.android.asset-pack`,
+`deliveryType=install-time`), fichiers du modèle en **hardlink NTFS** vers
+`benchmark/models_deployes/...` (zéro octet dupliqué sur le dépôt). Le piège
+du paragraphe précédent est confirmé réel : `AssetManager` ne rend pas de
+chemin fichier pour un pack `install-time` (seul `on-demand`/`fast-follow` en
+donnent un) — ONNX Runtime exige un chemin réel, donc extraction unique au
+premier `ensureLoaded()` vers `getApplicationSupportDirectory()`, via un
+nouveau canal natif `extractModelFromAssetPack` (copie `.tmp` + renommage
+atomique, jamais de destination visible incomplète). Le chemin `kDebugMode`
+(§5.1) n'est pas touché. Fichiers modifiés : `fastconformer_verifier.dart`,
+`FastConformerCtcPlugin.kt`, `android/settings.gradle.kts`,
+`android/app/build.gradle.kts`.
+
+⚠️ **Coût disque permanent non chiffré avant ce jour : ~860-900 Mo.** Un pack
+`install-time` ne se supprime jamais après coup — le modèle existe donc **en
+double** en permanence : une fois dans le pack installé (~405-459 Mo), une
+fois dans sa copie extraite pour ONNX Runtime (458,8 Mo). Argument de plus en
+faveur de mesurer l'INT8 (~110 Mo, un seul exemplaire) avant de valider le
+FP32 en pack séparé.
+
+⚠️ **Taille du module de base après cet ajout — mesure NON fiable, à refaire.**
+Un `unzip -l | awk` sur le `.aab` produit par `flutter build appbundle --debug`
+donne **1066 Mo** pour le module de base (hors `model_pack`), ce qui
+**contredit** la conclusion « largement sous la limite de 200 Mo » tirée à côté
+de ce même chiffre dans le rapport de session — contradiction non résolue,
+donc à ne pas tenir pour acquise (cf. §9, « un résultat inattendu ne s'habille
+pas d'une explication non vérifiée »). Cause probable, **non confirmée** : un
+`.aab` **debug** empile les 4 ABI (arm/arm64/x86/x86_64) non splittées et le
+code non minifié, alors que Play ne livre jamais que l'ABI de l'appareil — les
+~52 Mo cités plus haut venaient d'un calcul par-ABI sur un APK **release**, pas
+d'une somme brute sur un bundle **debug** : les deux chiffres ne mesurent pas
+la même chose. **Mesure correcte à faire avant de conclure quoi que ce soit** :
+`bundletool build-apks` + `get-size total` sur un `.aab` **release**, ciblé sur
+un profil d'appareil réel.
+
 ### 2.3 — Politique de confidentialité + Data safety — **À FAIRE**
 
 Play l'exige dès qu'on demande le micro et la position. **Le contenu existe
