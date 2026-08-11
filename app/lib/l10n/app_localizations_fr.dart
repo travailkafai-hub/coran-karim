@@ -2042,4 +2042,63 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get coachMoveToControl => 'Passer au controle';
+
+  @override
+  String get coachPortionsTitle => 'MES PORTIONS';
+
+  @override
+  String get coachRefreshTooltip => 'Actualiser';
+
+  @override
+  String coachPortionsError(Object error) {
+    return 'Portions illisibles : $error';
+  }
+
+  @override
+  String get coachPortionsEmpty =>
+      'Aucune portion suivie pour l\'instant. Chaque sourate (ou tranche de Hizb pour les plus longues) que vous récitez apparaîtra ici avec sa progression cumulée.';
+
+  @override
+  String coachPortionWordsCovered(int reached, int total) {
+    return '$reached/$total mot(s) couvert(s)';
+  }
+
+  @override
+  String get coachPortionFullCoverage => ' · couverture complète';
+
+  @override
+  String get coachPortionAccuracyLabel => 'justes';
+
+  @override
+  String get coachPortionBadgeLabel => 'Portion réussie';
+
+  @override
+  String coachPortionBilanPercent(int percent) {
+    return '$percent % de mots justes';
+  }
+
+  @override
+  String coachPortionBilanDetail(int green, int reached, int total) {
+    return '$green mots justes sur $reached récités, sur $total au total dans cette portion. Un mot contesté compte comme juste.';
+  }
+
+  @override
+  String get coachPortionNoneRecitedYet =>
+      'Aucun mot récité pour l\'instant sur cette portion.';
+
+  @override
+  String get coachPortionNothingToReview =>
+      'Aucun mot à revoir sur cette portion.';
+
+  @override
+  String get coachWordUnavailable => 'Verset indisponible';
+
+  @override
+  String get coachPortionHistorySection => 'DÉJÀ RATÉS, MAINTENANT ACQUIS';
+
+  @override
+  String get coachPortionCorrectedBadge => 'Corrigé';
+
+  @override
+  String get coachPortionContestedBadge => 'Contesté';
 }

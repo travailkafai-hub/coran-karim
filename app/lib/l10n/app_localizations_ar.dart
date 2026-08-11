@@ -1942,4 +1942,62 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachMoveToControl => 'الانتقال إلى المراقبة';
+
+  @override
+  String get coachPortionsTitle => 'أقسامي';
+
+  @override
+  String get coachRefreshTooltip => 'تحديث';
+
+  @override
+  String coachPortionsError(Object error) {
+    return 'تعذّرت قراءة الأقسام: $error';
+  }
+
+  @override
+  String get coachPortionsEmpty =>
+      'لا يوجد قسم متابَع بعد. ستظهر هنا كل سورة (أو جزء من حزب للسور الطويلة) تتلوها مع تقدّمها التراكمي.';
+
+  @override
+  String coachPortionWordsCovered(int reached, int total) {
+    return '$reached/$total كلمة مغطاة';
+  }
+
+  @override
+  String get coachPortionFullCoverage => ' · تغطية كاملة';
+
+  @override
+  String get coachPortionAccuracyLabel => 'صحيحة';
+
+  @override
+  String get coachPortionBadgeLabel => 'قسم مُتقَن';
+
+  @override
+  String coachPortionBilanPercent(int percent) {
+    return '$percent٪ من الكلمات صحيحة';
+  }
+
+  @override
+  String coachPortionBilanDetail(int green, int reached, int total) {
+    return '$green كلمة صحيحة من أصل $reached متلوة، من إجمالي $total في هذا القسم. الكلمة المعترَض عليها تُحتسب صحيحة.';
+  }
+
+  @override
+  String get coachPortionNoneRecitedYet => 'لم تُتلَ أي كلمة بعد في هذا القسم.';
+
+  @override
+  String get coachPortionNothingToReview =>
+      'لا توجد كلمة للمراجعة في هذا القسم.';
+
+  @override
+  String get coachWordUnavailable => 'الآية غير متاحة';
+
+  @override
+  String get coachPortionHistorySection => 'أُخطئت سابقًا، مُتقَنة الآن';
+
+  @override
+  String get coachPortionCorrectedBadge => 'صُحّحت';
+
+  @override
+  String get coachPortionContestedBadge => 'معترَض عليها';
 }

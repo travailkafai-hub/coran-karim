@@ -2024,4 +2024,63 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get coachMoveToControl => 'Move to control';
+
+  @override
+  String get coachPortionsTitle => 'MY PORTIONS';
+
+  @override
+  String get coachRefreshTooltip => 'Refresh';
+
+  @override
+  String coachPortionsError(Object error) {
+    return 'Portions unreadable: $error';
+  }
+
+  @override
+  String get coachPortionsEmpty =>
+      'No portion tracked yet. Every surah (or Hizb section for longer ones) you recite will appear here with its cumulative progress.';
+
+  @override
+  String coachPortionWordsCovered(int reached, int total) {
+    return '$reached/$total word(s) covered';
+  }
+
+  @override
+  String get coachPortionFullCoverage => ' · full coverage';
+
+  @override
+  String get coachPortionAccuracyLabel => 'correct';
+
+  @override
+  String get coachPortionBadgeLabel => 'Portion mastered';
+
+  @override
+  String coachPortionBilanPercent(int percent) {
+    return '$percent% correct words';
+  }
+
+  @override
+  String coachPortionBilanDetail(int green, int reached, int total) {
+    return '$green correct words out of $reached recited, out of $total total in this portion. A disputed word counts as correct.';
+  }
+
+  @override
+  String get coachPortionNoneRecitedYet =>
+      'No word recited yet on this portion.';
+
+  @override
+  String get coachPortionNothingToReview =>
+      'No word to review on this portion.';
+
+  @override
+  String get coachWordUnavailable => 'Verse unavailable';
+
+  @override
+  String get coachPortionHistorySection => 'PREVIOUSLY MISSED, NOW MASTERED';
+
+  @override
+  String get coachPortionCorrectedBadge => 'Corrected';
+
+  @override
+  String get coachPortionContestedBadge => 'Disputed';
 }

@@ -2525,5 +2525,99 @@
   "coachMoveToControl": "Passer au controle",
   "@coachMoveToControl": {
     "description": "Bouton de l'etape Entraine vers Controle"
+  },
+
+  "coachPortionsTitle": "MES PORTIONS",
+  "@coachPortionsTitle": {
+    "description": "En-tête de la section suivi permanent par sourate/Hizb dans le Coach"
+  },
+  "coachRefreshTooltip": "Actualiser",
+  "@coachRefreshTooltip": {
+    "description": "Infobulle du bouton de rafraîchissement manuel de la section Portions"
+  },
+  "coachPortionsError": "Portions illisibles : {error}",
+  "@coachPortionsError": {
+    "description": "Message d'erreur si la liste des portions ne peut pas être lue",
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "coachPortionsEmpty": "Aucune portion suivie pour l'instant. Chaque sourate (ou tranche de Hizb pour les plus longues) que vous récitez apparaîtra ici avec sa progression cumulée.",
+  "@coachPortionsEmpty": {
+    "description": "Texte affiché quand aucune portion n'a encore été suivie"
+  },
+  "coachPortionWordsCovered": "{reached}/{total} mot(s) couvert(s)",
+  "@coachPortionWordsCovered": {
+    "description": "Sous-titre d'une carte portion : nombre de mots couverts sur le total",
+    "placeholders": {
+      "reached": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "coachPortionFullCoverage": " · couverture complète",
+  "@coachPortionFullCoverage": {
+    "description": "Suffixe ajouté quand une portion est intégralement couverte"
+  },
+  "coachPortionAccuracyLabel": "justes",
+  "@coachPortionAccuracyLabel": {
+    "description": "Petite étiquette sous le pourcentage d'une carte portion"
+  },
+  "coachPortionBadgeLabel": "Portion réussie",
+  "@coachPortionBadgeLabel": {
+    "description": "Libellé du badge de réussite d'une portion"
+  },
+  "coachPortionBilanPercent": "{percent} % de mots justes",
+  "@coachPortionBilanPercent": {
+    "description": "Grand chiffre du bilan d'une portion",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "coachPortionBilanDetail": "{green} mots justes sur {reached} récités, sur {total} au total dans cette portion. Un mot contesté compte comme juste.",
+  "@coachPortionBilanDetail": {
+    "description": "Détail du bilan d'une portion, sous le pourcentage",
+    "placeholders": {
+      "green": {
+        "type": "int"
+      },
+      "reached": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "coachPortionNoneRecitedYet": "Aucun mot récité pour l'instant sur cette portion.",
+  "@coachPortionNoneRecitedYet": {
+    "description": "Texte affiché dans le détail d'une portion jamais récitée"
+  },
+  "coachPortionNothingToReview": "Aucun mot à revoir sur cette portion.",
+  "@coachPortionNothingToReview": {
+    "description": "Texte affiché quand tous les mots d'une portion sont acquis"
+  },
+  "coachWordUnavailable": "Verset indisponible",
+  "@coachWordUnavailable": {
+    "description": "Erreur quand le verset d'un mot de portion ne peut pas être chargé"
+  },
+  "coachPortionHistorySection": "DÉJÀ RATÉS, MAINTENANT ACQUIS",
+  "@coachPortionHistorySection": {
+    "description": "Titre de la section historique dans le détail d'une portion"
+  },
+  "coachPortionCorrectedBadge": "Corrigé",
+  "@coachPortionCorrectedBadge": {
+    "description": "Badge sur un mot d'historique redevenu correct"
+  },
+  "coachPortionContestedBadge": "Contesté",
+  "@coachPortionContestedBadge": {
+    "description": "Badge sur un mot d'historique marqué contesté par l'utilisateur"
   }
 }

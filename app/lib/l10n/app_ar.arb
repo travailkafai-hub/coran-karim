@@ -646,5 +646,22 @@
   "coachTapToTrain": "اضغط واتلُ الآية",
   "coachTrainListening": "أستمع إليك...",
   "coachTrainDone": "انتهت الجولة",
-  "coachMoveToControl": "الانتقال إلى المراقبة"
+  "coachMoveToControl": "الانتقال إلى المراقبة",
+
+  "coachPortionsTitle": "أقسامي",
+  "coachRefreshTooltip": "تحديث",
+  "coachPortionsError": "تعذّرت قراءة الأقسام: {error}",
+  "coachPortionsEmpty": "لا يوجد قسم متابَع بعد. ستظهر هنا كل سورة (أو جزء من حزب للسور الطويلة) تتلوها مع تقدّمها التراكمي.",
+  "coachPortionWordsCovered": "{reached}/{total} كلمة مغطاة",
+  "coachPortionFullCoverage": " · تغطية كاملة",
+  "coachPortionAccuracyLabel": "صحيحة",
+  "coachPortionBadgeLabel": "قسم مُتقَن",
+  "coachPortionBilanPercent": "{percent}٪ من الكلمات صحيحة",
+  "coachPortionBilanDetail": "{green} كلمة صحيحة من أصل {reached} متلوة، من إجمالي {total} في هذا القسم. الكلمة المعترَض عليها تُحتسب صحيحة.",
+  "coachPortionNoneRecitedYet": "لم تُتلَ أي كلمة بعد في هذا القسم.",
+  "coachPortionNothingToReview": "لا توجد كلمة للمراجعة في هذا القسم.",
+  "coachWordUnavailable": "الآية غير متاحة",
+  "coachPortionHistorySection": "أُخطئت سابقًا، مُتقَنة الآن",
+  "coachPortionCorrectedBadge": "صُحّحت",
+  "coachPortionContestedBadge": "معترَض عليها"
 }

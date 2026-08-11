@@ -17,6 +17,7 @@ import '../services/recitation_verifier.dart';
 import '../services/voice_fingerprint_service.dart';
 import '../theme/app_theme.dart';
 import 'coach_incremental_repeat.dart';
+import 'coach_sessions.dart' show portionsProvider;
 import 'tajwid_rules_screen.dart';
 import '../widgets/tajwid_help_sheet.dart';
 import '../widgets/tajweed_text.dart';
@@ -704,6 +705,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
           focusWord: words[wordIndex].display,
           wordIndex: wordIndex,
           localWordIndex: wordIndex - offset,
+          onWordContested: () => ref.invalidate(portionsProvider),
         );
         return;
       }

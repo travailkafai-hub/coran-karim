@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../providers/mind_map_provider.dart';
 import '../services/quran_api.dart';
@@ -76,6 +77,7 @@ class PortionsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final portions = ref.watch(portionsProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,7 +86,7 @@ class PortionsSection extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
-            Text('MES PORTIONS',
+            Text(t.coachPortionsTitle,
                 style: GoogleFonts.manrope(
                   fontSize: 11,
                   letterSpacing: 1.3,
@@ -94,7 +96,7 @@ class PortionsSection extends ConsumerWidget {
             const Spacer(),
             IconButton(
               visualDensity: VisualDensity.compact,
-              tooltip: 'Actualiser',
+              tooltip: t.coachRefreshTooltip,
               icon: const Icon(Icons.refresh_rounded,
                   size: 18, color: AppColors.green800),
               onPressed: () => ref.invalidate(portionsProvider),
@@ -107,7 +109,7 @@ class PortionsSection extends ConsumerWidget {
             padding: EdgeInsets.symmetric(vertical: 18),
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           ),
-          error: (e, _) => Text('Portions illisibles : $e',
+          error: (e, _) => Text(t.coachPortionsError(e),
               style: GoogleFonts.manrope(
                   fontSize: 12, color: AppColors.inkLight)),
           data: (list) => list.isEmpty
@@ -120,9 +122,7 @@ class PortionsSection extends ConsumerWidget {
                     border: Border.all(color: AppColors.cream300),
                   ),
                   child: Text(
-                    'Aucune portion suivie pour l’instant. Chaque sourate '
-                    '(ou tranche de Hizb pour les plus longues) que vous '
-                    'récitez apparaîtra ici avec sa progression cumulée.',
+                    t.coachPortionsEmpty,
                     style: GoogleFonts.manrope(
                         fontSize: 12.5, height: 1.45, color: AppColors.inkLight),
                   ),
@@ -145,6 +145,7 @@ class _CartePortion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final r = p.reussite;
     final couleur = r == null
         ? AppColors.inkLight
@@ -172,8 +173,8 @@ class _CartePortion extends StatelessWidget {
             style: GoogleFonts.manrope(
                 fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink)),
         subtitle: Text(
-          '${p.wordsReached}/${p.wordsTotal} mot(s) couvert(s)'
-          '${p.wordsReached < p.wordsTotal ? '' : ' · couverture complète'}',
+          t.coachPortionWordsCovered(p.wordsReached, p.wordsTotal) +
+              (p.wordsReached < p.wordsTotal ? '' : t.coachPortionFullCoverage),
           style: GoogleFonts.manrope(fontSize: 11.5, color: AppColors.inkLight),
         ),
         trailing: Column(
@@ -182,7 +183,7 @@ class _CartePortion extends StatelessWidget {
             Text(r == null ? '—' : '${(r * 100).round()}%',
                 style: GoogleFonts.manrope(
                     fontSize: 17, fontWeight: FontWeight.w800, color: couleur)),
-            Text('justes',
+            Text(t.coachPortionAccuracyLabel,
                 style: GoogleFonts.manrope(fontSize: 9, color: AppColors.inkLight)),
           ],
         ),
@@ -219,21 +220,45 @@ class PortionDetailScreen extends ConsumerWidget {
         data: (list) {
           final aRevoir =
               list.where((m) => m.status != 'correct' && m.status != 'conteste').toList();
+          // Historique (2026-08-11, constat utilisateur : « on doit garder
+          // l'historique des mots ratés [...] pas avec les audios [...] mais
+          // le mot raté avec la possibilité de s'entraîner ») -- mots
+          // REDEVENUS corrects/contestés (donc pas dans `aRevoir`) mais qui
+          // ont été ratés au moins une fois (`dejaRate`). Toujours tappables :
+          // la fiche partagée (Ma voix + règles + entraînement) reste
+          // accessible même sur un mot déjà acquis.
+          final historique = list
+              .where((m) =>
+                  m.dejaRate && (m.status == 'correct' || m.status == 'conteste'))
+              .toList();
+          final t = AppLocalizations.of(context)!;
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
               _BilanPortion(portion),
               const SizedBox(height: 18),
-              if (aRevoir.isEmpty)
+              if (aRevoir.isEmpty && historique.isEmpty)
                 Text(
                   list.isEmpty
-                      ? 'Aucun mot récité pour l’instant sur cette portion.'
-                      : 'Aucun mot à revoir sur cette portion.',
+                      ? t.coachPortionNoneRecitedYet
+                      : t.coachPortionNothingToReview,
                   style: GoogleFonts.manrope(
                       fontSize: 13, color: AppColors.inkLight),
                 )
-              else
+              else ...[
                 for (final m in aRevoir) _LignePortionMot(portion: portion, m: m),
+                if (historique.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(t.coachPortionHistorySection,
+                      style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          letterSpacing: 1.1,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.inkLight)),
+                  const SizedBox(height: 8),
+                  for (final m in historique) _LignePortionMot(portion: portion, m: m),
+                ],
+              ],
             ],
           );
         },
@@ -248,6 +273,7 @@ class _BilanPortion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final r = p.reussite;
     return Container(
       width: double.infinity,
@@ -267,7 +293,7 @@ class _BilanPortion extends StatelessWidget {
                   const Icon(Icons.verified_rounded,
                       color: AppColors.brassLight, size: 20),
                   const SizedBox(width: 6),
-                  Text('Portion réussie',
+                  Text(t.coachPortionBadgeLabel,
                       style: GoogleFonts.manrope(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -275,16 +301,18 @@ class _BilanPortion extends StatelessWidget {
                 ],
               ),
             ),
-          Text(r == null ? '—' : '${(r * 100).round()} % de mots justes',
+          Text(
+              r == null
+                  ? '—'
+                  : t.coachPortionBilanPercent((r * 100).round()),
               style: GoogleFonts.manrope(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                   color: AppColors.brassLight)),
           const SizedBox(height: 6),
           Text(
-            '${p.wordsGreen} mots justes sur ${p.wordsReached} récités, '
-            'sur ${p.wordsTotal} au total dans cette portion. Un mot contesté '
-            'compte comme juste.',
+            t.coachPortionBilanDetail(
+                p.wordsGreen, p.wordsReached, p.wordsTotal),
             style: GoogleFonts.manrope(
                 fontSize: 12,
                 height: 1.4,
@@ -351,9 +379,20 @@ class _LignePortionMotState extends ConsumerState<_LignePortionMot> {
           ref.invalidate(portionsProvider);
           ref.invalidate(motsDePortionProvider(portion.id));
         },
+        // Contestation (pouce vers le bas) : même rafraîchissement -- le mot
+        // passe à `conteste` dans SA portion, ce qui bouge le pourcentage
+        // affiché ici (2026-08-11, constat utilisateur : le pourcentage ne
+        // bougeait pas après une contestation).
+        onWordContested: () {
+          ref.invalidate(portionsProvider);
+          ref.invalidate(motsDePortionProvider(portion.id));
+        },
       );
     } catch (_) {
-      if (mounted) setState(() => _erreur = 'Verset indisponible');
+      if (mounted) {
+        setState(() =>
+            _erreur = AppLocalizations.of(context)!.coachWordUnavailable);
+      }
     } finally {
       if (mounted) setState(() => _chargement = false);
     }
@@ -361,13 +400,21 @@ class _LignePortionMotState extends ConsumerState<_LignePortionMot> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final m = widget.m;
-    final couleur = switch (m.status) {
-      'error' => Colors.redAccent.shade200,
-      'unclear' => AppColors.brass,
-      'oubli' => Colors.lightBlue.shade300,
-      _ => AppColors.inkLight,
-    };
+    // Historique (mot redevenu correct/contesté, mais raté au moins une
+    // fois, cf. `PortionMot.dejaRate`) : vert + badge distinct, pour ne pas
+    // se confondre avec un mot ACTUELLEMENT en erreur.
+    final estHistorique =
+        m.dejaRate && (m.status == 'correct' || m.status == 'conteste');
+    final couleur = estHistorique
+        ? AppColors.green700
+        : switch (m.status) {
+            'error' => Colors.redAccent.shade200,
+            'unclear' => AppColors.brass,
+            'oubli' => Colors.lightBlue.shade300,
+            _ => AppColors.inkLight,
+          };
     final estOubli = m.kind == 'oubli';
     return InkWell(
       borderRadius: BorderRadius.circular(14),
@@ -405,11 +452,32 @@ class _LignePortionMotState extends ConsumerState<_LignePortionMot> {
                             border:
                                 Border.all(color: Colors.lightBlue.shade200),
                           ),
-                          child: Text('Oubli',
+                          child: Text(t.errorKindOubli,
                               style: GoogleFonts.manrope(
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.lightBlue.shade700)),
+                        ),
+                      ],
+                      if (estHistorique) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.green700.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: AppColors.green700.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                              m.status == 'conteste'
+                                  ? t.coachPortionContestedBadge
+                                  : t.coachPortionCorrectedBadge,
+                              style: GoogleFonts.manrope(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.green700)),
                         ),
                       ],
                     ],
@@ -417,7 +485,7 @@ class _LignePortionMotState extends ConsumerState<_LignePortionMot> {
                   if (m.heardWord != null && m.heardWord!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: Text('entendu : ${m.heardWord}',
+                      child: Text('${t.karaokeHeardLabel} : ${m.heardWord}',
                           textDirection: TextDirection.rtl,
                           style: GoogleFonts.scheherazadeNew(
                               fontSize: 15, color: AppColors.inkLight)),
@@ -872,6 +940,11 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
                   ayahNumber: m.ayahNumber!,
                   wordIndex: m.wordInAyah!,
                 ),
+        // Contestation (pouce vers le bas) : le mot peut appartenir à une
+        // portion suivie (indépendant de CETTE session) -- rafraîchir la
+        // liste des portions pour que son pourcentage en tienne compte
+        // (2026-08-11, constat utilisateur).
+        onWordContested: () => ref.invalidate(portionsProvider),
       );
     } catch (_) {
       if (mounted) setState(() => _erreur = 'Verset indisponible');

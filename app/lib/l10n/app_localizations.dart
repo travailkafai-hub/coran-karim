@@ -3384,6 +3384,102 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Passer au controle'**
   String get coachMoveToControl;
+
+  /// En-tête de la section suivi permanent par sourate/Hizb dans le Coach
+  ///
+  /// In fr, this message translates to:
+  /// **'MES PORTIONS'**
+  String get coachPortionsTitle;
+
+  /// Infobulle du bouton de rafraîchissement manuel de la section Portions
+  ///
+  /// In fr, this message translates to:
+  /// **'Actualiser'**
+  String get coachRefreshTooltip;
+
+  /// Message d'erreur si la liste des portions ne peut pas être lue
+  ///
+  /// In fr, this message translates to:
+  /// **'Portions illisibles : {error}'**
+  String coachPortionsError(Object error);
+
+  /// Texte affiché quand aucune portion n'a encore été suivie
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune portion suivie pour l\'instant. Chaque sourate (ou tranche de Hizb pour les plus longues) que vous récitez apparaîtra ici avec sa progression cumulée.'**
+  String get coachPortionsEmpty;
+
+  /// Sous-titre d'une carte portion : nombre de mots couverts sur le total
+  ///
+  /// In fr, this message translates to:
+  /// **'{reached}/{total} mot(s) couvert(s)'**
+  String coachPortionWordsCovered(int reached, int total);
+
+  /// Suffixe ajouté quand une portion est intégralement couverte
+  ///
+  /// In fr, this message translates to:
+  /// **' · couverture complète'**
+  String get coachPortionFullCoverage;
+
+  /// Petite étiquette sous le pourcentage d'une carte portion
+  ///
+  /// In fr, this message translates to:
+  /// **'justes'**
+  String get coachPortionAccuracyLabel;
+
+  /// Libellé du badge de réussite d'une portion
+  ///
+  /// In fr, this message translates to:
+  /// **'Portion réussie'**
+  String get coachPortionBadgeLabel;
+
+  /// Grand chiffre du bilan d'une portion
+  ///
+  /// In fr, this message translates to:
+  /// **'{percent} % de mots justes'**
+  String coachPortionBilanPercent(int percent);
+
+  /// Détail du bilan d'une portion, sous le pourcentage
+  ///
+  /// In fr, this message translates to:
+  /// **'{green} mots justes sur {reached} récités, sur {total} au total dans cette portion. Un mot contesté compte comme juste.'**
+  String coachPortionBilanDetail(int green, int reached, int total);
+
+  /// Texte affiché dans le détail d'une portion jamais récitée
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun mot récité pour l\'instant sur cette portion.'**
+  String get coachPortionNoneRecitedYet;
+
+  /// Texte affiché quand tous les mots d'une portion sont acquis
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun mot à revoir sur cette portion.'**
+  String get coachPortionNothingToReview;
+
+  /// Erreur quand le verset d'un mot de portion ne peut pas être chargé
+  ///
+  /// In fr, this message translates to:
+  /// **'Verset indisponible'**
+  String get coachWordUnavailable;
+
+  /// Titre de la section historique dans le détail d'une portion
+  ///
+  /// In fr, this message translates to:
+  /// **'DÉJÀ RATÉS, MAINTENANT ACQUIS'**
+  String get coachPortionHistorySection;
+
+  /// Badge sur un mot d'historique redevenu correct
+  ///
+  /// In fr, this message translates to:
+  /// **'Corrigé'**
+  String get coachPortionCorrectedBadge;
+
+  /// Badge sur un mot d'historique marqué contesté par l'utilisateur
+  ///
+  /// In fr, this message translates to:
+  /// **'Contesté'**
+  String get coachPortionContestedBadge;
 }
 
 class _AppLocalizationsDelegate

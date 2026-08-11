@@ -210,6 +210,15 @@ void showTajwidHelpSheet(
   /// décide quoi faire (ex. retirer l'erreur du journal cumulé). Cf.
   /// `_CorrectionLoop.onCorrectedArchived`.
   VoidCallback? onArchivedWordCorrected,
+  /// Appelé quand le pouce vers le bas ("pas d'accord, je l'ai bien dit")
+  /// aboutit (2026-08-11, constat utilisateur : le pourcentage de « Mes
+  /// portions » ne bougeait pas après une contestation -- la ligne
+  /// `portion_words` était bien mise à jour en base, `_onPouceBas` n'avait
+  /// juste personne à prévenir pour rafraîchir l'écran déjà ouvert derrière
+  /// la feuille). L'appelant décide quoi invalider (portionsProvider,
+  /// motsDePortionProvider(portionId)...) -- cette feuille ne sait pas dans
+  /// quel écran elle a été ouverte.
+  VoidCallback? onWordContested,
   /// Plage de mots à AFFICHER, en indices locaux au verset (2026-08-05).
   ///
   /// Demande utilisateur : « quand je clique sur le mot en erreur j'ai toute
@@ -411,6 +420,7 @@ void showTajwidHelpSheet(
                         globalWordIndex: wordIndex,
                         focusWord: focusWord,
                         archivedAudioPath: archivedAudioPath,
+                        onWordContested: onWordContested,
                       ),
                     ],
                     // ── DISPONIBLE AUSSI DEPUIS L'ARCHIVE (2026-08-10) ───────
@@ -518,12 +528,16 @@ class _ListenRangeControl extends ConsumerStatefulWidget {
   /// voir la doc sur `showTajwidHelpSheet`. Quand fourni, "Ma voix" le
   /// rejoue directement au lieu d'extraire depuis le flux v2 en direct.
   final String? archivedAudioPath;
+
+  /// Cf. `showTajwidHelpSheet.onWordContested`.
+  final VoidCallback? onWordContested;
   const _ListenRangeControl({
     required this.verse,
     required this.localWordIndex,
     required this.focusWord,
     this.globalWordIndex,
     this.archivedAudioPath,
+    this.onWordContested,
   });
 
   @override
@@ -662,6 +676,9 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
         ayahNumber: widget.verse.ayahNumber,
         wordInAyah: widget.localWordIndex,
       );
+      // Prévient l'écran appelant (Coach) qu'il doit rafraîchir ses
+      // pourcentages -- cf. `showTajwidHelpSheet.onWordContested`.
+      widget.onWordContested?.call();
     } finally {
       if (mounted) {
         setState(() {

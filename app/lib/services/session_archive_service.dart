@@ -54,7 +54,7 @@ class SessionArchiveService {
     final chemin = p.join(await getDatabasesPath(), 'session_archive.db');
     return openDatabase(
       chemin,
-      version: 2,
+      version: 3,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE sessions(
@@ -103,6 +103,14 @@ class SessionArchiveService {
         if (oldVersion < 2) {
           await _creerTablesPortions(db);
         }
+        // v2 -> v3 (2026-08-11) : `deja_rate` -- cf. sa doc sur la colonne.
+        // Les installations qui viennent de passer par `_creerTablesPortions`
+        // ci-dessus l'ont déjà (colonne incluse dans le CREATE TABLE), donc
+        // seules celles qui étaient DÉJÀ en v2 ont besoin de l'ALTER.
+        if (oldVersion == 2) {
+          await db.execute(
+              'ALTER TABLE portion_words ADD COLUMN deja_rate INTEGER NOT NULL DEFAULT 0');
+        }
       },
     );
   }
@@ -132,6 +140,15 @@ class SessionArchiveService {
     // contesté par l'utilisateur compte comme correct pour le badge de
     // réussite (cf. PortionResume.reussite/badge) sans effacer sa trace --
     // on garde `heard_word`/`audio_path` pour pouvoir revenir dessus.
+    //
+    // `deja_rate` (2026-08-11, constat utilisateur : « on doit garder
+    // l'historique des mots ratés [...] pas avec les audios [...] mais le
+    // mot raté avec la possibilité de s'entraîner ») -- MONOTONE, jamais
+    // remis à 0 une fois passé à 1 : `status` ne porte que le DERNIER
+    // verdict (une correction écrase 'error' par 'correct'), donc sans ce
+    // drapeau séparé un mot corrigé perdrait toute trace d'avoir été raté un
+    // jour. `audio_path`, lui, continue de suivre le cycle de vie normal
+    // (7 jours) -- seul le FAIT d'avoir été raté est permanent, pas le son.
     await db.execute('''
       CREATE TABLE portion_words(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,6 +162,7 @@ class SessionArchiveService {
         audio_path TEXT,
         audio_expires_at TEXT,
         updated_at TEXT NOT NULL,
+        deja_rate INTEGER NOT NULL DEFAULT 0,
         UNIQUE(portion_id, ayah_number, word_in_ayah)
       )
     ''');
@@ -476,12 +494,20 @@ class SessionArchiveService {
     final existant = await db.query('portion_words',
         where: 'portion_id = ? AND ayah_number = ? AND word_in_ayah = ?',
         whereArgs: [portionId, ayahNumber, wordInAyah]);
+    // MONOTONE : une fois posé, `deja_rate` ne redescend jamais -- cf. la doc
+    // sur la colonne (`_creerTablesPortions`). Une correction (`status` ==
+    // 'correct') n'efface pas un `deja_rate` déjà à 1 ; seul un NOUVEAU
+    // verdict non-correct peut le poser.
+    final dejaRateAvant =
+        existant.isEmpty ? 0 : (existant.first['deja_rate'] as int? ?? 0);
+    final dejaRate = (dejaRateAvant == 1 || status != 'correct') ? 1 : 0;
     final valeurs = {
       'expected_word': expectedWord,
       'heard_word': heardWord,
       'status': status,
       'kind': kind,
       'updated_at': now,
+      'deja_rate': dejaRate,
       if (destination != null) 'audio_path': destination,
       if (expiration != null) 'audio_expires_at': expiration,
     };
@@ -523,14 +549,21 @@ class SessionArchiveService {
     ''', [DateTime.now().toIso8601String(), ayahNumber, wordInAyah, surahNumber]);
   }
 
+  /// Triée dans l'ORDRE DU CORAN (sourate puis premier verset de la portion),
+  /// pas par date de dernière récitation (constat utilisateur 2026-08-11 :
+  /// « les sourates doivent respecter l'ordre dans le Coran »). C'est une
+  /// liste de portions SUIVIES DANS LA DURÉE, pas un historique d'activité
+  /// récente -- l'ordre canonique est celui qui permet de la parcourir comme
+  /// on parcourt le Mushaf.
   Future<List<PortionResume>> portions({int limit = 60}) async {
     final db = await _database;
     final rows = await db.rawQuery('''
       SELECT p.*,
         (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id) AS words_reached,
-        (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status IN ('correct','conteste')) AS words_green
+        (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status IN ('correct','conteste')) AS words_green,
+        (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status = 'skipped') AS words_skipped
       FROM portions p
-      ORDER BY p.last_recited_at DESC
+      ORDER BY p.surah_number ASC, p.first_ayah ASC
       LIMIT ?
     ''', [limit]);
     return rows.map(PortionResume.fromMap).toList();
@@ -773,6 +806,14 @@ class PortionResume {
   final int wordsReached;
   final int wordsGreen;
 
+  /// Mots que l'ancre a dépassés SANS que le modèle ne les ait jamais jugés
+  /// (2026-08-11, constat utilisateur : « je parle de ceux que le modèle n'a
+  /// pas jugé [...] il reste indéfiniment non jugé »). Cf.
+  /// `karaoke_recitation_screen._archiverMotsNonJugesDansPortions`. Ni un
+  /// succès ni un échec -- sortent des deux compteurs de [reussite]/[badge],
+  /// même principe que la Bismillah dans `_compterMots` (session).
+  final int wordsSkipped;
+
   const PortionResume({
     required this.id,
     required this.surahNumber,
@@ -785,11 +826,20 @@ class PortionResume {
     required this.lastRecitedAt,
     required this.wordsReached,
     required this.wordsGreen,
+    this.wordsSkipped = 0,
   });
 
+  /// Mots réellement JUGEABLES de la portion -- le total MOINS ceux que le
+  /// modèle n'a jamais réussi à juger (cf. [wordsSkipped]). C'est ce
+  /// dénominateur-là, pas [wordsTotal] brut, qui doit porter le pourcentage :
+  /// un mot que la chaîne a laissé sans verdict ne doit pas peser contre le
+  /// récitateur, qui ne peut rien y faire.
+  int get wordsJugeables => wordsTotal - wordsSkipped;
+
   /// Part de mots corrects (mots contestés inclus, cf.
-  /// `SessionArchiveService.contesterMotDePortion`) sur le TOTAL de la
-  /// portion (sourate ou tranche de Hizb), PAS sur les seuls mots atteints.
+  /// `SessionArchiveService.contesterMotDePortion`) sur le TOTAL JUGEABLE de
+  /// la portion (sourate ou tranche de Hizb), PAS sur les seuls mots
+  /// atteints.
   ///
   /// ── CORRIGÉ (2026-08-11), constat utilisateur ────────────────────────
   /// Diviser par `wordsReached` (comme le fait volontairement
@@ -803,17 +853,17 @@ class PortionResume {
   /// a été tenté. « Mes récitations » (sessions) garde son calcul inchangé
   /// -- CE choix-là reste "où j'en suis arrivé dans la récitation",
   /// explicitement confirmé par l'utilisateur.
-  double? get reussite => wordsTotal == 0 ? null : wordsGreen / wordsTotal;
+  double? get reussite =>
+      wordsJugeables <= 0 ? null : wordsGreen / wordsJugeables;
 
   /// Badge de réussite (règle utilisateur du 2026-08-08) : portion couverte à
-  /// 100% ET 100% des mots corrects ou contestés -- pas de seuil
-  /// intermédiaire. Avec la nouvelle définition de [reussite] ci-dessus,
-  /// cette condition équivaut exactement à `reussite == 1.0` (si
-  /// wordsGreen == wordsTotal, alors wordsReached == wordsTotal aussi,
-  /// puisque wordsGreen <= wordsReached <= wordsTotal toujours) -- gardée
-  /// explicite ici pour ne pas dépendre d'une égalité en point flottant.
+  /// 100% ET 100% des mots JUGEABLES corrects ou contestés -- pas de seuil
+  /// intermédiaire, et un mot que la chaîne n'a jamais su juger ne bloque
+  /// plus le badge (2026-08-11).
   bool get badge =>
-      wordsTotal > 0 && wordsReached >= wordsTotal && wordsGreen == wordsReached;
+      wordsTotal > 0 &&
+      wordsReached >= wordsTotal &&
+      wordsGreen == (wordsReached - wordsSkipped);
 
   factory PortionResume.fromMap(Map<String, Object?> m) => PortionResume(
         id: m['id'] as int,
@@ -827,6 +877,7 @@ class PortionResume {
         lastRecitedAt: DateTime.parse(m['last_recited_at'] as String),
         wordsReached: (m['words_reached'] as int?) ?? 0,
         wordsGreen: (m['words_green'] as int?) ?? 0,
+        wordsSkipped: (m['words_skipped'] as int?) ?? 0,
       );
 }
 
@@ -840,6 +891,12 @@ class PortionMot {
   final String? kind;
   final String? audioPath;
 
+  /// A été raté AU MOINS UNE FOIS, même si `status` est redevenu 'correct'
+  /// depuis -- cf. la doc de la colonne `deja_rate`. Sert à garder un
+  /// historique des mots ratés (sans l'audio, qui suit son cycle de vie
+  /// normal) et à toujours pouvoir s'entraîner dessus depuis « Mes portions ».
+  final bool dejaRate;
+
   const PortionMot({
     required this.id,
     required this.ayahNumber,
@@ -849,6 +906,7 @@ class PortionMot {
     this.heardWord,
     this.kind,
     this.audioPath,
+    this.dejaRate = false,
   });
 
   factory PortionMot.fromMap(Map<String, Object?> m) => PortionMot(
@@ -860,5 +918,6 @@ class PortionMot {
         status: m['status'] as String,
         kind: m['kind'] as String?,
         audioPath: m['audio_path'] as String?,
+        dejaRate: ((m['deja_rate'] as int?) ?? 0) == 1,
       );
 }

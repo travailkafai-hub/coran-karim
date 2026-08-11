@@ -646,5 +646,22 @@
   "coachTapToTrain": "Tap and recite the verse",
   "coachTrainListening": "Listening...",
   "coachTrainDone": "Round finished",
-  "coachMoveToControl": "Move to control"
+  "coachMoveToControl": "Move to control",
+
+  "coachPortionsTitle": "MY PORTIONS",
+  "coachRefreshTooltip": "Refresh",
+  "coachPortionsError": "Portions unreadable: {error}",
+  "coachPortionsEmpty": "No portion tracked yet. Every surah (or Hizb section for longer ones) you recite will appear here with its cumulative progress.",
+  "coachPortionWordsCovered": "{reached}/{total} word(s) covered",
+  "coachPortionFullCoverage": " · full coverage",
+  "coachPortionAccuracyLabel": "correct",
+  "coachPortionBadgeLabel": "Portion mastered",
+  "coachPortionBilanPercent": "{percent}% correct words",
+  "coachPortionBilanDetail": "{green} correct words out of {reached} recited, out of {total} total in this portion. A disputed word counts as correct.",
+  "coachPortionNoneRecitedYet": "No word recited yet on this portion.",
+  "coachPortionNothingToReview": "No word to review on this portion.",
+  "coachWordUnavailable": "Verse unavailable",
+  "coachPortionHistorySection": "PREVIOUSLY MISSED, NOW MASTERED",
+  "coachPortionCorrectedBadge": "Corrected",
+  "coachPortionContestedBadge": "Disputed"
 }

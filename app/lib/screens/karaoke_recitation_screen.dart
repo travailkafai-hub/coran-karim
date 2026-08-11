@@ -877,6 +877,67 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
   }
 
+  /// Mots que L'ANCRE A DÉPASSÉS SANS QUE LE MODÈLE NE LES AIT JAMAIS JUGÉS
+  /// (2026-08-11, constat utilisateur : « je parle de ceux que le modèle n'a
+  /// pas jugé, c'est-à-dire déjà passé par l'ancre, il reste indéfiniment non
+  /// jugé »). Un tel mot ne déclenche JAMAIS `wordLocked` (il ne passe pas par
+  /// `_judge`, `locked` reste faux) : sans ce balayage, il resterait invisible
+  /// pour toujours dans `portion_words`, comptant contre le pourcentage de la
+  /// portion au même titre qu'un mot jamais récité -- exactement le défaut
+  /// signalé.
+  ///
+  /// AUCUNE NOUVELLE INSTRUMENTATION CÔTÉ CHAÎNE : la même donnée que
+  /// `_compterMots()` utilise déjà (`_dernierEtatConnu`, l'ancre max =
+  /// dernier mot avec un statut définitif) suffit -- ce balayage lit ce qui
+  /// existe, il n'attend rien de nouveau. Écrit `status: 'skipped'` dans
+  /// `portion_words` : ni un succès ni un échec (cf.
+  /// `PortionResume.reussite`/`badge`, qui excluent ce statut des deux
+  /// compteurs, même principe que la Bismillah dans `_compterMots`).
+  ///
+  /// `_motsNonJugesArchives` évite de retenter le même mot à chaque appel
+  /// (throttlé par l'appelant, cf. `_majBilanPeriodique`) -- un mot qui reste
+  /// `pending` le reste par définition tant que l'ancre ne recule pas dessus,
+  /// pas la peine de réécrire la même ligne en boucle.
+  final Set<int> _motsNonJugesArchives = {};
+
+  Future<void> _archiverMotsNonJugesDansPortions() async {
+    if (_isReferenceSession) return;
+    final etat = _dernierEtatConnu;
+    if (etat == null) return;
+    final words = etat.words;
+    final ancreMax = words.lastIndexWhere((w) =>
+            w.status != WordStatus.pending && w.status != WordStatus.current) +
+        1;
+    for (var i = 0; i < ancreMax; i++) {
+      if (words[i].status != WordStatus.pending) continue; // pas un trou
+      if (words[i].isBasmala) continue;
+      if (!_motsNonJugesArchives.add(i)) continue; // déjà traité
+      final verse = _verseContaining(i);
+      final local = _localIndexInVerse(i);
+      if (verse == null || local == null) continue;
+      try {
+        final granularite = ref.read(portionGranularityProvider);
+        final portion = await PortionService.resolve(
+            verse: verse, granularity: granularite);
+        await SessionArchiveService.instance.upsertPortionWord(
+          surahNumber: verse.surahNumber,
+          unitKey: portion.unitKey,
+          label: portion.label,
+          firstAyah: portion.firstAyah,
+          lastAyah: portion.lastAyah,
+          wordsTotal: portion.wordsTotal,
+          ayahNumber: verse.ayahNumber,
+          wordInAyah: local,
+          expectedWord: words[i].display,
+          status: 'skipped',
+        );
+      } catch (e) {
+        DiagnosticLog.log(
+            'Archive', 'archivage mot non juge impossible mot=$i : $e');
+      }
+    }
+  }
+
   /// Archive un OUBLI : décrochage repris, ou souffleur manuel sollicité.
   ///
   /// Demande utilisateur (2026-08-09) : « quand je fais un décrochage puis je
@@ -989,6 +1050,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       wordsGreen: verts,
       wordsReached: atteints,
     );
+    unawaited(_archiverMotsNonJugesDansPortions());
   }
 
   /// (total, verts, atteints) — LE DÉNOMINATEUR EST L'ANCRE MAX, pas la cible
@@ -1062,6 +1124,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       wordsGreen: verts,
       wordsReached: atteints,
     );
+    // Derniers mots que l'ancre a dépassés sans jugement, avant de fermer --
+    // cf. `_archiverMotsNonJugesDansPortions`. Sans cet appel ici, un mot
+    // tombé dans ce trou pendant les 10 dernières secondes (fenêtre du
+    // throttle périodique) ne serait jamais rattrapé.
+    await _archiverMotsNonJugesDansPortions();
     // Cf. le même correctif dans dispose() -- ici l'écriture est ATTENDUE,
     // donc l'invalidation après coup est sans ambiguïté d'ordre.
     if (mounted) {
@@ -3401,6 +3468,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       localWordIndex: local,
       extraitDebut: debut,
       extraitFin: fin + 1, // borne haute exclusive, comme le mode Kindle
+      // Contestation (pouce vers le bas) pendant une récitation EN DIRECT :
+      // le mot peut appartenir à une portion suivie -- rafraîchir la liste
+      // pour que son pourcentage en tienne compte au prochain passage sur
+      // Coach (2026-08-11, constat utilisateur).
+      onWordContested: () => ref.invalidate(portionsProvider),
     );
   }
 
