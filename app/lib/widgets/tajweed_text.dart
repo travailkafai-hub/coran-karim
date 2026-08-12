@@ -493,11 +493,27 @@ class TajweedText extends StatelessWidget {
 
   Widget _plainTappable(TextStyle base) {
     if (onWordTap == null && onWordLongPress == null) {
-      return Text(
-        textUthmani,
+      // ── LE NUMÉRO DE VERSET DOIT SURVIVRE ICI AUSSI (2026-08-12) ─────────
+      // Ce retour anticipé rendait un `Text` nu, qui LAISSAIT TOMBER
+      // `_leadingSpans()` -- donc le badge de numéro de verset -- alors que
+      // les deux autres chemins de rendu l'incluent. Le défaut est resté
+      // invisible tant que seul le Hafs existait : son texte porte toujours
+      // un balisage tajwid, donc on ne passait jamais par ici avec un badge.
+      // Le Warsh l'a révélé (son `text_uthmani_tajweed` est nul par
+      // construction, le balisage de couleurs étant dérivé du Hafs) :
+      // symptôme rapporté par l'utilisateur, « dans le texte il manque les
+      // numéros des versets ».
+      // `RichText` plutôt que `Text` : c'est le seul moyen d'insérer le badge
+      // DANS le flux (WidgetSpan), comme les deux autres chemins. Alignement
+      // centré conservé tel quel -- ne rien changer aux écrans qui empruntent
+      // déjà ce chemin sans badge (cartes de duas, feuilles d'aide).
+      return RichText(
         textDirection: TextDirection.rtl,
         textAlign: TextAlign.center,
-        style: base,
+        text: TextSpan(
+          style: base,
+          children: [..._leadingSpans(), TextSpan(text: textUthmani)],
+        ),
       );
     }
     // Même filtre que tajweedSpansPerWord/ArabicNormalizer.splitExpectedWords
