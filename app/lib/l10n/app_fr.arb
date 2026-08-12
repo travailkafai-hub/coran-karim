@@ -117,6 +117,18 @@
     "description": "En-tête de section réglages"
   },
   "settingsReciterTitle": "Récitateur",
+  "settingsRiwayaTitle": "Lecture (riwāya)",
+  "@settingsRiwayaTitle": {
+    "description": "Réglage qui bascule toute l'app entre Hafs et Warsh : texte du Mushaf, récitation, recherche, jeu et audio de correction"
+  },
+  "settingsRiwayaHafs": "Hafs ‘an ‘Âsim",
+  "@settingsRiwayaHafs": {
+    "description": "Sous-titre du réglage riwaya quand Hafs est actif"
+  },
+  "settingsRiwayaWarsh": "Warsh ‘an Nâfi‘",
+  "@settingsRiwayaWarsh": {
+    "description": "Sous-titre du réglage riwaya quand Warsh est actif"
+  },
   "@settingsReciterTitle": {
     "description": "Réglage : choix du récitateur"
   },

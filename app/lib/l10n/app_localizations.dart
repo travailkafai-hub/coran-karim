@@ -250,6 +250,24 @@ abstract class AppLocalizations {
   /// **'Récitateur'**
   String get settingsReciterTitle;
 
+  /// Réglage qui bascule toute l'app entre Hafs et Warsh : texte du Mushaf, récitation, recherche, jeu et audio de correction
+  ///
+  /// In fr, this message translates to:
+  /// **'Lecture (riwāya)'**
+  String get settingsRiwayaTitle;
+
+  /// Sous-titre du réglage riwaya quand Hafs est actif
+  ///
+  /// In fr, this message translates to:
+  /// **'Hafs ‘an ‘Âsim'**
+  String get settingsRiwayaHafs;
+
+  /// Sous-titre du réglage riwaya quand Warsh est actif
+  ///
+  /// In fr, this message translates to:
+  /// **'Warsh ‘an Nâfi‘'**
+  String get settingsRiwayaWarsh;
+
   /// Style de récitation : Murattal (rythme régulier)
   ///
   /// In fr, this message translates to:

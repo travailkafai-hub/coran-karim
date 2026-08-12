@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/reciter.dart';
+import '../services/quran_api.dart';
 import '../services/reciter_download_service.dart';
 import '../theme/app_theme.dart';
 import 'reciter_downloads_screen.dart';
@@ -22,6 +23,13 @@ class ReciterSelectScreen extends StatefulWidget {
 class _ReciterSelectScreenState extends State<ReciterSelectScreen> {
   final _svc = ReciterDownloadService();
 
+  /// Seuls les récitateurs de la riwāya courante (2026-08-12). Un récitateur
+  /// Hafs proposé en mode Warsh ferait entendre autre chose que le texte
+  /// affiché — et, en correction d'erreur, ferait apprendre la mauvaise
+  /// prononciation. La riwāya est lue sur `QuranApi`, qui la porte pour toute
+  /// l'app (cet écran n'a pas de `Ref`).
+  List<Reciter> get _reciters => Reciter.pour(QuranApi.riwaya);
+
   /// Nombre de sourates téléchargées, par récitateur.
   final _offlineCount = <int, int>{};
   int _totalUsed = 0;
@@ -33,7 +41,7 @@ class _ReciterSelectScreenState extends State<ReciterSelectScreen> {
   }
 
   Future<void> _refresh() async {
-    for (final r in kReciters) {
+    for (final r in _reciters) {
       _offlineCount[r.id] = (await _svc.downloadedSurahs(r.id)).length;
     }
     final used = await _svc.bytesUsedTotal();
@@ -91,11 +99,11 @@ class _ReciterSelectScreenState extends State<ReciterSelectScreen> {
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: kReciters.length,
+              itemCount: _reciters.length,
               separatorBuilder: (_, __) =>
                   Divider(height: 1, color: AppColors.cream300),
               itemBuilder: (context, i) {
-                final r = kReciters[i];
+                final r = _reciters[i];
                 final selected = r.id == widget.currentId;
                 final offline = _offlineCount[r.id] ?? 0;
                 return ListTile(

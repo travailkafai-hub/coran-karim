@@ -124,6 +124,10 @@ flutter:
     - assets/data/quran_search_index.json
     - assets/data/quran_chapters.json
     - assets/data/quran_verses.json
+    # Texte Warsh (riwaya Warsh 'an Nafi', source KFGQPC) -- meme forme et
+    # memes cles de verset que l'asset ci-dessus, cf.
+    # benchmark/build_warsh_verses_asset.py pour le pourquoi de ce choix.
+    - assets/data/quran_verses_warsh.json
     - assets/data/rule_reliability.json
     - assets/data/gop_word_baseline.json
     - assets/data/quran_rules_annotated.json

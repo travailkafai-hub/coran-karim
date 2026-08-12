@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/reciter.dart';
+import '../models/riwaya.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart' show recitationVerifierProvider;
@@ -27,6 +28,7 @@ class SettingsScreen extends ConsumerWidget {
     final t = AppLocalizations.of(context)!;
     final locale = ref.watch(appLocaleProvider);
     final reciter = ref.watch(playerProvider).reciter;
+    final riwaya = ref.watch(riwayaProvider);
     // En arabe, aucun mot latin à l'écran (règle verrouillée REFONTE_IHM.md
     // §7bis) : le nom du récitateur et son style passent en arabe ; en fr/en,
     // le nom romanisé + le style (termes techniques déjà transparents dans
@@ -96,6 +98,32 @@ class SettingsScreen extends ConsumerWidget {
                 ref.read(playerProvider.notifier).setReciter(picked);
               }
             },
+          ),
+
+          // ── RIWAYA (2026-08-12) ──────────────────────────────────────────
+          // Placée juste sous le récitateur : c'est le même sujet vu de plus
+          // haut, et changer de riwāya change justement le récitateur (cf.
+          // `PlayerNotifier.accorderALaRiwaya`). Un réglage transverse par
+          // excellence -- il commande le texte du Mushaf, la récitation, la
+          // recherche, le jeu et l'audio de correction.
+          _SettingsTile(
+            icon: Icons.menu_book_rounded,
+            title: t.settingsRiwayaTitle,
+            subtitle: riwaya == Riwaya.warsh
+                ? t.settingsRiwayaWarsh
+                : t.settingsRiwayaHafs,
+            color: AppColors.settingsAudio,
+            trailing: Switch(
+              value: riwaya == Riwaya.warsh,
+              onChanged: (v) async {
+                await ref
+                    .read(riwayaProvider.notifier)
+                    .set(v ? Riwaya.warsh : Riwaya.hafs);
+                // Le récitateur doit suivre le texte, sinon on entend une
+                // riwāya et on en lit une autre.
+                ref.read(playerProvider.notifier).accorderALaRiwaya();
+              },
+            ),
           ),
 
           const SizedBox(height: 12),

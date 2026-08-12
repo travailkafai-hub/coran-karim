@@ -92,6 +92,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsReciterTitle => 'Récitateur';
 
   @override
+  String get settingsRiwayaTitle => 'Lecture (riwāya)';
+
+  @override
+  String get settingsRiwayaHafs => 'Hafs ‘an ‘Âsim';
+
+  @override
+  String get settingsRiwayaWarsh => 'Warsh ‘an Nâfi‘';
+
+  @override
   String get settingsStyleMurattal => 'Murattal';
 
   @override

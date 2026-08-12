@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../models/reciter.dart';
+import '../models/riwaya.dart';
 import '../models/verse.dart';
 import 'quran_api.dart';
 
@@ -181,7 +183,15 @@ class ReciterDownloadService {
   /// retélécharge que ce qui manque.
   ///
   /// Renvoie true si la sourate est complète à la sortie.
-  Future<bool> downloadSurah(int reciterId, int surah) async {
+  /// Télécharge une sourate entière pour la lecture hors-ligne.
+  ///
+  /// Prend le [Reciter] complet depuis le 2026-08-12 (et non plus son seul
+  /// `id`) : un récitateur Warsh n'existe pas chez quran.com, ses URLs se
+  /// déduisent de son dossier everyayah. Le stockage sur disque, lui, reste
+  /// indexé par `reciter.id` — les sourates déjà téléchargées par les
+  /// utilisateurs actuels restent donc en place et reconnues.
+  Future<bool> downloadSurah(Reciter reciter, int surah) async {
+    final reciterId = reciter.id;
     final k = _key(reciterId, surah);
     if (_active.containsKey(k)) return false;
 
@@ -199,8 +209,15 @@ class ReciterDownloadService {
     var done = 0;
     var total = 0;
     try {
-      final urls = await QuranApi.fetchSurahAudioUrls(reciterId, surah);
       final verses = await QuranApi.fetchVerses(surah);
+      // Warsh : les URLs se construisent, elles ne se demandent pas (cf. la
+      // doc de `Reciter.urlVerset`). Le Hafs garde son appel d'origine.
+      final urls = reciter.riwaya == Riwaya.warsh
+          ? {
+              for (final v in verses)
+                v.key: reciter.urlVerset(v.surahNumber, v.ayahNumber)
+            }
+          : await QuranApi.fetchSurahAudioUrls(reciterId, surah);
       total = verses.length;
       _emit(reciterId, surah, 0, total, DownloadPhase.running);
 

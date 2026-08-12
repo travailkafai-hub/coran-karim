@@ -4,9 +4,11 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/reciter.dart';
+import '../models/riwaya.dart';
 import '../models/verse.dart';
 import 'diagnostic_log.dart';
 import 'quran_api.dart';
+import 'recitation_verifier.dart' show ArabicNormalizer;
 import 'reciter_download_service.dart';
 
 /// Lecteur audio DÉDIÉ à la correction automatique (demande utilisateur
@@ -114,9 +116,18 @@ class WordCorrectionAudio {
     final telecharge = ReciterDownloadService().localPathIfPresent(reciter.id, verse);
     String? url;
     if (telecharge == null) {
+      // ── WARSH : l'URL se déduit, elle ne se demande pas (2026-08-12) ──────
+      // everyayah nomme ses fichiers `SSSAAA.mp3` avec les mêmes numéros de
+      // verset que l'app : aucun appel réseau de métadonnées, donc aucun des
+      // 4,5 à 9,2 s d'attente que le préchauffage existe pour éviter côté
+      // Hafs. Le chemin Hafs ci-dessous n'est pas touché.
+      if (reciter.riwaya == Riwaya.warsh) {
+        url = reciter.urlVerset(verse.surahNumber, verse.ayahNumber);
+      } else {
       _urlCache[verse.surahNumber] ??=
           await QuranApi.fetchSurahAudioUrls(reciter.id, verse.surahNumber);
       url = _urlCache[verse.surahNumber]?[verse.key];
+      }
       if (url == null) {
         // Journalisé : cet abandon était MUET, ce qui rendait la panne
         // indiagnosticable côté utilisateur comme côté log.
@@ -128,8 +139,19 @@ class WordCorrectionAudio {
       }
     }
 
-    final segments = _segmentsCache[segKey] ??=
-        await QuranApi.fetchAyahSegments(reciter.id, verse.key);
+    // ── TIMINGS : mesurés en Hafs, ESTIMÉS en Warsh (2026-08-12) ───────────
+    // quran.com ne publie de segments mot-à-mot que pour ses propres
+    // récitateurs, tous Hafs. Sans eux, la correction Warsh serait purement
+    // et simplement muette (l'abandon ci-dessous) -- or c'est précisément la
+    // fonction demandée : « en cas d'erreur, c'est l'audio du mot avec la
+    // prononciation Warsh ». On estime donc la découpe, en le DISANT dans le
+    // journal : une estimation qu'on prend pour une mesure est un piège, une
+    // estimation nommée est un point de départ mesurable.
+    // À remplacer par de vrais timings dès qu'on fera passer l'aligneur forcé
+    // du modèle sur l'audio Warsh -- c'est l'outil exact pour les produire.
+    final segments = _segmentsCache[segKey] ??= reciter.riwaya == Riwaya.warsh
+        ? await _segmentsEstimes(verse, telecharge, url)
+        : await QuranApi.fetchAyahSegments(reciter.id, verse.key);
     // Pas de timing dispo pour ce récitateur/verset -> on abandonne plutôt
     // que de rejouer tout le verset par défaut (contredirait la demande).
     // Journalisé depuis le 2026-08-01 : SECOND point d'abandon muet, et
@@ -200,6 +222,64 @@ class WordCorrectionAudio {
     });
   }
 
+  /// Découpe ESTIMÉE d'un verset en mots, au format des segments de
+  /// `QuranApi.fetchAyahSegments` (`[indexMot, _, debutMs, finMs]`), pour les
+  /// récitations dont personne ne publie de timings mesurés — aujourd'hui les
+  /// récitateurs Warsh (2026-08-12).
+  ///
+  /// Pondérée par la LONGUEUR des mots, pas uniforme : un découpage à parts
+  /// égales placerait `وَٱلَّذِينَ` et `مَا` sur la même durée, et l'erreur
+  /// s'accumulerait jusqu'à la fin du verset. Le nombre de lettres est un
+  /// mauvais prédicteur de durée pris isolément, mais un bon prédicteur
+  /// RELATIF entre deux mots du même verset, dit par la même voix.
+  ///
+  /// Reste une estimation : la plage jouée peut déborder d'une syllabe sur le
+  /// mot voisin. C'est assumé — l'alternative était de ne rien faire entendre.
+  static Future<List<List<int>>> _segmentsEstimes(
+      Verse verse, String? cheminLocal, String? url) async {
+    final mots = ArabicNormalizer.splitExpectedWords(verse.textUthmani);
+    if (mots.isEmpty) return const [];
+
+    // Durée réelle du fichier : sans elle on n'estime rien du tout. Un
+    // lecteur dédié et jetable — surtout pas `_player`, qui est peut-être en
+    // train de jouer la correction précédente.
+    final sonde = AudioPlayer();
+    Duration? duree;
+    try {
+      if (cheminLocal != null) {
+        await sonde.setSource(DeviceFileSource(cheminLocal));
+      } else if (url != null) {
+        await sonde.setSource(UrlSource(url));
+      } else {
+        return const [];
+      }
+      duree = await sonde.getDuration();
+    } catch (e) {
+      DiagnosticLog.log('Correction-Audio',
+          'estimation impossible verset=${verse.key} : $e');
+    } finally {
+      await sonde.dispose();
+    }
+    if (duree == null || duree.inMilliseconds <= 0) return const [];
+
+    final poids = [
+      for (final m in mots) ArabicNormalizer.normalize(m).length.clamp(1, 99)
+    ];
+    final total = poids.fold<int>(0, (s, p) => s + p);
+    final segments = <List<int>>[];
+    var curseur = 0;
+    for (var i = 0; i < mots.length; i++) {
+      final part = (duree.inMilliseconds * poids[i] / total).round();
+      final fin = i == mots.length - 1 ? duree.inMilliseconds : curseur + part;
+      segments.add([i, i, curseur, fin]);
+      curseur = fin;
+    }
+    DiagnosticLog.log('Correction-Audio',
+        'timings ESTIMES (Warsh) verset=${verse.key} mots=${mots.length} '
+        'duree=${duree.inMilliseconds}ms -- decoupe ponderee, non mesuree');
+    return segments;
+  }
+
   /// Joue exactement les mots [startWordIdx]..[endWordIdx] (inclus) --
   /// wrapper de lisibilité au-dessus de [playWordRange] pour le moteur de
   /// répétition incrémentale (fenêtre de mots à apprendre), qui n'a pas de
@@ -233,11 +313,20 @@ class WordCorrectionAudio {
   static Future<void> prefetch(Verse verse, Reciter reciter) async {
     final segKey = '${reciter.id}:${verse.key}';
     try {
+      // Warsh : ni liste d'URLs ni segments à demander (l'URL se déduit, les
+      // timings s'estiment sur le fichier) -- appeler quran.com ici ne
+      // rapporterait rien et coûterait les mêmes secondes de réseau. Il reste
+      // utile de PRÉ-TÉLÉCHARGER le MP3, qui est tout le gain du préchauffage.
+      final String? url;
+      if (reciter.riwaya == Riwaya.warsh) {
+        url = reciter.urlVerset(verse.surahNumber, verse.ayahNumber);
+      } else {
       _urlCache[verse.surahNumber] ??=
           await QuranApi.fetchSurahAudioUrls(reciter.id, verse.surahNumber);
-      final url = _urlCache[verse.surahNumber]?[verse.key];
+      url = _urlCache[verse.surahNumber]?[verse.key];
       _segmentsCache[segKey] ??=
           await QuranApi.fetchAyahSegments(reciter.id, verse.key);
+      }
       if (url != null && !_fileCache.containsKey(segKey)) {
         await _downloadToCache(segKey, url);
       }

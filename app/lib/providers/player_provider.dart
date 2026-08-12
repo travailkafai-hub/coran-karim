@@ -6,6 +6,7 @@ import '../models/verse.dart';
 import '../models/reciter.dart';
 import '../models/player_state_model.dart';
 import '../services/audio_player_service.dart';
+import '../services/quran_api.dart';
 import '../services/word_correction_audio.dart';
 
 const _kPrefReciterId = 'preferred_reciter_id';
@@ -147,6 +148,21 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     if (saved.isNotEmpty && mounted) {
       state = state.copyWith(reciter: saved.first);
     }
+    accorderALaRiwaya();
+  }
+
+  /// Ramène le récitateur courant dans la riwāya affichée (2026-08-12).
+  ///
+  /// Appelé au démarrage et à chaque basculement du réglage : sans lui, on
+  /// garderait un récitateur Hafs sur du texte Warsh — on entendrait autre
+  /// chose que ce qui est écrit, et la correction d'un mot enseignerait la
+  /// mauvaise prononciation. Le choix de l'utilisateur DANS l'autre riwāya
+  /// reste enregistré (`_kPrefReciterId` n'est pas réécrit ici) : revenir en
+  /// arrière le retrouve.
+  void accorderALaRiwaya() {
+    if (!mounted) return;
+    if (state.reciter.riwaya == QuranApi.riwaya) return;
+    state = state.copyWith(reciter: Reciter.defautPour(QuranApi.riwaya));
   }
 
   // ── Internal ──────────────────────────────────────────────────────────────

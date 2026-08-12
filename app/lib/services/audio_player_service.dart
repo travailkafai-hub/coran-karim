@@ -1,4 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
+import '../models/riwaya.dart';
 import '../models/verse.dart';
 import '../models/reciter.dart';
 import '../models/player_state_model.dart';
@@ -29,6 +30,22 @@ class AudioPlayerService {
         await QuranApi.fetchSurahAudioUrls(recitationId, surahNumber);
   }
 
+  /// URL du verset, quelle que soit la riwāya (2026-08-12).
+  ///
+  /// Un récitateur Warsh n'existe pas chez quran.com : son audio se construit
+  /// directement depuis everyayah, sans le moindre appel réseau préalable
+  /// (l'URL est déductible du numéro de verset). Le chemin Hafs, lui, est
+  /// laissé EXACTEMENT tel quel -- il passe toujours par la liste d'URLs de
+  /// quran.com, dont dépendent aussi les timings mot-à-mot. Aucune régression
+  /// possible sur l'existant : la branche Warsh sort avant.
+  Future<String?> urlPour(Verse verse, Reciter reciter) async {
+    if (reciter.riwaya == Riwaya.warsh) {
+      return reciter.urlVerset(verse.surahNumber, verse.ayahNumber);
+    }
+    await preloadSurah(reciter.id, verse.surahNumber);
+    return _urlCache[verse.surahNumber]?[verse.key];
+  }
+
   Future<bool> playVerse(Verse verse, Reciter reciter) async {
     // Sourate téléchargée : on ne touche AUCUNEMENT au réseau -- ni pour
     // l'audio, ni pour la liste d'URLs (`preloadSurah` est lui aussi un appel
@@ -44,8 +61,7 @@ class AudioPlayerService {
       await _player.play(DeviceFileSource(local));
       return true;
     }
-    await preloadSurah(reciter.id, verse.surahNumber);
-    final url = _urlCache[verse.surahNumber]?[verse.key];
+    final url = await urlPour(verse, reciter);
     if (url == null) return false;
     await _player.play(UrlSource(url));
     return true;

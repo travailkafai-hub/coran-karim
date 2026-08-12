@@ -1,6 +1,7 @@
 import 'dart:convert' show json;
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import '../models/riwaya.dart';
 import '../models/verse.dart';
 
 /// Texte du Coran (chapitres, versets, tajweed, traduction fr) -- 100%
@@ -33,6 +34,43 @@ class QuranApi {
   static Map<int, List<Verse>>? _versesByPage;
   static Future<void>? _loading;
 
+  // ── RIWAYA : QUEL TEXTE DU CORAN L'APP LIT (2026-08-12) ──────────────────
+  //
+  // Point de bascule UNIQUE de tout le texte de l'application. Volontairement
+  // un champ statique et non un provider : `QuranApi` est appelé depuis des
+  // endroits qui n'ont pas de `Ref` (services, isolats de calcul), et surtout
+  // c'est ICI que vit le cache -- le réglage et le cache qu'il invalide
+  // doivent être au même endroit, sinon un écran peut lire l'ancien texte
+  // après le basculement.
+  //
+  // Le REGLAGE, lui, est dans `riwayaProvider` (app_settings_provider.dart),
+  // qui pousse sa valeur ici. Ne jamais écrire ce champ ailleurs.
+  static Riwaya _riwaya = Riwaya.hafs;
+
+  static Riwaya get riwaya => _riwaya;
+
+  static set riwaya(Riwaya value) {
+    if (value == _riwaya) return;
+    _riwaya = value;
+    // Tout le texte déjà chargé appartient à l'autre riwaya : le garder ferait
+    // cohabiter les deux à l'écran. Les chapitres (noms de sourates) sont
+    // communs aux deux, mais on repart de zéro par simplicité -- le
+    // rechargement est local et quasi instantané.
+    _chapters = null;
+    _versesBySurah = null;
+    _versesByPage = null;
+    _bismillahCache = null;
+    _loading = null;
+  }
+
+  /// Asset de texte correspondant à la riwaya courante. Les deux fichiers ont
+  /// exactement la même forme et les mêmes clés de verset (cf.
+  /// `benchmark/build_warsh_verses_asset.py`), donc rien en aval ne change.
+  static String get _versesAsset => switch (_riwaya) {
+        Riwaya.hafs => 'assets/data/quran_verses.json',
+        Riwaya.warsh => 'assets/data/quran_verses_warsh.json',
+      };
+
   static Verse _parseVerse(Map<String, dynamic> map) {
     final verse = Verse.fromJson(map);
     final translations = map['translations'] as List?;
@@ -62,8 +100,8 @@ class QuranApi {
           .map((e) => Surah.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      final versesRaw = json.decode(
-          await rootBundle.loadString('assets/data/quran_verses.json')) as List;
+      final versesRaw =
+          json.decode(await rootBundle.loadString(_versesAsset)) as List;
       final bySurah = <int, List<Verse>>{};
       final byPage = <int, List<Verse>>{};
       for (final v in versesRaw) {

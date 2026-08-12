@@ -2,7 +2,9 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/riwaya.dart';
 import '../services/diagnostic_log.dart';
+import '../services/quran_api.dart';
 
 const _kPrefAutoCorrection = 'auto_correction_enabled';
 
@@ -712,6 +714,41 @@ class MarquePagesNotifier extends StateNotifier<Set<String>> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_kPrefMarquePages, suivant.toList());
     return ajoute;
+  }
+}
+
+const _kPrefRiwaya = 'riwaya';
+
+/// Réglage de la riwāya : LE point unique dont tout le reste découle — le
+/// texte (`QuranApi`), le récitateur proposé, l'audio du mot en correction,
+/// l'index de recherche. Le type lui-même vit dans `models/riwaya.dart` (cf.
+/// son commentaire : cycle d'imports sinon).
+final riwayaProvider =
+    StateNotifierProvider<RiwayaSettingNotifier, Riwaya>((ref) {
+  return RiwayaSettingNotifier();
+});
+
+class RiwayaSettingNotifier extends StateNotifier<Riwaya> {
+  RiwayaSettingNotifier() : super(Riwaya.hafs) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_kPrefRiwaya) == 'warsh' && mounted) {
+      state = Riwaya.warsh;
+      QuranApi.riwaya = Riwaya.warsh;
+    }
+  }
+
+  Future<void> set(Riwaya value) async {
+    if (value == state) return;
+    state = value;
+    // Le texte doit changer AVANT que quoi que ce soit ne le relise : c'est
+    // `QuranApi` qui porte le cache, il se vide lui-même au changement.
+    QuranApi.riwaya = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefRiwaya, value.name);
   }
 }
 

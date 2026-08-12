@@ -92,6 +92,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get settingsReciterTitle => 'القارئ';
 
   @override
+  String get settingsRiwayaTitle => 'الرواية';
+
+  @override
+  String get settingsRiwayaHafs => 'حفص عن عاصم';
+
+  @override
+  String get settingsRiwayaWarsh => 'ورش عن نافع';
+
+  @override
   String get settingsStyleMurattal => 'مرتّل';
 
   @override

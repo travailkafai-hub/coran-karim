@@ -111,7 +111,7 @@ class _ReciterDownloadsScreenState extends State<ReciterDownloadsScreen> {
       await _svc.deleteSurah(widget.reciter.id, s.number);
       return;
     }
-    await _svc.downloadSurah(widget.reciter.id, s.number);
+    await _svc.downloadSurah(widget.reciter, s.number);
   }
 
   Future<void> _downloadAll() async {
@@ -124,7 +124,7 @@ class _ReciterDownloadsScreenState extends State<ReciterDownloadsScreen> {
     for (final s in _surahs) {
       if (!mounted || !_bulk) break;
       if (_downloaded.contains(s.number)) continue;
-      final ok = await _svc.downloadSurah(widget.reciter.id, s.number);
+      final ok = await _svc.downloadSurah(widget.reciter, s.number);
       // Un échec réseau interrompt la file : inutile d'enchaîner 113 échecs.
       // Ce qui est déjà sur le disque est conservé, une relance reprendra.
       if (!ok) break;
