@@ -285,7 +285,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // recherche de la page suivante — assez tôt pour que le fetch réseau
   // (Bismillah + texte + audio de correction) ait le temps de finir avant que
   // le réciteur n'atteigne réellement la fin.
-  static const int _kExtendLookaheadWords = 8;
+  /// Marge de mots qu'on garde TOUJOURS chargée devant le récitateur.
+  ///
+  /// ── UNE PAGE D'AVANCE, PAS UNE RÉACTION DE DERNIÈRE SECONDE (2026-08-12) ─
+  /// Principe posé par l'utilisateur : « il faut préparer tout le temps une
+  /// page à l'avance, que le texte n'arrive jamais au bout ». La valeur
+  /// précédente (8 mots) déclenchait l'enchaînement quand le récitateur était
+  /// déjà sur les derniers mots : si le chargement tardait, ou si le signal
+  /// qui le déclenche manquait une seule fois, on butait sur la fin du texte
+  /// et l'écran se figeait -- symptôme rapporté (« la page reste bloquée au
+  /// verset 5 alors que j'ai récité plus »).
+  ///
+  /// Une page du Mushaf fait ~140 mots ; on garde cet ordre de grandeur en
+  /// marge. La récitation ne touche donc jamais le bord du texte chargé, et
+  /// le mécanisme n'a plus besoin d'être ponctuel pour être fiable. Coût :
+  /// une page de plus en mémoire, lue depuis un asset local -- négligeable.
+  static const int _kExtendLookaheadWords = 150;
 
   // Fenêtre de rendu bornée AU-DELÀ du pointeur (demande utilisateur
   // 2026-07-11, suite à un gel de 3+ minutes constaté en test réel : ajouter

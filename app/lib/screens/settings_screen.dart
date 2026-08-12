@@ -8,6 +8,8 @@ import '../models/reciter.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart' show recitationVerifierProvider;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/diagnostic_log.dart';
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
@@ -96,6 +98,42 @@ class SettingsScreen extends ConsumerWidget {
                 ref.read(playerProvider.notifier).setReciter(picked);
               }
             },
+          ),
+
+          // ── JOURNAL DE DIAGNOSTIC (2026-08-12) ──────────────────────────
+          // Remis apres le nettoyage du 2026-08-09, pour une raison precise :
+          // en build RELEASE le journal est eteint par defaut
+          // (`DiagnosticLog.enabled = !kReleaseMode`), et le plugin natif est
+          // alors le seul a ecrire. Toute la chaine Dart (verdicts par mot,
+          // decrochages, enchainements de page) reste muette -- donc TOUT
+          // diagnostic sur un build installe se fait a l'aveugle, ce qui a
+          // deja produit deux correctifs poses sur des hypotheses non
+          // verifiees (figement de l'ecran, 2026-08-12).
+          //
+          // Eteint par defaut : rien ne change pour un utilisateur publie.
+          // C'est un interrupteur de RECETTE, qu'on allume le temps de
+          // reproduire un defaut et de tirer le log.
+          // `StatefulBuilder` : cet ecran est un ConsumerWidget sans etat, et
+          // `DiagnosticLog.enabled` est un champ statique, pas un provider.
+          // C'est le moyen le plus court de rafraichir la seule bascule
+          // concernee sans transformer tout l'ecran en StatefulWidget.
+          StatefulBuilder(
+            builder: (context, setLocal) => SwitchListTile(
+            value: DiagnosticLog.enabled,
+            onChanged: (v) async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('diagnostic_enabled', v);
+              setLocal(() => DiagnosticLog.enabled = v);
+            },
+            title: Text('Journal de diagnostic',
+                style: GoogleFonts.manrope(
+                    fontSize: 14, fontWeight: FontWeight.w600)),
+            subtitle: Text(
+                'Enregistre le detail de la recitation pour analyse. '
+                'A laisser eteint en usage normal.',
+                style: GoogleFonts.manrope(
+                    fontSize: 11.5, color: AppColors.inkLight)),
+          ),
           ),
 
           const SizedBox(height: 12),
