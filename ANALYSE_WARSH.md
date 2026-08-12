@@ -199,6 +199,60 @@ objectif à atteindre.
 
 ---
 
+## 4 bis. Ce que voit chaque étage sur du Warsh (mesuré le 2026-08-12)
+
+Simulation d'un récitateur qui dit du Warsh **parfait** : on compare, mot à mot
+sur tout le Coran, ce que le modèle peut écrire (orthographe Hafs) à ce que
+chaque étage de la chaîne attend.
+
+| étage | ce qu'il compare | résultat |
+|---|---|---|
+| **ancrage / alignement** | le squelette, sans voyelles (`normalize`) | **97,5 %** des mots reconnus |
+| **jugement** | le texte strict, avec voyelles (`normalizeStrict`) | **62,1 %** jugés corrects |
+
+⇒ **37,9 % des mots seraient signalés alors qu'ils sont parfaitement récités.**
+Le modèle entend bien et l'alignement suit : c'est le **juge** qui produit le
+rouge, pas l'acoustique.
+
+**Et ce n'est pas réglable par un seuil.** Le vocabulaire déployé (1 024 tokens)
+ne contient **aucun** des signes de vocalisation Warsh — 0 occurrence pour
+U+0655, U+0656, U+0657, U+065E, et 0 pour le yeh barree U+06D2. Le modèle est
+structurellement incapable d'écrire du Warsh, alors que **8,7 %** des mots
+Warsh portent au moins un de ces signes. On lui demande une chose absente de
+son alphabet, puis on le sanctionne de ne pas l'avoir produite — même défaut
+que le yeh barree (§3), un cran plus haut.
+
+⚠️ Piège de mesure rencontré et corrigé : une première passe donnait 62,2 %
+d'ancrage. C'était un artefact — le texte Hafs porte 4 578 signes de waqf
+**isolés** comptés comme jetons, le Warsh n'en a aucun, donc la comparaison
+mot à mot se décalait. Il faut découper comme `splitExpectedWords` (jeter les
+jetons dont la normalisation est vide) avant toute comparaison.
+
+### Question ouverte, à trancher PAR LA MESURE sur GPU — pas par le raisonnement
+
+Deux voies pour rendre le jugement possible en Warsh, **aucune des deux n'est
+mesurée à ce jour** :
+
+- **4ᵉ tête** `Conv1d 512 → vocab_warsh` sur encodeur **gelé** — recette déjà
+  éprouvée ici (la tête tolérante a été faite ainsi, cf.
+  `PLAN_ENTRAINEMENT_HYBRIDE.md` §249-252, hors NeMo qui ne supporte pas deux
+  têtes CTC). Zéro risque Hafs par construction. Répond à la vraie question :
+  *les features de l'encodeur gelé distinguent-elles déjà l'imāla et les madd
+  Warsh ?*
+- **Réentraînement de l'encodeur** sur Hafs + Warsh **avec les bonnes
+  étiquettes** (remarque utilisateur 2026-08-12, juste : l'échec passé venait
+  du Warsh étiqueté en texte **Hafs**, pas de sa présence). Coût réel à ne pas
+  sous-estimer : la tête 3 mange directement l'état encodeur (512 dims, cf.
+  l'en-tête de `tete3.json`), la tête tolérante aussi, et
+  `gop_word_baseline.json` (12 702 mots) en dérive — changer l'encodeur les
+  périme toutes les trois.
+
+Argument de conception à vérifier lui aussi, pas à croire : sur les 99 % de
+rasme commun, le choix d'écriture (`ٱ` ou `ا۬`) est une convention, pas un son
+— un modèle non conditionné devrait le deviner. L'app connaissant déjà la
+riwāya, une tête par riwāya *est* ce conditionnement. **À confirmer par la
+mesure.**
+
 ## 5. Ce qui manque encore, et où le prendre
 
 | donnée | source identifiée | reste à faire |
