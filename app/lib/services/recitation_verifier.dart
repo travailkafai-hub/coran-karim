@@ -45,6 +45,21 @@ class ArabicNormalizer {
         .replaceAll('ٰ', 'ا')  // dagger alif (voyelle longue suscrite) -> alif
         .replaceAll('ۥ', 'و')  // petit waw -> waw
         .replaceAll('ۦ', 'ي')  // petit yeh -> yeh
+        // ── YEH BARREE, LETTRE DU SCRIPT WARSH (2026-08-12) ────────────────
+        // Le mushaf Warsh du KFGQPC écrit le ya final avec ce caractère
+        // (2 996 occurrences dans le texte Warsh embarqué) : فے، الذے، شےء.
+        // C'est une LETTRE, pas un diacritique -- `_harakat` ne la retire donc
+        // pas, et sans cette ligne « فے » (attendu) ne matcherait jamais
+        // « في » (sortie modèle), soit un mot sur seize condamné au rouge quoi
+        // que récite l'utilisateur.
+        //
+        // NE PEUT RIEN CHANGER AU COMPORTEMENT HAFS, vérifié par comptage le
+        // 2026-08-12 : ce caractère apparaît 0 fois dans le texte Hafs de
+        // l'app, 0 fois dans les 1 024 tokens du vocabulaire du modèle, 0 fois
+        // dans les 19 001 mots de `word_tokens.json`. Le modèle ne peut donc
+        // structurellement jamais le produire : la règle ne s'applique qu'au
+        // texte ATTENDU, et seulement en Warsh.
+        .replaceAll('ے', 'ى')  // yeh barree (script Warsh) -> ya sans points
         .replaceAll('ٔ', 'ء')  // hamza suscrite combinante -> hamza
         .replaceAll('ٓ', '')   // maddah combinante (portée par la lettre de base)
         .replaceAll('ـ', '')   // tatweel (allongement purement visuel)
