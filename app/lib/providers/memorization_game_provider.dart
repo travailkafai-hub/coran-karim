@@ -4,8 +4,10 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/verse.dart';
+import '../services/portion_service.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
+import 'app_settings_provider.dart' show portionGranularityProvider;
 import 'memorization_game_records_provider.dart';
 
 /// Un verset découpé en mots pour le jeu.
@@ -90,6 +92,19 @@ class MemorizationGameState {
   /// fois le verset relancé.
   final String? revealedAnswer;
 
+  /// Identité de la PORTION (sourate ou tranche de Hizb, cf.
+  /// `PortionService.resolve`) à laquelle appartient le verset courant --
+  /// résolue de façon asynchrone (2026-08-12, cf. `_refreshCurrentPortionInfo`
+  /// dans le notifier) : `null` tant que la toute première résolution n'est
+  /// pas revenue (bref, données locales déjà en cache après le premier appel).
+  /// Sert à afficher ET à faire correspondre "xx sur YY" au bon record dans
+  /// `memorizationGameRecordsProvider` (clé `unitKey`) -- même découpe que
+  /// « Mes portions » côté Coach, pour que battre un record ici se voie
+  /// là-bas (demande utilisateur : « rattaché au coach avec mes portions »).
+  final String? currentPortionUnitKey;
+  final String? currentPortionLabel;
+  final int? currentPortionWordsTotal;
+
   const MemorizationGameState({
     required this.verses,
     required this.currentVerseIndex,
@@ -102,6 +117,9 @@ class MemorizationGameState {
     this.justBeatRecord = false,
     this.revealedAnswer,
     this.furthestGlobalWordIndex = -1,
+    this.currentPortionUnitKey,
+    this.currentPortionLabel,
+    this.currentPortionWordsTotal,
   });
 
   /// Index global cumulé (sur tous les versets déjà chargés, dans l'ordre) du
@@ -142,6 +160,9 @@ class MemorizationGameState {
     bool? justBeatRecord,
     String? revealedAnswer,
     int? furthestGlobalWordIndex,
+    String? currentPortionUnitKey,
+    String? currentPortionLabel,
+    int? currentPortionWordsTotal,
   }) =>
       MemorizationGameState(
         verses: verses,
@@ -156,6 +177,10 @@ class MemorizationGameState {
         revealedAnswer: revealedAnswer ?? this.revealedAnswer,
         furthestGlobalWordIndex:
             furthestGlobalWordIndex ?? this.furthestGlobalWordIndex,
+        currentPortionUnitKey: currentPortionUnitKey ?? this.currentPortionUnitKey,
+        currentPortionLabel: currentPortionLabel ?? this.currentPortionLabel,
+        currentPortionWordsTotal:
+            currentPortionWordsTotal ?? this.currentPortionWordsTotal,
       );
 
   /// Nouvelle liste avec des versets supplémentaires -- seul champ qui ne
@@ -174,6 +199,9 @@ class MemorizationGameState {
         justBeatRecord: justBeatRecord,
         revealedAnswer: revealedAnswer,
         furthestGlobalWordIndex: furthestGlobalWordIndex,
+        currentPortionUnitKey: currentPortionUnitKey,
+        currentPortionLabel: currentPortionLabel,
+        currentPortionWordsTotal: currentPortionWordsTotal,
       );
 
   /// Relance LE VERSET COURANT depuis son premier mot -- même geste que le
@@ -208,12 +236,23 @@ class MemorizationGameState {
         choices: const [],
         totalWordsCompleted: totalWordsCompleted,
         furthestGlobalWordIndex: furthestGlobalWordIndex,
+        currentPortionUnitKey: currentPortionUnitKey,
+        currentPortionLabel: currentPortionLabel,
+        currentPortionWordsTotal: currentPortionWordsTotal,
       );
 }
 
 class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
   final Random _random;
   final Ref _ref;
+
+  /// Nombre de mots validés DANS CETTE PARTIE pour chaque portion déjà
+  /// traversée (clé = `PortionInfo.unitKey`) -- sert de compteur courant à
+  /// comparer au record persisté (`memorizationGameRecordsProvider`).
+  /// N'incrémente que sur une progression réelle (même garde `isNewProgress`
+  /// que `totalWordsCompleted`), donc jamais recompté après un
+  /// `afterVerseRestart` sur des mots déjà comptés une première fois.
+  final Map<String, int> _portionRunCounts = {};
 
   MemorizationGameNotifier(List<Verse> verses, this._ref, {Random? random})
       : _random = random ?? Random(),
@@ -255,6 +294,7 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
   /// Seul le tout premier mot de la PARTIE ([isVeryFirstWord]) garde
   /// l'affichage seul : rien ne le précède, il n'y a rien à tester avant lui.
   void _prepareChoicesIfNeeded() {
+    unawaited(_refreshCurrentPortionInfo());
     if (state.isVeryFirstWord) {
       state = state.copyWith(
           choices: const [], justBeatRecord: state.justBeatRecord);
@@ -278,6 +318,57 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
     final distractors = pool.take(_distractorCount).toList();
     final choices = [correct, ...distractors]..shuffle(_random);
     state = state.copyWith(choices: choices, justBeatRecord: state.justBeatRecord);
+  }
+
+  /// Résout à quelle portion (Coach) appartient le verset EN COURS, et met
+  /// l'identité de cette portion dans `state` pour l'affichage (2026-08-12).
+  /// Appelée à chaque changement de verset via `_prepareChoicesIfNeeded` --
+  /// jamais dans le flux synchrone de `submitWord` (qui, lui, ne doit pas
+  /// attendre un `Future`, cf. `_reportPortionProgress` séparée ci-dessous).
+  Future<void> _refreshCurrentPortionInfo() async {
+    try {
+      final granularite = _ref.read(portionGranularityProvider);
+      final portion = await PortionService.resolve(
+          verse: state.currentVerse.verse, granularity: granularite);
+      if (!mounted) return;
+      state = state.copyWith(
+        currentPortionUnitKey: portion.unitKey,
+        currentPortionLabel: portion.label,
+        currentPortionWordsTotal: portion.wordsTotal,
+      );
+    } catch (_) {
+      // Affichage seul : une résolution ratée ne doit jamais bloquer la partie.
+    }
+  }
+
+  /// Enregistre la progression dans LA PORTION du mot qui vient de faire
+  /// avancer le score (2026-08-12, demande utilisateur : « je veux que le
+  /// record soit par sourate/Hizb [...] rattaché au coach avec mes portions,
+  /// à chaque record battu le record soit mis à jour côté coach »). Remplace
+  /// l'ancien record global unique (2026-08-07) : chaque sourate/tranche de
+  /// Hizb garde désormais son propre meilleur enchaînement.
+  ///
+  /// ASYNCHRONE et séparée du flux synchrone de `submitWord` (qui, lui, reste
+  /// inchangé) : résoudre la portion relit `QuranApi` (mis en cache, quasi
+  /// instantané après le tout premier appel, mais reste un `Future`). Le mot
+  /// avance à l'écran sans attendre cette résolution ; le flash "record battu"
+  /// arrive au prochain rebuild, imperceptible dans les faits.
+  Future<void> _reportPortionProgress(Verse verse) async {
+    try {
+      final granularite = _ref.read(portionGranularityProvider);
+      final portion =
+          await PortionService.resolve(verse: verse, granularity: granularite);
+      final compte = (_portionRunCounts[portion.unitKey] ?? 0) + 1;
+      _portionRunCounts[portion.unitKey] = compte;
+      final battu = _ref
+          .read(memorizationGameRecordsProvider.notifier)
+          .reportScore(portion.unitKey, compte);
+      if (battu && mounted) {
+        state = state.copyWith(justBeatRecord: true);
+      }
+    } catch (_) {
+      // Le record est un confort ludique : jamais un motif d'échec de partie.
+    }
   }
 
   /// Coût d'une erreur sur le compteur de mots enchaînés (demande
@@ -334,18 +425,19 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
     final furthest =
         isNewProgress ? wordGlobalIndex : state.furthestGlobalWordIndex;
     // Le record ne peut être battu que par une progression réelle : si le
-    // score ne bouge pas, `reportScore` n'aurait de toute façon rien à faire
-    // (même `total` déjà signalé), pas la peine de l'appeler.
-    final beatRecord = isNewProgress
-        ? _ref.read(memorizationGameRecordProvider.notifier).reportScore(total)
-        : false;
+    // score ne bouge pas, la portion n'a de toute façon rien de neuf à
+    // signaler, pas la peine de la résoudre. Record PAR PORTION (2026-08-12),
+    // cf. `_reportPortionProgress` -- ASYNCHRONE, capturer le verset ICI
+    // (avant tout changement de `currentVerseIndex` ci-dessous).
+    if (isNewProgress) {
+      unawaited(_reportPortionProgress(state.currentVerse.verse));
+    }
 
     if (!state.isLastWordOfVerse) {
       state = state.copyWith(
         currentWordIndex: state.currentWordIndex + 1,
         totalWordsCompleted: total,
         furthestGlobalWordIndex: furthest,
-        justBeatRecord: beatRecord,
       );
       _prepareChoicesIfNeeded();
       return;
@@ -356,7 +448,6 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
         currentWordIndex: 0,
         totalWordsCompleted: total,
         furthestGlobalWordIndex: furthest,
-        justBeatRecord: beatRecord,
       );
       _prepareChoicesIfNeeded();
       return;
@@ -364,9 +455,7 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
     // Dernier mot du dernier verset CHARGÉ : la partie ne s'arrête pas ici
     // (cf. commentaire de la classe) -- va chercher la page suivante.
     state = state.copyWith(
-        totalWordsCompleted: total,
-        furthestGlobalWordIndex: furthest,
-        justBeatRecord: beatRecord);
+        totalWordsCompleted: total, furthestGlobalWordIndex: furthest);
     unawaited(_loadNextPage());
   }
 

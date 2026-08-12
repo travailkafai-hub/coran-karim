@@ -73,14 +73,26 @@ class MemorizationGameScreen extends ConsumerWidget {
                   surah: surah,
                   isArabic: isArabic,
                   finalWords: state.totalWordsCompleted,
-                  record: ref.watch(memorizationGameRecordProvider),
+                  portionLabel: state.currentPortionLabel,
+                  portionTotal: state.currentPortionWordsTotal,
+                  portionBest: state.currentPortionUnitKey == null
+                      ? 0
+                      : ref.watch(memorizationGameRecordsProvider)[
+                              state.currentPortionUnitKey!] ??
+                          0,
                 )
               : Column(
                   children: [
                     const SizedBox(height: 60), // sous l'AppBar transparente
                     _ScoreBar(
                       words: state.totalWordsCompleted,
-                      record: ref.watch(memorizationGameRecordProvider),
+                      portionLabel: state.currentPortionLabel,
+                      portionTotal: state.currentPortionWordsTotal,
+                      portionBest: state.currentPortionUnitKey == null
+                          ? 0
+                          : ref.watch(memorizationGameRecordsProvider)[
+                                  state.currentPortionUnitKey!] ??
+                              0,
                       justBeatRecord: state.justBeatRecord,
                     ),
                     // ── RÈGLES TOUJOURS VISIBLES (2026-08-10) ────────────────
@@ -190,10 +202,25 @@ class MemorizationGameScreen extends ConsumerWidget {
 /// classe) : jamais un élément par verset, même sous une autre forme.
 class _ScoreBar extends StatefulWidget {
   final int words;
-  final int record;
+  // ── RECORD PAR PORTION, PAS GLOBAL (2026-08-12) ─────────────────────────
+  // Remplace l'ancien `record` unique : la puce trophée affiche désormais le
+  // record de LA PORTION (sourate/Hizb, cf. `PortionService`) à laquelle
+  // appartient le verset EN COURS -- elle change donc de valeur en même
+  // temps que le texte affiché plus bas change de sourate/Hizb, cohérent
+  // avec « Mes portions » côté Coach qui suit le même découpage.
+  // `portionTotal`/`portionLabel` sont `null` le temps très bref de la toute
+  // première résolution asynchrone (cf. `_refreshCurrentPortionInfo`).
+  final int portionBest;
+  final int? portionTotal;
+  final String? portionLabel;
   final bool justBeatRecord;
-  const _ScoreBar(
-      {required this.words, required this.record, required this.justBeatRecord});
+  const _ScoreBar({
+    required this.words,
+    required this.portionBest,
+    required this.portionTotal,
+    required this.portionLabel,
+    required this.justBeatRecord,
+  });
 
   @override
   State<_ScoreBar> createState() => _ScoreBarState();
@@ -237,7 +264,10 @@ class _ScoreBarState extends State<_ScoreBar> {
                 color: AppColors.gameStar,
                 label: _showNewRecord
                     ? t.memorizationGameNewRecord
-                    : t.memorizationGameRecordLabel(widget.record),
+                    : widget.portionTotal == null
+                        ? '…'
+                        : t.memorizationGameRecordLabel(
+                            widget.portionBest, widget.portionTotal!),
               ),
             ),
           ),
@@ -591,12 +621,16 @@ class _CompletionView extends StatelessWidget {
   final Surah surah;
   final bool isArabic;
   final int finalWords;
-  final int record;
+  final String? portionLabel;
+  final int? portionTotal;
+  final int portionBest;
   const _CompletionView({
     required this.surah,
     required this.isArabic,
     required this.finalWords,
-    required this.record,
+    required this.portionLabel,
+    required this.portionTotal,
+    required this.portionBest,
   });
 
   @override
@@ -633,7 +667,8 @@ class _CompletionView extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              t.memorizationGameFinalScore(finalWords, max(finalWords, record)),
+              t.memorizationGameFinalScore(
+                  finalWords, max(finalWords, portionBest)),
               textAlign: TextAlign.center,
               style: GoogleFonts.baloo2(
                   fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.gameStar),

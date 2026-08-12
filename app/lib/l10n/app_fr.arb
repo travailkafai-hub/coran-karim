@@ -1268,11 +1268,14 @@
       }
     }
   },
-  "memorizationGameRecordLabel": "Record : {count}",
+  "memorizationGameRecordLabel": "Record : {best} sur {total}",
   "@memorizationGameRecordLabel": {
-    "description": "Record personnel affiché pendant la partie",
+    "description": "Record personnel affiché pendant la partie, pour la portion (sourate/Hizb) en cours -- best = meilleur enchaînement jamais atteint sur cette portion, total = nombre de mots de la portion",
     "placeholders": {
-      "count": {
+      "best": {
+        "type": "int"
+      },
+      "total": {
         "type": "int"
       }
     }
@@ -2608,6 +2611,18 @@
   "coachPortionBadgeLabel": "Portion réussie",
   "@coachPortionBadgeLabel": {
     "description": "Libellé du badge de réussite d'une portion"
+  },
+  "coachPortionGameRecord": "Meilleur enchaînement : {best}/{total}",
+  "@coachPortionGameRecord": {
+    "description": "Affiché sur une carte portion quand un record existe pour elle dans le jeu Enchaînement (mode mémorisation) -- rattache le record du jeu au suivi permanent de la portion (2026-08-12, demande utilisateur)",
+    "placeholders": {
+      "best": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
   },
   "coachPortionBilanPercent": "{percent} % de mots justes",
   "@coachPortionBilanPercent": {

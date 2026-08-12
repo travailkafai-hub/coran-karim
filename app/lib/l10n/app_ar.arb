@@ -331,7 +331,18 @@
     }
   },
   "memorizationGameWordsCount": "{count, plural, =0{لا كلمات بعد} =1{كلمة واحدة متتالية} other{{count} كلمة متتالية}}",
-  "memorizationGameRecordLabel": "الرقم القياسي: {count}",
+  "memorizationGameRecordLabel": "الرقم القياسي: {best} من {total}",
+  "@memorizationGameRecordLabel": {
+    "description": "الرقم القياسي الشخصي المعروض أثناء اللعب، للجزء الحالي (سورة/حزب) -- best = أفضل سلسلة تم بلوغها في هذا الجزء، total = عدد كلمات الجزء",
+    "placeholders": {
+      "best": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationGameNewRecord": "رقم قياسي جديد!",
   "memorizationGameLoadingNextPage": "الصفحة التالية…",
   "memorizationGameFinalScore": "{count, plural, =0{لا كلمات هذه المرة} =1{كلمة واحدة متتالية} other{{count} كلمة متتالية}} — الرقم القياسي: {best}",
@@ -660,6 +671,18 @@
   "coachPortionFullCoverage": " · تغطية كاملة",
   "coachPortionAccuracyLabel": "من القسم",
   "coachPortionBadgeLabel": "قسم مُتقَن",
+  "coachPortionGameRecord": "أفضل سلسلة: {best} من {total}",
+  "@coachPortionGameRecord": {
+    "description": "يظهر على بطاقة القسم عند وجود رقم قياسي في لعبة الحفظ لهذا القسم",
+    "placeholders": {
+      "best": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "coachPortionBilanPercent": "{percent}٪ من الكلمات صحيحة",
   "coachPortionBilanDetail": "{green} كلمة صحيحة من أصل {reached} متلوة، من إجمالي {total} في هذا القسم. الكلمة المعترَض عليها تُحتسب صحيحة.",
   "coachPortionNoneRecitedYet": "لم تُتلَ أي كلمة بعد في هذا القسم.",

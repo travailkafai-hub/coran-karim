@@ -331,7 +331,18 @@
     }
   },
   "memorizationGameWordsCount": "{count, plural, =0{No words yet} =1{1 word in a row} other{{count} words in a row}}",
-  "memorizationGameRecordLabel": "Record: {count}",
+  "memorizationGameRecordLabel": "Record: {best} of {total}",
+  "@memorizationGameRecordLabel": {
+    "description": "Personal record shown during play, for the current portion (surah/Hizb) -- best = highest streak ever reached on this portion, total = word count of the portion",
+    "placeholders": {
+      "best": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "memorizationGameNewRecord": "New record!",
   "memorizationGameLoadingNextPage": "Next page…",
   "memorizationGameFinalScore": "{count, plural, =0{No words this time} =1{1 word in a row} other{{count} words in a row}} — record: {best}",
@@ -660,6 +671,18 @@
   "coachPortionFullCoverage": " · full coverage",
   "coachPortionAccuracyLabel": "of the portion",
   "coachPortionBadgeLabel": "Portion mastered",
+  "coachPortionGameRecord": "Best streak: {best}/{total}",
+  "@coachPortionGameRecord": {
+    "description": "Shown on a portion card when a memorization-game record exists for it",
+    "placeholders": {
+      "best": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "coachPortionBilanPercent": "{percent}% correct words",
   "coachPortionBilanDetail": "{green} correct words out of {reached} recited, out of {total} total in this portion. A disputed word counts as correct.",
   "coachPortionNoneRecitedYet": "No word recited yet on this portion.",

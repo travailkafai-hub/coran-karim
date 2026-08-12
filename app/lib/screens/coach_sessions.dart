@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
+import '../providers/memorization_game_records_provider.dart';
 import '../providers/mind_map_provider.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
@@ -139,13 +140,19 @@ class PortionsSection extends ConsumerWidget {
   }
 }
 
-class _CartePortion extends StatelessWidget {
+class _CartePortion extends ConsumerWidget {
   final PortionResume p;
   const _CartePortion(this.p);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
+    // ── RECORD DU JEU ENCHAÎNEMENT, RATTACHÉ À LA PORTION (2026-08-12) ──────
+    // Demande utilisateur : « qu'il soit rattaché au coach avec mes portions,
+    // à chaque record battu le record soit mis à jour côté coach ». Même clé
+    // `unitKey` que celle résolue par `PortionService` côté jeu -- aucune
+    // correspondance floue, la portion est LA MÊME des deux côtés.
+    final gameRecord = ref.watch(memorizationGameRecordsProvider)[p.unitKey] ?? 0;
     final r = p.reussite;
     final couleur = r == null
         ? AppColors.inkLight
@@ -187,12 +194,35 @@ class _CartePortion extends StatelessWidget {
         // On affiche maintenant la fraction du calcul ; la couverture reste
         // dite, mais en complément et seulement quand elle apporte une
         // information (portion pas encore entièrement récitée).
-        subtitle: Text(
-          t.coachPortionWordsAcquired(p.wordsGreen, p.wordsTotal) +
-              (p.wordsReached < p.wordsTotal
-                  ? t.coachPortionCoveredSuffix(p.wordsReached)
-                  : t.coachPortionFullCoverage),
-          style: GoogleFonts.manrope(fontSize: 11.5, color: AppColors.inkLight),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              t.coachPortionWordsAcquired(p.wordsGreen, p.wordsTotal) +
+                  (p.wordsReached < p.wordsTotal
+                      ? t.coachPortionCoveredSuffix(p.wordsReached)
+                      : t.coachPortionFullCoverage),
+              style: GoogleFonts.manrope(fontSize: 11.5, color: AppColors.inkLight),
+            ),
+            if (gameRecord > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.emoji_events_rounded,
+                        size: 12, color: AppColors.brass),
+                    const SizedBox(width: 3),
+                    Text(
+                      t.coachPortionGameRecord(gameRecord, p.wordsTotal),
+                      style: GoogleFonts.manrope(
+                          fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.brass),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,

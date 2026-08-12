@@ -1820,11 +1820,11 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{Aucun mot} =1{1 mot enchaîné} other{{count} mots enchaînés}}'**
   String memorizationGameWordsCount(int count);
 
-  /// Record personnel affiché pendant la partie
+  /// Record personnel affiché pendant la partie, pour la portion (sourate/Hizb) en cours -- best = meilleur enchaînement jamais atteint sur cette portion, total = nombre de mots de la portion
   ///
   /// In fr, this message translates to:
-  /// **'Record : {count}'**
-  String memorizationGameRecordLabel(int count);
+  /// **'Record : {best} sur {total}'**
+  String memorizationGameRecordLabel(int best, int total);
 
   /// Message bref affiché quand le joueur bat son record personnel
   ///
@@ -3456,6 +3456,12 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Portion réussie'**
   String get coachPortionBadgeLabel;
+
+  /// Affiché sur une carte portion quand un record existe pour elle dans le jeu Enchaînement (mode mémorisation) -- rattache le record du jeu au suivi permanent de la portion (2026-08-12, demande utilisateur)
+  ///
+  /// In fr, this message translates to:
+  /// **'Meilleur enchaînement : {best}/{total}'**
+  String coachPortionGameRecord(int best, int total);
 
   /// Grand chiffre du bilan d'une portion
   ///

@@ -1010,8 +1010,8 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String memorizationGameRecordLabel(int count) {
-    return 'الرقم القياسي: $count';
+  String memorizationGameRecordLabel(int best, int total) {
+    return 'الرقم القياسي: $best من $total';
   }
 
   @override
@@ -1989,6 +1989,11 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachPortionBadgeLabel => 'قسم مُتقَن';
+
+  @override
+  String coachPortionGameRecord(int best, int total) {
+    return 'أفضل سلسلة: $best من $total';
+  }
 
   @override
   String coachPortionBilanPercent(int percent) {
