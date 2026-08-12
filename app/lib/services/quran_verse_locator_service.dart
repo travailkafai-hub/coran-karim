@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
+import '../models/riwaya.dart';
+import 'quran_api.dart';
 import 'recitation_verifier.dart' show ArabicNormalizer;
 
 /// Résultat d'une localisation réussie : sourate/verset identifiés, avec un
@@ -126,6 +128,14 @@ class QuranVerseLocatorService {
   static final instance = QuranVerseLocatorService._();
 
   List<_IndexedVerse>? _verses;
+
+  /// Riwāya de l'index actuellement en mémoire (2026-08-12). L'index est
+  /// dérivé du TEXTE : basculer de riwāya sans le recharger ferait chercher
+  /// dans l'autre lecture -- l'app trouverait quand même le bon verset la
+  /// plupart du temps (97,4 % des mots normalisés sont communs aux deux
+  /// index, mesuré), ce qui est justement le pire cas : une panne partielle,
+  /// silencieuse, et invisible en test rapide.
+  Riwaya? _riwayaChargee;
   // Séquence aplatie de tous les mots du Coran, dans l'ordre -- support de
   // l'index combinatoire ci-dessous et de `_verseAtPos`.
   List<String>? _flatWords;
@@ -202,9 +212,12 @@ class QuranVerseLocatorService {
   String _pairKey(String a, String b) => '$a$b';
 
   Future<void> _ensureLoaded() async {
-    if (_verses != null) return;
-    final raw =
-        await rootBundle.loadString('assets/data/quran_search_index.json');
+    if (_verses != null && _riwayaChargee == QuranApi.riwaya) return;
+    final riwaya = QuranApi.riwaya;
+    final raw = await rootBundle.loadString(switch (riwaya) {
+      Riwaya.hafs => 'assets/data/quran_search_index.json',
+      Riwaya.warsh => 'assets/data/quran_search_index_warsh.json',
+    });
     final data = jsonDecode(raw) as Map<String, dynamic>;
     final list = data['verses'] as List;
     final verses = <_IndexedVerse>[];
@@ -229,6 +242,7 @@ class QuranVerseLocatorService {
     }
     pairIndex.removeWhere((_, positions) => positions.length > _kMaxPairOccurrences);
     _verses = verses;
+    _riwayaChargee = riwaya;
     _flatWords = flat;
     _pairIndex = pairIndex;
     // Index STRICT (l'ecart dans la cle) : celui de l'ancre de recitation. Il

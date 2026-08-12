@@ -122,6 +122,9 @@ flutter:
     - assets/mindmaps/ar/
     - assets/illumination/
     - assets/data/quran_search_index.json
+    # Index de recherche du texte Warsh (Shazam, suivi de prière, ancre de
+    # récitation) -- cf. benchmark/build_warsh_search_index.py.
+    - assets/data/quran_search_index_warsh.json
     - assets/data/quran_chapters.json
     - assets/data/quran_verses.json
     # Texte Warsh (riwaya Warsh 'an Nafi', source KFGQPC) -- meme forme et
