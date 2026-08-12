@@ -1,234 +1,241 @@
-# Basculer l'application en Warsh — analyse de ciblage
+# Basculer l'application en Warsh — sources trouvées et mesures
 
 Branche : `chantier-warsh` (créée le 2026-08-12 depuis `prod`, commit `8c0c3ab`).
-**Analyse seule — aucune ligne de code applicatif modifiée sur cette branche.**
+**Aucun code applicatif modifié — recherche de sources et mesures uniquement.**
 
-Demande utilisateur : « quand on bascule Warsh, côté Mushaf, côté récitation,
-côté jeu, côté audio, tout doit être traité avec Warsh [...] toutes les
-fonctionnalités qui jusque-là sont traitées avec le Hafs doivent être
-transposées ». Ce document dit **où**, précisément, et **ce qui manque**.
+Cadrage utilisateur (2026-08-12) :
+- on cherche **de vraies sources** de texte ET d'audio Warsh, on ne se demande
+  pas si l'app actuelle « pourrait » basculer ;
+- la Bismillah comptée ou non comme verset **n'est pas un problème** : on
+  l'exclut, on garde la même règle fonctionnelle qu'aujourd'hui ;
+- **le modèle ASR n'est pas touché** : on l'utilise tel quel pour aligner du
+  texte Warsh sur de l'audio Warsh, et on mesure ce qu'il détecte.
 
 ---
 
-## 0. Le fait qui commande tout le reste (mesuré, pas supposé)
+## 1. Ce qui a été trouvé (vérifié par appel réel, pas par lecture de doc)
 
-**`(sourate, verset)` n'est PAS une identité stable entre Hafs et Warsh.**
+### 1.1 AUDIO Warsh verset par verset — everyayah.com ✅
 
-Mesure faite le 2026-08-12 en comparant `app/assets/data/quran_verses.json`
-(Hafs, 6 236 versets) au jeu de données officiel KFGQPC Warsh
-(`warshData_v10.json`, 6 214 versets) :
+C'est la trouvaille qui débloque le chantier. `everyayah.com/data/recitations.js`
+liste **3 récitateurs Warsh**, au format `SSSAAA.mp3` — **exactement la
+convention de nommage que `reciter_download_service.dart` utilise déjà** :
 
-| mesure | valeur |
+| récitateur | dossier | couverture testée |
+|---|---|---|
+| **Ibrahim Al-Dosary (128 kbps)** | `warsh/warsh_ibrahim_aldosary_128kbps` | **9/9** ✅ complet |
+| **Yassin Al-Jazaery (64 kbps)** | `warsh/warsh_yassin_al_jazaery_64kbps` | **9/9** ✅ complet |
+| Abdul Basit Warsh (128 kbps) | `warsh/warsh_Abdul_Basit_128kbps` | 5/9 ⚠️ incomplet |
+
+Test de couverture : requête HTTP sur le **dernier verset** des sourates
+1, 2, 3, 18, 36, 55, 78, 110, 114. Fichiers réels vérifiés à `ffprobe`
+(1:1 = 6,47 s / 1:7 = 17,70 s / 2:285 = 51,83 s / 2:286 = 75,80 s).
+
+### 1.2 …et cet audio est indexé en numérotation **HAFS** ✅✅
+
+Le point le plus important de toute cette analyse.
+
+Le mushaf Warsh ne compte que **285 versets** à la sourate 2 (contre 286 en
+Hafs). Or `002286.mp3` **existe** chez Al-Dosary et Al-Jazaery, et dure 75,8 s
+— la durée du « lā yukallifu-llāhu nafsan » qui est bien le 286ᵉ verset de la
+numérotation Hafs. Même contrôle sur Al-Fatiha : `001007.mp3` dure 17,70 s,
+c'est-à-dire le verset **long** de Hafs (`ṣirāṭa … wa-lā ḍ-ḍāllīn`), pas le
+verset court qu'aurait Warsh à ce rang.
+
+⇒ **Les clés `(sourate, verset)` de l'app restent valables.** Il n'y a ni
+renumérotation à faire, ni migration de base, ni décalage silencieux des
+statistiques. C'est ce qui rend le chantier faisable sans toucher aux schémas
+`portion_words` / `recitation_errors` / `session_words`.
+
+### 1.3 AUDIO Warsh par sourate — mp3quran.net (241 récitateurs, 16 mus-hafs Warsh)
+
+`https://mp3quran.net/api/v3/reciters?language=ar` — champ `moshaf[].name`
+portant la riwāya. **16 mus-hafs Warsh**, dont **10 complets (114 sourates)** :
+
+> Al-Husary · Abdul Basit · Omar Al-Kazabri · Ibrahim Al-Dosary ·
+> Laayoun El Kouchi · Mohamed Sayed · Al-Qari Yassin · Abdelmoujib Benkirane ·
+> Ahmed Diban · Rachid Belalia · Mohamed El Iraoui (111) · Hicham Al-Harraz (113) …
+
+Format **par sourate** (un MP3 entier), donc pas directement utilisable pour la
+correction mot à mot — mais précieux comme choix de récitateur pour l'écoute,
+et comme matière première (découpe possible) si l'on veut d'autres voix que les
+deux d'everyayah.
+
+À noter : `OmarKazabri`, `LaayounKouchi`, `MohamedElIraoui`, `RachidBelalia`,
+`AbdelmoujibBenkirane` sont **déjà dans `download_assajda.py`**, déjà tagués
+`riwaya: "Warsh"`, et déjà téléchargés (~85 905 clips) — présence à
+reconfirmer sur la machine Ubuntu, `benchmark/data/` étant gitignoré et vide
+ici.
+
+### 1.4 TEXTE Warsh — deux sources, complètes et officielles
+
+| source | contenu | numérotation | accès |
+|---|---|---|---|
+| **KFGQPC** (`thetruetruth/quran-data-kfgqpc`, `warsh/data/`) | 6 214 versets, JSON/CSV/XML/SQL, + `jozz`, `page`, `line_start/end` | **Warsh** (6 214) | libre, **téléchargé et analysé ici** |
+| **QUL** (Tarteel, `qul.tarteel.ai`) | « Quran Script(Warsh) — Ayah by Ayah » **et — Word by Word** | à confirmer | **compte requis** pour le téléchargement |
+
+La version QUL *word-by-word* est celle qui intéresserait le plus l'app (elle
+donnerait la découpe en mots sans avoir à la dériver), mais elle est derrière
+une authentification. La version KFGQPC est libre et suffit pour démarrer.
+
+L'API quran.com, elle, est un cul-de-sac, **vérifié** : `/quran/verses/{id}`
+ignore complètement l'identifiant demandé (`uthmani`, `uthmani_warsh`, `warsh`
+et même un identifiant inventé renvoient le **même texte Hafs**, HTTP 200), et
+ses 12 récitateurs sont tous Hafs.
+
+---
+
+## 2. Les mesures qui décident du travail à faire
+
+Comparaison exhaustive du texte KFGQPC Warsh (6 214 versets) au
+`quran_verses.json` Hafs de l'app (6 236 versets), Bismillah 1:1 exclue du
+comptage conformément à la règle retenue.
+
+### 2.1 Les mots sont les mêmes — le flux ne bouge quasiment pas
+
+| mesure | Hafs | Warsh |
+|---|---|---|
+| mots sur tout le Coran (hors Bismillah 1:1) | 77 429 | **77 427** |
+
+Deux mots d'écart **sur tout le Coran**. Et sourate par sourate, les longueurs
+coïncident presque toujours (Al-Baqara : 6 117 mots des deux côtés).
+
+### 2.2 Squelette consonantique : 99,16 % identique
+
+Après normalisation correcte (cf. §3), alignement par `SequenceMatcher` :
+
+| | mots | part |
+|---|---|---|
+| identiques | 76 780 | **99,16 %** |
+| réellement différents | **649** | **0,84 %** |
+| sourates sans **aucune** divergence | 38 / 114 | |
+
+Les 649 divergences réelles sont surtout des notations de hamza et quelques
+variantes lexicales bien connues :
+`اسرءىل → اسراءىل` (42×) · `النبى → النبىء` (30×) · `ءامن → امن` (20×) ·
+`ابرهم → ابرهىم` (15×) · `ارءىتم → ارىتم` (14×).
+
+### 2.3 …mais avec les harakat, 37,88 % des mots diffèrent
+
+C'est le chiffre honnête, et **c'est celui qui prédit le comportement du
+modèle** : son tokenizer est un BPE « tajweed » qui **conserve** les
+diacritiques.
+
+| comparaison | mots identiques |
 |---|---|
-| versets au total | Hafs 6 236 / Warsh **6 214** |
-| sourates dont le NOMBRE de versets diffère | **50 sur 114** |
-| clés `s:a` communes aux deux | 6 188 |
-| ...dont le **squelette consonantique** est identique | **1 245** |
-| ...dont le squelette diffère (= ce n'est pas le même verset) | **4 943** |
+| squelette consonantique seul | **99,16 %** |
+| **avec les harakat** (ce que le tokenizer voit) | **62,12 %** |
 
-Exemple vérifié à la main, décisif :
+Autrement dit, en Warsh : **le modèle devrait retrouver les bons mots**
+(99 % de squelette commun → l'ancrage et l'alignement ont toutes leurs chances)
+mais **il risque de signaler beaucoup de mots comme mal prononcés**, puisque
+c'est précisément la vocalisation qui change d'une riwāya à l'autre. C'est
+exactement l'expérience que tu veux faire — elle est maintenant outillée
+(§4).
 
-```
-clé 2:132   Hafs  : وَوَصَّىٰ بِهَآ إِبْرَٰهِـۧمُ بَنِيهِ …
-clé 2:132   Warsh : ۞ أَمْ كُنتُمْ شُهَدَآءَ … (= le 2:133 de Hafs)
-```
+### 2.4 Le décalage de numérotation existe, mais ne nous concerne plus
 
-Et sur Al-Fatiha, décalage d'un rang complet : la Bismillah n'est pas comptée
-comme verset 1 en Warsh, donc `1:1` Warsh = `1:2` Hafs, et ainsi de suite.
-
-**Conséquence directe :** toute donnée que l'app persiste sous la forme
-`(surah, ayah, word_index)` devient FAUSSE au basculement — elle ne se
-« décale » pas, elle désigne un autre mot d'un autre verset, en silence. C'est
-le risque n°1 du chantier, avant même la question du texte affiché.
-
-Second fait mesuré : le mushaf Warsh KFGQPC fait lui aussi 604 pages, mais ce
-n'est **pas la même découpe** (numérotation propre au mushaf Warsh). Or
-`QuranApi.fetchVersesByPage` pilote l'enchaînement continu de la récitation ET
-la partie illimitée du jeu.
-
-Troisième fait mesuré : le jeu KFGQPC Warsh fournit `jozz` (1-30) et `page`,
-mais **ni `hizb_number` ni `rub_el_hizb_number`** — exactement les deux champs
-sur lesquels repose le découpage en portions du Coach
-(`portion_service.dart`).
+Pour mémoire, puisque la question a été posée : 50 sourates sur 114 n'ont pas
+le même nombre de versets, et sur les 6 188 clés communes, 4 943 désignent un
+autre verset (`2:132` Warsh = `2:133` Hafs). **Sans objet ici** : l'audio
+everyayah étant en numérotation Hafs (§1.2), on garde les clés Hafs de bout en
+bout et l'on recoupe le texte Warsh sur les frontières Hafs — opération sûre
+puisque le flux de mots est le même (§2.1).
 
 ---
 
-## 1. Ce qui existe déjà, et qu'il ne faut pas refaire
+## 3. Spécification exacte du normaliseur (inventaire Unicode mesuré)
 
-- **Un corpus audio Warsh est déjà téléchargé** : `download_assajda.py` tague
-  22 récitateurs marocains `riwaya: "Warsh"`, et
-  `build_hafs_only_manifest.py` documente **~85 905 clips Warsh (21 % du
-  dataset)** qui ont été délibérément EXCLUS des entraînements Hafs.
-  ⚠️ Ces clips sont sur la machine Ubuntu (`benchmark/data/` est gitignoré et
-  vide ici) — **présence à reconfirmer là-bas avant de planifier quoi que ce
-  soit dessus**, je ne peux pas la vérifier depuis ce poste.
-- **Le travail de vérification de riwaya par récitateur est déjà fait**, à la
-  main, sur assabile.com + test audio sur verset discriminant (3:146
-  qatala/qutila, 57:24 présence de « howa ») — cf. les commentaires de
-  `build_hafs_only_manifest.py`. Deux récitateurs y sont notés comme tagués
-  Hafs à tort. Ce travail est réutilisable tel quel, en inversant le filtre.
-- **Une source de texte Warsh complète et officielle existe** : KFGQPC
-  (Complexe du Roi Fahd), dépôt `thetruetruth/quran-data-kfgqpc`, dossier
-  `warsh/data/` (JSON 2,7 Mo, + CSV/XML/SQL), version 0.10 de 2021. Colonnes :
-  `jozz, page, sura_no, sura_name_en/ar, line_start, line_end, aya_no,
-  aya_text`. Le même dépôt fournit aussi qaloon, doori, soosi, bazzi, qumbul,
-  shouba — donc la même mécanique servirait d'autres riwayat plus tard.
+`ArabicNormalizer` devra traiter ces caractères, relevés par comparaison des
+inventaires complets des deux textes :
 
-## 2. Ce qui n'existe nulle part et devra être produit
+**Présents en Warsh, absents du Hafs :**
 
-| donnée | état Hafs | état Warsh |
+| point de code | occurrences | nom | traitement |
+|---|---|---|---|
+| `U+06D2` | 2 996 | YEH BARREE | → `ى` — **indispensable** : sans lui, `فى` devient `ف` (1 185 faux écarts à lui seul) |
+| `U+0657` | 2 916 | INVERTED DAMMA | diacritique Warsh |
+| `U+0656` | 1 935 | SUBSCRIPT ALEF | diacritique Warsh |
+| `U+065E` | 1 815 | FATHA WITH TWO DOTS | diacritique Warsh (imāla) |
+| `U+0655` | 45 | HAMZA BELOW | |
+| `U+0660`–`U+0669` | 12 419 | chiffres arabo-indiens | **le numéro de verset est collé au texte** → à retirer |
+| `U+200F` | 14 | marque RTL | à retirer |
+
+**Présents en Hafs, absents du Warsh :** `U+0671` ALEF WASLA (13 483 !) → `ا`,
+et les signes de waqf `U+06D7`–`U+06ED` (le jeu de signes de pause du mushaf
+Warsh est différent).
+
+C'est cette table qui fait passer la mesure de « 6,25 % de divergence » à
+« 0,84 % » : sans elle, on mesure son propre normaliseur, pas les deux textes.
+
+---
+
+## 4. L'expérience à mener maintenant (tout est disponible)
+
+Objectif : *le modèle actuel, inchangé, aligne-t-il du texte Warsh sur de
+l'audio Warsh ?*
+
+Tous les ingrédients sont réunis et vérifiés :
+1. **audio** — `everyayah.com/data/warsh/warsh_ibrahim_aldosary_128kbps/SSSAAA.mp3`,
+   complet, clés Hafs ;
+2. **texte** — KFGQPC Warsh, recoupé sur les frontières Hafs (§2.4) ;
+3. **modèle** — `benchmark/models_deployes/trois-tetes-2026-08-04-combine/`,
+   tel quel.
+
+Protocole, en réutilisant les bancs existants (cf. `solution-de-fond` : la
+mesure d'abord, et sur plusieurs passages) :
+- prendre **trois passages de nature différente** — un court (67 ou 36), un à
+  fortes répétitions (55), un long (2) ;
+- passer l'audio Warsh au modèle avec le texte **Hafs** puis avec le texte
+  **Warsh**, et comparer les deux taux de non-verts ;
+- ce que ça répond : si le taux Warsh/Warsh s'approche du taux Hafs/Hafs
+  habituel, la vérification est utilisable telle quelle. S'il explose, on saura
+  **sur quels mots** (les 37,88 % vocalisés différemment sont identifiés
+  nominativement), et l'on décidera à ce moment-là — pas avant.
+
+⚠️ Rappel projet : ne pas « faire passer » le Warsh en déplaçant un seuil.
+Le résultat de cette mesure est une donnée d'entrée pour décider, pas un
+objectif à atteindre.
+
+---
+
+## 5. Ce qui manque encore, et où le prendre
+
+| donnée | source identifiée | reste à faire |
 |---|---|---|
-| texte du verset | `quran_verses.json` (7,7 Mo) | **KFGQPC dispo** (à intégrer) |
-| tajweed coloré (`text_uthmani_tajweed`) | fourni par quran.com | **inexistant** |
-| annotations de règles (`quran_rules_annotated.json`, 6 236 versets) | dérivé Hafs | **à re-dériver** |
-| signes de waqf (`quran_waqf.json`, 2 640 versets) | dérivé Hafs | partiellement dans le texte KFGQPC, **à extraire** |
-| index de recherche (`quran_search_index.json`) | dérivé Hafs | **à re-générer** |
-| timings mot-à-mot (`word_timings_ms.json`, 3 520 versets) | dérivé d'un récitateur Hafs | **à re-mesurer sur un récitateur Warsh** |
-| baseline GOP (`gop_word_baseline.json`, 12 702 mots) | mots Hafs | **à re-mesurer** |
-| hizb / rub'-el-hizb | dans `quran_verses.json` | **absent du jeu KFGQPC** |
-| **modèle ASR** | 3 têtes, entraîné **Hafs-only volontairement** | **à entraîner** |
-| lexique du modèle (`word_tokens.json`, 19 001 mots) | mots Hafs | **à régénérer** |
-| audio récitateur (lecture, correction, coach) | 8 récitateurs quran.com | **aucun** côté API (cf. §4) |
+| texte Warsh | KFGQPC ✅ | recouper sur frontières Hafs |
+| audio par verset | everyayah ✅ (2 récitateurs complets) | — |
+| audio par sourate | mp3quran.net ✅ (10 complets) | — |
+| découpe mot à mot | QUL *word-by-word* (compte requis) | ou dériver du texte |
+| **timings mot à mot** | ❌ aucune source | à produire — l'alignement forcé du modèle est précisément l'outil pour ça |
+| tajweed coloré | ❌ aucune source Warsh | à décider : sans couleur en Warsh, ou re-dérivation |
+| hizb / rub'-el-hizb | ❌ absent du jeu KFGQPC (`jozz` seulement) | dériver, ou portions sur le `jozz` |
+| annotations de règles, waqf, index de recherche, baseline GOP | dérivés Hafs | à re-générer depuis le texte Warsh |
 
-## 3. Point de bascule n°1 — le TEXTE : un seul verrou, c'est la bonne nouvelle
+---
 
-Tout le texte affiché et jugé descend de `Verse.textUthmani`, alimenté par
-`QuranApi._parseVerse` depuis les deux assets locaux. **Aucun écran ne lit
-l'asset directement.** Le verrou unique est donc :
+## 6. Défaut préexistant relevé au passage (hors chantier Warsh)
 
-- [quran_api.dart:56-79](app/lib/services/quran_api.dart#L56-L79) `_ensureLoaded()`
-  → charger `quran_verses_warsh.json` au lieu de `quran_verses.json` selon le
-  réglage, et **invalider les caches statiques** (`_chapters`,
-  `_versesBySurah`, `_versesByPage`, `_bismillahCache`) au changement.
-
-Les 17 fichiers qui consomment `textUthmani` en aval (mushaf, karaoké,
-tajweed, jeu, coach, portions, recette, mini-player, téléchargements) suivent
-alors **sans modification** — vérifié fichier par fichier.
-
-Deux exceptions à traiter à la main :
-- [tajweed_text.dart](app/lib/widgets/tajweed_text.dart) et
-  `tajweedSpansPerWord()` reposent sur `textUthmaniTajweed`, **absent en
-  Warsh** → décider : pas de couleur tajweed en Warsh, ou re-dérivation.
-- [portion_service.dart:96-114](app/lib/services/portion_service.dart#L96-L114)
-  exclut la Bismillah du total via le cas particulier `(1,1)` — en Warsh, `1:1`
-  **est** « الحمد لله » et non la Bismillah : ce cas particulier devient faux.
-
-## 4. Point de bascule n°2 — l'AUDIO : c'est ici que ça bloque vraiment
-
-**Vérifié en appel réel le 2026-08-12 : l'API quran.com ne sert QUE du Hafs.**
-
-- `/resources/recitations` renvoie **12 récitateurs, tous Hafs**, aucun Warsh.
-- `/quran/verses/{resource}` **ignore complètement** l'identifiant demandé :
-  `uthmani`, `uthmani_warsh`, `warsh` et même un identifiant inventé
-  (`totally_bogus_resource`) renvoient tous le **même texte Hafs**, HTTP 200.
-  Il n'y a donc pas de « paramètre Warsh » caché à activer côté API.
-
-Ce qui dépend de cet audio, et tombe donc entièrement :
-
-| fonction | fichier | ce qui casse en Warsh |
-|---|---|---|
-| lecture du Mushaf | [audio_player_service.dart:26](app/lib/services/audio_player_service.dart#L26) | URLs Hafs |
-| téléchargement hors-ligne | [reciter_download_service.dart:202](app/lib/services/reciter_download_service.dart#L202) | idem |
-| **correction d'un mot raté** | [word_correction_audio.dart](app/lib/services/word_correction_audio.dart) | rejoue un mot Hafs sur une erreur Warsh |
-| répétition incrémentale du Coach | [coach_incremental_repeat.dart](app/lib/screens/coach_incremental_repeat.dart) | idem (réutilise `playWordRange`) |
-| découpe mot-à-mot | `QuranApi.fetchAyahSegments` | segments Hafs, indices de mots Warsh |
-| aide tajweed « écouter » | [tajwid_help_sheet.dart](app/lib/widgets/tajwid_help_sheet.dart) | idem |
-
-⇒ Un mode Warsh **sans source audio Warsh** donnerait une app qui affiche
-Warsh et fait entendre Hafs sur la correction — c'est-à-dire qui **enseigne
-l'erreur**. C'est le point à arbitrer en premier, avant tout code.
-
-À noter au passage, **défaut préexistant trouvé pendant l'analyse** (sans
-rapport avec Warsh, mais dans le fichier même que ce chantier va toucher) :
 [reciter.dart:22-32](app/lib/models/reciter.dart#L22-L32) associe des noms à
-des identifiants qui ne correspondent pas à ceux de l'API. Vérifié via l'URL
-audio réelle renvoyée par l'API : `id=1` est Abdul Basit **Mujawwad** (l'app
-dit Murattal), `id=2` Murattal (l'app dit Mujawwad), `id=5` est **Hani
-ar-Rifai** (l'app dit Abu Bakr Ash-Shaatree), `id=9` **Minshawi** (l'app dit
-Al-Husary), `id=10` **Shuraym** (l'app dit Al-Qatami), `id=11` **Al-Tablawi**
-(l'app dit As-Sudais), `id=12` **Husary Muallim** (l'app dit Muhammad Ayyoub).
-6 entrées sur 8 sont fausses. À traiter séparément, pas dans ce chantier.
-
-## 5. Point de bascule n°3 — la chaîne ASR (le plus lourd)
-
-Le modèle déployé est **volontairement Hafs-only** : c'était une correction
-documentée (`ETAT_CTC_NEMO.md` §6) après qu'une contamination Warsh de 21 % ait
-dégradé les runs précédents. Un mode Warsh demande donc un **second modèle**,
-pas un réglage.
-
-Trois artefacts du modèle sont indexés sur le texte Hafs :
-- `vocab.json` — tokenizer BPE tajweed (1 024 tokens) appris sur du Hafs ;
-  l'orthographe KFGQPC Warsh emploie des conventions différentes (`اِ۬لْحَمْدُ`
-  contre `ٱلْحَمْدُ`), donc segmentation dégradée avant même l'acoustique ;
-- `word_tokens.json` — 19 001 mots Hafs pré-tokenisés. Un mot absent **ne fait
-  pas planter** (repli greedy, cf.
-  [ForcedAligner.kt:1339-1358](app/android/app/src/main/kotlin/com/corankarim/coran_karim/fastconformer/ForcedAligner.kt#L1339-L1358))
-  mais perd la qualité d'alignement ;
-- `tete3.json` — l'écart au canonique, entraîné contre le canon **Hafs**.
-
-Côté app, la cible de jugement se construit dans
-[recitation_provider.dart](app/lib/providers/recitation_provider.dart) à partir
-de `ArabicNormalizer.splitExpectedWords(v.textUthmani)` : elle suivra
-automatiquement le texte Warsh — mais elle sera alors comparée à un modèle qui
-n'a jamais entendu Warsh. **Le texte basculerait sans que le juge bascule.**
-
-⚠️ Rappel des règles projet applicables ici : `solution-de-fond` (ne pas
-déplacer un critère d'acceptation pour compenser un modèle inadapté) et
-« pas de correctif palliatif ». Faire tolérer le Warsh à un modèle Hafs par
-des seuils serait exactement le palliatif que le projet s'interdit.
-
-## 6. Point de bascule n°4 — les données déjà enregistrées
-
-Aucune table ne porte de colonne `riwaya`. Toutes indexent par
-`(surah, ayah, word_index)` — la clé dont le §0 démontre qu'elle change de
-sens :
-
-| stockage | fichier | clé |
-|---|---|---|
-| journal d'erreurs cumulé (jamais purgé) | [recitation_error_log_service.dart:121](app/lib/services/recitation_error_log_service.dart#L121) | `surah_number, ayah_number, word_index` |
-| sessions datées (7 j) | `session_archive_service.dart` — `session_words` | idem |
-| **portions permanentes** | `session_archive_service.dart` — `portion_words` | `portion_id, ayah_number, word_in_ayah` |
-| portions elles-mêmes | `portions.unit_key` = `s2h5`… | dérivé du **hizb**, absent du jeu Warsh |
-| record du jeu Enchaînement | `memorization_game.best_words_by_portion` | clé `unit_key` |
-| reprise Coach, signets | `last_coach_verse_provider.dart`, prefs | `(surah, ayah)` |
-
-⇒ Il faut trancher, avant d'écrire une ligne : les statistiques sont-elles
-**par riwaya** (une colonne/clé de plus partout, deux historiques séparés) ou
-**partagées** (et alors une migration explicite, jamais un décalage
-silencieux) ? Sans cette décision, un simple basculement de réglage
-réattribuerait des erreurs d'un mot à un autre.
-
-## 7. Ce qu'il reste à décider (à arbitrer, pas à supposer)
-
-1. **L'audio Warsh** : accepte-t-on un mode Warsh sans correction sonore au
-   départ, ou le chantier attend-il une source audio Warsh (les 22 récitateurs
-   déjà téléchargés sont des sourates entières, pas des clips verset par
-   verset alignés — à vérifier sur la machine Ubuntu) ?
-2. **Le modèle ASR** : un second modèle Warsh est un entraînement complet.
-   Tant qu'il n'existe pas, le mode Warsh doit-il **désactiver la
-   vérification** (lecture/jeu seulement) plutôt que juger avec un modèle
-   Hafs ?
-3. **Les portions du Coach** : sans `hizb_number` en Warsh, on retombe sur le
-   `jozz` (30 unités, plus grossier) ou on dérive les hizb nous-mêmes.
-4. **Historique** : séparé par riwaya, ou partagé avec migration ?
-5. **Tajweed coloré** : abandonné en Warsh, ou re-dérivé ?
-
-## 8. Ordre de travail proposé (aucune étape ne démarre sans validation)
-
-1. Intégrer le **texte** Warsh + une clé d'identité qui porte la riwaya
-   (`w2:132` vs `h2:132`), et faire basculer `QuranApi` seul → l'app lit et
-   affiche Warsh, tout le reste reste Hafs et **assumé désactivé**.
-2. Ajouter la **riwaya dans les schémas** de stockage (avant toute écriture
-   Warsh, sinon les données sont polluées dès la première session).
-3. Décider du sort de la **vérification** (§7.2) et n'ouvrir la récitation en
-   Warsh que quand le juge est le bon.
-4. Audio, tajweed, timings, GOP : chacun est un chantier propre, mesurable
-   séparément.
+des identifiants d'API qui ne correspondent pas. Vérifié via l'URL audio
+réellement renvoyée par l'API pour chaque `id` : `id=1` est Abdul Basit
+**Mujawwad** (l'app dit Murattal), `id=2` **Murattal** (l'app dit Mujawwad),
+`id=5` **Hani ar-Rifai** (l'app dit Abu Bakr Ash-Shaatree), `id=9`
+**Minshawi** (l'app dit Al-Husary), `id=10` **Shuraym** (l'app dit
+Al-Qatami), `id=11` **Al-Tablawi** (l'app dit As-Sudais), `id=12` **Husary
+Muallim** (l'app dit Muhammad Ayyoub). **6 entrées sur 8 sont fausses.**
+À corriger séparément.
 
 ---
 
-*Mesures de ce document faites le 2026-08-12 : comparaison Hafs/Warsh sur les
-deux jeux de données complets, appels réels à `api.quran.com` (scripts et
-sorties reproductibles), lecture des artefacts du modèle déployé. Ce qui n'a
-pas pu être vérifié depuis ce poste est nommé comme tel (présence du corpus
-audio Warsh sur la machine Ubuntu).*
+*Toutes les mesures de ce document datent du 2026-08-12 : comparaison des deux
+jeux de données complets, requêtes réelles sur everyayah / mp3quran / quran.com
+/ QUL, fichiers audio Warsh téléchargés et mesurés à `ffprobe`. Ce qui n'a pas
+pu être vérifié depuis ce poste est nommé comme tel (corpus Warsh déjà
+téléchargé sur la machine Ubuntu, contenu QUL derrière authentification).*
+
+Sources : [everyayah.com](https://everyayah.com/data/recitations.js) ·
+[mp3quran.net API](https://mp3quran.net/api/v3/reciters) ·
+[KFGQPC quran-data](https://github.com/thetruetruth/quran-data-kfgqpc) ·
+[QUL — Quranic Universal Library](https://qul.tarteel.ai/resources/quran-script) ·
+[api.quran.com v4](https://api.quran.com/api/v4)
