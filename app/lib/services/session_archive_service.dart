@@ -536,7 +536,25 @@ class SessionArchiveService {
     // verdict non-correct peut le poser.
     final dejaRateAvant =
         existant.isEmpty ? 0 : (existant.first['deja_rate'] as int? ?? 0);
-    final dejaRate = (dejaRateAvant == 1 || status != 'correct') ? 1 : 0;
+    // ── SEULE UNE VRAIE FAUTE MARQUE « DÉJÀ RATÉ » (2026-08-12) ─────────────
+    // Constat utilisateur : « ce qui me perturbe c'est les déjà acquis, il y
+    // en a plein juste avec UNE SEULE récitation, je n'ai pas testé de redire
+    // des mots ».
+    //
+    // La condition était `status != 'correct'`, ce qui embarquait `skipped` --
+    // le statut des mots que l'ancre a dépassés SANS que la chaîne les juge.
+    // Une récitation en produit des dizaines ; ils ressortaient donc tous en
+    // « déjà ratés, maintenant acquis » alors que le récitateur n'avait ni
+    // fauté ni redit quoi que ce soit. C'est la contradiction directe de la
+    // règle posée le 2026-08-11 (« un mot non jugé ne pénalise pas ») :
+    // `skipped` est déjà compté comme acquis dans `words_green`, il ne pouvait
+    // pas dans le même temps valoir historique de faute.
+    //
+    // `conteste` est exclu pour la même raison : l'utilisateur a précisément
+    // déclaré qu'il avait bien prononcé ce mot.
+    const vraiesFautes = {'error', 'oubli', 'unclear'};
+    final dejaRate =
+        (dejaRateAvant == 1 || vraiesFautes.contains(status)) ? 1 : 0;
     final valeurs = {
       'expected_word': expectedWord,
       'heard_word': heardWord,

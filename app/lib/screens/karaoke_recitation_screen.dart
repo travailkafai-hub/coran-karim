@@ -204,6 +204,37 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // Null tant que _initAsync() n'a pas fini (voir _ready).
   List<GlobalKey>? _wordKeys;
   int? _lastAutoScrolledIndex;
+
+  /// Index du mot que L'ÉCRAN doit suivre — jamais `-1`.
+  ///
+  /// ── POURQUOI CETTE FONCTION EXISTE (2026-08-12) ──────────────────────────
+  /// Symptôme utilisateur : « quand le contrôle de récitation dure, il y a un
+  /// blocage de l'écran, il ne suit plus, il doit toujours suivre ».
+  ///
+  /// Le défilement ET l'enchaînement de page dépendaient tous les deux du
+  /// MÊME signal, le mot marqué `WordStatus.current`. Quand ce marqueur
+  /// disparaît (la chaîne n'a plus de mot « en cours » à désigner), les deux
+  /// meurent ensemble et DÉFINITIVEMENT :
+  ///   - le défilement voit `-1` et ne fait plus rien ;
+  ///   - l'enchaînement retombe sur `pointer`, dont le commentaire d'origine
+  ///     dit lui-même qu'il « reste bloqué près de 0 quand la v2 pilote » --
+  ///     donc `words.length - 0` ne repasse jamais sous le seuil, et la page
+  ///     suivante ne se charge plus jamais.
+  ///
+  /// La correction ne devine pas POURQUOI `current` disparaît : elle supprime
+  /// la dépendance à un signal unique. Le repli est le mot JUGÉ le plus
+  /// avancé, qui ne recule jamais et existe dès qu'un seul mot a été traité.
+  /// C'est un choix d'AFFICHAGE : aucun critère de jugement n'est touché ici,
+  /// on décide seulement où regarder.
+  int _indexASuivre(RecitationSessionState st) {
+    final courant =
+        st.words.indexWhere((w) => w.status == WordStatus.current);
+    if (courant >= 0) return courant;
+    for (var i = st.words.length - 1; i >= 0; i--) {
+      if (st.words[i].status != WordStatus.pending) return i;
+    }
+    return st.pointer.clamp(0, st.words.isEmpty ? 0 : st.words.length - 1);
+  }
   DateTime? _manualScrollUntil;
 
   // Coloration tajwid lettre-par-lettre (demande utilisateur 2026-07-05 :
@@ -2620,9 +2651,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // et la session se figeait dès le dernier mot chargé (mesuré : bloqué
       // sur "ٱلْمُفْلِحُونَ", dernier mot de la plage 2:1→2:5, "je ne peux
       // plus réciter"). On suit le mot marqué `current`.
-      final suiviExtend =
-          next.words.indexWhere((w) => w.status == WordStatus.current);
-      final pointerExtend = suiviExtend >= 0 ? suiviExtend : next.pointer;
+      // Repli sur le mot jugé le plus avancé quand `current` a disparu (cf.
+      // `_indexASuivre`) : sans lui, l'enchaînement de page s'arrêtait pour
+      // toujours et la récitation se figeait sur le dernier mot chargé.
+      final pointerExtend = _indexASuivre(next);
       if (next.status == RecitationStatus.listening &&
           next.words.length - pointerExtend <= _kExtendLookaheadWords) {
         _maybeExtendNextPage();
@@ -2648,7 +2680,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // plusieurs fois entre deux frames) — plus robuste, et ne redéclenche
     // qu'au changement réel d'index (demande utilisateur 2026-07-06 : le
     // scroll automatique ne se déclenchait pas de façon fiable).
-    final currentIdx = st.words.indexWhere((w) => w.status == WordStatus.current);
+    // Même repli que pour l'enchaînement de page (cf. `_indexASuivre`) : le
+    // défilement ne doit jamais s'arrêter parce que `current` a disparu.
+    final currentIdx = st.words.isEmpty ? -1 : _indexASuivre(st);
     if (currentIdx != -1 && currentIdx != _lastAutoScrolledIndex) {
       _lastAutoScrolledIndex = currentIdx;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2658,8 +2692,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // rester utilisable pendant la récitation).
         final until = _manualScrollUntil;
         if (until != null && DateTime.now().isBefore(until)) return;
-        if (currentIdx >= _wordKeys!.length) return;
-        final ctx = _wordKeys![currentIdx].currentContext;
+        // ── LA DÉSYNCHRONISATION DES CLÉS NE DOIT PLUS ÊTRE MORTELLE ────────
+        // Avant : `if (currentIdx >= _wordKeys!.length) return;` -- si la
+        // liste de clés de l'écran prenait du retard sur la liste de mots de
+        // la chaîne (enchaînement de page à peine appliqué, une frame de
+        // décalage), le défilement s'arrêtait SANS AUCUNE TRACE, et rien ne
+        // le relançait. On suit alors le dernier mot dont on a une clé : on
+        // avance moins loin, mais on continue d'avancer.
+        final cles = _wordKeys;
+        if (cles == null || cles.isEmpty) return;
+        final idxCle = currentIdx >= cles.length ? cles.length - 1 : currentIdx;
+        if (currentIdx >= cles.length) {
+          DiagnosticLog.log('Karaoke',
+              'defilement : mot=$currentIdx hors des ${cles.length} cles '
+              '(ecran en retard sur la chaine) -> suivi du dernier mot connu');
+        }
+        final ctx = cles[idxCle].currentContext;
         if (ctx != null) {
           Scrollable.ensureVisible(
             ctx,

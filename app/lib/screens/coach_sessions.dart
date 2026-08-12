@@ -12,6 +12,7 @@ import '../services/session_archive_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tajwid_help_sheet.dart';
 import 'mind_map_screen.dart';
+import 'recitation_replay_screen.dart';
 
 /// LE COACH REGARDE EN ARRIÈRE (2026-08-06).
 ///
@@ -234,7 +235,28 @@ class _CartePortion extends ConsumerWidget {
                 style: GoogleFonts.manrope(fontSize: 9, color: AppColors.inkLight)),
           ],
         ),
-        onTap: () => Navigator.of(context).push(
+        // Meme ecran pour une portion, en mode CUMULE : `portion_words`
+        // contient chaque mot deja touche avec son DERNIER verdict connu, mis
+        // a jour d'une recitation a l'autre. Un mot sans ligne n'a jamais ete
+        // recite -- il reste gris, il ne compte pas comme juste.
+        onTap: () async {
+          final mots =
+              await SessionArchiveService.instance.motsDePortion(p.id);
+          if (!context.mounted) return;
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => RecitationReplayScreen(
+              titre: p.label,
+              surahNumber: p.surahNumber,
+              premierVerset: p.firstAyah,
+              dernierVerset: p.lastAyah,
+              motsNonVertsSeuls: false,
+              verdicts: {
+                for (final m in mots) (m.ayahNumber, m.wordInAyah): m.status,
+              },
+            ),
+          ));
+        },
+        onLongPress: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => PortionDetailScreen(portion: p))),
       ),
     );
@@ -799,7 +821,35 @@ class _CarteSession extends ConsumerWidget {
             ),
           ],
         ),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+        // ── LE TAP MONTRE LA RECITATION TELLE QU'ELLE ETAIT (2026-08-12) ──
+        // Demande utilisateur : « quand je clique sur ma recitation, qu'elle
+        // m'affiche le meme ecran vert avec tous les mots et les couleurs ».
+        // Le detail mot par mot (voix archivee, contestation) reste accessible
+        // par l'icone de la carte : il n'est pas remplace, il n'est plus le
+        // premier ecran.
+        onTap: () async {
+          final mots =
+              await SessionArchiveService.instance.motsDeSession(s.id);
+          if (!context.mounted) return;
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => RecitationReplayScreen(
+              titre: s.surahName ?? 'Sourate ${s.surahNumber}',
+              surahNumber: s.surahNumber ?? 1,
+              premierVerset: s.fromAyah,
+              dernierVerset: s.toAyah,
+              motsAtteints: s.wordsReached,
+              // `session_words` ne garde QUE les mots non verts : tout mot
+              // atteint et absent de cette table a donc ete recite juste.
+              motsNonVertsSeuls: true,
+              verdicts: {
+                for (final m in mots)
+                  if (m.ayahNumber != null && m.wordInAyah != null)
+                    (m.ayahNumber!, m.wordInAyah!): m.status,
+              },
+            ),
+          ));
+        },
+        onLongPress: () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => SessionDetailScreen(session: s))),
       ),
       ),
