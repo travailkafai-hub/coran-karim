@@ -157,8 +157,46 @@ un palier mal récité : la qualité reste gardée par le modèle, ailleurs.
 Cette séparation évite l'écueil classique d'un barème unique — soit il punit
 la révision d'un passage fragile, soit il rend rentable de rejouer du facile.
 
-Reste à définir : la courbe exacte (points par mot repris ? par quart ?) et le
-palmarès des badges.
+### La courbe, inspirée des jeux — et ce qu'on en refuse
+
+> « Inspire-toi des jeux, ce qui se fait, mais après transpose sur cette
+> application sérieuse. » (utilisateur, 2026-08-13)
+
+**Ce qui se transpose, parce que ça sert la mémorisation :**
+
+| mécanique de jeu | transposition ici | pourquoi ça tient |
+|---|---|---|
+| XP proportionnels à l'effort | 1 point par mot repris | l'effort de révision est réel, il se compte |
+| combo / enchaînement | multiplicateur quand les quarts s'enchaînent **dans la même session** | c'est exactement ce que la mémorisation exige : de la continuité, pas des bribes |
+| paliers de progression | badges sur des jalons **réels** : un quart, un Hizb, un Juz, une sourate entière, les Mufassal | le jalon a déjà un sens pour le récitant — on ne l'invente pas |
+| série quotidienne | jours où l'objectif est atteint (cf. §8) | l'assiduité est le premier facteur de mémorisation |
+
+Barème proposé : **1 point par mot repris**, ×1,5 si la reprise part du **début
+du quart** (le geste qu'on veut installer), puis un multiplicateur croissant
+par quart enchaîné dans la même session — ×1, ×1,2, ×1,5, ×2 : quatre quarts
+d'affilée, soit un Hizb, valent le double de quatre quarts séparés.
+
+**Garde-fou obligatoire** : plafonner le nombre de fois qu'un même quart
+rapporte dans une journée. Sans ce plafond, le barème rend rentable de rejouer
+en boucle un passage facile — c'est le défaut classique, et il viderait les
+points de leur sens.
+
+**Ce qu'on REFUSE, et il faut l'écrire pour ne pas y revenir :**
+
+- **Les classements entre utilisateurs, les ligues.** Mettre des récitants du
+  Coran en compétition est déplacé. Accessoirement l'app n'a ni compte ni
+  serveur (cf. la politique de confidentialité : « tout se passe sur votre
+  téléphone ») — c'est donc aussi impossible, et tant mieux.
+- **Les vies / cœurs qui bloquent l'accès** (modèle Duolingo). Empêcher
+  quelqu'un de réciter le Coran parce qu'il a « épuisé ses vies » serait
+  absurde. Rien, jamais, ne doit fermer l'accès au texte.
+- **Les récompenses aléatoires, coffres, roues.** Mécanique de hasard, étrangère
+  à ce que l'app est.
+- **La culpabilisation.** Le §2 pose déjà l'inverse : quand l'objectif est trop
+  haut, on **propose de le baisser**. Une notification qui fait honte pousse à
+  désinstaller, pas à réciter.
+
+Reste à définir : le palmarès exact des badges, et le plafond journalier.
 
 ## 7. Ce qui manque techniquement (à faire en premier)
 
@@ -185,12 +223,16 @@ C'est le seul ajout de schéma indispensable ; le reste s'appuie sur
 
 **Encore ouvertes :**
 
-5. **Les noms des trois niveaux** : « À mon rythme / Régulier / Exigeant »
-   (proposition du §3), ou les mots d'origine (libre / modéré / strict) ?
-6. **La série** : mécanique à part, ou simplement « nombre de jours où
-   l'objectif a été atteint » ? La seconde évite deux compteurs qui peuvent se
-   contredire.
-7. **La courbe de points** : par mot repris, ou par quart ? Et quels badges ?
+5. **Noms des trois niveaux** → **« À mon rythme » / « Régulier » /
+   « Exigeant »** (§3).
+6. **La série** → **le nombre de jours où l'objectif a été atteint**. Pas un
+   compteur séparé : deux compteurs finissent toujours par se contredire, et
+   celui-ci se déduit de la table de jours actifs (§7).
+7. **La courbe de points** → inspirée des jeux, avec ce qui est explicitement
+   refusé (§6).
+
+**Reste ouvert :** le palmarès des badges, le plafond journalier anti-boucle,
+et la formule exacte des multiplicateurs.
 
 ---
 
