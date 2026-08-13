@@ -90,9 +90,21 @@ Trois familles, par ordre d'utilité :
    chose en étant simplement lue.
 3. **La proposition de baisse** — après une semaine manquée (cf. §2).
 
+### ✅ Tranché (2026-08-13) — adossés aux horaires de prière, renforcés le soir et le week-end
+
+Les rappels se calent sur les **horaires de prière**, que l'app calcule déjà :
+ils suivent donc les saisons sans réglage, et tombent à des moments où
+l'utilisateur est déjà tourné vers le Coran.
+
+Deux pondérations demandées : **davantage le soir**, et **davantage le
+week-end** — les moments où le temps existe réellement. Un rappel du matin en
+semaine a peu de chances d'être suivi d'effet ; l'insistance doit se placer là
+où l'action est possible.
+
 L'infrastructure existe déjà : `flutter_local_notifications`, et le
 `ScheduledNotificationBootReceiver` est déjà déclaré au manifeste — les
-rappels survivent au redémarrage sans travail supplémentaire.
+rappels survivent au redémarrage sans travail supplémentaire. Les horaires de
+prière viennent de `PrayerTimesService`.
 
 ## 5. Valider un palier : la répétition depuis le début
 
@@ -110,25 +122,43 @@ lieu de le subir.
 > « S'il est dans la page 2, s'il répète la page 1 et 2, il gagne plus de
 > récompenses. »
 
-⚠️ **Le point à arbitrer** : exiger la reprise depuis le début devient
-impraticable au bout d'un moment (un Hizb entier pour valider son dernier
-quart). Trois pistes, à trancher :
-- **fenêtre glissante** — reprendre les N derniers paliers, pas tout ;
-- **exigé court, récompensé long** — le palier seul suffit à valider, la
-  reprise longue rapporte davantage de points ;
-- **révision espacée** — la reprise longue est demandée à intervalles
-  croissants (le projet a déjà FSRS en tête).
+### ✅ Tranché (2026-08-13) — le palier est le QUART de Hizb, et on le reprend entier
 
-## 6. Points et badges
+> « Pour valider les paliers, c'est le quart de Hizb. On ne peut pas partir sur
+> le Hizb, il ne peut pas réciter d'un coup un Hizb entier [...] quand il est
+> en train de réciter dans le quart de Hizb, c'est préférable qu'il répète
+> depuis le début du quart de Hizb. »
 
-À concevoir avec une contrainte que le cadrage impose : **la récompense doit
-suivre l'effort de consolidation**, donc croître avec la longueur du passage
-repris, pas seulement avec le nombre de mots justes.
+La reprise est donc **bornée par construction** : jamais plus d'un quart de
+Hizb, quelle que soit l'avancée. Le problème d'impraticabilité disparaît sans
+mécanisme supplémentaire — pas de fenêtre glissante, pas de révision espacée à
+inventer ici. Le quart est déjà l'unité de `portions` : aucune conversion.
 
-Éléments retenus du cadrage : un badge/des points par répétition, davantage
-quand la reprise est longue. Reste à définir la courbe exacte — et à éviter
-l'écueil classique : un barème qui rend rentable de rejouer indéfiniment un
-passage facile.
+**Valider un quart = le réciter depuis son début, jugé correct par le modèle.**
+
+## 6. Points et badges — la répétition a une valeur en soi
+
+> « S'il a déjà lu un Hizb, il veut le répéter, c'est bien, ça gagne des points.
+> Indépendamment s'il fait des erreurs ou pas. Pour les points, c'est vraiment
+> pour donner de la valeur à la répétition. »
+
+**Deux monnaies distinctes, et c'est ce qui rend le système cohérent :**
+
+| | ce qui la gouverne | ce qu'elle récompense |
+|---|---|---|
+| **Validation d'un palier** | le modèle : la récitation est-elle juste ? | la **qualité** |
+| **Points / badges** | le volume répété, **sans regarder les erreurs** | la **répétition** |
+
+Un utilisateur qui reprend un Hizb entier déjà su gagne des points même s'il
+trébuche — parce que ce qu'on veut encourager là, c'est le geste de revenir en
+arrière, que rien d'autre ne récompense. Et il ne peut pas pour autant valider
+un palier mal récité : la qualité reste gardée par le modèle, ailleurs.
+
+Cette séparation évite l'écueil classique d'un barème unique — soit il punit
+la révision d'un passage fragile, soit il rend rentable de rejouer du facile.
+
+Reste à définir : la courbe exacte (points par mot repris ? par quart ?) et le
+palmarès des badges.
 
 ## 7. Ce qui manque techniquement (à faire en premier)
 
@@ -142,17 +172,25 @@ semaine serait fausse **en silence**, ce qui est pire que de ne rien afficher.
 C'est le seul ajout de schéma indispensable ; le reste s'appuie sur
 `portions` (permanent) et le journal d'erreurs (jamais purgé).
 
-## 8. Décisions à trancher avant de coder
+## 8. Décisions
 
-1. **L'unité d'objectif** : verset, page, ou quart de Hizb ? (le quart est
-   déjà l'unité de `portions` — le réutiliser éviterait une conversion)
-2. **La validation d'un palier** : §5, laquelle des trois pistes ?
-3. **Les noms des trois niveaux** : proposition du §3, ou les mots d'origine ?
-4. **La série** : est-elle une mécanique à part, ou simplement « nombre de
-   jours où l'objectif a été atteint » ? (la seconde évite d'avoir deux
-   compteurs qui peuvent se contredire)
-5. **Le rappel** : heure fixe choisie, ou adossé aux horaires de prière déjà
-   connus de l'app ?
+**Tranchées le 2026-08-13 :**
+
+1. **Unité d'objectif et de palier** → le **quart de Hizb** (§5).
+2. **Validation d'un palier** → le réciter **depuis son début**, jugé correct
+   par le modèle. Borné par construction (§5).
+3. **Points** → découplés de la justesse, ils récompensent la répétition (§6).
+4. **Rappels** → adossés aux **horaires de prière**, renforcés le **soir** et
+   le **week-end** (§4).
+
+**Encore ouvertes :**
+
+5. **Les noms des trois niveaux** : « À mon rythme / Régulier / Exigeant »
+   (proposition du §3), ou les mots d'origine (libre / modéré / strict) ?
+6. **La série** : mécanique à part, ou simplement « nombre de jours où
+   l'objectif a été atteint » ? La seconde évite deux compteurs qui peuvent se
+   contredire.
+7. **La courbe de points** : par mot repris, ou par quart ? Et quels badges ?
 
 ---
 
