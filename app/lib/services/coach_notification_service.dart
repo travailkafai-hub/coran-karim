@@ -122,6 +122,21 @@ class CoachNotificationService {
   static const _titreApresMidi = 'Un moment pour réciter ?';
   static const _corpsApresMidi =
       'Un quart de Hizb aujourd\'hui te rapproche de ton objectif.';
+
+  /// Le rappel de l'après-midi (niveau EXIGEANT), avec le VERSET QUI COINCE
+  /// quand il y en a un -- demande utilisateur 2026-08-13 : « en mode strict
+  /// il envoie des rappels de versets qui sont en erreur ou oubliés, pas les
+  /// non jugés ».
+  ///
+  /// [versetQuiCoince] vient de `RecitationErrorLogService.errorCountsByAyah`
+  /// (table `recitation_errors`, kinds `lettre/harakat/tajwid/saute/oubli` --
+  /// JAMAIS un mot "non jugé" par la chaîne : ce défaut de l'application n'a
+  /// rien à faire dans un rappel qui accuse le récitateur). `null` -> message
+  /// générique, sans texte à montrer.
+  (String, String) _messageApresMidi((String, String)? versetQuiCoince) =>
+      versetQuiCoince == null
+          ? (_titreApresMidi, _corpsApresMidi)
+          : ('Un verset à revoir — ${versetQuiCoince.$1}', versetQuiCoince.$2);
   static const _titreWeekend = 'Le week-end, le bon moment';
   static const _corpsWeekend =
       'Profite d\'avoir un peu plus de temps pour mémoriser aujourd\'hui.';
@@ -147,6 +162,8 @@ class CoachNotificationService {
     required NiveauCoach niveau,
     required bool objectifAtteintAujourdhui,
     required int serie,
+    /// (référence affichable, texte du verset) -- cf. `_messageApresMidi`.
+    (String, String)? versetQuiCoince,
   }) async {
     await init();
     if (niveau == NiveauCoach.aMonRythme) {
@@ -167,10 +184,11 @@ class CoachNotificationService {
         quand: today[PrayerName.maghrib]!.add(const Duration(minutes: 20)),
       );
       if (niveau == NiveauCoach.exigeant) {
+        final (titreAM, corpsAM) = _messageApresMidi(versetQuiCoince);
         await _programmer(
           id: _idApresMidiAuj,
-          titre: _titreApresMidi,
-          corps: _corpsApresMidi,
+          titre: titreAM,
+          corps: corpsAM,
           quand: today[PrayerName.asr]!.add(const Duration(minutes: 20)),
         );
       } else {
@@ -197,10 +215,11 @@ class CoachNotificationService {
       quand: tomorrow[PrayerName.maghrib]!.add(const Duration(minutes: 20)),
     );
     if (niveau == NiveauCoach.exigeant) {
+      final (titreAMd, corpsAMd) = _messageApresMidi(versetQuiCoince);
       await _programmer(
         id: _idApresMidiDemain,
-        titre: _titreApresMidi,
-        corps: _corpsApresMidi,
+        titre: titreAMd,
+        corps: corpsAMd,
         quand: tomorrow[PrayerName.asr]!.add(const Duration(minutes: 20)),
       );
     } else {

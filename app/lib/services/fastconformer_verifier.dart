@@ -357,12 +357,31 @@ class FastConformerVerifier {
     // (pousser un checkpoint sur un build de dev sans `run-as`), la porte est
     // fermée dans le binaire publié.
     if (kDebugMode) {
+      // ── DIAGNOSTIC AVANT CORRECTIF (2026-08-13) ────────────────────────
+      // Constat utilisateur : modèle poussé par `adb push` exactement au
+      // chemin que ce bloc vérifie, présence et permissions confirmées côté
+      // device (`stat` : 0644, inode identique via /sdcard et
+      // /storage/emulated/0) -- et pourtant `ensureLoaded()` retombe sur le
+      // storage privé, vide. L'ancien `debugPrint` ne prouvait rien : il
+      // n'écrit que dans logcat, jamais dans `recitation_diagnostic.log`
+      // (celui qu'on peut relire après coup), et il n'existe QUE dans la
+      // branche "trouvé" -- silence total dans la branche "pas trouvé", donc
+      // aucune preuve pour distinguer "ext est null" de "le fichier n'existe
+      // pas selon Dart". On journalise les deux hypothèses séparément avant
+      // de changer quoi que ce soit : deviner une correction ici serait
+      // exactement l'erreur que ce projet interdit.
       final ext = await getExternalStorageDirectory();
-      if (ext != null &&
-          await File('${ext.path}/$_kModelSubdir/$_kModelFile').exists()) {
-        appDir = ext;
-        debugPrint('[FastConformer] TEST: modele depuis storage EXTERNE '
-            '(${ext.path}/$_kModelSubdir)');
+      final cheminExt = ext == null
+          ? null
+          : File('${ext.path}/$_kModelSubdir/$_kModelFile');
+      final existeExt = cheminExt != null && await cheminExt.exists();
+      DiagnosticLog.log('FastConformer',
+          'verif storage externe : ext=${ext?.path ?? "NULL"} '
+          'chemin=${cheminExt?.path ?? "n/a"} existe=$existeExt');
+      if (existeExt) {
+        appDir = ext!;
+        DiagnosticLog.log('FastConformer',
+            'modele charge depuis storage EXTERNE (${ext.path}/$_kModelSubdir)');
       }
     }
     final modelFile = File('${appDir.path}/$_kModelSubdir/$_kModelFile');

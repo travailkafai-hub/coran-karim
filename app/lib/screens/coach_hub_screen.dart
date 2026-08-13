@@ -190,7 +190,15 @@ class _ObjectifSection extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.local_fire_department_rounded,
+                    // ── CROISSANT DE LUNE, PAS DE FLAMME (2026-08-13) ────────
+                    // Constat utilisateur : « le feu et le Coran c'est pas le
+                    // bon univers, cherche d'autres signes plus religieux ».
+                    // Le croissant tient aussi par cohérence avec le reste du
+                    // Coach : le jour islamique commence au Maghrib, l'heure
+                    // même sur laquelle le rappel du soir est calé (cf.
+                    // `CoachNotificationService`) -- une série de « jours »
+                    // est, ici, littéralement une série de nuits.
+                    const Icon(Icons.nightlight_round,
                         color: AppColors.brass, size: 22),
                     const SizedBox(width: 8),
                     serie.when(
@@ -242,6 +250,43 @@ class _ObjectifSection extends ConsumerWidget {
                         ),
                         const SizedBox(height: 14),
                         _MiniEvolution(jours: l),
+                        const SizedBox(height: 14),
+                        // ── ACCÈS RAPIDE À LA RÉCITATION (2026-08-13) ────────
+                        // Demande utilisateur : un accès direct à la
+                        // récitation depuis l'objectif, « sans forcer que ce
+                        // soit le début du Coran -- on peut commencer où l'on
+                        // veut ». Même sélecteur libre que `_ReciteSection`
+                        // (`SurahPickerScreen`, tout le Coran choisissable),
+                        // pas une cible imposée par l'objectif : l'objectif
+                        // dit COMBIEN progresser, jamais PAR OÙ commencer.
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SurahPickerScreen(
+                                  title: t.coachHubPickerReciteTitle,
+                                  subtitle: t.coachHubPickerReciteSubtitle,
+                                  onPicked: (surah, verses) =>
+                                      Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) => KaraokeRecitationScreen(
+                                            verses: _firstPageOf(verses))),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.green800,
+                                side: const BorderSide(color: AppColors.green800)),
+                            icon: const Icon(Icons.menu_book_rounded, size: 18),
+                            label: Text(t.coachHubPickerReciteTitle,
+                                style: GoogleFonts.manrope(
+                                    fontSize: 13, fontWeight: FontWeight.w700)),
+                          ),
+                        ),
                       ],
                     );
                   },

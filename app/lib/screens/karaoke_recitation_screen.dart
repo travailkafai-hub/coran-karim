@@ -345,6 +345,21 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// une page de plus en mémoire, lue depuis un asset local -- négligeable.
   static const int _kExtendLookaheadWords = 150;
 
+  /// Multiplicateur de points selon le nombre de quarts de Hizb ENCHAÎNÉS
+  /// dans la même session (index 0 = 1 quart). Choix de conception assumé
+  /// (2026-08-13), pas mesuré : « un barème logique », consigne explicite,
+  /// pas ajusté sur l'usage d'un seul utilisateur. Quatre quarts d'affilée,
+  /// soit un Hizb entier, valent le double de quatre quarts séparés -- c'est
+  /// la continuité qu'on veut encourager, pas seulement le volume.
+  static const _kMultiplicateurEnchainement = [1.0, 1.2, 1.5, 2.0];
+
+  /// Plafond anti-boucle (PLAN_COACH.md §6) : au-delà de ce nombre de
+  /// répétitions RÉCOMPENSÉES du même quart dans la même journée, la
+  /// mémorisation continue de compter (mots, objectif) mais plus les points
+  /// ni l'enchaînement -- sans lui, rejouer en boucle un même quart facile
+  /// rapporterait indéfiniment.
+  static const int _kPlafondRepetitionsParJour = 3;
+
   // Fenêtre de rendu bornée AU-DELÀ du pointeur (demande utilisateur
   // 2026-07-11, suite à un gel de 3+ minutes constaté en test réel : ajouter
   // une sourate longue -- ex. Al-Baqarah, 6121 mots -- forçait Flutter à
@@ -1081,49 +1096,58 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// Comptabilise la session qui vient de se terminer pour le Coach : le
   /// journal des jours (série, objectif) et les points (cf. PLAN_COACH.md).
   ///
-  /// ── BARÈME v1, VOLONTAIREMENT SIMPLE (2026-08-13) ───────────────────────
-  /// Le document pose un barème complet (multiplicateur d'enchaînement de
-  /// quarts DANS la même session, plafond journalier anti-boucle). Cette
-  /// version pose seulement les DEUX règles déjà arbitrées avec certitude :
-  ///   - 1 point par mot juste récité (l'effort se compte) ;
-  ///   - ×1.5 si la session part du DÉBUT d'un quart -- c'est le geste que le
-  ///     projet veut installer (« il vaut mieux répéter depuis le début »).
-  /// Le multiplicateur d'enchaînement et le plafond restent À ÉCRIRE : les
-  /// poser sans un premier jeu de données réelles serait deviner un barème,
-  /// pas le régler. `points` reste ADDITIF en base (cf.
-  /// `ajouterActiviteDuJour`) -- affiner cette formule plus tard ne casse
-  /// aucune donnée déjà écrite.
+  /// ── BARÈME v2 (2026-08-13) ───────────────────────────────────────────────
+  /// Posé comme un choix de conception assumé, pas déduit d'une mesure --
+  /// consigne explicite de l'utilisateur : un barème logique, écrit une fois
+  /// pour tous les utilisateurs, pas ajusté sur l'usage d'un seul.
   ///
-  /// Un QUART VALIDÉ = sa portion vient de passer à `badge == true` (couverte
-  /// à 100 %, tout vert) ET cette session est partie de son premier verset --
-  /// c'est la définition arbitrée le 2026-08-13 (« on répète depuis le début
-  /// du quart de Hizb pour le valider »).
+  /// Deux monnaies restent séparées (cf. PLAN_COACH.md §6) :
+  ///   - `quartsValides` (badge == true, qualité jugée par le modèle) ne sert
+  ///     QU'à l'objectif/la série -- inchangé par tout ce qui suit ;
+  ///   - `points` récompense la RÉPÉTITION, indépendamment des erreurs.
+  ///
+  /// Formule des points : 1 par mot juste, ×1.5 si la session est partie du
+  /// DÉBUT d'un quart (le geste qu'on veut installer), puis un multiplicateur
+  /// CROISSANT selon le nombre de quarts enchaînés dans cette même session
+  /// (`_kMultiplicateurEnchainement`, appliqué à l'ensemble des points de la
+  /// session -- simplification assumée : répartir le multiplicateur mot par
+  /// mot exigerait de savoir combien de mots verts appartiennent à CHAQUE
+  /// quart, une donnée que la chaîne ne détache pas aujourd'hui).
+  ///
+  /// PLAFOND ANTI-BOUCLE (`incrementerRepetitionQuart`) : un quart ne compte
+  /// dans l'enchaînement de la session QUE si sa répétition du jour est
+  /// encore sous le plafond -- au-delà, il continue de valider l'objectif (la
+  /// mémorisation reste réelle) mais n'apporte plus de points ni ne prolonge
+  /// la chaîne, pour qu'il ne soit jamais rentable de rejouer en boucle un
+  /// même quart facile.
   Future<void> _comptabiliserPourCoach(int wordsGreen) async {
     if (_isReferenceSession || _verses.isEmpty) return;
     try {
       final granularite = ref.read(portionGranularityProvider);
-      final departDebutDeQuart =
-          <String>{}; // unitKey déjà vérifiée "partie du début" cette session
       var quartsValides = 0;
-      var bonusDepart = false;
+      var quartsRepetesRecompenses = 0;
       final dejaVues = <String>{};
       for (final v in _verses) {
         final info =
             await PortionService.resolve(verse: v, granularity: granularite);
         if (!dejaVues.add(info.unitKey)) continue;
-        if (v.ayahNumber == info.firstAyah) {
-          departDebutDeQuart.add(info.unitKey);
-          bonusDepart = true;
+        final departDuQuart = v.ayahNumber == info.firstAyah;
+        if (departDuQuart) {
+          final fois = await SessionArchiveService.instance
+              .incrementerRepetitionQuart(info.unitKey);
+          if (fois <= _kPlafondRepetitionsParJour) quartsRepetesRecompenses++;
         }
         final apres = await SessionArchiveService.instance
             .portionParCle(v.surahNumber, info.unitKey);
-        if (apres != null &&
-            apres.badge &&
-            departDebutDeQuart.contains(info.unitKey)) {
-          quartsValides++;
-        }
+        if (apres != null && apres.badge && departDuQuart) quartsValides++;
       }
-      final points = (wordsGreen * (bonusDepart ? 1.5 : 1.0)).round();
+      final bonusDepart = quartsRepetesRecompenses > 0;
+      final multiplicateur = quartsRepetesRecompenses <= 0
+          ? 1.0
+          : _kMultiplicateurEnchainement[
+              (quartsRepetesRecompenses - 1).clamp(0, 3)];
+      final points =
+          (wordsGreen * (bonusDepart ? 1.5 : 1.0) * multiplicateur).round();
       await SessionArchiveService.instance.ajouterActiviteDuJour(
           mots: wordsGreen, quartsValides: quartsValides, points: points);
       final objectif = ref.read(objectifCoachProvider);

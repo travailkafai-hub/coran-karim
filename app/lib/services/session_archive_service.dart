@@ -54,7 +54,7 @@ class SessionArchiveService {
     final chemin = p.join(await getDatabasesPath(), 'session_archive.db');
     return openDatabase(
       chemin,
-      version: 5,
+      version: 6,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE sessions(
@@ -96,6 +96,7 @@ class SessionArchiveService {
             'CREATE INDEX idx_session_words ON session_words(session_id)');
         await _creerTablesPortions(db);
         await _creerTableJours(db);
+        await _creerTablePointsQuart(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         // v1 -> v2 (2026-08-10) : suivi PERMANENT par sourate/Hizb, à côté de
@@ -130,6 +131,11 @@ class SessionArchiveService {
         // §7). Aucune table existante n'est touchee.
         if (oldVersion < 5) {
           await _creerTableJours(db);
+        }
+        // v5 -> v6 (2026-08-13) : plafond anti-boucle des points (cf.
+        // `incrementerRepetitionQuart`, PLAN_COACH.md §6).
+        if (oldVersion < 6) {
+          await _creerTablePointsQuart(db);
         }
       },
     );
@@ -823,6 +829,21 @@ class SessionArchiveService {
     return PortionResume.fromMap(rows.first);
   }
 
+  /// Plafond anti-boucle des points (PLAN_COACH.md §6). Table SÉPARÉE de
+  /// `jours_actifs` : elle compte les répétitions PAR QUART, pas le total du
+  /// jour -- « plafonner le nombre de fois qu'un même quart rapporte dans une
+  /// journée », pas le nombre total de récitations.
+  Future<void> _creerTablePointsQuart(Database db) async {
+    await db.execute('''
+      CREATE TABLE points_quart_jour(
+        jour TEXT NOT NULL,
+        unit_key TEXT NOT NULL,
+        fois INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY(jour, unit_key)
+      )
+    ''');
+  }
+
   // ── LE JOURNAL DES JOURS (Coach) ──────────────────────────────────────────
 
   static String _cleJour(DateTime d) =>
@@ -915,6 +936,26 @@ class SessionArchiveService {
       curseur = curseur.subtract(const Duration(days: 1));
     }
     return serie;
+  }
+
+  /// Incrémente le compteur de répétitions RÉCOMPENSÉES de [unitKey]
+  /// aujourd'hui, et renvoie le nouveau total.
+  ///
+  /// C'est le PLAFOND ANTI-BOUCLE (PLAN_COACH.md §6) : sans lui, le barème
+  /// rendrait rentable de rejouer en boucle un même quart facile -- ce
+  /// compteur, lui, ne borne QUE les points. Au-delà du plafond, le quart
+  /// continue de compter pour la mémorisation réelle (mots récités, journal
+  /// du jour) : seule sa valeur en points s'arrête de croître.
+  Future<int> incrementerRepetitionQuart(String unitKey, {DateTime? quand}) async {
+    final db = await _database;
+    final jour = _cleJour(quand ?? DateTime.now());
+    await db.rawInsert('''
+      INSERT INTO points_quart_jour(jour, unit_key, fois) VALUES(?, ?, 1)
+      ON CONFLICT(jour, unit_key) DO UPDATE SET fois = fois + 1
+    ''', [jour, unitKey]);
+    final rows = await db.query('points_quart_jour',
+        columns: ['fois'], where: 'jour = ? AND unit_key = ?', whereArgs: [jour, unitKey]);
+    return rows.isEmpty ? 1 : (rows.first['fois'] as int);
   }
 
   /// Remet une portion À ZÉRO : ses verdicts disparaissent, la portion aussi.
