@@ -522,16 +522,72 @@ droits sont éteints.
 5. **Publier la politique de confidentialité** et remplir Data safety (§2.3).
 6. **Test interne** (jusqu'à 100 testeurs, sans délai de validation) : vérifier
    que le build signé s'installe, démarre, et que le modèle arrive bien.
-7. **Test fermé** : lance l'horloge imposée aux comptes développeur personnels
-   (nombre de testeurs et durée — **vérifier la règle en vigueur**, elle a
-   changé récemment). À démarrer au plus tôt, elle tourne en parallèle du reste.
-8. **Production**, une fois §4.1 condition 1 (contrôle à 7 jours) livrée.
+7. **Test fermé** : **règle confirmée le 2026-08-11 auprès de la doc officielle
+   Google** (support.google.com/googleplay/android-developer/answer/14151465)
+   — tout compte développeur **personnel créé après le 13/11/2023** doit faire
+   tourner un test fermé avec **au moins 12 testeurs, opt-in en continu
+   pendant 14 jours**, avant de pouvoir demander l'accès production. La
+   demande est ensuite examinée par Google (**~7 jours ou moins**). Compte à
+   rebours réel avant une mise en production : **3 à 5 semaines minimum**,
+   pas une action immédiate. Aujourd'hui un seul testeur est documenté
+   (§ »Comptes« ci-dessus, `kafai.allae@gmail.com`) — **il en manque au moins
+   11**. À démarrer au plus tôt, ça tourne en parallèle du reste.
+8. **Production** — **décision utilisateur 2026-08-11 : publier SANS attendre
+   la condition Quran Foundation (contrôle à 7 jours, §4.1 point 1).** Ce
+   n'est pas une exigence de Google Play (rien ne bloque techniquement), c'est
+   une condition de l'accord écrit avec Quran Foundation — l'ignorer est un
+   risque contractuel assumé consciemment, pas une case cochée. Le mécanisme
+   de contrôle reste à faire s'il doit un jour être livré.
 
 ### Comptes (2026-08-10)
 
 - **Compte Play Console** : `travail.kafai@gmail.com`.
 - **Liste de testeurs — test fermé** : `kafai.allae@gmail.com` (à ajouter dans
   Console → Test → Testeurs, liste d'e-mails).
+
+### Déclarations « Contenu de l'application » — état au 2026-08-11
+
+Neuf déclarations demandées par la console, traitées via automatisation
+Chrome (compte `travail.kafai@gmail.com`) :
+
+| Déclaration | Réponse | Statut |
+|---|---|---|
+| Informations de connexion | Non (aucune section limitée, pas de compte) | ✅ enregistrée |
+| Applis gouvernementales | Non | ✅ enregistrée |
+| Fonctionnalités financières | Aucune (case dédiée cochée) | ✅ enregistrée |
+| Applis de santé | Aucune (case dédiée cochée) | ✅ enregistrée |
+| Identifiant publicitaire | Non | ✅ enregistrée |
+| Classification du contenu (IARC) | Catégorie « Tous les autres types d'applications », tout Non sauf « contenu en ligne » (Oui — téléchargement Quran.com/hisnmuslim.com à la demande) et « produit d'éducation » (Oui) | ✅ envoyée — note obtenue : PEGI 3 / ESRB Tout public / IARC L (toutes tranches) |
+| Cible et contenu (âge cible) | 13-15, 16-17, 18 ans et plus (décision utilisateur 2026-08-11 : pas de tranche <13 pour éviter les règles "Designed for Families") | ✅ enregistrée |
+| Sécurité des données (Data safety) | Non — aucune collecte/partage déclaré, cohérent avec la politique de confidentialité (rien ne quitte l'appareil) | ✅ enregistrée |
+| Catégorie + coordonnées | Catégorie **Enseignement**, e-mail de contact `CoranKarim.Ia@gmail.com` | ✅ publiée |
+| **Autorisations pour le service de premier plan** (`FOREGROUND_SERVICE_MEDIA_PLAYBACK`, utilisé par `AdhanPlaybackService` pour jouer l'adhan complet) | Lecture de contenus multimédias | ⛔ **BLOQUÉ** — Play exige un lien vidéo démontrant l'usage réel de cette autorisation avant d'accepter l'enregistrement. Aucune vidéo n'existe. **Reste à faire : enregistrer un court clip (écran + son) montrant l'adhan qui se déclenche/joue en premier plan, l'héberger (YouTube non répertorié suffit), coller le lien.** |
+
+Piège rencontré pendant l'automatisation : sur cette version de la console,
+un clic coordonnée sur certains boutons radio atterrissait de façon
+reproductible sur le lien de menu latéral « Protégé avec Play » au lieu du
+bouton visé (bug d'automatisation, pas un bug Play) — contourné en pilotant
+les éléments par référence DOM/JS plutôt que par coordonnées d'écran.
+
+### Canal « Tests fermés - Alpha » — release envoyée en examen le 2026-08-11
+
+Le .aab correctement signé (clé release, pas debug — cf. §2.1) a été rattaché
+via « Ajouter à partir de la bibliothèque » (le réimport direct échouait de
+façon répétée pendant cette session, cf. tentatives précédentes). Release
+« 1 (1.0.0) », 177 pays/régions ciblés (disponibilité mondiale y compris le
+Maroc, décision utilisateur), avertissement R8/ProGuard non bloquant
+(volontaire, cf. §5.4).
+
+**Envoyé à Google pour examen : 14 modifications** (les 9 déclarations
+« Contenu de l'application » ci-dessus + la release de test fermé + les
+pays/régions). Délai annoncé par Google : jusqu'à 7 jours. Compteur des 14
+jours de test fermé (§6 étape 7) démarre à l'activation effective de cette
+release, pas à l'envoi — à vérifier dans le tableau de bord une fois
+l'examen terminé.
+
+Reste bloqué, hors de cet envoi : **Autorisations pour le service de premier
+plan** (tableau ci-dessus) — nécessite une vidéo de démonstration non encore
+enregistrée.
 
 ### Permissions à justifier dans la console
 
