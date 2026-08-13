@@ -3212,7 +3212,26 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         return false;
       },
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 28),
+        // ── LE MOT SUIVI RESTE AU MILIEU, JAMAIS COLLÉ EN BAS (2026-08-13) ──
+        // Demande utilisateur : « je ne veux pas que la coloration arrive au
+        // bout en bas, il faut toujours qu'il y ait de la marge, je veux la
+        // coloration toujours au milieu de l'écran ».
+        //
+        // L'auto-scroll demande déjà un centrage (`alignment: 0.5` dans
+        // `Scrollable.ensureVisible`), mais un défilement ne peut pas aller
+        // au-delà de la fin du contenu : arrivé aux derniers blocs, il n'y a
+        // plus rien sous le texte, donc le mot courant DÉRIVE vers le bas de
+        // l'écran et finit sur la dernière ligne. Le centrage n'était pas en
+        // cause, la place manquait.
+        //
+        // On réserve donc une demi-hauteur d'écran sous le texte. C'est de
+        // l'espace vide, jamais du contenu : rien à lire n'y est caché, et le
+        // centrage redevient possible jusqu'au tout dernier mot.
+        padding: EdgeInsets.only(
+          left: 28,
+          right: 28,
+          bottom: MediaQuery.of(context).size.height * 0.5,
+        ),
         itemCount: ranges.length,
         // Marge de construction hors ecran : l'auto-scroll utilise
         // Scrollable.ensureVisible sur la GlobalKey du mot courant, qui exige
