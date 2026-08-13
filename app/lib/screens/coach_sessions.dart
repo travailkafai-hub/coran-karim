@@ -300,14 +300,11 @@ class _GroupeSourateState extends State<_GroupeSourate> {
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(r == null ? '—' : '\${(r * 100).round()}%',
+                    Text(r == null ? '—' : '${(r * 100).round()}%',
                         style: GoogleFonts.manrope(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
                             color: couleur)),
-                    Text(t.coachPortionAccuracyLabel,
-                        style: GoogleFonts.manrope(
-                            fontSize: 9, color: AppColors.inkLight)),
                   ],
                 ),
                 Icon(_ouvert ? Icons.expand_less : Icons.expand_more,
@@ -424,9 +421,6 @@ class _CartePortion extends ConsumerWidget {
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
                         color: couleur)),
-                Text(t.coachPortionAccuracyLabel,
-                    style: GoogleFonts.manrope(
-                        fontSize: 9, color: AppColors.inkLight)),
               ],
             ),
             // ── REMETTRE A ZERO POUR REFAIRE (2026-08-13) ──────────────────
