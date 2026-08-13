@@ -557,12 +557,20 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _etatRelecture = _construireEtatRelecture(chunk.text);
       final t6 = DateTime.now();
       int ms(DateTime a, DateTime b) => b.difference(a).inMilliseconds;
-      DiagnosticLog.log('Relecture',
+      // ── SENTINELLE, PLUS UN CHRONOMETRE PERMANENT (2026-08-13) ──────────
+      // La mesure a fait son travail : 2609 ms -> 24 ms sur 25 versets, une
+      // fois `meta` sorti du reseau et l'index local precalcule. On ne
+      // journalise plus que l'ANORMAL, pour qu'une regression future se voie
+      // sans avoir a re-instrumenter -- et sans noyer le log le reste du
+      // temps. Seuil large devant les 24 ms mesures.
+      if (ms(t0, t6) > 200) {
+        DiagnosticLog.log('Relecture',
           'ouverture ${ms(t0, t6)} ms | bismillah=${ms(t0, t1)} '
           'blocs+tajwid=${ms(t1, t2)} cles=${ms(t2, t3)} '
           'meta=${ms(t3, t4)} tableVersets=${ms(t4, t5)} '
           'etat=${ms(t5, t6)} | versets=${_verses.length} '
           'mots=${wordKeys.length}');
+      }
       _ready = true;
     });
   }
