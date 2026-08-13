@@ -11,6 +11,8 @@ import '../services/recitation_error_log_service.dart';
 import '../services/session_archive_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tajwid_help_sheet.dart';
+import '../models/recitation_state.dart' show WordStatus;
+import 'karaoke_recitation_screen.dart';
 import 'mind_map_screen.dart';
 
 /// LE COACH REGARDE EN ARRIÈRE (2026-08-06).
@@ -72,6 +74,24 @@ final portionsProvider = FutureProvider<List<PortionResume>>(
 final motsDePortionProvider =
     FutureProvider.family<List<PortionMot>, int>((ref, portionId) =>
         SessionArchiveService.instance.motsDePortion(portionId));
+
+
+/// Traduit un statut ARCHIVÉ (texte, en base) en statut d'AFFICHAGE, celui que
+/// l'écran de récitation sait peindre.
+///
+/// `skipped` reste `skipped` -- gris barré, pas vert : précision explicite de
+/// l'utilisateur (2026-08-12), « quand j'ai dit que les non jugés peuvent être
+/// comptés verts, ça ne veut pas dire de les rendre verts ». La règle du
+/// 2026-08-11 portait sur le POURCENTAGE, jamais sur la couleur.
+///
+/// `conteste` s'affiche vert : l'utilisateur a déclaré qu'il avait bien
+/// prononcé ce mot, et c'est déjà ainsi qu'il est compté.
+WordStatus _statutAffiche(String archive) => switch (archive) {
+      'correct' || 'conteste' => WordStatus.correct,
+      'unclear' => WordStatus.unclear,
+      'error' || 'oubli' => WordStatus.error,
+      _ => WordStatus.skipped,
+    };
 
 class PortionsSection extends ConsumerWidget {
   const PortionsSection({super.key});
@@ -234,8 +254,32 @@ class _CartePortion extends ConsumerWidget {
                 style: GoogleFonts.manrope(fontSize: 9, color: AppColors.inkLight)),
           ],
         ),
-        onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => PortionDetailScreen(portion: p))),
+        // Meme ecran, en CUMULE : `portion_words` porte le dernier verdict
+        // connu de chaque mot deja touche, mis a jour d'une recitation a
+        // l'autre. Un mot jamais recite n'a pas de ligne : il reste `pending`,
+        // donc gris -- il n'est pas compte comme juste.
+        onTap: () async {
+          final mots =
+              await SessionArchiveService.instance.motsDePortion(p.id);
+          final versets = await QuranApi.fetchVerses(p.surahNumber);
+          if (!context.mounted) return;
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => KaraokeRecitationScreen(
+              verses: versets
+                  .where((v) =>
+                      v.ayahNumber >= p.firstAyah && v.ayahNumber <= p.lastAyah)
+                  .toList(),
+              titreRelecture: p.label,
+              relecture: {
+                for (final m in mots)
+                  (p.surahNumber, m.ayahNumber, m.wordInAyah): (
+                    statut: _statutAffiche(m.status),
+                    entendu: m.heardWord ?? ''
+                  ),
+              },
+            ),
+          ));
+        },
       ),
     );
   }
@@ -799,8 +843,38 @@ class _CarteSession extends ConsumerWidget {
             ),
           ],
         ),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => SessionDetailScreen(session: s))),
+        // ── LE COACH OUVRE L'ECRAN DE RECITATION, PAS UNE LISTE ──────────
+        // Demande utilisateur repetee (2026-08-12/13) : « je veux la meme
+        // fenetre du karaoke ou le texte est colorie », « pour eviter la
+        // multitude d'ecrans ». La page-liste des mots fautifs est donc
+        // supprimee -- ce n'est plus un ecran de moins a maintenir, c'est le
+        // MEME rendu et la MEME palette que pendant la recitation.
+        onTap: () async {
+          final mots =
+              await SessionArchiveService.instance.motsDeSession(s.id);
+          final versets = await QuranApi.fetchVerses(s.surahNumber ?? 1);
+          if (!context.mounted) return;
+          final a = s.fromAyah ?? 1;
+          final b = s.toAyah ?? 9999;
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => KaraokeRecitationScreen(
+              verses: versets
+                  .where((v) => v.ayahNumber >= a && v.ayahNumber <= b)
+                  .toList(),
+              titreRelecture: s.surahName ?? 'Sourate ${s.surahNumber}',
+              relecture: {
+                for (final m in mots)
+                  if (m.surahNumber != null &&
+                      m.ayahNumber != null &&
+                      m.wordInAyah != null)
+                    (m.surahNumber!, m.ayahNumber!, m.wordInAyah!): (
+                      statut: _statutAffiche(m.status),
+                      entendu: m.heardWord ?? ''
+                    ),
+              },
+            ),
+          ));
+        },
       ),
       ),
     );

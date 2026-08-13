@@ -77,13 +77,40 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// appel existant du banc garde exactement le comportement d'avant.
   final bool forcerModeNormal;
 
+  /// RELECTURE (Coach, 2026-08-13) — verdicts figés à réafficher.
+  ///
+  /// Demande utilisateur, répétée trois fois avant que je l'entende : « je
+  /// veux la même fenêtre du karaoké où le texte est colorié », « pour éviter
+  /// la multitude d'écrans ». Le Coach n'ouvre donc plus une liste de mots
+  /// fautifs hors de leur texte, ni un écran maison avec ses propres
+  /// couleurs : il rouvre CET écran, avec son rendu et sa palette, alimenté
+  /// par la base au lieu du micro.
+  ///
+  /// Clé = `(sourate, verset, mot dans le verset)`, exactement la forme
+  /// stockée par `session_words`/`portion_words` -- surtout PAS un index
+  /// global, qui dépend de l'insertion des Bismillah et ne survivrait pas à
+  /// un passage lu autrement.
+  ///
+  /// Quand ce champ est non nul, l'écran n'ouvre NI le micro NI la chaîne
+  /// d'analyse : aucun chemin de la récitation en direct n'est emprunté, donc
+  /// aucune régression possible sur elle.
+  final Map<(int, int, int), ({WordStatus statut, String entendu})>? relecture;
+
+  /// Titre du bandeau en mode relecture (nom de sourate ou libellé de portion).
+  final String? titreRelecture;
+
   const KaraokeRecitationScreen({
     super.key,
     required this.verses,
     this.autoDemarrer = false,
     this.sansBasmala = false,
     this.forcerModeNormal = false,
+    this.relecture,
+    this.titreRelecture,
   });
+
+  /// Vrai quand l'écran sert à revoir des verdicts archivés, pas à réciter.
+  bool get estRelecture => relecture != null;
 
   @override
   ConsumerState<KaraokeRecitationScreen> createState() => _KaraokeRecitationScreenState();
@@ -204,6 +231,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // Null tant que _initAsync() n'a pas fini (voir _ready).
   List<GlobalKey>? _wordKeys;
   int? _lastAutoScrolledIndex;
+
+  /// État reconstruit depuis la base (mode relecture, cf. `estRelecture`).
+  RecitationSessionState? _etatRelecture;
 
   /// Index du mot que L'ÉCRAN doit suivre — jamais `-1`.
   ///
@@ -360,6 +390,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     _verses = List.of(widget.verses);
     _initialPassageKey = widget.verses.map((v) => v.key).join('-');
     _breath = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+    // ── RELECTURE : on prépare le TEXTE, jamais la chaîne (2026-08-13) ──────
+    // `_prepareTexteSeul` fait exactement ce que `_initAsync` fait d'utile ici
+    // (Bismillah, blocs, spans tajwid, clés de mots, métadonnées de sourate)
+    // et s'arrête avant `setup()` : ni micro, ni cible d'alignement, ni
+    // abonnements aux flux de jugement. Un écran de Coach ne doit pas pouvoir
+    // écrire dans l'archive ni déclencher une correction audio.
+    if (widget.estRelecture) {
+      _prepareTexteSeul();
+      return;
+    }
     _initAsync();
     _pauseProfile.hasProfileFor(_initialPassageKey).then((has) {
       if (mounted) setState(() => _hasProfile = has);
@@ -423,6 +463,88 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _onWordFailed(ancre,
           surSilence: true, raison: 'decrochage v2 (hors texte ou trou)');
     });
+  }
+
+  /// Prépare le TEXTE seul, pour la relecture du Coach (2026-08-13).
+  ///
+  /// Reprend le début de [_initAsync] -- Bismillah, découpe en blocs, spans
+  /// tajwid, clés de mots, métadonnées de sourate -- et s'arrête AVANT
+  /// `setup()`. C'est cette frontière qui garantit qu'une relecture ne peut
+  /// pas ouvrir le micro, écrire dans l'archive, ni déclencher de correction.
+  Future<void> _prepareTexteSeul() async {
+    final bismillahVerse = await QuranApi.fetchBismillah();
+    final chunk = _buildChunk(_verses, null, bismillahVerse);
+    final wordKeys = List.generate(
+        ArabicNormalizer.splitExpectedWords(chunk.text).length,
+        (_) => GlobalKey());
+    final initialSurahs = _verses.map((v) => v.surahNumber).toSet();
+    final metaEntries = await Future.wait(initialSurahs.map((n) async {
+      try {
+        return MapEntry(n, await _fetchSurahMeta(n));
+      } catch (_) {
+        return null;
+      }
+    }));
+    if (!mounted) return;
+    setState(() {
+      _tajwidSpans = chunk.spans;
+      _wordKeys = wordKeys;
+      _bismillahWordCount =
+          ArabicNormalizer.splitExpectedWords(bismillahVerse.textUthmani).length;
+      for (final e in metaEntries) {
+        if (e != null) _surahMeta[e.key] = e.value;
+      }
+      _rebuildWordVerseMap();
+      _etatRelecture = _construireEtatRelecture(chunk.text);
+      _ready = true;
+    });
+  }
+
+  /// État de session RECONSTRUIT depuis les verdicts archivés.
+  ///
+  /// Le rendu (`_verseArea`) ne sait lire qu'un [RecitationSessionState] : on
+  /// lui en fabrique un, plutôt que d'écrire un second moteur d'affichage qui
+  /// dériverait immanquablement du premier. C'est tout l'intérêt de réutiliser
+  /// cet écran -- une seule palette, une seule mise en page, un seul endroit
+  /// à corriger.
+  ///
+  /// Un mot absent de l'archive reste `pending` : il n'a jamais été récité.
+  /// On ne le peint PAS en vert -- précision explicite de l'utilisateur
+  /// (2026-08-12) : « quand j'ai dit que les non jugés peuvent être comptés
+  /// verts, ça ne veut pas dire de les rendre verts ». La règle du 2026-08-11
+  /// portait sur le POURCENTAGE, pas sur la couleur.
+  RecitationSessionState _construireEtatRelecture(String texte) {
+    final verdicts = widget.relecture!;
+    final mots = ArabicNormalizer.splitExpectedWords(texte);
+    final out = <RecitedWord>[];
+    var dernierJuge = -1;
+    for (var i = 0; i < mots.length; i++) {
+      final verse = _verseContaining(i);
+      final local = _localIndexInVerse(i);
+      final v = (verse == null || local == null)
+          ? null
+          : verdicts[(verse.surahNumber, verse.ayahNumber, local)];
+      if (v != null) dernierJuge = i;
+      out.add(RecitedWord(
+        display: mots[i],
+        normalized: ArabicNormalizer.normalize(mots[i]),
+        strict: ArabicNormalizer.normalizeStrict(mots[i]),
+        training: ArabicNormalizer.normalizeTraining(mots[i]),
+        status: v?.statut ?? WordStatus.pending,
+        // `locked` reste faux : rien n'est en cours de jugement ici. Il ne
+        // sert qu'à la chaîne vivante.
+        heard: v?.entendu ?? '',
+        isBasmala: verse == null,
+      ));
+    }
+    return RecitationSessionState(
+      words: out,
+      // Le pointeur borne la fenêtre de rendu (cf. `_verseArea`). En relecture
+      // on veut pouvoir parcourir TOUT le texte : on le place au dernier mot
+      // connu, et le défilement libre fait le reste.
+      pointer: dernierJuge < 0 ? 0 : dernierJuge,
+      status: RecitationStatus.idle,
+    );
   }
 
   Future<void> _initAsync() async {
@@ -2618,7 +2740,38 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   @override
+  /// L'écran du Coach : le karaoké, figé.
+  ///
+  /// Volontairement pauvre en chrome (pas d'onde micro, pas de compteurs, pas
+  /// de barre d'action) : on vient ici pour LIRE ses verdicts, pas pour
+  /// piloter une récitation. Tout ce qui reste vient de la récitation
+  /// elle-même -- `_verseArea` -- pour qu'il n'existe qu'un seul rendu du
+  /// texte colorié dans l'application.
+  Widget _ecranRelecture(BuildContext context) {
+    final st = _etatRelecture;
+    return Scaffold(
+      backgroundColor: AppColors.green900,
+      appBar: AppBar(
+        backgroundColor: AppColors.green900,
+        foregroundColor: AppColors.cream,
+        elevation: 0,
+        title: Text(widget.titreRelecture ?? '',
+            style: GoogleFonts.scheherazadeNew(
+                fontSize: 20, color: AppColors.brassLight)),
+      ),
+      body: !_ready || st == null
+          ? const SizedBox.expand()
+          : SafeArea(child: _verseArea(st)),
+    );
+  }
+
   Widget build(BuildContext context) {
+    // ── RELECTURE : même rendu, sans rien de vivant (2026-08-13) ───────────
+    // Sortie AVANT toute lecture de `recitationProvider` : en relecture la
+    // chaîne n'a jamais été démarrée, la lire ici ressusciterait un état de
+    // récitation qui n'a pas lieu d'être. Le corps réutilise `_verseArea`,
+    // c'est-à-dire EXACTEMENT le rendu et la palette de la récitation.
+    if (widget.estRelecture) return _ecranRelecture(context);
     // Le texte attendu (Bismillah éventuelle incluse) vient d'un fetch API --
     // pas encore prêt au tout premier frame (voir _initAsync). Écran
     // volontairement minimal (pas de spinner qui casserait l'immersion
@@ -3563,7 +3716,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final verse = _verseContaining(wordIndex);
     final local = _localIndexInVerse(wordIndex);
     if (verse == null || local == null) return;
-    final st = ref.read(recitationProvider);
+    // En relecture, la chaîne n'a jamais tourné : lire `recitationProvider`
+    // rendrait un état vide et la feuille s'ouvrirait sans le mot ni la voix.
+    // C'est l'état reconstruit depuis la base qui fait foi (2026-08-13).
+    final RecitationSessionState st =
+        widget.estRelecture && _etatRelecture != null
+            ? _etatRelecture!
+            : ref.read(recitationProvider);
 
     // ── N'AFFICHER QUE LE MOT EN CAUSE, PAS TOUTE L'AYA (2026-08-05) ───────
     //
