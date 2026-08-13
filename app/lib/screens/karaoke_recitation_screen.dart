@@ -934,6 +934,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           wordsReached: atteints,
           wordsSkipped: nonJuges,
         );
+        // Coach (2026-08-13) : comptabilise CETTE session pour la série et
+        // l'objectif du jour -- best-effort, séparé pour la même raison que
+        // le bloc d'invalidation plus bas : ne jamais empêcher `terminer()`,
+        // la seule écriture qui rend la session visible dans le Coach.
+        unawaited(_comptabiliserPourCoach(verts));
       }
     } catch (e) {
       DiagnosticLog.log(
@@ -1071,6 +1076,75 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       kind: ref.read(recitationProvider.notifier).classifyError(wordIndex).name,
       audioSource: extrait,
     );
+  }
+
+  /// Comptabilise la session qui vient de se terminer pour le Coach : le
+  /// journal des jours (série, objectif) et les points (cf. PLAN_COACH.md).
+  ///
+  /// ── BARÈME v1, VOLONTAIREMENT SIMPLE (2026-08-13) ───────────────────────
+  /// Le document pose un barème complet (multiplicateur d'enchaînement de
+  /// quarts DANS la même session, plafond journalier anti-boucle). Cette
+  /// version pose seulement les DEUX règles déjà arbitrées avec certitude :
+  ///   - 1 point par mot juste récité (l'effort se compte) ;
+  ///   - ×1.5 si la session part du DÉBUT d'un quart -- c'est le geste que le
+  ///     projet veut installer (« il vaut mieux répéter depuis le début »).
+  /// Le multiplicateur d'enchaînement et le plafond restent À ÉCRIRE : les
+  /// poser sans un premier jeu de données réelles serait deviner un barème,
+  /// pas le régler. `points` reste ADDITIF en base (cf.
+  /// `ajouterActiviteDuJour`) -- affiner cette formule plus tard ne casse
+  /// aucune donnée déjà écrite.
+  ///
+  /// Un QUART VALIDÉ = sa portion vient de passer à `badge == true` (couverte
+  /// à 100 %, tout vert) ET cette session est partie de son premier verset --
+  /// c'est la définition arbitrée le 2026-08-13 (« on répète depuis le début
+  /// du quart de Hizb pour le valider »).
+  Future<void> _comptabiliserPourCoach(int wordsGreen) async {
+    if (_isReferenceSession || _verses.isEmpty) return;
+    try {
+      final granularite = ref.read(portionGranularityProvider);
+      final departDebutDeQuart =
+          <String>{}; // unitKey déjà vérifiée "partie du début" cette session
+      var quartsValides = 0;
+      var bonusDepart = false;
+      final dejaVues = <String>{};
+      for (final v in _verses) {
+        final info =
+            await PortionService.resolve(verse: v, granularity: granularite);
+        if (!dejaVues.add(info.unitKey)) continue;
+        if (v.ayahNumber == info.firstAyah) {
+          departDebutDeQuart.add(info.unitKey);
+          bonusDepart = true;
+        }
+        final apres = await SessionArchiveService.instance
+            .portionParCle(v.surahNumber, info.unitKey);
+        if (apres != null &&
+            apres.badge &&
+            departDebutDeQuart.contains(info.unitKey)) {
+          quartsValides++;
+        }
+      }
+      final points = (wordsGreen * (bonusDepart ? 1.5 : 1.0)).round();
+      await SessionArchiveService.instance.ajouterActiviteDuJour(
+          mots: wordsGreen, quartsValides: quartsValides, points: points);
+      final objectif = ref.read(objectifCoachProvider);
+      if (objectif.actif) {
+        final aujourdhui =
+            await SessionArchiveService.instance.derniersJours(n: 1);
+        final motsDuJour =
+            aujourdhui.isEmpty ? 0 : aujourdhui.first.motsRecites;
+        // Objectif du jour exprimé en mots : approximation volontaire, la
+        // portion moyenne n'a pas un nombre de mots fixe -- affiner nécessite
+        // une vraie mesure sur plusieurs quarts, pas une constante devinée.
+        // TODO(coach) : convertir `objectif.parJour` (quarts) en mots réels
+        // via la taille moyenne des quarts déjà vus, une fois qu'on en a.
+        await SessionArchiveService.instance.marquerObjectifDuJour(
+          objectif: objectif.quarts,
+          atteint: quartsValides > 0 || motsDuJour >= 150,
+        );
+      }
+    } catch (e) {
+      DiagnosticLog.log('Coach', 'comptabilisation echouee : $e');
+    }
   }
 
   /// Suivi PERMANENT par portion (sourate, ou tranche de Hizb/demi-Hizb) --

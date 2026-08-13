@@ -808,6 +808,21 @@ class SessionArchiveService {
     DiagnosticLog.log('Archive', 'session $sessionId supprimee (geste utilisateur)');
   }
 
+  /// Une portion, par sa clé exacte -- pour savoir si ELLE VIENT d'être
+  /// complétée (badge) sans recharger toute la liste. `null` si la portion
+  /// n'a encore aucune ligne.
+  Future<PortionResume?> portionParCle(int surahNumber, String unitKey) async {
+    final db = await _database;
+    final rows = await db.rawQuery('''
+      SELECT p.*,
+        (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id) AS words_reached,
+        (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status IN ('correct','conteste','skipped')) AS words_green
+      FROM portions p WHERE p.surah_number = ? AND p.unit_key = ?
+    ''', [surahNumber, unitKey]);
+    if (rows.isEmpty) return null;
+    return PortionResume.fromMap(rows.first);
+  }
+
   // ── LE JOURNAL DES JOURS (Coach) ──────────────────────────────────────────
 
   static String _cleJour(DateTime d) =>
