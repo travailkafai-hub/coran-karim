@@ -242,6 +242,20 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
 
   void _scheduleHeaderHide() {
     _headerHideTimer?.cancel();
+    // ── LE MENU RESTE PENDANT LA LECTURE (2026-08-13) ──────────────────────
+    // Demande utilisateur : « quand on lance l'audio dans le Mushaf, laisse le
+    // menu affiché, ne le réduis pas ».
+    //
+    // Le repli automatique sert la lecture SILENCIEUSE : on lit, le chrome
+    // s'efface, on a le plein écran. Pendant une écoute, il dessert -- les
+    // commandes de transport (pause, vitesse, répétition) sont précisément ce
+    // dont on a besoin sous la main, et il fallait retoucher l'écran pour les
+    // faire revenir à chaque fois.
+    //
+    // On ne coupe pas le mécanisme, on le suspend le temps de l'écoute : dès
+    // que l'audio s'arrête, le prochain `_showHeader` reprogramme le repli et
+    // le plein écran revient de lui-même.
+    if (ref.read(playerProvider).isPlaying) return;
     _headerHideTimer = Timer(_kHeaderAutoHideDelay, () {
       if (mounted) setState(() => _headerVisible = false);
     });
@@ -1093,14 +1107,36 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   // première" -- la 1ère). Donc : pause/resume SEULEMENT si le verset actif
   // de CET écran est déjà celui réellement chargé dans le lecteur ; sinon on
   // (re)lance toujours depuis le début sur le nouveau verset/sourate.
+  // ── CE QUE LE BOUTON MONTRE, LE BOUTON DOIT LE FAIRE (2026-08-13) ────────
+  //
+  // Constat utilisateur : « après le play je clique sur pause, la lecture se
+  // refait, et au deuxième clic il y a la pause ».
+  //
+  // Cause : l'icône vient de `playerState.isPlaying` -- l'état GLOBAL du
+  // lecteur -- alors que la décision ci-dessous exigeait que le verset joué
+  // soit exactement `_activeVerse`. Or la lecture enchaîne toute seule sur le
+  // verset suivant : dès le premier enchaînement les deux divergent, le tap
+  // tombait dans le `else` et RELANÇAIT depuis le verset actif. Le deuxième
+  // tap, lui, retrouvait l'égalité et mettait bien en pause.
+  //
+  // Le bon discriminant n'est pas « le même verset » mais « le même
+  // PASSAGE » : ce qui joue appartient-il à ce que cet écran affiche ?
+  //   - oui  -> le bouton est une commande de transport : pause / reprise ;
+  //   - non  -> c'est un autre passage (autre sourate, autre écran), on lance
+  //             ici, ce qui préserve le correctif du 2026-08-01 (« je change
+  //             de sourate, je fais play, ça reste sur la première »).
   void _onPlayTap() {
     if (_verses.isEmpty) return;
     final player = ref.read(playerProvider);
-    final active = _verses[_activeVerse];
-    final sameVerse = player.currentVerse?.key == active.key;
-    if (sameVerse && player.isPlaying) {
+    final cle = player.currentVerse?.key;
+    final dansCeQuiEstAffiche =
+        cle != null && _verses.any((v) => v.key == cle);
+    // Le menu doit etre visible des qu'on touche au transport, et le rester
+    // tant que ca joue (cf. `_scheduleHeaderHide`).
+    _showHeader();
+    if (dansCeQuiEstAffiche && player.isPlaying) {
       ref.read(playerProvider.notifier).pause();
-    } else if (sameVerse && player.isPaused) {
+    } else if (dansCeQuiEstAffiche && player.isPaused) {
       ref.read(playerProvider.notifier).resume();
     } else {
       _playFromActive();
