@@ -3128,8 +3128,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     if (st.words.isEmpty) {
       return const CircularProgressIndicator(color: AppColors.brassLight);
     }
-    final renderEnd =
-        math.min(st.words.length, st.pointer + _kRenderLookaheadWords);
+    // ── LA FENÊTRE DE RENDU SUIT L'ANCRE, PLUS `pointer` (2026-08-13) ──────
+    // Cause racine du figement, trouvee par l'utilisateur : « si elle est a la
+    // taille de 20 versets, meme si tu defiles c'est ce qu'il y a de max ».
+    //
+    // Cette borne partait de `st.pointer` -- la variable dont ce meme fichier
+    // dit ailleurs qu'elle « reste bloquee pres de 0 quand la v2 pilote »
+    // (cf. le commentaire de l'enchainement de page, qui avait deja du cesser
+    // de s'y fier). Resultat : la chaine jugeait jusqu'au mot 182 et 361 mots
+    // etaient charges en memoire, mais l'ecran ne CONSTRUISAIT que les 150
+    // premiers. Defiler ne servait a rien : il n'y avait rien de plus.
+    //
+    // On borne desormais sur le meme index que le defilement et
+    // l'enchainement (`_indexASuivre` : le mot `current`, a defaut le mot juge
+    // le plus avance). Les trois mecanismes regardent enfin le meme endroit.
+    final renderEnd = math.min(
+        st.words.length, _indexASuivre(st) + _kRenderLookaheadWords);
     // ── RENDU PARESSEUX (2026-07-27) ─────────────────────────────────────
     // On ne construit ici que les BORNES des blocs (quelques dizaines
     // d'entiers) ; les widgets eux-memes sont bâtis a la demande par le
