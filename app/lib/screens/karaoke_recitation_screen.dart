@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
@@ -99,6 +100,17 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// Titre du bandeau en mode relecture (nom de sourate ou libellé de portion).
   final String? titreRelecture;
 
+  /// Nombre de mots réellement ATTEINTS par l'ancre, pour une relecture de
+  /// SESSION. Indispensable : `session_words` ne stocke que les EXCEPTIONS
+  /// (les mots non verts). Sans cette borne, tous les mots justes restaient
+  /// `pending`, donc peints à 4 % d'opacité -- l'écran n'affichait qu'un seul
+  /// mot, le fautif, sur fond vide (constaté sur capture, 2026-08-13).
+  ///
+  /// `null` pour une PORTION : là, chaque mot touché a sa propre ligne, donc
+  /// l'absence de ligne signifie vraiment « jamais récité » et le gris est le
+  /// bon rendu.
+  final int? motsAtteintsRelecture;
+
   const KaraokeRecitationScreen({
     super.key,
     required this.verses,
@@ -107,6 +119,7 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
     this.forcerModeNormal = false,
     this.relecture,
     this.titreRelecture,
+    this.motsAtteintsRelecture,
   });
 
   /// Vrai quand l'écran sert à revoir des verdicts archivés, pas à réciter.
@@ -400,6 +413,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _prepareTexteSeul();
       return;
     }
+    // L'ecran ne doit pas s'eteindre pendant qu'on recite (2026-08-13) :
+    // l'extinction coupe le suivi. Relache dans `dispose`, et de toute facon
+    // par le systeme si l'app quitte le premier plan (cf. MainActivity).
+    _garderEcranAllume(true);
     _initAsync();
     _pauseProfile.hasProfileFor(_initialPassageKey).then((has) {
       if (mounted) setState(() => _hasProfile = has);
@@ -471,6 +488,17 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// tajwid, clés de mots, métadonnées de sourate -- et s'arrête AVANT
   /// `setup()`. C'est cette frontière qui garantit qu'une relecture ne peut
   /// pas ouvrir le micro, écrire dans l'archive, ni déclencher de correction.
+  static const _canalEcran = MethodChannel('coran_karim/ecran');
+
+  /// Empeche l'ecran de s'eteindre pendant la recitation (best-effort : une
+  /// plateforme qui ne repond pas ne doit jamais faire echouer une session).
+  void _garderEcranAllume(bool actif) {
+    _canalEcran.invokeMethod('garderAllume', {'actif': actif}).catchError((e) {
+      DiagnosticLog.log('Karaoke', 'garderAllume($actif) indisponible : $e');
+      return null;
+    });
+  }
+
   Future<void> _prepareTexteSeul() async {
     final bismillahVerse = await QuranApi.fetchBismillah();
     final chunk = _buildChunk(_verses, null, bismillahVerse);
@@ -525,12 +553,20 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           ? null
           : verdicts[(verse.surahNumber, verse.ayahNumber, local)];
       if (v != null) dernierJuge = i;
+      // Mot ATTEINT par l'ancre et absent de l'archive : il a ete recite
+      // JUSTE -- c'est tout le principe d'une table qui ne garde que les
+      // exceptions. Au-dela de l'ancre (ou pour une portion, cf.
+      // `motsAtteintsRelecture`), l'absence signifie « jamais recite ».
+      final atteint = widget.motsAtteintsRelecture != null &&
+          i < widget.motsAtteintsRelecture!;
+      if (atteint) dernierJuge = i;
       out.add(RecitedWord(
         display: mots[i],
         normalized: ArabicNormalizer.normalize(mots[i]),
         strict: ArabicNormalizer.normalizeStrict(mots[i]),
         training: ArabicNormalizer.normalizeTraining(mots[i]),
-        status: v?.statut ?? WordStatus.pending,
+        status: v?.statut ??
+            (atteint ? WordStatus.correct : WordStatus.pending),
         // `locked` reste faux : rien n'est en cours de jugement ici. Il ne
         // sert qu'à la chaîne vivante.
         heard: v?.entendu ?? '',
@@ -814,6 +850,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
 
   @override
   void dispose() {
+    _garderEcranAllume(false);
     _breath.dispose();
     _glypheTimer?.cancel();
     _wordFailedSub?.cancel();

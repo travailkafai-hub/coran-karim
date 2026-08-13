@@ -150,12 +150,153 @@ class PortionsSection extends ConsumerWidget {
                 )
               : Column(
                   children: [
-                    for (final p in list) _CartePortion(p),
+                    // ── GROUPEES PAR SOURATE (2026-08-13) ──────────────
+                    // Demande utilisateur : « je veux les portions par
+                    // sourate avec stat globale, puis je change par Rub' /
+                    // Hizb imbriqué dans la sourate ». Une sourate courte
+                    // n'a qu'une portion : elle s'affiche telle quelle, sans
+                    // niveau inutile. Une sourate longue (Al-Baqara, At-Tawbah)
+                    // en a plusieurs : on montre son total, et ses tranches se
+                    // déplient dedans.
+                    for (final g in _grouperParSourate(list))
+                      g.portions.length == 1
+                          ? _CartePortion(g.portions.first)
+                          : _GroupeSourate(g),
                   ],
                 ),
         ),
         const SizedBox(height: 18),
       ],
+    );
+  }
+}
+
+
+/// Une sourate et les portions qu'elle contient, avec ses totaux cumulés.
+class _GroupePortions {
+  final int surahNumber;
+  final String nomSourate;
+  final List<PortionResume> portions;
+  const _GroupePortions(this.surahNumber, this.nomSourate, this.portions);
+
+  int get wordsTotal =>
+      portions.fold(0, (a, p) => a + p.wordsTotal);
+  int get wordsGreen => portions.fold(0, (a, p) => a + p.wordsGreen);
+  int get wordsReached => portions.fold(0, (a, p) => a + p.wordsReached);
+
+  /// Même formule que [PortionResume.reussite], appliquée à la sourate
+  /// entière : mots acquis sur le total de la sourate. Recalculée depuis les
+  /// compteurs cumulés, jamais moyennée sur les pourcentages des tranches --
+  /// une moyenne de pourcentages donnerait le même poids à un Hizb entier et
+  /// à une tranche de trois versets.
+  double? get reussite => wordsTotal <= 0 ? null : wordsGreen / wordsTotal;
+
+  bool get badge => wordsTotal > 0 && wordsGreen >= wordsTotal;
+}
+
+/// Regroupe les portions par sourate, en conservant l'ordre canonique déjà
+/// garanti par la requête (`ORDER BY surah_number, first_ayah`).
+List<_GroupePortions> _grouperParSourate(List<PortionResume> list) {
+  final out = <_GroupePortions>[];
+  for (final p in list) {
+    if (out.isNotEmpty && out.last.surahNumber == p.surahNumber) {
+      out.last.portions.add(p);
+    } else {
+      // Le libellé d'une portion vaut « Sourate · Hizb N » : le nom seul est
+      // ce qui précède le séparateur.
+      final nom = p.label.split(' · ').first;
+      out.add(_GroupePortions(p.surahNumber, nom, [p]));
+    }
+  }
+  return out;
+}
+
+/// Une sourate longue : sa statistique globale, et ses tranches dépliables.
+class _GroupeSourate extends StatefulWidget {
+  final _GroupePortions g;
+  const _GroupeSourate(this.g);
+
+  @override
+  State<_GroupeSourate> createState() => _GroupeSourateState();
+}
+
+class _GroupeSourateState extends State<_GroupeSourate> {
+  bool _ouvert = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final g = widget.g;
+    final r = g.reussite;
+    final couleur = r == null
+        ? AppColors.inkLight
+        : r >= 0.95
+            ? AppColors.green700
+            : r >= 0.85
+                ? AppColors.brass
+                : Colors.redAccent.shade200;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: g.badge ? AppColors.brass : AppColors.cream300,
+            width: g.badge ? 1.4 : 1),
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            leading: g.badge
+                ? const Icon(Icons.verified_rounded,
+                    color: AppColors.brass, size: 26)
+                : null,
+            title: Text(g.nomSourate,
+                style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink)),
+            subtitle: Text(
+              t.coachPortionWordsAcquired(g.wordsGreen, g.wordsTotal) +
+                  (g.wordsReached < g.wordsTotal
+                      ? t.coachPortionCoveredSuffix(g.wordsReached)
+                      : t.coachPortionFullCoverage),
+              style:
+                  GoogleFonts.manrope(fontSize: 11.5, color: AppColors.inkLight),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(r == null ? '—' : '\${(r * 100).round()}%',
+                        style: GoogleFonts.manrope(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: couleur)),
+                    Text(t.coachPortionAccuracyLabel,
+                        style: GoogleFonts.manrope(
+                            fontSize: 9, color: AppColors.inkLight)),
+                  ],
+                ),
+                Icon(_ouvert ? Icons.expand_less : Icons.expand_more,
+                    color: AppColors.green800),
+              ],
+            ),
+            onTap: () => setState(() => _ouvert = !_ouvert),
+          ),
+          if (_ouvert)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+              child: Column(
+                children: [for (final p in g.portions) _CartePortion(p)],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -862,6 +1003,10 @@ class _CarteSession extends ConsumerWidget {
                   .where((v) => v.ayahNumber >= a && v.ayahNumber <= b)
                   .toList(),
               titreRelecture: s.surahName ?? 'Sourate ${s.surahNumber}',
+              // Sans cette borne, seuls les mots FAUTIFS seraient colories :
+              // `session_words` ne garde que les exceptions (cf. la doc du
+              // parametre). Constate sur capture : un seul mot visible.
+              motsAtteintsRelecture: s.wordsReached,
               relecture: {
                 for (final m in mots)
                   if (m.surahNumber != null &&
