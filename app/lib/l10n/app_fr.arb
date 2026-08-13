@@ -2530,6 +2530,59 @@
     "description": "Bouton de l'etape Entraine vers Controle"
   },
 
+  "coachObjectifTitle": "MON OBJECTIF",
+  "@coachObjectifTitle": {
+    "description": "Titre de la section objectif/série du Coach"
+  },
+  "coachObjectifStreak": "{count, plural, =0{Aucune série en cours} =1{1 jour de suite} other{{count} jours de suite}}",
+  "@coachObjectifStreak": {
+    "description": "Série de jours consécutifs où l'objectif a été atteint",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "coachObjectifWeekProgress": "Cette semaine : {faits} sur {total} quart(s)",
+  "@coachObjectifWeekProgress": {
+    "description": "Progression de la semaine en quarts de Hizb",
+    "placeholders": { "faits": { "type": "int" }, "total": { "type": "String" } }
+  },
+  "coachObjectifEmptyTitle": "Aucun objectif fixé",
+  "@coachObjectifEmptyTitle": {
+    "description": "État vide de la section objectif, avant tout réglage"
+  },
+  "coachObjectifEmptyBody": "Fixe un objectif de mémorisation pour suivre ta série et ta progression.",
+  "@coachObjectifEmptyBody": {
+    "description": "Corps de l'état vide de la section objectif"
+  },
+  "coachObjectifSetButton": "Fixer un objectif",
+  "@coachObjectifSetButton": {
+    "description": "Bouton qui ouvre le réglage de l'objectif"
+  },
+  "coachObjectifSheetTitle": "Mon objectif de mémorisation",
+  "@coachObjectifSheetTitle": {
+    "description": "Titre de la feuille de réglage de l'objectif"
+  },
+  "coachObjectifQuartsLabel": "{count, plural, =0{Aucun quart} =1{1 quart de Hizb} other{{count} quarts de Hizb}}",
+  "@coachObjectifQuartsLabel": {
+    "description": "Nombre de quarts de Hizb visés, dans le réglage de l'objectif",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "coachObjectifPeriodeJour": "par jour",
+  "@coachObjectifPeriodeJour": { "description": "Période de l'objectif : jour" },
+  "coachObjectifPeriodeSemaine": "par semaine",
+  "@coachObjectifPeriodeSemaine": { "description": "Période de l'objectif : semaine" },
+  "coachObjectifPeriodeMois": "par mois",
+  "@coachObjectifPeriodeMois": { "description": "Période de l'objectif : mois" },
+  "coachNiveauTitle": "Accompagnement",
+  "@coachNiveauTitle": {
+    "description": "Titre du choix de niveau d'accompagnement (fréquence des rappels)"
+  },
+  "coachNiveauAMonRythme": "À mon rythme",
+  "@coachNiveauAMonRythme": { "description": "Niveau d'accompagnement : aucun rappel" },
+  "coachNiveauRegulier": "Régulier",
+  "@coachNiveauRegulier": { "description": "Niveau d'accompagnement : un rappel par jour" },
+  "coachNiveauExigeant": "Exigeant",
+  "@coachNiveauExigeant": { "description": "Niveau d'accompagnement : relances multiples" },
+  "coachObjectifValider": "Valider",
+  "@coachObjectifValider": { "description": "Bouton de confirmation de la feuille d'objectif" },
   "coachPortionsTitle": "MÉMORISATION PAR SOURATE",
   "@coachPortionsTitle": {
     "description": "En-tête de la section suivi permanent par sourate/Hizb dans le Coach"

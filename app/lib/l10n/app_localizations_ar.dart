@@ -1944,6 +1944,74 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachMoveToControl => 'الانتقال إلى المراقبة';
 
   @override
+  String get coachObjectifTitle => 'هدفي';
+
+  @override
+  String coachObjectifStreak(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count أيام متتالية',
+      one: 'يوم واحد متتالٍ',
+      zero: 'لا سلسلة حالياً',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifWeekProgress(int faits, String total) {
+    return 'هذا الأسبوع: $faits من $total ربع/أرباع';
+  }
+
+  @override
+  String get coachObjectifEmptyTitle => 'لا يوجد هدف محدد';
+
+  @override
+  String get coachObjectifEmptyBody => 'حدّد هدف حفظ لمتابعة سلسلتك وتقدّمك.';
+
+  @override
+  String get coachObjectifSetButton => 'تحديد هدف';
+
+  @override
+  String get coachObjectifSheetTitle => 'هدف الحفظ';
+
+  @override
+  String coachObjectifQuartsLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count أرباع حزب',
+      one: 'ربع حزب واحد',
+      zero: 'لا أرباع',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifPeriodeJour => 'في اليوم';
+
+  @override
+  String get coachObjectifPeriodeSemaine => 'في الأسبوع';
+
+  @override
+  String get coachObjectifPeriodeMois => 'في الشهر';
+
+  @override
+  String get coachNiveauTitle => 'المرافقة';
+
+  @override
+  String get coachNiveauAMonRythme => 'بوتيرتي';
+
+  @override
+  String get coachNiveauRegulier => 'منتظم';
+
+  @override
+  String get coachNiveauExigeant => 'صارم';
+
+  @override
+  String get coachObjectifValider => 'تأكيد';
+
+  @override
   String get coachPortionsTitle => 'الحفظ حسب السورة';
 
   @override

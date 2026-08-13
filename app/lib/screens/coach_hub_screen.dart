@@ -22,11 +22,14 @@ import '../l10n/app_localizations.dart';
 import '../models/recitation_state.dart'
     show RecitationErrorKind, recitationErrorKindLabel;
 import '../models/verse.dart';
+import '../models/objectif_coach.dart';
+import '../providers/app_settings_provider.dart' show objectifCoachProvider;
 import '../providers/error_review_provider.dart';
 import '../providers/last_coach_verse_provider.dart';
 import '../providers/mind_map_provider.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
+import '../services/session_archive_service.dart' show JourActif;
 import '../theme/app_theme.dart';
 import 'coach_sessions.dart';
 import '../widgets/coach_explanation_sheet.dart';
@@ -115,10 +118,379 @@ class CoachHubScreen extends ConsumerWidget {
           // du journal daté par session -- cf. l'en-tête de
           // `coach_sessions.dart` (PortionsSection) pour la distinction des
           // deux échelles de temps.
+          _ObjectifSection(),
+          SizedBox(height: 4),
           PortionsSection(),
           SizedBox(height: 4),
           SessionsSection(),
         ],
+      ),
+    );
+  }
+}
+
+// ── OBJECTIF & SÉRIE (2026-08-13) ───────────────────────────────────────────
+//
+// Cf. `PLAN_COACH.md`. Répond à la question que le hub ne posait pas encore :
+// « où dois-je en être, et qu'est-ce que je fais aujourd'hui ? » — au-dessus
+// de la mémorisation par sourate et des récitations, qui répondent à « qu'est-
+// ce que j'ai fait ».
+//
+// État vide (aucun objectif fixé) volontairement DIFFÉRENT de l'état actif :
+// on ne montre jamais "0 %" ou "série : 0" tant que l'utilisateur n'a rien
+// engagé — ce serait un échec affiché avant même d'avoir commencé.
+class _ObjectifSection extends ConsumerWidget {
+  const _ObjectifSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final objectif = ref.watch(objectifCoachProvider);
+    final serie = ref.watch(serieProvider);
+    final jours = ref.watch(derniersJoursProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(t.coachObjectifTitle,
+                style: GoogleFonts.manrope(
+                  fontSize: 11,
+                  letterSpacing: 1.3,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.green800,
+                )),
+            const Spacer(),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: t.coachObjectifSheetTitle,
+              icon: const Icon(Icons.tune_rounded,
+                  size: 18, color: AppColors.green800),
+              onPressed: () => _ouvrirReglageObjectif(context, ref),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (!objectif.actif)
+          _EtatVideObjectif(onTap: () => _ouvrirReglageObjectif(context, ref))
+        else
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.cream300),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.local_fire_department_rounded,
+                        color: AppColors.brass, size: 22),
+                    const SizedBox(width: 8),
+                    serie.when(
+                      data: (n) => Text(t.coachObjectifStreak(n),
+                          style: GoogleFonts.manrope(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink)),
+                      loading: () => const SizedBox(
+                          width: 60,
+                          height: 14,
+                          child: LinearProgressIndicator(minHeight: 2)),
+                      error: (_, __) => const Text('—'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                jours.when(
+                  data: (l) {
+                    final semaine = l.where((j) =>
+                        j.jour.isAfter(DateTime.now()
+                            .subtract(const Duration(days: 7))));
+                    final quartsFaits = semaine.fold<int>(
+                        0, (a, j) => a + j.quartsValides);
+                    final cible = objectif.parSemaine;
+                    final ratio = cible <= 0
+                        ? 0.0
+                        : (quartsFaits / cible).clamp(0.0, 1.0);
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t.coachObjectifWeekProgress(
+                              quartsFaits, cible.toStringAsFixed(1)),
+                          style: GoogleFonts.manrope(
+                              fontSize: 12.5, color: AppColors.inkLight),
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: ratio,
+                            minHeight: 8,
+                            backgroundColor: AppColors.cream200,
+                            color: ratio >= 1
+                                ? AppColors.green700
+                                : AppColors.brass,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _MiniEvolution(jours: l),
+                      ],
+                    );
+                  },
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                  error: (e, _) => Text('$e',
+                      style: GoogleFonts.manrope(
+                          fontSize: 11, color: AppColors.inkLight)),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 18),
+      ],
+    );
+  }
+
+  void _ouvrirReglageObjectif(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _ReglageObjectifSheet(),
+    );
+  }
+}
+
+class _EtatVideObjectif extends StatelessWidget {
+  final VoidCallback onTap;
+  const _EtatVideObjectif({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cream200,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cream300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(t.coachObjectifEmptyTitle,
+              style: GoogleFonts.manrope(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.ink)),
+          const SizedBox(height: 4),
+          Text(t.coachObjectifEmptyBody,
+              style: GoogleFonts.manrope(
+                  fontSize: 12, height: 1.4, color: AppColors.inkLight)),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: onTap,
+            style: FilledButton.styleFrom(backgroundColor: AppColors.green800),
+            child: Text(t.coachObjectifSetButton,
+                style: GoogleFonts.manrope(
+                    fontSize: 13, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 7 barres, les 7 derniers jours (le plus ancien à gauche, RTL ou pas — la
+/// chronologie prime ici sur la direction de lecture). Hauteur relative au
+/// jour le plus chargé de la fenêtre, jamais à une constante devinée : sur
+/// une semaine à 20 mots/jour comme sur une à 400, le graphique reste lisible.
+class _MiniEvolution extends StatelessWidget {
+  final List<JourActif> jours;
+  const _MiniEvolution({required this.jours});
+
+  @override
+  Widget build(BuildContext context) {
+    final aujourdhui = DateTime.now();
+    final parJour = {for (final j in jours) _cle(j.jour): j.motsRecites};
+    final sept = List.generate(7, (i) {
+      final d = aujourdhui.subtract(Duration(days: 6 - i));
+      return parJour[_cle(d)] ?? 0;
+    });
+    final max = sept.fold<int>(1, (a, v) => v > a ? v : a);
+    return SizedBox(
+      height: 40,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (final v in sept)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Container(
+                  height: 4 + 32 * (v / max),
+                  decoration: BoxDecoration(
+                    color: v > 0
+                        ? AppColors.green700.withValues(alpha: 0.55)
+                        : AppColors.cream300,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _cle(DateTime d) => '${d.year}-${d.month}-${d.day}';
+}
+
+/// Feuille de réglage de l'objectif — quarts de Hizb, période, niveau
+/// d'accompagnement. Cf. `ObjectifCoach` pour ce que chaque champ engage.
+class _ReglageObjectifSheet extends ConsumerStatefulWidget {
+  const _ReglageObjectifSheet();
+
+  @override
+  ConsumerState<_ReglageObjectifSheet> createState() =>
+      _ReglageObjectifSheetState();
+}
+
+class _ReglageObjectifSheetState
+    extends ConsumerState<_ReglageObjectifSheet> {
+  late int _quarts;
+  late PeriodeObjectif _periode;
+  late NiveauCoach _niveau;
+
+  @override
+  void initState() {
+    super.initState();
+    final o = ref.read(objectifCoachProvider);
+    _quarts = o.quarts > 0 ? o.quarts : 4;
+    _periode = o.periode;
+    _niveau = o.niveau;
+  }
+
+  String _libellePeriode(AppLocalizations t, PeriodeObjectif p) => switch (p) {
+        PeriodeObjectif.jour => t.coachObjectifPeriodeJour,
+        PeriodeObjectif.semaine => t.coachObjectifPeriodeSemaine,
+        PeriodeObjectif.mois => t.coachObjectifPeriodeMois,
+      };
+
+  String _libelleNiveau(AppLocalizations t, NiveauCoach n) => switch (n) {
+        NiveauCoach.aMonRythme => t.coachNiveauAMonRythme,
+        NiveauCoach.regulier => t.coachNiveauRegulier,
+        NiveauCoach.exigeant => t.coachNiveauExigeant,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    return SafeArea(
+      child: Container(
+        padding: EdgeInsets.fromLTRB(20, 20, 20,
+            20 + MediaQuery.of(context).viewInsets.bottom),
+        decoration: const BoxDecoration(
+          color: AppColors.cream,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.coachObjectifSheetTitle,
+                style: GoogleFonts.scheherazadeNew(
+                    fontSize: 19, color: AppColors.green900)),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline_rounded),
+                  color: AppColors.green800,
+                  onPressed: _quarts > 1
+                      ? () => setState(() => _quarts--)
+                      : null,
+                ),
+                Expanded(
+                  child: Text(
+                    t.coachObjectifQuartsLabel(_quarts),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.manrope(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  color: AppColors.green800,
+                  onPressed: () => setState(() => _quarts++),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final p in PeriodeObjectif.values)
+                  ChoiceChip(
+                    label: Text(_libellePeriode(t, p)),
+                    selected: _periode == p,
+                    onSelected: (_) => setState(() => _periode = p),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Text(t.coachNiveauTitle,
+                style: GoogleFonts.manrope(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.inkLight)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final n in NiveauCoach.values)
+                  ChoiceChip(
+                    label: Text(_libelleNiveau(t, n)),
+                    selected: _niveau == n,
+                    onSelected: (_) => setState(() => _niveau = n),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style:
+                    FilledButton.styleFrom(backgroundColor: AppColors.green800),
+                onPressed: () async {
+                  final notifier = ref.read(objectifCoachProvider.notifier);
+                  await notifier.definir(quarts: _quarts, periode: _periode);
+                  await notifier.setNiveau(_niveau);
+                  if (context.mounted) Navigator.pop(context);
+                },
+                child: Text(t.coachObjectifValider,
+                    style: GoogleFonts.manrope(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

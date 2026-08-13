@@ -2026,6 +2026,75 @@ class AppLocalizationsEn extends AppLocalizations {
   String get coachMoveToControl => 'Move to control';
 
   @override
+  String get coachObjectifTitle => 'MY GOAL';
+
+  @override
+  String coachObjectifStreak(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days in a row',
+      one: '1 day in a row',
+      zero: 'No streak yet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifWeekProgress(int faits, String total) {
+    return 'This week: $faits of $total quarter(s)';
+  }
+
+  @override
+  String get coachObjectifEmptyTitle => 'No goal set';
+
+  @override
+  String get coachObjectifEmptyBody =>
+      'Set a memorization goal to track your streak and progress.';
+
+  @override
+  String get coachObjectifSetButton => 'Set a goal';
+
+  @override
+  String get coachObjectifSheetTitle => 'My memorization goal';
+
+  @override
+  String coachObjectifQuartsLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count quarters of a Hizb',
+      one: '1 quarter of a Hizb',
+      zero: 'No quarters',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifPeriodeJour => 'per day';
+
+  @override
+  String get coachObjectifPeriodeSemaine => 'per week';
+
+  @override
+  String get coachObjectifPeriodeMois => 'per month';
+
+  @override
+  String get coachNiveauTitle => 'Support level';
+
+  @override
+  String get coachNiveauAMonRythme => 'At my own pace';
+
+  @override
+  String get coachNiveauRegulier => 'Regular';
+
+  @override
+  String get coachNiveauExigeant => 'Demanding';
+
+  @override
+  String get coachObjectifValider => 'Confirm';
+
+  @override
   String get coachPortionsTitle => 'MEMORIZATION BY SURAH';
 
   @override

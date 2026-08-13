@@ -3385,6 +3385,102 @@ abstract class AppLocalizations {
   /// **'Passer au controle'**
   String get coachMoveToControl;
 
+  /// Titre de la section objectif/série du Coach
+  ///
+  /// In fr, this message translates to:
+  /// **'MON OBJECTIF'**
+  String get coachObjectifTitle;
+
+  /// Série de jours consécutifs où l'objectif a été atteint
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Aucune série en cours} =1{1 jour de suite} other{{count} jours de suite}}'**
+  String coachObjectifStreak(int count);
+
+  /// Progression de la semaine en quarts de Hizb
+  ///
+  /// In fr, this message translates to:
+  /// **'Cette semaine : {faits} sur {total} quart(s)'**
+  String coachObjectifWeekProgress(int faits, String total);
+
+  /// État vide de la section objectif, avant tout réglage
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun objectif fixé'**
+  String get coachObjectifEmptyTitle;
+
+  /// Corps de l'état vide de la section objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'Fixe un objectif de mémorisation pour suivre ta série et ta progression.'**
+  String get coachObjectifEmptyBody;
+
+  /// Bouton qui ouvre le réglage de l'objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'Fixer un objectif'**
+  String get coachObjectifSetButton;
+
+  /// Titre de la feuille de réglage de l'objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'Mon objectif de mémorisation'**
+  String get coachObjectifSheetTitle;
+
+  /// Nombre de quarts de Hizb visés, dans le réglage de l'objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Aucun quart} =1{1 quart de Hizb} other{{count} quarts de Hizb}}'**
+  String coachObjectifQuartsLabel(int count);
+
+  /// Période de l'objectif : jour
+  ///
+  /// In fr, this message translates to:
+  /// **'par jour'**
+  String get coachObjectifPeriodeJour;
+
+  /// Période de l'objectif : semaine
+  ///
+  /// In fr, this message translates to:
+  /// **'par semaine'**
+  String get coachObjectifPeriodeSemaine;
+
+  /// Période de l'objectif : mois
+  ///
+  /// In fr, this message translates to:
+  /// **'par mois'**
+  String get coachObjectifPeriodeMois;
+
+  /// Titre du choix de niveau d'accompagnement (fréquence des rappels)
+  ///
+  /// In fr, this message translates to:
+  /// **'Accompagnement'**
+  String get coachNiveauTitle;
+
+  /// Niveau d'accompagnement : aucun rappel
+  ///
+  /// In fr, this message translates to:
+  /// **'À mon rythme'**
+  String get coachNiveauAMonRythme;
+
+  /// Niveau d'accompagnement : un rappel par jour
+  ///
+  /// In fr, this message translates to:
+  /// **'Régulier'**
+  String get coachNiveauRegulier;
+
+  /// Niveau d'accompagnement : relances multiples
+  ///
+  /// In fr, this message translates to:
+  /// **'Exigeant'**
+  String get coachNiveauExigeant;
+
+  /// Bouton de confirmation de la feuille d'objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'Valider'**
+  String get coachObjectifValider;
+
   /// En-tête de la section suivi permanent par sourate/Hizb dans le Coach
   ///
   /// In fr, this message translates to:

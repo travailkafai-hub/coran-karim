@@ -68,6 +68,15 @@ final tailleArchiveProvider =
 //
 // Coexiste avec `sessionsArchiveProvider`, ne le remplace pas : la session
 // datée garde son rôle (voix du jour, suppression au geste, budget 7 jours).
+// ── LE JOURNAL DES JOURS (Coach, 2026-08-13) ────────────────────────────────
+// Cf. `PLAN_COACH.md` et la doc de `_creerTableJours` -- la seule mémoire du
+// Coach qui survive au-delà des 7 jours de `sessions`.
+final derniersJoursProvider = FutureProvider<List<JourActif>>(
+    (ref) => SessionArchiveService.instance.derniersJours(n: 60));
+
+final serieProvider = FutureProvider<int>(
+    (ref) => SessionArchiveService.instance.serieEnCours());
+
 final portionsProvider = FutureProvider<List<PortionResume>>(
     (ref) => SessionArchiveService.instance.portions());
 
