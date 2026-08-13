@@ -372,9 +372,30 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // les sourates avec le nom de la sourate, un rendu graphique plus beau").
   final Map<int, Surah> _surahMeta = {};
 
+  /// Métadonnées d'une sourate (nom, nombre de versets) — pour le bandeau de
+  /// transition.
+  ///
+  /// ── LU EN LOCAL, PLUS SUR LE RESEAU (2026-08-13) ────────────────────────
+  /// Mesuré sur device, à l'ouverture d'une mémorisation : cette seule étape
+  /// coûtait 974 à 2241 ms sur des ouvertures de 1039 à 2609 ms au total --
+  /// autrement dit ~90 % de l'attente, et une variabilité typique du réseau.
+  /// `QuranApi.fetchSurahInfo` tape `api.quran.com/chapters/{id}` alors que
+  /// `fetchSurahs()` sert EXACTEMENT les mêmes objets `Surah` depuis
+  /// `assets/data/quran_chapters.json`, embarqué et mis en cache statique.
+  ///
+  /// Gain secondaire, et il compte autant : la récitation elle-même appelle
+  /// cette méthode à chaque enchaînement de page (`_maybeExtendNextPage`).
+  /// Elle n'a donc plus besoin du réseau pour passer d'une sourate à l'autre.
+  ///
+  /// Repli réseau conservé pour le cas où l'asset ne connaîtrait pas ce
+  /// numéro : on ne perd aucun cas qui marchait avant.
   Future<Surah> _fetchSurahMeta(int surahNumber) async {
     final cached = _surahMeta[surahNumber];
     if (cached != null) return cached;
+    final locales = await QuranApi.fetchSurahs();
+    for (final s in locales) {
+      if (s.number == surahNumber) return s;
+    }
     final json = await QuranApi.fetchSurahInfo(surahNumber);
     return Surah.fromJson(json);
   }
@@ -500,11 +521,19 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   Future<void> _prepareTexteSeul() async {
+    // Chronometrage par etape (2026-08-13) : l'utilisateur signale que
+    // l'ouverture d'une memorisation « prend du temps ». On mesure avant de
+    // toucher quoi que ce soit -- une optimisation posee sur une intuition
+    // optimise en general ce qui ne coute rien.
+    final t0 = DateTime.now();
     final bismillahVerse = await QuranApi.fetchBismillah();
+    final t1 = DateTime.now();
     final chunk = _buildChunk(_verses, null, bismillahVerse);
+    final t2 = DateTime.now();
     final wordKeys = List.generate(
         ArabicNormalizer.splitExpectedWords(chunk.text).length,
         (_) => GlobalKey());
+    final t3 = DateTime.now();
     final initialSurahs = _verses.map((v) => v.surahNumber).toSet();
     final metaEntries = await Future.wait(initialSurahs.map((n) async {
       try {
@@ -513,6 +542,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         return null;
       }
     }));
+    final t4 = DateTime.now();
     if (!mounted) return;
     setState(() {
       _tajwidSpans = chunk.spans;
@@ -523,7 +553,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         if (e != null) _surahMeta[e.key] = e.value;
       }
       _rebuildWordVerseMap();
+      final t5 = DateTime.now();
       _etatRelecture = _construireEtatRelecture(chunk.text);
+      final t6 = DateTime.now();
+      int ms(DateTime a, DateTime b) => b.difference(a).inMilliseconds;
+      DiagnosticLog.log('Relecture',
+          'ouverture ${ms(t0, t6)} ms | bismillah=${ms(t0, t1)} '
+          'blocs+tajwid=${ms(t1, t2)} cles=${ms(t2, t3)} '
+          'meta=${ms(t3, t4)} tableVersets=${ms(t4, t5)} '
+          'etat=${ms(t5, t6)} | versets=${_verses.length} '
+          'mots=${wordKeys.length}');
       _ready = true;
     });
   }
@@ -2002,12 +2041,19 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final map = <Verse?>[];
     final sur = <int?>[];
     final last = <int>{};
+    // Index du mot DANS son verset, rempli dans la meme passe (2026-08-13).
+    // `_localIndexInVerse` reparcourt tous les versets a chaque appel : sur
+    // une relecture il est appele une fois par mot, d'ou un cout qui grimpe
+    // avec le produit mots x versets. Mesure : 343-367 ms pour 335 mots sur
+    // 25 versets, contre 42 ms pour 40 mots sur 5 versets.
+    final loc = <int?>[];
     int? prevSurah;
     for (final v in _verses) {
       if (_bismillahBefore(v, prevSurah)) {
         for (var k = 0; k < _bismillahWordCount; k++) {
           map.add(null); // dans la Bismillah elle-meme
           sur.add(v.surahNumber); // ... mais elle APPARTIENT a cette sourate
+          loc.add(null);
         }
       }
       prevSurah = v.surahNumber;
@@ -2015,11 +2061,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       for (var k = 0; k < count; k++) {
         map.add(v);
         sur.add(v.surahNumber);
+        loc.add(k);
       }
       if (count > 0) last.add(map.length - 1);
     }
     _verseByWord = map;
     _surahByWord = sur;
+    _localByWord = loc;
     _lastWordOfVerse = last;
   }
 
@@ -2086,7 +2134,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// vérifié par appel réel : cette API ne compte pas non plus les marques de
   /// waqf isolées comme un mot séparé, donc ce filtre reste cohérent avec
   /// elle).
+  /// Table precalculee des index locaux (cf. `_rebuildWordVerseMap`).
+  List<int?> _localByWord = const [];
+
   int? _localIndexInVerse(int wordIndex) {
+    // Table d'abord, calcul complet en repli -- meme resultat, jamais
+    // different, seulement plus lent (meme principe que `_verseContaining`).
+    if (wordIndex >= 0 && wordIndex < _localByWord.length) {
+      return _localByWord[wordIndex];
+    }
     var offset = 0;
     int? prevSurah;
     for (final v in _verses) {
