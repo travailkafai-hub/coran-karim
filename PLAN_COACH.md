@@ -192,6 +192,15 @@ points de leur sens.
   absurde. Rien, jamais, ne doit fermer l'accès au texte.
 - **Les récompenses aléatoires, coffres, roues.** Mécanique de hasard, étrangère
   à ce que l'app est.
+- **Les badges décoratifs (icônes à débloquer, animations, collection à
+  exhiber).** ✅ Tranché le 2026-08-13 : « c'est une application islamique, pas
+  un jeu ». Et il n'y a rien à construire de plus -- `PortionResume.badge`
+  (un quart) et `_GroupePortions.badge` (une sourate entière) existent déjà :
+  bordure dorée + icône vérifiée sur la carte, quand la portion est
+  intégralement couverte et juste. C'est DÉJÀ le badge -- une information sur
+  la progression, jamais une récompense qui scintille. Les points restent,
+  mais comme un compteur DISCRET d'effort de révision, pas un score affiché
+  en grand.
 - **La culpabilisation.** Le §2 pose déjà l'inverse : quand l'objectif est trop
   haut, on **propose de le baisser**. Une notification qui fait honte pousse à
   désinstaller, pas à réciter.
