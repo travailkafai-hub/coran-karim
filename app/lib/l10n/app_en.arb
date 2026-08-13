@@ -659,7 +659,7 @@
   "coachTrainDone": "Round finished",
   "coachMoveToControl": "Move to control",
 
-  "coachPortionsTitle": "MY PORTIONS",
+  "coachPortionsTitle": "MEMORIZATION BY SURAH",
   "coachRefreshTooltip": "Refresh",
   "coachPortionsError": "Portions unreadable: {error}",
   "coachPortionsEmpty": "No portion tracked yet. Every surah (or Hizb section for longer ones) you recite will appear here with its cumulative progress.",

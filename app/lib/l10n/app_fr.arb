@@ -2530,7 +2530,7 @@
     "description": "Bouton de l'etape Entraine vers Controle"
   },
 
-  "coachPortionsTitle": "MES PORTIONS",
+  "coachPortionsTitle": "MÉMORISATION PAR SOURATE",
   "@coachPortionsTitle": {
     "description": "En-tête de la section suivi permanent par sourate/Hizb dans le Coach"
   },

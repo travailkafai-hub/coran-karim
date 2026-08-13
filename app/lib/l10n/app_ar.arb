@@ -659,7 +659,7 @@
   "coachTrainDone": "انتهت الجولة",
   "coachMoveToControl": "الانتقال إلى المراقبة",
 
-  "coachPortionsTitle": "أقسامي",
+  "coachPortionsTitle": "الحفظ حسب السورة",
   "coachRefreshTooltip": "تحديث",
   "coachPortionsError": "تعذّرت قراءة الأقسام: {error}",
   "coachPortionsEmpty": "لا يوجد قسم متابَع بعد. ستظهر هنا كل سورة (أو جزء من حزب للسور الطويلة) تتلوها مع تقدّمها التراكمي.",

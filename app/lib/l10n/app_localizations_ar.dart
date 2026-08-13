@@ -1944,7 +1944,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachMoveToControl => 'الانتقال إلى المراقبة';
 
   @override
-  String get coachPortionsTitle => 'أقسامي';
+  String get coachPortionsTitle => 'الحفظ حسب السورة';
 
   @override
   String get coachRefreshTooltip => 'تحديث';

@@ -3388,7 +3388,7 @@ abstract class AppLocalizations {
   /// En-tête de la section suivi permanent par sourate/Hizb dans le Coach
   ///
   /// In fr, this message translates to:
-  /// **'MES PORTIONS'**
+  /// **'MÉMORISATION PAR SOURATE'**
   String get coachPortionsTitle;
 
   /// Infobulle du bouton de rafraîchissement manuel de la section Portions

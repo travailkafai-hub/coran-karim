@@ -2044,7 +2044,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get coachMoveToControl => 'Passer au controle';
 
   @override
-  String get coachPortionsTitle => 'MES PORTIONS';
+  String get coachPortionsTitle => 'MÉMORISATION PAR SOURATE';
 
   @override
   String get coachRefreshTooltip => 'Actualiser';

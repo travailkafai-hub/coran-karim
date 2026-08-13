@@ -771,6 +771,45 @@ class SessionArchiveService {
     DiagnosticLog.log('Archive', 'session $sessionId supprimee (geste utilisateur)');
   }
 
+  /// Remet une portion À ZÉRO : ses verdicts disparaissent, la portion aussi.
+  ///
+  /// Demande utilisateur (2026-08-13) : « rajoute pour mémorisation par
+  /// sourate la possibilité de supprimer le statut pour refaire ». Le suivi
+  /// d'une portion est CUMULÉ et volontairement permanent -- un mot déjà
+  /// acquis le reste. Il fallait donc un geste explicite pour repartir de
+  /// zéro sur une sourate qu'on veut retravailler entièrement.
+  ///
+  /// La ligne `portions` est supprimée elle aussi, pas seulement ses mots :
+  /// une portion vide réapparaîtrait dans la liste avec 0 %, alors que
+  /// l'intention est de la faire DISPARAÎTRE jusqu'à la prochaine récitation,
+  /// qui la recréera proprement (`upsertPortion`).
+  ///
+  /// L'audio archivé des mots est effacé avec eux -- comme pour une session
+  /// (cf. [supprimerSession]) : garder des clips orphelins occuperait le
+  /// stockage sans que rien ne puisse plus les rejouer.
+  Future<void> supprimerPortion(int portionId) async {
+    final db = await _database;
+    final fichiers = await db.query('portion_words',
+        columns: ['audio_path'],
+        where: 'portion_id = ? AND audio_path IS NOT NULL',
+        whereArgs: [portionId]);
+    for (final f in fichiers) {
+      try {
+        final chemin = f['audio_path'] as String?;
+        if (chemin == null) continue;
+        final file = File(chemin);
+        if (await file.exists()) await file.delete();
+      } catch (_) {
+        // Fichier déjà parti ou stockage indisponible : sans conséquence.
+      }
+    }
+    await db.delete('portion_words',
+        where: 'portion_id = ?', whereArgs: [portionId]);
+    await db.delete('portions', where: 'id = ?', whereArgs: [portionId]);
+    DiagnosticLog.log(
+        'Archive', 'portion $portionId remise a zero (geste utilisateur)');
+  }
+
   Future<void> toutEffacer() async {
     final db = await _database;
     await db.delete('session_words');

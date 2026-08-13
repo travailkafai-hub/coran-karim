@@ -173,6 +173,34 @@ class PortionsSection extends ConsumerWidget {
 
 
 /// Une sourate et les portions qu'elle contient, avec ses totaux cumulés.
+
+/// Confirmation de la remise à zéro d'une portion. Volontairement distincte de
+/// celle d'une récitation : ce qui disparaît n'est pas la même chose, et un
+/// texte approximatif sur une action irréversible est un piège.
+Future<bool> _confirmerRemiseAZero(BuildContext context, String label) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Recommencer cette sourate ?'),
+      content: Text(
+          'Tout le suivi de « $label » sera effacé : les mots acquis, les mots '
+          'ratés et leur historique. La prochaine récitation repartira de zéro. '
+          'Tes récitations datées, elles, ne sont pas touchées.'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler')),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Effacer le suivi',
+              style: TextStyle(color: Colors.redAccent)),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
 class _GroupePortions {
   final int surahNumber;
   final String nomSourate;
@@ -385,14 +413,40 @@ class _CartePortion extends ConsumerWidget {
               ),
           ],
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(r == null ? '—' : '${(r * 100).round()}%',
-                style: GoogleFonts.manrope(
-                    fontSize: 17, fontWeight: FontWeight.w800, color: couleur)),
-            Text(t.coachPortionAccuracyLabel,
-                style: GoogleFonts.manrope(fontSize: 9, color: AppColors.inkLight)),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(r == null ? '—' : '${(r * 100).round()}%',
+                    style: GoogleFonts.manrope(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: couleur)),
+                Text(t.coachPortionAccuracyLabel,
+                    style: GoogleFonts.manrope(
+                        fontSize: 9, color: AppColors.inkLight)),
+              ],
+            ),
+            // ── REMETTRE A ZERO POUR REFAIRE (2026-08-13) ──────────────────
+            // Demande utilisateur : « rajoute pour memorisation par sourate la
+            // possibilite de supprimer le statut pour refaire ». Le suivi
+            // d'une portion est CUMULE et permanent par conception -- un mot
+            // acquis le reste. Sans ce geste, impossible de reprendre une
+            // sourate de zero. Meme patron que la suppression d'une
+            // recitation, confirmation comprise : c'est irreversible.
+            IconButton(
+              icon: const Icon(Icons.restart_alt_rounded,
+                  size: 20, color: AppColors.inkLight),
+              tooltip: 'Remettre cette portion à zéro',
+              onPressed: () async {
+                final ok = await _confirmerRemiseAZero(context, p.label);
+                if (!ok || !context.mounted) return;
+                await SessionArchiveService.instance.supprimerPortion(p.id);
+                if (context.mounted) ref.invalidate(portionsProvider);
+              },
+            ),
           ],
         ),
         // Meme ecran, en CUMULE : `portion_words` porte le dernier verdict

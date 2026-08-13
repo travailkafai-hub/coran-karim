@@ -2026,7 +2026,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get coachMoveToControl => 'Move to control';
 
   @override
-  String get coachPortionsTitle => 'MY PORTIONS';
+  String get coachPortionsTitle => 'MEMORIZATION BY SURAH';
 
   @override
   String get coachRefreshTooltip => 'Refresh';
