@@ -54,7 +54,7 @@ class SessionArchiveService {
     final chemin = p.join(await getDatabasesPath(), 'session_archive.db');
     return openDatabase(
       chemin,
-      version: 4,
+      version: 5,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE sessions(
@@ -95,6 +95,7 @@ class SessionArchiveService {
         await db.execute(
             'CREATE INDEX idx_session_words ON session_words(session_id)');
         await _creerTablesPortions(db);
+        await _creerTableJours(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         // v1 -> v2 (2026-08-10) : suivi PERMANENT par sourate/Hizb, à côté de
@@ -125,8 +126,44 @@ class SessionArchiveService {
           await db.execute(
               'ALTER TABLE sessions ADD COLUMN words_skipped INTEGER NOT NULL DEFAULT 0');
         }
+        // v4 -> v5 (2026-08-13) : journal des JOURS actifs (cf. PLAN_COACH.md
+        // §7). Aucune table existante n'est touchee.
+        if (oldVersion < 5) {
+          await _creerTableJours(db);
+        }
       },
     );
+  }
+
+  /// LE JOURNAL DES JOURS ACTIFS — la seule mémoire longue du Coach.
+  ///
+  /// ── POURQUOI UNE TABLE DE PLUS (2026-08-13, cf. PLAN_COACH.md §7) ────────
+  ///
+  /// `sessions` est purgée à [retentionJours] (7 jours). Une série de 30 jours,
+  /// une courbe mensuelle, un objectif tenu sur un mois : rien de tout cela ne
+  /// peut en être dérivé. Le piège est qu'un calcul fait sur `sessions`
+  /// PARAÎTRAIT fonctionner — il donnerait des chiffres, simplement faux dès le
+  /// huitième jour, et faux EN SILENCE. Mieux vaut une table minuscule que des
+  /// statistiques qui mentent.
+  ///
+  /// Une ligne par jour où l'utilisateur a récité : quelques dizaines d'octets,
+  /// de l'ordre du kilo-octet par an. Jamais purgée — c'est tout son intérêt.
+  ///
+  /// `objectif_atteint` est stocké et non recalculé : l'objectif du jour peut
+  /// changer (cf. la proposition de baisse, PLAN_COACH.md §2), et une série
+  /// déjà acquise ne doit pas se réécrire rétroactivement parce que la cible a
+  /// bougé depuis. Ce qui a été gagné reste gagné.
+  Future<void> _creerTableJours(Database db) async {
+    await db.execute('''
+      CREATE TABLE jours_actifs(
+        jour TEXT PRIMARY KEY,
+        mots_recites INTEGER NOT NULL DEFAULT 0,
+        quarts_valides INTEGER NOT NULL DEFAULT 0,
+        points INTEGER NOT NULL DEFAULT 0,
+        objectif_du_jour INTEGER NOT NULL DEFAULT 0,
+        objectif_atteint INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
   }
 
   /// Tables du suivi permanent (cf. le plan "Suivi permanent par
@@ -771,6 +808,100 @@ class SessionArchiveService {
     DiagnosticLog.log('Archive', 'session $sessionId supprimee (geste utilisateur)');
   }
 
+  // ── LE JOURNAL DES JOURS (Coach) ──────────────────────────────────────────
+
+  static String _cleJour(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  /// Ajoute l'activité d'une récitation au jour courant (cumulatif).
+  ///
+  /// Appelée à la clôture d'une session, jamais pendant : un jour se juge sur
+  /// ce qui a été mené à son terme. Les compteurs s'ADDITIONNENT — plusieurs
+  /// récitations dans la journée comptent toutes.
+  Future<void> ajouterActiviteDuJour({
+    int mots = 0,
+    int quartsValides = 0,
+    int points = 0,
+    DateTime? quand,
+  }) async {
+    if (mots <= 0 && quartsValides <= 0 && points <= 0) return;
+    final db = await _database;
+    final jour = _cleJour(quand ?? DateTime.now());
+    await db.rawInsert('''
+      INSERT INTO jours_actifs(jour, mots_recites, quarts_valides, points)
+      VALUES(?, ?, ?, ?)
+      ON CONFLICT(jour) DO UPDATE SET
+        mots_recites   = mots_recites   + excluded.mots_recites,
+        quarts_valides = quarts_valides + excluded.quarts_valides,
+        points         = points         + excluded.points
+    ''', [jour, mots, quartsValides, points]);
+    DiagnosticLog.log('Coach',
+        'jour $jour : +$mots mot(s), +$quartsValides quart(s), +$points point(s)');
+  }
+
+  /// Fige l'objectif du jour et le fait qu'il ait été atteint.
+  ///
+  /// Séparé de [ajouterActiviteDuJour] à dessein : l'activité est un fait
+  /// brut, l'objectif est une décision qui peut changer (cf. la proposition de
+  /// baisse). Une fois `objectif_atteint` posé à 1, il n'est jamais rabaissé —
+  /// une journée gagnée reste gagnée, même si l'objectif est relevé ensuite.
+  Future<void> marquerObjectifDuJour({
+    required int objectif,
+    required bool atteint,
+    DateTime? quand,
+  }) async {
+    final db = await _database;
+    final jour = _cleJour(quand ?? DateTime.now());
+    await db.rawInsert('''
+      INSERT INTO jours_actifs(jour, objectif_du_jour, objectif_atteint)
+      VALUES(?, ?, ?)
+      ON CONFLICT(jour) DO UPDATE SET
+        objectif_du_jour = excluded.objectif_du_jour,
+        objectif_atteint = MAX(objectif_atteint, excluded.objectif_atteint)
+    ''', [jour, objectif, atteint ? 1 : 0]);
+  }
+
+  /// Les [n] derniers jours enregistrés, du plus récent au plus ancien.
+  Future<List<JourActif>> derniersJours({int n = 60}) async {
+    final db = await _database;
+    final rows = await db.query('jours_actifs',
+        orderBy: 'jour DESC', limit: n);
+    return rows.map(JourActif.fromMap).toList();
+  }
+
+  /// Série en cours : nombre de jours CONSÉCUTIFS, en remontant depuis
+  /// aujourd'hui, où l'objectif a été atteint.
+  ///
+  /// La série EST ce compteur (décision utilisateur 2026-08-13), elle n'est pas
+  /// stockée à part : deux compteurs finissent toujours par se contredire.
+  ///
+  /// La journée EN COURS ne casse pas la série tant qu'elle n'est pas finie —
+  /// on part d'hier si aujourd'hui n'est pas encore validé, sinon une série de
+  /// 40 jours afficherait 0 chaque matin au réveil.
+  Future<int> serieEnCours({DateTime? aujourdHui}) async {
+    final db = await _database;
+    final rows = await db.query('jours_actifs',
+        columns: ['jour', 'objectif_atteint'],
+        where: 'objectif_atteint = 1',
+        orderBy: 'jour DESC',
+        limit: 400);
+    if (rows.isEmpty) return 0;
+    final atteints = rows.map((r) => r['jour'] as String).toSet();
+    final base = aujourdHui ?? DateTime.now();
+    var curseur = DateTime(base.year, base.month, base.day);
+    if (!atteints.contains(_cleJour(curseur))) {
+      curseur = curseur.subtract(const Duration(days: 1));
+    }
+    var serie = 0;
+    while (atteints.contains(_cleJour(curseur))) {
+      serie++;
+      curseur = curseur.subtract(const Duration(days: 1));
+    }
+    return serie;
+  }
+
   /// Remet une portion À ZÉRO : ses verdicts disparaissent, la portion aussi.
   ///
   /// Demande utilisateur (2026-08-13) : « rajoute pour mémorisation par
@@ -1025,6 +1156,35 @@ class PortionResume {
         wordsReached: (m['words_reached'] as int?) ?? 0,
         wordsGreen: (m['words_green'] as int?) ?? 0,
         wordsSkipped: (m['words_skipped'] as int?) ?? 0,
+      );
+}
+
+/// Une journée du Coach. Cf. `_creerTableJours` pour le pourquoi de cette
+/// table, et `PLAN_COACH.md` §7.
+class JourActif {
+  final DateTime jour;
+  final int motsRecites;
+  final int quartsValides;
+  final int points;
+  final int objectifDuJour;
+  final bool objectifAtteint;
+
+  const JourActif({
+    required this.jour,
+    this.motsRecites = 0,
+    this.quartsValides = 0,
+    this.points = 0,
+    this.objectifDuJour = 0,
+    this.objectifAtteint = false,
+  });
+
+  factory JourActif.fromMap(Map<String, Object?> m) => JourActif(
+        jour: DateTime.parse(m['jour'] as String),
+        motsRecites: (m['mots_recites'] as int?) ?? 0,
+        quartsValides: (m['quarts_valides'] as int?) ?? 0,
+        points: (m['points'] as int?) ?? 0,
+        objectifDuJour: (m['objectif_du_jour'] as int?) ?? 0,
+        objectifAtteint: ((m['objectif_atteint'] as int?) ?? 0) == 1,
       );
 }
 

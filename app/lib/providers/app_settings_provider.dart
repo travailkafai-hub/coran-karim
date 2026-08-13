@@ -2,6 +2,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/objectif_coach.dart';
 import '../services/diagnostic_log.dart';
 
 const _kPrefAutoCorrection = 'auto_correction_enabled';
@@ -762,5 +763,64 @@ class PortionGranularitySettingNotifier
     state = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kPrefPortionGranularity, value.name);
+  }
+}
+
+// ── L'ENGAGEMENT DE MEMORISATION (Coach, 2026-08-13) ──────────────────────
+const _kPrefObjectifQuarts = 'coach_objectif_quarts';
+const _kPrefObjectifPeriode = 'coach_objectif_periode';
+const _kPrefCoachNiveau = 'coach_niveau';
+
+/// Objectif de mémorisation et niveau d'accompagnement (cf. `PLAN_COACH.md`).
+///
+/// Un seul réglage saisi par l'utilisateur — un volume sur une période — dont
+/// l'app dérive les paliers jour et semaine. Le niveau, lui, ne change QUE la
+/// fréquence des relances : il ne touche ni au jugement de la récitation, ni
+/// aux paliers. Un utilisateur « À mon rythme » voit exactement la même
+/// progression qu'un « Exigeant », il n'est simplement pas relancé.
+final objectifCoachProvider =
+    StateNotifierProvider<ObjectifCoachNotifier, ObjectifCoach>((ref) {
+  return ObjectifCoachNotifier();
+});
+
+class ObjectifCoachNotifier extends StateNotifier<ObjectifCoach> {
+  ObjectifCoachNotifier() : super(const ObjectifCoach()) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final quarts = prefs.getInt(_kPrefObjectifQuarts) ?? 0;
+    final periode = PeriodeObjectif.values.firstWhere(
+        (p) => p.name == prefs.getString(_kPrefObjectifPeriode),
+        orElse: () => PeriodeObjectif.semaine);
+    final niveau = NiveauCoach.values.firstWhere(
+        (n) => n.name == prefs.getString(_kPrefCoachNiveau),
+        orElse: () => NiveauCoach.regulier);
+    state = ObjectifCoach(quarts: quarts, periode: periode, niveau: niveau);
+  }
+
+  Future<void> definir({int? quarts, PeriodeObjectif? periode}) async {
+    state = state.copyWith(quarts: quarts, periode: periode);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kPrefObjectifQuarts, state.quarts);
+    await prefs.setString(_kPrefObjectifPeriode, state.periode.name);
+  }
+
+  Future<void> setNiveau(NiveauCoach niveau) async {
+    state = state.copyWith(niveau: niveau);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefCoachNiveau, niveau.name);
+  }
+
+  /// Réduit l'objectif après une semaine manquée — JAMAIS en silence, toujours
+  /// depuis une proposition acceptée par l'utilisateur (cf. PLAN_COACH.md §2 :
+  /// « un objectif qui baisse tout seul n'est plus un engagement »).
+  /// Plancher à 1 : un objectif nul n'est pas une baisse, c'est un abandon.
+  Future<void> reduireApresAccord() async {
+    if (state.quarts <= 1) return;
+    final reduit = (state.quarts * 2) ~/ 3;
+    await definir(quarts: reduit < 1 ? 1 : reduit);
   }
 }
