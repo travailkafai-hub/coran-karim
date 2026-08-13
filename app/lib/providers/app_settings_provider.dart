@@ -723,7 +723,14 @@ const _kPrefPortionGranularity = 'portion_granularity';
 /// sourate qui tient dans un seul Hizb n'est JAMAIS découpée, quel que soit ce
 /// réglage (cf. `PortionService.resolve`) -- il ne s'applique qu'aux sourates
 /// qui s'étalent sur plusieurs Hizb (Al-Baqarah, Al-Imran, An-Nisa...).
-enum PortionGranularity { hizb, demiHizb }
+/// Découpe d'une sourate trop longue pour être suivie d'un bloc.
+///
+/// `rubElHizb` (le QUART de Hizb) est le défaut depuis le 2026-08-13 :
+/// « c'est ce qui est souvent utilisé pour la mémorisation » (utilisateur).
+/// Les deux autres restent disponibles pour qui veut des tranches plus
+/// larges. Une sourate qui tient dans un seul Hizb n'est JAMAIS découpée,
+/// quel que soit ce réglage (cf. `PortionService.resolve`).
+enum PortionGranularity { rubElHizb, demiHizb, hizb }
 
 final portionGranularityProvider = StateNotifierProvider<
     PortionGranularitySettingNotifier, PortionGranularity>((ref) {
@@ -732,14 +739,23 @@ final portionGranularityProvider = StateNotifierProvider<
 
 class PortionGranularitySettingNotifier
     extends StateNotifier<PortionGranularity> {
-  PortionGranularitySettingNotifier() : super(PortionGranularity.hizb) {
+  PortionGranularitySettingNotifier() : super(PortionGranularity.rubElHizb) {
     _restore();
   }
 
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_kPrefPortionGranularity);
-    if (saved == 'demiHizb' && mounted) state = PortionGranularity.demiHizb;
+    if (!mounted || saved == null) return;
+    // Lecture par NOM : un réglage enregistré avant l'ajout du quart de Hizb
+    // (`hizb`/`demiHizb`) est respecté tel quel. Seuls ceux qui n'ont jamais
+    // tranché basculent sur le nouveau défaut.
+    for (final g in PortionGranularity.values) {
+      if (g.name == saved) {
+        state = g;
+        return;
+      }
+    }
   }
 
   Future<void> set(PortionGranularity value) async {

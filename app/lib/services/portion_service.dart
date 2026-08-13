@@ -69,6 +69,25 @@ class PortionService {
       versetsDeLaPortion = tousLesVersets;
       unitKey = 's${verse.surahNumber}';
       label = surahName;
+    } else if (granularity == PortionGranularity.rubElHizb) {
+      // ── LE QUART DE HIZB (2026-08-13) ──────────────────────────────────
+      // « C'est ce qui est souvent utilisé pour la mémorisation »
+      // (utilisateur). `rub_el_hizb_number` est numéroté GLOBALEMENT sur tout
+      // le Coran (1-240, quatre par Hizb) : il identifie donc déjà le quart à
+      // lui seul, sans avoir à le croiser avec le Hizb.
+      final rub = verse.rubElHizbNumber;
+      final h = verse.hizbNumber;
+      versetsDeLaPortion = rub == null
+          ? tousLesVersets.where((v) => v.hizbNumber == h).toList()
+          : tousLesVersets.where((v) => v.rubElHizbNumber == rub).toList();
+      unitKey = rub == null ? 's${verse.surahNumber}h$h'
+                            : 's${verse.surahNumber}r$rub';
+      // Rang du quart DANS son Hizb (1 à 4) : c'est ainsi qu'on le nomme en
+      // pratique, pas par son numéro global qui ne parle à personne.
+      final rangDansHizb = rub == null ? null : ((rub - 1) % 4) + 1;
+      label = rangDansHizb == null
+          ? '$surahName · Hizb $h'
+          : '$surahName · Hizb $h — quart $rangDansHizb/4';
     } else if (granularity == PortionGranularity.hizb) {
       final h = verse.hizbNumber;
       versetsDeLaPortion =
