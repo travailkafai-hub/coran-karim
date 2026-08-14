@@ -3433,6 +3433,78 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{Aucun quart} =1{1 quart de Hizb} other{{count} quarts de Hizb}}'**
   String coachObjectifQuartsLabel(int count);
 
+  /// L'objectif en toutes lettres : mémoriser tout le Coran en N années (refonte 2026-08-14)
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{Tout le Coran en 1 an} other{Tout le Coran en {count} ans}}'**
+  String coachObjectifAnneesLabel(int count);
+
+  /// Durée seule, pour l'étiquette du curseur de la feuille de réglage
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{1 an} other{{count} ans}}'**
+  String coachObjectifAnneesCourt(int count);
+
+  /// Titre au-dessus du curseur de durée, dans la feuille de réglage de l'objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'En combien de temps ?'**
+  String get coachObjectifSheetDureeTitle;
+
+  /// Unité seule, accolée à un nombre approché ('≈ 1,5 quart de Hizb par semaine') -- volontairement invariable : le nombre est approximatif et souvent décimal
+  ///
+  /// In fr, this message translates to:
+  /// **'quart de Hizb'**
+  String get coachObjectifQuartUnite;
+
+  /// Ce qui reste à mémoriser -- la base sur laquelle le rythme est calculé
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Tout le Coran est acquis} =1{Il te reste 1 quart de Hizb sur 240} other{Il te reste {count} quarts de Hizb sur 240}}'**
+  String coachObjectifResteLabel(int count);
+
+  /// Rythme dérivé de l'échéance, sur les deux horizons courts (le mois est déjà la barre de progression)
+  ///
+  /// In fr, this message translates to:
+  /// **'soit ≈ {parJour} par jour et ≈ {parSemaine} par semaine, en quarts de Hizb'**
+  String coachObjectifRythmeDetail(String parJour, String parSemaine);
+
+  /// Fenêtre de la barre de progression du tableau de bord, fixée au mois depuis 2026-08-14
+  ///
+  /// In fr, this message translates to:
+  /// **'ce mois-ci'**
+  String get coachObjectifPeriodeCeMois;
+
+  /// Deuxième horizon de progression (365 jours glissants)
+  ///
+  /// In fr, this message translates to:
+  /// **'cette année'**
+  String get coachObjectifPeriodeCetteAnnee;
+
+  /// Troisième horizon : progression cumulée sur les 240 quarts, sans échéance
+  ///
+  /// In fr, this message translates to:
+  /// **'tout le Coran'**
+  String get coachObjectifPeriodeCoranEntier;
+
+  /// État du rythme : au moins ce qui était attendu à cette date (vert)
+  ///
+  /// In fr, this message translates to:
+  /// **'Dans le rythme'**
+  String get coachRythmeTenu;
+
+  /// État du rythme : entre 70 % et 100 % de l'attendu (ambre)
+  ///
+  /// In fr, this message translates to:
+  /// **'Léger retard'**
+  String get coachRythmeDerape;
+
+  /// État du rythme : moins de 70 % de l'attendu (brique) -- jamais un reproche, une indication
+  ///
+  /// In fr, this message translates to:
+  /// **'À rattraper'**
+  String get coachRythmeARattraper;
+
   /// Période de l'objectif : jour
   ///
   /// In fr, this message translates to:

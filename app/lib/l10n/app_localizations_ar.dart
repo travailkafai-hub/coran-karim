@@ -1988,6 +1988,71 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String coachObjectifAnneesLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'القرآن كاملاً في $count سنوات',
+      two: 'القرآن كاملاً في سنتين',
+      one: 'القرآن كاملاً في سنة واحدة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifAnneesCourt(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count سنوات',
+      two: 'سنتان',
+      one: 'سنة واحدة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifSheetDureeTitle => 'في كم من الوقت؟';
+
+  @override
+  String get coachObjectifQuartUnite => 'ربع حزب';
+
+  @override
+  String coachObjectifResteLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'بقي $count أرباع حزب من 240',
+      one: 'بقي ربع حزب واحد من 240',
+      zero: 'تم حفظ القرآن كاملاً',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifRythmeDetail(String parJour, String parSemaine) {
+    return 'أي ≈ $parJour في اليوم و≈ $parSemaine في الأسبوع، بأرباع الحزب';
+  }
+
+  @override
+  String get coachObjectifPeriodeCeMois => 'هذا الشهر';
+
+  @override
+  String get coachObjectifPeriodeCetteAnnee => 'هذه السنة';
+
+  @override
+  String get coachObjectifPeriodeCoranEntier => 'القرآن كاملاً';
+
+  @override
+  String get coachRythmeTenu => 'على الوتيرة';
+
+  @override
+  String get coachRythmeDerape => 'تأخّر يسير';
+
+  @override
+  String get coachRythmeARattraper => 'يلزم التدارك';
+
+  @override
   String get coachObjectifPeriodeJour => 'في اليوم';
 
   @override

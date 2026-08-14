@@ -249,9 +249,9 @@ et la formule exacte des multiplicateurs.
 sera mis à jour au fil des arbitrages, et c'est lui qu'il faut relire avant de
 toucher au Coach.*
 
-## À TRANCHER — refonte de l'objectif en « durée pour tout le Coran » (2026-08-14)
+## ✅ TRANCHÉ ET IMPLÉMENTÉ — l'objectif est une « durée pour tout le Coran » (2026-08-14)
 
-Proposition utilisateur, préférée au modèle actuel (« N quarts par jour /
+Proposition utilisateur, préférée au modèle précédent (« N quarts par jour /
 semaine / mois », jugé illisible : « je trouve que objectif par jour c'est
 beaucoup ») :
 
@@ -269,9 +269,138 @@ Le Coran = **240 quarts de Hizb** (60 Hizb x 4).
 | 5 ans | 0,13 | 0,9 | 4 (1 Hizb) |
 | 10 ans | 0,07 | 0,5 | 2 |
 
-Ce que ça change : `ObjectifCoach` (années au lieu de quarts+periode),
-`_ReglageObjectifSheet`, le tableau de bord, et le seuil quotidien de la série
-(déjà dérivé de `objectif.parJour` depuis le 2026-08-14, donc compatible).
+(Le curseur livré s'arrête à **6 ans** : au-delà, le rythme quotidien devient
+si faible qu'il ne guide plus rien — 10 ans, c'est un dixième de quart par
+jour. Les deux dernières lignes restent ici pour mémoire. Un ancien objectif
+qui se convertissait au-delà de 6 ans est ramené à 6, cf. la migration.)
+
+### Les quatre arbitrages, et ce qui a été livré
+
+| Question | Décision utilisateur | Où ça vit |
+|---|---|---|
+| L'échéance porte sur quoi ? | **Le reste à mémoriser** (240 − acquis), pas les 240 quarts | `ObjectifCoach.rythmePour`, `SessionArchiveService.motsAcquisTousCoran` |
+| Comment se saisit la durée ? | **Curseur de 1 à 6 ans** | `_ReglageObjectifSheet` |
+| Fenêtre de la barre de progression | **Le mois** | `_ObjectifSection` |
+| Périmètre | La refonte de l'objectif **seule** | — |
+
+**Pourquoi le mois, et pas la semaine** (horizon de rattrapage du §2) : c'est le
+seul horizon où la cible tombe sur un entier lisible sur toute la plage du
+curseur — 20 quarts à 1 an, 3 à 6 ans. Sur la semaine, 6 ans redonnerait
+« 0,8 quart », c'est-à-dire exactement le défaut corrigé le matin même
+(capture utilisateur : « 0 sur 0.2 quart(s) »). Le jour et la semaine restent
+affichés, en texte, sans barre.
+
+**Le reste à mémoriser est compté en mots DISTINCTS**, pas en portions : une
+portion vaut selon les cas une sourate, un demi-Hizb ou un quart, et changer la
+granularité laisse en base les anciennes portions dont les versets sont aussi
+couverts par les nouvelles — additionner des portions compterait deux fois les
+mêmes mots. D'où le `DISTINCT (sourate, verset, mot)`, converti en quarts par
+la moyenne du Coran (~322,6 mots par quart).
+
+**Effet de bord identifié AVANT d'implémenter, et traité** : le seuil quotidien
+de la série est dérivé du rythme (`parJour × 322,6 mots`). À 6 ans il tombait à
+~35 mots, soit An-Nasr plus une ligne — une série qui ne peut plus se rompre ne
+mesure plus l'assiduité. D'où un **plancher à 50 mots**
+(`RythmeCoach.plancherMotsParJour`), soit une courte sourate.
+
+Ce que ça a changé dans le code : `ObjectifCoach` (années + `RythmeCoach`
+dérivé, au lieu de quarts+période), la persistance (`coach_objectif_annees`,
+avec migration une fois depuis l'ancien volume/période — l'ancien réglage n'est
+pas effacé), `_ReglageObjectifSheet`, `_ObjectifSection`, le seuil de série
+dans `karaoke_recitation_screen`, et une **migration v6 → v7** de
+`session_archive.db` : colonne `jours_actifs.objectif_mots_du_jour` (l'ancienne
+`objectif_du_jour` porte des QUARTS sur les jours antérieurs et n'est plus
+alimentée — changer l'unité d'une colonne en place aurait rendu l'historique
+faux en silence).
+⚠️ La colonne `souffle` évoquée plus bas devient donc une migration **v7 → v8**.
+
+Couvert par `app/test/objectif_coach_test.dart` (8 cas, au vert) : le tableau
+ci-dessus, la détente du rythme à mesure qu'on avance, le plancher de série,
+et les bornes (Coran acquis, dépassement).
+
+**Baisser l'objectif** (§2) ne veut plus dire réduire un volume mais
+**allonger l'échéance d'un an**, plafonnée à 6 — on ne descend jamais à
+« aucun objectif », qui serait un abandon et non une baisse.
+
+### La barre de progression comptait faux — troisième et dernière source
+
+Constat fait en vérifiant la refonte sur le téléphone : la carte affichait
+**« 100 % ce mois-ci »** juste sous **« il te reste 239 quarts sur 240 »**.
+
+Cause, mesurée sur la base réelle : la barre sommait des **fractions de
+portion** plafonnées à 1. Une portion « sourate entière » courte y valait donc
+un quart PLEIN — Al-Kawthar (10 mots) comptait autant qu'un vrai quart
+(~322 mots).
+
+| ce que la barre comptait | ce que valent vraiment ces mots |
+|---|---|
+| 12,37 quarts | **0,84 quart** (272 mots ÷ 322,6) |
+
+Corrigé le 2026-08-14 : l'avancement du mois lit la **même grandeur** que le
+reste à mémoriser (mots acquis distincts ÷ 322,6,
+`quartsAcquisDuMoisProvider`). Les deux chiffres de la carte ne peuvent plus se
+contredire, ils sortent de la même requête. Effet assumé : la barre passe de
+100 % à **17 %** sur ce téléphone — elle était flatteuse parce qu'elle était
+fausse.
+
+⛔ **Le plancher `jours_actifs.quarts_valides` a sauté avec** (`math.max(
+quartsFaits, avancement)`) : ce compteur s'incrémente sur
+`PortionResume.badge`, donc il portait exactement le même biais et l'aurait
+réintroduit à lui seul. Il reste utilisé pour l'objectif du JOUR
+(`quartsValides > 0` valide la journée), où le biais est bienveillant et
+cohérent avec le §2 — mais il ne doit plus jamais servir de mesure d'avancement.
+
+**Trois sources fausses en une journée pour cette seule barre**
+(`mots_recites` cumulé → fractions de portions → mots distincts) : la leçon
+tient en une ligne — *une mesure d'avancement ne peut pas mélanger deux unités,
+et une portion n'est pas une unité de volume.*
+
+### Ce qui est affiché où (demande utilisateur 2026-08-14)
+
+> « je veux pas afficher le détail sur cet écran, il est quand on choisit
+> l'objectif »
+
+| écran | ce qu'il montre |
+|---|---|
+| Carte « MON OBJECTIF » | le but (« Tout le Coran en 4 ans »), les trois tuiles, les trois barres. **Pas** le détail du calcul |
+| Feuille de réglage | le reste à mémoriser et le rythme jour/semaine/mois, mis à jour pendant qu'on déplace le curseur — là où ils servent à décider |
+
+### Trois horizons, et une couleur qui veut dire quelque chose (2026-08-14)
+
+> « il manque une progression annuelle et une pour le Coran entier [...] pas
+> forcément affichée dès le départ mais on défile »
+>
+> « je veux que la couleur ait un sens : vert je suis dans le rythme, orange ça
+> dérape un peu, rouge il faut que je progresse pour rattraper l'objectif du
+> mois »
+
+| barre | cible | état coloré |
+|---|---|---|
+| **ce mois-ci** (30 j glissants) | `parJour × 30` | oui — c'est celle qu'on peut encore rattraper |
+| **cette année** (365 j glissants) | `parJour × 365` | oui |
+| **tout le Coran** | 240 quarts | **non** : un cumul n'a pas d'échéance, personne n'est « en retard » sur le Coran |
+
+Fenêtres **glissantes** et non civiles : sinon, chaque 1ᵉʳ janvier, une
+progression durement acquise retomberait à zéro du jour au lendemain.
+
+**L'état n'est PAS le pourcentage de la barre** (`EtatRythme.depuis`). Il
+compare l'avancement à ce qui était attendu **compte tenu du temps déjà
+suivi** : ≥ 100 % vert, ≥ 70 % ambre, en dessous brique. Sans cette
+pondération, quelqu'un qui installe l'app ouvre son premier écran sur du rouge
+— la culpabilisation que le §2 refuse. Mesuré sur le téléphone de test
+(2 jours de suivi, 0,84 quart) : la barre affiche **17 %** et l'état est
+**vert**, parce que le rythme quotidien, lui, est tenu.
+
+Trois précautions tenues :
+- **la couleur ne porte jamais l'information seule** — chaque état est doublé
+  d'un libellé écrit (« Dans le rythme » / « Léger retard » / « À rattraper ») ;
+- **contrastes vérifiés** sur le crème (#fbf7ee) : 7,00 / 4,67 / 5,99, tous
+  ≥ 4,5 puisque la couleur porte aussi du texte ;
+- **le rouge est une brique**, pas un rouge d'alerte, et aucun des trois hex
+  n'est partagé avec les palettes tajwid, mindmap ou jeu.
+
+Sous 10 %, le pourcentage garde une décimale : « 0,4 % du Coran » plutôt qu'un
+« 0 % » qui effacerait un travail réel.
 
 ### Deux autres points ouverts, même journée
 

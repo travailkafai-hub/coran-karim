@@ -2071,6 +2071,69 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String coachObjectifAnneesLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'The whole Qur\'an in $count years',
+      one: 'The whole Qur\'an in 1 year',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifAnneesCourt(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count years',
+      one: '1 year',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifSheetDureeTitle => 'Over how long?';
+
+  @override
+  String get coachObjectifQuartUnite => 'quarter of a Hizb';
+
+  @override
+  String coachObjectifResteLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count quarters of a Hizb left out of 240',
+      one: '1 quarter of a Hizb left out of 240',
+      zero: 'The whole Qur\'an is memorized',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifRythmeDetail(String parJour, String parSemaine) {
+    return 'that is ≈ $parJour per day and ≈ $parSemaine per week, in quarters of a Hizb';
+  }
+
+  @override
+  String get coachObjectifPeriodeCeMois => 'this month';
+
+  @override
+  String get coachObjectifPeriodeCetteAnnee => 'this year';
+
+  @override
+  String get coachObjectifPeriodeCoranEntier => 'the whole Qur\'an';
+
+  @override
+  String get coachRythmeTenu => 'On track';
+
+  @override
+  String get coachRythmeDerape => 'Slightly behind';
+
+  @override
+  String get coachRythmeARattraper => 'Catching up needed';
+
+  @override
   String get coachObjectifPeriodeJour => 'per day';
 
   @override

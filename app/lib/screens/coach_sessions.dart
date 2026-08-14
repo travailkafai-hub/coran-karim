@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/objectif_coach.dart';
 import '../models/verse.dart';
 import '../providers/memorization_game_records_provider.dart';
 import '../providers/mind_map_provider.dart';
@@ -79,6 +80,63 @@ final serieProvider = FutureProvider<int>(
 
 final portionsProvider = FutureProvider<List<PortionResume>>(
     (ref) => SessionArchiveService.instance.portions());
+
+/// Quarts de Hizb déjà acquis sur tout le Coran (0 à 240), en fraction.
+///
+/// C'est la BASE DE CALCUL de l'objectif depuis le 2026-08-14 : l'échéance en
+/// années porte sur ce qu'il RESTE à mémoriser (cf. `ObjectifCoach.rythmePour`).
+/// Volontairement un provider séparé de [portionsProvider] : celui-ci est
+/// plafonné à 60 portions pour l'affichage, alors que le compte doit porter
+/// sur TOUT ce qui a été acquis, sans limite ni doublon (cf.
+/// `SessionArchiveService.motsAcquisTousCoran`).
+final quartsAcquisProvider = FutureProvider<double>((ref) async {
+  final mots = await SessionArchiveService.instance.motsAcquisTousCoran();
+  return (mots / ObjectifCoach.motsParQuart)
+      .clamp(0.0, ObjectifCoach.quartsDuCoran.toDouble());
+});
+
+/// Quarts acquis sur les 30 derniers jours — l'AVANCEMENT du mois.
+///
+/// ── POURQUOI CE PROVIDER EXISTE (2026-08-14, second correctif du jour) ──────
+///
+/// La barre de progression sommait des FRACTIONS DE PORTION, plafonnées à 1
+/// par portion. Une portion « sourate entière » courte y valait donc un quart
+/// PLEIN : Al-Kawthar (10 mots) comptait autant qu'un vrai quart de Hizb
+/// (~322 mots). Mesuré sur le téléphone de l'utilisateur : la barre comptait
+/// **12,37 quarts** pour 272 mots réellement acquis, qui en valent **0,84**.
+/// La carte affichait « 100 % ce mois-ci » juste sous « il te reste 239 quarts
+/// sur 240 » -- deux chiffres qui se contredisent à l'écran.
+///
+/// Même unité que [quartsAcquisProvider], donc : des mots acquis DISTINCTS
+/// divisés par la moyenne du Coran. Les deux nombres de la carte ne peuvent
+/// plus diverger, puisqu'ils sortent de la même requête.
+///
+/// ⛔ Ne pas réintroduire de plancher sur `jours_actifs.quarts_valides` : ce
+/// compteur s'incrémente sur `PortionResume.badge` (portion complète), donc il
+/// porte EXACTEMENT le même biais -- treize sourates courtes terminées y
+/// valaient douze quarts.
+final quartsAcquisDuMoisProvider = FutureProvider<double>((ref) async {
+  final mots = await SessionArchiveService.instance.motsAcquisTousCoran(
+      depuis: DateTime.now().subtract(const Duration(days: 30)));
+  return (mots / ObjectifCoach.motsParQuart)
+      .clamp(0.0, ObjectifCoach.quartsDuCoran.toDouble());
+});
+
+/// Quarts acquis sur les 365 derniers jours — la progression de l'ANNÉE.
+///
+/// Demande utilisateur 2026-08-14 : « il manque une progression annuelle et
+/// une pour le Coran entier ». Trois horizons, trois questions différentes :
+/// le mois dit « est-ce que je tiens mon rythme en ce moment », l'année « est-
+/// ce que l'engagement tient dans la durée », le Coran entier « où j'en suis,
+/// tout court ». Fenêtre GLISSANTE comme le mois (et non l'année civile) :
+/// sinon, chaque 1er janvier, une progression durement acquise retomberait à
+/// zéro du jour au lendemain.
+final quartsAcquisDeLAnneeProvider = FutureProvider<double>((ref) async {
+  final mots = await SessionArchiveService.instance.motsAcquisTousCoran(
+      depuis: DateTime.now().subtract(const Duration(days: 365)));
+  return (mots / ObjectifCoach.motsParQuart)
+      .clamp(0.0, ObjectifCoach.quartsDuCoran.toDouble());
+});
 
 final motsDePortionProvider =
     FutureProvider.family<List<PortionMot>, int>((ref, portionId) =>

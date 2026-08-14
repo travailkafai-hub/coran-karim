@@ -767,17 +767,23 @@ class PortionGranularitySettingNotifier
 }
 
 // ── L'ENGAGEMENT DE MEMORISATION (Coach, 2026-08-13) ──────────────────────
+// Clés de l'ANCIEN réglage (volume + période), conservées en lecture seule
+// pour la migration ci-dessous. Elles ne sont plus écrites depuis le
+// 2026-08-14 -- et volontairement pas effacées : tant qu'elles restent, la
+// migration reste rejouable et un retour en arrière reste possible.
 const _kPrefObjectifQuarts = 'coach_objectif_quarts';
 const _kPrefObjectifPeriode = 'coach_objectif_periode';
+const _kPrefObjectifAnnees = 'coach_objectif_annees';
 const _kPrefCoachNiveau = 'coach_niveau';
 
 /// Objectif de mémorisation et niveau d'accompagnement (cf. `PLAN_COACH.md`).
 ///
-/// Un seul réglage saisi par l'utilisateur — un volume sur une période — dont
-/// l'app dérive les paliers jour et semaine. Le niveau, lui, ne change QUE la
-/// fréquence des relances : il ne touche ni au jugement de la récitation, ni
-/// aux paliers. Un utilisateur « À mon rythme » voit exactement la même
-/// progression qu'un « Exigeant », il n'est simplement pas relancé.
+/// Un seul réglage saisi par l'utilisateur — en combien d'ANNÉES mémoriser
+/// tout le Coran — dont l'app dérive le rythme par jour, semaine et mois. Le
+/// niveau, lui, ne change QUE la fréquence des relances : il ne touche ni au
+/// jugement de la récitation, ni aux paliers. Un utilisateur « À mon rythme »
+/// voit exactement la même progression qu'un « Exigeant », il n'est simplement
+/// pas relancé.
 final objectifCoachProvider =
     StateNotifierProvider<ObjectifCoachNotifier, ObjectifCoach>((ref) {
   return ObjectifCoachNotifier();
@@ -791,21 +797,51 @@ class ObjectifCoachNotifier extends StateNotifier<ObjectifCoach> {
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    final quarts = prefs.getInt(_kPrefObjectifQuarts) ?? 0;
-    final periode = PeriodeObjectif.values.firstWhere(
-        (p) => p.name == prefs.getString(_kPrefObjectifPeriode),
-        orElse: () => PeriodeObjectif.semaine);
     final niveau = NiveauCoach.values.firstWhere(
         (n) => n.name == prefs.getString(_kPrefCoachNiveau),
         orElse: () => NiveauCoach.regulier);
-    state = ObjectifCoach(quarts: quarts, periode: periode, niveau: niveau);
+    var annees = prefs.getInt(_kPrefObjectifAnnees) ?? 0;
+    if (annees <= 0) {
+      annees = _migrerDepuisVolumeParPeriode(prefs);
+      if (annees > 0) await prefs.setInt(_kPrefObjectifAnnees, annees);
+    }
+    if (!mounted) return;
+    state = ObjectifCoach(annees: annees, niveau: niveau);
   }
 
-  Future<void> definir({int? quarts, PeriodeObjectif? periode}) async {
-    state = state.copyWith(quarts: quarts, periode: periode);
+  /// Convertit un ancien objectif « N quarts par jour/semaine/mois » en une
+  /// échéance en années, une seule fois.
+  ///
+  /// On repart du RYTHME QUOTIDIEN, seule grandeur commune aux deux modèles :
+  /// N quarts sur une période de J jours donne N/J quart par jour, donc
+  /// 240 / (N/J) jours pour tout le Coran. Borné à [ObjectifCoach.anneesMin] /
+  /// [ObjectifCoach.anneesMax] — un ancien « 1 quart par mois » vaudrait 20
+  /// ans, hors du curseur ; le ramener à 6 ans est le choix le plus proche que
+  /// l'utilisateur peut désormais exprimer, et il reste libre de le rouvrir.
+  ///
+  /// Volontairement calculée sur les 240 quarts ENTIERS, pas sur le reste à
+  /// mémoriser : la migration doit être reproductible et ne pas dépendre d'un
+  /// état de progression qui, lui, bouge à chaque récitation.
+  int _migrerDepuisVolumeParPeriode(SharedPreferences prefs) {
+    final quarts = prefs.getInt(_kPrefObjectifQuarts) ?? 0;
+    if (quarts <= 0) return 0; // aucun objectif n'avait été fixé
+    final jours = switch (prefs.getString(_kPrefObjectifPeriode)) {
+      'jour' => 1,
+      'mois' => 30,
+      _ => 7, // 'semaine', et défaut historique du réglage
+    };
+    final parJour = quarts / jours;
+    final annees = (ObjectifCoach.quartsDuCoran / parJour / 365).round();
+    return annees.clamp(ObjectifCoach.anneesMin, ObjectifCoach.anneesMax);
+  }
+
+  Future<void> definir({required int annees}) async {
+    final borne = annees <= 0
+        ? 0
+        : annees.clamp(ObjectifCoach.anneesMin, ObjectifCoach.anneesMax);
+    state = state.copyWith(annees: borne);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_kPrefObjectifQuarts, state.quarts);
-    await prefs.setString(_kPrefObjectifPeriode, state.periode.name);
+    await prefs.setInt(_kPrefObjectifAnnees, state.annees);
   }
 
   Future<void> setNiveau(NiveauCoach niveau) async {
@@ -817,11 +853,15 @@ class ObjectifCoachNotifier extends StateNotifier<ObjectifCoach> {
   /// Réduit l'objectif après une semaine manquée — JAMAIS en silence, toujours
   /// depuis une proposition acceptée par l'utilisateur (cf. PLAN_COACH.md §2 :
   /// « un objectif qui baisse tout seul n'est plus un engagement »).
-  /// Plancher à 1 : un objectif nul n'est pas une baisse, c'est un abandon.
+  ///
+  /// Baisser l'objectif, c'est désormais ALLONGER l'échéance d'un an — « mieux
+  /// vaut des petits pas qu'on réussit que des grands pas qu'on rate ». Au
+  /// maximum du curseur il n'y a plus rien à détendre : on ne descend jamais à
+  /// « aucun objectif », qui serait un abandon, pas une baisse.
+  /// (AVANT le 2026-08-14 : `quarts * 2 ~/ 3`, plancher à 1 quart.)
   Future<void> reduireApresAccord() async {
-    if (state.quarts <= 1) return;
-    final reduit = (state.quarts * 2) ~/ 3;
-    await definir(quarts: reduit < 1 ? 1 : reduit);
+    if (!state.actif || state.annees >= ObjectifCoach.anneesMax) return;
+    await definir(annees: state.annees + 1);
   }
 }
 

@@ -2089,6 +2089,69 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String coachObjectifAnneesLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Tout le Coran en $count ans',
+      one: 'Tout le Coran en 1 an',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifAnneesCourt(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ans',
+      one: '1 an',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifSheetDureeTitle => 'En combien de temps ?';
+
+  @override
+  String get coachObjectifQuartUnite => 'quart de Hizb';
+
+  @override
+  String coachObjectifResteLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Il te reste $count quarts de Hizb sur 240',
+      one: 'Il te reste 1 quart de Hizb sur 240',
+      zero: 'Tout le Coran est acquis',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifRythmeDetail(String parJour, String parSemaine) {
+    return 'soit ≈ $parJour par jour et ≈ $parSemaine par semaine, en quarts de Hizb';
+  }
+
+  @override
+  String get coachObjectifPeriodeCeMois => 'ce mois-ci';
+
+  @override
+  String get coachObjectifPeriodeCetteAnnee => 'cette année';
+
+  @override
+  String get coachObjectifPeriodeCoranEntier => 'tout le Coran';
+
+  @override
+  String get coachRythmeTenu => 'Dans le rythme';
+
+  @override
+  String get coachRythmeDerape => 'Léger retard';
+
+  @override
+  String get coachRythmeARattraper => 'À rattraper';
+
+  @override
   String get coachObjectifPeriodeJour => 'par jour';
 
   @override

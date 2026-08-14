@@ -2565,6 +2565,61 @@
     "description": "Nombre de quarts de Hizb visés, dans le réglage de l'objectif",
     "placeholders": { "count": { "type": "int" } }
   },
+  "coachObjectifAnneesLabel": "{count, plural, =1{Tout le Coran en 1 an} other{Tout le Coran en {count} ans}}",
+  "@coachObjectifAnneesLabel": {
+    "description": "L'objectif en toutes lettres : mémoriser tout le Coran en N années (refonte 2026-08-14)",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "coachObjectifAnneesCourt": "{count, plural, =1{1 an} other{{count} ans}}",
+  "@coachObjectifAnneesCourt": {
+    "description": "Durée seule, pour l'étiquette du curseur de la feuille de réglage",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "coachObjectifSheetDureeTitle": "En combien de temps ?",
+  "@coachObjectifSheetDureeTitle": {
+    "description": "Titre au-dessus du curseur de durée, dans la feuille de réglage de l'objectif"
+  },
+  "coachObjectifQuartUnite": "quart de Hizb",
+  "@coachObjectifQuartUnite": {
+    "description": "Unité seule, accolée à un nombre approché ('≈ 1,5 quart de Hizb par semaine') -- volontairement invariable : le nombre est approximatif et souvent décimal"
+  },
+  "coachObjectifResteLabel": "{count, plural, =0{Tout le Coran est acquis} =1{Il te reste 1 quart de Hizb sur 240} other{Il te reste {count} quarts de Hizb sur 240}}",
+  "@coachObjectifResteLabel": {
+    "description": "Ce qui reste à mémoriser -- la base sur laquelle le rythme est calculé",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "coachObjectifRythmeDetail": "soit ≈ {parJour} par jour et ≈ {parSemaine} par semaine, en quarts de Hizb",
+  "@coachObjectifRythmeDetail": {
+    "description": "Rythme dérivé de l'échéance, sur les deux horizons courts (le mois est déjà la barre de progression)",
+    "placeholders": {
+      "parJour": { "type": "String" },
+      "parSemaine": { "type": "String" }
+    }
+  },
+  "coachObjectifPeriodeCeMois": "ce mois-ci",
+  "@coachObjectifPeriodeCeMois": {
+    "description": "Fenêtre de la barre de progression du tableau de bord, fixée au mois depuis 2026-08-14"
+  },
+  "coachObjectifPeriodeCetteAnnee": "cette année",
+  "@coachObjectifPeriodeCetteAnnee": {
+    "description": "Deuxième horizon de progression (365 jours glissants)"
+  },
+  "coachObjectifPeriodeCoranEntier": "tout le Coran",
+  "@coachObjectifPeriodeCoranEntier": {
+    "description": "Troisième horizon : progression cumulée sur les 240 quarts, sans échéance"
+  },
+  "coachRythmeTenu": "Dans le rythme",
+  "@coachRythmeTenu": {
+    "description": "État du rythme : au moins ce qui était attendu à cette date (vert)"
+  },
+  "coachRythmeDerape": "Léger retard",
+  "@coachRythmeDerape": {
+    "description": "État du rythme : entre 70 % et 100 % de l'attendu (ambre)"
+  },
+  "coachRythmeARattraper": "À rattraper",
+  "@coachRythmeARattraper": {
+    "description": "État du rythme : moins de 70 % de l'attendu (brique) -- jamais un reproche, une indication"
+  },
   "coachObjectifPeriodeJour": "par jour",
   "@coachObjectifPeriodeJour": { "description": "Période de l'objectif : jour" },
   "coachObjectifPeriodeSemaine": "par semaine",

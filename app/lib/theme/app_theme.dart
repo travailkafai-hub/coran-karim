@@ -19,6 +19,29 @@ class AppColors {
   static const ink      = Color(0xFF1a1209);
   static const inkLight = Color(0xFF4a3f2f);
 
+  // ── ÉTAT DU RYTHME DU COACH (2026-08-14, demande utilisateur) ────────────
+  // « je veux que la couleur ait un sens : vert c'est que je suis dans le
+  // rythme, orange ça dérape un peu, rouge il faut que je progresse pour
+  // rattraper l'objectif du mois ».
+  //
+  // Ces trois couleurs qualifient la TENUE du rythme (avancement rapporté à ce
+  // qui était attendu à cette date), jamais la justesse d'une récitation --
+  // aucun hex partagé avec les palettes tajwid, mindmap ou jeu, pour qu'on ne
+  // puisse jamais croire à un lien entre ces systèmes (même règle que celles
+  // documentées plus bas).
+  //
+  // Contrastes mesurés sur le crème de l'app (#fbf7ee) : 7,00 / 4,67 / 5,99.
+  // Tous ≥ 4,5 parce que la couleur porte aussi du TEXTE, pas seulement une
+  // barre -- et parce que l'information ne doit jamais dépendre de la teinte
+  // seule : chaque état est doublé d'un libellé écrit.
+  //
+  // Le rouge est une BRIQUE, pas un rouge d'alerte : l'app ne culpabilise
+  // pas (PLAN_COACH.md §2 -- quand l'objectif est trop haut, on propose de
+  // l'allonger). Il dit « il y a du chemin », pas « tu as échoué ».
+  static const rythmeTenu        = Color(0xFF16604a); // = green700, identité
+  static const rythmeDerape      = Color(0xFF9A6410); // ambre brûlé
+  static const rythmeARattraper  = Color(0xFFA63B2A); // brique
+
   // Curseur de lecture audio (verset en cours de récitation par le réciteur,
   // distinct du surlignage vert "verset sélectionné au tap")
   //

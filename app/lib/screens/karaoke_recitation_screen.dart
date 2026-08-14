@@ -22,7 +22,8 @@ import '../services/recitation_error_log_service.dart';
 import '../services/session_archive_service.dart';
 import 'coach_sessions.dart'
     show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider,
-        derniersJoursProvider, serieProvider;
+        derniersJoursProvider, serieProvider, quartsAcquisProvider,
+        quartsAcquisDuMoisProvider;
 import '../services/recitation_start_sequence.dart';
 import '../services/reference_timing_extractor.dart';
 import '../services/rule_annotation_service.dart';
@@ -1005,6 +1006,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // 2026-08-14, « il manque le rafraichissement du tableau de bord »).
       ref.invalidate(derniersJoursProvider);
       ref.invalidate(serieProvider);
+      // Le rythme affiché dépend du RESTE à mémoriser (2026-08-14) : sans
+      // cette invalidation, un quart tout juste acquis ne détendrait le
+      // rythme qu'au prochain lancement de l'app.
+      ref.invalidate(quartsAcquisProvider);
+      ref.invalidate(quartsAcquisDuMoisProvider);
     } catch (e) {
       DiagnosticLog.log(
           'Archive', 'sortie d\'ecran : invalidation cache a echoue (sans consequence) : $e');
@@ -1274,19 +1280,30 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // le seuil minimum quotidien pour respecter ton objectif ; c'est une
         // série, une fois qu'on rate un jour ça se remet à zéro ».
         //
-        // `objectif.parJour` est la charge quotidienne en quarts, déjà
-        // fractionnaire par conception (1 quart/mois = 0,033/jour). On la
-        // convertit en mots pour pouvoir la mesurer SUR UNE JOURNÉE -- un
-        // quart entier étant rarement récité d'un coup sur un objectif long.
-        // Moyenne : ~77 430 mots de Coran pour 240 quarts (60 Hizb x 4).
-        // Plancher à 1 : un objectif actif ne peut jamais être satisfait par
-        // une journée vide.
-        const motsParQuart = 77430 / 240;
-        final seuilMotsDuJour =
-            (objectif.parJour * motsParQuart).ceil().clamp(1, 1 << 30);
+        // ── LE RYTHME VIENT DE L'ÉCHÉANCE ET DU RESTE (2026-08-14, refonte) ─
+        //
+        // AVANT (le matin même) : `objectif.parJour * motsParQuart`, où
+        // `parJour` venait du volume/période saisi. L'objectif est désormais
+        // une DURÉE pour tout le Coran, et le rythme s'en déduit compte tenu
+        // de ce qui reste à mémoriser -- d'où la lecture des quarts acquis.
+        //
+        // Cette lecture est faite ICI, à la clôture de session, et pas gardée
+        // en champ d'écran comme `_dernierObjectifConnu` : les quarts acquis
+        // viennent de changer, précisément à cause de la session qu'on est en
+        // train de comptabiliser. Une valeur capturée au build serait celle
+        // d'AVANT la récitation.
+        //
+        // Le plancher (50 mots, cf. `RythmeCoach.plancherMotsParJour`) n'est
+        // pas un confort : sans lui, une échéance à 6 ans réclamerait 35 mots
+        // par jour et la série ne pourrait plus se rompre.
+        final quartsAcquis =
+            (await SessionArchiveService.instance.motsAcquisTousCoran()) /
+                ObjectifCoach.motsParQuart;
+        final rythme = objectif.rythmePour(quartsAcquis);
         await SessionArchiveService.instance.marquerObjectifDuJour(
-          objectif: objectif.quarts,
-          atteint: quartsValides > 0 || motsDuJour >= seuilMotsDuJour,
+          seuilMots: rythme.seuilMotsParJour,
+          atteint:
+              quartsValides > 0 || motsDuJour >= rythme.seuilMotsParJour,
         );
       }
     } catch (e) {
@@ -1708,6 +1725,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // l'autre.
       container.invalidate(derniersJoursProvider);
       container.invalidate(serieProvider);
+      container.invalidate(quartsAcquisProvider);
+      container.invalidate(quartsAcquisDuMoisProvider);
     }
   }
 

@@ -54,7 +54,7 @@ class SessionArchiveService {
     final chemin = p.join(await getDatabasesPath(), 'session_archive.db');
     return openDatabase(
       chemin,
-      version: 6,
+      version: 7,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE sessions(
@@ -137,6 +137,19 @@ class SessionArchiveService {
         if (oldVersion < 6) {
           await _creerTablePointsQuart(db);
         }
+        // v6 -> v7 (2026-08-14) : `objectif_mots_du_jour`. L'objectif se
+        // saisit désormais en ANNÉES pour tout le Coran, et l'engagement
+        // quotidien qui en découle est un nombre de MOTS (cf.
+        // `RythmeCoach.seuilMotsParJour`). Une colonne dédiée plutôt que de
+        // réutiliser `objectif_du_jour` : celle-ci porte des QUARTS sur toutes
+        // les lignes écrites avant ce jour, et changer l'unité d'une colonne
+        // en place rendrait l'historique ininterprétable sans qu'aucun calcul
+        // n'échoue -- exactement le genre de faux silencieux que la table des
+        // jours existe pour éviter.
+        if (oldVersion < 7) {
+          await db.execute(
+              'ALTER TABLE jours_actifs ADD COLUMN objectif_mots_du_jour INTEGER NOT NULL DEFAULT 0');
+        }
       },
     );
   }
@@ -159,6 +172,17 @@ class SessionArchiveService {
   /// changer (cf. la proposition de baisse, PLAN_COACH.md §2), et une série
   /// déjà acquise ne doit pas se réécrire rétroactivement parce que la cible a
   /// bougé depuis. Ce qui a été gagné reste gagné.
+  ///
+  /// DEUX colonnes d'objectif, et ce n'est pas un doublon (2026-08-14) :
+  ///   - `objectif_du_jour` : en QUARTS. Écrite jusqu'au 2026-08-14, quand
+  ///     l'objectif se saisissait en « N quarts par période ». Plus alimentée,
+  ///     conservée telle quelle — c'est la seule trace de ce qui était engagé
+  ///     ces jours-là.
+  ///   - `objectif_mots_du_jour` : en MOTS, le seuil qui décide de la série
+  ///     depuis la refonte en « durée pour tout le Coran » (cf.
+  ///     `RythmeCoach.seuilMotsParJour`). Vaut 0 sur toutes les lignes
+  ///     antérieures : l'engagement de ces jours-là n'était pas exprimable en
+  ///     mots, et l'inventer après coup serait une donnée fabriquée.
   Future<void> _creerTableJours(Database db) async {
     await db.execute('''
       CREATE TABLE jours_actifs(
@@ -167,7 +191,8 @@ class SessionArchiveService {
         quarts_valides INTEGER NOT NULL DEFAULT 0,
         points INTEGER NOT NULL DEFAULT 0,
         objectif_du_jour INTEGER NOT NULL DEFAULT 0,
-        objectif_atteint INTEGER NOT NULL DEFAULT 0
+        objectif_atteint INTEGER NOT NULL DEFAULT 0,
+        objectif_mots_du_jour INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
@@ -883,20 +908,68 @@ class SessionArchiveService {
   /// brut, l'objectif est une décision qui peut changer (cf. la proposition de
   /// baisse). Une fois `objectif_atteint` posé à 1, il n'est jamais rabaissé —
   /// une journée gagnée reste gagnée, même si l'objectif est relevé ensuite.
+  ///
+  /// [seuilMots] est l'engagement du jour tel qu'il a été calculé au moment où
+  /// la journée s'est jouée (cf. `RythmeCoach.seuilMotsParJour`) : il est FIGÉ
+  /// pour la même raison que `objectif_atteint`, l'échéance pouvant être
+  /// allongée ensuite sans que le passé n'ait à se réécrire.
   Future<void> marquerObjectifDuJour({
-    required int objectif,
+    required int seuilMots,
     required bool atteint,
     DateTime? quand,
   }) async {
     final db = await _database;
     final jour = _cleJour(quand ?? DateTime.now());
     await db.rawInsert('''
-      INSERT INTO jours_actifs(jour, objectif_du_jour, objectif_atteint)
+      INSERT INTO jours_actifs(jour, objectif_mots_du_jour, objectif_atteint)
       VALUES(?, ?, ?)
       ON CONFLICT(jour) DO UPDATE SET
-        objectif_du_jour = excluded.objectif_du_jour,
+        objectif_mots_du_jour = excluded.objectif_mots_du_jour,
         objectif_atteint = MAX(objectif_atteint, excluded.objectif_atteint)
-    ''', [jour, objectif, atteint ? 1 : 0]);
+    ''', [jour, seuilMots, atteint ? 1 : 0]);
+  }
+
+  /// Quarts de Hizb DÉJÀ ACQUIS sur tout le Coran (0 à 240) — la base de
+  /// calcul de l'objectif depuis le 2026-08-14 : l'échéance porte sur le
+  /// RESTE à mémoriser, pas sur les 240 quarts.
+  ///
+  /// ── POURQUOI COMPTER DES MOTS DISTINCTS, ET PAS DES PORTIONS ────────────
+  ///
+  /// Une portion vaut selon les cas une sourate entière, un demi-Hizb ou un
+  /// quart (cf. `PortionGranularity`) : additionner des portions acquises ne
+  /// donnerait donc pas des quarts. Pire, la granularité est un RÉGLAGE — en
+  /// changer laisse en base les anciennes portions, dont les versets sont
+  /// aussi couverts par les nouvelles. Compter les portions, ou même leurs
+  /// mots, compterait deux fois les mêmes mots.
+  ///
+  /// D'où le `DISTINCT (sourate, verset, mot)` : un mot acquis compte une
+  /// fois, quel que soit le nombre de portions qui le contiennent. Le total
+  /// est ensuite converti en quarts par la moyenne du Coran
+  /// (`ObjectifCoach.motsParQuart`) — la même approximation que le seuil
+  /// quotidien, assumée : elle sert à donner un RYTHME, jamais à décider qu'un
+  /// quart est validé (ça, c'est `PortionResume.badge`, qui exige une
+  /// couverture réelle à 100 %).
+  ///
+  /// « Acquis » = le même critère que `PortionResume.wordsGreen` : correct,
+  /// contesté par l'utilisateur, ou laissé sans verdict par la chaîne — ces
+  /// derniers ne pénalisent pas (règle utilisateur 2026-08-11).
+  ///
+  /// [depuis] restreint aux mots acquis À PARTIR de cette date (`updated_at`,
+  /// donc le mot lui-même, pas la portion : une portion revisitée ne fait pas
+  /// rentrer dans la fenêtre les mots acquis des mois plus tôt). C'est ce que
+  /// lit la barre de progression du mois.
+  Future<int> motsAcquisTousCoran({DateTime? depuis}) async {
+    final db = await _database;
+    final filtreDate = depuis == null ? '' : 'AND w.updated_at >= ?';
+    final rows = await db.rawQuery('''
+      SELECT COUNT(*) AS n FROM (
+        SELECT DISTINCT p.surah_number, w.ayah_number, w.word_in_ayah
+        FROM portion_words w
+        JOIN portions p ON p.id = w.portion_id
+        WHERE w.status IN ('correct','conteste','skipped') $filtreDate
+      )
+    ''', [if (depuis != null) depuis.toIso8601String()]);
+    return rows.isEmpty ? 0 : ((rows.first['n'] as int?) ?? 0);
   }
 
   /// Les [n] derniers jours enregistrés, du plus récent au plus ancien.
@@ -1222,7 +1295,16 @@ class JourActif {
   final int motsRecites;
   final int quartsValides;
   final int points;
+
+  /// En QUARTS, et seulement pour les jours antérieurs au 2026-08-14 : c'est
+  /// l'ancien objectif « N quarts par période ». 0 depuis la refonte — l'
+  /// engagement du jour se lit alors dans [objectifMotsDuJour].
   final int objectifDuJour;
+
+  /// En MOTS : le seuil qui a décidé, ce jour-là, si la journée comptait pour
+  /// la série (cf. `RythmeCoach.seuilMotsParJour`). 0 sur les jours antérieurs
+  /// à la refonte.
+  final int objectifMotsDuJour;
   final bool objectifAtteint;
 
   const JourActif({
@@ -1231,6 +1313,7 @@ class JourActif {
     this.quartsValides = 0,
     this.points = 0,
     this.objectifDuJour = 0,
+    this.objectifMotsDuJour = 0,
     this.objectifAtteint = false,
   });
 
@@ -1240,6 +1323,7 @@ class JourActif {
         quartsValides: (m['quarts_valides'] as int?) ?? 0,
         points: (m['points'] as int?) ?? 0,
         objectifDuJour: (m['objectif_du_jour'] as int?) ?? 0,
+        objectifMotsDuJour: (m['objectif_mots_du_jour'] as int?) ?? 0,
         objectifAtteint: ((m['objectif_atteint'] as int?) ?? 0) == 1,
       );
 }

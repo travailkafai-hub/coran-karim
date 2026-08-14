@@ -14,11 +14,17 @@
 // Principe : ce hub ORCHESTRE des écrans existants (CoachScreen,
 // KaraokeRecitationScreen, TajwidRulesScreen...), il ne les réimplémente pas.
 
-import 'dart:math' as math;
+// `dart:math` retiré le 2026-08-14 : son seul usage était le plancher
+// `math.max(quartsFaits, avancement)` de la barre de progression, supprimé
+// avec le compteur biaisé qu'il protégeait (cf. le bloc d'avancement).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+// `show NumberFormat` et pas l'import complet : `package:intl` exporte aussi
+// un `TextDirection`, qui masquerait celui de Flutter et casserait les
+// `TextDirection.rtl/ltr` déjà utilisés plus bas dans ce fichier.
+import 'package:intl/intl.dart' show NumberFormat;
 
 import '../l10n/app_localizations.dart';
 import '../models/recitation_state.dart'
@@ -173,15 +179,35 @@ class CoachHubScreen extends ConsumerWidget {
 // acquise d'un quart est `wordsGreen/wordsTotal`. Ne pas réintroduire une
 // conversion mots→quart sur un compteur cumulatif.
 
-/// Partagé entre `_ObjectifSection` (l'en-tête « N quarts par période ») et
-/// `_ReglageObjectifSheetState` (les puces de choix) -- un seul endroit qui
-/// sait traduire une [PeriodeObjectif] en texte.
+/// Partagé entre `_ObjectifSection` et `_ReglageObjectifSheetState` -- un seul
+/// endroit qui sait traduire une [PeriodeObjectif] en texte.
+///
+/// La période n'est plus un CHOIX depuis le 2026-08-14 (l'objectif se saisit
+/// en années pour tout le Coran) : elle ne sert plus qu'à nommer les horizons
+/// du rythme dérivé.
 String _libellePeriodeObjectif(AppLocalizations t, PeriodeObjectif p) =>
     switch (p) {
       PeriodeObjectif.jour => t.coachObjectifPeriodeJour,
       PeriodeObjectif.semaine => t.coachObjectifPeriodeSemaine,
       PeriodeObjectif.mois => t.coachObjectifPeriodeMois,
     };
+
+/// Un rythme en quarts, écrit comme on le lit à voix haute : « 0,2 », « 1,5 »,
+/// « 20 ». Une décimale sous 10, aucune au-dessus -- « 19,7 quarts par mois »
+/// donne une précision que le chiffre n'a pas (il dépend du reste à mémoriser,
+/// qui bouge à chaque récitation).
+///
+/// Passe par [NumberFormat] et non par `toStringAsFixed` : le séparateur
+/// décimal est une virgule en français, un point en anglais, et l'arabe a ses
+/// propres chiffres. Écrire « 0.2 » à un lecteur francophone, ou des chiffres
+/// latins dans une interface arabe, se remarque immédiatement.
+String _formatRythme(BuildContext context, double v) {
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  final f = v < 10
+      ? NumberFormat('0.#', locale)
+      : NumberFormat.decimalPattern(locale);
+  return f.format(v);
+}
 
 class _ObjectifSection extends ConsumerWidget {
   const _ObjectifSection();
@@ -192,10 +218,20 @@ class _ObjectifSection extends ConsumerWidget {
     final objectif = ref.watch(objectifCoachProvider);
     final serie = ref.watch(serieProvider);
     final jours = ref.watch(derniersJoursProvider);
-    // Source de l'AVANCEMENT (cf. le bloc `avancementPortions` plus bas) :
-    // le suivi permanent par portion, dédupliqué -- pas le cumul de mots
-    // récités, qui gonflait à chaque répétition.
-    final portions = ref.watch(portionsProvider);
+    // ⛔ N'ÉCOUTE PLUS `portionsProvider` (2026-08-14, second correctif) :
+    //      final portions = ref.watch(portionsProvider);
+    // C'était la source de l'avancement, sommée en fractions de portion. Une
+    // sourate courte complète y valait un quart entier -- cf. le bloc de
+    // calcul plus bas et `quartsAcquisDuMoisProvider` pour la mesure qui l'a
+    // fait tomber. Cette liste reste utilisée par « Mémorisation par sourate »,
+    // simplement plus par l'objectif.
+    //
+    // Base de calcul du rythme : ce qui reste à mémoriser (décision
+    // utilisateur 2026-08-14), en mots DISTINCTS de tout le Coran -- sans le
+    // plafond de 60 lignes d'affichage de `portionsProvider`.
+    final quartsAcquis = ref.watch(quartsAcquisProvider);
+    final quartsMois = ref.watch(quartsAcquisDuMoisProvider);
+    final quartsAnnee = ref.watch(quartsAcquisDeLAnneeProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,11 +277,16 @@ class _ObjectifSection extends ConsumerWidget {
                 // Constat utilisateur, capture d'écran à l'appui : « je ne
                 // comprends pas la présentation de mon objectif, c'est mal
                 // fait ». La carte n'affichait JAMAIS ce que l'utilisateur
-                // avait réglé (N quarts / période) -- seulement des chiffres
-                // DÉRIVÉS (série, progression). Or la première question d'un
-                // utilisateur qui ouvre cette carte est « c'est quoi, mon
-                // objectif ? », pas « où en est mon calcul ». Cette ligne
-                // répond à ça en un coup d'œil, avant tout le reste.
+                // avait réglé -- seulement des chiffres DÉRIVÉS (série,
+                // progression). Or la première question d'un utilisateur qui
+                // ouvre cette carte est « c'est quoi, mon objectif ? », pas
+                // « où en est mon calcul ». Cette ligne répond à ça en un coup
+                // d'œil, avant tout le reste.
+                //
+                // Depuis la refonte du même jour, elle dit aussi le BUT et non
+                // plus une cadence : « Tout le Coran en 3 ans » se comprend
+                // sans calcul, là où « 4 quarts par semaine » ne disait pas
+                // vers quoi il menait.
                 Row(
                   children: [
                     const Icon(Icons.flag_rounded,
@@ -253,8 +294,7 @@ class _ObjectifSection extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${t.coachObjectifQuartsLabel(objectif.quarts)} '
-                        '${_libellePeriodeObjectif(t, objectif.periode)}',
+                        t.coachObjectifAnneesLabel(objectif.annees),
                         style: GoogleFonts.manrope(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -264,25 +304,57 @@ class _ObjectifSection extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-                jours.when(
+                // Le rythme dépend du RESTE à mémoriser : tant qu'il n'est pas
+                // connu, on n'affiche rien plutôt qu'un chiffre calculé sur
+                // « 0 quart acquis » qui se corrigerait sous les yeux de
+                // l'utilisateur une fraction de seconde plus tard.
+                quartsAcquis.when(
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                  error: (e, _) => Text('$e',
+                      style: GoogleFonts.manrope(
+                          fontSize: 11, color: AppColors.inkLight)),
+                  data: (acquis) {
+                    final rythme = objectif.rythmePour(acquis);
+                    // Avancement du mois, dans la MÊME unité que `acquis` --
+                    // cf. `quartsAcquisDuMoisProvider` pour pourquoi ce n'est
+                    // plus une somme de fractions de portions.
+                    final quartsDuMois = quartsMois.maybeWhen(
+                      data: (v) => v,
+                      orElse: () => 0.0,
+                    );
+                    final quartsDeLAnnee = quartsAnnee.maybeWhen(
+                      data: (v) => v,
+                      orElse: () => 0.0,
+                    );
+                    return jours.when(
                   data: (l) {
-                    // ── PROGRESSION SUR LA PÉRIODE DE L'OBJECTIF LUI-MÊME ────
+                    // ── PROGRESSION SUR LE MOIS (2026-08-14) ─────────────────
                     //
-                    // AVANT : toujours ramené à la semaine (`objectif
-                    // .parSemaine`), même pour un objectif mensuel -- un
-                    // objectif de « 1 quart par mois » y devenait « 0,2 quart
-                    // par semaine », un nombre que personne ne pense
-                    // naturellement (capture d'écran utilisateur : « 0 sur
-                    // 0.2 quart(s) »). On compare donc au nombre de quarts que
-                    // l'utilisateur a lui-même saisi, sur SA période.
-                    final fenetre = objectif.joursDeLaPeriode;
+                    // HISTORIQUE, à ne pas refaire : la barre a d'abord été
+                    // ramenée à la SEMAINE quelle que soit la période saisie --
+                    // « 1 quart par mois » y devenait « 0,2 quart par
+                    // semaine », un nombre que personne ne pense naturellement
+                    // (capture d'écran utilisateur : « 0 sur 0.2 quart(s) »).
+                    // Elle a ensuite suivi la période de l'objectif, qui
+                    // n'existe plus depuis que l'objectif est une durée.
+                    //
+                    // La fenêtre est donc FIXÉE AU MOIS (décision utilisateur
+                    // 2026-08-14). Ce n'est pas un choix esthétique : c'est le
+                    // seul horizon où la cible tombe sur un entier lisible sur
+                    // toute la plage du curseur -- 20 quarts à 1 an, 3 à 6 ans.
+                    // Sur la semaine, l'échéance la plus longue redonnerait
+                    // « 0,8 quart », c'est-à-dire exactement le défaut qu'on
+                    // vient de corriger.
+                    const fenetre = 30;
                     final debut =
-                        DateTime.now().subtract(Duration(days: fenetre));
+                        DateTime.now().subtract(const Duration(days: fenetre));
                     final periodeCourante =
                         l.where((j) => j.jour.isAfter(debut)).toList();
-                    final quartsFaits = periodeCourante.fold<int>(
-                        0, (a, j) => a + j.quartsValides);
-                    final cible = objectif.quarts;
+                    final cible = rythme.cibleDuMois;
                     // ── L'AVANCEMENT EST CONTINU, PAS PAR PALIERS ────────────
                     //
                     // Demande utilisateur (2026-08-14) : « que l'avancement
@@ -306,33 +378,55 @@ class _ObjectifSection extends ConsumerWidget {
                     // mémorisé. Un pourcentage d'avancement qui monte en
                     // répétant le même passage ne mesure rien.
                     //
-                    // On lit donc `portions` (permanent, DÉDUPLIQUÉ par
-                    // construction : `UNIQUE(portion_id, ayah, mot)`), où
-                    // `wordsGreen/wordsTotal` est la part réellement acquise
-                    // d'un quart. Répéter n'ajoute rien ; seul un mot NOUVEAU
-                    // fait monter la barre. Chaque portion est plafonnée à 1
-                    // (un quart acquis vaut un quart, jamais plus).
-                    final debutPeriode = debut;
-                    final avancementPortions = portions.maybeWhen(
-                      data: (list) => list
-                          .where((p) => p.lastRecitedAt.isAfter(debutPeriode))
-                          .fold<double>(
-                              0,
-                              (a, p) => a +
-                                  (p.wordsTotal <= 0
-                                      ? 0.0
-                                      : (p.wordsGreen / p.wordsTotal)
-                                          .clamp(0.0, 1.0))),
-                      orElse: () => 0.0,
-                    );
-                    // `quartsFaits` en plancher : un quart validé est acquis,
-                    // il ne peut jamais reculer même si la portion change.
-                    final avancement =
-                        math.max(quartsFaits.toDouble(), avancementPortions);
-                    final ratio =
-                        cible <= 0 ? 0.0 : (avancement / cible).clamp(0.0, 1.0);
-                    final pourcent = (ratio * 100).round();
+                    // Deuxième source, corrigée le même jour : `portions`,
+                    // dédupliquée par construction, en sommant
+                    // `wordsGreen/wordsTotal` PLAFONNÉ À 1 PAR PORTION.
+                    //
+                    // ── ET C'ÉTAIT ENCORE FAUX (2026-08-14, mesuré) ──────────
+                    // Une portion « sourate entière » courte valait alors un
+                    // quart PLEIN : Al-Kawthar (10 mots) comptait autant qu'un
+                    // vrai quart de Hizb (~322 mots). Sur le téléphone de
+                    // l'utilisateur, la barre totalisait 12,37 quarts pour
+                    // 272 mots acquis, qui en valent 0,84 -- « 100 % ce
+                    // mois-ci » s'affichait sous « il te reste 239 quarts sur
+                    // 240 ». Deux chiffres contradictoires sur la même carte.
+                    //
+                    // La barre lit donc la MÊME grandeur que le reste à
+                    // mémoriser (`quartsAcquisDuMoisProvider`) : des mots
+                    // acquis distincts convertis en quarts. Les deux ne peuvent
+                    // plus diverger, ils sortent de la même requête.
+                    //
+                    // ⛔ Le plancher `jours_actifs.quarts_valides` a sauté avec
+                    // (il valait `math.max(quartsFaits, avancement)`) : ce
+                    // compteur s'incrémente sur `PortionResume.badge`, donc il
+                    // portait exactement le même biais.
+                    final avancement = quartsDuMois;
                     final restant = (cible - avancement).ceil().clamp(0, cible);
+                    // ── MATURITÉ DU SUIVI, POUR NE PAS PUNIR UN DÉBUTANT ─────
+                    //
+                    // Les fenêtres sont GLISSANTES (30 et 365 jours) : leur
+                    // cible est donc due en permanence, et quelqu'un qui a
+                    // installé l'app il y a trois jours serait « très en
+                    // retard » sur un mois qu'il n'a pas vécu. On rapporte
+                    // l'attendu au temps réellement suivi -- le plus ancien
+                    // jour actif connu -- de sorte qu'un débutant régulier est
+                    // vert, et qu'un habitué qui décroche devient rouge.
+                    //
+                    // `l` est trié du plus récent au plus ancien
+                    // (`derniersJours`, ORDER BY jour DESC), donc `l.last` est
+                    // le premier jour où le Coach a vu quelque chose.
+                    final joursSuivis = l.isEmpty
+                        ? 0
+                        : DateTime.now().difference(l.last.jour).inDays + 1;
+                    final etatDuMois = EtatRythme.depuis(
+                      fait: avancement,
+                      attendu: cible * (joursSuivis / fenetre).clamp(0.0, 1.0),
+                    );
+                    final etatDeLAnnee = EtatRythme.depuis(
+                      fait: quartsDeLAnnee,
+                      attendu: rythme.cibleDeLAnnee *
+                          (joursSuivis / 365).clamp(0.0, 1.0),
+                    );
                     final pointsPeriode =
                         periodeCourante.fold<int>(0, (a, j) => a + j.points);
                     final cleAujourdhui = _MiniEvolution._cle(DateTime.now());
@@ -342,6 +436,14 @@ class _ObjectifSection extends ConsumerWidget {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // ── LE DÉTAIL DU RYTHME N'EST PAS ICI (2026-08-14) ───
+                        // Demande utilisateur : « je veux pas afficher le
+                        // détail sur cet écran, il est quand on choisit
+                        // l'objectif ». Le reste à mémoriser et le rythme par
+                        // jour/semaine/mois vivent donc dans la FEUILLE DE
+                        // RÉGLAGE, là où ils servent à décider. Cette carte
+                        // répond à « où j'en suis », pas à « comment le calcul
+                        // est fait ».
                         // ── LES TROIS RÉPONSES IMMÉDIATES (2026-08-14) ───────
                         // « Est-ce que j'ai atteint l'objectif quotidien ? »,
                         // « où en est ma série ? », « qu'est-ce que ça m'a
@@ -399,52 +501,40 @@ class _ObjectifSection extends ConsumerWidget {
                           ],
                         ),
                         const SizedBox(height: 18),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                t.coachDashProgressTitle(
-                                    _libellePeriodeObjectif(
-                                        t, objectif.periode)),
-                                style: GoogleFonts.manrope(
-                                    fontSize: 11,
-                                    letterSpacing: 0.8,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.inkLight),
-                              ),
-                            ),
-                            Text('$pourcent %',
-                                style: GoogleFonts.manrope(
-                                    fontSize: 22,
-                                    height: 1,
-                                    fontWeight: FontWeight.w800,
-                                    color: ratio >= 1
-                                        ? AppColors.green700
-                                        : AppColors.green800)),
-                          ],
+                        // ── TROIS HORIZONS (2026-08-14, demande utilisateur) ─
+                        // « il manque une progression annuelle et une pour le
+                        // Coran entier [...] pas forcément affichées dès le
+                        // départ, mais on défile ». Le mois reste en tête et en
+                        // grand -- c'est lui qu'on peut encore rattraper ; les
+                        // deux autres suivent, plus discrets.
+                        _BarreProgression(
+                          titre:
+                              t.coachDashProgressTitle(t.coachObjectifPeriodeCeMois),
+                          fait: avancement,
+                          cible: cible.toDouble(),
+                          etat: etatDuMois,
+                          principale: true,
+                          sousTitre: t.coachDashProgressRemaining(restant),
                         ),
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(
-                            value: ratio,
-                            minHeight: 10,
-                            backgroundColor: AppColors.cream200,
-                            color: ratio >= 1
-                                ? AppColors.green700
-                                : AppColors.brass,
-                          ),
+                        const SizedBox(height: 14),
+                        _BarreProgression(
+                          titre: t.coachDashProgressTitle(
+                              t.coachObjectifPeriodeCetteAnnee),
+                          fait: quartsDeLAnnee,
+                          cible: rythme.cibleDeLAnnee.toDouble(),
+                          etat: etatDeLAnnee,
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          t.coachDashProgressRemaining(restant),
-                          style: GoogleFonts.manrope(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: restant == 0
-                                  ? AppColors.green700
-                                  : AppColors.inkLight),
+                        const SizedBox(height: 14),
+                        // Le Coran entier n'a PAS d'état de rythme : c'est un
+                        // cumul, pas une échéance à tenir. Le colorer en
+                        // « à rattraper » parce qu'on en est à 0,4 % n'aurait
+                        // aucun sens -- personne n'est en retard sur le Coran.
+                        _BarreProgression(
+                          titre: t.coachDashProgressTitle(
+                              t.coachObjectifPeriodeCoranEntier),
+                          fait: acquis,
+                          cible: ObjectifCoach.quartsDuCoran.toDouble(),
+                          etat: null,
                         ),
                         const SizedBox(height: 18),
                         Text(t.coachObjectifMiniEvolutionCaption,
@@ -503,6 +593,8 @@ class _ObjectifSection extends ConsumerWidget {
                   error: (e, _) => Text('$e',
                       style: GoogleFonts.manrope(
                           fontSize: 11, color: AppColors.inkLight)),
+                    );
+                  },
                 ),
               ],
             ),
@@ -518,6 +610,122 @@ class _ObjectifSection extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const _ReglageObjectifSheet(),
+    );
+  }
+}
+
+/// Une progression sur un horizon (mois, année, Coran entier).
+///
+/// ── LA COULEUR PORTE UN SENS, ET ELLE NE LE PORTE PAS SEULE ───────────────
+///
+/// Demande utilisateur (2026-08-14) : « je veux que la couleur ait un sens :
+/// vert je suis dans le rythme, orange ça dérape un peu, rouge il faut que je
+/// progresse ». Chaque couleur est donc doublée d'un LIBELLÉ écrit -- une
+/// information qui ne tiendrait qu'à la teinte serait perdue pour un
+/// utilisateur daltonien, et l'app n'a pas d'autre canal pour la redire.
+///
+/// [etat] à null : horizon SANS échéance (le Coran entier). La barre garde
+/// alors la couleur d'identité et n'affiche aucun jugement.
+class _BarreProgression extends StatelessWidget {
+  final String titre;
+  final double fait;
+  final double cible;
+  final EtatRythme? etat;
+  final bool principale;
+  final String? sousTitre;
+
+  const _BarreProgression({
+    required this.titre,
+    required this.fait,
+    required this.cible,
+    required this.etat,
+    this.principale = false,
+    this.sousTitre,
+  });
+
+  static Color couleurDe(EtatRythme? e) => switch (e) {
+        EtatRythme.tenu => AppColors.rythmeTenu,
+        EtatRythme.derape => AppColors.rythmeDerape,
+        EtatRythme.aRattraper => AppColors.rythmeARattraper,
+        null => AppColors.green700,
+      };
+
+  static String libelleDe(AppLocalizations t, EtatRythme e) => switch (e) {
+        EtatRythme.tenu => t.coachRythmeTenu,
+        EtatRythme.derape => t.coachRythmeDerape,
+        EtatRythme.aRattraper => t.coachRythmeARattraper,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final ratio = cible <= 0 ? 0.0 : (fait / cible).clamp(0.0, 1.0);
+    final couleur = couleurDe(etat);
+    // Une décimale sous 10 % : « 0 % » pour 0,4 % du Coran effacerait un
+    // travail réel, et découragerait précisément là où la progression est la
+    // plus lente à se voir.
+    final pct = ratio * 100;
+    final pourcent = pct > 0 && pct < 10
+        ? _formatRythme(context, pct)
+        : pct.round().toString();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Text(titre,
+                  style: GoogleFonts.manrope(
+                      fontSize: principale ? 11 : 10.5,
+                      letterSpacing: 0.8,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.inkLight)),
+            ),
+            Text('$pourcent %',
+                style: GoogleFonts.manrope(
+                    fontSize: principale ? 22 : 15,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: couleur)),
+          ],
+        ),
+        SizedBox(height: principale ? 8 : 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: principale ? 10 : 6,
+            backgroundColor: AppColors.cream200,
+            color: couleur,
+          ),
+        ),
+        if (sousTitre != null || etat != null) ...[
+          SizedBox(height: principale ? 6 : 4),
+          Row(
+            children: [
+              if (sousTitre != null)
+                Flexible(
+                  child: Text(sousTitre!,
+                      style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.inkLight)),
+                ),
+              if (sousTitre != null && etat != null)
+                Text(' · ',
+                    style: GoogleFonts.manrope(
+                        fontSize: 12, color: AppColors.inkLight)),
+              if (etat != null)
+                Text(libelleDe(t, etat!),
+                    style: GoogleFonts.manrope(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: couleur)),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
@@ -698,7 +906,7 @@ class _MiniEvolution extends StatelessWidget {
   static String _cle(DateTime d) => '${d.year}-${d.month}-${d.day}';
 }
 
-/// Feuille de réglage de l'objectif — quarts de Hizb, période, niveau
+/// Feuille de réglage de l'objectif — durée pour tout le Coran, niveau
 /// d'accompagnement. Cf. `ObjectifCoach` pour ce que chaque champ engage.
 class _ReglageObjectifSheet extends ConsumerStatefulWidget {
   const _ReglageObjectifSheet();
@@ -710,16 +918,18 @@ class _ReglageObjectifSheet extends ConsumerStatefulWidget {
 
 class _ReglageObjectifSheetState
     extends ConsumerState<_ReglageObjectifSheet> {
-  late int _quarts;
-  late PeriodeObjectif _periode;
+  late int _annees;
   late NiveauCoach _niveau;
 
   @override
   void initState() {
     super.initState();
     final o = ref.read(objectifCoachProvider);
-    _quarts = o.quarts > 0 ? o.quarts : 4;
-    _periode = o.periode;
+    // 3 ans par défaut : le milieu du curseur, et l'ordre de grandeur le plus
+    // souvent cité pour une mémorisation complète menée régulièrement. Un
+    // défaut à 1 an mettrait l'utilisateur en échec dès la première semaine,
+    // ce que le §2 du plan cherche précisément à éviter.
+    _annees = o.actif ? o.annees : 3;
     _niveau = o.niveau;
   }
 
@@ -748,45 +958,83 @@ class _ReglageObjectifSheetState
                 style: GoogleFonts.scheherazadeNew(
                     fontSize: 19, color: AppColors.green900)),
             const SizedBox(height: 18),
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline_rounded),
-                  color: AppColors.green800,
-                  onPressed: _quarts > 1
-                      ? () => setState(() => _quarts--)
-                      : null,
-                ),
-                Expanded(
-                  child: Text(
-                    t.coachObjectifQuartsLabel(_quarts),
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.manrope(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.ink),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline_rounded),
-                  color: AppColors.green800,
-                  onPressed: () => setState(() => _quarts++),
-                ),
-              ],
+            // ── LA DURÉE, PAS LE VOLUME (2026-08-14) ─────────────────────────
+            // « L'objectif devient mémoriser tout le Coran, l'utilisateur
+            // choisit en combien d'années, et l'app affiche ce que ça donne
+            // par jour, par semaine et par mois » (utilisateur). Le curseur va
+            // de 1 à 6 ans -- borne haute décidée avec l'utilisateur : au-delà,
+            // le rythme quotidien devient si faible qu'il ne guide plus rien.
+            Text(t.coachObjectifSheetDureeTitle,
+                style: GoogleFonts.manrope(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.inkLight)),
+            const SizedBox(height: 4),
+            Text(
+              t.coachObjectifAnneesLabel(_annees),
+              style: GoogleFonts.manrope(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink),
             ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                for (final p in PeriodeObjectif.values)
-                  ChoiceChip(
-                    label: Text(_libellePeriodeObjectif(t, p)),
-                    selected: _periode == p,
-                    onSelected: (_) => setState(() => _periode = p),
-                  ),
-              ],
+            Slider(
+              value: _annees.toDouble(),
+              min: ObjectifCoach.anneesMin.toDouble(),
+              max: ObjectifCoach.anneesMax.toDouble(),
+              divisions: ObjectifCoach.anneesMax - ObjectifCoach.anneesMin,
+              label: t.coachObjectifAnneesCourt(_annees),
+              activeColor: AppColors.green800,
+              onChanged: (v) => setState(() => _annees = v.round()),
             ),
+            // ── CE QUE ÇA ENGAGE, TOUT DE SUITE ──────────────────────────────
+            // Le rythme s'affiche PENDANT que le curseur bouge : c'est la
+            // seule façon de choisir une durée en connaissance de cause. Il
+            // est calculé sur le reste à mémoriser, comme partout ailleurs --
+            // un aperçu qui mentirait de quelques quarts par rapport au
+            // tableau de bord serait pire que pas d'aperçu du tout.
+            Consumer(builder: (context, ref, _) {
+              final acquis = ref.watch(quartsAcquisProvider).maybeWhen(
+                    data: (v) => v,
+                    orElse: () => 0.0,
+                  );
+              final r =
+                  ObjectifCoach(annees: _annees).rythmePour(acquis);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Ce qui reste : la base du calcul. Affiché ICI et plus sur
+                  // la carte du hub (demande utilisateur 2026-08-14) -- c'est
+                  // au moment de CHOISIR la durée qu'il éclaire quelque chose.
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      t.coachObjectifResteLabel(r.quartsRestants.floor()),
+                      style: GoogleFonts.manrope(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink),
+                    ),
+                  ),
+                  for (final (valeur, periode) in [
+                    (r.parJour, PeriodeObjectif.jour),
+                    (r.parSemaine, PeriodeObjectif.semaine),
+                    (r.parMois, PeriodeObjectif.mois),
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        '≈ ${_formatRythme(context, valeur)} '
+                        '${t.coachObjectifQuartUnite} '
+                        '${_libellePeriodeObjectif(t, periode)}',
+                        style: GoogleFonts.manrope(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.inkLight),
+                      ),
+                    ),
+                ],
+              );
+            }),
             const SizedBox(height: 20),
             Text(t.coachNiveauTitle,
                 style: GoogleFonts.manrope(
@@ -814,7 +1062,7 @@ class _ReglageObjectifSheetState
                     FilledButton.styleFrom(backgroundColor: AppColors.green800),
                 onPressed: () async {
                   final notifier = ref.read(objectifCoachProvider.notifier);
-                  await notifier.definir(quarts: _quarts, periode: _periode);
+                  await notifier.definir(annees: _annees);
                   await notifier.setNiveau(_niveau);
                   if (context.mounted) Navigator.pop(context);
                 },
