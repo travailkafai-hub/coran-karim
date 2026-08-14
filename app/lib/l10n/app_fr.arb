@@ -2608,6 +2608,10 @@
   "@coachObjectifPeriodeCoranEntier": {
     "description": "Troisième horizon : progression cumulée sur les 240 quarts, sans échéance"
   },
+  "coachDashProgressMoreHorizons": "Voir l'année et le Coran entier",
+  "@coachDashProgressMoreHorizons": {
+    "description": "Ligne repliable qui cache les deux horizons longs -- le mois seul reste visible d'emblée (demande utilisateur 2026-08-14)"
+  },
   "coachRythmeTenu": "Dans le rythme",
   "@coachRythmeTenu": {
     "description": "État du rythme : au moins ce qui était attendu à cette date (vert)"
@@ -2655,7 +2659,7 @@
   "@coachDashTodayPending": { "description": "Objectif quotidien pas encore atteint" },
   "coachDashStreakLabel": "Série",
   "@coachDashStreakLabel": { "description": "Titre de la tuile série du tableau de bord" },
-  "coachDashStreakValue": "{count, plural, =0{—} =1{1 jour} other{{count} jours}}",
+  "coachDashStreakValue": "{count, plural, =0{Aucune} =1{1 jour} other{{count} jours}}",
   "@coachDashStreakValue": {
     "description": "Valeur compacte de la série, dans la tuile du tableau de bord",
     "placeholders": { "count": { "type": "int" } }

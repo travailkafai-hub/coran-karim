@@ -2143,6 +2143,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get coachObjectifPeriodeCoranEntier => 'tout le Coran';
 
   @override
+  String get coachDashProgressMoreHorizons =>
+      'Voir l\'année et le Coran entier';
+
+  @override
   String get coachRythmeTenu => 'Dans le rythme';
 
   @override
@@ -2203,7 +2207,7 @@ class AppLocalizationsFr extends AppLocalizations {
       locale: localeName,
       other: '$count jours',
       one: '1 jour',
-      zero: '—',
+      zero: 'Aucune',
     );
     return '$_temp0';
   }

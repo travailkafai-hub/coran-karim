@@ -2044,6 +2044,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachObjectifPeriodeCoranEntier => 'القرآن كاملاً';
 
   @override
+  String get coachDashProgressMoreHorizons => 'عرض السنة والقرآن كاملاً';
+
+  @override
   String get coachRythmeTenu => 'على الوتيرة';
 
   @override
@@ -2104,7 +2107,7 @@ class AppLocalizationsAr extends AppLocalizations {
       locale: localeName,
       other: '$count أيام',
       one: 'يوم واحد',
-      zero: '—',
+      zero: 'لا شيء',
     );
     return '$_temp0';
   }

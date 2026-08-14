@@ -402,6 +402,23 @@ Trois précautions tenues :
 Sous 10 %, le pourcentage garde une décimale : « 0,4 % du Coran » plutôt qu'un
 « 0 % » qui effacerait un travail réel.
 
+### Ce que la carte a perdu — trois retraits demandés le même jour
+
+Les trois barres ont d'abord été empilées à plat, et la carte gardait ses trois
+tuiles plus un bouton « Réciter ». Retour utilisateur immédiat, et il porte une
+seule idée : **une carte de tableau de bord doit répondre à une question, pas
+en poser trois.**
+
+| retrait | ce que disait l'utilisateur | ce qui a été fait |
+|---|---|---|
+| année + Coran entier à plat | « pas affichées au premier coup, ça doit être caché, que la progression du mois » | repliés derrière « Voir l'année et le Coran entier ». Le mois est le seul horizon **sur lequel on peut encore agir aujourd'hui** ; les empiler le noyait |
+| bouton « Réciter » | « enlève aussi Réciter, je ne l'utilise pas » | retiré (l'accès reste entier ailleurs dans le hub). Code gardé en commentaire, avec sa règle : l'objectif dit COMBIEN progresser, jamais PAR OÙ commencer |
+| tuile « Aujourd'hui : en cours » | « à côté de série, je ne comprends pas l'utilité, il se peut à supprimer » | **fusionnée** dans la tuile Série plutôt que supprimée : elle ne répond qu'à « est-ce que ma journée comptera pour la série ? », donc c'est une information SUR la série. « 3 jours · aujourd'hui validé » se comprend seul, la tuile isolée non |
+
+Le repli n'est **pas persisté** : il se referme à chaque ouverture de l'écran.
+Rouvrir automatiquement ce que l'utilisateur a demandé de cacher remettrait au
+premier plan ce qu'il vient d'en retirer.
+
 ### Deux autres points ouverts, même journée
 
 1. **Historisation de l'objectif.** L'objectif n'a AUCUN historique (une seule

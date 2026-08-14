@@ -429,10 +429,15 @@ class _ObjectifSection extends ConsumerWidget {
                     );
                     final pointsPeriode =
                         periodeCourante.fold<int>(0, (a, j) => a + j.points);
-                    final cleAujourdhui = _MiniEvolution._cle(DateTime.now());
-                    final objectifDuJourAtteint = l.any((j) =>
-                        _MiniEvolution._cle(j.jour) == cleAujourdhui &&
-                        j.objectifAtteint);
+                    // ⛔ Plus lu depuis le retrait de l'état du jour
+                    // (2026-08-14, cf. le bloc des tuiles). La donnée existe
+                    // toujours en base (`jours_actifs.objectif_atteint`) et
+                    // reste la base de la SÉRIE : c'est seulement son
+                    // affichage isolé qui a disparu.
+                    //   final cleAujourdhui = _MiniEvolution._cle(DateTime.now());
+                    //   final objectifDuJourAtteint = l.any((j) =>
+                    //       _MiniEvolution._cle(j.jour) == cleAujourdhui &&
+                    //       j.objectifAtteint);
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -444,29 +449,38 @@ class _ObjectifSection extends ConsumerWidget {
                         // RÉGLAGE, là où ils servent à décider. Cette carte
                         // répond à « où j'en suis », pas à « comment le calcul
                         // est fait ».
-                        // ── LES TROIS RÉPONSES IMMÉDIATES (2026-08-14) ───────
-                        // « Est-ce que j'ai atteint l'objectif quotidien ? »,
-                        // « où en est ma série ? », « qu'est-ce que ça m'a
-                        // rapporté ? » -- trois questions, trois tuiles, aucune
-                        // à déduire d'un calcul mental.
+                        // ── DEUX TUILES, ET RIEN D'AUTRE (2026-08-14) ────────
+                        //
+                        // L'état du jour (« En cours / Atteint ») a été retiré
+                        // en DEUX temps, et le second temps est une correction
+                        // d'erreur :
+                        //   1. il occupait une tuile entière -- « Aujourd'hui
+                        //      en cours à côté de série, je ne comprends pas
+                        //      l'utilité, il se peut à supprimer » ;
+                        //   2. il a d'abord été FUSIONNÉ dans la tuile Série au
+                        //      lieu d'être supprimé. Deux défauts d'un coup :
+                        //      l'information que l'utilisateur ne voulait pas
+                        //      était toujours là, et comme elle ne concernait
+                        //      qu'UNE des deux tuiles, les deux rectangles
+                        //      n'avaient plus la même hauteur (« c'est moche »,
+                        //      capture à l'appui). Supprimé pour de bon.
+                        //
+                        // Leçon à ne pas repayer : quand l'utilisateur dit ne
+                        // pas voir l'utilité d'un élément, on le RETIRE. Le
+                        // garder sous une autre forme, c'est discuter sa
+                        // demande, et ça se paie en plus par un défaut de mise
+                        // en page. Deux tuiles au contenu identique, donc de
+                        // hauteur identique par construction.
+                        //
+                        // Code retiré, gardé pour mémoire :
+                        //   _TuileStat(icone: objectifDuJourAtteint
+                        //       ? Icons.check_circle_rounded
+                        //       : Icons.radio_button_unchecked_rounded,
+                        //     libelle: t.coachDashTodayLabel,
+                        //     valeur: objectifDuJourAtteint
+                        //       ? t.coachDashTodayDone : t.coachDashTodayPending)
                         Row(
                           children: [
-                            Expanded(
-                              child: _TuileStat(
-                                icone: objectifDuJourAtteint
-                                    ? Icons.check_circle_rounded
-                                    : Icons.radio_button_unchecked_rounded,
-                                couleurIcone: objectifDuJourAtteint
-                                    ? AppColors.green700
-                                    : AppColors.inkLight,
-                                libelle: t.coachDashTodayLabel,
-                                valeur: objectifDuJourAtteint
-                                    ? t.coachDashTodayDone
-                                    : t.coachDashTodayPending,
-                                accentue: objectifDuJourAtteint,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
                             Expanded(
                               child: _TuileStat(
                                 // Croissant, pas de flamme (2026-08-13) : « le
@@ -500,13 +514,23 @@ class _ObjectifSection extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 18),
-                        // ── TROIS HORIZONS (2026-08-14, demande utilisateur) ─
-                        // « il manque une progression annuelle et une pour le
-                        // Coran entier [...] pas forcément affichées dès le
-                        // départ, mais on défile ». Le mois reste en tête et en
-                        // grand -- c'est lui qu'on peut encore rattraper ; les
-                        // deux autres suivent, plus discrets.
+                        // Filets fins entre les trois zones de la carte
+                        // (état du jour · progression · évolution) : sans eux,
+                        // tout flottait dans le même bloc et rien ne disait où
+                        // une information s'arrêtait.
+                        const _FiletCarte(),
+                        // ── UN SEUL HORIZON VISIBLE (2026-08-14) ─────────────
+                        //
+                        // Les trois barres ont d'abord été affichées à plat.
+                        // Retour utilisateur immédiat : « la progression à
+                        // l'année et au Coran, pas affichées au premier coup,
+                        // ça doit être caché, que la progression du mois ».
+                        //
+                        // Le mois est le seul horizon SUR LEQUEL ON PEUT ENCORE
+                        // AGIR aujourd'hui ; l'année et le Coran entier
+                        // répondent à une question qu'on ne se pose pas tous
+                        // les jours. Les empiler les mettait au même rang et
+                        // noyait celui qui appelle une action.
                         _BarreProgression(
                           titre:
                               t.coachDashProgressTitle(t.coachObjectifPeriodeCeMois),
@@ -516,72 +540,61 @@ class _ObjectifSection extends ConsumerWidget {
                           principale: true,
                           sousTitre: t.coachDashProgressRemaining(restant),
                         ),
-                        const SizedBox(height: 14),
-                        _BarreProgression(
-                          titre: t.coachDashProgressTitle(
-                              t.coachObjectifPeriodeCetteAnnee),
-                          fait: quartsDeLAnnee,
-                          cible: rythme.cibleDeLAnnee.toDouble(),
-                          etat: etatDeLAnnee,
+                        _BlocRepliable(
+                          titre: t.coachDashProgressMoreHorizons,
+                          enfants: [
+                            _BarreProgression(
+                              titre: t.coachDashProgressTitle(
+                                  t.coachObjectifPeriodeCetteAnnee),
+                              fait: quartsDeLAnnee,
+                              cible: rythme.cibleDeLAnnee.toDouble(),
+                              etat: etatDeLAnnee,
+                            ),
+                            const SizedBox(height: 14),
+                            // Le Coran entier n'a PAS d'état de rythme : c'est
+                            // un cumul, pas une échéance à tenir. Le colorer en
+                            // « à rattraper » parce qu'on en est à 0,4 %
+                            // n'aurait aucun sens -- personne n'est en retard
+                            // sur le Coran.
+                            _BarreProgression(
+                              titre: t.coachDashProgressTitle(
+                                  t.coachObjectifPeriodeCoranEntier),
+                              fait: acquis,
+                              cible: ObjectifCoach.quartsDuCoran.toDouble(),
+                              etat: null,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 14),
-                        // Le Coran entier n'a PAS d'état de rythme : c'est un
-                        // cumul, pas une échéance à tenir. Le colorer en
-                        // « à rattraper » parce qu'on en est à 0,4 % n'aurait
-                        // aucun sens -- personne n'est en retard sur le Coran.
-                        _BarreProgression(
-                          titre: t.coachDashProgressTitle(
-                              t.coachObjectifPeriodeCoranEntier),
-                          fait: acquis,
-                          cible: ObjectifCoach.quartsDuCoran.toDouble(),
-                          etat: null,
-                        ),
-                        const SizedBox(height: 18),
+                        const _FiletCarte(),
                         Text(t.coachObjectifMiniEvolutionCaption,
                             style: GoogleFonts.manrope(
                                 fontSize: 10.5,
                                 letterSpacing: 0.8,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.inkLight)),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         _MiniEvolution(jours: l, libelleAujourdhui: t.coachObjectifToday),
-                        const SizedBox(height: 14),
-                        // ── ACCÈS RAPIDE À LA RÉCITATION (2026-08-13) ────────
-                        // Demande utilisateur : un accès direct à la
-                        // récitation depuis l'objectif, « sans forcer que ce
-                        // soit le début du Coran -- on peut commencer où l'on
-                        // veut ». Même sélecteur libre que `_ReciteSection`
-                        // (`SurahPickerScreen`, tout le Coran choisissable),
-                        // pas une cible imposée par l'objectif : l'objectif
-                        // dit COMBIEN progresser, jamais PAR OÙ commencer.
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => SurahPickerScreen(
-                                  title: t.coachHubPickerReciteTitle,
-                                  subtitle: t.coachHubPickerReciteSubtitle,
-                                  onPicked: (surah, verses) =>
-                                      Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => KaraokeRecitationScreen(
-                                            verses: _firstPageOf(verses))),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.green800,
-                                side: const BorderSide(color: AppColors.green800)),
-                            icon: const Icon(Icons.menu_book_rounded, size: 18),
-                            label: Text(t.coachHubPickerReciteTitle,
-                                style: GoogleFonts.manrope(
-                                    fontSize: 13, fontWeight: FontWeight.w700)),
-                          ),
-                        ),
+                        // ── BOUTON « RÉCITER » RETIRÉ DE LA CARTE ────────────
+                        //
+                        // Ajouté le 2026-08-13 (« un accès direct à la
+                        // récitation depuis l'objectif, sans forcer que ce soit
+                        // le début du Coran »), retiré le 2026-08-14 : « enlève
+                        // aussi Réciter, je ne l'utilise pas ». L'accès reste
+                        // entier ailleurs dans le hub (`_ReciteSection` et le
+                        // sélecteur de sourate), il faisait double emploi ici.
+                        //
+                        // Code retiré, gardé pour mémoire -- si l'accès direct
+                        // revient un jour, c'est ce bloc, et surtout sa règle :
+                        // l'objectif dit COMBIEN progresser, jamais PAR OÙ
+                        // commencer (d'où le sélecteur libre, pas une cible
+                        // imposée) :
+                        //   OutlinedButton.icon(
+                        //     onPressed: … SurahPickerScreen(
+                        //       title: t.coachHubPickerReciteTitle,
+                        //       onPicked: (surah, verses) => …
+                        //           KaraokeRecitationScreen(
+                        //               verses: _firstPageOf(verses))),
+                        //     icon: Icon(Icons.menu_book_rounded), …)
                       ],
                     );
                   },
@@ -610,6 +623,75 @@ class _ObjectifSection extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const _ReglageObjectifSheet(),
+    );
+  }
+}
+
+/// Filet de séparation entre deux zones d'une même carte. Volontairement très
+/// pâle : il doit se sentir plus qu'il ne se voit — une carte reste une carte,
+/// pas trois cartes collées.
+class _FiletCarte extends StatelessWidget {
+  const _FiletCarte();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Container(height: 1, color: AppColors.cream200),
+      );
+}
+
+/// Un repli discret : une ligne cliquable, et ce qu'elle cache.
+///
+/// Replié par défaut, à chaque ouverture de l'écran (état local, jamais
+/// persisté) : ce qui est caché ici l'est parce qu'on ne se le demande PAS tous
+/// les jours -- le rouvrir automatiquement parce qu'on l'a consulté une fois
+/// remettrait au premier plan ce que l'utilisateur a demandé d'en retirer.
+class _BlocRepliable extends StatefulWidget {
+  final String titre;
+  final List<Widget> enfants;
+
+  const _BlocRepliable({required this.titre, required this.enfants});
+
+  @override
+  State<_BlocRepliable> createState() => _BlocRepliableState();
+}
+
+class _BlocRepliableState extends State<_BlocRepliable> {
+  bool _ouvert = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _ouvert = !_ouvert),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                Text(widget.titre,
+                    style: GoogleFonts.manrope(
+                        fontSize: 11,
+                        letterSpacing: 0.6,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.green800)),
+                const SizedBox(width: 2),
+                Icon(
+                    _ouvert
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: AppColors.green800),
+              ],
+            ),
+          ),
+        ),
+        if (_ouvert) ...[
+          const SizedBox(height: 4),
+          ...widget.enfants,
+        ],
+      ],
     );
   }
 }
@@ -782,13 +864,27 @@ class _TuileStat extends StatelessWidget {
   /// Fond teinté quand la tuile porte une bonne nouvelle (objectif du jour
   /// atteint) : c'est la seule qui change d'état d'un jour à l'autre, elle doit
   /// se repérer sans lire.
+  ///
+  /// Plus aucun appelant depuis le 2026-08-14 : la tuile « Aujourd'hui » qui
+  /// s'en servait a été fusionnée dans la tuile Série (cf. [complement]).
+  /// Conservé — c'est le seul mécanisme d'accentuation de ces tuiles, et le
+  /// réécrire coûterait plus cher que de le laisser en place.
+  // ignore: unused_element_parameter
   final bool accentue;
+
+  // ⛔ `complement` / `complementAccentue` ont existé quelques heures le
+  // 2026-08-14 pour loger l'état du jour sous la série. Retirés : l'utilisateur
+  // n'en voulait pas, et n'alimenter qu'une tuile sur deux cassait l'égalité de
+  // hauteur des rectangles. Si une tuile doit un jour porter une seconde ligne,
+  // il faudra la donner aux DEUX (ou passer par IntrinsicHeight), sans quoi le
+  // même défaut d'alignement reviendra.
 
   const _TuileStat({
     required this.icone,
     required this.couleurIcone,
     required this.libelle,
     required this.valeur,
+    // ignore: unused_element_parameter
     this.accentue = false,
   });
 
@@ -806,28 +902,42 @@ class _TuileStat extends StatelessWidget {
                 ? AppColors.green700.withValues(alpha: 0.35)
                 : AppColors.cream300),
       ),
-      child: Column(
+      // ── MISE EN PAGE HORIZONTALE (2026-08-14) ──────────────────────────
+      // Constat utilisateur sur capture : « le design pas top ». La tuile
+      // était une colonne (icône / valeur / libellé / complément) : quatre
+      // lignes empilées pour une seule information, deux tuiles occupant
+      // 200 px de haut. L'icône passe à gauche et le texte se lit sur deux
+      // lignes serrées -- même contenu, un tiers de la hauteur, et une
+      // diagonale de lecture au lieu d'un empilement.
+      child: Row(
         children: [
-          Icon(icone, size: 18, color: couleurIcone),
-          const SizedBox(height: 5),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(valeur,
-                maxLines: 1,
-                style: GoogleFonts.manrope(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink)),
+          Icon(icone, size: 20, color: couleurIcone),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(libelle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.manrope(
+                        fontSize: 9.5,
+                        letterSpacing: 0.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.inkLight)),
+                const SizedBox(height: 1),
+                Text(valeur,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.manrope(
+                        fontSize: 15,
+                        height: 1.15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink)),
+              ],
+            ),
           ),
-          const SizedBox(height: 1),
-          Text(libelle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.manrope(
-                  fontSize: 9.5,
-                  letterSpacing: 0.4,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.inkLight)),
         ],
       ),
     );
@@ -884,20 +994,19 @@ class _MiniEvolution extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 3),
-        Row(
-          children: [
-            for (var i = 0; i < 7; i++)
-              Expanded(
-                child: i == 6
-                    ? Text(libelleAujourdhui,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.manrope(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.inkLight))
-                    : const SizedBox(),
-              ),
-          ],
+        // Le repère était placé dans un `Expanded` d'un septième de largeur :
+        // « Aujourd'hui » y tenait sur DEUX lignes, coupé en « Aujourd'h /
+        // ui » (visible sur la capture du 2026-08-14). Aligné à droite sur
+        // toute la largeur, il reste sous la dernière barre sans être
+        // contraint par elle.
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: Text(libelleAujourdhui,
+              maxLines: 1,
+              style: GoogleFonts.manrope(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.inkLight)),
         ),
       ],
     );

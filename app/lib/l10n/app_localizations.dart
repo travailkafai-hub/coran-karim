@@ -3487,6 +3487,12 @@ abstract class AppLocalizations {
   /// **'tout le Coran'**
   String get coachObjectifPeriodeCoranEntier;
 
+  /// Ligne repliable qui cache les deux horizons longs -- le mois seul reste visible d'emblée (demande utilisateur 2026-08-14)
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir l\'année et le Coran entier'**
+  String get coachDashProgressMoreHorizons;
+
   /// État du rythme : au moins ce qui était attendu à cette date (vert)
   ///
   /// In fr, this message translates to:
@@ -3580,7 +3586,7 @@ abstract class AppLocalizations {
   /// Valeur compacte de la série, dans la tuile du tableau de bord
   ///
   /// In fr, this message translates to:
-  /// **'{count, plural, =0{—} =1{1 jour} other{{count} jours}}'**
+  /// **'{count, plural, =0{Aucune} =1{1 jour} other{{count} jours}}'**
   String coachDashStreakValue(int count);
 
   /// Titre de la tuile points (récompense d'effort) du tableau de bord
