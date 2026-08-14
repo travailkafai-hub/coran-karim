@@ -2534,6 +2534,38 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// Dart en est la seule autorité : détecter la Bismillah sur le texte
   /// confondrait celle qui est insérée avec le verset 1:1 d'Al-Fatiha, qui
   /// lui est bien récité.
+  /// « صدق الله العظيم » — texte source de la phrase de fin optionnelle.
+  /// Cf. `phraseFinRecitationProvider` pour le pourquoi et pour la raison du
+  /// défaut désactivé. Vide tant que le réglage n'est pas activé.
+  static const _kPhraseFinTexte = 'صَدَقَ ٱللَّهُ ٱلْعَظِيمُ';
+
+  /// Mots de la phrase de fin, dans la MÊME forme que `RecitedWord
+  /// .alignTarget` (`normalizeTraining`) -- sinon la chaîne ne pourrait pas
+  /// les apparier. Liste vide = réglage désactivé, comportement d'origine
+  /// strictement inchangé.
+  List<String> _motsPhraseFin = const [];
+
+  /// Branché sur `phraseFinRecitationProvider` par l'écran (même patron que
+  /// `setSensitivity`). Ne prend effet qu'à la session SUIVANTE : la cible est
+  /// posée au démarrage, la changer en cours de récitation décalerait tous les
+  /// index de mots déjà jugés.
+  void setPhraseFin(bool actif) {
+    _motsPhraseFin = actif
+        ? ArabicNormalizer.splitExpectedWords(_kPhraseFinTexte)
+            .map(ArabicNormalizer.normalizeTraining)
+            .toList()
+        : const [];
+  }
+
+  /// L'état courant, lisible SANS passer par `ref`.
+  ///
+  /// Existe pour `dispose()` côté écran (2026-08-14) : `ref` n'y est plus
+  /// fiable (`Bad state: Cannot use "ref" after the widget was disposed`),
+  /// alors que la clôture d'archive doit lire l'état LE PLUS RÉCENT --
+  /// c'est-à-dire après `stopContinuous()`, donc après le dernier `build()`.
+  /// Ce notifier n'est pas `autoDispose` : il survit à l'écran qui le pilote.
+  RecitationSessionState get etatCourant => state;
+
   static List<int> _indicesNonJuges(List<RecitedWord> mots, {int decalage = 0}) {
     final out = <int>[];
     for (var i = 0; i < mots.length; i++) {
@@ -2784,12 +2816,31 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // La v2 reçoit LA MÊME cible : sans cet appel elle ne s'active jamais et
     // la session mesure la v1 en croyant mesurer la v2 (constaté le
     // 2026-07-30 : 0 ligne [V2] dans une session étiquetée v2).
-    await _verifier.v2Activer(
-        true, state.words.map((w) => w.alignTarget).toList(),
+    // ── LA PHRASE DE FIN, EN QUEUE DE CIBLE (2026-08-14) ──────────────────
+    //
+    // Cf. `phraseFinRecitationProvider` pour le POURQUOI complet (le dernier
+    // mot d'une sourate ne peut jamais obtenir sa 2e observation) et pour la
+    // raison du défaut à `false`.
+    //
+    // Elle n'est ajoutée qu'à la cible de la CHAÎNE, jamais à `state.words` :
+    // le texte affiché reste strictement coranique, et `_onV2` ignore déjà
+    // tout verdict dont l'index dépasse `words.length`. Les indices sont en
+    // plus déclarés non jugeables -- ceinture et bretelles.
+    //
+    // ⚠️ Ne vaut QUE parce que l'enchaînement s'arrête désormais à la fin de
+    // la sourate (`_maybeExtendNextPage`, même jour) : tant que la cible
+    // débordait sur les sourates suivantes, le dernier mot récité n'était pas
+    // le dernier de la cible et cette phrase n'aurait servi à rien.
+    final motsCoran = state.words.map((w) => w.alignTarget).toList();
+    final cibleChaine = [...motsCoran, ..._motsPhraseFin];
+    await _verifier.v2Activer(true, cibleChaine,
         mode: referenceSession ? 'REF' : 'CTL',
-        nonJugeables: _indicesNonJuges(state.words));
+        nonJugeables: [
+          ..._indicesNonJuges(state.words),
+          for (var i = 0; i < _motsPhraseFin.length; i++) motsCoran.length + i,
+        ]);
     await _verifier.start(
-      state.words.map((w) => w.alignTarget).toList(),
+      cibleChaine,
       continuous: true,
       refMinFrames: _refMinFrames(state.words),
     );

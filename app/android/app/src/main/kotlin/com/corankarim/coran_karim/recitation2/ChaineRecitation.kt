@@ -1219,7 +1219,15 @@ class ChaineRecitation(
             "[v2] f=${fenetre.id} duree=${"%.2f".format(fenetre.dureeSecondes)}s " +
                 "bande=${bande.i0}..${bande.i1} conf=${"%.2f".format(bande.confiance)} " +
                 "interieurs=${res.mots.count { it.interieur }}/${res.mots.size}" +
-                if (res.bandeTronquee) " (bande tronquee)" else ""
+                (if (res.bandeTronquee) " (bande tronquee)" else "") +
+                // DIAGNOSTIC (2026-08-13) : le decodage LIBRE de la fenetre n'etait
+                // journalise QUE quand bande=inconnue. Sur une fenetre FINALE dont
+                // la bande recule au lieu d'atteindre le dernier mot, ce texte est
+                // la seule facon de voir ce que le modele a reellement entendu sur
+                // CETTE fenetre precise, plutot que de le deviner hors device sur
+                // un decoupage reconstitue a la main.
+                (if (!fenetre.apercu) " entendu=\"" +
+                    Decodage.texte(logprobs, front.pieces, front.blank) + "\"" else "")
         )
     }
 

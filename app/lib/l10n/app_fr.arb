@@ -2571,6 +2571,52 @@
   "@coachObjectifPeriodeSemaine": { "description": "Période de l'objectif : semaine" },
   "coachObjectifPeriodeMois": "par mois",
   "@coachObjectifPeriodeMois": { "description": "Période de l'objectif : mois" },
+  "coachObjectifPeriodProgress": "{total, plural, =1{{faits} sur 1 quart — {periode}} other{{faits} sur {total} quarts — {periode}}}",
+  "@coachObjectifPeriodProgress": {
+    "description": "Progression vers l'objectif, sur sa propre période (jour/semaine/mois) -- jamais convertie en semaine, pour ne jamais afficher un chiffre fractionnaire comme '0,2 quart'",
+    "placeholders": {
+      "faits": { "type": "int" },
+      "total": { "type": "int" },
+      "periode": { "type": "String" }
+    }
+  },
+  "coachObjectifMiniEvolutionCaption": "7 derniers jours",
+  "@coachObjectifMiniEvolutionCaption": {
+    "description": "Légende du mini graphique d'évolution sur 7 jours"
+  },
+  "coachObjectifToday": "Aujourd'hui",
+  "@coachObjectifToday": {
+    "description": "Repère \"aujourd'hui\" sous la dernière barre du mini graphique"
+  },
+  "karaokePhraseFinTitle": "Phrase de fin de sourate",
+  "@karaokePhraseFinTitle": { "description": "Interrupteur : attendre صدق الله العظيم apres la sourate" },
+  "karaokePhraseFinSubtitle": "Attendre « صدق الله العظيم » après le dernier verset — aide l'app à juger le dernier mot",
+  "@karaokePhraseFinSubtitle": { "description": "Sous-titre de l'interrupteur de phrase de fin" },
+  "coachDashTodayLabel": "Aujourd'hui",
+  "@coachDashTodayLabel": { "description": "Titre de la tuile \"objectif du jour\" du tableau de bord" },
+  "coachDashTodayDone": "Atteint",
+  "@coachDashTodayDone": { "description": "Objectif quotidien atteint" },
+  "coachDashTodayPending": "En cours",
+  "@coachDashTodayPending": { "description": "Objectif quotidien pas encore atteint" },
+  "coachDashStreakLabel": "Série",
+  "@coachDashStreakLabel": { "description": "Titre de la tuile série du tableau de bord" },
+  "coachDashStreakValue": "{count, plural, =0{—} =1{1 jour} other{{count} jours}}",
+  "@coachDashStreakValue": {
+    "description": "Valeur compacte de la série, dans la tuile du tableau de bord",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "coachDashPointsLabel": "Points",
+  "@coachDashPointsLabel": { "description": "Titre de la tuile points (récompense d'effort) du tableau de bord" },
+  "coachDashProgressTitle": "Progression — {periode}",
+  "@coachDashProgressTitle": {
+    "description": "Titre du bloc de progression vers l'objectif, sur sa propre période",
+    "placeholders": { "periode": { "type": "String" } }
+  },
+  "coachDashProgressRemaining": "{count, plural, =0{Objectif atteint} =1{Encore 1 quart} other{Encore {count} quarts}}",
+  "@coachDashProgressRemaining": {
+    "description": "Ce qu'il reste à faire pour boucler l'objectif de la période",
+    "placeholders": { "count": { "type": "int" } }
+  },
   "coachNiveauTitle": "Accompagnement",
   "@coachNiveauTitle": {
     "description": "Titre du choix de niveau d'accompagnement (fréquence des rappels)"

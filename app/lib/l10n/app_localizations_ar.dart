@@ -1997,6 +1997,74 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachObjectifPeriodeMois => 'في الشهر';
 
   @override
+  String coachObjectifPeriodProgress(int faits, int total, String periode) {
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: '$faits من $total أرباع — $periode',
+      one: '$faits من ربع واحد — $periode',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifMiniEvolutionCaption => 'آخر 7 أيام';
+
+  @override
+  String get coachObjectifToday => 'اليوم';
+
+  @override
+  String get karaokePhraseFinTitle => 'عبارة ختام السورة';
+
+  @override
+  String get karaokePhraseFinSubtitle =>
+      'توقّع « صدق الله العظيم » بعد الآية الأخيرة';
+
+  @override
+  String get coachDashTodayLabel => 'اليوم';
+
+  @override
+  String get coachDashTodayDone => 'تم';
+
+  @override
+  String get coachDashTodayPending => 'جارٍ';
+
+  @override
+  String get coachDashStreakLabel => 'السلسلة';
+
+  @override
+  String coachDashStreakValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count أيام',
+      one: 'يوم واحد',
+      zero: '—',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachDashPointsLabel => 'النقاط';
+
+  @override
+  String coachDashProgressTitle(String periode) {
+    return 'التقدّم — $periode';
+  }
+
+  @override
+  String coachDashProgressRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'بقي $count أرباع',
+      one: 'بقي ربع واحد',
+      zero: 'تم بلوغ الهدف',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get coachNiveauTitle => 'المرافقة';
 
   @override

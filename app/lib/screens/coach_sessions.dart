@@ -129,7 +129,14 @@ class PortionsSection extends ConsumerWidget {
               tooltip: t.coachRefreshTooltip,
               icon: const Icon(Icons.refresh_rounded,
                   size: 18, color: AppColors.green800),
-              onPressed: () => ref.invalidate(portionsProvider),
+              onPressed: () {
+                ref.invalidate(portionsProvider);
+                // Le bouton rafraîchit TOUT le Coach, tableau de bord compris
+                // (série, points, objectif du jour) -- sinon il ne rafraîchit
+                // que la moitié de ce que l'utilisateur a sous les yeux.
+                ref.invalidate(derniersJoursProvider);
+                ref.invalidate(serieProvider);
+              },
             ),
           ],
         ),

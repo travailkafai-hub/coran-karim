@@ -248,3 +248,48 @@ et la formule exacte des multiplicateurs.
 *Rien de tout cela n'est commencé. Ce document sert de référence commune ; il
 sera mis à jour au fil des arbitrages, et c'est lui qu'il faut relire avant de
 toucher au Coach.*
+
+## À TRANCHER — refonte de l'objectif en « durée pour tout le Coran » (2026-08-14)
+
+Proposition utilisateur, préférée au modèle actuel (« N quarts par jour /
+semaine / mois », jugé illisible : « je trouve que objectif par jour c'est
+beaucoup ») :
+
+> l'objectif devient **mémoriser tout le Coran**, l'utilisateur choisit en
+> combien d'**années**, et l'app AFFICHE ce que ça donne en moyenne par jour,
+> par semaine et par mois (arrondi).
+
+Le Coran = **240 quarts de Hizb** (60 Hizb x 4).
+
+| Durée | /jour | /semaine | /mois |
+|---|---|---|---|
+| 1 an | 0,7 | 4,6 | 20 (5 Hizb) |
+| 2 ans | 0,33 | 2,3 | 10 |
+| 3 ans | 0,22 | 1,5 | 7 |
+| 5 ans | 0,13 | 0,9 | 4 (1 Hizb) |
+| 10 ans | 0,07 | 0,5 | 2 |
+
+Ce que ça change : `ObjectifCoach` (années au lieu de quarts+periode),
+`_ReglageObjectifSheet`, le tableau de bord, et le seuil quotidien de la série
+(déjà dérivé de `objectif.parJour` depuis le 2026-08-14, donc compatible).
+
+### Deux autres points ouverts, même journée
+
+1. **Historisation de l'objectif.** L'objectif n'a AUCUN historique (une seule
+   valeur dans les préférences). Analyse faite avec l'utilisateur : le passé
+   ne doit JAMAIS être recalculé -- sinon la série devient achetable (baisser
+   la barre offrirait une série jamais gagnée) et l'historique devient
+   instable. Manque : une table en AJOUT SEUL
+   `objectifs_historique(depuis, quarts, periode, niveau)`, et un affichage
+   segmenté par époque (« du 1er au 20 août : 3/semaine — 1 semaine sur 3 »).
+   Corollaire retenu : l'objectif est une ALLURE, pas une note ; la mesure qui
+   ne dépend d'aucun objectif (portions acquises) doit rester en tête.
+
+2. **L'oubli n'a pas de marqueur propre.** `deja_rate` signifie « a déjà été
+   faux une fois » (statuts `error`/`oubli`/`unclear`), PAS « le souffleur a
+   dû lancer l'audio ». L'exclure de `words_green` a été tenté le 2026-08-14
+   et ANNULÉ le jour même : Al-Masad et Al-Falaq sont tombées sous 100 %
+   rétroactivement, sur des mots simplement corrigés autrefois, sans aucun
+   oubli. Il faut une colonne dédiée `souffle` (migration v6 -> v7), posée au
+   déclenchement du souffleur, monotone, et exclue du score. Le marquage GRIS
+   à l'écran, lui, est en place et correct (`_motsOublies`, session en cours).

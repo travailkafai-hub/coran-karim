@@ -433,6 +433,22 @@ abstract class RecitationVerifier {
   Future<void> pauseCapture();
   Future<void> resumeCapture();
 
+  /// À appeler juste après [pauseCapture] quand la pause peut durer (bouton
+  /// pause de l'utilisateur, pas la pause courte de la correction auto) :
+  /// force un dernier verdict sur les mots encore en attente, pour que la
+  /// série/le décompte Coach ne perdent pas la fin de la récitation si
+  /// l'utilisateur quitte l'écran sans avoir repris.
+  ///
+  /// Attend d'abord que tout envoi de bloc PCM déjà en vol ait fini d'être
+  /// transmis à la chaîne (même attente que [resetBuffer]) avant d'appeler
+  /// [v2Terminer] : sans ça, `v2Terminer()` pourrait trancher avant que les
+  /// tout derniers blocs captés juste avant la pause n'aient atteint le
+  /// natif, et couper le dernier mot au lieu de le juger.
+  ///
+  /// Non destructif (cf. doc de [v2Terminer]) : sûr à appeler avant une
+  /// reprise, ne libère ni le micro ni aucun buffer nécessaire à la suite.
+  Future<void> finaliserPourPause();
+
   /// Pause LOGICIELLE instantanée : la chaîne (transcription, alignement,
   /// jugement) s'arrête net, mais le micro matériel n'est PAS touché.
   ///
@@ -1405,6 +1421,13 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   }
 
   @override
+  Future<void> finaliserPourPause() async {
+    await _continuousFeedTail;
+    await v2Terminer();
+    DiagnosticLog.log('ASR', 'finaliserPourPause() | derniers mots tranches');
+  }
+
+  @override
   Future<void> resumeCapture() async {
     try {
       final wasPaused = await _recorder.isPaused();
@@ -1589,6 +1612,8 @@ class MockRecitationVerifier implements RecitationVerifier {
 
   @override
   Future<void> pauseCapture() async {}
+  @override
+  Future<void> finaliserPourPause() async {}
   @override
   void pauseCaptureSoft() {}
   @override

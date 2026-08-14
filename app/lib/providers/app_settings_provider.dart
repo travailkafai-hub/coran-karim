@@ -824,3 +824,56 @@ class ObjectifCoachNotifier extends StateNotifier<ObjectifCoach> {
     await definir(quarts: reduit < 1 ? 1 : reduit);
   }
 }
+
+const _kPrefPhraseFinRecitation = 'phrase_fin_recitation_enabled';
+
+/// « صدق الله العظيم » attendue APRÈS le dernier mot d'une sourate.
+///
+/// ── POURQUOI CE RÉGLAGE EXISTE (idée utilisateur, 2026-08-14) ──────────────
+///
+/// Le dernier mot d'une sourate ne pouvait JAMAIS être verrouillé : le
+/// Décideur exige deux observations issues de fenêtres distinctes (`k = 2`) et
+/// qu'un mot POSTÉRIEUR ait été observé -- deux conditions qu'aucune fenêtre
+/// future ne peut plus satisfaire quand le récitateur s'arrête. Mesuré sur
+/// device (An-Nasr, 2026-08-14) :
+///     mot=22 "تَوَّابًۢا" -> provisoire:orange  obs=1  entendu="تَوَّابًا"
+/// Le mot était bien récité, bien entendu, et n'a jamais pu être figé.
+///
+/// Proposition de l'utilisateur, préférée à un assouplissement de `k` : « on
+/// peut garder k=2 mais rajouter à la fin de chaque sourate صدق الله العظيم si
+/// on a un audio ». En récitant une phrase APRÈS la sourate, le dernier mot du
+/// Coran cesse d'être le dernier -- il obtient sa seconde observation et son
+/// contexte droit NATURELLEMENT, sans qu'aucune règle de preuve ne cède.
+///
+/// ⚠️ DÉSACTIVÉ PAR DÉFAUT, et ce n'est pas un choix technique : dire
+/// « صدق الله العظيم » après la récitation est une pratique DÉBATTUE entre
+/// savants, plusieurs la considérant non établie de la Sunna. L'application ne
+/// l'impose donc à personne ; elle sait seulement l'attendre pour ceux qui la
+/// disent déjà.
+///
+/// Les mots de la phrase sont ajoutés à la cible de la chaîne mais déclarés
+/// NON JUGEABLES (même mécanisme que la Bismillah non récitée) : ils ne
+/// reçoivent jamais de verdict, ne comptent dans aucun score, et ne sont pas
+/// affichés dans le texte coranique.
+final phraseFinRecitationProvider =
+    StateNotifierProvider<PhraseFinRecitationNotifier, bool>((ref) {
+  return PhraseFinRecitationNotifier();
+});
+
+class PhraseFinRecitationNotifier extends StateNotifier<bool> {
+  PhraseFinRecitationNotifier() : super(false) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefPhraseFinRecitation);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefPhraseFinRecitation, value);
+  }
+}

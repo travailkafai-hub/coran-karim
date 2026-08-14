@@ -14,6 +14,8 @@
 // Principe : ce hub ORCHESTRE des écrans existants (CoachScreen,
 // KaraokeRecitationScreen, TajwidRulesScreen...), il ne les réimplémente pas.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -111,18 +113,33 @@ class CoachHubScreen extends ConsumerWidget {
       // qu'elle seule proposait vivent maintenant DANS la vue par session
       // (`coach_sessions.dart`, commit 5d63bb3). Classes conservées intactes
       // plus bas (convention projet), simplement non montées.
+      // ── « MES RÉCITATIONS » (SessionsSection) RETIRÉE DE L'ÉCRAN
+      //    (2026-08-14, décision utilisateur) ───────────────────────────────
+      //
+      // Constat de l'utilisateur : « je me demande l'utilité de les garder,
+      // j'ai l'impression que c'est en doublon avec mémorisation ». Vérifié
+      // dans le SCHÉMA, pas supposé : `portion_words` porte TOUTES les
+      // colonnes de `session_words` (verdict, mot attendu, mot entendu, type
+      // d'erreur, audio, position) et trois de plus -- `audio_expires_at`,
+      // `deja_rate`, et surtout la PERMANENCE (les sessions sont purgées à
+      // 7 jours). La vue par portion est donc strictement plus riche.
+      //
+      // Ce que les sessions apportaient en propre -- « ce que j'ai fait le
+      // jour J » -- est désormais porté par le tableau de bord, qui lit
+      // `jours_actifs` (série, points, objectif atteint, 7 derniers jours).
+      //
+      // ⚠️ SEUL L'AFFICHAGE DISPARAÎT. La table `sessions` reste écrite : son
+      // ouverture/fermeture est ce qui DÉCLENCHE la comptabilisation Coach
+      // (cf. `_cloturerArchive` côté karaoké, qui sort immédiatement si
+      // `sessionCourante == null`). `SessionsSection` est conservée intacte
+      // dans `coach_sessions.dart`, simplement non montée -- convention
+      // projet, et remontage possible en une ligne.
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: const [
-          // Suivi PERMANENT par portion (sourate/Hizb, 2026-08-10), au-dessus
-          // du journal daté par session -- cf. l'en-tête de
-          // `coach_sessions.dart` (PortionsSection) pour la distinction des
-          // deux échelles de temps.
           _ObjectifSection(),
           SizedBox(height: 4),
           PortionsSection(),
-          SizedBox(height: 4),
-          SessionsSection(),
         ],
       ),
     );
@@ -139,6 +156,33 @@ class CoachHubScreen extends ConsumerWidget {
 // État vide (aucun objectif fixé) volontairement DIFFÉRENT de l'état actif :
 // on ne montre jamais "0 %" ou "série : 0" tant que l'utilisateur n'a rien
 // engagé — ce serait un échec affiché avant même d'avoir commencé.
+/// Nombre de mots d'un quart de Hizb, EN MOYENNE : le Coran compte ~77 430
+/// mots pour 240 quarts (60 Hizb × 4). Sert UNIQUEMENT à donner sa finesse à
+/// la barre de progression entre deux quarts validés (cf. `avancement` dans
+/// `_ObjectifSection`) -- jamais à afficher un nombre de mots, et jamais à
+/// décider qu'un quart est acquis (ça, c'est le badge de portion, qui exige
+/// une couverture réelle à 100 %).
+// ⛔ RETIRÉE LE JOUR MÊME DE SON AJOUT (2026-08-14), garder la trace :
+//     const double _kMotsParQuart = 77430 / 240;  // ~322,6 mots par quart
+// Elle servait à convertir `jours_actifs.mots_recites` (cumulé) en fraction
+// de quart pour la barre de progression. Le défaut n'est pas la constante,
+// c'est la SOURCE : `mots_recites` est additif à chaque session, donc quinze
+// récitations d'An-Nasr (23 mots) valaient 345 mots -- « plus d'un quart »
+// affiché sans un seul mot nouveau mémorisé. La barre lit désormais
+// `portions` (dédupliqué par `UNIQUE(portion_id, ayah, mot)`), où la part
+// acquise d'un quart est `wordsGreen/wordsTotal`. Ne pas réintroduire une
+// conversion mots→quart sur un compteur cumulatif.
+
+/// Partagé entre `_ObjectifSection` (l'en-tête « N quarts par période ») et
+/// `_ReglageObjectifSheetState` (les puces de choix) -- un seul endroit qui
+/// sait traduire une [PeriodeObjectif] en texte.
+String _libellePeriodeObjectif(AppLocalizations t, PeriodeObjectif p) =>
+    switch (p) {
+      PeriodeObjectif.jour => t.coachObjectifPeriodeJour,
+      PeriodeObjectif.semaine => t.coachObjectifPeriodeSemaine,
+      PeriodeObjectif.mois => t.coachObjectifPeriodeMois,
+    };
+
 class _ObjectifSection extends ConsumerWidget {
   const _ObjectifSection();
 
@@ -148,6 +192,10 @@ class _ObjectifSection extends ConsumerWidget {
     final objectif = ref.watch(objectifCoachProvider);
     final serie = ref.watch(serieProvider);
     final jours = ref.watch(derniersJoursProvider);
+    // Source de l'AVANCEMENT (cf. le bloc `avancementPortions` plus bas) :
+    // le suivi permanent par portion, dédupliqué -- pas le cumul de mots
+    // récités, qui gonflait à chaque répétition.
+    final portions = ref.watch(portionsProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,68 +236,225 @@ class _ObjectifSection extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ── L'OBJECTIF EN TOUTES LETTRES, EN PREMIER (2026-08-14) ────
+                //
+                // Constat utilisateur, capture d'écran à l'appui : « je ne
+                // comprends pas la présentation de mon objectif, c'est mal
+                // fait ». La carte n'affichait JAMAIS ce que l'utilisateur
+                // avait réglé (N quarts / période) -- seulement des chiffres
+                // DÉRIVÉS (série, progression). Or la première question d'un
+                // utilisateur qui ouvre cette carte est « c'est quoi, mon
+                // objectif ? », pas « où en est mon calcul ». Cette ligne
+                // répond à ça en un coup d'œil, avant tout le reste.
                 Row(
                   children: [
-                    // ── CROISSANT DE LUNE, PAS DE FLAMME (2026-08-13) ────────
-                    // Constat utilisateur : « le feu et le Coran c'est pas le
-                    // bon univers, cherche d'autres signes plus religieux ».
-                    // Le croissant tient aussi par cohérence avec le reste du
-                    // Coach : le jour islamique commence au Maghrib, l'heure
-                    // même sur laquelle le rappel du soir est calé (cf.
-                    // `CoachNotificationService`) -- une série de « jours »
-                    // est, ici, littéralement une série de nuits.
-                    const Icon(Icons.nightlight_round,
-                        color: AppColors.brass, size: 22),
+                    const Icon(Icons.flag_rounded,
+                        color: AppColors.green800, size: 20),
                     const SizedBox(width: 8),
-                    serie.when(
-                      data: (n) => Text(t.coachObjectifStreak(n),
-                          style: GoogleFonts.manrope(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.ink)),
-                      loading: () => const SizedBox(
-                          width: 60,
-                          height: 14,
-                          child: LinearProgressIndicator(minHeight: 2)),
-                      error: (_, __) => const Text('—'),
+                    Expanded(
+                      child: Text(
+                        '${t.coachObjectifQuartsLabel(objectif.quarts)} '
+                        '${_libellePeriodeObjectif(t, objectif.periode)}',
+                        style: GoogleFonts.manrope(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 14),
                 jours.when(
                   data: (l) {
-                    final semaine = l.where((j) =>
-                        j.jour.isAfter(DateTime.now()
-                            .subtract(const Duration(days: 7))));
-                    final quartsFaits = semaine.fold<int>(
+                    // ── PROGRESSION SUR LA PÉRIODE DE L'OBJECTIF LUI-MÊME ────
+                    //
+                    // AVANT : toujours ramené à la semaine (`objectif
+                    // .parSemaine`), même pour un objectif mensuel -- un
+                    // objectif de « 1 quart par mois » y devenait « 0,2 quart
+                    // par semaine », un nombre que personne ne pense
+                    // naturellement (capture d'écran utilisateur : « 0 sur
+                    // 0.2 quart(s) »). On compare donc au nombre de quarts que
+                    // l'utilisateur a lui-même saisi, sur SA période.
+                    final fenetre = objectif.joursDeLaPeriode;
+                    final debut =
+                        DateTime.now().subtract(Duration(days: fenetre));
+                    final periodeCourante =
+                        l.where((j) => j.jour.isAfter(debut)).toList();
+                    final quartsFaits = periodeCourante.fold<int>(
                         0, (a, j) => a + j.quartsValides);
-                    final cible = objectif.parSemaine;
-                    final ratio = cible <= 0
-                        ? 0.0
-                        : (quartsFaits / cible).clamp(0.0, 1.0);
+                    final cible = objectif.quarts;
+                    // ── L'AVANCEMENT EST CONTINU, PAS PAR PALIERS ────────────
+                    //
+                    // Demande utilisateur (2026-08-14) : « que l'avancement
+                    // soit plus encourageant, ça va travailler sur les mots
+                    // appris sur les mots du Hizb SANS que ce soit visible que
+                    // c'est par mots ».
+                    //
+                    // Un quart ne se valide qu'une fois récité EN ENTIER : un
+                    // utilisateur à 80 % d'un quart voyait 0 %, et rien ne
+                    // bougeait tant que le quart n'était pas bouclé -- le
+                    // contraire d'un encouragement. La barre lit donc les mots
+                    // ACQUIS, convertis en fraction de quart. Aucun compte de
+                    // mots n'est affiché : il ne sert qu'à la finesse.
+                    //
+                    // ── LA SOURCE A CHANGÉ LE MÊME JOUR, ET C'EST IMPORTANT ──
+                    // Première version : `jours_actifs.mots_recites` cumulé
+                    // sur la période. DÉFAUT : ce compteur est ADDITIF à
+                    // chaque session, donc réciter quinze fois An-Nasr
+                    // (23 mots) valait 345 mots, soit « plus d'un quart » --
+                    // 100 % affiché sans qu'un seul mot nouveau ait été
+                    // mémorisé. Un pourcentage d'avancement qui monte en
+                    // répétant le même passage ne mesure rien.
+                    //
+                    // On lit donc `portions` (permanent, DÉDUPLIQUÉ par
+                    // construction : `UNIQUE(portion_id, ayah, mot)`), où
+                    // `wordsGreen/wordsTotal` est la part réellement acquise
+                    // d'un quart. Répéter n'ajoute rien ; seul un mot NOUVEAU
+                    // fait monter la barre. Chaque portion est plafonnée à 1
+                    // (un quart acquis vaut un quart, jamais plus).
+                    final debutPeriode = debut;
+                    final avancementPortions = portions.maybeWhen(
+                      data: (list) => list
+                          .where((p) => p.lastRecitedAt.isAfter(debutPeriode))
+                          .fold<double>(
+                              0,
+                              (a, p) => a +
+                                  (p.wordsTotal <= 0
+                                      ? 0.0
+                                      : (p.wordsGreen / p.wordsTotal)
+                                          .clamp(0.0, 1.0))),
+                      orElse: () => 0.0,
+                    );
+                    // `quartsFaits` en plancher : un quart validé est acquis,
+                    // il ne peut jamais reculer même si la portion change.
+                    final avancement =
+                        math.max(quartsFaits.toDouble(), avancementPortions);
+                    final ratio =
+                        cible <= 0 ? 0.0 : (avancement / cible).clamp(0.0, 1.0);
+                    final pourcent = (ratio * 100).round();
+                    final restant = (cible - avancement).ceil().clamp(0, cible);
+                    final pointsPeriode =
+                        periodeCourante.fold<int>(0, (a, j) => a + j.points);
+                    final cleAujourdhui = _MiniEvolution._cle(DateTime.now());
+                    final objectifDuJourAtteint = l.any((j) =>
+                        _MiniEvolution._cle(j.jour) == cleAujourdhui &&
+                        j.objectifAtteint);
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          t.coachObjectifWeekProgress(
-                              quartsFaits, cible.toStringAsFixed(1)),
-                          style: GoogleFonts.manrope(
-                              fontSize: 12.5, color: AppColors.inkLight),
+                        // ── LES TROIS RÉPONSES IMMÉDIATES (2026-08-14) ───────
+                        // « Est-ce que j'ai atteint l'objectif quotidien ? »,
+                        // « où en est ma série ? », « qu'est-ce que ça m'a
+                        // rapporté ? » -- trois questions, trois tuiles, aucune
+                        // à déduire d'un calcul mental.
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _TuileStat(
+                                icone: objectifDuJourAtteint
+                                    ? Icons.check_circle_rounded
+                                    : Icons.radio_button_unchecked_rounded,
+                                couleurIcone: objectifDuJourAtteint
+                                    ? AppColors.green700
+                                    : AppColors.inkLight,
+                                libelle: t.coachDashTodayLabel,
+                                valeur: objectifDuJourAtteint
+                                    ? t.coachDashTodayDone
+                                    : t.coachDashTodayPending,
+                                accentue: objectifDuJourAtteint,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _TuileStat(
+                                // Croissant, pas de flamme (2026-08-13) : « le
+                                // feu et le Coran, ce n'est pas le bon
+                                // univers ». Cohérent aussi avec le rappel du
+                                // soir calé sur le Maghrib -- une série de
+                                // « jours » est ici une série de nuits.
+                                icone: Icons.nightlight_round,
+                                couleurIcone: AppColors.brass,
+                                libelle: t.coachDashStreakLabel,
+                                valeur: serie.maybeWhen(
+                                    data: (n) => t.coachDashStreakValue(n),
+                                    orElse: () => '—'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _TuileStat(
+                                // Les points existaient déjà (barème d'effort
+                                // et de répétition, indépendant des erreurs --
+                                // cf. `_comptabiliserPourCoach`) mais n'étaient
+                                // affichés NULLE PART. C'est la « récompense »
+                                // demandée : montrer ce qui est déjà gagné, pas
+                                // inventer un système de badges de jeu (refus
+                                // explicite, cf. PLAN_COACH.md).
+                                icone: Icons.workspace_premium_rounded,
+                                couleurIcone: AppColors.brass,
+                                libelle: t.coachDashPointsLabel,
+                                valeur: '$pointsPeriode',
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 18),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                t.coachDashProgressTitle(
+                                    _libellePeriodeObjectif(
+                                        t, objectif.periode)),
+                                style: GoogleFonts.manrope(
+                                    fontSize: 11,
+                                    letterSpacing: 0.8,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.inkLight),
+                              ),
+                            ),
+                            Text('$pourcent %',
+                                style: GoogleFonts.manrope(
+                                    fontSize: 22,
+                                    height: 1,
+                                    fontWeight: FontWeight.w800,
+                                    color: ratio >= 1
+                                        ? AppColors.green700
+                                        : AppColors.green800)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(6),
                           child: LinearProgressIndicator(
                             value: ratio,
-                            minHeight: 8,
+                            minHeight: 10,
                             backgroundColor: AppColors.cream200,
                             color: ratio >= 1
                                 ? AppColors.green700
                                 : AppColors.brass,
                           ),
                         ),
-                        const SizedBox(height: 14),
-                        _MiniEvolution(jours: l),
+                        const SizedBox(height: 6),
+                        Text(
+                          t.coachDashProgressRemaining(restant),
+                          style: GoogleFonts.manrope(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: restant == 0
+                                  ? AppColors.green700
+                                  : AppColors.inkLight),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(t.coachObjectifMiniEvolutionCaption,
+                            style: GoogleFonts.manrope(
+                                fontSize: 10.5,
+                                letterSpacing: 0.8,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.inkLight)),
+                        const SizedBox(height: 6),
+                        _MiniEvolution(jours: l, libelleAujourdhui: t.coachObjectifToday),
                         const SizedBox(height: 14),
                         // ── ACCÈS RAPIDE À LA RÉCITATION (2026-08-13) ────────
                         // Demande utilisateur : un accès direct à la
@@ -358,13 +563,82 @@ class _EtatVideObjectif extends StatelessWidget {
   }
 }
 
+/// Une tuile du tableau de bord : une icône, un libellé, une valeur courte.
+/// Trois côte à côte répondent aux trois questions immédiates de l'utilisateur
+/// (objectif du jour, série, points) sans qu'il ait à calculer quoi que ce soit.
+class _TuileStat extends StatelessWidget {
+  final IconData icone;
+  final Color couleurIcone;
+  final String libelle;
+  final String valeur;
+  /// Fond teinté quand la tuile porte une bonne nouvelle (objectif du jour
+  /// atteint) : c'est la seule qui change d'état d'un jour à l'autre, elle doit
+  /// se repérer sans lire.
+  final bool accentue;
+
+  const _TuileStat({
+    required this.icone,
+    required this.couleurIcone,
+    required this.libelle,
+    required this.valeur,
+    this.accentue = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: accentue
+            ? AppColors.green700.withValues(alpha: 0.10)
+            : AppColors.cream,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(
+            color: accentue
+                ? AppColors.green700.withValues(alpha: 0.35)
+                : AppColors.cream300),
+      ),
+      child: Column(
+        children: [
+          Icon(icone, size: 18, color: couleurIcone),
+          const SizedBox(height: 5),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(valeur,
+                maxLines: 1,
+                style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink)),
+          ),
+          const SizedBox(height: 1),
+          Text(libelle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.manrope(
+                  fontSize: 9.5,
+                  letterSpacing: 0.4,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.inkLight)),
+        ],
+      ),
+    );
+  }
+}
+
 /// 7 barres, les 7 derniers jours (le plus ancien à gauche, RTL ou pas — la
 /// chronologie prime ici sur la direction de lecture). Hauteur relative au
 /// jour le plus chargé de la fenêtre, jamais à une constante devinée : sur
 /// une semaine à 20 mots/jour comme sur une à 400, le graphique reste lisible.
 class _MiniEvolution extends StatelessWidget {
   final List<JourActif> jours;
-  const _MiniEvolution({required this.jours});
+  /// Repère textuel affiché sous la DERNIÈRE barre (2026-08-14, constat
+  /// utilisateur : le graphique n'avait aucun repère -- impossible de savoir
+  /// ce que les barres représentaient sans lire le code). Un seul repère
+  /// suffit à ancrer toute la lecture : "la barre la plus à droite, c'est
+  /// aujourd'hui, donc ça va de {aujourd'hui-6j} à aujourd'hui, dans l'ordre".
+  final String libelleAujourdhui;
+  const _MiniEvolution({required this.jours, required this.libelleAujourdhui});
 
   @override
   Widget build(BuildContext context) {
@@ -375,28 +649,49 @@ class _MiniEvolution extends StatelessWidget {
       return parJour[_cle(d)] ?? 0;
     });
     final max = sept.fold<int>(1, (a, v) => v > a ? v : a);
-    return SizedBox(
-      height: 40,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (final v in sept)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: Container(
-                  height: 4 + 32 * (v / max),
-                  decoration: BoxDecoration(
-                    color: v > 0
-                        ? AppColors.green700.withValues(alpha: 0.55)
-                        : AppColors.cream300,
-                    borderRadius: BorderRadius.circular(3),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 40,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (final v in sept)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Container(
+                      height: 4 + 32 * (v / max),
+                      decoration: BoxDecoration(
+                        color: v > 0
+                            ? AppColors.green700.withValues(alpha: 0.55)
+                            : AppColors.cream300,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
                   ),
                 ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 3),
+        Row(
+          children: [
+            for (var i = 0; i < 7; i++)
+              Expanded(
+                child: i == 6
+                    ? Text(libelleAujourdhui,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.manrope(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.inkLight))
+                    : const SizedBox(),
               ),
-            ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -427,12 +722,6 @@ class _ReglageObjectifSheetState
     _periode = o.periode;
     _niveau = o.niveau;
   }
-
-  String _libellePeriode(AppLocalizations t, PeriodeObjectif p) => switch (p) {
-        PeriodeObjectif.jour => t.coachObjectifPeriodeJour,
-        PeriodeObjectif.semaine => t.coachObjectifPeriodeSemaine,
-        PeriodeObjectif.mois => t.coachObjectifPeriodeMois,
-      };
 
   String _libelleNiveau(AppLocalizations t, NiveauCoach n) => switch (n) {
         NiveauCoach.aMonRythme => t.coachNiveauAMonRythme,
@@ -492,7 +781,7 @@ class _ReglageObjectifSheetState
               children: [
                 for (final p in PeriodeObjectif.values)
                   ChoiceChip(
-                    label: Text(_libellePeriode(t, p)),
+                    label: Text(_libellePeriodeObjectif(t, p)),
                     selected: _periode == p,
                     onSelected: (_) => setState(() => _periode = p),
                   ),

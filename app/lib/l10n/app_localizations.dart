@@ -3451,6 +3451,84 @@ abstract class AppLocalizations {
   /// **'par mois'**
   String get coachObjectifPeriodeMois;
 
+  /// Progression vers l'objectif, sur sa propre période (jour/semaine/mois) -- jamais convertie en semaine, pour ne jamais afficher un chiffre fractionnaire comme '0,2 quart'
+  ///
+  /// In fr, this message translates to:
+  /// **'{total, plural, =1{{faits} sur 1 quart — {periode}} other{{faits} sur {total} quarts — {periode}}}'**
+  String coachObjectifPeriodProgress(int faits, int total, String periode);
+
+  /// Légende du mini graphique d'évolution sur 7 jours
+  ///
+  /// In fr, this message translates to:
+  /// **'7 derniers jours'**
+  String get coachObjectifMiniEvolutionCaption;
+
+  /// Repère "aujourd'hui" sous la dernière barre du mini graphique
+  ///
+  /// In fr, this message translates to:
+  /// **'Aujourd\'hui'**
+  String get coachObjectifToday;
+
+  /// Interrupteur : attendre صدق الله العظيم apres la sourate
+  ///
+  /// In fr, this message translates to:
+  /// **'Phrase de fin de sourate'**
+  String get karaokePhraseFinTitle;
+
+  /// Sous-titre de l'interrupteur de phrase de fin
+  ///
+  /// In fr, this message translates to:
+  /// **'Attendre « صدق الله العظيم » après le dernier verset — aide l\'app à juger le dernier mot'**
+  String get karaokePhraseFinSubtitle;
+
+  /// Titre de la tuile "objectif du jour" du tableau de bord
+  ///
+  /// In fr, this message translates to:
+  /// **'Aujourd\'hui'**
+  String get coachDashTodayLabel;
+
+  /// Objectif quotidien atteint
+  ///
+  /// In fr, this message translates to:
+  /// **'Atteint'**
+  String get coachDashTodayDone;
+
+  /// Objectif quotidien pas encore atteint
+  ///
+  /// In fr, this message translates to:
+  /// **'En cours'**
+  String get coachDashTodayPending;
+
+  /// Titre de la tuile série du tableau de bord
+  ///
+  /// In fr, this message translates to:
+  /// **'Série'**
+  String get coachDashStreakLabel;
+
+  /// Valeur compacte de la série, dans la tuile du tableau de bord
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{—} =1{1 jour} other{{count} jours}}'**
+  String coachDashStreakValue(int count);
+
+  /// Titre de la tuile points (récompense d'effort) du tableau de bord
+  ///
+  /// In fr, this message translates to:
+  /// **'Points'**
+  String get coachDashPointsLabel;
+
+  /// Titre du bloc de progression vers l'objectif, sur sa propre période
+  ///
+  /// In fr, this message translates to:
+  /// **'Progression — {periode}'**
+  String coachDashProgressTitle(String periode);
+
+  /// Ce qu'il reste à faire pour boucler l'objectif de la période
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Objectif atteint} =1{Encore 1 quart} other{Encore {count} quarts}}'**
+  String coachDashProgressRemaining(int count);
+
   /// Titre du choix de niveau d'accompagnement (fréquence des rappels)
   ///
   /// In fr, this message translates to:

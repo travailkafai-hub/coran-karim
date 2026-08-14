@@ -255,7 +255,32 @@ class Decideur(
         return OrdreTemporel(debutPropre, finApres)
     }
 
-    /** @return statut courant de chaque mot ayant au moins une observation. */
+    /**
+     * ── `k = 1` A LA FERMETURE : ESSAYE PUIS RETIRE LE MEME JOUR (2026-08-14)
+     *
+     * Le probleme est reel et mesure (session live An-Nasr) :
+     *     mot=22 "تَوَّابًۢا" -> provisoire:orange  obs=1  entendu="تَوَّابًا"
+     * Le dernier mot d'une sourate ne peut structurellement JAMAIS obtenir sa
+     * seconde observation -- aucune fenetre ne vient apres lui -- ni satisfaire
+     * `recitateurPasse` (aucun mot posterieur n'existe). Il restait donc
+     * `provisoire` pour toujours.
+     *
+     * `k = 1` a la fermeture avait ete code, puis RETIRE sur arbitrage
+     * utilisateur : « on peut garder k=2 mais rajouter a la fin de chaque
+     * sourate صدق الله العظيم si on a un audio ». Le raisonnement est meilleur
+     * que l'assouplissement : en recitant une phrase APRES la sourate, le
+     * dernier mot du Coran cesse d'etre le dernier -- il obtient sa 2e
+     * observation et son contexte droit NATURELLEMENT, sans qu'aucune regle de
+     * preuve ne soit relachee. Cf. le reglage optionnel cote Dart.
+     *
+     * ⚠️ Ne pas reintroduire `k = 1` sans cause nouvelle : ce serait figer un
+     * verdict sur une seule mesure, exactement ce que `k` existe pour
+     * empecher. Le cas « l'utilisateur ne dit pas la phrase » est traite en
+     * laissant le mot NON JUGE -- ce qui ne le penalise pas (cf. la regle
+     * `nonJuges` de `_compterMots`, cote Dart).
+     *
+     * @return statut courant de chaque mot ayant au moins une observation.
+     */
     fun statuts(registre: RegistreDePreuves, nbMots: Int): Map<Int, Statut> {
         val out = HashMap<Int, Statut>()
         val ordre = ordreTemporel(registre, nbMots)

@@ -2098,6 +2098,74 @@ class AppLocalizationsFr extends AppLocalizations {
   String get coachObjectifPeriodeMois => 'par mois';
 
   @override
+  String coachObjectifPeriodProgress(int faits, int total, String periode) {
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: '$faits sur $total quarts — $periode',
+      one: '$faits sur 1 quart — $periode',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifMiniEvolutionCaption => '7 derniers jours';
+
+  @override
+  String get coachObjectifToday => 'Aujourd\'hui';
+
+  @override
+  String get karaokePhraseFinTitle => 'Phrase de fin de sourate';
+
+  @override
+  String get karaokePhraseFinSubtitle =>
+      'Attendre « صدق الله العظيم » après le dernier verset — aide l\'app à juger le dernier mot';
+
+  @override
+  String get coachDashTodayLabel => 'Aujourd\'hui';
+
+  @override
+  String get coachDashTodayDone => 'Atteint';
+
+  @override
+  String get coachDashTodayPending => 'En cours';
+
+  @override
+  String get coachDashStreakLabel => 'Série';
+
+  @override
+  String coachDashStreakValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count jours',
+      one: '1 jour',
+      zero: '—',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachDashPointsLabel => 'Points';
+
+  @override
+  String coachDashProgressTitle(String periode) {
+    return 'Progression — $periode';
+  }
+
+  @override
+  String coachDashProgressRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Encore $count quarts',
+      one: 'Encore 1 quart',
+      zero: 'Objectif atteint',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get coachNiveauTitle => 'Accompagnement';
 
   @override

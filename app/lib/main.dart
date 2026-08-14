@@ -16,7 +16,8 @@ import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_hub_screen.dart';
 import 'screens/coach_sessions.dart'
-    show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider;
+    show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider,
+        derniersJoursProvider, serieProvider;
 import 'screens/dua_pour_nous_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
@@ -259,6 +260,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // ça il continuerait d'afficher les portions telles qu'elles étaient à
     // la dernière ouverture.
     ref.invalidate(portionsProvider);
+    // Le tableau de bord (serie, points, progression) se relit ici aussi :
+    // c'est le point de passage OBLIGE vers l'onglet Coach.
+    ref.invalidate(derniersJoursProvider);
+    ref.invalidate(serieProvider);
     setState(() => _tab = 2);
   }
 
