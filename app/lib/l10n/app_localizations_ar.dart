@@ -1988,6 +1988,50 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String coachObjectifResteAnneesMois(int annees, int mois) {
+    String _temp0 = intl.Intl.pluralLogic(
+      annees,
+      locale: localeName,
+      other: 'بقيت $annees سنوات',
+      one: 'بقيت سنة واحدة',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      mois,
+      locale: localeName,
+      other: ' و$mois أشهر',
+      one: ' وشهر واحد',
+      zero: '',
+    );
+    return '$_temp0$_temp1';
+  }
+
+  @override
+  String coachObjectifResteMois(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'بقي $count أشهر',
+      one: 'بقي شهر واحد',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifResteJours(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'بقي $count أيام',
+      one: 'بقي يوم واحد',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifEcheanceDepassee =>
+      'انتهى الأجل — يمكنك منح نفسك وقتًا إضافيًا';
+
+  @override
   String coachObjectifAnneesLabel(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

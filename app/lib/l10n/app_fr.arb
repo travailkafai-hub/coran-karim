@@ -2565,6 +2565,19 @@
     "description": "Nombre de quarts de Hizb visés, dans le réglage de l'objectif",
     "placeholders": { "count": { "type": "int" } }
   },
+  "coachObjectifResteAnneesMois": "{annees, plural, =1{Il reste 1 an} other{Il reste {annees} ans}}{mois, plural, =0{} =1{ et 1 mois} other{ et {mois} mois}}",
+  "@coachObjectifResteAnneesMois": {
+    "description": "Décompte de l'échéance datée (2026-08-14) : sans lui, dater l'objectif ne se verrait nulle part",
+    "placeholders": { "annees": { "type": "int" }, "mois": { "type": "int" } }
+  },
+  "coachObjectifResteMois": "{count, plural, =1{Il reste 1 mois} other{Il reste {count} mois}}",
+  "@coachObjectifResteMois": { "placeholders": { "count": { "type": "int" } } },
+  "coachObjectifResteJours": "{count, plural, =1{Il reste 1 jour} other{Il reste {count} jours}}",
+  "@coachObjectifResteJours": { "placeholders": { "count": { "type": "int" } } },
+  "coachObjectifEcheanceDepassee": "Échéance atteinte — tu peux te redonner du temps",
+  "@coachObjectifEcheanceDepassee": {
+    "description": "Jamais un reproche (PLAN_COACH.md §2) : on propose d'allonger, on ne punit pas"
+  },
   "coachObjectifAnneesLabel": "{count, plural, =1{Tout le Coran en 1 an} other{Tout le Coran en {count} ans}}",
   "@coachObjectifAnneesLabel": {
     "description": "L'objectif en toutes lettres : mémoriser tout le Coran en N années (refonte 2026-08-14)",

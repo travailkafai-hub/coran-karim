@@ -3433,6 +3433,30 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{Aucun quart} =1{1 quart de Hizb} other{{count} quarts de Hizb}}'**
   String coachObjectifQuartsLabel(int count);
 
+  /// Décompte de l'échéance datée (2026-08-14) : sans lui, dater l'objectif ne se verrait nulle part
+  ///
+  /// In fr, this message translates to:
+  /// **'{annees, plural, =1{Il reste 1 an} other{Il reste {annees} ans}}{mois, plural, =0{} =1{ et 1 mois} other{ et {mois} mois}}'**
+  String coachObjectifResteAnneesMois(int annees, int mois);
+
+  /// No description provided for @coachObjectifResteMois.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{Il reste 1 mois} other{Il reste {count} mois}}'**
+  String coachObjectifResteMois(int count);
+
+  /// No description provided for @coachObjectifResteJours.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{Il reste 1 jour} other{Il reste {count} jours}}'**
+  String coachObjectifResteJours(int count);
+
+  /// Jamais un reproche (PLAN_COACH.md §2) : on propose d'allonger, on ne punit pas
+  ///
+  /// In fr, this message translates to:
+  /// **'Échéance atteinte — tu peux te redonner du temps'**
+  String get coachObjectifEcheanceDepassee;
+
   /// L'objectif en toutes lettres : mémoriser tout le Coran en N années (refonte 2026-08-14)
   ///
   /// In fr, this message translates to:

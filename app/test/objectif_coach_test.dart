@@ -138,4 +138,96 @@ void main() {
       expect(r.seuilMotsParJour, RythmeCoach.plancherMotsParJour);
     });
   });
+
+  // ── L'ÉCHÉANCE EST DATÉE ET SE CONSOMME ────────────────────────────────
+  //
+  // Question utilisateur du 2026-08-14 : « est-ce qu'il est daté ? 4 ans, puis
+  // après 4 mois je modifie en 5 ans, est-ce que ça redémarre ? ». Elle a
+  // révélé que l'échéance GLISSAIT (recalculée chaque jour à partir de
+  // maintenant), donc qu'aucun retard n'était visible. Ces tests verrouillent
+  // la règle qu'il a posée en réponse.
+  group('ObjectifCoach — échéance datée', () {
+    final pose = DateTime(2026, 1, 1);
+    ObjectifCoach quatreAns() =>
+        ObjectifCoach(annees: 4, debut: pose);
+
+    test('au départ 4 ans, six mois plus tard il reste 3 ans et 6 mois', () {
+      final o = quatreAns();
+      final dansSixMois = pose.add(const Duration(days: 182));
+      final restants = o.joursRestants(dansSixMois);
+      // 4 x 365 - 182 = 1278 jours, soit 3 ans (1095) + ~6 mois.
+      expect(restants, 1278);
+      expect(restants ~/ 365, 3);
+      expect((restants % 365) ~/ 30, 6);
+    });
+
+    test('sans progrès, le rythme MONTE à mesure que le temps passe', () {
+      // C'est tout l'objet du changement : le retard doit se voir dans le
+      // chiffre, sans détecteur de retard ni alerte.
+      final o = quatreAns();
+      final auDebut = o.rythmePour(0, pose).parJour;
+      final dansUnAn = o.rythmePour(0, pose.add(const Duration(days: 365)));
+      expect(dansUnAn.parJour, greaterThan(auDebut));
+      // 240 quarts sur les 1095 jours qui restent.
+      expect(dansUnAn.parJour, closeTo(240 / 1095, 0.0001));
+    });
+
+    test('le progrès détend le rythme, même échéance inchangée', () {
+      final o = quatreAns();
+      final sansRien = o.rythmePour(0, pose).parJour;
+      final avecCent = o.rythmePour(100, pose).parJour;
+      expect(avecCent, lessThan(sansRien));
+    });
+
+    test('échéance dépassée : signalée, et le rythme ne diverge pas', () {
+      final o = quatreAns();
+      final apres = pose.add(const Duration(days: 4 * 365 + 10));
+      expect(o.depassee(apres), isTrue);
+      // Plancher à 1 jour : sans lui, division par zéro puis rythme infini
+      // affiché le jour où l'utilisateur a le plus besoin d'être encouragé.
+      expect(o.joursRestants(apres), 1);
+      // 50 quarts ACQUIS, donc 190 restants, répartis sur le dernier jour.
+      // Le chiffre est gros, mais il est FINI et exact — c'est tout ce qu'on
+      // demande ici : ni infini, ni NaN.
+      final r = o.rythmePour(50, apres).parJour;
+      expect(r, 190);
+      expect(r.isFinite, isTrue);
+    });
+
+    test('le repère vise la FIN du premier jour, jamais 0', () {
+      // Correction utilisateur 2026-08-14 : « ça devrait pas être 0 au début,
+      // ça devrait être l'objectif de fin de journée, donc 1 jour ». Un repère
+      // à zéro ne demande rien le jour même où l'on commence.
+      final o = quatreAns();
+      final part = o.partDueALaFinDuJour(pose);
+      expect(part, greaterThan(0));
+      expect(part, closeTo(1 / (4 * 365), 0.00001));
+    });
+
+    test('le repère avance d un jour par jour', () {
+      final o = quatreAns();
+      final j1 = o.partDueALaFinDuJour(pose);
+      final j2 = o.partDueALaFinDuJour(pose.add(const Duration(days: 1)));
+      expect(j2 - j1, closeTo(1 / (4 * 365), 0.00001));
+    });
+
+    test('à mi-échéance le repère est à la moitié', () {
+      final o = quatreAns();
+      final moitie = o.partDueALaFinDuJour(pose.add(const Duration(days: 730)));
+      expect(moitie, closeTo(0.5, 0.002));
+    });
+
+    test('le repère ne dépasse jamais 100 %', () {
+      final o = quatreAns();
+      expect(o.partDueALaFinDuJour(pose.add(const Duration(days: 3000))), 1.0);
+    });
+
+    test('un objectif sans date se comporte comme avant (pas de régression)',
+        () {
+      const o = ObjectifCoach(annees: 4); // hérité d'avant la datation
+      expect(o.echeance, isNull);
+      expect(o.depassee(), isFalse);
+      expect(o.joursRestants(), 4 * 365);
+    });
+  });
 }

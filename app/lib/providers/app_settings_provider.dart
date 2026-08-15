@@ -774,6 +774,10 @@ class PortionGranularitySettingNotifier
 const _kPrefObjectifQuarts = 'coach_objectif_quarts';
 const _kPrefObjectifPeriode = 'coach_objectif_periode';
 const _kPrefObjectifAnnees = 'coach_objectif_annees';
+/// Jour où l'échéance a été posée (ISO-8601). Cf. `ObjectifCoach.debut` :
+/// sans lui, l'échéance glisse d'un jour chaque jour et aucun retard n'est
+/// visible.
+const _kPrefObjectifDebut = 'coach_objectif_debut';
 const _kPrefCoachNiveau = 'coach_niveau';
 
 /// Objectif de mémorisation et niveau d'accompagnement (cf. `PLAN_COACH.md`).
@@ -805,8 +809,33 @@ class ObjectifCoachNotifier extends StateNotifier<ObjectifCoach> {
       annees = _migrerDepuisVolumeParPeriode(prefs);
       if (annees > 0) await prefs.setInt(_kPrefObjectifAnnees, annees);
     }
+    // ── DATE DE POSE DE L'ÉCHÉANCE (2026-08-14) ──────────────────────────
+    //
+    // Sans elle, l'échéance glissait d'un jour chaque jour (cf.
+    // `ObjectifCoach.debut`). Un objectif ANTÉRIEUR à ce changement n'a
+    // évidemment pas de date : on la pose à AUJOURD'HUI, jamais à une date
+    // passée reconstituée.
+    //
+    // Pourquoi ne pas remonter à la première activité connue du Coach, qui
+    // serait plus « exact » : parce que ce serait décider à la place de
+    // l'utilisateur qu'il a déjà consommé une partie de son échéance, sur une
+    // date qu'il n'a jamais choisie -- et ça se traduirait par un rythme
+    // quotidien brutalement plus dur au premier lancement, sans explication.
+    // Repartir d'aujourd'hui ne perd rien d'acquis : les quarts déjà
+    // mémorisés restent comptés, c'est le RESTE qui est réparti.
+    var debut = _lireDate(prefs, _kPrefObjectifDebut);
+    if (annees > 0 && debut == null) {
+      debut = DateTime.now();
+      await prefs.setString(_kPrefObjectifDebut, debut.toIso8601String());
+    }
     if (!mounted) return;
-    state = ObjectifCoach(annees: annees, niveau: niveau);
+    state = ObjectifCoach(annees: annees, niveau: niveau, debut: debut);
+  }
+
+  static DateTime? _lireDate(SharedPreferences prefs, String cle) {
+    final brut = prefs.getString(cle);
+    if (brut == null) return null;
+    return DateTime.tryParse(brut);
   }
 
   /// Convertit un ancien objectif « N quarts par jour/semaine/mois » en une
@@ -835,13 +864,37 @@ class ObjectifCoachNotifier extends StateNotifier<ObjectifCoach> {
     return annees.clamp(ObjectifCoach.anneesMin, ObjectifCoach.anneesMax);
   }
 
+  /// Pose (ou repose) l'échéance : elle court à partir d'AUJOURD'HUI.
+  ///
+  /// Règle utilisateur du 2026-08-14 : « une fois la décision prise, la durée
+  /// diminue avec le temps -- au départ 4 ans, dans 6 mois c'est 3 ans et
+  /// 6 mois ; il peut augmenter à 4 ans, mais ça prend seulement le reste qui
+  /// n'est pas encore appris par cœur ».
+  ///
+  /// Toucher au curseur redéfinit donc la durée QUI RESTE, pas une durée
+  /// totale depuis l'origine : remettre « 4 ans » alors qu'il en restait 3 ans
+  /// et 6 mois redonne bien 4 ans pleins à partir de ce jour. C'est le geste
+  /// d'allongement voulu par PLAN_COACH.md §2 (« mieux vaut des petits pas
+  /// qu'on réussit »), et il reste EXPLICITE : rien ne repousse l'échéance
+  /// tout seul, seul l'utilisateur peut le faire.
+  ///
+  /// L'objectif retiré (`annees = 0`) efface la date : le prochain objectif
+  /// posé repartira d'un jour neuf, il n'hérite pas d'une échéance abandonnée.
   Future<void> definir({required int annees}) async {
     final borne = annees <= 0
         ? 0
         : annees.clamp(ObjectifCoach.anneesMin, ObjectifCoach.anneesMax);
-    state = state.copyWith(annees: borne);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_kPrefObjectifAnnees, state.annees);
+    if (borne <= 0) {
+      state = const ObjectifCoach().copyWith(niveau: state.niveau);
+      await prefs.setInt(_kPrefObjectifAnnees, 0);
+      await prefs.remove(_kPrefObjectifDebut);
+      return;
+    }
+    final debut = DateTime.now();
+    state = ObjectifCoach(annees: borne, niveau: state.niveau, debut: debut);
+    await prefs.setInt(_kPrefObjectifAnnees, borne);
+    await prefs.setString(_kPrefObjectifDebut, debut.toIso8601String());
   }
 
   Future<void> setNiveau(NiveauCoach niveau) async {

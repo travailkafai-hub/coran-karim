@@ -165,22 +165,107 @@ class ObjectifCoach {
   static const int anneesMin = 1;
   static const int anneesMax = 6;
 
-  /// En combien d'années mémoriser tout le Coran. 0 = aucun objectif fixé.
+  /// En combien d'années mémoriser tout le Coran, TEL QUE CHOISI au moment du
+  /// réglage. 0 = aucun objectif fixé.
+  ///
+  /// ⚠️ Ce n'est PAS le temps qu'il reste : c'est la durée demandée le jour où
+  /// l'objectif a été posé. Le temps restant se lit sur [joursRestants], qui
+  /// décroît tout seul. Les deux ne coïncident qu'au premier jour.
   final int annees;
   final NiveauCoach niveau;
+
+  /// Jour où cette échéance a été posée. `null` = objectif d'avant la
+  /// datation (2026-08-14), ou aucun objectif.
+  ///
+  /// ── POURQUOI UNE DATE (question utilisateur du 2026-08-14) ──────────────
+  ///
+  /// « est-ce qu'il est daté ? par exemple 4 ans, après 4 mois je modifie en
+  /// 5 ans, est-ce que ça redémarre les 5 ans ? »
+  ///
+  /// Il ne l'était pas, et c'était un vrai défaut : le rythme se calculait sur
+  /// « N années À PARTIR DE MAINTENANT », recalculé chaque jour. L'échéance
+  /// GLISSAIT donc en permanence -- au bout de 4 mois d'un objectif de 4 ans,
+  /// il restait encore « 4 ans », la date de fin reculant d'un jour par jour.
+  /// On n'arrivait jamais.
+  ///
+  /// Conséquence la plus grave, et c'est elle qui impose la correction : un
+  /// RETARD était structurellement invisible. Sans rien réciter pendant deux
+  /// mois, le reste ne bougeait pas, la durée non plus, donc le rythme
+  /// quotidien affiché restait identique. Un coach qui ne peut pas voir un
+  /// retard ne coache pas.
+  ///
+  /// Règle posée par l'utilisateur : « une fois la décision prise, la durée
+  /// diminue avec le temps -- au départ 4 ans, dans 6 mois c'est 3 ans et
+  /// 6 mois ; il peut augmenter à 4 ans, mais ça prend seulement le reste qui
+  /// n'est pas encore appris par cœur ». L'échéance est donc FIXE une fois
+  /// posée, et rebouger le curseur la repose à partir d'aujourd'hui.
+  final DateTime? debut;
 
   const ObjectifCoach({
     this.annees = 0,
     this.niveau = NiveauCoach.regulier,
+    this.debut,
   });
 
   bool get actif => annees > 0;
 
-  /// Nombre de jours que couvre l'échéance. 365 jours pleins par année —
-  /// approximation assumée : l'objectif est un engagement, pas une
+  /// Nombre de jours que couvre l'échéance À SA POSE. 365 jours pleins par
+  /// année — approximation assumée : l'objectif est un engagement, pas une
   /// comptabilité, et compter les bissextiles ferait bouger le rythme affiché
   /// sans que l'utilisateur comprenne pourquoi.
   int get joursDeLEcheance => annees * 365;
+
+  /// Le jour où l'échéance tombe. `null` tant qu'aucune date de pose n'est
+  /// connue (objectif hérité d'avant la datation).
+  DateTime? get echeance =>
+      debut == null ? null : debut!.add(Duration(days: joursDeLEcheance));
+
+  /// Jours restants jusqu'à l'échéance, vus depuis [maintenant].
+  ///
+  /// PLANCHER À 1, et ce n'est pas un détail : il divise le reste à mémoriser
+  /// dans [rythmePour]. À zéro, le rythme deviendrait infini et la carte
+  /// afficherait un nombre absurde le jour même où l'utilisateur a le plus
+  /// besoin d'être encouragé. Une échéance dépassée se lit sur [depassee],
+  /// qui appelle une PROPOSITION D'ALLONGER (PLAN_COACH.md §2 : quand
+  /// l'objectif est trop haut, on propose de l'allonger, on ne punit pas).
+  int joursRestants([DateTime? maintenant]) {
+    if (!actif) return 0;
+    final fin = echeance;
+    if (fin == null) return joursDeLEcheance; // pas de date : comportement d'avant
+    final reste = fin.difference(maintenant ?? DateTime.now()).inDays;
+    return reste < 1 ? 1 : reste;
+  }
+
+  /// Part de l'échéance déjà due, en fraction (0..1) — la « progression
+  /// linéaire » que le repère des barres matérialise.
+  ///
+  /// ── LE +1 N'EST PAS UN DÉTAIL (correction utilisateur 2026-08-14) ───────
+  ///
+  /// Première version : `(échéance - restants) / échéance`, donc **0 % le jour
+  /// de la pose**. Constat de l'utilisateur : « ça devrait pas être 0 au
+  /// début, ça devrait être l'objectif de fin de journée, donc 1 jour ».
+  ///
+  /// Il a raison, et pour une raison de fond : un repère à zéro ne demande
+  /// RIEN. Il dit « tu es à jour » à quelqu'un qui n'a encore rien fait, et
+  /// n'indique aucun but pour la journée en cours. Le repère vise donc la FIN
+  /// du jour courant : dès le premier matin, il montre ce qu'il faut avoir
+  /// mémorisé ce soir.
+  ///
+  /// C'est aussi ce que font déjà les deux autres barres, dont la maturité
+  /// compte le jour en cours (`joursSuivis = différence + 1`) : les trois
+  /// repères parlent maintenant du même instant.
+  double partDueALaFinDuJour([DateTime? maintenant]) {
+    if (!actif || echeance == null) return 0;
+    final consommes = joursDeLEcheance - joursRestants(maintenant) + 1;
+    return (consommes / joursDeLEcheance).clamp(0.0, 1.0);
+  }
+
+  /// `true` quand la date de fin est passée sans que le Coran soit mémorisé.
+  bool depassee([DateTime? maintenant]) {
+    final fin = echeance;
+    if (!actif || fin == null) return false;
+    return (maintenant ?? DateTime.now()).isAfter(fin);
+  }
 
   /// Le rythme requis compte tenu de ce qui est DÉJÀ ACQUIS (décision
   /// utilisateur 2026-08-14 : l'échéance porte sur le reste à mémoriser).
@@ -190,11 +275,19 @@ class ObjectifCoach {
   /// calculé sur ce qu'il sait déjà. Conséquence assumée : le chiffre affiché
   /// baisse tout seul quand un quart est acquis — c'est une bonne nouvelle,
   /// pas une instabilité.
-  RythmeCoach rythmePour(double quartsAcquis) {
+  /// [maintenant] n'existe que pour les tests : il rend le calcul déterministe
+  /// sans quoi « dans 6 mois il reste 3 ans et 6 mois » ne serait pas testable.
+  RythmeCoach rythmePour(double quartsAcquis, [DateTime? maintenant]) {
     if (!actif) return RythmeCoach.aucun;
     final restant =
         (quartsDuCoran - quartsAcquis).clamp(0.0, quartsDuCoran.toDouble());
-    final parJour = restant / joursDeLEcheance;
+    // ── LE DÉNOMINATEUR EST CE QUI RESTE, PAS L'ÉCHÉANCE D'ORIGINE ─────────
+    // C'est TOUT le changement du 2026-08-14 (cf. `debut`) : à mesure que les
+    // jours passent sans progrès, le même reste se répartit sur moins de
+    // jours, donc le rythme quotidien MONTE. C'est ainsi qu'un retard devient
+    // visible -- sans détecteur de retard, sans alerte, par le seul calcul.
+    final jours = joursRestants(maintenant);
+    final parJour = restant / jours;
     return RythmeCoach(
       quartsRestants: restant,
       parJour: parJour,
@@ -216,9 +309,11 @@ class ObjectifCoach {
   ObjectifCoach copyWith({
     int? annees,
     NiveauCoach? niveau,
+    DateTime? debut,
   }) =>
       ObjectifCoach(
         annees: annees ?? this.annees,
         niveau: niveau ?? this.niveau,
+        debut: debut ?? this.debut,
       );
 }

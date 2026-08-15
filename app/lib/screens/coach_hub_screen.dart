@@ -293,12 +293,34 @@ class _ObjectifSection extends ConsumerWidget {
                         color: AppColors.green800, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        t.coachObjectifAnneesLabel(objectif.annees),
-                        style: GoogleFonts.manrope(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.ink),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t.coachObjectifAnneesLabel(objectif.annees),
+                            style: GoogleFonts.manrope(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink),
+                          ),
+                          // ── LE TEMPS QUI RESTE (2026-08-14) ─────────────
+                          // Sans cette ligne, dater l'échéance ne servirait à
+                          // rien : le titre dirait « en 4 ans » pour toujours,
+                          // et l'utilisateur n'aurait aucun moyen de voir que
+                          // l'échéance approche -- alors que c'est exactement
+                          // ce qu'il a demandé (« au départ 4 ans, dans
+                          // 6 mois c'est 3 ans et 6 mois »).
+                          if (objectif.actif && objectif.echeance != null)
+                            Text(
+                              _resteEnClair(t, objectif),
+                              style: GoogleFonts.manrope(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: objectif.depassee()
+                                      ? AppColors.rythmeARattraper
+                                      : AppColors.inkLight),
+                            ),
+                        ],
                       ),
                     ),
                   ],
@@ -418,15 +440,47 @@ class _ObjectifSection extends ConsumerWidget {
                     final joursSuivis = l.isEmpty
                         ? 0
                         : DateTime.now().difference(l.last.jour).inDays + 1;
+                    final maturiteMois =
+                        (joursSuivis / fenetre).clamp(0.0, 1.0);
+                    final maturiteAnnee = (joursSuivis / 365).clamp(0.0, 1.0);
                     final etatDuMois = EtatRythme.depuis(
                       fait: avancement,
-                      attendu: cible * (joursSuivis / fenetre).clamp(0.0, 1.0),
+                      attendu: cible * maturiteMois,
                     );
                     final etatDeLAnnee = EtatRythme.depuis(
                       fait: quartsDeLAnnee,
-                      attendu: rythme.cibleDeLAnnee *
-                          (joursSuivis / 365).clamp(0.0, 1.0),
+                      attendu: rythme.cibleDeLAnnee * maturiteAnnee,
                     );
+                    // ── LES TROIS REPÈRES DE PROGRESSION LINÉAIRE ───────────
+                    //
+                    // Chacun répond à « où devrais-je en être AUJOURD'HUI »,
+                    // mais sur trois échelles de temps qui n'ont pas la même
+                    // nature -- c'est pour ça qu'ils ne se calculent pas de la
+                    // même façon :
+                    //
+                    //  - MOIS et ANNÉE : fenêtres GLISSANTES. Leur cible est
+                    //    due en permanence, donc le repère est au BOUT de la
+                    //    barre (100 %) dès que le suivi a l'âge de la fenêtre.
+                    //    Il ne recule que pour un débutant, à qui l'on ne
+                    //    réclame pas un mois qu'il n'a pas vécu -- même
+                    //    maturité que l'état coloré juste au-dessus, pour que
+                    //    le trait et la couleur ne puissent jamais se
+                    //    contredire.
+                    //
+                    //  - CORAN ENTIER : là, le repère est enfin ce qu'on
+                    //    attend vraiment d'une progression linéaire, la part
+                    //    du TEMPS d'échéance déjà dû. Il n'existe que depuis
+                    //    que l'objectif est daté (2026-08-14) : sans date de
+                    //    pose, « la moitié du chemin » n'avait aucun sens.
+                    //    `null` si aucun objectif n'est fixé — on ne dessine
+                    //    pas un repère sur une échéance inexistante.
+                    //    Il vise la FIN de la journée en cours, jamais son
+                    //    début (cf. `partDueALaFinDuJour`) : à zéro, il ne
+                    //    demanderait rien le premier jour.
+                    final o = objectif;
+                    final repereCoran = (o.actif && o.debut != null)
+                        ? o.partDueALaFinDuJour()
+                        : null;
                     final pointsPeriode =
                         periodeCourante.fold<int>(0, (a, j) => a + j.points);
                     // ⛔ Plus lu depuis le retrait de l'état du jour
@@ -539,6 +593,7 @@ class _ObjectifSection extends ConsumerWidget {
                           etat: etatDuMois,
                           principale: true,
                           sousTitre: t.coachDashProgressRemaining(restant),
+                          repereLineaire: maturiteMois,
                         ),
                         _BlocRepliable(
                           titre: t.coachDashProgressMoreHorizons,
@@ -549,6 +604,7 @@ class _ObjectifSection extends ConsumerWidget {
                               fait: quartsDeLAnnee,
                               cible: rythme.cibleDeLAnnee.toDouble(),
                               etat: etatDeLAnnee,
+                              repereLineaire: maturiteAnnee,
                             ),
                             const SizedBox(height: 14),
                             // Le Coran entier n'a PAS d'état de rythme : c'est
@@ -562,6 +618,7 @@ class _ObjectifSection extends ConsumerWidget {
                               fait: acquis,
                               cible: ObjectifCoach.quartsDuCoran.toDouble(),
                               etat: null,
+                              repereLineaire: repereCoran,
                             ),
                           ],
                         ),
@@ -625,6 +682,22 @@ class _ObjectifSection extends ConsumerWidget {
       builder: (_) => const _ReglageObjectifSheet(),
     );
   }
+}
+
+/// « Il reste 3 ans et 6 mois » — le décompte, en années et mois pleins.
+///
+/// Volontairement PAS de jours au-delà d'un mois : un objectif de plusieurs
+/// années affiché à la journée près donnerait un chiffre qui change tous les
+/// jours sans jamais rien apprendre à l'utilisateur. Sous un mois, en
+/// revanche, le jour compte vraiment -- c'est là que l'échéance se joue.
+String _resteEnClair(AppLocalizations t, ObjectifCoach objectif) {
+  if (objectif.depassee()) return t.coachObjectifEcheanceDepassee;
+  final jours = objectif.joursRestants();
+  final annees = jours ~/ 365;
+  final mois = (jours % 365) ~/ 30;
+  if (annees > 0) return t.coachObjectifResteAnneesMois(annees, mois);
+  if (mois > 0) return t.coachObjectifResteMois(mois);
+  return t.coachObjectifResteJours(jours);
 }
 
 /// Filet de séparation entre deux zones d'une même carte. Volontairement très
@@ -716,6 +789,19 @@ class _BarreProgression extends StatelessWidget {
   final bool principale;
   final String? sousTitre;
 
+  /// Où l'on DEVRAIT en être si la progression était linéaire, en fraction de
+  /// la barre (0..1). `null` = pas de repère (aucune échéance connue).
+  ///
+  /// Demande utilisateur 2026-08-14 : « rajouter des pointeurs qui
+  /// correspondent à la progression linéaire sur les trois ».
+  ///
+  /// C'est l'information qui manquait pour LIRE la barre : 18 % ne dit rien
+  /// tout seul -- 18 % au bout d'un mois sur quatre ans est une avance, au
+  /// bout de trois ans un retard. Le repère rend l'écart visible d'un coup
+  /// d'œil, là où la pastille de couleur ne donnait qu'un verdict sans
+  /// montrer de combien.
+  final double? repereLineaire;
+
   const _BarreProgression({
     required this.titre,
     required this.fait,
@@ -723,6 +809,7 @@ class _BarreProgression extends StatelessWidget {
     required this.etat,
     this.principale = false,
     this.sousTitre,
+    this.repereLineaire,
   });
 
   static Color couleurDe(EtatRythme? e) => switch (e) {
@@ -773,14 +860,49 @@ class _BarreProgression extends StatelessWidget {
           ],
         ),
         SizedBox(height: principale ? 8 : 5),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: LinearProgressIndicator(
-            value: ratio,
-            minHeight: principale ? 10 : 6,
-            backgroundColor: AppColors.cream200,
-            color: couleur,
-          ),
+        // Le repère se pose PAR-DESSUS la barre, dans un Stack : il doit rester
+        // lisible quand la progression le dépasse (barre pleine sous le trait)
+        // comme quand elle est loin derrière (trait sur le fond crème). D'où
+        // une couleur sombre unique plutôt qu'un contraste calculé.
+        LayoutBuilder(
+          builder: (context, contraintes) {
+            final hauteur = principale ? 10.0 : 6.0;
+            final barre = ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: ratio,
+                minHeight: hauteur,
+                backgroundColor: AppColors.cream200,
+                color: couleur,
+              ),
+            );
+            final r = repereLineaire;
+            if (r == null) return barre;
+            final x = (r.clamp(0.0, 1.0)) * contraintes.maxWidth;
+            const largeurTrait = 2.0;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                barre,
+                // `PositionedDirectional` et non `Positioned` : en arabe la
+                // barre se remplit de droite à gauche, et un repère posé à
+                // gauche désignerait le mauvais instant.
+                PositionedDirectional(
+                  start: (x - largeurTrait / 2)
+                      .clamp(0.0, contraintes.maxWidth - largeurTrait),
+                  top: -2,
+                  bottom: -2,
+                  child: Container(
+                    width: largeurTrait,
+                    decoration: BoxDecoration(
+                      color: AppColors.ink.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         if (sousTitre != null || etat != null) ...[
           SizedBox(height: principale ? 6 : 4),

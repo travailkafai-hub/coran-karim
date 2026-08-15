@@ -2089,6 +2089,50 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String coachObjectifResteAnneesMois(int annees, int mois) {
+    String _temp0 = intl.Intl.pluralLogic(
+      annees,
+      locale: localeName,
+      other: 'Il reste $annees ans',
+      one: 'Il reste 1 an',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      mois,
+      locale: localeName,
+      other: ' et $mois mois',
+      one: ' et 1 mois',
+      zero: '',
+    );
+    return '$_temp0$_temp1';
+  }
+
+  @override
+  String coachObjectifResteMois(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Il reste $count mois',
+      one: 'Il reste 1 mois',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifResteJours(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Il reste $count jours',
+      one: 'Il reste 1 jour',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifEcheanceDepassee =>
+      'Échéance atteinte — tu peux te redonner du temps';
+
+  @override
   String coachObjectifAnneesLabel(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
