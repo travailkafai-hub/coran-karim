@@ -1142,8 +1142,15 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         // Cas legitime : l'audio est sorti de l'anneau (plus de
                         // 300 s), ou aucun de ces mots n'a de position connue.
                         // On le DIT plutot que de rendre un fichier vide.
+                        //
+                        // Depuis le 2026-08-14, une troisieme cause, VOULUE :
+                        // le mot demande n'a aucune position FIABLE (cf.
+                        // `ChaineRecitation.plageFiable`). Mieux vaut ne rien
+                        // faire ecouter que faire ecouter le mauvais mot --
+                        // c'est precisement le defaut qu'on ferme.
                         DiagnosticLog.log(TAG, "[v2] extrait voix INDISPONIBLE " +
-                            "mots $d..$f (hors anneau ou aucune position)")
+                            "mots $d..$f (hors anneau, aucune position, ou " +
+                            "position non fiable pour le mot $f)")
                         result.success(null)
                     } else {
                         val p = "${cacheDir?.absolutePath}/voix_extrait.wav"

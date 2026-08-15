@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
-import '../models/judgement_options.dart' show TajwidRule, JudgementPreset;
+// `JudgementPreset` retire de ce `show` le 2026-08-14 : son seul usage ici
+// etait le garde des etoiles (cf. leur retrait plus bas).
+import '../models/judgement_options.dart' show TajwidRule;
 import '../providers/judgement_provider.dart' show judgementOptionsProvider;
 import '../models/recitation_state.dart';
 import '../models/objectif_coach.dart';
@@ -790,34 +792,56 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // Filet de sécurité : ne jamais réintroduire un verset déjà chargé.
       final known = _verses.map((v) => v.key).toSet();
       final inedits = fetched.where((v) => !known.contains(v.key)).toList();
-      // ── ON NE FRANCHIT JAMAIS LA FIN D'UNE SOURATE (2026-08-14) ──────────
+      // ── ON ENCHAÎNE À NOUVEAU LES SOURATES (2026-08-14, seconde décision) ─
       //
-      // Règle utilisateur, rappelée ce jour : « l'affichage se fait par
-      // sourate, on n'affiche pas deux sourates, on ne peut pas enchaîner
-      // entre deux sourates ». L'enchaînement de page suivait la PAGE du
-      // Mushaf, qui ignore les frontières de sourate : une session démarrée
-      // sur An-Nasr (3 versets, 23 mots) se retrouvait avec une cible de
-      // 93 mots couvrant quatre sourates -- mesuré dans le journal du jour
-      // (`cible=23` au départ, `[COUTURE] mots=93` ensuite).
+      // Le blocage posé le matin même (« on ne franchit jamais la fin d'une
+      // sourate ») est LEVÉ le soir, sur retour utilisateur : « je reviens sur
+      // une décision déjà prise : maintenant je veux qu'on puisse enchaîner la
+      // récitation entre les sourates, surtout pour les petites sourates ;
+      // mais côté pourcentage il se fait par sourate ».
       //
-      // Deux conséquences, toutes deux constatées :
-      //   - l'écran montrait la suite d'une autre sourate que celle choisie ;
-      //   - le DERNIER MOT de la sourate récitée n'était plus le dernier de
-      //     la cible, donc la fin de session ne pouvait plus le traiter comme
-      //     tel (cf. le mot 22 resté `provisoire` alors que la cible allait
-      //     jusqu'à 93).
-      final sourateDeLaSession = _verses.first.surahNumber;
-      final nextVerses =
-          inedits.where((v) => v.surahNumber == sourateDeLaSession).toList();
-      if (inedits.any((v) => v.surahNumber != sourateDeLaSession)) {
-        // La page suivante déborde sur une autre sourate : celle-ci s'arrête
-        // ici, plus rien à enchaîner ensuite.
-        _noMorePages = true;
-        DiagnosticLog.log('Karaoke',
-            'fin de la sourate $sourateDeLaSession : enchaînement arrêté '
-            '(la page $nextPage entre dans une autre sourate)');
-      }
+      // CE QUI AVAIT MOTIVÉ LE BLOCAGE, ET CE QU'IL EN RESTE. Deux défauts
+      // avaient été mesurés le matin (cible 23 -> 93 mots sur quatre
+      // sourates) :
+      //   1. l'écran montrait la suite d'une autre sourate -- c'est
+      //      exactement ce qui est demandé maintenant, donc ce n'est plus un
+      //      défaut mais la fonction ;
+      //   2. le dernier mot de la sourate n'était plus le dernier de la cible,
+      //      donc restait `provisoire` à jamais.
+      //
+      // Le point 2 se REFERME TOUT SEUL en enchaînant, et c'est la raison
+      // pour laquelle rien d'autre n'est ajouté ici. Un mot n'est plus « le
+      // dernier » dès qu'on récite après lui : la Bismillah de la sourate
+      // suivante lui donne son contexte droit et sa deuxième observation
+      // NATURELLEMENT. C'est le raisonnement déjà retenu contre `k=1` à la
+      // fermeture (cf. graphe, `mort_k1_a_la_fermeture`) -- ce qui devait
+      // rester une exception de fin de session ne concerne plus les
+      // frontières intermédiaires. Aucune clôture partielle n'est donc
+      // déclenchée ici : elle consommerait le tampon audio en plein milieu
+      // d'une récitation continue, pour résoudre un problème qui ne se pose
+      // plus.
+      //
+      // LE POURCENTAGE RESTE PAR SOURATE sans une ligne de code : les mots
+      // sont archivés par `upsertPortionWord(surahNumber: verse.surahNumber)`,
+      // donc chaque mot rejoint la portion de SA sourate, quelle que soit
+      // l'étendue de la session.
+      //
+      // Effet de bord assumé : `sessions.surah_number` porte la sourate de
+      // DÉPART, une session enchaînée en couvrant plusieurs. La liste du Coach
+      // l'étiquette donc par son point de départ -- les scores, eux, restent
+      // ventilés correctement par sourate.
+      final nextVerses = inedits;
       if (nextVerses.isEmpty) return;
+      final nouvellesSourates = nextVerses
+          .map((v) => v.surahNumber)
+          .where((n) => n != lastVerse.surahNumber)
+          .toSet();
+      if (nouvellesSourates.isNotEmpty) {
+        DiagnosticLog.log('Karaoke',
+            'enchaînement vers la/les sourate(s) '
+            '${nouvellesSourates.join(",")} (page $nextPage) -- '
+            'la sourate ${lastVerse.surahNumber} garde son propre score');
+      }
       final bismillahVerse = await QuranApi.fetchBismillah();
       // _buildChunk insère une Bismillah devant CHAQUE début de sourate dans
       // ce lot (une page peut contenir plusieurs débuts de sourate, contraire
@@ -2565,6 +2589,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   Future<void> _toggle(RecitationSessionState st, RecitationNotifier n) async {
+    // Trace IHM (2026-08-14) -- cf. `_togglePause`. Ce bouton-ci est celui qui
+    // OUVRE et FERME la session : c'est le premier à confronter au journal
+    // `Micro` quand on se demande si le micro a bien suivi l'écran.
+    DiagnosticLog.log('IHM',
+        'CLIC halo=${st.status == RecitationStatus.listening ? "ARRETER" : "DEMARRER"} '
+        '| statut=${st.status.name} enPause=$_manuallyPaused');
     if (st.status == RecitationStatus.listening) {
       if (_manuallyPaused) setState(() => _manuallyPaused = false);
       await n.stopContinuous();
@@ -2793,6 +2823,18 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   Future<void> _togglePause() async {
+    // ── TRACE IHM (2026-08-14, demande utilisateur) ────────────────────────
+    // « log les actions sur IHM, sur quel bouton on clique, pour s'assurer
+    // après que la gestion du micro se fait bien ».
+    //
+    // Sans elle, le journal montre des prises et des relâches de micro sans
+    // jamais dire QUI les a demandées : impossible de distinguer « l'appui sur
+    // pause a bien coupé le micro » de « le micro s'est coupé tout seul et
+    // l'appui n'a rien fait ». Étiquette `IHM`, à lire avec `Micro` : les deux
+    // colonnes racontent la même histoire vue de l'écran et vue du matériel.
+    DiagnosticLog.log('IHM',
+        'CLIC bouton=${_manuallyPaused ? "REPRENDRE" : "PAUSE"} '
+        '| enPause=$_manuallyPaused actif=${_dernierEtatConnu?.isActive}');
     _montrerGlypheEtat();
     final verifier = ref.read(recitationVerifierProvider);
     if (_manuallyPaused) {
@@ -3352,24 +3394,29 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               child: Column(
                 children: [
                   _topBar(context, subtitle, st),
-                  // ── ETOILES, EN MODE ENFANT SEULEMENT ────────────────────
+                  // ── ETOILES RETIREES DE L'ECRAN DE RECITATION (2026-08-14) ─
                   //
-                  // Demande utilisateur (2026-08-06) : « améliore l'aspect
-                  // visuel quand c'est en mode enfant : des étoiles gagnées
-                  // quand on réussit [...] de la gamification quand c'est mode
-                  // enfant ».
+                  // Ajoutees le 2026-08-06 (« de la gamification quand c'est
+                  // mode enfant »), retirees ce jour sur constat en situation :
+                  // « quand je récite il y avait des étoiles qui s'affichent,
+                  // pourquoi, ça sert à quoi, pas d'affichage, ça perturbe le
+                  // récitateur ».
                   //
-                  // Une etoile par VERSET entierement vert. Le verset est
-                  // l'unite naturelle -- un mot est trop fin (l'ecran
-                  // clignoterait), la sourate trop grosse (l'enfant
-                  // n'obtiendrait rien avant la fin).
+                  // Le motif est plus fort qu'une preference d'IHM : PENDANT la
+                  // recitation, l'attention du reciteur appartient au texte.
+                  // Un bandeau qui apparait et grandit au fil des versets est
+                  // un mouvement dans le champ de vision de quelqu'un qui lit
+                  // -- il coute exactement la ou l'app doit se faire oublier.
                   //
-                  // Strictement reserve au preset ENFANT : recompenser un
-                  // adulte qui travaille son tajwid n'a pas le meme sens, et
-                  // l'utilisateur a demande ca POUR le mode enfant.
-                  if (ref.watch(judgementOptionsProvider).preset ==
-                      JudgementPreset.enfant)
-                    _BandeauEtoiles(etoiles: _etoilesGagnees(st)),
+                  // Code retire, garde pour memoire (`_BandeauEtoiles` et
+                  // `_etoilesGagnees` restent definis plus bas) :
+                  //   if (ref.watch(judgementOptionsProvider).preset ==
+                  //       JudgementPreset.enfant)
+                  //     _BandeauEtoiles(etoiles: _etoilesGagnees(st)),
+                  //
+                  // Si une recompense revient un jour pour le mode enfant, ce
+                  // devra etre APRES la recitation (ecran de fin), jamais
+                  // pendant -- c'est la lecon a garder de ce retrait.
                   _referenceBanner(st),
                   Expanded(child: Center(child: _verseArea(st))),
                   _heardCaption(st),
@@ -3500,6 +3547,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// etre revise (un `omis` redevient vert, mesure 12 fois sur 90 mots), et un
   /// compteur incremental garderait une etoile que la chaine vient de retirer.
   /// Le cout est negligeable -- on ne parcourt que les mots deja juges.
+  // Plus aucun appelant depuis le retrait des etoiles de l'ecran de
+  // recitation (2026-08-14). Conserve avec son widget : si une recompense
+  // revient, ce sera sur un ecran de FIN, et ce calcul y servira tel quel.
+  // Meme convention que `_openMemorizationGame` plus bas.
+  // ignore: unused_element
   int _etoilesGagnees(RecitationSessionState st) {
     var etoiles = 0;
     var tousVerts = true;
@@ -3534,7 +3586,18 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           IconButton(
             visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.arrow_back, color: Colors.white70),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              // Trace IHM (2026-08-14). CE chemin-ci mérite sa ligne plus que
+              // tout autre : c'est lui qui a laissé une session « ouverte et
+              // jamais fermée » le 2026-08-14 (la clôture partait de
+              // `dispose()`, après un `stopContinuous()` dont le garde
+              // d'entrée sautait tout). Sans trace, rien ne distingue « il est
+              // sorti par la flèche » de « il est sorti autrement ».
+              DiagnosticLog.log('IHM',
+                  'CLIC bouton=RETOUR | actif=${_dernierEtatConnu?.isActive} '
+                  'enPause=$_manuallyPaused');
+              Navigator.of(context).pop();
+            },
           ),
           Expanded(
             child: Text(
@@ -3934,10 +3997,28 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // vrai dès que la capture tourne, faux tant qu'on charge.
     // En RELECTURE, la récitation est terminée depuis longtemps : la
     // condition n'a plus de sens, la Bismillah est verte d'emblée.
-    final recitationCommencee =
-        widget.estRelecture || (_dernierEtatConnu?.isActive ?? false);
+    //
+    // ── PLUS VERTE D'AVANCE : IL FAUT L'AVOIR DITE (2026-08-14, le soir) ──
+    //
+    // La règle ci-dessus est REMPLACÉE, sur constat de l'utilisateur : « je
+    // veux que la Bismillah ne compte pas comme maintenant, mais qu'elle ne se
+    // mette en vert que lorsqu'elle est attendue [...] ça règle qu'elle soit
+    // déjà validée à l'avance ». Verte dès le démarrage de la capture, elle
+    // annonçait un acquis avant même qu'un seul mot ait été prononcé -- une
+    // couleur sans preuve, le défaut que la version précédente cherchait déjà
+    // à éviter d'un cran plus tôt (avant le chargement du modèle) sans aller
+    // jusqu'au bout du raisonnement.
+    //
+    // Le vert vient maintenant du JUGEMENT (`_onV2`, où le bloc entier bascule
+    // dès qu'un seul de ses mots est entendu), donc de `w.status` comme tout
+    // autre mot. Il n'y a plus rien à forcer ici. La Bismillah reste hors du
+    // score et ne peut toujours pas devenir rouge -- cela se joue dans
+    // `_onV2`, pas à l'affichage.
+    //
+    // La RELECTURE garde le forçage : la récitation est finie, la question
+    // « l'a-t-il dite ? » est tranchée depuis longtemps, et rien ne se rejoue.
     final effectiveStatus =
-        (w.isBasmala && recitationCommencee) ? WordStatus.correct : w.status;
+        (w.isBasmala && widget.estRelecture) ? WordStatus.correct : w.status;
 
     // ── L'OUBLI RESTE VISIBLE, MÊME REDIT CORRECTEMENT (2026-08-14) ──────
     // Un mot soufflé puis redit juste redevient `correct` : le vert effaçait
@@ -4695,6 +4776,7 @@ class _SheetSwitch extends StatelessWidget {
 /// Discret par choix : il vit sous la barre du haut, jamais par-dessus le
 /// texte coranique. Une etoile qui vient d'etre gagnee grossit brievement --
 /// c'est le seul mouvement, pour que le regard revienne au texte.
+// ignore: unused_element
 class _BandeauEtoiles extends StatelessWidget {
   final int etoiles;
   const _BandeauEtoiles({required this.etoiles});

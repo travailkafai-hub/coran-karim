@@ -876,6 +876,13 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       DiagnosticLog.log('ASR',
           'capture ouverte | suppression de bruit = $_noiseSuppress');
       DiagnosticLog.log('ASR', 'startStream() a retourné un Stream — abonnement…');
+      // Pendant de `Micro RELACHE` (cf. stop()) : la MEME étiquette des deux
+      // côtés, pour qu'un `grep Micro` du journal donne la vie du micro sur
+      // une seule colonne -- prise, relâche, et rien entre les deux qui puisse
+      // se perdre dans le reste du flot.
+      DiagnosticLog.log('Micro',
+          'PRISE effective | continu=$_continuous generation=$_generation '
+          'suppressionBruit=$_noiseSuppress');
 
       _pcmSub = stream.listen(
         (bytes) {
@@ -1293,6 +1300,24 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   @override
   Future<void> stop() async {
+    // ── TRACE DE FIN DE MICRO (2026-08-14, demande utilisateur) ────────────
+    // « rajoute l'activation et la fin d'activation du micro [...] pour
+    // s'assurer après que la gestion du micro se fait bien ».
+    //
+    // La prise du micro était déjà tracée (`Appel _recorder.startStream()…`),
+    // sa RELÂCHE ne l'était pas : on voyait le micro s'ouvrir, jamais se
+    // fermer, et rien ne distinguait « fermé proprement » de « laissé ouvert
+    // par un chemin de sortie oublié » -- exactement le défaut trouvé le
+    // 2026-08-14 sur `stopContinuous()`, dont le garde d'entrée sautait toute
+    // la fin de session sans laisser une ligne.
+    //
+    // `captureEnCours` est lu AVANT toute libération : il vaut `_pcmSub !=
+    // null`, donc l'état réel du micro et non une intention. Un `stop()` sur
+    // un micro déjà fermé se voit alors tel quel (`micro detenu=false`), ce
+    // qui est une information -- pas une anomalie à cacher.
+    DiagnosticLog.log('Micro',
+        'RELACHE demandee | micro detenu=$captureEnCours continu=$_continuous '
+        'generation=$_generation');
     _levelTimer?.cancel();
     _levelCtrl.add(0);
     _sessionEnding = true;
@@ -1307,6 +1332,8 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         await _fastConformer.disposeStreaming();
         _usingCausalStreaming = false;
       }
+      DiagnosticLog.log('Micro',
+          'RELACHE effective (continu) | micro detenu=$captureEnCours');
       return;
     }
 

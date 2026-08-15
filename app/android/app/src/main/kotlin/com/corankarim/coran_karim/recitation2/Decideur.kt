@@ -218,12 +218,60 @@ class Decideur(
      * frame ne doit rien declencher. Il faut que tout l'audio de j soit fini
      * AVANT que celui de i ne commence.
      */
-    private class OrdreTemporel(private val debutPropre: LongArray,
-                                private val finApres: LongArray) {
-        fun horsDeSaPlace(i: Int): Boolean =
+    /**
+     * ── LES DEUX MOITIES D'UNE INVERSION (2026-08-14) ────────────────────────
+     *
+     * La premiere version ne portait que [enRetard] : « i commence apres qu'un
+     * mot qui le SUIT ait fini ». Mesure sur session live Al-'Asr, ou
+     * l'utilisateur avait volontairement inverse deux mots (recite
+     * `وتواصوا بالصبر وتواصوا بالحق` au lieu de `وتواصوا بالحق وتواصوا بالصبر`) :
+     *
+     *     mot=15 "بِٱلْحَقِّ"  -> deplace        (dit trop TARD -> vu)
+     *     mot=17 "بِٱلصَّبْرِ" -> definitif:vert (dit trop TOT  -> INVISIBLE)
+     *
+     * Exactement UN mot sur deux etait signale, et pour le dernier mot d'une
+     * sourate la detection etait meme impossible par construction : `finApres`
+     * y vaut toujours ABSENT, il n'y a aucun mot posterieur a comparer.
+     *
+     * Constat utilisateur : « les mots inverses se mettent en vert sans se
+     * soucier de l'ordre » -- vrai pour la moitie d'entre eux. Decision :
+     * « oui, tous ceux qui ont participe a l'inversion ».
+     *
+     * [enAvance] est le MIROIR EXACT, pas une tolerance ni un seuil de plus :
+     * « i finit avant qu'un mot qui le PRECEDE n'ait commence ». Une passe
+     * prefixe au lieu d'une passe suffixe, meme comparaison stricte.
+     *
+     * ⚠️ LE CHOIX DES BORNES PROTEGE LA REPETITION LEGITIME, et c'est le seul
+     * vrai risque de la symetrie. Les deux moities n'utilisent pas les memes
+     * agregats, volontairement :
+     *   - [enRetard] lit le PREMIER debut de i (`debutPropre`, un min) : si i a
+     *     ete dit une fois a sa place, il n'est pas accuse.
+     *   - [enAvance] lit la DERNIERE fin de i (`finPropre`, un max) : si i est
+     *     REDIT plus tard a sa place, sa derniere fin passe apres le debut des
+     *     mots anterieurs et l'accusation tombe d'elle-meme.
+     * Autrement dit, dans les deux sens, une seule prononciation correctement
+     * placee suffit a blanchir le mot. Un recitateur qui reprend un passage
+     * n'est jamais penalise.
+     */
+    private class OrdreTemporel(
+        private val debutPropre: LongArray,
+        private val finApres: LongArray,
+        private val finPropre: LongArray,
+        private val debutAvant: LongArray,
+    ) {
+        fun horsDeSaPlace(i: Int): Boolean = enRetard(i) || enAvance(i)
+
+        /** Son audio COMMENCE apres la fin d'un mot qui le SUIT dans le texte. */
+        private fun enRetard(i: Int): Boolean =
             i in debutPropre.indices &&
                 debutPropre[i] != ABSENT && finApres[i] != ABSENT &&
                 debutPropre[i] > finApres[i]
+
+        /** Son audio FINIT avant le debut d'un mot qui le PRECEDE dans le texte. */
+        private fun enAvance(i: Int): Boolean =
+            i in finPropre.indices &&
+                finPropre[i] >= 0 && debutAvant[i] >= 0 &&
+                finPropre[i] < debutAvant[i]
 
         companion object { const val ABSENT = Long.MAX_VALUE }
     }
@@ -231,6 +279,11 @@ class Decideur(
     private fun ordreTemporel(registre: RegistreDePreuves, nbMots: Int): OrdreTemporel {
         val debutPropre = LongArray(nbMots) { OrdreTemporel.ABSENT }
         val finVotante = LongArray(nbMots) { -1L }
+        // Miroir : la DERNIERE fin du mot lui-meme, et le PREMIER debut de
+        // chaque mot pris comme temoin (cf. la doc d'`OrdreTemporel` pour le
+        // pourquoi de ces agregats).
+        val finPropre = LongArray(nbMots) { -1L }
+        val debutVotant = LongArray(nbMots) { OrdreTemporel.ABSENT }
         // On ne parcourt QUE les mots reellement observes : sur une sourate
         // longue (2498 mots pour la 9), balayer tout le texte a chaque fenetre
         // couterait plus cher que l'inference elle-meme.
@@ -241,6 +294,8 @@ class Decideur(
                 if (o.entendu.isBlank()) continue
                 if (o.debutAbs < debutPropre[i]) debutPropre[i] = o.debutAbs
                 if (o.interieur && o.finAbs > finVotante[i]) finVotante[i] = o.finAbs
+                if (o.finAbs > finPropre[i]) finPropre[i] = o.finAbs
+                if (o.interieur && o.debutAbs < debutVotant[i]) debutVotant[i] = o.debutAbs
             }
         }
         // Suffixe : le mot POSTERIEUR dont l'audio se termine le plus TOT. Une
@@ -252,7 +307,18 @@ class Decideur(
             finApres[i] = mini
             if (finVotante[i] >= 0 && finVotante[i] < mini) mini = finVotante[i]
         }
-        return OrdreTemporel(debutPropre, finApres)
+        // Prefixe, exactement symetrique : le mot ANTERIEUR dont l'audio
+        // commence le plus TARD. « existe-t-il un j < i qui commence apres que
+        // i ait fini ? » se ramene a comparer i a ce maximum.
+        val debutAvant = LongArray(nbMots) { -1L }
+        var maxi = -1L
+        for (i in 0 until nbMots) {
+            debutAvant[i] = maxi
+            if (debutVotant[i] != OrdreTemporel.ABSENT && debutVotant[i] > maxi) {
+                maxi = debutVotant[i]
+            }
+        }
+        return OrdreTemporel(debutPropre, finApres, finPropre, debutAvant)
     }
 
     /**
@@ -287,7 +353,43 @@ class Decideur(
 
         for (i in 0 until nbMots) {
             val dejaFige = definitifs[i]
-            if (dejaFige != null) { out[i] = Statut.Definitif(dejaFige); continue }
+            if (dejaFige != null) {
+                // ── UN VERT FIGE PEUT ENCORE DEVENIR `Deplace` (2026-08-14) ──
+                //
+                // SANS CE PASSAGE, LA MOITIE `enAvance` NE SERT A RIEN, et le
+                // test `deux groupes inverses` l'a prouve avant le telephone :
+                // un mot dit TROP TOT est verrouille VERT bien avant que
+                // l'inversion ne soit connaissable -- l'information n'arrive
+                // qu'au moment ou le mot ANTERIEUR est enfin prononce, parfois
+                // plusieurs secondes plus tard. Le garde ci-dessus le renvoyait
+                // alors tel quel, sans jamais repasser par le controle d'ordre.
+                // C'est exactement ce qui laissait `بِٱلصَّبْرِ` vert sur la
+                // session Al-'Asr.
+                //
+                // C'est une ENTORSE ASSUMEE a la monotonie (« un definitif ne
+                // se degrade jamais »), et elle est bornee au strict
+                // necessaire :
+                //   - seulement depuis VERT : un mot deja signale n'a pas
+                //     besoin d'etre requalifie, et un ROUGE ne doit jamais etre
+                //     adouci par ce chemin ;
+                //   - seulement vers `Deplace`, jamais vers une couleur ;
+                //   - `definitifs[i]` est CONSERVE : le mot reste figé, donc le
+                //     verdict est stable d'un appel a l'autre (il ne peut pas
+                //     osciller vert/deplace) et aucun autre chemin ne peut le
+                //     rejuger.
+                //
+                // Ce que ca justifie, et c'est le meme argument que pour le
+                // passage `provisoire:vert -> Deplace` documente plus bas :
+                // rien n'est reevalue sur le meme audio. Une information
+                // NOUVELLE arrive -- un mot qui PRECEDE celui-ci vient d'etre
+                // prononce apres lui -- et elle ne dit rien de la prononciation,
+                // seulement de la place.
+                if (dejaFige == Couleur.VERT && ordre.horsDeSaPlace(i)) {
+                    out[i] = Statut.Deplace
+                    continue
+                }
+                out[i] = Statut.Definitif(dejaFige); continue
+            }
 
             val votantes = registre.observationsVotantes(i)
             if (votantes.isEmpty()) continue

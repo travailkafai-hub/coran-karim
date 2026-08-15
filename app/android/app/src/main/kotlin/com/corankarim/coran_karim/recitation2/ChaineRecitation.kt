@@ -540,17 +540,73 @@ class ChaineRecitation(
      * @return les echantillons, ou `null` si aucun mot de la plage n'a de
      *   position connue, ou si l'audio est deja sorti de l'anneau.
      */
+    /**
+     * Plage temporelle FIABLE d'un mot : sa DERNIERE observation votante.
+     *
+     * « Votante » = `interieur` et `entendu` non vide -- exactement le filtre
+     * du Decideur (`observationsVotantes`). C'est le coeur du correctif du
+     * 2026-08-14 : l'audio qu'on fait ecouter doit etre celui sur lequel le
+     * VERDICT a ete rendu, jamais une position que le jugement lui-meme
+     * considere comme non fiable.
+     *
+     * La DERNIERE et non l'union de toutes : un mot repete, ou aligne par
+     * erreur dans une fenetre lointaine, possede plusieurs observations
+     * eloignees dans le temps. En prendre l'union etirait la plage sur tout
+     * l'intervalle qui les separe.
+     */
+    private fun plageFiable(mot: Int): Pair<Long, Long>? {
+        val o = registre.observations(mot).lastOrNull {
+            !it.sansCreneau && it.debutAbs >= 0 && it.finAbs >= 0 &&
+                it.interieur && it.entendu.isNotBlank()
+        } ?: return null
+        return o.debutAbs to o.finAbs
+    }
+
+    /**
+     * ── L'EXTRAIT TOMBAIT A COTE DU MOT (corrige 2026-08-14) ────────────────
+     *
+     * Constat utilisateur : « parfois il y a un décalage, du coup on n'a pas le
+     * bon audio du mot ». MESURE dans le journal du jour -- un extrait couvre
+     * DEUX mots (le mot et son predecesseur), il devrait donc durer 1 a 2 s :
+     *
+     *     mots 18..19 : 1,06 s     mots 23..24 : 2,02 s      (normal)
+     *     mots 20..21 : 4,42 s                               (deja suspect)
+     *     mots  6..7  : 12,10 s    mots 18..19 : 15,62 s     (ABERRANT)
+     *
+     * CAUSE : la version precedente prenait le `min(debutAbs)` et le
+     * `max(finAbs)` sur TOUTES les observations, SANS AUCUN FILTRE -- pas meme
+     * `sansCreneau`, que le Decideur exclut pourtant explicitement pour juger.
+     * Une seule observation mal placee (mot aligne par erreur dans une fenetre
+     * lointaine, ou repetition du passage) suffisait a etirer l'intervalle sur
+     * tout l'espace qui les separe : l'extrait demarrait alors sur un autre
+     * passage, et l'utilisateur entendait un autre mot.
+     *
+     * TROIS GARDES, du plus precis au plus grossier :
+     *  1. positions FIABLES uniquement (cf. [plageFiable]) ;
+     *  2. le mot demande est l'ANCRE : sans plage fiable pour lui, on rend
+     *     `null` plutot qu'un extrait construit sur ses seuls voisins ;
+     *  3. le contexte gauche n'est ajoute que s'il est CONTIGU, et la duree
+     *     totale est plafonnee en rognant le DEBUT -- jamais la fin, qui porte
+     *     le mot demande.
+     */
     fun voixSurPlage(motDebut: Int, motFin: Int): FloatArray? {
-        var debut = Long.MAX_VALUE
-        var fin = -1L
-        for (i in motDebut..motFin) {
-            for (o in registre.observations(i)) {
-                if (o.debutAbs < 0 || o.finAbs < 0) continue
-                if (o.debutAbs < debut) debut = o.debutAbs
-                if (o.finAbs > fin) fin = o.finAbs
-            }
+        // `null` plutot qu'un extrait bati sur les seuls voisins : l'appelant
+        // (FastConformerCtcPlugin) journalise deja l'indisponibilite. Cette
+        // classe ne journalise rien -- c'est la couche natif pure.
+        val ancre = plageFiable(motFin) ?: return null
+        var debut = ancre.first
+        var fin = ancre.second
+        for (i in motDebut until motFin) {
+            val p = plageFiable(i) ?: continue
+            // Un mot de contexte prononce AILLEURS (inversion, reprise) n'a
+            // rien a faire dans cet extrait : il n'apporte pas de contexte, il
+            // ajoute du hors-sujet et decale ce qu'on entend.
+            if (p.second < debut - CONTEXTE_MAX_ECH) continue
+            if (p.first < debut) debut = p.first
+            if (p.second > fin) fin = p.second
         }
-        if (fin < 0 || debut == Long.MAX_VALUE || fin <= debut) return null
+        if (fin - debut > PLAGE_MAX_ECH) debut = fin - PLAGE_MAX_ECH
+        if (fin <= debut) return null
         // Marge de respiration : le CTC est PEAKY (il marque le pic du token,
         // pas l'etendue du son), donc les bornes serrent le mot de trop pres --
         // sans marge on coupe l'attaque et la fin, et l'extrait devient
@@ -1304,5 +1360,29 @@ class ChaineRecitation(
         }
         sb.append("  statut = ${statutsCourants[i] ?: Statut.Inconnu}")
         return sb.toString()
+    }
+
+    companion object {
+        /**
+         * Ecart maximal toleré entre un mot de CONTEXTE et le mot demandé, pour
+         * que le contexte soit joint à l'extrait (cf. [voixSurPlage]).
+         *
+         * 3 s : au-delà, le mot n'a pas été prononcé juste avant celui qu'on
+         * écoute -- c'est une autre lecture du passage (reprise, inversion), et
+         * l'ajouter décale ce qu'on entend au lieu d'éclairer.
+         */
+        private val CONTEXTE_MAX_ECH = (Horloge.TAUX * 3.0).toLong()
+
+        /**
+         * Durée maximale d'un extrait, marges comprises.
+         *
+         * 8 s pour deux mots, ce qui est large : un mot coranique, même porté
+         * par un madd de 6 harakat en récitation lente, dépasse rarement 3 s.
+         * Ce plafond n'est pas un réglage à ajuster, c'est un garde-fou : il
+         * rend structurellement impossibles les extraits de 12,10 s et 15,62 s
+         * mesurés le 2026-08-14. Il rogne toujours le DEBUT -- la fin porte le
+         * mot demandé, elle ne se touche pas.
+         */
+        private val PLAGE_MAX_ECH = (Horloge.TAUX * 8.0).toLong()
     }
 }

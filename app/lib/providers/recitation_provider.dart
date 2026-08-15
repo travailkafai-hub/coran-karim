@@ -3909,7 +3909,107 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // jugement : ces mots ne sont pas mieux jugés, ils ne sont plus jugés
       // du tout -- décision utilisateur du 2026-07-20, reconduite ici.
       final estBasmala = words[c.index].isBasmala;
-      final statutBase = estBasmala ? WordStatus.correct : statut;
+      // ── LA BISMILLAH SE VALIDE EN BLOC, ET SEULEMENT SI ON L'A DITE ──────
+      //                                        (2026-08-14, décision utilisateur)
+      //
+      // « qu'elle ne se mette en vert que lorsqu'elle est attendue, et pour sa
+      // validation, soit la plus tolérante : on la valide en entier ; ça règle
+      // qu'elle soit déjà validée à l'avance. »
+      //
+      // Avant : `statut` était écrasé par `correct` dès qu'un verdict arrivait,
+      // et l'écran la peignait en vert dès le démarrage de la capture -- donc
+      // acquise avant d'avoir été prononcée.
+      //
+      // Maintenant, DEUX règles distinctes, à ne pas confondre :
+      //  1. TOLÉRANCE MAXIMALE : un seul de ses mots entendu suffit à valider
+      //     LE BLOC ENTIER. Le modèle est structurellement mal calibré sur ces
+      //     4 mots (récités ~44 % plus vite dans le corpus, trois pistes
+      //     d'entraînement, même échec -- décision 2026-07-20), donc exiger un
+      //     verdict par mot reviendrait à la condamner sur un défaut connu du
+      //     modèle. Le bloc est celui des `isBasmala` CONTIGUS autour du mot :
+      //     une session enchaînée en contient un par sourate, et valider la
+      //     Bismillah d'Al-Fil ne doit rien dire de celle de Quraysh.
+      //  2. JAMAIS DE VERDICT NÉGATIF : sans preuve, elle reste `pending`
+      //     (aucune couleur), jamais rouge ni orange. Elle n'entre toujours pas
+      //     dans le score (`_compterMots` l'exclut déjà) : ne pas l'avoir dite
+      //     ne coûte rien, l'avoir dite ne rapporte rien -- elle informe, elle
+      //     ne juge pas.
+      //
+      // `c.heard` est la preuve acoustique : ce que le modèle a réellement
+      // décodé sur les frames du mot. Vide = rien n'a été entendu là, et
+      // `omis` est exclu explicitement (c'est le verdict « le récitateur est
+      // passé outre », l'inverse d'une preuve).
+      if (estBasmala) {
+        if (c.statut != 'omis' && c.heard.trim().isNotEmpty) {
+          var d = c.index, f = c.index;
+          while (d > 0 && words[d - 1].isBasmala) d--;
+          while (f + 1 < words.length && words[f + 1].isBasmala) f++;
+          var bascule = 0;
+          for (var j = d; j <= f; j++) {
+            if (words[j].status == WordStatus.correct) continue;
+            words[j] = words[j].copyWith(status: WordStatus.correct);
+            bascule++;
+          }
+          if (bascule > 0) {
+            touche = true;
+            DiagnosticLog.log('V2bismillah',
+                'entendue au mot ${c.index} ("${c.heard}") -> bloc $d..$f '
+                'validé en entier ($bascule mot(s))');
+          }
+        }
+        // Jamais de statut négatif sur la Bismillah, et rien d'autre à faire :
+        // pas de verrouillage, pas d'échec à signaler, pas de correction.
+        continue;
+      }
+      var statutBase = statut;
+      // ── LE PRESET REDEVIENT EFFECTIF (2026-08-14) ────────────────────────
+      //
+      // Défaut trouvé en répondant à la question « strictHarakat, ce n'est pas
+      // lié au mode enfant ? » : `_relaxJudged` porte LES DEUX indulgences
+      // (harakat souples, lettres confusables) et vit dans `_onAligned`, donc
+      // dans la v1. Depuis `_v2PiloteAffichage = true`, il ne s'exécute plus.
+      // La chaîne v2 ne reçoit aucun réglage de preset (cf.
+      // `FastConformerCtcPlugin`, où `Decideur` n'est construit qu'avec `k` et
+      // `nonJugeables`), donc les TROIS presets jugeaient à l'identique : le
+      // mode enfant était aussi sévère que le mode tajwid. Même famille de
+      // régression que la Bismillah et le contrôle tajwid ci-dessus -- une
+      // protection écrite en v1 qui cesse d'agir sans que personne le décide.
+      //
+      // Le relâchement est appliqué ICI, côté Dart, et pas porté en Kotlin :
+      // il a besoin d'`ArabicNormalizer` (squelette, similarité, classes de
+      // confusables), tout un pan de code déjà écrit et éprouvé. Le porter
+      // aurait dupliqué la normalisation arabe dans un second langage.
+      //
+      // ⚠️ CE QU'IL NE FAUT SURTOUT PAS RELÂCHER, et pourquoi :
+      //  - `omis` / `deplace` : ce ne sont pas des verdicts de PRONONCIATION.
+      //    Relâcher `omis` validerait un mot que le récitateur n'a pas dit --
+      //    exactement ce que l'app existe pour détecter. D'où le test sur
+      //    `c.statut` brut, et non sur `statutBase` : après le switch, un
+      //    `deplace` est devenu `unclear` et ne se distingue plus d'un orange
+      //    de prononciation.
+      //  - un mot sans texte entendu : `_relaxJudged` le dit lui-même (« un
+      //    mot jamais prononcé reste rouge quel que soit le preset »). Sans
+      //    audio, le squelette entendu est vide et la similarité n'a aucun
+      //    sens.
+      //
+      // Placé AVANT le contrôle de tajwid (juste en dessous) : un mot relâché
+      // redevient candidat à ce contrôle, et non l'inverse -- sans quoi le
+      // preset enfant effacerait un verdict de tajwid. En mode enfant
+      // `activeRules` est vide, donc ce contrôle y est de toute façon inerte.
+      final relachable = !estBasmala &&
+          (c.statut.endsWith(':orange') || c.statut.endsWith(':rouge')) &&
+          c.heard.trim().isNotEmpty;
+      if (relachable) {
+        final avant = statutBase;
+        statutBase = _relaxJudged(
+            statutBase, words[c.index], ArabicNormalizer.normalize(c.heard));
+        if (statutBase != avant) {
+          DiagnosticLog.log('V2preset',
+              'mot=${c.index} "${words[c.index].display}" ${avant.name} -> '
+              '${statutBase.name} | strictHarakat=$_strictHarakat '
+              'tolereConfusables=$_tolerateConfusables entendu="${c.heard}"');
+        }
+      }
       //
       // Ce contrôle existait depuis le 2026-07-20 (« le mode tajwid vérifie
       // enfin le tajwid ») mais vivait dans `_onAligned`, donc dans la v1. Il
