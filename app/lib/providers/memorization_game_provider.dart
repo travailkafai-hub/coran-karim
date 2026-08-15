@@ -101,6 +101,31 @@ class MemorizationGameState {
   /// `memorizationGameRecordsProvider` (clé `unitKey`) -- même découpe que
   /// « Mes portions » côté Coach, pour que battre un record ici se voie
   /// là-bas (demande utilisateur : « rattaché au coach avec mes portions »).
+  /// Vrai juste apres un retour en arriere sur ERREUR ([afterVerseRestart]),
+  /// jusqu'a ce que le premier mot du verset soit valide.
+  ///
+  /// ── POURQUOI CE DRAPEAU EXISTE (2026-08-15, demande utilisateur) ─────────
+  ///
+  /// « quand on en revient en cas d'erreur au verset d'avant, que soit propose
+  /// le premier mot, on ne commence pas un mot ».
+  ///
+  /// Depuis le 2026-08-09, le premier mot de CHAQUE verset est teste par QCM
+  /// (« c'est la qu'il y a l'oubli »), seul le tout premier mot de la partie
+  /// etant affiche. Cette regle reste JUSTE quand on atteint un verset en
+  /// PROGRESSANT. Elle se retourne contre le joueur apres une erreur : on
+  /// vient de le penaliser et de le renvoyer au verset PRECEDENT -- un verset
+  /// qu'il avait deja valide -- et on lui redemande de deviner son premier mot
+  /// sans aucun appui. Or ce recul existe precisement pour lui « donner un
+  /// petit elan de mots deja surs avant de rattaquer le passage qui a fait
+  /// echouer » (cf. [afterVerseRestart]) : le faire echouer des le premier mot
+  /// de l'elan detruit l'intention du mecanisme.
+  ///
+  /// Ce n'est donc PAS un assouplissement du test : le premier mot d'un verset
+  /// reste teste sur le chemin normal. Il n'est montre que sur le chemin de
+  /// REPRISE, ou il joue le meme role que le tout premier mot de la partie --
+  /// rien ne le precede dans ce qu'on redemande.
+  final bool repriseApresErreur;
+
   final String? currentPortionUnitKey;
   final String? currentPortionLabel;
   final int? currentPortionWordsTotal;
@@ -116,6 +141,7 @@ class MemorizationGameState {
     this.totalWordsCompleted = 0,
     this.justBeatRecord = false,
     this.revealedAnswer,
+    this.repriseApresErreur = false,
     this.furthestGlobalWordIndex = -1,
     this.currentPortionUnitKey,
     this.currentPortionLabel,
@@ -159,6 +185,7 @@ class MemorizationGameState {
     int? totalWordsCompleted,
     bool? justBeatRecord,
     String? revealedAnswer,
+    bool? repriseApresErreur,
     int? furthestGlobalWordIndex,
     String? currentPortionUnitKey,
     String? currentPortionLabel,
@@ -175,6 +202,10 @@ class MemorizationGameState {
         totalWordsCompleted: totalWordsCompleted ?? this.totalWordsCompleted,
         justBeatRecord: justBeatRecord ?? false,
         revealedAnswer: revealedAnswer ?? this.revealedAnswer,
+        // `?? false` et non `?? this.` : la reprise se CONSOMME des que le
+        // joueur avance, comme `wrongFlash` juste au-dessus. Tout appel a
+        // `copyWith` qui ne la redemande pas explicitement l'eteint.
+        repriseApresErreur: repriseApresErreur ?? false,
         furthestGlobalWordIndex:
             furthestGlobalWordIndex ?? this.furthestGlobalWordIndex,
         currentPortionUnitKey: currentPortionUnitKey ?? this.currentPortionUnitKey,
@@ -198,6 +229,7 @@ class MemorizationGameState {
         totalWordsCompleted: totalWordsCompleted,
         justBeatRecord: justBeatRecord,
         revealedAnswer: revealedAnswer,
+        repriseApresErreur: repriseApresErreur,
         furthestGlobalWordIndex: furthestGlobalWordIndex,
         currentPortionUnitKey: currentPortionUnitKey,
         currentPortionLabel: currentPortionLabel,
@@ -235,6 +267,9 @@ class MemorizationGameState {
         currentWordIndex: 0,
         choices: const [],
         totalWordsCompleted: totalWordsCompleted,
+        // Le premier mot du verset de reprise sera MONTRE, pas demande
+        // (cf. `repriseApresErreur` et `_prepareChoicesIfNeeded`).
+        repriseApresErreur: true,
         furthestGlobalWordIndex: furthestGlobalWordIndex,
         currentPortionUnitKey: currentPortionUnitKey,
         currentPortionLabel: currentPortionLabel,
@@ -295,9 +330,15 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
   /// l'affichage seul : rien ne le précède, il n'y a rien à tester avant lui.
   void _prepareChoicesIfNeeded() {
     unawaited(_refreshCurrentPortionInfo());
-    if (state.isVeryFirstWord) {
+    // `repriseApresErreur` : meme traitement que le tout premier mot de la
+    // partie -- on MONTRE le mot au lieu de le faire deviner. Le drapeau est
+    // repropage ici, sinon le `?? false` de `copyWith` l'eteindrait avant meme
+    // que le joueur ait vu le mot.
+    if (state.isVeryFirstWord || state.repriseApresErreur) {
       state = state.copyWith(
-          choices: const [], justBeatRecord: state.justBeatRecord);
+          choices: const [],
+          justBeatRecord: state.justBeatRecord,
+          repriseApresErreur: state.repriseApresErreur);
       return;
     }
     final correct = state.currentWord;
@@ -335,6 +376,20 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
         currentPortionUnitKey: portion.unitKey,
         currentPortionLabel: portion.label,
         currentPortionWordsTotal: portion.wordsTotal,
+        // ── CE `copyWith` EST ASYNCHRONE : IL DOIT REPROPAGER LES DRAPEAUX ──
+        //
+        // Même piège que `justBeatRecord` (cf. `_prepareChoicesIfNeeded`), et
+        // il a mordu une seconde fois le 2026-08-15 : `repriseApresErreur` est
+        // levé par `afterVerseRestart`, puis cette résolution de portion --
+        // qui revient QUELQUES CENTAINES DE MILLISECONDES PLUS TARD, bien
+        // avant que le joueur ait touché l'écran -- l'éteignait par le `??
+        // false` de `copyWith`. Le premier mot repassait alors en QCM, et le
+        // correctif semblait ne pas fonctionner sur device alors que la
+        // logique était juste. Tout `copyWith` différé doit repropager les
+        // drapeaux qui décrivent un ÉTAT DE JEU en cours, pas seulement ceux
+        // qu'il modifie.
+        justBeatRecord: state.justBeatRecord,
+        repriseApresErreur: state.repriseApresErreur,
       );
     } catch (_) {
       // Affichage seul : une résolution ratée ne doit jamais bloquer la partie.
