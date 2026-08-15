@@ -100,7 +100,13 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// Quand ce champ est non nul, l'écran n'ouvre NI le micro NI la chaîne
   /// d'analyse : aucun chemin de la récitation en direct n'est emprunté, donc
   /// aucune régression possible sur elle.
-  final Map<(int, int, int), ({WordStatus statut, String entendu})>? relecture;
+  /// `audio` : l'extrait de voix ARCHIVE de ce mot (`session_words.audio_path`).
+  /// Sans lui, la fiche d'un mot relu retombait sur `v2ExtraitVoix`, donc sur
+  /// la chaine native -- restee sur une AUTRE session. Mesure du 2026-08-15 :
+  /// relecture des sourates 102 et 95 servie par la chaine de la sourate 103,
+  /// trois refus et UNE LECTURE FAUSSE de 0,98 s.
+  final Map<(int, int, int), ({WordStatus statut, String entendu, String? audio})>?
+      relecture;
 
   /// Titre du bandeau en mode relecture (nom de sourate ou libellé de portion).
   final String? titreRelecture;
@@ -666,8 +672,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         training: ArabicNormalizer.normalizeTraining(mots[i]),
         status: v?.statut ??
             (atteint ? WordStatus.correct : WordStatus.pending),
-        // `locked` reste faux : rien n'est en cours de jugement ici. Il ne
-        // sert qu'à la chaîne vivante.
+        // ── `locked: true` EN RELECTURE (2026-08-15) ────────────────────
+        // AVANT : « `locked` reste faux : rien n'est en cours de jugement
+        // ici ». Vrai sur l'intention, faux sur l'effet -- l'AFFICHAGE du
+        // rouge est garde par `locked` (pas celui du vert), donc AUCUN mot
+        // archive `error` ne pouvait s'afficher en rouge : il sortait en creme
+        // nu, a cote des verts et des orange. C'est le cas le plus visible du
+        // « mot sans couleur » signale par l'utilisateur.
+        // Ici le verdict vient de la BASE : il est definitif par construction,
+        // rien ne le rejugera, aucun clignotement n'est possible.
+        locked: v != null,
         heard: v?.entendu ?? '',
         isBasmala: verse == null,
       ));
@@ -2224,6 +2238,18 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             //    mots que je viens de dire alors qu'ils sont bien jugés ; il
             //    fallait me dire la suite ». On part donc du premier mot NON
             //    validé (déjà calculé par l'appelant) et on en donne deux.
+            // ⚠️ DÉFAUT CONNU, NON CORRIGÉ ICI (constaté 2026-08-15) : cette
+            // expression et le recul de l'ancre (`rewindTo`, plus haut)
+            // divergent quand `surSilence` est vrai -- l'audio part du mot N
+            // pendant que l'ancre revient au mot N-1. La doc de
+            // `_kCorrectionWordsBefore` exige pourtant que « les deux ne soient
+            // JAMAIS réglés séparément ». Mesuré sur device (log 16:53:09,
+            // sourate 106) : `reprise=121`, `ancre reculee au mot 120`, audio
+            // `fromIdx=1 toIdx=2`.
+            // Le correctif a été écrit puis RETIRÉ le 2026-08-15 sur consigne
+            // utilisateur (« aucun changement sur mode ASR pour l'instant ») :
+            // il touche la chaîne de récitation, qui n'était pas le sujet.
+            // Conservé hors dépôt en attendant : `correctif_asr_reprise.patch`.
             wordsBefore: surSilence ? 0 : _kCorrectionWordsBefore,
             wordsAfter: 1);
       } catch (e) {
@@ -4076,9 +4102,44 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               : const Color(0xFFff8a80);
           bgTint = c.withOpacity(0.42);
           borderTint = c;
+        } else {
+          // ── ATTÉNUÉ TANT QUE CE N'EST PAS FIGÉ (2026-08-15) ─────────────
+          //
+          // AVANT : rien du tout. Le mot restait en crème nu -- exactement le
+          // « pas vert, sans couleur » signalé par l'utilisateur. MESURE sur
+          // son journal : `provisoire:rouge` est le statut FINAL d'au moins un
+          // mot dans 13 sessions sur 19, soit 16 mots qui finissent la session
+          // sans la moindre couleur.
+          //
+          // L'ASYMÉTRIE ÉTAIT LÀ, et c'est elle qui rendait le symptôme
+          // incompréhensible : `case correct` peint le vert SANS condition sur
+          // `locked`. Un provisoire vert se voyait, un provisoire rouge non.
+          //
+          // ARBITRAGE UTILISATEUR (2026-08-15) : « rouge atténué puis franc ».
+          // L'effet de bord est connu et assumé -- c'est le clignotement
+          // rouge->vert qui avait fait retirer cet affichage le 2026-07-09.
+          // Il est ici BORNÉ : teinte très pâle et contour seul, pour que le
+          // passage au rouge franc (verrouillage) reste un changement lisible,
+          // et qu'un retour au vert ne donne pas l'impression d'une accusation
+          // retirée.
+          const provisoire = Color(0xFFff8a80);
+          bgTint = provisoire.withValues(alpha: 0.14);
+          borderTint = provisoire.withValues(alpha: 0.55);
         }
         break;
       case WordStatus.skipped:
+        // ── `omis` : UN FOND, PAS SEULEMENT UN SOULIGNEMENT (2026-08-15) ───
+        //
+        // Le soulignement seul était quasi invisible : 30 verdicts `omis` dans
+        // le journal du jour, statut final de 9 mots. C'est LE MÊME mot qui
+        // était sans couleur ET insensible au tap (cf. `tappable` plus bas) --
+        // l'utilisateur voyait un mot pas vert, et rien ne réagissait.
+        //
+        // GRIS, jamais rouge : `omis` affirme « ce mot n'a pas été prononcé »,
+        // ce n'est pas une faute de prononciation. Même teinte que l'oubli
+        // (souffleur), qui dit la même chose sur un autre chemin.
+        bgTint = const Color(0xFF9e9e9e).withValues(alpha: 0.22);
+        borderTint = const Color(0xFF9e9e9e).withValues(alpha: 0.55);
         underline = true;
         break;
       case WordStatus.current:
@@ -4219,7 +4280,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             },
           )
         : chipAvec(0);
-    final tappable = w.status == WordStatus.error || w.status == WordStatus.unclear;
+    // `skipped` INCLUS depuis le 2026-08-15 : un mot `omis` n'avait aucun
+    // `GestureDetector`, donc « je clique, il ne se passe rien ». L'incohérence
+    // était dans ce fichier même -- `_openWordHelp` traite déjà `skipped` comme
+    // un mot en erreur pour fusionner les mots contigus : la fiche savait le
+    // servir, seul le tap ne le laissait pas entrer.
+    final tappable = w.status == WordStatus.error ||
+        w.status == WordStatus.unclear ||
+        w.status == WordStatus.skipped;
     Widget result =
         tappable ? GestureDetector(onTap: () => _openWordHelp(index), child: chip) : chip;
 
@@ -4317,6 +4385,26 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       }
     }
 
+    // ── EN RELECTURE, L'AUDIO VIENT DE LA BASE, JAMAIS DE LA CHAINE ──────
+    //
+    // MESURE (2026-08-15, journal 19:57) : relecture des sourates 102 puis 95,
+    // 55 minutes apres une session sur la sourate 103. `v2Chaine` n'est jamais
+    // detruite a la fermeture d'une session : la fiche interrogeait donc la
+    // chaine d'UNE AUTRE SOURATE. Trois demandes ont echoue (« je n'arrive pas
+    // a lancer l'audio ») et UNE A REUSSI -- 0,98 s joues pour un mot de la
+    // sourate 95, extraits du flux brut de la 103. C'est le pire des deux cas :
+    // l'app a fait ecouter un audio sans rapport avec le mot affiche, sans
+    // rien signaler. Socle n°1 (« dire vrai »).
+    //
+    // L'extrait archive existe pourtant deja en base (`session_words.audio_path`,
+    // ecrit par `_archiverMotNonVert` au moment du verdict) : il n'etait
+    // simplement pas transporte jusqu'ici. `archivedAudioPath` non nul court-
+    // circuite l'extraction (cf. `_playVoix`) ; `interdireExtraction` ferme le
+    // repli quand ce mot-la n'a pas d'audio archive -- mieux vaut « Audio plus
+    // disponible » qu'un extrait pris dans une autre sourate.
+    final vRelecture = (widget.relecture != null && local != null)
+        ? widget.relecture![(verse.surahNumber, verse.ayahNumber, local)]
+        : null;
     showTajwidHelpSheet(
       context,
       ref,
@@ -4326,6 +4414,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       entendu: st.words[wordIndex].heard,
       wordIndex: wordIndex,
       localWordIndex: local,
+      archivedAudioPath: vRelecture?.audio,
+      interdireExtraction: widget.relecture != null,
       extraitDebut: debut,
       extraitFin: fin + 1, // borne haute exclusive, comme le mode Kindle
       // Contestation (pouce vers le bas) pendant une récitation EN DIRECT :

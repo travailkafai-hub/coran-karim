@@ -537,7 +537,12 @@ class _CartePortion extends ConsumerWidget {
                 for (final m in mots)
                   (p.surahNumber, m.ayahNumber, m.wordInAyah): (
                     statut: _statutAffiche(m.status),
-                    entendu: m.heardWord ?? ''
+                    entendu: m.heardWord ?? '',
+                    // L'extrait de voix archivé (`s{id}_m{index}.wav`) : sans
+                    // lui, la relecture interrogeait la chaîne native, restée
+                    // sur une AUTRE session -- et pouvait faire écouter
+                    // l'audio d'une autre sourate (mesuré 2026-08-15).
+                    audio: m.audioPath,
                   ),
               },
             ),
@@ -1136,7 +1141,8 @@ class _CarteSession extends ConsumerWidget {
                       m.wordInAyah != null)
                     (m.surahNumber!, m.ayahNumber!, m.wordInAyah!): (
                       statut: _statutAffiche(m.status),
-                      entendu: m.heardWord ?? ''
+                      entendu: m.heardWord ?? '',
+                      audio: m.audioPath,
                     ),
               },
             ),
