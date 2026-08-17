@@ -491,7 +491,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // absent sur les anciens modeles, la detection tajwid reste
                     // alors simplement inactive.
                     val rulesPath = call.argument<String>("rulesPath")
-                    engine = FastConformerCtc(modelPath, vocabPath, rulesPath)
+                    // seuils_tajwid.json : seuil de detection PAR CLASSE (2026-08-16),
+                    // remplace le seuil plat 0,5 en dur -- cf. le commentaire complet
+                    // au point de chargement dans FastConformerCtc. Optionnel comme
+                    // rules.json : absent -> repli sur 0,5 pour toutes les classes.
+                    val seuilsPath = call.argument<String>("seuilsPath")
+                    engine = FastConformerCtc(modelPath, vocabPath, rulesPath, seuilsPath)
                     DiagnosticLog.log(TAG, "modele charge — tete tajwid : " +
                         if (engine!!.hasTajwid) "OUI (${engine!!.ruleNames.size} classes)"
                         else "non (modele a une seule tete)")
@@ -1526,7 +1531,30 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 // Cf. le commentaire de "rules" plus bas : on ne regarde le
                 // tajwid QUE sur les observations qui ont le droit de voter
                 // (mot entierement dans la fenetre, quelque chose d'entendu).
-                val reglesVotantes = votantes.flatMap { it.reglesTajwid }.distinct()
+                //
+                // DERNIERE CHANCE (2026-08-16, demande utilisateur) : le mot peut
+                // se VERROUILLER (Definitif) sur UNE SEULE observation via le
+                // raccourci "nette" du Decideur (decodage libre + alignement
+                // force d'accord, cf. Decideur.kt) -- AVANT d'avoir jamais atteint
+                // 2 observations votantes. Un mot deja "dejaFige" n'est plus
+                // jamais reevalue (Decideur.kt, branche `dejaFige`) : son audio
+                // finit par sortir du buffer, et sans repli il ne serait donc
+                // JAMAIS controle en tajwid. MESURE sur device (3 sessions
+                // reelles, 2026-08-16) : 6 mots sur 28 (21 %) se verrouillaient
+                // ainsi -- verts pour de bon, tajwid jamais controle.
+                // Repli : au moment ou le mot se verrouille SANS avoir 2
+                // votantes, utiliser TOUTES les observations disponibles plutot
+                // que rien. Moins fiable qu'un vrai k=2 (les observations non
+                // votantes sont typiquement en bord de fenetre, cf. le noyau 5
+                // frames de la tete tajwid -- ConvTajwidHead), mais strictement
+                // mieux que ne jamais verifier. Le cas normal (votantes>=2, ou
+                // mot pas encore verrouille) est inchange.
+                val estDefinitif = c.statut is com.corankarim.coran_karim.recitation2.Statut.Definitif
+                val reglesVotantes = if (votantes.size >= 2 || !estDefinitif) {
+                    votantes.flatMap { it.reglesTajwid }.distinct()
+                } else {
+                    chaine.preuves.observations(c.motIndex).flatMap { it.reglesTajwid }.distinct()
+                }
                 mapOf(
                     "i" to c.motIndex,
                     "statut" to nomStatut(c.statut),
@@ -1567,8 +1595,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // avoir REGARDE plusieurs fois : deux observations
                     // votantes distinctes, exactement le k=2 que le Decideur
                     // exige deja pour figer une lettre. En dessous, Dart doit
-                    // se taire plutot que de conclure.
-                    "tajwidFiable" to (votantes.size >= 2),
+                    // se taire plutot que de conclure -- SAUF si le mot se
+                    // verrouille MAINTENANT sans jamais avoir atteint ce k=2
+                    // (cf. le commentaire "DERNIERE CHANCE" sur reglesVotantes
+                    // ci-dessus) : c'est alors la seule preuve qui existera
+                    // jamais pour ce mot, mieux vaut la fournir que se taire
+                    // pour toujours.
+                    "tajwidFiable" to (votantes.size >= 2 || estDefinitif),
                 )
             }
         } catch (e: Exception) {

@@ -4,6 +4,7 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
@@ -83,7 +84,12 @@ class CtcOutputs(
     val etatEncodeur: Array<FloatArray>? = null,
 )
 
-class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? = null) {
+class FastConformerCtc(
+    modelPath: String,
+    vocabPath: String,
+    rulesPath: String? = null,
+    seuilsPath: String? = null,
+) {
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
     private val session: OrtSession = env.createSession(modelPath, OrtSession.SessionOptions())
@@ -104,6 +110,36 @@ class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? 
     private val tajwidNames: List<String> = rulesPath?.let { loadVocab(it) } ?: emptyList()
     private val hasTajwidHead: Boolean =
         tajwidNames.isNotEmpty() && session.outputNames.contains(TAJWID_OUTPUT)
+
+    /** Seuil de detection PAR CLASSE, en LOG-PROBABILITE (comparable directement
+     *  a `tajwid[t][c]`, deja en log-sigmoide). Charge depuis seuils_tajwid.json
+     *  (2026-08-16) -- calibre sur audio reel pour que le nombre d'emissions
+     *  colle au texte recite, remplace le seuil plat 0,5 ci-dessous. Repli a
+     *  ln(0,5) classe par classe si le fichier est absent (anciens model_pack)
+     *  OU si une classe de `rules.json` manque dans le fichier de seuils --
+     *  jamais un echec bloquant, cf. le meme esprit de tolerance que rules.json
+     *  lui-meme pour les modeles a une seule tete.
+     *
+     *  MESURE A L'APPUI (agregat toutes classes confondues, faute de la table
+     *  symbole->classe sur ce poste -- cf. AUDIT_EQUIVALENCES_ECRITURE_2026-08-15.md
+     *  §3ter) : seuil plat 0,5 sur-detecte de +209% sur la fenetre de calibrage
+     *  et +240% hors fenetre (141 versets, Al-Afasy) ; ces seuils par classe
+     *  ramenent l'ecart a +28%/+38% -- gain net, verifie hors de sa fenetre de
+     *  calibrage donc pas un simple surapprentissage local. */
+    private val tajwidSeuilsLog: FloatArray = FloatArray(tajwidNames.size) { Math.log(0.5).toFloat() }.also { arr ->
+        val seuils = seuilsPath?.let { path ->
+            try {
+                JSONObject(File(path).readText(Charsets.UTF_8)).optJSONObject("seuils")
+            } catch (e: Exception) {
+                null
+            }
+        }
+        if (seuils != null) {
+            tajwidNames.forEachIndexed { i, nom ->
+                if (seuils.has(nom)) arr[i] = Math.log(seuils.getDouble(nom)).toFloat()
+            }
+        }
+    }
     /**
      * ⚠️ N'EST PLUS UTILISE, ET NE DOIT PAS L'ETRE (2026-08-04). Conserve pour
      * memoire : c'etait l'indice de blanc du temps ou la tete 2 etait une tete
@@ -191,12 +227,25 @@ class FastConformerCtc(modelPath: String, vocabPath: String, rulesPath: String? 
         //
         // Le seuil est 0,5 en PROBABILITE, la frontiere naturelle d'une
         // sigmoide -- pas un reglage a calibrer.
+        //
+        // ⚠️ SUPERSEDE (2026-08-16) : vrai comme frontiere mathematique d'une
+        // sigmoide, mais mesure sur audio reel FAUX comme critere de decision
+        // -- le seuil plat 0,5 sur-detecte de +209% a +240% (calibrage/hors
+        // calibrage, cf. tajwidSeuilsLog ci-dessus pour le detail et la
+        // source). Chaque classe a sa PROPRE confiance naturelle (mesure :
+        // de 0,5 a 0,9633 selon la classe), pas une frontiere commune -- un
+        // seuil unique traite donc `madda_permissible` (confiance naturelle
+        // 0,9633) comme s'il fallait a peine plus de 50% de certitude pour
+        // l'affirmer, d'ou la sur-detection massive sur cette classe et ses
+        // semblables. `tajwidSeuilsLog` (par classe, calibre) remplace ce
+        // seuil plat ci-dessous ; conserve pour memoire (ne jamais supprimer
+        // un commentaire qui documente une decision passee).
         val out = ArrayList<DetectedRule>()
         val nClasses = tajwid.firstOrNull()?.size ?: return emptyList()
-        val seuilLog = Math.log(0.5).toFloat()
         for (c in 0 until nClasses) {
             var debut = -1
             var probMax = 0f
+            val seuilLog = if (c < tajwidSeuilsLog.size) tajwidSeuilsLog[c] else Math.log(0.5).toFloat()
             for (t in tajwid.indices) {
                 val actif = tajwid[t][c] >= seuilLog
                 if (actif) {

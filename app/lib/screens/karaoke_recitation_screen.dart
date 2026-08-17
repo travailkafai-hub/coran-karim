@@ -1240,6 +1240,47 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       kind: ref.read(recitationProvider.notifier).classifyError(wordIndex).name,
       audioSource: extrait,
     );
+    // ── LE COACH EST ALIMENTÉ ICI, PLUS PAR LE CANAL DES ÉCHECS ───────────
+    //
+    // (2026-08-16.) `RecitationErrorLogService.logError` ne vivait QUE dans
+    // `_onWordFailed`, c'est-à-dire sur le chemin du SOUFFLEUR. Le Coach
+    // recevait donc ses écarts de tajwid « par accident » : un mot dégradé
+    // par une règle manquante comptait comme un échec, ce qui déclenchait le
+    // souffleur (et marquait le mot « oublié » à tort, défaut corrigé le même
+    // jour dans `_onV2`) ET, au passage, écrivait dans le Coach.
+    //
+    // Couper le faux échec a donc coupé le Coach du même coup -- constaté par
+    // l'utilisateur : « avant je constate du violet dans cet écran [Coach] et
+    // non dans écran récitation, maintenant c'est l'inverse ».
+    //
+    // Ce flux-ci (`wordLockedNonGreen`) est le bon endroit : il reçoit TOUT
+    // mot verrouillé non vert, sans condition de correction/anti-rafale/mode,
+    // et il sert déjà à archiver pour le Coach juste au-dessus. Le souffleur
+    // reste hors du circuit.
+    if (verse != null && local != null) {
+      final notifier = ref.read(recitationProvider.notifier);
+      final kind = notifier.classifyError(wordIndex);
+      final rules = kind == RecitationErrorKind.tajwid
+          ? notifier.unrealizedRulesFor(wordIndex, mot.detectedRules)
+          : const <TajwidRule>[];
+      // Mot « frontière » : une règle de jonction (ikhafa/iqlab/idgham) se
+      // joue sur DEUX mots -- garder le suivant pour l'afficher en paire.
+      final isBoundary = rules.isNotEmpty &&
+          RuleAnnotationService.instance
+              .isBoundaryWord(verse.surahNumber, verse.ayahNumber, local);
+      final pairWord = isBoundary && wordIndex + 1 < words.length
+          ? words[wordIndex + 1].display
+          : null;
+      RecitationErrorLogService.instance.logError(
+        surahNumber: verse.surahNumber,
+        ayahNumber: verse.ayahNumber,
+        wordIndex: local,
+        expectedWord: mot.display,
+        kind: kind,
+        rules: rules,
+        pairWord: pairWord,
+      );
+    }
   }
 
   /// Comptabilise la session qui vient de se terminer pour le Coach : le
@@ -1786,70 +1827,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // après (c'est même le but du souffleur) et repassera vert : c'est
     // exactement le cas que l'utilisateur veut continuer de voir.
     // Cf. la doc de `_motsOublies`.
+    // Ce marquage a été instrumenté le 2026-08-16 (`MotsOubliesAdd`, retiré
+    // depuis) pour répondre à « pourquoi ce mot est-il gris alors que je l'ai
+    // dit ? ». La trace a établi que l'appel venait bien de la voie normale
+    // (`raison=mot precedent egalement en echec`) et que la vraie cause était
+    // en amont : un mot dégradé par le seul tajwid comptait comme un échec.
+    // Corrigé dans `_onV2` (cf. « LE TAJWID NE COMPTE JAMAIS COMME UN ÉCHEC »).
     if (!_isReferenceSession) _motsOublies.add(wordIndex);
     // Journalisation persistante (Coach IA) : indépendante des réglages de
     // correction automatique ci-dessous, jamais pendant une session de
     // référence (même raison que plus bas : ce n'est pas une vraie erreur de
     // récitation, juste une mesure du rythme naturel du récitant).
-    if (!_isReferenceSession) {
-      final verse = _verseContaining(wordIndex);
-      final local = _localIndexInVerse(wordIndex);
-      final words = ref.read(recitationProvider).words;
-      if (verse != null && local != null && wordIndex < words.length) {
-        final notifier = ref.read(recitationProvider.notifier);
-        final kind = notifier.classifyError(wordIndex);
-        // Détail par règle précise (demande utilisateur 2026-07-22 : stats
-        // par règle de tajwid, pas seulement un compteur "tajwid" global) --
-        // ne recalculer que si le classement l'a déjà retenu comme tel, même
-        // méthode que classifyError en interne (unrealizedRulesFor).
-        final rules = kind == RecitationErrorKind.tajwid
-            ? notifier.unrealizedRulesFor(wordIndex, words[wordIndex].detectedRules)
-            : const <TajwidRule>[];
-        // Mot "frontière" (2026-07-22, demande utilisateur) : ikhafa/iqlab/
-        // idgham... sont à cheval sur deux mots -- si c'est le cas ici, on
-        // garde le texte du mot SUIVANT pour que l'affichage montre la paire
-        // plutôt qu'un seul mot isolé (cf. RuleAnnotationService.isBoundaryWord,
-        // rempli depuis boundary_words.jsonl/quran_rules_boundary.json).
-        final isBoundary = rules.isNotEmpty &&
-            RuleAnnotationService.instance
-                .isBoundaryWord(verse.surahNumber, verse.ayahNumber, local);
-        final pairWord = isBoundary && wordIndex + 1 < words.length
-            ? words[wordIndex + 1].display
-            : null;
-        // Les écarts TAJWID SONT enregistrés (décision utilisateur
-        // 2026-07-23) : détecter et nommer les fautes de tajwid EST la
-        // raison d'être du coach -- un coach qui contrôle le tajwid sans
-        // savoir restituer les erreurs n'a aucune valeur. J'avais un moment
-        // retiré cet enregistrement au motif qu'on ne sait pas distinguer
-        // « le récitant ne l'a pas faite » de « le modèle ne l'a pas vue » ;
-        // c'était supprimer la fonctionnalité au lieu de fiabiliser la
-        // mesure. La bonne réponse est de ne juger le tajwid QUE dans des
-        // conditions où la détection est fiable, ce qui est désormais le cas :
-        //   - jugement sur segment FIGÉ uniquement (audio complet, contexte
-        //     plein pour ConvTajwidHead) -- c'était la cause des `emises=`
-        //     vides sur des règles pourtant réalisées ;
-        //   - tolérance de frontière pour les règles de jonction (une règle
-        //     détectée sur le mot voisin compte comme réalisée) ;
-        //   - filtrage par fiabilité mesurée par règle (rule_reliability.json
-        //     + _capByRuleReliability) : une classe non fiable n'est jamais
-        //     contrôlée d'office.
-        // Mesuré sur clips complets : rappel 0,96 (ikhafa) à 0,97
-        // (idgham_ghunnah), F1 global 0,975 -- assez fiable pour être restitué.
-        RecitationErrorLogService.instance.logError(
-          surahNumber: verse.surahNumber,
-          ayahNumber: verse.ayahNumber,
-          wordIndex: local,
-          expectedWord: words[wordIndex].display,
-          // Type d'erreur calculé à CHAUD (lettre / harakat / tajwid / sauté) :
-          // il faut l'entendu, qui n'est conservé que sur le mot courant --
-          // impossible à reconstruire après coup. Cf.
-          // RecitationNotifier.classifyError pour la méthode et ses limites.
-          kind: kind,
-          rules: rules,
-          pairWord: pairWord,
-        );
-      }
-    }
+    //
+    // ⚠️ DÉPLACÉ (2026-08-16) : `logError` vit désormais dans
+    // `_archiverMotNonVert` (flux `wordLockedNonGreen`), PAS ici. Raison
+    // complète au point d'appel là-bas : ce chemin-ci est celui du SOUFFLEUR,
+    // et y attacher l'alimentation du Coach liait deux choses indépendantes --
+    // couper le faux échec de tajwid coupait le Coach du même coup.
+    // Le bloc ci-dessous ne garde QUE ce qui concerne le souffleur.
     // ── LE RÉGLAGE NE COUPE QUE LES ERREURS, JAMAIS LE DÉCROCHAGE ────────
     //
     // Spécification utilisateur (2026-08-06) : « quand c'est désactivé, il n'y
@@ -2713,6 +2708,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // possible des que le profil de pauses etait absent.
         _isReferenceSession = false;
       }
+      // RAZ des mots "oubliés" au démarrage d'une NOUVELLE tentative
+      // (2026-08-16, bug confirmé par l'utilisateur et vérifié dans le log :
+      // `_motsOublies` n'était JAMAIS réinitialisé -- un mot soufflé une fois
+      // pendant une tentative restait marqué "oublié" (gris, écrase même le
+      // violet tajwid) sur TOUTES les tentatives suivantes dans le même
+      // écran, y compris quand le mot était en réalité parfaitement récité
+      // cette fois-ci. Faux "dire vrai" : accuser un mot bien dit d'avoir
+      // été oublié, sur la seule foi d'un souffle d'une tentative précédente.
+      _motsOublies.clear();
       setState(() => _sessionNotice = null);
       // MODE journalisé (2026-07-27, demande utilisateur) : les deux modes
       // partagent toute la chaîne ASR mais pas leurs garde-fous, et rien dans
@@ -4073,6 +4077,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         final tajwidManquant =
             ref.read(recitationProvider.notifier).classifyError(index) ==
                 RecitationErrorKind.tajwid;
+        // Instrumenté le 2026-08-16 (`RenderTajwid`, retiré depuis) parce que
+        // le violet n'apparaissait pas alors que l'état du provider était bon.
+        // La trace a montré `classifyError=tajwid tajwidManquant=true` ET
+        // `estOubli=true` sur le même mot : la couleur était calculée
+        // correctement puis ÉCRASÉE par le gris « oublié » juste en dessous
+        // (cf. `if (estOubli)`). Ne pas ré-instrumenter ici sans raison : ce
+        // log s'écrit à CHAQUE mot et à CHAQUE frame, il noie le journal.
         final cu = tajwidManquant
             ? AppColors.recitationTajwidError
             : const Color(0xFFffcc80);
@@ -4103,28 +4114,30 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           bgTint = c.withOpacity(0.42);
           borderTint = c;
         } else {
-          // ── ATTÉNUÉ TANT QUE CE N'EST PAS FIGÉ (2026-08-15) ─────────────
+          // ── ATTÉNUÉ TANT QUE CE N'EST PAS FIGÉ (2026-08-15) -- RETIRÉ
+          // (2026-08-16, demande utilisateur : trop d'états de couleur
+          // pendant la récitation) ────────────────────────────────────────
           //
-          // AVANT : rien du tout. Le mot restait en crème nu -- exactement le
-          // « pas vert, sans couleur » signalé par l'utilisateur. MESURE sur
-          // son journal : `provisoire:rouge` est le statut FINAL d'au moins un
-          // mot dans 13 sessions sur 19, soit 16 mots qui finissent la session
-          // sans la moindre couleur.
+          // AVANT (jusqu'au 2026-08-15) : rien du tout. Le mot restait en
+          // crème nu -- exactement le « pas vert, sans couleur » signalé par
+          // l'utilisateur. MESURE sur son journal : `provisoire:rouge` est le
+          // statut FINAL d'au moins un mot dans 13 sessions sur 19, soit 16
+          // mots qui finissent la session sans la moindre couleur.
           //
           // L'ASYMÉTRIE ÉTAIT LÀ, et c'est elle qui rendait le symptôme
           // incompréhensible : `case correct` peint le vert SANS condition sur
           // `locked`. Un provisoire vert se voyait, un provisoire rouge non.
           //
           // ARBITRAGE UTILISATEUR (2026-08-15) : « rouge atténué puis franc ».
-          // L'effet de bord est connu et assumé -- c'est le clignotement
-          // rouge->vert qui avait fait retirer cet affichage le 2026-07-09.
-          // Il est ici BORNÉ : teinte très pâle et contour seul, pour que le
-          // passage au rouge franc (verrouillage) reste un changement lisible,
-          // et qu'un retour au vert ne donne pas l'impression d'une accusation
-          // retirée.
-          const provisoire = Color(0xFFff8a80);
-          bgTint = provisoire.withValues(alpha: 0.14);
-          borderTint = provisoire.withValues(alpha: 0.55);
+          // Ajouté une teinte très pâle borné, effet de bord connu et assumé
+          // (clignotement rouge->vert qui avait fait retirer cet affichage le
+          // 2026-07-09).
+          //
+          // RETIRÉ LE LENDEMAIN (2026-08-16) : demande explicite de réduire
+          // le nombre d'états de couleur visibles pendant la récitation (7
+          // recensés, jugés trop nombreux). Retour au comportement d'avant
+          // le 2026-08-15 -- le défaut des 16 mots sans couleur en fin de
+          // session REVIENT avec ce retrait, en connaissance de cause.
         }
         break;
       case WordStatus.skipped:
