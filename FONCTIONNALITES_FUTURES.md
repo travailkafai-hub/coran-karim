@@ -987,3 +987,95 @@ Le Redmi rejoue un enregistrement linéaire — 0 à 1 recul d'un seul mot sur t
 sessions. Le chantier vaut pour l'USAGE RÉEL, pas pour le banc, et il faudra un
 protocole de test dédié (récitation humaine avec répétitions volontaires) pour
 le valider : le banc à deux téléphones ne peut pas le produire.
+
+## 12. La tête tajwid n'a JAMAIS vu d'erreur — utiliser l'IZHAR comme négatif (idée utilisateur, 2026-08-17)
+
+### Le défaut de fond, constaté par l'utilisateur puis vérifié dans le code
+
+Constat de l'utilisateur, formulé sur le cas `أُنزِلَ` : *« bah forcément si
+ikhfa, le texte va pas détecter le noun […] ikhfa c'est presque le son n'est
+pas dit, confirmé par le texte »*. Autrement dit : l'ikhfa est **déterminé à
+100 % par le texte** (noun sakin + une des 15 lettres), donc le « détecter »
+acoustiquement n'apporte aucune information — la question utile est
+*« le récitateur l'a-t-il RÉALISÉ ? »*, et ce n'est pas ce que la tête sait
+faire.
+
+**Vérifié dans `benchmark/build_frame_level_tajwid_labels.py`, deux faits :**
+
+1. **La fenêtre apprise est le MOT ENTIER, pas le son de la règle** :
+   ```python
+   f0 = first[wstart]      # première frame du mot
+   f1 = last[wend]         # dernière frame (du mot suivant si jonction)
+   spans.append([cid, f0d, f1d])
+   ```
+   La tête n'apprend donc pas « voici le ghunnah du noun caché », elle apprend
+   « ce mot-là porte l'étiquette ikhafa ».
+
+2. **Aucun contre-exemple, jamais.** Le script le dit lui-même : *« les
+   récitateurs du corpus sont professionnels […] apprises sur de la récitation
+   CORRECTE sans étiquetage manuel correct/incorrect »*.
+
+⇒ **Conséquence** : la tête a appris à reconnaître un **contexte phonétique /
+lexical**, pas à **vérifier une réalisation**. « Règle non détectée » signifie
+« le modèle n'a pas reconnu son motif appris », PAS « le récitateur ne l'a pas
+faite » — ce que le code admettait déjà dans son propre commentaire
+(`recitation_provider.dart`, libellé « NON DETECTEE » choisi le 2026-07-23).
+
+Cohérent avec les mesures du 2026-08-16 : sur-détection de +28 à +38 % après
+calibration des seuils par classe, et le MÊME mot `أُنزِلَ` non détecté au mot
+23 puis détecté au mot 26 dans la même session.
+
+### L'idée : l'izhar fournit le négatif, gratuitement
+
+Idée de l'utilisateur : *« est-ce qu'on peut corriger ça en cherchant des
+phrases avec noun sans ikhfa et lui appliquer un ikhfa dans le texte, et dire
+que c'est incorrect ? »*
+
+Dans l'**izhar halqi** (noun sakin/tanwin + lettre de gorge ء ه ع ح غ خ), le
+récitateur professionnel prononce le noun **CLAIREMENT**. C'est exactement le
+son de « ikhfa non réalisé ». Le corpus contient donc déjà les négatifs, sans
+aucun enregistrement à produire.
+
+**Volume mesuré sur `quran_verses.json` (Coran complet, 2026-08-17) :**
+
+| motif | occurrences |
+|---|---|
+| IZHAR (noun clair — négatif potentiel) | **2 481** |
+| IKHFA détecté par le même scan (positif) | 826 |
+
+(Le compte ikhfa est sous-estimé — le sukun n'est pas toujours explicite dans
+le rasm ; seul l'ordre de grandeur compte ici, et il est largement suffisant.)
+
+### ⚠️ LE PIÈGE À TRAITER AVANT TOUTE IMPLÉMENTATION
+
+Dans l'izhar le noun est suivi d'une **lettre de gorge** ; dans l'ikhfa, d'une
+des **15 autres lettres**. Le modèle peut donc apprendre le raccourci
+*« lettre de gorge après → négatif »* au lieu de *« noun clair → négatif »*.
+Il afficherait alors un score d'entraînement excellent ET échouerait
+totalement sur le cas réellement visé : un noun clair devant ز/س/ت…
+
+**C'est une confusion de variable, pas un défaut de réglage** : aucun seuil ne
+la corrige, et elle est invisible sur une validation tirée du même corpus.
+
+### Les trois pistes, par coût croissant
+
+1. **Contrôle d'abord (le moins cher, tranche la question).** Entraîner avec
+   l'astuce, puis évaluer sur quelques dizaines d'**erreurs réelles**
+   enregistrées exprès (noun clair là où l'ikhfa est requis). Si ça généralise,
+   le raccourci n'a pas dominé. C'est le seul jeu de test qui vaut : il doit
+   venir de l'extérieur du corpus d'entraînement.
+2. **Découpe-collage (splicing).** L'alignement forcé donne la position exacte
+   du noun : coller un noun clair (pris d'un izhar) devant une lettre d'ikhfa
+   produit le cas visé sans la confusion. Risque à mesurer : le modèle peut
+   apprendre l'artefact de collage au lieu du contenu phonétique — même famille
+   de piège que §8bis (montage par lettres confusables).
+3. **Enregistrements dédiés.** Le plus propre, le plus coûteux.
+
+Transposable tel quel aux autres classes : **idgham** et **iqlab** (même
+structure de jonction), et les **madd** (durée fausse au lieu d'absence).
+
+### Où ça se fait
+
+Sur le poste Linux (GPU) : le corpus d'entraînement, `.venv_nemo` et
+`build_frame_level_tajwid_labels.py` y vivent. Invoquer le skill
+`model-training` avant toute reprise d'entraînement.

@@ -234,3 +234,88 @@ Cordialement,
 [Nom]
 [Adresse e-mail]
 Paquet Android : `com.corankarim.coran_karim`
+
+---
+---
+
+# RELANCE 2 — après leur réponse sur le proxy, question de débit
+
+**Contexte.** Ils ont répondu qu'aucun client public n'est possible pour les
+Content APIs (flux Client Credentials, confidentiel par nature), et ont
+recommandé un relais côté serveur qui ne renvoie jamais le jeton brut à
+l'application, seulement les données déjà obtenues.
+
+**Ce que ce courrier ajoute.** Le proxy sera construit ainsi. Reste une
+question qu'aucune de leurs pages ne documente : à partir de quel volume de
+requêtes faut-il les prévenir. Sans ce chiffre, impossible de savoir si l'app,
+en grandissant, dépasserait une limite non écrite et se ferait couper sans
+préavis.
+
+À envoyer **dans le même fil**, à `developers@quran.com`.
+
+## Version anglaise — à envoyer
+
+Dear Quran Foundation team,
+
+Thank you for the clarification on the client model. I will build the small
+server-side proxy as you described: it will hold the client credentials,
+request short-lived access tokens, and return to the application only the
+data it needs — never the raw token, and never a direct pass-through of your
+API responses.
+
+One question before I size this proxy correctly.
+
+I could not find a published rate limit or quota for the Content APIs. To
+plan the proxy's capacity — and to know at what point I should come back to
+you rather than simply scale my own infrastructure — could you tell me the
+order of magnitude of requests per second (or per day) at which I should
+reach out to discuss a higher limit? I would rather ask in advance than find
+out by being throttled or suspended.
+
+For context: the proxy will only relay metadata calls (chapter/reciter audio
+file listings, per-ayah segment timings, chapter info) — the audio files
+themselves continue to stream directly from your CDN, never through my
+server.
+
+Thank you again for your time and for making this collaboration possible.
+
+Kind regards,
+
+[Name]
+[Email address]
+Android package: `com.corankarim.coran_karim`
+
+## Traduction française — pour ta lecture
+
+Chère équipe de Quran Foundation,
+
+Merci pour cette clarification sur le modèle de client. Je vais construire le
+petit relais côté serveur tel que vous l'avez décrit : il détiendra les
+identifiants du client, demandera des jetons d'accès de courte durée, et ne
+renverra à l'application que les données dont elle a besoin — jamais le jeton
+brut, jamais un simple relais direct de vos réponses d'API.
+
+Une question avant de dimensionner correctement ce relais.
+
+Je n'ai trouvé aucune limite de débit ni aucun quota publiés pour les Content
+APIs. Pour planifier la capacité du proxy — et pour savoir à partir de quel
+seuil je devrais revenir vers vous plutôt que simplement faire grossir ma
+propre infrastructure — pourriez-vous m'indiquer l'ordre de grandeur de
+requêtes par seconde (ou par jour) à partir duquel je devrais vous contacter
+pour discuter d'une limite plus élevée ? Je préfère le demander à l'avance
+plutôt que de le découvrir en étant limité ou suspendu.
+
+Pour situer le contexte : le relais ne transmettra que des appels de
+métadonnées (listes de fichiers audio par chapitre/récitateur, minutages des
+segments par verset, informations de chapitre) — les fichiers audio eux-mêmes
+continueront d'être diffusés directement depuis votre CDN, jamais via mon
+serveur.
+
+Merci encore pour votre temps et pour avoir rendu cette collaboration
+possible.
+
+Cordialement,
+
+[Nom]
+[Adresse e-mail]
+Paquet Android : `com.corankarim.coran_karim`
