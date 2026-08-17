@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/reciter.dart';
 import '../models/verse.dart';
 import 'diagnostic_log.dart';
+import 'mp3quran_api.dart';
 import 'quran_api.dart';
 import 'reciter_download_service.dart';
 
@@ -97,6 +98,24 @@ class WordCorrectionAudio {
     int wordsBefore = 1,
     int wordsAfter = 0,
   }) async {
+    // ── CHEMIN LOCAL MP3QURAN, SANS QURAN FOUNDATION (2026-08-16) ───────────
+    //
+    // Pour Al-Afasy (seul récitateur MP3Quran de l'app à ce jour), le
+    // minutage mot à mot est calculé HORS LIGNE une fois pour toutes
+    // (`benchmark/generer_predictions_mp3quran.py`, aucune dépendance QF dans
+    // sa génération) et embarqué comme asset -- plus jamais d'appel réseau à
+    // `fetchAyahSegments`/`fetchSurahAudioUrls` pour ce récitateur. Décision
+    // utilisateur du même jour : jeu de données précalculé plutôt qu'un
+    // alignement à la demande sur l'appareil (qui toucherait `ForcedAligner.kt`
+    // et la chaîne ASR -- hors périmètre validé aujourd'hui).
+    if (Mp3QuranApi.sertCeReciter(reciter.id)) {
+      await _playWordRangeMp3Quran(verse, reciter,
+          errorWordIndex: errorWordIndex,
+          facteurDuree: facteurDuree,
+          wordsBefore: wordsBefore,
+          wordsAfter: wordsAfter);
+      return;
+    }
     final segKey = '${reciter.id}:${verse.key}';
     // ── AUDIO TÉLÉCHARGÉ D'ABORD (2026-08-01) ─────────────────────────────
     // AVANT : ce service appelait `fetchSurahAudioUrls` (RÉSEAU) en tout
@@ -200,6 +219,112 @@ class WordCorrectionAudio {
     });
   }
 
+  /// Variante MP3Quran de [playWordRange] : source et minutage 100% locaux.
+  ///
+  /// ── DEUX REPÈRES À COMBINER, PAS UN SEUL ─────────────────────────────────
+  /// `Mp3QuranWordSegments` donne le minutage mot à mot RELATIF au verset
+  /// isolé (c'est ainsi qu'il a été calculé, cf. son commentaire de tête).
+  /// Mais l'audio réellement joué ici est le fichier de la SOURATE ENTIÈRE
+  /// (`Mp3QuranApi.fichierLocalSourate`, le même que `AudioPlayerService`
+  /// utilise pour l'écoute au Mushaf -- un seul téléchargement sert les deux
+  /// fonctions). Il faut donc ADDITIONNER le début absolu du verset dans ce
+  /// fichier (`Mp3QuranApi.ayatTiming`) aux décalages relatifs de chaque mot
+  /// -- l'erreur classique (déjà rencontrée deux fois dans ce chantier, cf.
+  /// `PLAN_SORTIE.md` §4 et l'audit du 2026-08-16) est d'utiliser l'un sans
+  /// l'autre.
+  static Future<void> _playWordRangeMp3Quran(
+    Verse verse,
+    Reciter reciter, {
+    required int errorWordIndex,
+    required double facteurDuree,
+    required int wordsBefore,
+    required int wordsAfter,
+  }) async {
+    await Mp3QuranWordSegments.instance.ensureLoaded();
+    final segments = Mp3QuranWordSegments.instance
+        .segmentsForVerse(verse.surahNumber, verse.ayahNumber);
+
+    final fromIdx = (errorWordIndex - wordsBefore).clamp(0, errorWordIndex);
+    final toIdx = errorWordIndex + wordsAfter;
+
+    // Verset non couvert, ou l'index visé dépasse ce que le minutage local
+    // connaît (texte re-découpé différemment, cf. l'avertissement de
+    // `Mp3QuranWordSegments`) -- abandon SANS retomber sur Quran Foundation :
+    // c'est précisément la dépendance que ce chemin existe pour supprimer.
+    // Même discipline de log que le chemin quran.com ci-dessus.
+    if (segments == null || toIdx >= segments.length || fromIdx < 0) {
+      DiagnosticLog.log('Correction-Audio',
+          'ABANDON (MP3Quran) verset=${verse.key} : minutage local absent ou '
+          'index hors bornes (fromIdx=$fromIdx toIdx=$toIdx '
+          'segments=${segments?.length}) -> pas de correction audible');
+      return;
+    }
+
+    final List<AyahTiming> timing;
+    final String path;
+    try {
+      timing = await Mp3QuranApi.ayatTiming(verse.surahNumber);
+      path = await Mp3QuranApi.fichierLocalSourate(
+          reciter.id, verse.surahNumber);
+    } catch (e) {
+      DiagnosticLog.log('Correction-Audio',
+          'ABANDON (MP3Quran) verset=${verse.key} : $e');
+      return;
+    }
+    AyahTiming? t;
+    for (final e in timing) {
+      if (e.ayah == verse.ayahNumber) {
+        t = e;
+        break;
+      }
+    }
+    if (t == null) {
+      DiagnosticLog.log('Correction-Audio',
+          'ABANDON (MP3Quran) verset=${verse.key} : verset absent de ayat_timing');
+      return;
+    }
+
+    final debutAbsoluVerset = t.startMs;
+    final startMs = debutAbsoluVerset + segments[fromIdx][0].round();
+    var endMs = debutAbsoluVerset + segments[toIdx][1].round();
+    if (facteurDuree < 1.0 && endMs > startMs) {
+      final pleine = endMs - startMs;
+      final reduite = (pleine * facteurDuree).round();
+      endMs = startMs + (reduite < 800 ? (pleine < 800 ? pleine : 800) : reduite);
+    }
+
+    DiagnosticLog.log('Correction-Audio', 'verset=${verse.key} (MP3Quran) '
+        'errorWordIndex=$errorWordIndex fromIdx=$fromIdx toIdx=$toIdx '
+        'startMs=$startMs endMs=$endMs source=$path');
+
+    final completer = Completer<void>();
+    late final StreamSubscription posSub;
+    late final StreamSubscription doneSub;
+    void finish() {
+      posSub.cancel();
+      doneSub.cancel();
+      if (!completer.isCompleted) completer.complete();
+    }
+
+    posSub = _player.onPositionChanged.listen((pos) {
+      if (pos.inMilliseconds >= endMs) {
+        _player.pause();
+        finish();
+      }
+    });
+    doneSub = _player.onPlayerComplete.listen((_) => finish());
+
+    await _player.play(DeviceFileSource(path),
+        position: Duration(milliseconds: startMs));
+    // Même garde-fou que le chemin quran.com : ne jamais bloquer indéfiniment
+    // si ni la position ni la fin de lecture ne se déclenchent.
+    return completer.future.timeout(const Duration(seconds: 15), onTimeout: () {
+      posSub.cancel();
+      doneSub.cancel();
+      _player.pause();
+    });
+  }
+
   /// Joue exactement les mots [startWordIdx]..[endWordIdx] (inclus) --
   /// wrapper de lisibilité au-dessus de [playWordRange] pour le moteur de
   /// répétition incrémentale (fenêtre de mots à apprendre), qui n'a pas de
@@ -231,6 +356,21 @@ class WordCorrectionAudio {
   /// une erreur ici (réseau) est silencieusement ignorée -- [playWordRange]
   /// retente son propre fetch si le cache n'a pas eu le temps de se remplir.
   static Future<void> prefetch(Verse verse, Reciter reciter) async {
+    // MP3Quran (2026-08-16) : rien à préchauffer côté réseau QF pour ce
+    // récitateur -- le minutage est un asset local (chargé une fois pour
+    // toute l'app, `ensureLoaded()` est idempotent) et l'audio est la MÊME
+    // sourate entière que `AudioPlayerService` télécharge déjà pour
+    // l'écoute au Mushaf. On amorce ce même téléchargement ici (best-effort,
+    // fire-and-forget) : s'il est déjà en cours ou terminé pour l'écoute,
+    // cet appel ne fait rien de plus ; sinon, il a une longueur d'avance sur
+    // la correction.
+    if (Mp3QuranApi.sertCeReciter(reciter.id)) {
+      unawaited(Mp3QuranWordSegments.instance.ensureLoaded());
+      unawaited(Mp3QuranApi
+          .fichierLocalSourate(reciter.id, verse.surahNumber)
+          .catchError((_) => ''));
+      return;
+    }
     final segKey = '${reciter.id}:${verse.key}';
     try {
       _urlCache[verse.surahNumber] ??=

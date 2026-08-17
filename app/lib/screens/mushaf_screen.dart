@@ -1129,14 +1129,31 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     if (_verses.isEmpty) return;
     final player = ref.read(playerProvider);
     final cle = player.currentVerse?.key;
-    final dansCeQuiEstAffiche =
-        cle != null && _verses.any((v) => v.key == cle);
+    // ── LE VERSET CHARGÉ N'EST PAS FORCÉMENT LE VERSET SÉLECTIONNÉ ──────────
+    //
+    // Bug corrigé 2026-08-16, constat utilisateur : « quand je fais pause,
+    // que je sélectionne un autre verset, au play ça doit prendre la
+    // nouvelle sélection, pas continuer sur ce qui était chargé avant ».
+    //
+    // `dansCeQuiEstAffiche` (ci-dessous) ne demandait QUE « le verset chargé
+    // fait-il partie de cette page ? » -- vrai pour N'IMPORTE LEQUEL des
+    // versets affichés. Mettre en pause sur le verset 3, taper le verset 7
+    // (met à jour `_activeVerse`, cf. `onTap` des tuiles), puis Play : le
+    // verset 7 fait toujours partie de la même page, donc l'ancienne
+    // condition prenait la branche `resume()` -- qui reprend le verset 3, en
+    // ignorant totalement la nouvelle sélection.
+    //
+    // Le bon test compare le verset CHARGÉ au verset SÉLECTIONNÉ
+    // (`_verses[_activeVerse]`) : transport (pause/reprise) seulement s'ils
+    // sont IDENTIQUES, sinon c'est un changement de cible -> lecture neuve.
+    final selectionne = _verses[_activeVerse].key;
+    final chargeEstLeSelectionne = cle != null && cle == selectionne;
     // Le menu doit etre visible des qu'on touche au transport, et le rester
     // tant que ca joue (cf. `_scheduleHeaderHide`).
     _showHeader();
-    if (dansCeQuiEstAffiche && player.isPlaying) {
+    if (chargeEstLeSelectionne && player.isPlaying) {
       ref.read(playerProvider.notifier).pause();
-    } else if (dansCeQuiEstAffiche && player.isPaused) {
+    } else if (chargeEstLeSelectionne && player.isPaused) {
       ref.read(playerProvider.notifier).resume();
     } else {
       _playFromActive();

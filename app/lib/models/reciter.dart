@@ -17,16 +17,25 @@ class Reciter {
   int get hashCode => id.hashCode;
 }
 
-// Default built-in reciters (quran.com recitation IDs)
+// App volontairement MONO-RÉCITATEUR (2026-08-16) : seul Al-Afasy dispose
+// d'un chemin de lecture et de correction audio SANS dépendance à Quran
+// Foundation (audio MP3Quran + `word_segments_mp3quran_afasy.json`
+// précalculé, cf. AUDIT_EQUIVALENCES_ECRITURE_2026-08-15.md §3bis). Les 7
+// autres récitateurs ci-dessous retomberaient sur l'ancien chemin
+// quran.com/QF pour `WordCorrectionAudio` -- exactement la dépendance que ce
+// chantier existe à supprimer -- donc retirés de la sélection tant que leur
+// propre jeu de données n'est pas généré.
+//
+// IDs MP3Quran déjà vérifiés (reciter/moshaf, empiriquement via
+// /ayat_timing, PAS supposés -- cf. §3ter de l'audit) pour la suite quand la
+// demande se présentera : Al-Husary 118, Muhammad Ayyoub 109, Ash-Shaatree
+// 4, Abdul Basit Murattal 53 (PIÈGE : != son reciter_id 51, qui pointe le
+// Mujawwad 51), Al-Sudais 54, Nasser Al-Qatami 86. Remettre l'entrée
+// correspondante ci-dessous une fois `preparer_corpus_mp3quran.py` +
+// `generer_predictions_mp3quran.py` rejoués pour ce récitateur et son JSON
+// embarqué/hébergé.
 const kReciters = [
   Reciter(id: 7,  nameAr: 'مشاري العفاسي',           nameFr: 'Mishary Al-Afasy',       style: 'Murattal'),
-  Reciter(id: 1,  nameAr: 'عبد الباسط — مرتّل',      nameFr: 'Abdul Basit (Murattal)', style: 'Murattal'),
-  Reciter(id: 2,  nameAr: 'عبد الباسط — مجوّد',      nameFr: 'Abdul Basit (Mujawwad)', style: 'Mujawwad'),
-  Reciter(id: 9,  nameAr: 'محمود خليل الحصري',       nameFr: 'Al-Husary',              style: 'Murattal'),
-  Reciter(id: 5,  nameAr: 'أبو بكر الشاطري',         nameFr: 'Abu Bakr Ash-Shaatree', style: 'Murattal'),
-  Reciter(id: 10, nameAr: 'ناصر القطامي',             nameFr: 'Nasser Al-Qatami',       style: 'Murattal'),
-  Reciter(id: 12, nameAr: 'محمد أيوب',               nameFr: 'Muhammad Ayyoub',        style: 'Murattal'),
-  Reciter(id: 11, nameAr: 'عبدالرحمن السديس',        nameFr: 'Al-Sudais',              style: 'Murattal'),
 ];
 
 const kDefaultReciter = Reciter(id: 7, nameAr: 'مشاري العفاسي', nameFr: 'Mishary Al-Afasy', style: 'Murattal');
