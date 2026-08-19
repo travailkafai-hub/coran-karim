@@ -229,6 +229,66 @@ section{padding:clamp(3.5rem,9vw,7rem) 0}
   color:var(--encre-doux);line-height:1.6;
 }
 
+
+/* -- inscription testeurs ------------------------------------------------ */
+.testeurs{background:var(--vert-800);color:var(--creme);position:relative;overflow:hidden}
+.testeurs::before{
+  content:'';position:absolute;inset:0;opacity:.08;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='%23d9ae6a' stroke-width='.9'%3E%3Cpath d='M36 4 44 20 62 22 50 36 62 50 44 52 36 68 28 52 10 50 22 36 10 22 28 20Z'/%3E%3C/g%3E%3C/svg%3E");
+}
+.testeurs .titre-section{color:var(--creme)}
+.testeurs .chapo{color:rgba(247,243,232,.78)}
+.testeurs .oeil{color:var(--laiton-clair)}
+
+.formulaire{margin-top:2.4rem;max-width:34rem;position:relative}
+.champ{display:flex;flex-wrap:wrap;gap:.7rem;align-items:stretch}
+.champ label{
+  flex:1 1 100%;font-size:.78rem;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--laiton-clair);margin-bottom:.1rem;
+}
+.champ input[type=email]{
+  flex:1 1 16rem;min-width:0;
+  background:rgba(247,243,232,.06);
+  border:1px solid rgba(217,174,106,.4);
+  border-radius:2px;
+  color:var(--creme);
+  font-family:var(--sans);font-size:1rem;
+  padding:.85rem 1rem;
+  transition:border-color .25s,background .25s;
+}
+.champ input[type=email]::placeholder{color:rgba(247,243,232,.38)}
+.champ input[type=email]:focus{
+  outline:none;border-color:var(--laiton-clair);background:rgba(247,243,232,.1);
+}
+.champ input[type=email]:focus-visible{outline:2px solid var(--laiton-clair);outline-offset:2px}
+.champ button{
+  flex:0 0 auto;
+  background:var(--laiton);border:1px solid var(--laiton);
+  color:#241a0d;
+  font-family:var(--sans);font-size:.92rem;font-weight:700;letter-spacing:.03em;
+  padding:.85rem 1.6rem;border-radius:2px;cursor:pointer;
+  transition:background .25s,color .25s,transform .2s;
+}
+.champ button:hover{background:var(--laiton-clair);transform:translateY(-1px)}
+.champ button:focus-visible{outline:2px solid var(--creme);outline-offset:2px}
+.champ button[disabled]{opacity:.55;cursor:progress;transform:none}
+
+/* Piege a robots : invisible a l'oeil, lisible par un script. Un formulaire
+   d'adresses laisse sur une page publique se fait moissonner en quelques
+   jours sans ca. */
+.leurre{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+
+.mention{
+  margin-top:1rem;font-size:.84rem;line-height:1.55;
+  color:rgba(247,243,232,.6);max-width:44ch;
+}
+.reponse{
+  margin-top:1.2rem;font-size:.95rem;line-height:1.55;
+  padding:.85rem 1.1rem;border-radius:2px;display:none;
+}
+.reponse.ok{display:block;background:rgba(217,174,106,.14);border-left:2px solid var(--laiton-clair);color:var(--creme)}
+.reponse.ko{display:block;background:rgba(200,90,60,.16);border-left:2px solid #d98a68;color:#f6ded4}
+
 /* ── contact ────────────────────────────────────────────────────────────── */
 .contact{
   background:var(--vert-900);color:var(--creme);position:relative;overflow:hidden;
@@ -414,6 +474,34 @@ header .puces{animation-delay:.5s}
   </div>
 </section>
 
+<section class="testeurs" id="testeurs">
+  <div class="enveloppe">
+    <span class="oeil paraitre">Version d'essai</span>
+    <h2 class="titre-section paraitre">Devenir testeur</h2>
+    <p class="chapo paraitre">L'application est en test fermé. Laissez votre
+      adresse et vous recevrez le lien d'accès dès la prochaine version
+      ouverte aux testeurs.</p>
+
+    <form class="formulaire paraitre" id="formTesteur" novalidate>
+      <div class="champ">
+        <label for="courrielTesteur">Votre adresse</label>
+        <input type="email" id="courrielTesteur" name="email" required
+               autocomplete="email" inputmode="email" spellcheck="false"
+               placeholder="vous@exemple.com">
+        <button type="submit" id="envoiTesteur">Je veux tester</button>
+      </div>
+      <div class="leurre" aria-hidden="true">
+        <label for="siteWeb">Ne pas remplir</label>
+        <input type="text" id="siteWeb" name="_gotcha" tabindex="-1" autocomplete="off">
+      </div>
+      <p class="mention">Votre adresse ne sert qu'à une chose : vous envoyer
+        l'accès au test. Elle n'est ni revendue, ni utilisée pour autre chose,
+        et il suffit de répondre au courriel pour être retiré de la liste.</p>
+      <p class="reponse" id="reponseTesteur" role="status" aria-live="polite"></p>
+    </form>
+  </div>
+</section>
+
 <section class="contact">
   <div class="enveloppe">
     <span class="oeil paraitre">Écrire</span>
@@ -425,6 +513,7 @@ header .puces{animation-delay:.5s}
     <a class="courriel" href="mailto:travail.kafai@gmail.com">travail.kafai@gmail.com</a>
 
     <div class="liens">
+      <a href="#testeurs">Devenir testeur</a>
       <a href="politique-confidentialite.html">Politique de confidentialité</a>
     </div>
   </div>
@@ -454,6 +543,77 @@ document.querySelectorAll('.paraitre').forEach((el, i) => {
   el.style.transitionDelay = (i % 6) * 55 + 'ms';
   io.observe(el);
 });
+
+// -- INSCRIPTION DES TESTEURS ------------------------------------------------
+//
+// GitHub Pages ne sert que des fichiers : il n'y a AUCUN serveur pour recevoir
+// un formulaire. La collecte passe donc par un service externe.
+//
+// POUR ACTIVER : creer un formulaire sur https://formspree.io (gratuit), puis
+// coller ici son identifiant -- il ressemble a "xayzbqwe" et se lit dans
+// l'URL que Formspree donne : https://formspree.io/f/IDENTIFIANT
+//
+// Tant que cette constante reste vide, le formulaire NE CASSE PAS : il ouvre
+// le logiciel de courriel avec un message pre-rempli. C'est moins commode,
+// mais ca marche des la mise en ligne -- et surtout ca ne fait jamais croire
+// a un visiteur que son adresse est partie alors qu'elle serait perdue.
+const FORMSPREE_ID = '';
+
+const form = document.getElementById('formTesteur');
+const champ = document.getElementById('courrielTesteur');
+const bouton = document.getElementById('envoiTesteur');
+const reponse = document.getElementById('reponseTesteur');
+
+function dire(texte, classe) {
+  reponse.textContent = texte;
+  reponse.className = 'reponse ' + classe;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const adresse = champ.value.trim();
+  // Validation du navigateur plutot qu'une expression reguliere maison : elle
+  // est plus juste, et deja traduite dans la langue du visiteur.
+  if (!adresse || !champ.checkValidity()) {
+    dire('Cette adresse ne semble pas valide \u2014 v\u00e9rifiez-la et r\u00e9essayez.', 'ko');
+    champ.focus();
+    return;
+  }
+  // Piege a robots : un humain ne voit pas ce champ, donc ne le remplit pas.
+  if (document.getElementById('siteWeb').value) return;
+
+  if (!FORMSPREE_ID) {
+    // Repli honnete : on n'affiche pas un succes qu'on ne peut pas tenir.
+    const sujet = encodeURIComponent('Je veux tester Coran Karim');
+    const corps = encodeURIComponent(
+      'Bonjour,\n\nJe souhaite participer au test de Coran Karim.\n\nMon adresse : ' + adresse + '\n');
+    window.location.href = 'mailto:travail.kafai@gmail.com?subject=' + sujet + '&body=' + corps;
+    dire("Votre logiciel de courriel s'ouvre avec le message d\u00e9j\u00e0 \u00e9crit \u2014 il ne reste qu'\u00e0 l'envoyer.", 'ok');
+    return;
+  }
+
+  bouton.disabled = true;
+  const libelleInitial = bouton.textContent;
+  bouton.textContent = 'Envoi\u2026';
+  try {
+    const r = await fetch('https://formspree.io/f/' + FORMSPREE_ID, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: adresse, sujet: 'Candidature testeur \u2014 Coran Karim' })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    form.querySelector('.champ').style.display = 'none';
+    dire("C'est not\u00e9. Vous recevrez le lien d'acc\u00e8s \u00e0 la prochaine version ouverte aux testeurs.", 'ok');
+  } catch (err) {
+    // On NOMME le repli plutot que de dire « une erreur est survenue » : le
+    // visiteur doit savoir quoi faire, pas seulement que ca a rate.
+    dire("L'envoi n'a pas abouti. \u00c9crivez-nous directement \u00e0 travail.kafai@gmail.com.", 'ko');
+    bouton.disabled = false;
+    bouton.textContent = libelleInitial;
+  }
+});
+
 </script>
 
 </body>
