@@ -970,3 +970,83 @@ class PhraseFinRecitationNotifier extends StateNotifier<bool> {
     await prefs.setBool(_kPrefPhraseFinRecitation, value);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COACH — LES DEUX BASCULES DU CONTRÔLE (2026-08-18)
+//
+// Elles REMPLACENT les deux boutons « Réessayer » / « Retour entraînement » du
+// bas de l'écran Contrôle, jugés inutiles par l'utilisateur : « les deux
+// boutons en bas ne servent à rien, on peut les remplacer par [...] ».
+// Règle de projet appliquée telle quelle : un élément d'IHM jugé inutile se
+// supprime, il ne se déplace pas ailleurs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _kPrefCoachPassageAuto = 'coach_passage_auto';
+
+/// Passage AUTOMATIQUE au verset suivant une fois le contrôle réussi.
+///
+/// Avant le 2026-08-18, cet enchaînement existait déjà mais était IMPOSÉ
+/// (`advanceAfterPerfectControl`, appelé sans condition). Il devient un choix.
+/// Désactivé, l'utilisateur reste sur le résultat et avance par les flèches.
+final coachPassageAutoProvider =
+    StateNotifierProvider<CoachPassageAutoNotifier, bool>((ref) {
+  return CoachPassageAutoNotifier();
+});
+
+class CoachPassageAutoNotifier extends StateNotifier<bool> {
+  CoachPassageAutoNotifier() : super(true) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefCoachPassageAuto);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefCoachPassageAuto, value);
+  }
+}
+
+const _kPrefCoachControleCumulatif = 'coach_controle_cumulatif';
+
+/// Le contrôle porte sur TOUT ce qui a été appris depuis le début de session.
+///
+/// Demande utilisateur (2026-08-18) : « le contrôle se fait sur le cumul de la
+/// session depuis le début de la session ; pour passer au verset 3 on réussit
+/// 1 et 2 ; ou bien si on a commencé depuis le verset 5, pour passer au verset
+/// 7 on doit réussir 5 et 6 ».
+///
+/// Le contrôle cesse alors d'être un bilan de fin pour devenir une PORTE entre
+/// deux versets : entraînement du verset N, puis contrôle sur [départ..N], et
+/// c'est sa réussite qui ouvre le verset N+1. C'est ce qui empêche d'empiler
+/// des versets sans jamais rejouer les précédents -- le défaut même que la
+/// mémorisation cherche à éviter.
+///
+/// Désactivé : comportement d'avant, le contrôle ne porte que sur le verset
+/// courant.
+final coachControleCumulatifProvider =
+    StateNotifierProvider<CoachControleCumulatifNotifier, bool>((ref) {
+  return CoachControleCumulatifNotifier();
+});
+
+class CoachControleCumulatifNotifier extends StateNotifier<bool> {
+  CoachControleCumulatifNotifier() : super(true) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefCoachControleCumulatif);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefCoachControleCumulatif, value);
+  }
+}

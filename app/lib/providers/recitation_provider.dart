@@ -2698,6 +2698,29 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // (demande utilisateur : « l'ancre doit faire +1 en cas d'erreur, elle ne
     // doit pas s'arreter dans ce mode »).
     _logParametresSession(referenceSession);
+    // ── LE MODELE D'ABORD, SINON `v2Activer` EST UN NO-OP (2026-08-19) ────
+    //
+    // DEFAUT MESURE, session de controle du 2026-08-19 06:15 (verset 4:1,
+    // premiere recitation apres le demarrage de l'app) :
+    //     06:15:50.13  modele charge depuis storage EXTERNE   <- pendant start()
+    //     06:15:51.35  modele charge=true subdir=trois-tetes...
+    //     06:15:51.55  [V1] v2Actif=false v2Mots=0
+    //     06:15:51.55  [V1] INSTANCIATION de BufferedTranscriber -- la v1 VA tourner
+    // `v2Activer` etait appele AVANT que le modele existe cote natif : il n'y
+    // avait aucune chaine a configurer, l'appel ne faisait rien, et toute la
+    // session tombait sur la v1 -- dont le chemin de peinture a ete supprime
+    // le 2026-08-18. Resultat a l'ecran : aucune couleur et 0 %, alors que
+    // l'audio etait parfaitement entendu (les transcriptions brutes de la v1
+    // contiennent bien la recitation).
+    //
+    // Invisible jusqu'ici parce que le modele restait charge d'une session a
+    // l'autre : seule la PREMIERE recitation apres le lancement de l'app est
+    // touchee. C'est aussi pour ca que le controle marchait quand il suivait
+    // des paliers, qui l'avaient deja charge.
+    //
+    // `ensureModelLoaded()` est idempotent -- sur toutes les sessions
+    // suivantes il rend la main immediatement.
+    await _verifier.ensureModelLoaded();
     await _verifier.setNeverBlockAnchor(referenceSession);
     await _applyDiagnosticCapture();
     // Forme fidèle à l'entraînement — cible de l'alignement forcé GOP.
@@ -4142,7 +4165,40 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           words[cible] = words[cible].copyWith(status: WordStatus.current);
         }
       }
-      state = state.copyWith(words: words);
+      // ── LES COMPTEURS AUSSI, SINON LE SCORE VAUT 0 (2026-08-18) ────────
+      //
+      // `_onV2` n'ecrivait QUE `words`. Or `accuracy` et `score`
+      // (`RecitationSessionState`) ne se derivent pas de `words` : ils lisent
+      // les champs `correctCount`/`unclearCount`/`errorCount`, que seul le
+      // chemin v1 (`_onStructured`) tenait a jour. Toute session jugee par la
+      // v2 affichait donc 0 % -- constat utilisateur sur l'ecran de controle
+      // du Coach, apparu le jour ou ce controle est passe a la v2, mais le
+      // defaut est ANTERIEUR : le bilan de fin de l'ecran de recitation
+      // (`karaoke_recitation_screen`, `rst.accuracy`) etait deja concerne.
+      //
+      // Recalcul complet a chaque passe plutot qu'un increment : un verdict
+      // v2 peut CORRIGER un mot deja juge (provisoire -> definitif, ou
+      // changement de couleur), et un compteur incremente ne saurait pas
+      // defaire l'ancien.
+      var nbCorrect = 0, nbUnclear = 0, nbErreur = 0;
+      for (final w in words) {
+        switch (w.status) {
+          case WordStatus.correct:
+            nbCorrect++;
+          case WordStatus.unclear:
+            nbUnclear++;
+          case WordStatus.error:
+            nbErreur++;
+          default:
+            break;
+        }
+      }
+      state = state.copyWith(
+        words: words,
+        correctCount: nbCorrect,
+        unclearCount: nbUnclear,
+        errorCount: nbErreur,
+      );
       // Emis APRES la mise a jour de l'etat : l'ecran karaoke lit
       // `recitationProvider` dans `_onWordFailed`, il doit y voir le mot
       // deja verrouille.
@@ -4506,7 +4562,27 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // réponse de `feed()`, qui ne sera plus appelée) : c'est
     // `FastConformerCtcVerifier.v2Terminer` qui les réinjecte lui-même dans
     // le flux, pour que `_onV2` les applique comme les autres.
-    await _verifier.v2Terminer();
+    // ── LES VERDICTS AVANT `finished`, PAS APRÈS (2026-08-18) ────────────
+    //
+    // `v2Terminer()` POSTAIT ces statuts dans `v2Statuses` et ne rendait
+    // rien ; ils étaient donc livrés au tour de boucle SUIVANT, tandis que
+    // `_cleanup()` bascule `finished` tout de suite. Tout écran qui décide sur
+    // `finished` lisait l'état d'AVANT la clôture.
+    //
+    // Mesuré sur le palier de mémorisation (80:1, deux mots) :
+    //     34.152  [v2] session fermee : 2 mot(s) finalise(s)
+    //     34.157  [Palier] fin de tour : juges=0 statuts=[current,pending]
+    //     34.159  [V2] mot=0 -> definitif:vert  | fermeture de session
+    //     34.160  [V2] mot=1 -> provisoire:vert | fermeture de session
+    // Les deux mots étaient verts. Le palier concluait à l'échec 7 ms trop
+    // tôt, systématiquement -- « j'ai réussi le palier, il reste sur le
+    // palier ».
+    //
+    // On applique donc ici, par le MÊME `_onV2` que d'habitude (aucun chemin
+    // de jugement parallèle : c'est ce qui rendait la correction sûre), puis
+    // seulement ensuite on ferme.
+    final finauxV2 = await _verifier.v2Terminer();
+    if (finauxV2.isNotEmpty) _onV2(finauxV2);
 
     // Si la file était déjà vide au moment du stop (dernier segment invalide
     // ou pas de nouveau segment), _onPendingChanged ne sera pas redéclenché.

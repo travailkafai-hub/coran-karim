@@ -1076,6 +1076,42 @@ abstract class AppLocalizations {
   /// **'Chercher une invocation, un mot, une source…'**
   String get duasSearchHint;
 
+  /// No description provided for @duasRadiosTitre.
+  ///
+  /// In fr, this message translates to:
+  /// **'Écoute continue'**
+  String get duasRadiosTitre;
+
+  /// No description provided for @duasRadioMatin.
+  ///
+  /// In fr, this message translates to:
+  /// **'Invocations du matin'**
+  String get duasRadioMatin;
+
+  /// No description provided for @duasRadioSoir.
+  ///
+  /// In fr, this message translates to:
+  /// **'Invocations du soir'**
+  String get duasRadioSoir;
+
+  /// No description provided for @duasRadioRoqya.
+  ///
+  /// In fr, this message translates to:
+  /// **'Roqya'**
+  String get duasRadioRoqya;
+
+  /// No description provided for @duasRadioSousTitre.
+  ///
+  /// In fr, this message translates to:
+  /// **'Diffusion continue — nécessite une connexion'**
+  String get duasRadioSousTitre;
+
+  /// No description provided for @duasRadioErreur.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lecture impossible. Vérifiez votre connexion.'**
+  String get duasRadioErreur;
+
   /// Titre de section : parcourir les univers d'invocations
   ///
   /// In fr, this message translates to:
@@ -2665,6 +2701,18 @@ abstract class AppLocalizations {
   /// **'En pause — touche ⏸ pour reprendre'**
   String get karaokePausedHint;
 
+  /// No description provided for @karaokeEcouteEnCours.
+  ///
+  /// In fr, this message translates to:
+  /// **'Je t’écoute… continue'**
+  String get karaokeEcouteEnCours;
+
+  /// No description provided for @karaokeEcouteBientot.
+  ///
+  /// In fr, this message translates to:
+  /// **'Les couleurs arrivent après les premiers mots'**
+  String get karaokeEcouteBientot;
+
   /// Indication en bas d'écran pendant l'écoute active
   ///
   /// In fr, this message translates to:
@@ -3786,6 +3834,30 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Contesté'**
   String get coachPortionContestedBadge;
+
+  /// Titre de la bascule : passer seul au verset suivant apres un controle reussi
+  ///
+  /// In fr, this message translates to:
+  /// **'Passage automatique'**
+  String get coachTogglePassageAutoTitre;
+
+  /// Explication de la bascule de passage automatique
+  ///
+  /// In fr, this message translates to:
+  /// **'Une fois le contrôle réussi, l\'entraînement du verset suivant démarre seul.'**
+  String get coachTogglePassageAutoDetail;
+
+  /// Titre de la bascule : le controle porte sur tout le cumul de la session
+  ///
+  /// In fr, this message translates to:
+  /// **'Contrôle cumulatif'**
+  String get coachToggleCumulTitre;
+
+  /// Explication de la bascule de controle cumulatif
+  ///
+  /// In fr, this message translates to:
+  /// **'Le contrôle porte sur tous les versets appris depuis le début de la session.'**
+  String get coachToggleCumulDetail;
 }
 
 class _AppLocalizationsDelegate

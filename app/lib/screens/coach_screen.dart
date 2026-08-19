@@ -8,10 +8,13 @@ import '../l10n/app_localizations.dart';
 import '../models/coach_session.dart';
 import '../models/recitation_state.dart';
 import '../models/verse.dart';
+import '../providers/app_settings_provider.dart'
+    show coachPassageAutoProvider, coachControleCumulatifProvider;
 import '../providers/coach_provider.dart';
 import '../providers/last_coach_verse_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
+import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart';
 import '../services/voice_fingerprint_service.dart';
@@ -114,6 +117,20 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
     final currentVerse = session.verses.isEmpty ? verses.first : session.currentVerse;
     final multiVerse = verses.length > 1;
 
+    // ── LE CUMUL, CALCULE DEFENSIVEMENT (2026-08-18) ─────────────────────
+    //
+    // `session.verses` peut etre VIDE -- la ligne juste au-dessus le sait
+    // depuis toujours et retombe sur `verses.first`. La premiere version du
+    // cumul l'a ignore et faisait `sublist(0, index + 1)` sur cette liste
+    // vide : ecran rouge `RangeError (end): Invalid value: Only valid value
+    // is 0: 1` des l'ouverture du Controle. Un repli deja present dans le
+    // fichier ne se contourne pas, il se reutilise.
+    final cumulControle = ref.watch(coachControleCumulatifProvider);
+    final versesControle = (!cumulControle || session.verses.isEmpty)
+        ? [currentVerse]
+        : session.verses.sublist(
+            0, (session.currentVerseIndex + 1).clamp(1, session.verses.length));
+
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
@@ -172,10 +189,26 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
                             'apprentissage-${session.currentVerseIndex}'),
                         verses: [currentVerse],
                       ),
+                    // ── LE CONTROLE PORTE SUR LE CUMUL (2026-08-18) ─────
+                    //
+                    // Demande utilisateur : « le controle se fait sur le cumul
+                    // de la session depuis le debut ; pour passer au verset 3
+                    // on reussit 1 et 2 ; si on a commence au verset 5, pour
+                    // passer au 7 on doit reussir 5 et 6 ».
+                    //
+                    // `session.verses` commence AU verset de depart choisi --
+                    // « depuis le debut de la session », pas depuis le debut
+                    // de la sourate. Partir du verset 5 donne donc bien
+                    // l'index 0 sur le verset 5.
+                    //
+                    // La CLE inclut la borne cumulee : sans elle, rester en
+                    // mode controle en avancant d'un verset reutiliserait le
+                    // meme State et garderait le texte precedent.
                     CoachMode.controle => _ControleMode(
-                        key:
-                            ValueKey('controle-${session.currentVerseIndex}'),
-                        verses: [currentVerse],
+                        key: ValueKey(cumulControle
+                            ? 'controle-cumul-0..${session.currentVerseIndex}'
+                            : 'controle-${session.currentVerseIndex}'),
+                        verses: versesControle,
                       ),
                   },
                 ),
@@ -665,6 +698,29 @@ class _ControleModeState extends ConsumerState<_ControleMode>
   bool _fingerprintChecked = false;
   bool _avanceAutoDeclenchee = false;
 
+  /// Un contrôle a-t-il été LANCÉ depuis cet écran ?
+  ///
+  /// ── SANS LUI, L'ÉCRAN DÉCIDE SUR L'ÉTAT D'UN AUTRE (2026-08-18) ──────────
+  /// `recitationProvider` est PARTAGÉ avec les paliers. Quand le contrôle se
+  /// monte juste après un palier réussi, il y trouve encore la session du
+  /// palier : `finished` vrai, tous les mots verts. `controleParfait` était
+  /// donc vrai AVANT que le contrôle ait commencé, et le passage automatique
+  /// partait aussitôt.
+  ///
+  /// Mesure qui l'établit (journal v165, cumul activé) :
+  ///     22:13:39.46  palier 1:4 -> 3 mots definitif:vert
+  ///     22:13:42.13  audio du palier de 1:5      <- verset suivant
+  /// 2,67 s d'écart, soit exactement le `Future.delayed(2600)` du passage
+  /// automatique. Constat utilisateur : « j'arrive à passer au verset suivant
+  /// sans réciter depuis le début ». Aucun contrôle n'avait eu lieu.
+  ///
+  /// `setup()` ne suffisait pas à s'en prémunir : il repasse les mots à
+  /// `pending` mais il est appelé dans un post-frame, donc APRÈS ce premier
+  /// build -- et c'est ce build-là qui décidait.
+  ///
+  /// Un écran ne décide que sur SA session.
+  bool _controleLance = false;
+
   String get _text => widget.verses.map((v) => v.textUthmani).join(' ');
   String get _passageKey => widget.verses.map((v) => v.key).join('-');
 
@@ -738,24 +794,72 @@ class _ControleModeState extends ConsumerState<_ControleMode>
     // bas. Pas de déclenchement sur un score simplement "bon" : ce serait
     // déplacer le critère de ce qu'est une mémorisation réussie, ce que le
     // projet interdit (cf. skill `solution-de-fond`).
-    final controleParfait = finished &&
+    final controleParfait = _controleLance &&
+        finished &&
         rst.words.isNotEmpty &&
         rst.words.every((w) => w.status == WordStatus.correct);
-    if (controleParfait && !_avanceAutoDeclenchee && session.hasNextVerse) {
+    // Le passage au verset suivant etait IMPOSE ; il devient un choix
+    // (2026-08-18, bascule en bas de cet ecran). Le critere de reussite, lui,
+    // ne bouge pas : tous les mots verts. Deplacer ce critere pour "fluidifier"
+    // reviendrait a deplacer la definition d'une memorisation reussie, ce que
+    // le projet interdit.
+    final passageAuto = ref.watch(coachPassageAutoProvider);
+    if (controleParfait && passageAuto && !_avanceAutoDeclenchee) {
       _avanceAutoDeclenchee = true;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(t.coachIncrementalVerseAdvance),
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 3),
           ),
         );
-        // Court délai pour laisser voir le score parfait avant de changer
-        // d'écran -- un enchaînement instantané ne laisserait rien à voir.
-        await Future.delayed(const Duration(milliseconds: 900));
+        // ── LAISSER LE TEMPS DE COMPRENDRE (2026-08-18) ─────────────────
+        //
+        // 900 ms auparavant. Demande utilisateur : « ça doit pas être
+        // rapide, donne le temps qu'il comprenne qu'il a réussi le verset
+        // pour passer au suivant ». Le score parfait et les mots tout verts
+        // sont la récompense de l'exercice ; les balayer en moins d'une
+        // seconde revient à ne pas la donner.
+        await Future.delayed(const Duration(milliseconds: 2600));
         if (!mounted) return;
-        ref.read(coachProvider.notifier).advanceAfterPerfectControl();
+
+        // ── S'IL N'Y A PAS DE SUIVANT, ON PROLONGE LA SESSION ───────────
+        //
+        // DEFAUT MESURE (journal v164, 22:02 et 22:04) : controle sur
+        // `cible=4 mots` -- le seul verset 1:2 -- quatre mots
+        // `definitif:vert`, donc controle PARFAIT, et pourtant aucun
+        // passage. Cause : la session ne contenait QU'UN verset, donc
+        // `hasNextVerse` etait faux et l'ancienne condition sortait sans
+        // rien faire ni rien dire. Constat utilisateur : « j'ai reussi, pas
+        // de passage au prochain verset ».
+        //
+        // Entrer dans le Coach sur UN verset est pourtant le cas courant
+        // (carte « Reprendre », revision d'une erreur ponctuelle) : sans
+        // ceci, la bascule n'aurait jamais rien fait dans ce cas.
+        //
+        // On charge le verset qui SUIT celui en cours -- jamais le debut de
+        // la sourate : la session commence ou l'utilisateur l'a demarree, et
+        // s'etend vers l'aval.
+        final notifier = ref.read(coachProvider.notifier);
+        if (session.hasNextVerse) {
+          notifier.advanceAfterPerfectControl();
+          return;
+        }
+        final courant = session.verses.isEmpty
+            ? widget.verses.last
+            : session.currentVerse;
+        try {
+          final tous = await QuranApi.fetchVerses(courant.surahNumber);
+          if (!mounted) return;
+          final suivants =
+              tous.where((x) => x.ayahNumber == courant.ayahNumber + 1);
+          if (suivants.isEmpty) return; // fin de sourate : rien apres
+          notifier.prolongerAvec(suivants.first);
+        } catch (e) {
+          DiagnosticLog.log('Coach',
+              'prolongation impossible apres ${courant.key} : $e');
+        }
       });
     }
 
@@ -801,17 +905,45 @@ class _ControleModeState extends ConsumerState<_ControleMode>
                     ? t.coachControlDone
                     : t.coachTapToRecall,
             onTap: () {
+              // ── LE CONTROLE FINAL DOIT PASSER PAR LA v2 (2026-08-18) ─────
+              //
+              // DEFAUT MESURE sur la session du 2026-08-18 21:10 (verset 4:1,
+              // apres les cinq paliers) :
+              //     [v2] chaine parallele ACTIVE   : 1
+              //     [v2] f=  (fenetres traitees)   : 0
+              //     [V2] mot= (verdicts)           : 0
+              //     micro continu=false            : 1
+              //     [TEXTDIFF] mot= (verdicts v1)  : 17
+              //     [ForcedAligner] ZERO FRAME     : 2
+              // La v2 etait ACTIVEE mais n'a jamais recu un octet de PCM :
+              // l'alimentation passe uniquement par `_processContinuousChunk`
+              // (cf. `RecitationVerifier`), donc par le mode CONTINU. Le
+              // controle final etait donc juge par la v1 -- celle-la meme qui
+              // ne peint plus l'ecran depuis le 2026-08-04 -- avec ses
+              // impasses connues (`ZERO FRAME`, `AVANCE SANS JUGER` sur le
+              // mot 17, jamais juge).
+              //
+              // Exactement le meme defaut que le palier de memorisation, et le
+              // meme remede, valide par l'utilisateur le 2026-08-17 : un
+              // chemin ecrit pour la v1, reste en place, qui a cesse d'agir le
+              // jour ou la v2 a pris l'affichage sans que personne le decide.
+              //
+              // `stopContinuous()` et non `stop()` : `stop()` sort sans rien
+              // faire sur une session continue, et c'est lui qui appelle
+              // `v2Terminer()` -- sans quoi les derniers mots resteraient
+              // PROVISOIRES a jamais.
               final n = ref.read(recitationProvider.notifier);
               if (listening) {
-                n.stop();
+                n.stopContinuous();
               } else {
                 n.setup(_text);
                 ref.read(coachProvider.notifier).resetControl();
                 setState(() {
                   _fingerprintChecked = false;
                   _fingerprintScore = null;
+                  _controleLance = true;
                 });
-                n.start();
+                n.startControle();
               }
             },
             onReset: () {
@@ -852,34 +984,93 @@ class _ControleModeState extends ConsumerState<_ControleMode>
               baseline: session.baselineAccuracy,
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ActionButton(
-                    label: t.commonRetry,
-                    icon: Icons.replay_rounded,
-                    primary: false,
-                    onTap: () {
-                      ref.read(recitationProvider.notifier).setup(_text);
-                      ref.read(coachProvider.notifier).resetControl();
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 2,
-                  child: ActionButton(
-                    label: t.coachBackToTraining,
-                    icon: Icons.headphones_outlined,
-                    primary: true,
-                    onTap: () => ref
-                        .read(coachProvider.notifier)
-                        .setMode(CoachMode.apprentissage),
-                  ),
-                ),
-              ],
+            // ── LES DEUX BOUTONS DU BAS SONT REMPLACES (2026-08-18) ────────
+            //
+            // « Les deux boutons en bas ne servent a rien, on peut les
+            // remplacer par [un] toggle passage automatique [...] et un autre
+            // pour dire [que] le controle se fait sur le cumul de la
+            // session ». Regle de projet : un element d'IHM juge inutile se
+            // SUPPRIME -- on ne le recase pas ailleurs.
+            //
+            // « Reessayer » ne manque pas : le micro de cet ecran relance
+            // deja un controle propre (il appelle `setup` + `resetControl`
+            // avant `startControle`). « Retour entrainement » non plus : le
+            // bandeau d'etapes en haut y ramene en un tap.
+            _BasculeCoach(
+              titre: t.coachTogglePassageAutoTitre,
+              detail: t.coachTogglePassageAutoDetail,
+              valeur: ref.watch(coachPassageAutoProvider),
+              onChange: (v) =>
+                  ref.read(coachPassageAutoProvider.notifier).set(v),
+            ),
+            const SizedBox(height: 8),
+            _BasculeCoach(
+              titre: t.coachToggleCumulTitre,
+              detail: t.coachToggleCumulDetail,
+              valeur: ref.watch(coachControleCumulatifProvider),
+              onChange: (v) =>
+                  ref.read(coachControleCumulatifProvider.notifier).set(v),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Bascule de réglage du Coach, posée en bas de l'écran Contrôle.
+///
+/// Elle prend la place des deux boutons d'action retirés le 2026-08-18 : un
+/// réglage se lit et se change là où son effet se constate, pas dans un écran
+/// de préférences qu'il faudrait aller chercher au milieu d'une session.
+class _BasculeCoach extends StatelessWidget {
+  final String titre;
+  final String detail;
+  final bool valeur;
+  final ValueChanged<bool> onChange;
+
+  const _BasculeCoach({
+    required this.titre,
+    required this.detail,
+    required this.valeur,
+    required this.onChange,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: AppColors.cream200,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.inkLight.withAlpha(35)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(titre,
+                    style: GoogleFonts.manrope(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink)),
+                const SizedBox(height: 2),
+                Text(detail,
+                    style: GoogleFonts.manrope(
+                        fontSize: 11.5,
+                        height: 1.3,
+                        color: AppColors.inkLight)),
+              ],
+            ),
+          ),
+          Switch(
+            value: valeur,
+            onChanged: onChange,
+            activeThumbColor: AppColors.cream,
+            activeTrackColor: AppColors.green600,
+          ),
         ],
       ),
     );

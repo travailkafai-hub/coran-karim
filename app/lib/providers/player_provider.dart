@@ -278,6 +278,26 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     } else if (loop) {
       play(state.playlist[0], state.playlist, auto: true);
     } else {
+      // ── FIN DE PLAYLIST : IL FAUT VRAIMENT ARRETER LE SON (2026-08-18) ──
+      //
+      // Passer le statut a `idle` ne suffit pas, et c'est ce qui manquait.
+      // Avec MP3Quran la source est le fichier de la SOURATE ENTIERE : le
+      // minuteur de frontiere (`_jouerViaMp3Quran`) ne fait qu'EMETTRE un
+      // signal de fin, il ne touche pas au lecteur. Sans pause explicite, le
+      // son continuait donc sur le verset suivant pendant que l'app se
+      // croyait a l'arret.
+      //
+      // Invisible dans le Mushaf, ou la playlist a toujours un verset apres.
+      // Visible des que la playlist n'en contient QU'UN -- l'etape « Lecture »
+      // du Coach (`verses: [currentVerse]`), ou l'utilisateur l'a constate :
+      // « la premiere etape ou le reciteur recite tout le verset, il ne
+      // s'arrete pas au verset en question ».
+      //
+      // `pause()` et non `stop()` : `stop()` ferme le flux et remet
+      // `_sourateEnCoursMp3Quran` a null, ce qui obligerait a rouvrir le gros
+      // fichier au prochain verset de la meme sourate. En pause, un
+      // `playVerse` suivant se contente d'un seek+resume.
+      _svc.pause();
       state = state.copyWith(status: PlayerStatus.idle);
     }
   }

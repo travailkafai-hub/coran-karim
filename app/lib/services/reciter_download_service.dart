@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/verse.dart';
+import 'mp3quran_api.dart';
 import 'quran_api.dart';
 
 /// Téléchargement hors-ligne de l'audio de récitation, sourate par sourate.
@@ -80,6 +81,23 @@ class ReciterDownloadService {
   static String _fileName(int surah, int ayah) =>
       '${surah.toString().padLeft(3, '0')}${ayah.toString().padLeft(3, '0')}.mp3';
 
+  /// Nom du fichier SOURATE ENTIÈRE (source MP3Quran), dans le même dossier
+  /// que les fichiers par verset de la source quran.com.
+  ///
+  /// ── POURQUOI LA MÊME ARBORESCENCE (2026-08-17) ──────────────────────────
+  /// Les deux sources ne découpent pas pareil : quran.com sert un mp3 PAR
+  /// VERSET, MP3Quran un seul fichier PAR SOURATE. La tentation serait un
+  /// second dossier -- ce serait aussi un second système à gérer, et l'écran
+  /// de gestion (taille occupée, suppression par sourate, par récitateur) ne
+  /// verrait jamais ces fichiers.
+  ///
+  /// En les rangeant DANS le dossier de la sourate, tout ce qui existe déjà
+  /// continue de fonctionner sans une ligne de plus : `bytesUsed` somme les
+  /// fichiers du dossier, `deleteSurah` supprime le dossier, `deleteReciter`
+  /// l'arborescence, et `downloadedSurahs` lit le marqueur `.complete` que
+  /// les deux chemins écrivent de la même façon.
+  static const _fichierSourateEntiere = 'sourate.mp3';
+
   // ── Lecture : ce que le lecteur audio interroge ────────────────────────────
 
   /// Racine résolue une fois pour toutes, pour que [localPathIfPresent] reste
@@ -103,6 +121,82 @@ class ReciterDownloadService {
     final path =
         '${_surahDirPath(root, reciterId, verse.surahNumber)}/${_fileName(verse.surahNumber, verse.ayahNumber)}';
     return File(path).existsSync() ? path : null;
+  }
+
+  /// Chemin du fichier SOURATE ENTIÈRE gardé sur le disque, ou `null`.
+  ///
+  /// C'est ce que `Mp3QuranApi.fichierLocalSourate` interroge EN PREMIER : un
+  /// audio que l'utilisateur a explicitement demandé à garder ne doit jamais
+  /// être retéléchargé, ni pour écouter, ni pour corriger un mot.
+  ///
+  /// Synchrone, et volontairement tolérant comme [localPathIfPresent] : en
+  /// cas de doute on rend `null`, donc on retombe sur le téléchargement. Un
+  /// faux négatif coûte du réseau ; un faux positif ferait échouer la lecture.
+  String? sourateLocaleSiPresente(int reciterId, int surah) {
+    final root = _rootPathSync;
+    if (root == null) return null;
+    final p = '${_surahDirPath(root, reciterId, surah)}/$_fichierSourateEntiere';
+    final f = File(p);
+    return (f.existsSync() && f.lengthSync() > 0) ? p : null;
+  }
+
+  /// Télécharge la sourate ENTIÈRE depuis MP3Quran et la garde durablement.
+  ///
+  /// Distinct de [downloadSurah] (un fichier par verset, source quran.com) :
+  /// MP3Quran ne sert qu'un seul fichier par sourate. Le marqueur `.complete`
+  /// est écrit de la même façon, donc l'écran de gestion ne voit aucune
+  /// différence entre les deux origines.
+  ///
+  /// Mêmes garde-fous que `Mp3QuranApi.fichierLocalSourate`, et pour les mêmes
+  /// raisons mesurées : comparaison à `content-length` (un téléchargement
+  /// tronqué de 120 Mo avait été accepté en silence, cf. son commentaire) et
+  /// écriture `.part` puis `rename`.
+  Future<bool> telechargerSourateMp3Quran(int reciterId, int surah) async {
+    final k = _key(reciterId, surah);
+    if (_active.containsKey(k)) return false;
+
+    final root = await _rootDir();
+    final dirPath = _surahDirPath(root.path, reciterId, surah);
+    final dir = Directory(dirPath);
+    if (!dir.existsSync()) dir.createSync(recursive: true);
+
+    final cible = File('$dirPath/$_fichierSourateEntiere');
+    final marker = File('$dirPath/.complete');
+    if (cible.existsSync() && cible.lengthSync() > 0 && marker.existsSync()) {
+      return true;
+    }
+
+    final cancel = CancelToken();
+    _active[k] = cancel;
+    _emit(reciterId, surah, 0, 1, DownloadPhase.running);
+    try {
+      final url = Mp3QuranApi.urlSourate(reciterId, surah);
+      final r = await _dio.get<List<int>>(url,
+          cancelToken: cancel,
+          options: Options(responseType: ResponseType.bytes));
+      final bytes = r.data;
+      if (bytes == null || bytes.isEmpty) {
+        _emit(reciterId, surah, 0, 1, DownloadPhase.failed);
+        return false;
+      }
+      final annonce = r.headers.value('content-length');
+      final attendu = annonce == null ? null : int.tryParse(annonce);
+      if (attendu != null && bytes.length != attendu) {
+        _emit(reciterId, surah, 0, 1, DownloadPhase.failed);
+        return false;
+      }
+      final tmp = File('$dirPath/$_fichierSourateEntiere.part');
+      await tmp.writeAsBytes(bytes, flush: true);
+      await tmp.rename(cible.path);
+      await marker.writeAsString('ok');
+      _emit(reciterId, surah, 1, 1, DownloadPhase.complete);
+      return true;
+    } catch (_) {
+      _emit(reciterId, surah, 0, 1, DownloadPhase.failed);
+      return false;
+    } finally {
+      _active.remove(k);
+    }
   }
 
   // ── État : ce que l'écran de gestion affiche ───────────────────────────────
@@ -182,6 +276,16 @@ class ReciterDownloadService {
   ///
   /// Renvoie true si la sourate est complète à la sortie.
   Future<bool> downloadSurah(int reciterId, int surah) async {
+    // MP3Quran ne sert qu'un fichier par SOURATE : router vers le chemin
+    // dédié (2026-08-17). Sans ce branchement, ce service serait resté sur
+    // `QuranApi.fetchSurahAudioUrls`, c'est-à-dire sur Quran Foundation --
+    // la dépendance que le reste de l'app a précisément supprimée. Garder un
+    // service de téléchargement branché dessus l'aurait fait revenir par la
+    // porte de derrière, au moment même où l'utilisateur croit télécharger
+    // depuis la source qu'il a choisie.
+    if (Mp3QuranApi.sertCeReciter(reciterId)) {
+      return telechargerSourateMp3Quran(reciterId, surah);
+    }
     final k = _key(reciterId, surah);
     if (_active.containsKey(k)) return false;
 

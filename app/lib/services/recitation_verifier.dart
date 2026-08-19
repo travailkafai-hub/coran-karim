@@ -217,6 +217,14 @@ class ArabicNormalizer {
 
 // ── Interface ────────────────────────────────────────────────────────────────
 
+/// Un verdict v2 tel qu'il circule entre le vérificateur et le provider.
+///
+/// Introduit le 2026-08-18 en même temps que le retour de [v2Terminer] : ce
+/// type record était écrit en toutes lettres à chaque usage, et une signature
+/// de plus l'aurait rendu illisible. Les records étant STRUCTURELS, ce nom
+/// coexiste sans friction avec les usages qui l'épellent encore.
+typedef V2StatutFinal = ({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable});
+
 abstract class RecitationVerifier {
   Stream<RecognizedToken> get tokens;
   Stream<double> get soundLevel;
@@ -302,7 +310,25 @@ abstract class RecitationVerifier {
 
   /// FERME la session v2 (dernière analyse de la queue d'audio). Sans elle les
   /// derniers mots prononcés restent PROVISOIRES. No-op par défaut.
-  Future<void> v2Terminer() async {}
+  ///
+  /// ── POURQUOI ELLE REND LES VERDICTS DEPUIS LE 2026-08-18 ─────────────────
+  /// Elle les POSTAIT auparavant dans `v2Statuses` et ne rendait rien. Or un
+  /// `add()` sur un flux est livré au tour de boucle SUIVANT, tandis que le
+  /// passage de la session à `finished` est synchrone : tout écran qui réagit
+  /// à `finished` voyait donc l'état d'AVANT la clôture.
+  ///
+  /// Défaut mesuré, palier de mémorisation sur 80:1 (2 mots) :
+  ///     34.152  [v2] session fermee : 2 mot(s) finalise(s)
+  ///     34.157  [Palier] fin de tour : juges=0 statuts=[current,pending]
+  ///     34.159  [V2] mot=0 -> definitif:vert  | fermeture de session
+  ///     34.160  [V2] mot=1 -> provisoire:vert | fermeture de session
+  /// Les deux mots étaient VERTS ; le palier a conclu à l'échec 7 ms trop tôt,
+  /// et ne pouvait donc JAMAIS valider -- constat utilisateur : « j'ai réussi
+  /// le palier, il reste sur le palier ».
+  ///
+  /// L'appelant qui a besoin de l'ordre applique lui-même le retour AVANT de
+  /// clore ; celui qui n'en a pas besoin peut l'ignorer.
+  Future<List<V2StatutFinal>> v2Terminer() async => const [];
 
   /// Active/désactive le BLOC DE FUSION de la v2 (mesure). No-op par défaut.
   Future<void> v2SetFusion(bool actif,
@@ -1155,15 +1181,20 @@ class WhisperOnnxVerifier implements RecitationVerifier {
           maxBloc: maxBloc, maxFusion: maxFusion);
 
   @override
-  Future<void> v2Terminer() async {
+  Future<List<V2StatutFinal>> v2Terminer() async {
     // Les statuts de cette dernière passe ne remontent PAS par le chemin
     // habituel (la réponse de `feed()`, cf. `_v2Ctrl.add(v2)` plus haut) :
-    // `feed` ne sera plus appelé, la capture est arrêtée. On les réinjecte
-    // donc nous-mêmes dans le même flux, pour que `_onV2` les applique
-    // exactement comme les autres.
+    // `feed` ne sera plus appelé, la capture est arrêtée.
+    //
+    // ⚠️ Ils ne sont plus POSTÉS dans `_v2Ctrl` ici (2026-08-18) mais RENDUS :
+    // un `add()` est livré au tour de boucle suivant, donc après le passage à
+    // `finished`, et l'écran qui décide voyait l'état d'avant la clôture (cf.
+    // la doc de `RecitationVerifier.v2Terminer` pour la mesure). Les appelants
+    // qui veulent le comportement « flux » le refont eux-mêmes -- c'est le cas
+    // de `finaliserPourPause` juste en dessous.
     final finaux = await _fastConformer.v2Terminer();
-    if (finaux.isEmpty) return;
-    _v2Ctrl.add(finaux
+    if (finaux.isEmpty) return const [];
+    return (finaux
         .map((e) => (
               index: e.index,
               statut: e.statut,
@@ -1450,7 +1481,11 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   @override
   Future<void> finaliserPourPause() async {
     await _continuousFeedTail;
-    await v2Terminer();
+    // Ce chemin-ci n'a aucun ordre à garantir (aucune session ne se ferme) :
+    // il reposte donc dans le flux, comme `v2Terminer` le faisait elle-même
+    // avant le 2026-08-18.
+    final finaux = await v2Terminer();
+    if (finaux.isNotEmpty) _v2Ctrl.add(finaux);
     DiagnosticLog.log('ASR', 'finaliserPourPause() | derniers mots tranches');
   }
 
@@ -1554,7 +1589,7 @@ class MockRecitationVerifier implements RecitationVerifier {
   @override
   Future<bool> v2ReculerAncre(int mot) async => false;
   @override
-  Future<void> v2Terminer() async {}
+  Future<List<V2StatutFinal>> v2Terminer() async => const [];
   @override
   Future<void> v2SetFusion(bool actif,
       {int preuves = 2,

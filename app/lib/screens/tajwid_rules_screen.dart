@@ -204,41 +204,17 @@ class _RepeatEngineSettings extends ConsumerWidget {
                 letterSpacing: 1.1,
                 color: AppColors.inkLight)),
         const SizedBox(height: 8),
-        Opacity(
-          opacity: isEnfant ? 0.4 : 1.0,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            enabled: !isEnfant,
-            title: Text(t.settingsAdultChunkWordCountTitle,
-                style: GoogleFonts.manrope(fontWeight: FontWeight.w600)),
-            subtitle: Text(
-                t.settingsAdultChunkWordCountDescription(kAdultChunkWordCountMax),
-                style: GoogleFonts.manrope(fontSize: 12, color: AppColors.inkLight)),
-            trailing: Text('$chunkWords',
-                style: GoogleFonts.manrope(
-                    fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.brass)),
-            onTap: isEnfant
-                ? null
-                : () => showModalBottomSheet(
-                      context: context,
-                      backgroundColor: AppColors.green900,
-                      shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-                      builder: (_) => _StepperSheet(
-                        title: t.settingsAdultChunkWordCountTitle,
-                        description:
-                            t.settingsAdultChunkWordCountDescription(kAdultChunkWordCountMax),
-                        current: chunkWords,
-                        min: kAdultChunkWordCountMin,
-                        max: kAdultChunkWordCountMax,
-                        onPick: (v) {
-                          ref.read(adultChunkWordCountProvider.notifier).set(v);
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ),
-          ),
-        ),
+        // ── RÉGLAGE « MOTS PAR PALIER » RETIRÉ (2026-08-17) ────────────────
+        // Demande utilisateur : « on oublie les 6 mots, à enlever aussi du
+        // paramètre ». Le palier ne se découpe plus en comptant des mots mais
+        // sur la RÉCITATION elle-même (cf. `CoupesPalierService`) : le
+        // récitateur applique le soukoun de waqf en fin de proposition et
+        // l'énergie retombe -- c'est là qu'un palier s'arrête. Un compte fixe
+        // coupait au milieu d'une phrase, d'où le décalage texte/audio
+        // constaté sur 22:32.
+        // Le provider `adultChunkWordCountProvider` est CONSERVÉ (convention
+        // projet : on n'efface pas ce qui a servi), simplement plus lu ni
+        // réglable -- plus rien ne dépend de sa valeur.
         ListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(t.settingsRepeatWindowSizeTitle,

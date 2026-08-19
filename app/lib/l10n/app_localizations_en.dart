@@ -590,6 +590,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get duasSearchHint => 'Search an invocation, a word, a source…';
 
   @override
+  String get duasRadiosTitre => 'Continuous listening';
+
+  @override
+  String get duasRadioMatin => 'Morning remembrances';
+
+  @override
+  String get duasRadioSoir => 'Evening remembrances';
+
+  @override
+  String get duasRadioRoqya => 'Ruqyah';
+
+  @override
+  String get duasRadioSousTitre => 'Live stream — requires a connection';
+
+  @override
+  String get duasRadioErreur => 'Playback failed. Check your connection.';
+
+  @override
   String get duasExplore => 'Explore';
 
   @override
@@ -1590,6 +1608,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get karaokePausedHint => 'Paused — tap ⏸ to resume';
 
   @override
+  String get karaokeEcouteEnCours => 'I’m listening… keep going';
+
+  @override
+  String get karaokeEcouteBientot => 'Colours appear after the first few words';
+
+  @override
   String get karaokeListeningHint => 'Listening — tap the circle to stop';
 
   @override
@@ -2354,4 +2378,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get coachPortionContestedBadge => 'Disputed';
+
+  @override
+  String get coachTogglePassageAutoTitre => 'Automatic progression';
+
+  @override
+  String get coachTogglePassageAutoDetail =>
+      'Once the check succeeds, training on the next verse starts on its own.';
+
+  @override
+  String get coachToggleCumulTitre => 'Cumulative check';
+
+  @override
+  String get coachToggleCumulDetail =>
+      'The check covers every verse learned since the session began.';
 }

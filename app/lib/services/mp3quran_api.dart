@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
+import 'reciter_download_service.dart';
 
 /// Source audio MP3Quran.net — remplace, pour Al-Afasy uniquement, la
 /// diffusion audio qui passait par `verses.quran.com` (Quran Foundation).
@@ -129,6 +130,28 @@ class Mp3QuranApi {
     // invalide -- symptôme exact d'une source mal formée, pas d'un fichier
     // corrompu. Underscore : aucun sens spécial en URI ni sur aucun système
     // de fichiers cible.
+    // ── LE STOCKAGE DURABLE D'ABORD (2026-08-17) ────────────────────────────
+    //
+    // Demande utilisateur : « quand le chargement est effectué, est-ce qu'on
+    // peut garder l'audio en local pour réciter ou corriger, pour éviter les
+    // allers-retours, avec la possibilité de le supprimer ».
+    //
+    // Le cache ci-dessous vit dans `getTemporaryDirectory()` : c'est le
+    // dossier qu'ANDROID VIDE QUAND IL VEUT (pression sur le stockage,
+    // nettoyage système). Il rend donc bien service entre deux écoutes, mais
+    // il ne peut pas tenir la promesse « je garde cette sourate » -- une
+    // sourate de 120 Mo peut disparaître sans que rien ne le signale, et tout
+    // est retéléchargé.
+    //
+    // `ReciterDownloadService` écrit, lui, dans le stockage documents, et
+    // porte déjà la gestion que l'utilisateur demande (voir la taille,
+    // supprimer une sourate ou un récitateur, écran dédié). On l'interroge
+    // donc EN PREMIER : ce que l'utilisateur a explicitement demandé à garder
+    // ne doit jamais être retéléchargé, ni pour écouter, ni pour corriger.
+    final garde = ReciterDownloadService()
+        .sourateLocaleSiPresente(appReciterId, surahNumber);
+    if (garde != null) return garde;
+
     final cle = '${appReciterId}_$surahNumber';
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/mp3quran_cache/$cle.mp3';
@@ -285,11 +308,23 @@ class Mp3QuranWordSegments {
   static final instance = Mp3QuranWordSegments._();
 
   Map<String, List<List<double>>>? _parVerse;
-  bool _chargement = false;
+  Future<void>? _chargement;
 
-  Future<void> ensureLoaded() async {
-    if (_parVerse != null || _chargement) return;
-    _chargement = true;
+  /// ⚠️ L'appel CONCURRENT doit attendre, pas repartir (corrigé 2026-08-18).
+  /// La forme précédente (`if (_x != null || _chargement) return;`) rendait la
+  /// main IMMÉDIATEMENT au second appelant pendant que le premier chargeait
+  /// encore -- il lisait alors une donnée vide sans le savoir. Mesuré :
+  /// `ABANDON (MP3Quran) verset=80:1 : minutage local absent (segments=null)`
+  /// alors que 80:1 EST dans l'asset : `prefetch()` amorçait le chargement,
+  /// `_startRound` rappelait 100 ms plus tard et n'attendait rien -- le palier
+  /// démarrait donc SANS faire entendre le récitateur.
+  /// On mémorise le Future en cours : tout le monde attend le même.
+  Future<void> ensureLoaded() {
+    if (_parVerse != null) return Future.value();
+    return _chargement ??= _charger();
+  }
+
+  Future<void> _charger() async {
     try {
       final brut = await rootBundle
           .loadString('assets/data/word_segments_mp3quran_afasy.json');
@@ -307,7 +342,7 @@ class Mp3QuranWordSegments {
       debugPrint('[Mp3Quran] échec chargement segments locaux : $e');
       _parVerse = const {}; // asset absent -> repli silencieux
     } finally {
-      _chargement = false;
+      _chargement = null;
     }
   }
 

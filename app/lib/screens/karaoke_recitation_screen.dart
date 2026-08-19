@@ -22,10 +22,13 @@ import '../services/quran_api.dart';
 import '../providers/error_review_provider.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/session_archive_service.dart';
+// `rafraichirTableauDeBordCoach` remplace l'enumeration des providers un par
+// un (2026-08-17) : ce `show` en listait SEPT et il en manquait un
+// (`quartsAcquisDeLAnnee`) -- une liste recopiee finit toujours par diverger.
+// `portionsProvider` reste nomme : il sert aussi seul, hors tableau de bord
+// (cf. `onWordContested`).
 import 'coach_sessions.dart'
-    show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider,
-        derniersJoursProvider, serieProvider, quartsAcquisProvider,
-        quartsAcquisDuMoisProvider;
+    show rafraichirTableauDeBordCoach, portionsProvider;
 import '../services/recitation_start_sequence.dart';
 import '../services/reference_timing_extractor.dart';
 import '../services/rule_annotation_service.dart';
@@ -105,7 +108,31 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// la chaine native -- restee sur une AUTRE session. Mesure du 2026-08-15 :
   /// relecture des sourates 102 et 95 servie par la chaine de la sourate 103,
   /// trois refus et UNE LECTURE FAUSSE de 0,98 s.
-  final Map<(int, int, int), ({WordStatus statut, String entendu, String? audio})>?
+  /// `kind` : le TYPE d'erreur tel qu'il a été établi le jour de la récitation
+  /// (`session_words.kind` / `portion_words.kind` : lettre, harakat, tajwid,
+  /// saute, oubli). Ajouté le 2026-08-17.
+  ///
+  /// ── POURQUOI IL FALLAIT LE TRANSPORTER ──────────────────────────────────
+  /// Constat utilisateur : « on a perdu les mots qui étaient avec erreur
+  /// tajwid » -- et, dans la même question, l'intuition juste : « est-ce que
+  /// le fait que j'ai modifié le mode de tajwid a réinitialisé les couleurs ».
+  ///
+  /// Oui, et de deux façons. La couleur violette était choisie en appelant
+  /// `classifyError` À CHAUD, ce qui a deux conséquences en relecture :
+  ///  1. `classifyError` lit `state.words` -- l'état VIVANT du provider, vide
+  ///     après un redémarrage de l'app. Il rendait alors `inconnu`, donc de
+  ///     l'orange à la place du violet. C'est ce qui faisait que le Coach
+  ///     montrait le violet juste après une récitation (le provider tenait
+  ///     encore les mots) et le perdait après redémarrage.
+  ///  2. `unrealizedRulesFor` sort immédiatement si `_activeRules` est vide :
+  ///     passer en mode adulte effaçait donc les verdicts tajwid de sessions
+  ///     PASSÉES, récitées en mode tajwid.
+  ///
+  /// Une session archivée doit garder le verdict rendu CE JOUR-LÀ. L'archive
+  /// est la source de vérité pour le passé ; le réglage du jour ne concerne
+  /// que la récitation en cours.
+  final Map<(int, int, int),
+      ({WordStatus statut, String entendu, String? audio, String? kind})>?
       relecture;
 
   /// Titre du bandeau en mode relecture (nom de sourate ou libellé de portion).
@@ -197,6 +224,39 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// fréquent : la flèche retour. Le CONTENEUR, lui, appartient au
   /// `ProviderScope` de l'application et survit à n'importe quel écran.
   ProviderContainer? _container;
+
+  /// Lecture d'un provider qui SURVIT au démontage de l'écran.
+  ///
+  /// ── POURQUOI CET ACCESSEUR (2026-08-18) ──────────────────────────────────
+  /// [_container] a été introduit le 2026-08-14 pour que la clôture d'archive
+  /// n'ait « plus jamais besoin de `ref.read` » (cf. sa déclaration). Il n'a
+  /// été branché QUE sur `_comptabiliserPourCoach`. Les quatre méthodes
+  /// d'ARCHIVAGE, elles, ont continué à lire `ref` -- dont
+  /// `_archiverMotsNonJugesDansPortions`, appelée depuis `dispose()`.
+  ///
+  /// Défaut mesuré, session 62 du 2026-08-18 (Al-Fatiha complète) :
+  ///     mot=28 ٱلضَّآلِّينَ -> provisoire:vert
+  ///     archivage mot non juge impossible mot=28 :
+  ///       Bad state: Cannot use "ref" after the widget was disposed.
+  /// Le dernier mot était VERT à l'écran et ABSENT du Coach. Constat
+  /// utilisateur : « pourquoi toujours cette discordance ».
+  ///
+  /// Ce n'est pas un hasard si c'est le DERNIER mot : c'est celui qui a le
+  /// plus de chances d'être encore `provisoire` (aucune observation suivante
+  /// ne vient le confirmer), donc de passer par le scanner de fin -- et c'est
+  /// aussi le moment où l'écran se démonte. Les deux conditions se
+  /// concentrent sur lui, d'où le « toujours » du constat.
+  ///
+  /// ⇒ TOUT ce qui peut s'exécuter pendant ou après `dispose()` -- clôture
+  /// d'archive, événement de flux en retard -- passe par ici et JAMAIS par
+  /// `ref`. Le conteneur appartient au `ProviderScope` de l'application, il
+  /// survit à n'importe quel écran ; `ref` non. Les autres `ref.read` du
+  /// fichier (affichage, correction) sont dans des chemins où le widget est
+  /// forcément monté : ils restent inchangés volontairement.
+  T _lireProvider<T>(ProviderListenable<T> p) {
+    final c = _container;
+    return c != null ? c.read(p) : ref.read(p);
+  }
 
   /// Mots pour lesquels le SOUFFLEUR s'est déclenché dans cette session.
   ///
@@ -794,18 +854,72 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final lastVerse = _verses.last;
     final lastPage = lastVerse.pageNumber;
     if (lastPage == null) return; // pagination inconnue -- pas d'enchaînement possible
-    final nextPage = lastPage + 1;
-    if (nextPage > 604) {
-      _noMorePages = true;
-      return;
-    }
+    // ── FINIR LA PAGE COURANTE AVANT DE PASSER À LA SUIVANTE (2026-08-18) ───
+    //
+    // DÉFAUT CORRIGÉ ICI, constat utilisateur : « souvent la sourate suivante
+    // est Al-Kafirun alors que ce n'est pas la vraie sourate qui suit ».
+    // Mesuré dans le journal, session 75 :
+    //     session ouverte (sourate=106 1-4)        <- Quraysh seule, 21 mots
+    //     enchaînement vers la/les sourate(s) 109,110,111 (page 603)
+    // Quraysh occupe le MILIEU de la page 602 ; Al-Mâ'ûn (107) et Al-Kawthar
+    // (108) sont sur cette même page, APRÈS elle. En sautant directement à
+    // `lastPage + 1`, on les enjambait toutes les deux et la première sourate
+    // enchaînée devenait Al-Kafirun.
+    //
+    // Ce n'est pas propre à Quraysh : le défaut frappe TOUTE sourate qui
+    // n'est pas la dernière de sa page -- d'où le « souvent » du constat.
+    // Rien ici ne regarde ce qui est déjà mémorisé ou validé (hypothèse que
+    // l'utilisateur avait envisagée puis écartée lui-même : Al-Kafirun était
+    // déjà acquise) : c'est de la pagination pure.
+    //
+    // On reste sur la PAGE comme unité de chargement (choix utilisateur du
+    // 2026-08-18, contre un enchaînement par sourate) : on complète d'abord
+    // la page en cours, et seulement quand il n'y reste rien on avance d'une
+    // page. Sur un passage déjà chargé page entière, `restePageCourante` est
+    // vide et le comportement est identique à avant, au caractère près.
+    final known = _verses.map((v) => v.key).toSet();
     _extending = true;
     try {
-      final fetched = await QuranApi.fetchVersesByPage(nextPage);
-      if (!mounted || fetched.isEmpty) return;
-      // Filet de sécurité : ne jamais réintroduire un verset déjà chargé.
-      final known = _verses.map((v) => v.key).toSet();
-      final inedits = fetched.where((v) => !known.contains(v.key)).toList();
+      List<Verse> inedits = const [];
+      var pageChargee = lastPage;
+      // `apres` est INDISPENSABLE, et son absence a été une régression réelle
+      // (introduite et corrigée le 2026-08-18) : une page contient aussi les
+      // sourates qui PRÉCÈDENT le point de départ. En partant de Quraysh
+      // (106), le filtre « non déjà chargé » seul ramenait Al-Fîl (105) et
+      // ses voisines, ajoutées À LA FIN de `_verses` -- constat utilisateur :
+      // « pourquoi il y a Al-'Asr après Al-Fîl, les ordres ne sont pas bons
+      // dans le chargement ». On n'enchaîne que vers l'AVAL.
+      bool apres(Verse v) =>
+          v.surahNumber > lastVerse.surahNumber ||
+          (v.surahNumber == lastVerse.surahNumber &&
+              v.ayahNumber > lastVerse.ayahNumber);
+      final restePageCourante = (await QuranApi.fetchVersesByPage(lastPage))
+          .where((v) => !known.contains(v.key) && apres(v))
+          .toList()
+        ..sort((a, b) => a.surahNumber != b.surahNumber
+            ? a.surahNumber.compareTo(b.surahNumber)
+            : a.ayahNumber.compareTo(b.ayahNumber));
+      if (!mounted) return;
+      if (restePageCourante.isNotEmpty) {
+        inedits = restePageCourante;
+        DiagnosticLog.log(
+            'Karaoke',
+            'fin de la page $lastPage en premier : '
+            '${restePageCourante.length} verset(s) restant(s) '
+            '(sourate(s) ${restePageCourante.map((v) => v.surahNumber).toSet().join(",")})');
+      } else {
+        final nextPage = lastPage + 1;
+        if (nextPage > 604) {
+          _noMorePages = true;
+          return;
+        }
+        pageChargee = nextPage;
+        final fetched = await QuranApi.fetchVersesByPage(nextPage);
+        if (!mounted || fetched.isEmpty) return;
+        // Filet de sécurité : ne jamais réintroduire un verset déjà chargé.
+        inedits = fetched.where((v) => !known.contains(v.key)).toList();
+      }
+      final nextPage = pageChargee;
       // ── ON ENCHAÎNE À NOUVEAU LES SOURATES (2026-08-14, seconde décision) ─
       //
       // Le blocage posé le matin même (« on ne franchit jamais la fin d'une
@@ -1019,6 +1133,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     _decrochageSub?.cancel();
     _nonVertSub?.cancel();
     _lockedSub?.cancel();
+    // ── `ref` NE VAUT PLUS RIEN DANS `dispose()` : LE CONTENEUR, SI ──────
+    // (2026-08-17.) Lu UNE fois, tout en haut, et utilisé partout ensuite --
+    // `ref` lève `Bad state: Cannot use "ref" after the widget was disposed`
+    // sur le chemin le plus fréquent (flèche retour), mesuré à CHAQUE sortie
+    // dans le journal. Le détail de ce que ça cassait est au bloc
+    // `unawaited(() async {...})` plus bas.
+    // Si le conteneur manque (démontage avant le premier `build`), il n'y a
+    // ni capture armée ni session à clore : on le dit, on ne lève pas.
+    final container = _container;
+    if (container == null) {
+      DiagnosticLog.log('Archive',
+          'sortie d\'ecran : conteneur absent (demontage avant le premier '
+          'build) -- rien a clore');
+      super.dispose();
+      return;
+    }
     // ── INVALIDATION DU CACHE, DANS SON PROPRE try/catch (2026-08-11) ──────
     //
     // Séparée du bloc ci-dessus : `terminer()` (l'écriture qui compte
@@ -1035,20 +1165,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // `_compterMots()`/`terminer()` ci-dessus, qui n'a plus besoin de `ref`
     // du tout depuis ce même correctif.
     try {
-      ref.invalidate(sessionsArchiveProvider);
-      ref.invalidate(tailleArchiveProvider);
-      ref.invalidate(portionsProvider);
-      // Tableau de bord du Coach (serie, points, objectif du jour,
-      // progression) : sans ces deux-la il gardait sa derniere lecture et
-      // ne bougeait pas d'une recitation a l'autre (constat utilisateur
-      // 2026-08-14, « il manque le rafraichissement du tableau de bord »).
-      ref.invalidate(derniersJoursProvider);
-      ref.invalidate(serieProvider);
-      // Le rythme affiché dépend du RESTE à mémoriser (2026-08-14) : sans
-      // cette invalidation, un quart tout juste acquis ne détendrait le
-      // rythme qu'au prochain lancement de l'app.
-      ref.invalidate(quartsAcquisProvider);
-      ref.invalidate(quartsAcquisDuMoisProvider);
+      // Liste unique (2026-08-17, cf. `rafraichirTableauDeBordCoach`) : cette
+      // enumeration etait recopiee ici a la main et il lui manquait
+      // `quartsAcquisDeLAnnee`. Les listes recopiees divergent toujours -- le
+      // meme oubli, ailleurs, laissait la barre d'objectif a une valeur
+      // fantome apres un effacement.
+      rafraichirTableauDeBordCoach(container.invalidate);
     } catch (e) {
       DiagnosticLog.log(
           'Archive', 'sortie d\'ecran : invalidation cache a echoue (sans consequence) : $e');
@@ -1075,7 +1197,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // cet écran (c'est le provider qui le fait, cf. _applyDiagnosticCapture),
     // donc l'écran ne peut plus savoir si elle tourne. Or c'est justement ce
     // qu'il faut couper en sortant. L'appel est idempotent et sans coût.
-    unawaited(ref.read(recitationVerifierProvider).setClipCapture(null));
+    unawaited(container.read(recitationVerifierProvider).setClipCapture(null));
     // ── RELÂCHER LE MICRO EN QUITTANT L'ÉCRAN (2026-08-06) ────────────────
     //
     // Défaut constaté par l'utilisateur, en lisant le Mushaf : « je vois le
@@ -1103,8 +1225,39 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // la session v2 (dernière fenêtre hors grille) ; puis `stop()` en ceinture,
     // car `stopContinuous()` sort tout de suite si la session n'est plus
     // `isActive`, et le micro doit être relâché DANS TOUS LES CAS.
-    final notifier = ref.read(recitationProvider.notifier);
-    final verifier = ref.read(recitationVerifierProvider);
+    // ── `ref` EST DÉJÀ MORT ICI : LIRE PAR LE CONTENEUR (2026-08-17) ──────
+    //
+    // DÉFAUT MESURÉ, et il tuait tout le Coach. Ces deux lignes utilisaient
+    // `ref.read`, SANS try/catch, alors que le bloc d'invalidation juste
+    // au-dessus prouve à chaque sortie que `ref` est déjà inutilisable :
+    //     [Archive] sortie d'ecran : invalidation cache a echoue
+    //               : Bad state: Cannot use "ref" after the widget was disposed
+    // L'exception sortait donc de `dispose()` avant même que le bloc
+    // `unawaited(() async {...})` ci-dessous ne soit CRÉÉ -- et `super.dispose()`
+    // n'était jamais atteint non plus.
+    //
+    // PREUVE PAR L'ABSENCE, sur 13 Mo de journal : les SEPT traces que ce bloc
+    // peut écrire (échec/timeout de `stopContinuous`, échec de finalisation
+    // audio, échec de clôture d'archive, `micro relache`, échec de `stop()`)
+    // valent TOUTES 0 occurrence -- succès comme échecs. Un bloc qui ne
+    // journalise ni réussite ni exception n'a pas échoué : il n'a pas tourné.
+    //
+    // CE QUE ÇA CASSAIT, verifié dans `session_archive.db` sur l'appareil :
+    //   - `terminer()` jamais appelé -> `ended_at` NULL sur les 51 sessions,
+    //     alors que les compteurs, eux, étaient remplis (par `majBilan`, la
+    //     mise à jour périodique). Or la liste du Coach ne montre que
+    //     `ended_at IS NOT NULL` : toutes les récitations étaient invisibles.
+    //   - `_comptabiliserPourCoach` jamais appelé -> table `jours_actifs`
+    //     VIDE, donc objectif des 7 derniers jours figé, série jamais
+    //     incrémentée, points à 0 et barre de progression à 0 %.
+    //
+    // `_container` (cf. sa déclaration) survit au démontage, contrairement à
+    // `ref` -- c'est l'idiome déjà en place dans `_cloturerArchive` pour
+    // exactement cette raison. Il est lu UNE fois, plus haut, au premier
+    // besoin : la ligne `setClipCapture(null)` levait exactement de la même
+    // façon et tuait déjà tout ce bloc avant qu'il ne soit créé.
+    final notifier = container.read(recitationProvider.notifier);
+    final verifier = container.read(recitationVerifierProvider);
     unawaited(() async {
       try {
         // ── ATTENTE BORNÉE, JAMAIS INFINIE (2026-08-14) ────────────────────
@@ -1401,7 +1554,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// personne n'aura besoin de réentendre la preuve.
   Future<void> _archiverMotDansPortion(int wordIndex) async {
     if (_isReferenceSession) return;
-    final words = ref.read(recitationProvider).words;
+    final words = _lireProvider(recitationProvider).words;
     if (wordIndex < 0 || wordIndex >= words.length) return;
     final mot = words[wordIndex];
     if (mot.isBasmala) return; // jamais jugée, cf. _compterMots -- rien à suivre
@@ -1420,7 +1573,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       }
     }
     try {
-      final granularite = ref.read(portionGranularityProvider);
+      final granularite = _lireProvider(portionGranularityProvider);
       final portion =
           await PortionService.resolve(verse: verse, granularity: granularite);
       await SessionArchiveService.instance.upsertPortionWord(
@@ -1437,7 +1590,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         heardWord: mot.heard,
         kind: mot.status == WordStatus.correct
             ? null
-            : ref.read(recitationProvider.notifier).classifyError(wordIndex).name,
+            : _lireProvider(recitationProvider.notifier).classifyError(wordIndex).name,
         audioSource: extrait,
       );
     } catch (e) {
@@ -1478,6 +1631,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final ancreMax = words.lastIndexWhere((w) =>
             w.status != WordStatus.pending && w.status != WordStatus.current) +
         1;
+    var aTraiter = 0, ecrits = 0, echecs = 0;
     for (var i = 0; i < ancreMax; i++) {
       // `!locked` plutôt que `status == pending` (corrigé 2026-08-11) : un mot
       // PROVISOIRE (ex. `provisoire:rouge`) porte déjà un statut mais n'a
@@ -1488,6 +1642,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // ligne à mettre à jour. Le test sur `pending` seul le manquait.
       if (words[i].locked) continue; // déjà jugé et archivé par `wordLocked`
       if (words[i].isBasmala) continue;
+      aTraiter++;
       if (!_motsNonJugesArchives.add(i)) continue; // déjà traité
       final verse = _verseContaining(i);
       final local = _localIndexInVerse(i);
@@ -1511,7 +1666,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       final status =
           words[i].status == WordStatus.correct ? 'correct' : 'skipped';
       try {
-        final granularite = ref.read(portionGranularityProvider);
+        final granularite = _lireProvider(portionGranularityProvider);
         final portion = await PortionService.resolve(
             verse: verse, granularity: granularite);
         await SessionArchiveService.instance.upsertPortionWord(
@@ -1527,10 +1682,30 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           heardWord: words[i].heard,
           status: status,
         );
+        ecrits++;
       } catch (e) {
+        echecs++;
         DiagnosticLog.log(
             'Archive', 'archivage mot non juge impossible mot=$i : $e');
       }
+    }
+    // ── LA DIVERGENCE ÉCRAN / COACH DOIT SE VOIR (2026-08-18) ──────────────
+    //
+    // Jusqu'ici, un mot perdu ici ne laissait qu'une ligne d'exception noyée
+    // dans 126 000 lignes de journal -- et la question « pourquoi le dernier
+    // mot est vert à l'écran mais pas dans le Coach » restait sans réponse
+    // lisible. Ce bilan la rend immédiate : `echecs>0` signifie que l'écran
+    // et le Coach ne diront PAS la même chose, et nomme les mots concernés.
+    //
+    // Journalisé même à zéro échec : une ligne absente ne prouve rien (le
+    // scanner peut n'avoir jamais tourné), une ligne à `echecs=0` prouve
+    // qu'il a tourné et que rien n'a été perdu.
+    if (aTraiter > 0) {
+      DiagnosticLog.log(
+          'Archive',
+          'mots non verrouilles : $aTraiter vu(s), $ecrits ecrit(s), '
+              '$echecs echec(s)'
+              '${echecs > 0 ? " -- ECRAN ET COACH VONT DIVERGER" : ""}');
     }
   }
 
@@ -1586,7 +1761,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     if (_isReferenceSession) return;
     if (_dernierMotArchiveOubli == wordIndex) return;
     _dernierMotArchiveOubli = wordIndex;
-    final words = ref.read(recitationProvider).words;
+    final words = _lireProvider(recitationProvider).words;
     if (wordIndex < 0 || wordIndex >= words.length) return;
     final mot = words[wordIndex];
     final verse = _verseContaining(wordIndex);
@@ -1796,16 +1971,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // `Bad state: Cannot use "ref" after the widget was disposed`.
     final container = _container;
     if (container != null) {
-      container.invalidate(sessionsArchiveProvider);
-      container.invalidate(tailleArchiveProvider);
-      container.invalidate(portionsProvider);
-      // Tableau de bord (série, points, objectif du jour, progression) :
-      // sans ces deux-là il gardait sa dernière lecture d'une récitation à
-      // l'autre.
-      container.invalidate(derniersJoursProvider);
-      container.invalidate(serieProvider);
-      container.invalidate(quartsAcquisProvider);
-      container.invalidate(quartsAcquisDuMoisProvider);
+      // Liste unique -- cf. `rafraichirTableauDeBordCoach` (2026-08-17).
+      rafraichirTableauDeBordCoach(container.invalidate);
     }
   }
 
@@ -3393,6 +3560,33 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final subtitle = _verses.length == 1
         ? t.recitationVerseTitle(ref0.key)
         : '${ref0.key} → ${_verses.last.key}';
+    // ── LE NOM DE LA SOURATE, PRIS LÀ OÙ LE RÉCITATEUR EN EST (2026-08-18) ──
+    //
+    // Demande utilisateur : « quand je récite une aya ou je vais réciter le
+    // début, ça serait bien d'afficher le nom de la sourate ». La barre du
+    // haut n'annonçait qu'une référence chiffrée (`Verset 1:1` ou
+    // `1:1 → 1:7`) : elle dit OÙ on est dans le Coran, pas CE qu'on récite.
+    //
+    // Le numéro vient de `_surahByWord`, pas de `_verses.first` : un passage
+    // enchaîné traverse les sourates (la Bismillah insérée est déjà rattachée
+    // à la sourate SUIVANTE dans cette carte, cf. `_rebuildWordVerseMap`).
+    // Prendre la première aurait affiché le mauvais nom exactement au moment
+    // où l'information devient utile -- au changement de sourate.
+    //
+    // Position suivie : le mot COURANT s'il existe, sinon le dernier mot jugé
+    // (fin de récitation), sinon le début. Jamais `null` : à défaut on retombe
+    // sur la sourate du premier verset chargé.
+    final iCourant = st.words.indexWhere((w) => w.status == WordStatus.current);
+    final iSuivi = iCourant >= 0
+        ? iCourant
+        : st.words.lastIndexWhere((w) =>
+            w.status != WordStatus.pending && w.status != WordStatus.current);
+    final numSourate = (iSuivi >= 0 && iSuivi < _surahByWord.length)
+        ? (_surahByWord[iSuivi] ?? ref0.surahNumber)
+        : ref0.surahNumber;
+    // `null` tant que les métadonnées ne sont pas chargées : le titre retombe
+    // alors sur l'ancien affichage, il ne se vide pas.
+    final nomSourate = _surahMeta[numSourate]?.nameSimple;
 
     return Scaffold(
       backgroundColor: AppColors.green900,
@@ -3420,10 +3614,27 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                 },
               ),
             ),
+            // ── ANNEAU CENTRAL : ESSAYÉ LE 2026-08-18, RETIRÉ LE MÊME JOUR ────
+            //
+            // L'indicateur d'écoute a été déplacé ici, au centre, sous forme
+            // d'anneau au diamètre du halo (« au centre de l'écran, avec une
+            // symétrie horizontale, comme le play et stop »), puis agrandi à
+            // 92 % de la largeur (« augmente la taille pour que ça soit
+            // visible »). Verdict utilisateur après l'avoir vu à l'écran :
+            // « ça cloche, reviens sur la version d'avant ».
+            //
+            // ⇒ L'indicateur est REVENU dans `_bottomHint`. Ne pas le
+            // remettre au centre sans une raison nouvelle : la place a été
+            // essayée pour de vrai, sur l'appareil, et rejetée. Ce qui reste
+            // acquis de l'épisode, et qui n'était pas su avant : le halo EST
+            // le « cercle » que désignait l'ancienne consigne du bas, et son
+            // opacité plafonne à ~12 % -- il est invisible en pratique. Si le
+            // sujet revient, c'est CE point-là qu'il faut traiter, pas la
+            // position de l'indicateur.
             SafeArea(
               child: Column(
                 children: [
-                  _topBar(context, subtitle, st),
+                  _topBar(context, subtitle, nomSourate, st),
                   // ── ETOILES RETIREES DE L'ECRAN DE RECITATION (2026-08-14) ─
                   //
                   // Ajoutees le 2026-08-06 (« de la gamification quand c'est
@@ -3544,12 +3755,20 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final breathT = (math.sin(_breath.value * 2 * math.pi) + 1) / 2; // 0..1
     final base = listening ? 0.55 + level * 0.5 : 0.32 + breathT * 0.08;
     final scale = listening ? 1.0 + level * 0.22 : 1.0 + breathT * 0.03;
+    // 300 px fixes, comme avant le 2026-08-18. Un diamètre calculé sur
+    // l'écran avait été introduit pour qu'un anneau visible coïncide avec
+    // cette zone tactile ; l'anneau ayant été retiré (cf. le Stack de
+    // `build`), le calcul n'a plus d'objet. À savoir si le sujet revient :
+    // 300 px ne font que 28 % de la largeur d'un écran 1080, et l'opacité
+    // maximale du dégradé est de ~12 % -- ce cercle est, en pratique,
+    // invisible.
+    const d = 300.0;
     final circle = Center(
       child: Transform.scale(
         scale: scale,
         child: Container(
-          width: 300,
-          height: 300,
+          width: d,
+          height: d,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: RadialGradient(
@@ -3603,7 +3822,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     return etoiles;
   }
 
-  Widget _topBar(BuildContext context, String subtitle, RecitationSessionState st) {
+  Widget _topBar(BuildContext context, String subtitle, String? nomSourate,
+      RecitationSessionState st) {
     return Padding(
       // Marge droite ramenée de 20 à 4 (correctif 2026-07-25, cf. le bouton
       // pause rogné plus bas) : 16 dp récupérés sur un écran qui n'en avait
@@ -3629,19 +3849,56 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               Navigator.of(context).pop();
             },
           ),
+          // Le NOM en premier, la référence chiffrée en second (2026-08-18).
+          // Deux lignes tiennent : la hauteur de la barre est fixée par les
+          // `IconButton` (48 dp), le texte seul n'y arrivait pas.
+          // `nomSourate == null` (métadonnées pas encore chargées) rend
+          // exactement l'affichage d'avant, une seule ligne : un titre qui se
+          // vide le temps d'un chargement serait pire que pas de nom.
           Expanded(
-            child: Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.fraunces(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: AppColors.brassLight,
-                letterSpacing: 0.4,
-              ),
-            ),
+            child: nomSourate == null
+                ? Text(
+                    subtitle,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.fraunces(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.brassLight,
+                      letterSpacing: 0.4,
+                    ),
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        nomSourate,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.fraunces(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.brassLight,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.cream.withValues(alpha: 0.6),
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
           ),
           // Souffleur (demande utilisateur 2026-07-16) : le réciteur bloque sur
           // un mot et demande à l'entendre. Uniquement pendant l'écoute — hors
@@ -3839,10 +4096,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     int? blockSurah;
     for (var i = 0; i <= renderEnd; i++) {
       final surah = i < renderEnd ? _surahOwning(i) : null;
-      // Frontière = fin de la fenêtre de rendu, OU changement de sourate
-      // détecté (jamais au tout premier mot : blockSurah est encore null à
-      // ce moment-là).
+      // Frontière = fin de la fenêtre de rendu, OU tête du passage, OU
+      // changement de sourate détecté.
+      //
+      // ── `i == 0` AJOUTÉ LE 2026-08-18 ────────────────────────────────────
+      // Le commentaire d'origine disait « jamais au tout premier mot :
+      // blockSurah est encore null à ce moment-là » -- c'était la description
+      // exacte d'un défaut, pas d'une intention. Conséquence : la sourate de
+      // DÉPART n'avait jamais son en-tête, seules les suivantes l'obtenaient.
+      // Constat utilisateur, en partant de Quraysh : « j'ai sourate Al-Mâ'ûn
+      // en arabe mais pas celle en cours, Quraysh, alors que je l'ai en haut
+      // en français ; je veux comme le début de sourate Mâ'ûn, commencer par
+      // les deux traits de séparation ».
+      //
+      // À `i == 0` : `i > blockStart` est faux, donc aucun bloc de mots vide
+      // n'est créé ; seul le bandeau est posé, puis la lecture reprend
+      // normalement.
       final boundary = i == renderEnd ||
+          i == 0 ||
           (surah != null && blockSurah != null && surah != blockSurah);
       if (boundary) {
         if (i > blockStart) {
@@ -4057,6 +4328,29 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // Le score suit la même règle côté base (`deja_rate` exclu de
     // `words_green`), donc une session avec oubli ne peut plus afficher 100 %.
     final estOubli = !w.isBasmala && _motsOublies.contains(index);
+    // ── EN RELECTURE, LE VERDICT VIENT DE L'ARCHIVE (2026-08-17) ──────────
+    //
+    // `classifyError` recalcule à chaud, avec l'état VIVANT du provider et le
+    // preset D'AUJOURD'HUI. Les deux sont faux pour une session passée :
+    // l'état est vide après un redémarrage (donc `inconnu`, donc orange au
+    // lieu de violet), et changer de preset effaçait les verdicts tajwid de
+    // sessions déjà récitées. Détail complet à la doc de `relecture`.
+    //
+    // Ici on lit le `kind` tel qu'il a été établi le jour même. La récitation
+    // EN DIRECT, elle, continue de passer par `classifyError` -- c'est là que
+    // le calcul a un sens, l'état et le preset y étant ceux du moment.
+    bool estErreurTajwid() {
+      if (widget.estRelecture) {
+        final verse = _verseContaining(index);
+        final local = _localIndexInVerse(index);
+        if (verse == null || local == null) return false;
+        final v = widget.relecture?[
+            (verse.surahNumber, verse.ayahNumber, local)];
+        return v?.kind == 'tajwid';
+      }
+      return ref.read(recitationProvider.notifier).classifyError(index) ==
+          RecitationErrorKind.tajwid;
+    }
     switch (effectiveStatus) {
       case WordStatus.correct:
         bgTint = const Color(0xFF6fe3a8).withOpacity(0.38);
@@ -4074,9 +4368,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // seule la règle manque. C'est la lecture du cahier des charges du
         // 2026-07-30 -- la tête tajwid est là « juste pour préciser les mots où
         // le tajwid est absent », pas pour condamner une prononciation.
-        final tajwidManquant =
-            ref.read(recitationProvider.notifier).classifyError(index) ==
-                RecitationErrorKind.tajwid;
+        final tajwidManquant = estErreurTajwid();
         // Instrumenté le 2026-08-16 (`RenderTajwid`, retiré depuis) parce que
         // le violet n'apparaissait pas alors que l'état du provider était bon.
         // La trace a montré `classifyError=tajwid tajwidManquant=true` ET
@@ -4105,9 +4397,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           // distinguer d'un coup d'œil. `classifyError` n'est appelé que sur
           // les mots déjà verrouillés en erreur (rares), pas sur chaque mot
           // à chaque frame.
-          final estTajwid =
-              ref.read(recitationProvider.notifier).classifyError(index) ==
-                  RecitationErrorKind.tajwid;
+          final estTajwid = estErreurTajwid();
           final c = estTajwid
               ? AppColors.recitationTajwidError
               : const Color(0xFFff8a80);
@@ -4512,13 +4802,56 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final t = AppLocalizations.of(context)!;
     final listening = st.status == RecitationStatus.listening;
     final finalizing = st.status == RecitationStatus.processing;
+    // ── PLUS DE CONSIGNE PENDANT L'ECOUTE (2026-08-18) ────────────────────
+    //
+    // Elle disait « À l'écoute — touche le cercle pour t'arrêter », et
+    // l'utilisateur a pose la seule question qui s'imposait : « quel cercle ? »
+    // Il n'y en a aucun. Le seul controle d'arret est le bouton ⏸ de la barre
+    // du haut ; les cercles visibles a l'ecran sont les NUMEROS DE VERSETS,
+    // qui n'arretent rien. La consigne designait donc un controle inexistant,
+    // au moment precis ou l'utilisateur recite et n'a pas a chercher.
+    //
+    // Retiree plutot que reformulee (demande utilisateur : « supprime ce
+    // message ») : pendant l'ecoute, l'ecran doit rester au texte. Les autres
+    // etats gardent leur consigne -- `karaokePausedHint` designe bien ⏸, et
+    // les etats d'attente disent « touche l'ecran », ce qui est exact.
+    if (listening && !_manuallyPaused) {
+      // ── LES PREMIERES SECONDES, IL FAUT PROUVER QU'ON ENTEND (2026-08-18)
+      //
+      // Constat utilisateur : « un utilisateur commence a reciter, rien ne se
+      // passe, il est perturbe, il pense que rien ne fonctionne ».
+      //
+      // MESURE sur 72 sessions reelles du journal (du premier bloc PCM au
+      // premier verdict affiche) : mediane 8,3 s, min 4,2 s, max 38,6 s.
+      // Ce n'est pas un defaut : la chaine a besoin d'une fenetre de 4 a 6 s
+      // PUIS de deux observations concordantes avant de figer un mot. Mais
+      // huit secondes sans le moindre signe, c'est tres long pour douter --
+      // surtout a la premiere utilisation.
+      //
+      // DEUX SOLUTIONS ECARTEES, et pourquoi :
+      //  - un COMPTE A REBOURS serait mensonger : le delai va de 4 a 38 s,
+      //    aucun chiffre affiche ne serait tenu ;
+      //  - un SABLIER dirait « attends », alors qu'il faut exactement
+      //    l'inverse : CONTINUER a reciter. Un indicateur d'attente
+      //    obtiendrait le silence, donc encore moins de verdicts.
+      //
+      // Ce qu'on montre a la place repond a la vraie question de
+      // l'utilisateur (« est-ce que ca marche ? ») : le NIVEAU DU MICRO, qui
+      // reagit a sa voix instantanement. Il ne promet aucun verdict, il
+      // prouve seulement qu'on l'entend -- et c'est exactement ce dont il
+      // doute. Disparait des que le premier mot est juge : la couleur prend
+      // alors le relais et se suffit.
+      final rienEncoreJuge = st.words.isEmpty ||
+          st.words.every((w) =>
+              w.status == WordStatus.pending || w.status == WordStatus.current);
+      if (!rienEncoreJuge) return const SizedBox.shrink();
+      return _EcouteVivante(niveau: st.soundLevel);
+    }
     String label;
     if (finalizing) {
       label = t.karaokeFinalizing;
     } else if (listening && _manuallyPaused) {
       label = t.karaokePausedHint;
-    } else if (listening) {
-      label = t.karaokeListeningHint;
     } else if (st.status == RecitationStatus.finished) {
       label = t.karaokeFinishedHint;
     } else if (_willBeReferenceSession) {
@@ -4919,6 +5252,70 @@ class _BandeauEtoiles extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+
+/// « Je t'écoute… continue » — la preuve visuelle qu'on entend, le temps que
+/// les premiers verdicts arrivent.
+///
+/// Cf. le bloc de `_bottomHint` qui l'appelle pour la mesure (8,3 s de médiane
+/// avant le premier mot coloré, jusqu'à 38,6 s) et pour les deux solutions
+/// écartées.
+///
+/// ── PLACÉ EN BAS, ET ON Y RESTE (2026-08-18) ────────────────────────────────
+/// Une version CENTRÉE a été construite, installée et vue sur l'appareil :
+/// un anneau au diamètre du halo, puis élargi à 92 % de la largeur. Rejetée
+/// par l'utilisateur — « ça cloche, reviens sur la version d'avant ». Le
+/// bandeau bas est donc la place retenue APRÈS essai réel, pas par défaut.
+///
+/// Les barres suivent le niveau du micro EN DIRECT : c'est ce qui distingue
+/// cet indicateur d'une animation décorative. Une animation tourne aussi quand
+/// l'app est morte ; celle-ci ne bouge que si la voix arrive vraiment.
+class _EcouteVivante extends StatelessWidget {
+  final double niveau;
+  const _EcouteVivante({required this.niveau});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    // Cinq barres, hauteurs décalées : donne un mouvement lisible même quand
+    // le niveau varie peu, sans jamais bouger si le niveau est nul.
+    const facteurs = [0.55, 0.85, 1.0, 0.8, 0.5];
+    final n = niveau.clamp(0.0, 1.0);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            for (final f in facteurs)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                width: 3.5,
+                height: 4 + 20 * n * f,
+                decoration: BoxDecoration(
+                  color: AppColors.brassLight.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(t.karaokeEcouteEnCours,
+            style: GoogleFonts.manrope(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.brassLight)),
+        const SizedBox(height: 2),
+        Text(t.karaokeEcouteBientot,
+            style: GoogleFonts.manrope(
+                fontSize: 11,
+                color: AppColors.cream.withValues(alpha: 0.55))),
+      ],
     );
   }
 }

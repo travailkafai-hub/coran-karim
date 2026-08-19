@@ -1,9 +1,13 @@
+import 'dart:async';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/duas_data.dart';
 import '../l10n/app_localizations.dart';
 import '../models/dua.dart';
+import '../models/radio_dhikr.dart';
 import '../providers/dua_prefs_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dua_card.dart';
@@ -85,6 +89,13 @@ class _DuasScreenState extends ConsumerState<DuasScreen> {
                 itemBuilder: (_, i) => _UniversCard(univers: kDuaUnivers[i]),
               ),
             ),
+            // ── ÉCOUTE CONTINUE (2026-08-17) ────────────────────────────────
+            // Placée APRÈS les invocations, et pas avant : ce sont des flux,
+            // pas des duas. L'écran existe d'abord pour dire une invocation
+            // précise ; la radio est un complément d'ambiance. Cf.
+            // `RadioDhikr` pour ce que ces flux sont, et ne sont pas.
+            SliverToBoxAdapter(child: _SectionLabel(t.duasRadiosTitre)),
+            SliverToBoxAdapter(child: const _RadiosDhikr()),
           ],
         ],
       ),
@@ -552,4 +563,179 @@ class _SectionLabel extends StatelessWidget {
           ),
         ),
       );
+}
+
+
+/// Les trois radios de dhikr, en écoute continue.
+///
+/// UN SEUL lecteur pour les trois, et il est PROPRE À CETTE SECTION : ne pas
+/// réutiliser `AudioPlayerService`, qui porte l'écoute du Mushaf (position de
+/// verset, minuteur de frontière, récitateur courant). Un flux sans fin n'a
+/// aucune de ces notions, et les mélanger ferait qu'appuyer ici couperait la
+/// récitation en cours -- exactement le genre de couplage que ce projet a déjà
+/// payé ailleurs.
+class _RadiosDhikr extends StatefulWidget {
+  const _RadiosDhikr();
+
+  @override
+  State<_RadiosDhikr> createState() => _RadiosDhikrState();
+}
+
+class _RadiosDhikrState extends State<_RadiosDhikr> {
+  final _player = AudioPlayer();
+  int? _enCours;
+  bool _chargement = false;
+
+  /// Reconnexions consécutives sans écoute utile, pour ne pas boucler à
+  /// l'infini quand le flux est réellement mort (cf. `_surCompletion`).
+  int _reconnexions = 0;
+  DateTime? _debutEcoute;
+  StreamSubscription<void>? _finSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // ── UN FLUX SHOUTCAST N'A PAS DE FIN, LE LECTEUR CROIT QUE SI ──────────
+    //
+    // Constat utilisateur : « c'est pas continu, ça s'arrête ». Vérifié à la
+    // source : le serveur diffuse bien sans fin (761 Ko reçus en 30 s), et
+    // ses en-têtes disent ce qu'il est vraiment --
+    //     Transfer-Encoding: chunked
+    //     Accept-Ranges: none
+    //     icy-notice2: Shoutcast DNAS ... / icy-br: 128
+    // C'est un flux ICY/Shoutcast, pas un fichier. Le lecteur Android, lui,
+    // le traite comme un fichier : au premier creux de tampon il conclut à la
+    // fin du morceau, émet `onPlayerComplete` et s'arrête.
+    //
+    // On se RECONNECTE donc tant que l'utilisateur n'a pas appuyé sur stop.
+    // Ce n'est pas un palliatif à un défaut de notre code : la fin annoncée
+    // par le lecteur est FAUSSE pour ce type de source, et aucune couche en
+    // amont ne peut la rendre vraie.
+    _finSub = _player.onPlayerComplete.listen((_) => _surCompletion());
+  }
+
+  Future<void> _surCompletion() async {
+    final r = _enCours;
+    if (r == null || !mounted) return;
+    final radio = kRadiosDhikr.where((x) => x.id == r).firstOrNull;
+    if (radio == null) return;
+    // Une reconnexion n'est légitime que si l'on a réellement écouté : sinon
+    // c'est que le flux ne s'ouvre pas, et réessayer sans fin ne ferait que
+    // marteler le serveur en silence. Trois échecs immédiats -> on abandonne
+    // et on le DIT.
+    final ecouteUtile = _debutEcoute != null &&
+        DateTime.now().difference(_debutEcoute!).inSeconds >= 5;
+    _reconnexions = ecouteUtile ? 0 : _reconnexions + 1;
+    if (_reconnexions >= 3) {
+      if (!mounted) return;
+      final t = AppLocalizations.of(context)!;
+      setState(() {
+        _enCours = null;
+        _chargement = false;
+      });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t.duasRadioErreur)));
+      return;
+    }
+    try {
+      _debutEcoute = DateTime.now();
+      await _player.play(UrlSource(radio.url));
+    } catch (_) {
+      // Silencieux ici : la prochaine complétion repassera par ce chemin, et
+      // le compteur ci-dessus finira par trancher.
+    }
+  }
+
+  @override
+  void dispose() {
+    _finSub?.cancel();
+    _player.dispose();
+    super.dispose();
+  }
+
+  String _titre(AppLocalizations t, String cle) => switch (cle) {
+        'matin' => t.duasRadioMatin,
+        'soir' => t.duasRadioSoir,
+        _ => t.duasRadioRoqya,
+      };
+
+  Future<void> _basculer(RadioDhikr r) async {
+    final t = AppLocalizations.of(context)!;
+    // Deuxième appui sur la radio en cours : on arrête. Sans ça, il n'y a
+    // aucun moyen de couper un flux qui, par nature, ne se termine jamais.
+    if (_enCours == r.id) {
+      // `_enCours` à null AVANT le stop : `onPlayerComplete` peut se
+      // déclencher pendant l'arrêt, et `_surCompletion` doit alors voir que
+      // plus rien n'est demandé -- sinon un appui sur stop relancerait le flux.
+      setState(() => _enCours = null);
+      await _player.stop();
+      return;
+    }
+    setState(() {
+      _chargement = true;
+      _enCours = r.id;
+    });
+    try {
+      await _player.stop();
+      _reconnexions = 0;
+      _debutEcoute = DateTime.now();
+      await _player.play(UrlSource(r.url));
+      if (mounted) setState(() => _chargement = false);
+    } catch (_) {
+      // Un bouton qui ne fait rien est indiscernable d'un bug : on le DIT.
+      // Même raisonnement que pour « Ma voix » dans la fiche d'aide.
+      if (!mounted) return;
+      setState(() {
+        _chargement = false;
+        _enCours = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t.duasRadioErreur)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+      child: Column(
+        children: [
+          for (final r in kRadiosDhikr)
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.cream300),
+              ),
+              child: ListTile(
+                onTap: () => _basculer(r),
+                leading: (_chargement && _enCours == r.id)
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(
+                        _enCours == r.id
+                            ? Icons.stop_circle_outlined
+                            : Icons.play_circle_outline,
+                        color: AppColors.green700,
+                        size: 28,
+                      ),
+                title: Text(_titre(t, r.cleTitre),
+                    style: GoogleFonts.manrope(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink)),
+                subtitle: Text(t.duasRadioSousTitre,
+                    style: GoogleFonts.manrope(
+                        fontSize: 11.5, color: AppColors.inkLight)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

@@ -596,6 +596,25 @@ class AppLocalizationsFr extends AppLocalizations {
   String get duasSearchHint => 'Chercher une invocation, un mot, une source…';
 
   @override
+  String get duasRadiosTitre => 'Écoute continue';
+
+  @override
+  String get duasRadioMatin => 'Invocations du matin';
+
+  @override
+  String get duasRadioSoir => 'Invocations du soir';
+
+  @override
+  String get duasRadioRoqya => 'Roqya';
+
+  @override
+  String get duasRadioSousTitre =>
+      'Diffusion continue — nécessite une connexion';
+
+  @override
+  String get duasRadioErreur => 'Lecture impossible. Vérifiez votre connexion.';
+
+  @override
   String get duasExplore => 'Explorer';
 
   @override
@@ -1605,6 +1624,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get karaokePausedHint => 'En pause — touche ⏸ pour reprendre';
 
   @override
+  String get karaokeEcouteEnCours => 'Je t’écoute… continue';
+
+  @override
+  String get karaokeEcouteBientot =>
+      'Les couleurs arrivent après les premiers mots';
+
+  @override
   String get karaokeListeningHint =>
       'À l\'écoute — touche le cercle pour t\'arrêter';
 
@@ -2372,4 +2398,18 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get coachPortionContestedBadge => 'Contesté';
+
+  @override
+  String get coachTogglePassageAutoTitre => 'Passage automatique';
+
+  @override
+  String get coachTogglePassageAutoDetail =>
+      'Une fois le contrôle réussi, l\'entraînement du verset suivant démarre seul.';
+
+  @override
+  String get coachToggleCumulTitre => 'Contrôle cumulatif';
+
+  @override
+  String get coachToggleCumulDetail =>
+      'Le contrôle porte sur tous les versets appris depuis le début de la session.';
 }

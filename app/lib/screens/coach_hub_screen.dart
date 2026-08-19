@@ -48,6 +48,7 @@ import 'memorization_ayah_picker_screen.dart';
 import 'memorization_game_screen.dart';
 import 'mind_map_screen.dart';
 import 'surah_picker_screen.dart';
+import 'tajwid_rules_screen.dart';
 
 /// Borne le lot initial de récitation à la PAGE du premier verset, au lieu
 /// de charger toute la sourate (correctif 2026-07-25, constat utilisateur :
@@ -248,6 +249,26 @@ class _ObjectifSection extends ConsumerWidget {
                   color: AppColors.green800,
                 )),
             const Spacer(),
+            // ── MODE DE VÉRIFICATION, ACCESSIBLE DEPUIS LE COACH (2026-08-17)
+            //
+            // Demande utilisateur : « est-ce que tu peux donner accès au mode
+            // des récitations depuis le Coach également ». L'écran existe déjà
+            // (`TajwidRulesScreen`, atteignable depuis la feuille de réglages
+            // de la récitation) : on l'expose ici aussi, on ne le réimplémente
+            // pas -- c'est la règle de ce hub, rappelée en tête de fichier.
+            //
+            // Sa place est ici : c'est depuis le Coach qu'on décide de ce
+            // qu'on va réviser, et le mode décide de ce qui sera jugé. Même
+            // icône que partout ailleurs (`auto_awesome`), pour que ce soit
+            // reconnu comme le même réglage et non comme un second.
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: t.coachVerificationModeTooltip,
+              icon: const Icon(Icons.auto_awesome,
+                  size: 18, color: AppColors.green800),
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const TajwidRulesScreen())),
+            ),
             IconButton(
               visualDensity: VisualDensity.compact,
               tooltip: t.coachObjectifSheetTitle,
@@ -437,9 +458,34 @@ class _ObjectifSection extends ConsumerWidget {
                     // `l` est trié du plus récent au plus ancien
                     // (`derniersJours`, ORDER BY jour DESC), donc `l.last` est
                     // le premier jour où le Coach a vu quelque chose.
-                    final joursSuivis = l.isEmpty
-                        ? 0
-                        : DateTime.now().difference(l.last.jour).inDays + 1;
+                    // ── LE TEMPS SUIVI VIENT DE L'OBJECTIF, PAS DES JOURS
+                    //    ENREGISTRÉS (2026-08-17) ──────────────────────────
+                    //
+                    // DÉFAUT CONSTATÉ PAR L'UTILISATEUR : « il y a déjà un
+                    // trait collé au début de la barre, c'est ce qu'il faut
+                    // faire avancer ». Le repère était calculé depuis
+                    // `jours_actifs` (`l.last.jour`, le plus ancien jour
+                    // actif) -- table VIDE sur son téléphone, donc
+                    // `joursSuivis = 0`, donc maturité 0, donc trait épinglé à
+                    // l'origine. Et il y serait resté indéfiniment : sans
+                    // journée enregistrée, il n'avance JAMAIS.
+                    //
+                    // Or la question posée est « depuis combien de temps
+                    // suis-je censé progresser ? » -- c'est la date de POSE de
+                    // l'objectif qui y répond, pas la première récitation
+                    // réussie. Les deux divergent précisément dans le cas qui
+                    // compte : quelqu'un qui a fixé son objectif et n'a pas
+                    // encore récité doit voir sa cible du jour monter, sinon
+                    // rien ne lui dit qu'il prend du retard.
+                    //
+                    // Repli sur `jours_actifs` quand aucun objectif n'est posé
+                    // (comportement d'avant, inchangé dans ce cas).
+                    final debutObjectif = objectif.actif ? objectif.debut : null;
+                    final joursSuivis = debutObjectif != null
+                        ? DateTime.now().difference(debutObjectif).inDays + 1
+                        : (l.isEmpty
+                            ? 0
+                            : DateTime.now().difference(l.last.jour).inDays + 1);
                     final maturiteMois =
                         (joursSuivis / fenetre).clamp(0.0, 1.0);
                     final maturiteAnnee = (joursSuivis / 365).clamp(0.0, 1.0);
@@ -693,8 +739,30 @@ class _ObjectifSection extends ConsumerWidget {
 String _resteEnClair(AppLocalizations t, ObjectifCoach objectif) {
   if (objectif.depassee()) return t.coachObjectifEcheanceDepassee;
   final jours = objectif.joursRestants();
-  final annees = jours ~/ 365;
-  final mois = (jours % 365) ~/ 30;
+  // ── « 3 ANS ET 12 MOIS » (défaut corrigé le 2026-08-17) ─────────────────
+  //
+  // L'ancien calcul prenait les années à 365 jours puis les mois à 30 :
+  //     annees = jours ~/ 365 ; mois = (jours % 365) ~/ 30
+  // Un reste de 364 jours donnait donc 12 mois, que rien ne reportait sur
+  // l'année -- affiché tel quel sur le téléphone de l'utilisateur : « il
+  // reste 3 ans et 12 mois » pour un objectif de 4 ans posé l'avant-veille.
+  // Un mois de 30 jours ne referme jamais une année de 365.
+  //
+  // Deux corrections, et il fallait les deux :
+  //  - le mois vaut 30,44 jours (365/12) et non 30, sinon 364 jours de reste
+  //    donnent 12 mois pleins ;
+  //  - le REPORT est explicite : à 12 mois on passe une année. C'est lui qui
+  //    manquait, et aucun ajustement de la durée du mois ne l'aurait remplacé
+  //    -- un arrondi peut toujours atteindre 12.
+  //
+  // Vérifié sur les cas limites : 1459 j -> 4 ans (et non « 3 ans et 12 »),
+  // 365 j -> 1 an, 730 j -> 2 ans, 400 j -> 1 an et 1 mois.
+  var annees = jours ~/ 365;
+  var mois = ((jours % 365) / 30.44).round();
+  if (mois >= 12) {
+    annees += 1;
+    mois = 0;
+  }
   if (annees > 0) return t.coachObjectifResteAnneesMois(annees, mois);
   if (mois > 0) return t.coachObjectifResteMois(mois);
   return t.coachObjectifResteJours(jours);
@@ -867,6 +935,15 @@ class _BarreProgression extends StatelessWidget {
         LayoutBuilder(
           builder: (context, contraintes) {
             final hauteur = principale ? 10.0 : 6.0;
+            // ── ZONE PÂLE TENTÉE PUIS RETIRÉE (2026-08-17) ─────────────────
+            // Peindre l'attendu comme une SURFACE derrière la progression a
+            // été essayé le même jour, puis retiré à la demande de
+            // l'utilisateur : « je ne demande pas de zone pâle, il y a déjà un
+            // trait ». Le trait suffisait ; ce qui n'allait pas, c'est qu'il
+            // restait COLLÉ à zéro (cf. `joursSuivis` au point d'appel : il se
+            // déduisait de `jours_actifs`, table vide, donc maturité nulle).
+            // Ne pas réintroduire la surface : le défaut n'était pas la forme
+            // du repère, c'était sa POSITION.
             final barre = ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(

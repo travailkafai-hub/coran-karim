@@ -667,6 +667,12 @@
   "@duasSearchHint": {
     "description": "Placeholder du champ de recherche des invocations"
   },
+  "duasRadiosTitre": "Écoute continue",
+  "duasRadioMatin": "Invocations du matin",
+  "duasRadioSoir": "Invocations du soir",
+  "duasRadioRoqya": "Roqya",
+  "duasRadioSousTitre": "Diffusion continue — nécessite une connexion",
+  "duasRadioErreur": "Lecture impossible. Vérifiez votre connexion.",
   "duasExplore": "Explorer",
   "@duasExplore": {
     "description": "Titre de section : parcourir les univers d'invocations"
@@ -750,8 +756,12 @@
   "@duaSequenceProgress": {
     "description": "Position dans la lecture enchaînée des invocations",
     "placeholders": {
-      "index": { "type": "int" },
-      "total": { "type": "int" }
+      "index": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "duaSequenceStop": "Arrêter la lecture",
@@ -1999,6 +2009,8 @@
   "@karaokePausedHint": {
     "description": "Indication en bas d'écran quand la capture est en pause manuelle"
   },
+  "karaokeEcouteEnCours": "Je t’écoute… continue",
+  "karaokeEcouteBientot": "Les couleurs arrivent après les premiers mots",
   "karaokeListeningHint": "À l'écoute — touche le cercle pour t'arrêter",
   "@karaokeListeningHint": {
     "description": "Indication en bas d'écran pendant l'écoute active"
@@ -2254,7 +2266,6 @@
   "readingSettingsUnlimited": "illimité",
   "readingSettingsLoopSection": "RÉPÉTITION ET BOUCLES",
   "readingSettingsLoopDescription": "Exemple : 3 versets répétés 3 fois, et la sourate entière reprise 3 fois.",
-
   "aboutTitle": "À propos",
   "@aboutTitle": {
     "description": "Titre de l'écran À propos"
@@ -2529,7 +2540,6 @@
   "@coachMoveToControl": {
     "description": "Bouton de l'etape Entraine vers Controle"
   },
-
   "coachObjectifTitle": "MON OBJECTIF",
   "@coachObjectifTitle": {
     "description": "Titre de la section objectif/série du Coach"
@@ -2537,12 +2547,23 @@
   "coachObjectifStreak": "{count, plural, =0{Aucune série en cours} =1{1 jour de suite} other{{count} jours de suite}}",
   "@coachObjectifStreak": {
     "description": "Série de jours consécutifs où l'objectif a été atteint",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "coachObjectifWeekProgress": "Cette semaine : {faits} sur {total} quart(s)",
   "@coachObjectifWeekProgress": {
     "description": "Progression de la semaine en quarts de Hizb",
-    "placeholders": { "faits": { "type": "int" }, "total": { "type": "String" } }
+    "placeholders": {
+      "faits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
   },
   "coachObjectifEmptyTitle": "Aucun objectif fixé",
   "@coachObjectifEmptyTitle": {
@@ -2563,17 +2584,40 @@
   "coachObjectifQuartsLabel": "{count, plural, =0{Aucun quart} =1{1 quart de Hizb} other{{count} quarts de Hizb}}",
   "@coachObjectifQuartsLabel": {
     "description": "Nombre de quarts de Hizb visés, dans le réglage de l'objectif",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "coachObjectifResteAnneesMois": "{annees, plural, =1{Il reste 1 an} other{Il reste {annees} ans}}{mois, plural, =0{} =1{ et 1 mois} other{ et {mois} mois}}",
   "@coachObjectifResteAnneesMois": {
     "description": "Décompte de l'échéance datée (2026-08-14) : sans lui, dater l'objectif ne se verrait nulle part",
-    "placeholders": { "annees": { "type": "int" }, "mois": { "type": "int" } }
+    "placeholders": {
+      "annees": {
+        "type": "int"
+      },
+      "mois": {
+        "type": "int"
+      }
+    }
   },
   "coachObjectifResteMois": "{count, plural, =1{Il reste 1 mois} other{Il reste {count} mois}}",
-  "@coachObjectifResteMois": { "placeholders": { "count": { "type": "int" } } },
+  "@coachObjectifResteMois": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "coachObjectifResteJours": "{count, plural, =1{Il reste 1 jour} other{Il reste {count} jours}}",
-  "@coachObjectifResteJours": { "placeholders": { "count": { "type": "int" } } },
+  "@coachObjectifResteJours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "coachObjectifEcheanceDepassee": "Échéance atteinte — tu peux te redonner du temps",
   "@coachObjectifEcheanceDepassee": {
     "description": "Jamais un reproche (PLAN_COACH.md §2) : on propose d'allonger, on ne punit pas"
@@ -2581,12 +2625,20 @@
   "coachObjectifAnneesLabel": "{count, plural, =1{Tout le Coran en 1 an} other{Tout le Coran en {count} ans}}",
   "@coachObjectifAnneesLabel": {
     "description": "L'objectif en toutes lettres : mémoriser tout le Coran en N années (refonte 2026-08-14)",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "coachObjectifAnneesCourt": "{count, plural, =1{1 an} other{{count} ans}}",
   "@coachObjectifAnneesCourt": {
     "description": "Durée seule, pour l'étiquette du curseur de la feuille de réglage",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "coachObjectifSheetDureeTitle": "En combien de temps ?",
   "@coachObjectifSheetDureeTitle": {
@@ -2599,14 +2651,22 @@
   "coachObjectifResteLabel": "{count, plural, =0{Tout le Coran est acquis} =1{Il te reste 1 quart de Hizb sur 240} other{Il te reste {count} quarts de Hizb sur 240}}",
   "@coachObjectifResteLabel": {
     "description": "Ce qui reste à mémoriser -- la base sur laquelle le rythme est calculé",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "coachObjectifRythmeDetail": "soit ≈ {parJour} par jour et ≈ {parSemaine} par semaine, en quarts de Hizb",
   "@coachObjectifRythmeDetail": {
     "description": "Rythme dérivé de l'échéance, sur les deux horizons courts (le mois est déjà la barre de progression)",
     "placeholders": {
-      "parJour": { "type": "String" },
-      "parSemaine": { "type": "String" }
+      "parJour": {
+        "type": "String"
+      },
+      "parSemaine": {
+        "type": "String"
+      }
     }
   },
   "coachObjectifPeriodeCeMois": "ce mois-ci",
@@ -2638,18 +2698,30 @@
     "description": "État du rythme : moins de 70 % de l'attendu (brique) -- jamais un reproche, une indication"
   },
   "coachObjectifPeriodeJour": "par jour",
-  "@coachObjectifPeriodeJour": { "description": "Période de l'objectif : jour" },
+  "@coachObjectifPeriodeJour": {
+    "description": "Période de l'objectif : jour"
+  },
   "coachObjectifPeriodeSemaine": "par semaine",
-  "@coachObjectifPeriodeSemaine": { "description": "Période de l'objectif : semaine" },
+  "@coachObjectifPeriodeSemaine": {
+    "description": "Période de l'objectif : semaine"
+  },
   "coachObjectifPeriodeMois": "par mois",
-  "@coachObjectifPeriodeMois": { "description": "Période de l'objectif : mois" },
+  "@coachObjectifPeriodeMois": {
+    "description": "Période de l'objectif : mois"
+  },
   "coachObjectifPeriodProgress": "{total, plural, =1{{faits} sur 1 quart — {periode}} other{{faits} sur {total} quarts — {periode}}}",
   "@coachObjectifPeriodProgress": {
     "description": "Progression vers l'objectif, sur sa propre période (jour/semaine/mois) -- jamais convertie en semaine, pour ne jamais afficher un chiffre fractionnaire comme '0,2 quart'",
     "placeholders": {
-      "faits": { "type": "int" },
-      "total": { "type": "int" },
-      "periode": { "type": "String" }
+      "faits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "periode": {
+        "type": "String"
+      }
     }
   },
   "coachObjectifMiniEvolutionCaption": "7 derniers jours",
@@ -2661,46 +2733,80 @@
     "description": "Repère \"aujourd'hui\" sous la dernière barre du mini graphique"
   },
   "karaokePhraseFinTitle": "Phrase de fin de sourate",
-  "@karaokePhraseFinTitle": { "description": "Interrupteur : attendre صدق الله العظيم apres la sourate" },
+  "@karaokePhraseFinTitle": {
+    "description": "Interrupteur : attendre صدق الله العظيم apres la sourate"
+  },
   "karaokePhraseFinSubtitle": "Attendre « صدق الله العظيم » après le dernier verset — aide l'app à juger le dernier mot",
-  "@karaokePhraseFinSubtitle": { "description": "Sous-titre de l'interrupteur de phrase de fin" },
+  "@karaokePhraseFinSubtitle": {
+    "description": "Sous-titre de l'interrupteur de phrase de fin"
+  },
   "coachDashTodayLabel": "Aujourd'hui",
-  "@coachDashTodayLabel": { "description": "Titre de la tuile \"objectif du jour\" du tableau de bord" },
+  "@coachDashTodayLabel": {
+    "description": "Titre de la tuile \"objectif du jour\" du tableau de bord"
+  },
   "coachDashTodayDone": "Atteint",
-  "@coachDashTodayDone": { "description": "Objectif quotidien atteint" },
+  "@coachDashTodayDone": {
+    "description": "Objectif quotidien atteint"
+  },
   "coachDashTodayPending": "En cours",
-  "@coachDashTodayPending": { "description": "Objectif quotidien pas encore atteint" },
+  "@coachDashTodayPending": {
+    "description": "Objectif quotidien pas encore atteint"
+  },
   "coachDashStreakLabel": "Série",
-  "@coachDashStreakLabel": { "description": "Titre de la tuile série du tableau de bord" },
+  "@coachDashStreakLabel": {
+    "description": "Titre de la tuile série du tableau de bord"
+  },
   "coachDashStreakValue": "{count, plural, =0{Aucune} =1{1 jour} other{{count} jours}}",
   "@coachDashStreakValue": {
     "description": "Valeur compacte de la série, dans la tuile du tableau de bord",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "coachDashPointsLabel": "Points",
-  "@coachDashPointsLabel": { "description": "Titre de la tuile points (récompense d'effort) du tableau de bord" },
+  "@coachDashPointsLabel": {
+    "description": "Titre de la tuile points (récompense d'effort) du tableau de bord"
+  },
   "coachDashProgressTitle": "Progression — {periode}",
   "@coachDashProgressTitle": {
     "description": "Titre du bloc de progression vers l'objectif, sur sa propre période",
-    "placeholders": { "periode": { "type": "String" } }
+    "placeholders": {
+      "periode": {
+        "type": "String"
+      }
+    }
   },
   "coachDashProgressRemaining": "{count, plural, =0{Objectif atteint} =1{Encore 1 quart} other{Encore {count} quarts}}",
   "@coachDashProgressRemaining": {
     "description": "Ce qu'il reste à faire pour boucler l'objectif de la période",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "coachNiveauTitle": "Accompagnement",
   "@coachNiveauTitle": {
     "description": "Titre du choix de niveau d'accompagnement (fréquence des rappels)"
   },
   "coachNiveauAMonRythme": "À mon rythme",
-  "@coachNiveauAMonRythme": { "description": "Niveau d'accompagnement : aucun rappel" },
+  "@coachNiveauAMonRythme": {
+    "description": "Niveau d'accompagnement : aucun rappel"
+  },
   "coachNiveauRegulier": "Régulier",
-  "@coachNiveauRegulier": { "description": "Niveau d'accompagnement : un rappel par jour" },
+  "@coachNiveauRegulier": {
+    "description": "Niveau d'accompagnement : un rappel par jour"
+  },
   "coachNiveauExigeant": "Exigeant",
-  "@coachNiveauExigeant": { "description": "Niveau d'accompagnement : relances multiples" },
+  "@coachNiveauExigeant": {
+    "description": "Niveau d'accompagnement : relances multiples"
+  },
   "coachObjectifValider": "Valider",
-  "@coachObjectifValider": { "description": "Bouton de confirmation de la feuille d'objectif" },
+  "@coachObjectifValider": {
+    "description": "Bouton de confirmation de la feuille d'objectif"
+  },
   "coachPortionsTitle": "MÉMORISATION PAR SOURATE",
   "@coachPortionsTitle": {
     "description": "En-tête de la section suivi permanent par sourate/Hizb dans le Coach"
@@ -2842,5 +2948,21 @@
   "coachPortionContestedBadge": "Contesté",
   "@coachPortionContestedBadge": {
     "description": "Badge sur un mot d'historique marqué contesté par l'utilisateur"
+  },
+  "coachTogglePassageAutoTitre": "Passage automatique",
+  "@coachTogglePassageAutoTitre": {
+    "description": "Titre de la bascule : passer seul au verset suivant apres un controle reussi"
+  },
+  "coachTogglePassageAutoDetail": "Une fois le contrôle réussi, l'entraînement du verset suivant démarre seul.",
+  "@coachTogglePassageAutoDetail": {
+    "description": "Explication de la bascule de passage automatique"
+  },
+  "coachToggleCumulTitre": "Contrôle cumulatif",
+  "@coachToggleCumulTitre": {
+    "description": "Titre de la bascule : le controle porte sur tout le cumul de la session"
+  },
+  "coachToggleCumulDetail": "Le contrôle porte sur tous les versets appris depuis le début de la session.",
+  "@coachToggleCumulDetail": {
+    "description": "Explication de la bascule de controle cumulatif"
   }
 }

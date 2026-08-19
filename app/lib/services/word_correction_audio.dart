@@ -68,6 +68,31 @@ class WordCorrectionAudio {
   /// doivent jamais jouer en parallèle (un seul haut-parleur, et surtout un
   /// seul jeu d'abonnements — piège déjà payé le 2026-07-16 entre correction
   /// automatique et souffleur).
+  /// Combien de temps au plus attendre la fin d'une lecture de [dureeMs].
+  ///
+  /// ── LE PLAFOND FIXE DE 15 s COUPAIT LES PALIERS (2026-08-18) ─────────────
+  /// Les trois points de lecture bornaient l'attente à 15 s en dur. C'était
+  /// juste tant que ce fichier ne servait qu'à faire réentendre UN mot
+  /// (~2 s). Le coach « mémorisation par palier » rejoue, lui, toute la
+  /// fenêtre CUMULATIVE depuis le premier mot du verset -- elle dépasse 15 s
+  /// dès le deuxième palier.
+  ///
+  /// Mesuré sur 4:1 (An-Nisâ), récitateur Al-Afasy :
+  ///     P1  6,6 s demandés -> 6,6 s joués
+  ///     P2 17,1 s demandés -> 15 s   (coupé)
+  ///     P3 26,5 s demandés -> 15 s   (coupé)
+  ///     P4 36,0 s demandés -> 15 s   (coupé)
+  /// À partir de P2, TOUS les paliers faisaient donc entendre exactement les
+  /// mêmes 15 premières secondes -- constat utilisateur : « P3 c'est pareil
+  /// que P2, on dirait P2 rejoué », « ça ne dit pas jusqu'à نِسَآءً ». La coupe
+  /// tombait au milieu de `وَٰحِدَةٍ` (mot 8), très loin du mot 16.
+  ///
+  /// Le garde-fou reste nécessaire (lecteur bloqué, fichier corrompu) : il
+  /// devient simplement PROPORTIONNEL, avec une marge pour l'ouverture du
+  /// fichier et le positionnement, et un plancher pour les extraits courts.
+  static Duration _plafondLecture(int dureeMs) => Duration(
+      milliseconds: dureeMs <= 0 ? 15000 : (dureeMs + 5000).clamp(15000, 180000));
+
   static Future<void> playFile(String path) async {
     DiagnosticLog.log('Voix', 'lecture extrait : $path');
     await _player.stop();
@@ -85,7 +110,10 @@ class WordCorrectionAudio {
     });
   }
 
-  static Future<void> playWordRange(
+  /// Rend `true` si un extrait a REELLEMENT ete joue (2026-08-18) : les
+  /// abandons (minutage absent, index hors bornes, reseau) etaient muets, et
+  /// le palier enchainait alors sans faire entendre le recitateur.
+  static Future<bool> playWordRange(
     Verse verse,
     Reciter reciter, {
     required int errorWordIndex,
@@ -109,12 +137,16 @@ class WordCorrectionAudio {
     // alignement à la demande sur l'appareil (qui toucherait `ForcedAligner.kt`
     // et la chaîne ASR -- hors périmètre validé aujourd'hui).
     if (Mp3QuranApi.sertCeReciter(reciter.id)) {
-      await _playWordRangeMp3Quran(verse, reciter,
+      // Le RÉSULTAT du chemin MP3Quran est celui de cette méthode -- il a été
+      // perdu une fois (2026-08-18) en transformant en bloc les `return;` de
+      // ce fichier : la lecture réussissait, `false` remontait quand même, le
+      // palier retentait et l'utilisateur entendait l'audio DEUX FOIS avant
+      // de lire « ABSENT » au journal. Une délégation rend ce qu'elle délègue.
+      return _playWordRangeMp3Quran(verse, reciter,
           errorWordIndex: errorWordIndex,
           facteurDuree: facteurDuree,
           wordsBefore: wordsBefore,
           wordsAfter: wordsAfter);
-      return;
     }
     final segKey = '${reciter.id}:${verse.key}';
     // ── AUDIO TÉLÉCHARGÉ D'ABORD (2026-08-01) ─────────────────────────────
@@ -143,7 +175,7 @@ class WordCorrectionAudio {
             'ABANDON verset=${verse.key} : aucun fichier local ET aucune URL '
             '(réseau indisponible ou récitateur ${reciter.id} sans audio) '
             '-> pas de correction audible');
-        return;
+        return false;
       }
     }
 
@@ -160,7 +192,7 @@ class WordCorrectionAudio {
       DiagnosticLog.log('Correction-Audio',
           'ABANDON verset=${verse.key} : timings mot-à-mot indisponibles '
           '(récitateur ${reciter.id}) -> pas de correction audible');
-      return;
+      return false;
     }
 
     final fromIdx =
@@ -201,7 +233,27 @@ class WordCorrectionAudio {
       if (!completer.isCompleted) completer.complete();
     }
 
+    // ── IGNORER LA POSITION PÉRIMÉE DU LECTEUR (2026-08-18) ──────────────
+    //
+    // DÉFAUT MESURÉ, rendu visible par le traçage ajouté le même jour :
+    //     joue verset=4:1 mots=0..23 demande=37040 ms reel=2 ms
+    // Le rejeu après échec ne faisait entendre STRICTEMENT RIEN.
+    //
+    // `audioplayers` continue d'émettre la DERNIÈRE position connue (ici
+    // ~50520 ms, là où la lecture précédente s'était arrêtée) pendant le
+    // court instant où le repositionnement n'a pas encore pris effet. Le test
+    // `pos >= endMs` était donc vrai immédiatement, et la lecture se coupait
+    // avant d'avoir commencé.
+    //
+    // `amorce` n'autorise le test de fin qu'une fois qu'une position est
+    // réellement tombée DANS la fenêtre demandée -- c'est-à-dire une fois que
+    // le repositionnement a été observé, pas supposé.
+    var amorce = false;
     posSub = _player.onPositionChanged.listen((pos) {
+      if (!amorce) {
+        if (pos.inMilliseconds < endMs) amorce = true;
+        return;
+      }
       if (pos.inMilliseconds >= endMs) {
         _player.pause();
         finish();
@@ -209,14 +261,29 @@ class WordCorrectionAudio {
     });
     doneSub = _player.onPlayerComplete.listen((_) => finish());
 
+    final depart = DateTime.now();
+    // `stop()` d'abord : remet la position du lecteur à zéro pour qu'aucun
+    // événement de l'ancienne lecture ne puisse être pris pour la nouvelle.
+    await _player.stop();
     await _player.play(source, position: Duration(milliseconds: startMs));
     // Garde-fou : si ni la position ni la fin de lecture ne se déclenchent
     // (URL corrompue, lecteur bloqué), ne pas bloquer la reprise indéfiniment.
-    return completer.future.timeout(const Duration(seconds: 15), onTimeout: () {
+    // PROPORTIONNEL depuis le 2026-08-18, cf. `_plafondLecture` -- le plafond
+    // fixe coupait les paliers longs de la mémorisation.
+    await completer.future.timeout(_plafondLecture(endMs - startMs), onTimeout: () {
       posSub.cancel();
       doneSub.cancel();
       _player.pause();
+      DiagnosticLog.log('Correction-Audio',
+          'TRONQUE par le garde-fou : demande=${endMs - startMs} ms '
+          'verset=${verse.key}');
     });
+    final jouees = DateTime.now().difference(depart).inMilliseconds;
+    DiagnosticLog.log('Correction-Audio',
+        'joue verset=${verse.key} demande=${endMs - startMs} ms '
+        'reel=$jouees ms '
+        '${jouees + 400 < endMs - startMs ? "<-- PLUS COURT QUE DEMANDE" : "ok"}');
+    return true;
   }
 
   /// Variante MP3Quran de [playWordRange] : source et minutage 100% locaux.
@@ -232,7 +299,7 @@ class WordCorrectionAudio {
   /// -- l'erreur classique (déjà rencontrée deux fois dans ce chantier, cf.
   /// `PLAN_SORTIE.md` §4 et l'audit du 2026-08-16) est d'utiliser l'un sans
   /// l'autre.
-  static Future<void> _playWordRangeMp3Quran(
+  static Future<bool> _playWordRangeMp3Quran(
     Verse verse,
     Reciter reciter, {
     required int errorWordIndex,
@@ -257,7 +324,7 @@ class WordCorrectionAudio {
           'ABANDON (MP3Quran) verset=${verse.key} : minutage local absent ou '
           'index hors bornes (fromIdx=$fromIdx toIdx=$toIdx '
           'segments=${segments?.length}) -> pas de correction audible');
-      return;
+      return false;
     }
 
     final List<AyahTiming> timing;
@@ -269,7 +336,7 @@ class WordCorrectionAudio {
     } catch (e) {
       DiagnosticLog.log('Correction-Audio',
           'ABANDON (MP3Quran) verset=${verse.key} : $e');
-      return;
+      return false;
     }
     AyahTiming? t;
     for (final e in timing) {
@@ -281,7 +348,7 @@ class WordCorrectionAudio {
     if (t == null) {
       DiagnosticLog.log('Correction-Audio',
           'ABANDON (MP3Quran) verset=${verse.key} : verset absent de ayat_timing');
-      return;
+      return false;
     }
 
     final debutAbsoluVerset = t.startMs;
@@ -306,7 +373,27 @@ class WordCorrectionAudio {
       if (!completer.isCompleted) completer.complete();
     }
 
+    // ── IGNORER LA POSITION PÉRIMÉE DU LECTEUR (2026-08-18) ──────────────
+    //
+    // DÉFAUT MESURÉ, rendu visible par le traçage ajouté le même jour :
+    //     joue verset=4:1 mots=0..23 demande=37040 ms reel=2 ms
+    // Le rejeu après échec ne faisait entendre STRICTEMENT RIEN.
+    //
+    // `audioplayers` continue d'émettre la DERNIÈRE position connue (ici
+    // ~50520 ms, là où la lecture précédente s'était arrêtée) pendant le
+    // court instant où le repositionnement n'a pas encore pris effet. Le test
+    // `pos >= endMs` était donc vrai immédiatement, et la lecture se coupait
+    // avant d'avoir commencé.
+    //
+    // `amorce` n'autorise le test de fin qu'une fois qu'une position est
+    // réellement tombée DANS la fenêtre demandée -- c'est-à-dire une fois que
+    // le repositionnement a été observé, pas supposé.
+    var amorce = false;
     posSub = _player.onPositionChanged.listen((pos) {
+      if (!amorce) {
+        if (pos.inMilliseconds < endMs) amorce = true;
+        return;
+      }
       if (pos.inMilliseconds >= endMs) {
         _player.pause();
         finish();
@@ -314,22 +401,39 @@ class WordCorrectionAudio {
     });
     doneSub = _player.onPlayerComplete.listen((_) => finish());
 
+    final depart = DateTime.now();
+    // `stop()` d'abord, même raison que le chemin quran.com ci-dessus.
+    await _player.stop();
     await _player.play(DeviceFileSource(path),
         position: Duration(milliseconds: startMs));
     // Même garde-fou que le chemin quran.com : ne jamais bloquer indéfiniment
-    // si ni la position ni la fin de lecture ne se déclenchent.
-    return completer.future.timeout(const Duration(seconds: 15), onTimeout: () {
+    // si ni la position ni la fin de lecture ne se déclenchent. PROPORTIONNEL
+    // depuis le 2026-08-18, cf. `_plafondLecture`.
+    await completer.future.timeout(_plafondLecture(endMs - startMs), onTimeout: () {
       posSub.cancel();
       doneSub.cancel();
       _player.pause();
+      // Une troncature ne doit JAMAIS être silencieuse : c'est elle qui a
+      // fait passer quatre paliers pour le même audio sans laisser de trace.
+      DiagnosticLog.log('Correction-Audio',
+          'TRONQUE par le garde-fou : demande=${endMs - startMs} ms '
+          'verset=${verse.key} mots=$fromIdx..$toIdx');
     });
+    // Ce qui a RÉELLEMENT été joué, à chaque palier et à chaque répétition
+    // (demande utilisateur 2026-08-18 : « fais du traçage de log »).
+    final jouees = DateTime.now().difference(depart).inMilliseconds;
+    DiagnosticLog.log('Correction-Audio',
+        'joue verset=${verse.key} mots=$fromIdx..$toIdx '
+        'demande=${endMs - startMs} ms reel=$jouees ms '
+        '${jouees + 400 < endMs - startMs ? "<-- PLUS COURT QUE DEMANDE" : "ok"}');
+    return true;
   }
 
   /// Joue exactement les mots [startWordIdx]..[endWordIdx] (inclus) --
   /// wrapper de lisibilité au-dessus de [playWordRange] pour le moteur de
   /// répétition incrémentale (fenêtre de mots à apprendre), qui n'a pas de
   /// notion de "mot fautif" mais veut une plage explicite.
-  static Future<void> playWordWindow(
+  static Future<bool> playWordWindow(
     Verse verse,
     Reciter reciter, {
     required int startWordIdx,

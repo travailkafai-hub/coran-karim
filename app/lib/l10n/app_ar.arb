@@ -162,6 +162,12 @@
   "tajwidRuleSlntExplanation": "يُكتب ولا يُنطق.",
   "duasScreenTitle": "الأذكار والأدعية",
   "duasSearchHint": "ابحث عن دعاء أو كلمة أو مصدر…",
+  "duasRadiosTitre": "استماع مستمر",
+  "duasRadioMatin": "أذكار الصباح",
+  "duasRadioSoir": "أذكار المساء",
+  "duasRadioRoqya": "الرقية الشرعية",
+  "duasRadioSousTitre": "بث مباشر — يتطلب اتصالاً بالإنترنت",
+  "duasRadioErreur": "تعذّر التشغيل. تحقق من اتصالك.",
   "duasExplore": "استكشاف",
   "duasMyFavorites": "المفضلة",
   "duasNow": "الآن",
@@ -516,6 +522,8 @@
   "karaokeNothingHeardYet": "لم يُسمع شيء بعد.",
   "karaokeFinalizing": "الإنهاء جارٍ…",
   "karaokePausedHint": "متوقف مؤقتًا — المس ⏸ للاستئناف",
+  "karaokeEcouteEnCours": "أسمعك… واصل",
+  "karaokeEcouteBientot": "ستظهر الألوان بعد الكلمات الأولى",
   "karaokeListeningHint": "الاستماع جارٍ — المس الدائرة للتوقف",
   "karaokeFinishedHint": "المس الشاشة لإعادة البدء",
   "karaokeReferenceStartHint": "المس الشاشة لتسجيل تلاوتك المرجعية",
@@ -591,7 +599,6 @@
   "readingSettingsUnlimited": "بلا حد",
   "readingSettingsLoopSection": "التكرار والحلقات",
   "readingSettingsLoopDescription": "مثال: 3 آيات تُكرَّر 3 مرات، والسورة كاملة تُعاد 3 مرات.",
-
   "aboutTitle": "حول التطبيق",
   "aboutTagline": "تلاوة القرآن، مع التحقق داخل جهازك.",
   "aboutVersionLine": "الإصدار {version} (بناء {build})",
@@ -658,7 +665,6 @@
   "coachTrainListening": "أستمع إليك...",
   "coachTrainDone": "انتهت الجولة",
   "coachMoveToControl": "الانتقال إلى المراقبة",
-
   "coachObjectifTitle": "هدفي",
   "coachObjectifStreak": "{count, plural, =0{لا سلسلة حالياً} =1{يوم واحد متتالٍ} other{{count} أيام متتالية}}",
   "coachObjectifWeekProgress": "هذا الأسبوع: {faits} من {total} ربع/أرباع",
@@ -668,11 +674,32 @@
   "coachObjectifSheetTitle": "هدف الحفظ",
   "coachObjectifQuartsLabel": "{count, plural, =0{لا أرباع} =1{ربع حزب واحد} other{{count} أرباع حزب}}",
   "coachObjectifResteAnneesMois": "{annees, plural, =1{بقيت سنة واحدة} other{بقيت {annees} سنوات}}{mois, plural, =0{} =1{ وشهر واحد} other{ و{mois} أشهر}}",
-  "@coachObjectifResteAnneesMois": { "placeholders": { "annees": { "type": "int" }, "mois": { "type": "int" } } },
+  "@coachObjectifResteAnneesMois": {
+    "placeholders": {
+      "annees": {
+        "type": "int"
+      },
+      "mois": {
+        "type": "int"
+      }
+    }
+  },
   "coachObjectifResteMois": "{count, plural, =1{بقي شهر واحد} other{بقي {count} أشهر}}",
-  "@coachObjectifResteMois": { "placeholders": { "count": { "type": "int" } } },
+  "@coachObjectifResteMois": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "coachObjectifResteJours": "{count, plural, =1{بقي يوم واحد} other{بقي {count} أيام}}",
-  "@coachObjectifResteJours": { "placeholders": { "count": { "type": "int" } } },
+  "@coachObjectifResteJours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "coachObjectifEcheanceDepassee": "انتهى الأجل — يمكنك منح نفسك وقتًا إضافيًا",
   "coachObjectifAnneesLabel": "{count, plural, =1{القرآن كاملاً في سنة واحدة} =2{القرآن كاملاً في سنتين} other{القرآن كاملاً في {count} سنوات}}",
   "coachObjectifAnneesCourt": "{count, plural, =1{سنة واحدة} =2{سنتان} other{{count} سنوات}}",
@@ -739,5 +766,9 @@
   "coachWordUnavailable": "الآية غير متاحة",
   "coachPortionHistorySection": "أُخطئت سابقًا، مُتقَنة الآن",
   "coachPortionCorrectedBadge": "صُحّحت",
-  "coachPortionContestedBadge": "معترَض عليها"
+  "coachPortionContestedBadge": "معترَض عليها",
+  "coachTogglePassageAutoTitre": "الانتقال التلقائي",
+  "coachTogglePassageAutoDetail": "عند نجاح الاختبار يبدأ تدريب الآية التالية من تلقاء نفسه.",
+  "coachToggleCumulTitre": "اختبار تراكمي",
+  "coachToggleCumulDetail": "يشمل الاختبار كل الآيات المحفوظة منذ بداية الجلسة."
 }

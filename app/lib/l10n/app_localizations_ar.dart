@@ -579,6 +579,24 @@ class AppLocalizationsAr extends AppLocalizations {
   String get duasSearchHint => 'ابحث عن دعاء أو كلمة أو مصدر…';
 
   @override
+  String get duasRadiosTitre => 'استماع مستمر';
+
+  @override
+  String get duasRadioMatin => 'أذكار الصباح';
+
+  @override
+  String get duasRadioSoir => 'أذكار المساء';
+
+  @override
+  String get duasRadioRoqya => 'الرقية الشرعية';
+
+  @override
+  String get duasRadioSousTitre => 'بث مباشر — يتطلب اتصالاً بالإنترنت';
+
+  @override
+  String get duasRadioErreur => 'تعذّر التشغيل. تحقق من اتصالك.';
+
+  @override
   String get duasExplore => 'استكشاف';
 
   @override
@@ -1522,6 +1540,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get karaokePausedHint => 'متوقف مؤقتًا — المس ⏸ للاستئناف';
 
   @override
+  String get karaokeEcouteEnCours => 'أسمعك… واصل';
+
+  @override
+  String get karaokeEcouteBientot => 'ستظهر الألوان بعد الكلمات الأولى';
+
+  @override
   String get karaokeListeningHint => 'الاستماع جارٍ — المس الدائرة للتوقف';
 
   @override
@@ -2271,4 +2295,18 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachPortionContestedBadge => 'معترَض عليها';
+
+  @override
+  String get coachTogglePassageAutoTitre => 'الانتقال التلقائي';
+
+  @override
+  String get coachTogglePassageAutoDetail =>
+      'عند نجاح الاختبار يبدأ تدريب الآية التالية من تلقاء نفسه.';
+
+  @override
+  String get coachToggleCumulTitre => 'اختبار تراكمي';
+
+  @override
+  String get coachToggleCumulDetail =>
+      'يشمل الاختبار كل الآيات المحفوظة منذ بداية الجلسة.';
 }
