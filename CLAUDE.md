@@ -57,7 +57,20 @@ un mécanisme déjà mesuré perdant (`[MORT]`) réintroduit sans cause nouvelle
 **nommée** est un refus bloquant, comme un correctif dont le graphe dit que le
 symptôme naît dans une couche plus haute (palliatif).
 
-Le hook `.claude/hooks/exige-superviseur.py` rend l'obligation réelle en
+⛔ **Le hook `.claude/hooks/exige-superviseur.py` est DÉSACTIVÉ depuis le
+2026-08-18** (demande utilisateur : « enlève ce hook », après « oublie recette
+deux tel »). Son volet BLOQUANT l'était déjà depuis le 2026-08-05 ; le rappel
+après édition l'est maintenant aussi. Les deux entrées de
+`.claude/settings.json` sont neutralisées par le motif `true  # DESACTIVE …`
+qui porte la commande d'origine — réactiver tient au retrait de `true  # `.
+Le script est conservé intact, sauvegarde de la config dans
+`.claude/settings.json.avant-retrait-exige-superviseur-2026-08-18`.
+Ce qui suit décrit donc ce que le hook FAISAIT, et reste vrai le jour où on le
+rebranche — mais plus rien ne l'impose automatiquement aujourd'hui.
+L'obligation d'invoquer `superviseur-recette` (plus haut) reste une règle de
+projet ; elle n'a simplement plus de garde-fou mécanique.
+
+Le hook `.claude/hooks/exige-superviseur.py` rendait l'obligation réelle en
 bloquant le gel de version tant qu'aucune **preuve** ne date d'après la
 modification. Deux natures de preuve depuis le 2026-07-30 :
 - fichier de la chaîne **live** (celle qui peint l'écran) → **recette à deux
