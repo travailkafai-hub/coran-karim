@@ -246,7 +246,7 @@ class FastConformerVerifier {
   // sans preuve acoustique.
   // Le modèle dual-head précédent reste dans son propre dossier sur le PC pour
   // un rollback sans réexport.
-  static const _kModelSubdir = 'models/trois-tetes-2026-08-04-combine';
+  static const _kModelSubdir = 'models/quatre-tetes-2026-08-21';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // TETE 3 (ecart canonique), OPTIONNELLE -- cf. Tete3.kt : en observation

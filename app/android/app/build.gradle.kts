@@ -128,7 +128,23 @@ kotlin {
 
 dependencies {
     // Inference du modele FastConformer CTC (Quran ASR) en parallele de whisper.cpp
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    //
+    // 1.20.0 -> 1.26.0 le 2026-08-21, pour une raison PRECISE et mesuree.
+    // Le modele 4 tetes INT8 est quantifie avec des poids INT8, ce qui produit
+    // des noeuds ConvInteger a poids signes. Le noyau CPU de ConvInteger
+    // n etait enregistre qu en UINT8 jusqu a une version posterieure a 1.20 :
+    //     ORT_NOT_IMPLEMENTED - Could not find an implementation for
+    //     ConvInteger(10) node with name node_conv2d_quant
+    // Constate a l ecran, modele pourtant trouve et lu. Verifie en local :
+    // le MEME fichier tourne sans erreur sous onnxruntime 1.26.0 et rend ses
+    // quatre sorties finies. Les 205 MatMulInteger passaient deja en 1.20 --
+    // seuls les 61 Conv bloquaient.
+    //
+    // L autre voie etait de reecrire les poids INT8 en UINT8 (exact : ajouter
+    // 128 au poids ET a son point zero laisse (w - w_zp) inchange). Ecartee :
+    // 61 tenseurs a retoucher pour eviter une montee de version qui apporte
+    // aussi les correctifs des six versions intermediaires.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.26.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20180813")

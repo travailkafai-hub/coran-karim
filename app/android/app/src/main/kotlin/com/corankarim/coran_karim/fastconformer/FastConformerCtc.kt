@@ -127,17 +127,39 @@ class FastConformerCtc(
      *  ramenent l'ecart a +28%/+38% -- gain net, verifie hors de sa fenetre de
      *  calibrage donc pas un simple surapprentissage local. */
     private val tajwidSeuilsLog: FloatArray = FloatArray(tajwidNames.size) { Math.log(0.5).toFloat() }.also { arr ->
-        val seuils = seuilsPath?.let { path ->
+        // ── DEUX FORMES DE FICHIER, ET C EST VOULU (2026-08-21) ──────────
+        //
+        // ANCIENNE (modele 3 tetes) : {"seuils": {"nom": 0.87, ...}}
+        // NOUVELLE (modele 4 tetes) : {"regles": {"nom": {"seuil": 0.9,
+        //                              "rappel": 87.9, "invention": 42.4,
+        //                              "n_verif": 340}, ...}}
+        //
+        // On lit les DEUX plutot que de convertir le fichier livre : la forme
+        // nouvelle porte, a cote de chaque seuil, le rappel et le taux
+        // d invention MESURES qui l ont fixe. Aplatir le fichier pour coller a
+        // l ancien format jetterait ces chiffres -- et c est exactement ce qui
+        // rend un seuil discutable plus tard : savoir ce qu il coute.
+        //
+        // Lire les deux permet aussi de revenir a l ancien modele sans
+        // toucher au code, ce que la regle projet exige (aucune piste
+        // eliminee tant que le retour arriere est possible).
+        val racine = seuilsPath?.let { path ->
             try {
-                JSONObject(File(path).readText(Charsets.UTF_8)).optJSONObject("seuils")
+                JSONObject(File(path).readText(Charsets.UTF_8))
             } catch (e: Exception) {
                 null
             }
         }
-        if (seuils != null) {
-            tajwidNames.forEachIndexed { i, nom ->
-                if (seuils.has(nom)) arr[i] = Math.log(seuils.getDouble(nom)).toFloat()
+        val plats = racine?.optJSONObject("seuils")
+        val riches = racine?.optJSONObject("regles")
+        tajwidNames.forEachIndexed { i, nom ->
+            val v = when {
+                plats != null && plats.has(nom) -> plats.optDouble(nom, 0.5)
+                riches != null && riches.has(nom) ->
+                    riches.optJSONObject(nom)?.optDouble("seuil", 0.5) ?: 0.5
+                else -> Double.NaN
             }
+            if (!v.isNaN() && v > 0.0) arr[i] = Math.log(v).toFloat()
         }
     }
     /**
@@ -246,8 +268,38 @@ class FastConformerCtc(
             var debut = -1
             var probMax = 0f
             val seuilLog = if (c < tajwidSeuilsLog.size) tajwidSeuilsLog[c] else Math.log(0.5).toFloat()
+            // ── LES MADD SE DECIDENT PAR COMPARAISON (2026-08-21) ─────────
+            //
+            // `madd_long` et `madd_court` ne se seuillent PAS separement :
+            // le plus grand des deux gagne, trame par trame. Ce sont deux
+            // reponses a la MEME question (combien de temps la voyelle
+            // tient-elle ?), pas deux phenomenes independants comme le sont
+            // une ghunnah et une qalqala.
+            //
+            // MESURE fournie avec le modele : un madd court prononce la ou un
+            // long est attendu sort `madd_long` a 0,538 ET `madd_court`
+            // a 0,952. Les seuiller separement les fait donc passer TOUS LES
+            // DEUX -- et `madd_long` seul affiche 42,4 % d invention, le pire
+            // de toutes les classes. La tete sait ; elle hesite seulement a
+            // trancher, et c est a nous de trancher pour elle.
+            //
+            // `rivalMadd` vaut -1 hors des deux classes de madd : la boucle
+            // se comporte alors exactement comme avant, pour toutes les
+            // autres regles et pour l ancien modele a 19 classes (dont les
+            // noms de madd sont differents, donc jamais apparies ici).
+            val rivalMadd = when (tajwidNames.getOrNull(c)) {
+                "madd_long" -> tajwidNames.indexOf("madd_court")
+                "madd_court" -> tajwidNames.indexOf("madd_long")
+                else -> -1
+            }
             for (t in tajwid.indices) {
-                val actif = tajwid[t][c] >= seuilLog
+                // Perdant de la comparaison : cette trame ne compte pas pour
+                // cette classe. On n interrompt pas le span pour autant --
+                // c est le `else if (debut >= 0)` ci-dessous qui le clot,
+                // exactement comme un passage sous le seuil.
+                val gagneLeDuel =
+                    rivalMadd < 0 || tajwid[t][c] >= tajwid[t][rivalMadd]
+                val actif = gagneLeDuel && tajwid[t][c] >= seuilLog
                 if (actif) {
                     if (debut < 0) { debut = t; probMax = 0f }
                     val p = Math.exp(tajwid[t][c].toDouble()).toFloat()
