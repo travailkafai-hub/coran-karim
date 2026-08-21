@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/objectif_coach.dart';
 import '../models/verse.dart';
 import '../providers/memorization_game_records_provider.dart';
 import '../providers/mind_map_provider.dart';
@@ -11,6 +12,8 @@ import '../services/recitation_error_log_service.dart';
 import '../services/session_archive_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tajwid_help_sheet.dart';
+import '../models/recitation_state.dart' show WordStatus;
+import 'karaoke_recitation_screen.dart';
 import 'mind_map_screen.dart';
 
 /// LE COACH REGARDE EN ARRIÈRE (2026-08-06).
@@ -50,6 +53,19 @@ final surahNamesProvider = FutureProvider<Map<int, String>>((ref) async {
   return {for (final s in surahs) s.number: s.nameSimple};
 });
 
+/// Les 114 sourates, pour que « Mes portions » montre AUSSI celles qu'on n'a
+/// jamais récitées (demande utilisateur 2026-08-15 : « rajoute toutes les
+/// sourates même si elles ne sont jamais récitées, sans taux, en gris car
+/// jamais récité, avec un moyen de lancer la récitation »).
+///
+/// POURQUOI ÇA COMPTE : la liste ne montrait que ce qui existe déjà en base,
+/// donc le Coach ne parlait que du passé. Ce qui RESTE à faire — l'essentiel
+/// d'un objectif « tout le Coran » — n'était visible nulle part, et il fallait
+/// passer par le Mushaf pour attaquer une sourate neuve. Source déjà locale et
+/// mise en cache (`QuranApi.fetchSurahs`), aucun appel réseau.
+final toutesLesSouratesProvider =
+    FutureProvider<List<Surah>>((ref) => QuranApi.fetchSurahs());
+
 final tailleArchiveProvider =
     FutureProvider<int>((ref) => SessionArchiveService.instance.octetsAudio());
 
@@ -66,12 +82,129 @@ final tailleArchiveProvider =
 //
 // Coexiste avec `sessionsArchiveProvider`, ne le remplace pas : la session
 // datée garde son rôle (voix du jour, suppression au geste, budget 7 jours).
+// ── LE JOURNAL DES JOURS (Coach, 2026-08-13) ────────────────────────────────
+// Cf. `PLAN_COACH.md` et la doc de `_creerTableJours` -- la seule mémoire du
+// Coach qui survive au-delà des 7 jours de `sessions`.
+final derniersJoursProvider = FutureProvider<List<JourActif>>(
+    (ref) => SessionArchiveService.instance.derniersJours(n: 60));
+
+final serieProvider = FutureProvider<int>(
+    (ref) => SessionArchiveService.instance.serieEnCours());
+
 final portionsProvider = FutureProvider<List<PortionResume>>(
     (ref) => SessionArchiveService.instance.portions());
+
+/// Quarts de Hizb déjà acquis sur tout le Coran (0 à 240), en fraction.
+///
+/// C'est la BASE DE CALCUL de l'objectif depuis le 2026-08-14 : l'échéance en
+/// années porte sur ce qu'il RESTE à mémoriser (cf. `ObjectifCoach.rythmePour`).
+/// Volontairement un provider séparé de [portionsProvider] : celui-ci est
+/// plafonné à 60 portions pour l'affichage, alors que le compte doit porter
+/// sur TOUT ce qui a été acquis, sans limite ni doublon (cf.
+/// `SessionArchiveService.motsAcquisTousCoran`).
+final quartsAcquisProvider = FutureProvider<double>((ref) async {
+  final mots = await SessionArchiveService.instance.motsAcquisTousCoran();
+  return (mots / ObjectifCoach.motsParQuart)
+      .clamp(0.0, ObjectifCoach.quartsDuCoran.toDouble());
+});
+
+/// Quarts acquis sur les 30 derniers jours — l'AVANCEMENT du mois.
+///
+/// ── POURQUOI CE PROVIDER EXISTE (2026-08-14, second correctif du jour) ──────
+///
+/// La barre de progression sommait des FRACTIONS DE PORTION, plafonnées à 1
+/// par portion. Une portion « sourate entière » courte y valait donc un quart
+/// PLEIN : Al-Kawthar (10 mots) comptait autant qu'un vrai quart de Hizb
+/// (~322 mots). Mesuré sur le téléphone de l'utilisateur : la barre comptait
+/// **12,37 quarts** pour 272 mots réellement acquis, qui en valent **0,84**.
+/// La carte affichait « 100 % ce mois-ci » juste sous « il te reste 239 quarts
+/// sur 240 » -- deux chiffres qui se contredisent à l'écran.
+///
+/// Même unité que [quartsAcquisProvider], donc : des mots acquis DISTINCTS
+/// divisés par la moyenne du Coran. Les deux nombres de la carte ne peuvent
+/// plus diverger, puisqu'ils sortent de la même requête.
+///
+/// ⛔ Ne pas réintroduire de plancher sur `jours_actifs.quarts_valides` : ce
+/// compteur s'incrémente sur `PortionResume.badge` (portion complète), donc il
+/// porte EXACTEMENT le même biais -- treize sourates courtes terminées y
+/// valaient douze quarts.
+final quartsAcquisDuMoisProvider = FutureProvider<double>((ref) async {
+  final mots = await SessionArchiveService.instance.motsAcquisTousCoran(
+      depuis: DateTime.now().subtract(const Duration(days: 30)));
+  return (mots / ObjectifCoach.motsParQuart)
+      .clamp(0.0, ObjectifCoach.quartsDuCoran.toDouble());
+});
+
+/// Quarts acquis sur les 365 derniers jours — la progression de l'ANNÉE.
+///
+/// Demande utilisateur 2026-08-14 : « il manque une progression annuelle et
+/// une pour le Coran entier ». Trois horizons, trois questions différentes :
+/// le mois dit « est-ce que je tiens mon rythme en ce moment », l'année « est-
+/// ce que l'engagement tient dans la durée », le Coran entier « où j'en suis,
+/// tout court ». Fenêtre GLISSANTE comme le mois (et non l'année civile) :
+/// sinon, chaque 1er janvier, une progression durement acquise retomberait à
+/// zéro du jour au lendemain.
+final quartsAcquisDeLAnneeProvider = FutureProvider<double>((ref) async {
+  final mots = await SessionArchiveService.instance.motsAcquisTousCoran(
+      depuis: DateTime.now().subtract(const Duration(days: 365)));
+  return (mots / ObjectifCoach.motsParQuart)
+      .clamp(0.0, ObjectifCoach.quartsDuCoran.toDouble());
+});
 
 final motsDePortionProvider =
     FutureProvider.family<List<PortionMot>, int>((ref, portionId) =>
         SessionArchiveService.instance.motsDePortion(portionId));
+
+/// Invalide TOUT le tableau de bord du Coach, en un seul appel.
+///
+/// ── POURQUOI CE POINT UNIQUE (2026-08-17) ──────────────────────────────────
+/// DÉFAUT CONSTATÉ PAR L'UTILISATEUR, base à l'appui : « j'ai effacé, mais
+/// l'objectif reste à 26 % ». Vérifié dans `session_archive.db` : `portions`,
+/// `portion_words`, `jours_actifs` et `points_quart_jour` étaient TOUTES vides
+/// -- l'effacement avait bien eu lieu. Le 26 % ne venait donc pas de la base
+/// mais d'un provider jamais réinvalidé, qui resservait sa dernière lecture.
+///
+/// La cause est structurelle, pas un oubli isolé : chaque endroit qui supprime
+/// listait SA propre poignée de providers, et aucun ne les avait tous --
+/// suppression d'une portion : `portions` seul ; suppression d'une récitation :
+/// `sessionsArchive` + `tailleArchive` ; sortie de récitation : sept sur huit.
+/// `quartsAcquisDeLAnnee` n'était invalidé NULLE PART, et `quartsAcquis` --
+/// celui qui porte la barre d'objectif -- ne l'était sur aucun chemin de
+/// suppression. Une liste recopiée à la main à N endroits diverge toujours ;
+/// c'est le N qu'il faut supprimer, pas les oublis un par un.
+///
+/// Prend la FONCTION d'invalidation plutôt qu'un `ref` : `WidgetRef` et
+/// `ProviderContainer` ne partagent aucun type commun, et les deux sont
+/// nécessaires -- le conteneur est le seul utilisable après démontage
+/// (cf. `_container` dans karaoke_recitation_screen.dart).
+void rafraichirTableauDeBordCoach(void Function(ProviderOrFamily) invalider) {
+  invalider(sessionsArchiveProvider);
+  invalider(tailleArchiveProvider);
+  invalider(portionsProvider);
+  invalider(derniersJoursProvider);
+  invalider(serieProvider);
+  invalider(quartsAcquisProvider);
+  invalider(quartsAcquisDuMoisProvider);
+  invalider(quartsAcquisDeLAnneeProvider);
+}
+
+
+/// Traduit un statut ARCHIVÉ (texte, en base) en statut d'AFFICHAGE, celui que
+/// l'écran de récitation sait peindre.
+///
+/// `skipped` reste `skipped` -- gris barré, pas vert : précision explicite de
+/// l'utilisateur (2026-08-12), « quand j'ai dit que les non jugés peuvent être
+/// comptés verts, ça ne veut pas dire de les rendre verts ». La règle du
+/// 2026-08-11 portait sur le POURCENTAGE, jamais sur la couleur.
+///
+/// `conteste` s'affiche vert : l'utilisateur a déclaré qu'il avait bien
+/// prononcé ce mot, et c'est déjà ainsi qu'il est compté.
+WordStatus _statutAffiche(String archive) => switch (archive) {
+      'correct' || 'conteste' => WordStatus.correct,
+      'unclear' => WordStatus.unclear,
+      'error' || 'oubli' => WordStatus.error,
+      _ => WordStatus.skipped,
+    };
 
 class PortionsSection extends ConsumerWidget {
   const PortionsSection({super.key});
@@ -100,7 +233,14 @@ class PortionsSection extends ConsumerWidget {
               tooltip: t.coachRefreshTooltip,
               icon: const Icon(Icons.refresh_rounded,
                   size: 18, color: AppColors.green800),
-              onPressed: () => ref.invalidate(portionsProvider),
+              onPressed: () {
+                ref.invalidate(portionsProvider);
+                // Le bouton rafraîchit TOUT le Coach, tableau de bord compris
+                // (série, points, objectif du jour) -- sinon il ne rafraîchit
+                // que la moitié de ce que l'utilisateur a sous les yeux.
+                ref.invalidate(derniersJoursProvider);
+                ref.invalidate(serieProvider);
+              },
             ),
           ],
         ),
@@ -113,29 +253,207 @@ class PortionsSection extends ConsumerWidget {
           error: (e, _) => Text(t.coachPortionsError(e),
               style: GoogleFonts.manrope(
                   fontSize: 12, color: AppColors.inkLight)),
-          data: (list) => list.isEmpty
-              ? Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.cream200,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.cream300),
-                  ),
-                  child: Text(
-                    t.coachPortionsEmpty,
-                    style: GoogleFonts.manrope(
-                        fontSize: 12.5, height: 1.45, color: AppColors.inkLight),
-                  ),
-                )
-              : Column(
+          data: (list) => Column(
                   children: [
-                    for (final p in list) _CartePortion(p),
+                    if (list.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.cream200,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.cream300),
+                        ),
+                        child: Text(
+                          t.coachPortionsEmpty,
+                          style: GoogleFonts.manrope(
+                              fontSize: 12.5,
+                              height: 1.45,
+                              color: AppColors.inkLight),
+                        ),
+                      ),
+                    // ── GROUPEES PAR SOURATE (2026-08-13) ──────────────
+                    // Demande utilisateur : « je veux les portions par
+                    // sourate avec stat globale, puis je change par Rub' /
+                    // Hizb imbriqué dans la sourate ». Une sourate courte
+                    // n'a qu'une portion : elle s'affiche telle quelle, sans
+                    // niveau inutile. Une sourate longue (Al-Baqara, At-Tawbah)
+                    // en a plusieurs : on montre son total, et ses tranches se
+                    // déplient dedans.
+                    for (final g in _grouperParSourate(list))
+                      g.portions.length == 1
+                          ? _CartePortion(g.portions.first)
+                          : _GroupeSourate(g),
+                    // ── CE QUI RESTE À FAIRE (2026-08-15) ────────────────
+                    // Les sourates JAMAIS récitées, après celles qu'on
+                    // travaille. En gris et SANS taux : un pourcentage à 0 %
+                    // serait un jugement (« tu as échoué »), alors qu'il ne
+                    // s'est simplement rien passé. Chacune porte un bouton
+                    // pour lancer la récitation, sinon la liste ne fait
+                    // qu'énumérer un manque.
+                    _SouratesJamaisRecitees(
+                        dejaVues: {for (final p in list) p.surahNumber}),
                   ],
                 ),
         ),
         const SizedBox(height: 18),
       ],
+    );
+  }
+}
+
+
+/// Une sourate et les portions qu'elle contient, avec ses totaux cumulés.
+
+/// Confirmation de la remise à zéro d'une portion. Volontairement distincte de
+/// celle d'une récitation : ce qui disparaît n'est pas la même chose, et un
+/// texte approximatif sur une action irréversible est un piège.
+Future<bool> _confirmerRemiseAZero(BuildContext context, String label) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Recommencer cette sourate ?'),
+      content: Text(
+          'Tout le suivi de « $label » sera effacé : les mots acquis, les mots '
+          'ratés et leur historique. La prochaine récitation repartira de zéro. '
+          'Tes récitations datées, elles, ne sont pas touchées.'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler')),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Effacer le suivi',
+              style: TextStyle(color: Colors.redAccent)),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
+class _GroupePortions {
+  final int surahNumber;
+  final String nomSourate;
+  final List<PortionResume> portions;
+  const _GroupePortions(this.surahNumber, this.nomSourate, this.portions);
+
+  int get wordsTotal =>
+      portions.fold(0, (a, p) => a + p.wordsTotal);
+  int get wordsGreen => portions.fold(0, (a, p) => a + p.wordsGreen);
+  int get wordsReached => portions.fold(0, (a, p) => a + p.wordsReached);
+
+  /// Même formule que [PortionResume.reussite], appliquée à la sourate
+  /// entière : mots acquis sur le total de la sourate. Recalculée depuis les
+  /// compteurs cumulés, jamais moyennée sur les pourcentages des tranches --
+  /// une moyenne de pourcentages donnerait le même poids à un Hizb entier et
+  /// à une tranche de trois versets.
+  double? get reussite => wordsTotal <= 0 ? null : wordsGreen / wordsTotal;
+
+  bool get badge => wordsTotal > 0 && wordsGreen >= wordsTotal;
+}
+
+/// Regroupe les portions par sourate, en conservant l'ordre canonique déjà
+/// garanti par la requête (`ORDER BY surah_number, first_ayah`).
+List<_GroupePortions> _grouperParSourate(List<PortionResume> list) {
+  final out = <_GroupePortions>[];
+  for (final p in list) {
+    if (out.isNotEmpty && out.last.surahNumber == p.surahNumber) {
+      out.last.portions.add(p);
+    } else {
+      // Le libellé d'une portion vaut « Sourate · Hizb N » : le nom seul est
+      // ce qui précède le séparateur.
+      final nom = p.label.split(' · ').first;
+      out.add(_GroupePortions(p.surahNumber, nom, [p]));
+    }
+  }
+  return out;
+}
+
+/// Une sourate longue : sa statistique globale, et ses tranches dépliables.
+class _GroupeSourate extends StatefulWidget {
+  final _GroupePortions g;
+  const _GroupeSourate(this.g);
+
+  @override
+  State<_GroupeSourate> createState() => _GroupeSourateState();
+}
+
+class _GroupeSourateState extends State<_GroupeSourate> {
+  bool _ouvert = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final g = widget.g;
+    final r = g.reussite;
+    final couleur = r == null
+        ? AppColors.inkLight
+        : r >= 0.95
+            ? AppColors.green700
+            : r >= 0.85
+                ? AppColors.brass
+                : Colors.redAccent.shade200;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: g.badge ? AppColors.brass : AppColors.cream300,
+            width: g.badge ? 1.4 : 1),
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            leading: g.badge
+                ? const Icon(Icons.verified_rounded,
+                    color: AppColors.brass, size: 26)
+                : null,
+            title: Text(g.nomSourate,
+                style: GoogleFonts.manrope(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink)),
+            subtitle: Text(
+              t.coachPortionWordsAcquired(g.wordsGreen, g.wordsTotal) +
+                  (g.wordsReached < g.wordsTotal
+                      ? t.coachPortionCoveredSuffix(g.wordsReached)
+                      : t.coachPortionFullCoverage),
+              style:
+                  GoogleFonts.manrope(fontSize: 11.5, color: AppColors.inkLight),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(r == null ? '—' : '${(r * 100).round()}%',
+                        style: GoogleFonts.manrope(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: couleur)),
+                  ],
+                ),
+                Icon(_ouvert ? Icons.expand_less : Icons.expand_more,
+                    color: AppColors.green800),
+              ],
+            ),
+            onTap: () => setState(() => _ouvert = !_ouvert),
+          ),
+          if (_ouvert)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+              child: Column(
+                children: [for (final p in g.portions) _CartePortion(p)],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -224,18 +542,78 @@ class _CartePortion extends ConsumerWidget {
               ),
           ],
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(r == null ? '—' : '${(r * 100).round()}%',
-                style: GoogleFonts.manrope(
-                    fontSize: 17, fontWeight: FontWeight.w800, color: couleur)),
-            Text(t.coachPortionAccuracyLabel,
-                style: GoogleFonts.manrope(fontSize: 9, color: AppColors.inkLight)),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(r == null ? '—' : '${(r * 100).round()}%',
+                    style: GoogleFonts.manrope(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: couleur)),
+              ],
+            ),
+            // ── REMETTRE A ZERO POUR REFAIRE (2026-08-13) ──────────────────
+            // Demande utilisateur : « rajoute pour memorisation par sourate la
+            // possibilite de supprimer le statut pour refaire ». Le suivi
+            // d'une portion est CUMULE et permanent par conception -- un mot
+            // acquis le reste. Sans ce geste, impossible de reprendre une
+            // sourate de zero. Meme patron que la suppression d'une
+            // recitation, confirmation comprise : c'est irreversible.
+            IconButton(
+              icon: const Icon(Icons.restart_alt_rounded,
+                  size: 20, color: AppColors.inkLight),
+              tooltip: 'Remettre cette portion à zéro',
+              onPressed: () async {
+                final ok = await _confirmerRemiseAZero(context, p.label);
+                if (!ok || !context.mounted) return;
+                await SessionArchiveService.instance.supprimerPortion(p.id);
+                // TOUT le tableau de bord, pas seulement la liste : effacer une
+                // portion change les quarts acquis, donc l'objectif et le
+                // rythme. N'invalider que `portionsProvider` laissait la barre
+                // sur son ancienne valeur (cf. rafraichirTableauDeBordCoach).
+                if (context.mounted) rafraichirTableauDeBordCoach(ref.invalidate);
+              },
+            ),
           ],
         ),
-        onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => PortionDetailScreen(portion: p))),
+        // Meme ecran, en CUMULE : `portion_words` porte le dernier verdict
+        // connu de chaque mot deja touche, mis a jour d'une recitation a
+        // l'autre. Un mot jamais recite n'a pas de ligne : il reste `pending`,
+        // donc gris -- il n'est pas compte comme juste.
+        onTap: () async {
+          final mots =
+              await SessionArchiveService.instance.motsDePortion(p.id);
+          final versets = await QuranApi.fetchVerses(p.surahNumber);
+          if (!context.mounted) return;
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => KaraokeRecitationScreen(
+              verses: versets
+                  .where((v) =>
+                      v.ayahNumber >= p.firstAyah && v.ayahNumber <= p.lastAyah)
+                  .toList(),
+              titreRelecture: p.label,
+              relecture: {
+                for (final m in mots)
+                  (p.surahNumber, m.ayahNumber, m.wordInAyah): (
+                    statut: _statutAffiche(m.status),
+                    entendu: m.heardWord ?? '',
+                    // L'extrait de voix archivé (`s{id}_m{index}.wav`) : sans
+                    // lui, la relecture interrogeait la chaîne native, restée
+                    // sur une AUTRE session -- et pouvait faire écouter
+                    // l'audio d'une autre sourate (mesuré 2026-08-15).
+                    audio: m.audioPath,
+                    // Le TYPE d'erreur tel qu'etabli le jour de la recitation
+                    // (cf. la doc de `relecture`) : la relecture ne doit pas
+                    // le recalculer avec le reglage d'aujourd'hui.
+                    kind: m.kind,
+                  ),
+              },
+            ),
+          ));
+        },
       ),
     );
   }
@@ -715,8 +1093,9 @@ class _CarteSession extends ConsumerWidget {
       confirmDismiss: (_) => _confirmerSuppression(context),
       onDismissed: (_) async {
         await SessionArchiveService.instance.supprimerSession(s.id);
-        ref.invalidate(sessionsArchiveProvider);
-        ref.invalidate(tailleArchiveProvider);
+        // Cf. rafraichirTableauDeBordCoach : une recitation supprimee retire
+        // aussi ses mots des acquis, donc l'objectif et la serie changent.
+        rafraichirTableauDeBordCoach(ref.invalidate);
       },
       background: Container(
         margin: const EdgeInsets.only(bottom: 10),
@@ -791,16 +1170,53 @@ class _CarteSession extends ConsumerWidget {
                 final ok = await _confirmerSuppression(context);
                 if (!ok || !context.mounted) return;
                 await SessionArchiveService.instance.supprimerSession(s.id);
+                // Cf. rafraichirTableauDeBordCoach : meme raison qu'au balayage.
                 if (context.mounted) {
-                  ref.invalidate(sessionsArchiveProvider);
-                  ref.invalidate(tailleArchiveProvider);
+                  rafraichirTableauDeBordCoach(ref.invalidate);
                 }
               },
             ),
           ],
         ),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => SessionDetailScreen(session: s))),
+        // ── LE COACH OUVRE L'ECRAN DE RECITATION, PAS UNE LISTE ──────────
+        // Demande utilisateur repetee (2026-08-12/13) : « je veux la meme
+        // fenetre du karaoke ou le texte est colorie », « pour eviter la
+        // multitude d'ecrans ». La page-liste des mots fautifs est donc
+        // supprimee -- ce n'est plus un ecran de moins a maintenir, c'est le
+        // MEME rendu et la MEME palette que pendant la recitation.
+        onTap: () async {
+          final mots =
+              await SessionArchiveService.instance.motsDeSession(s.id);
+          final versets = await QuranApi.fetchVerses(s.surahNumber ?? 1);
+          if (!context.mounted) return;
+          final a = s.fromAyah ?? 1;
+          final b = s.toAyah ?? 9999;
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => KaraokeRecitationScreen(
+              verses: versets
+                  .where((v) => v.ayahNumber >= a && v.ayahNumber <= b)
+                  .toList(),
+              titreRelecture: s.surahName ?? 'Sourate ${s.surahNumber}',
+              // Sans cette borne, seuls les mots FAUTIFS seraient colories :
+              // `session_words` ne garde que les exceptions (cf. la doc du
+              // parametre). Constate sur capture : un seul mot visible.
+              motsAtteintsRelecture: s.wordsReached,
+              relecture: {
+                for (final m in mots)
+                  if (m.surahNumber != null &&
+                      m.ayahNumber != null &&
+                      m.wordInAyah != null)
+                    (m.surahNumber!, m.ayahNumber!, m.wordInAyah!): (
+                      statut: _statutAffiche(m.status),
+                      entendu: m.heardWord ?? '',
+                      audio: m.audioPath,
+                      // Cf. la doc de `relecture` : verdict du jour meme.
+                      kind: m.kind,
+                    ),
+              },
+            ),
+          ));
+        },
       ),
       ),
     );
@@ -1120,6 +1536,151 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
                     color: AppColors.inkLight),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Les sourates qu'on n'a JAMAIS récitées — la moitié manquante de « Mes
+/// portions » (demande utilisateur 2026-08-15).
+///
+/// Trois choix de fond, tous délibérés :
+///
+///  1. AUCUN POURCENTAGE. Afficher « 0 % » sur une sourate jamais ouverte
+///     serait un verdict là où il ne s'est rien passé — la même faute que
+///     peindre un mot en rouge sans preuve acoustique. Ces lignes disent
+///     « pas encore », pas « raté ».
+///  2. GRIS, la couleur que l'app réserve déjà à « ni succès ni échec »
+///     (mot omis, mot soufflé) — jamais le rouge.
+///  3. UN BOUTON POUR COMMENCER. Sans lui, la liste ne ferait qu'énumérer un
+///     manque ; avec lui, elle devient le point de départ naturel d'une
+///     séance. La récitation démarre sur la PREMIÈRE PAGE de la sourate,
+///     comme partout ailleurs dans l'app (une session ne se lance jamais sur
+///     une sourate entière de plusieurs pages).
+class _SouratesJamaisRecitees extends ConsumerStatefulWidget {
+  final Set<int> dejaVues;
+  const _SouratesJamaisRecitees({required this.dejaVues});
+
+  @override
+  ConsumerState<_SouratesJamaisRecitees> createState() =>
+      _SouratesJamaisReciteesState();
+}
+
+class _SouratesJamaisReciteesState
+    extends ConsumerState<_SouratesJamaisRecitees> {
+  /// Repliées par défaut : 114 sourates dépliées d'office noieraient le suivi
+  /// réel, qui est le sujet principal de cette section.
+  bool _ouvert = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final toutes = ref.watch(toutesLesSouratesProvider);
+    return toutes.maybeWhen(
+      data: (surahs) {
+        final restantes =
+            surahs.where((s) => !widget.dejaVues.contains(s.number)).toList();
+        if (restantes.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: () => setState(() => _ouvert = !_ouvert),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(_ouvert
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 18, color: AppColors.inkLight),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Pas encore récitées — ${restantes.length}',
+                      style: GoogleFonts.manrope(
+                          fontSize: 11,
+                          letterSpacing: 0.6,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.inkLight),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_ouvert)
+              for (final s in restantes) _LigneSourateNeuve(surah: s),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _LigneSourateNeuve extends StatelessWidget {
+  final Surah surah;
+  const _LigneSourateNeuve({required this.surah});
+
+  @override
+  Widget build(BuildContext context) {
+    const gris = Color(0xFF9e9e9e);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.cream,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: gris.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 26,
+            child: Text('${surah.number}',
+                style: GoogleFonts.manrope(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: gris)),
+          ),
+          Expanded(
+            child: Text(
+              surah.nameSimple,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.manrope(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.inkLight),
+            ),
+          ),
+          Text(
+            '${surah.versesCount} v.',
+            style: GoogleFonts.manrope(fontSize: 10.5, color: gris),
+          ),
+          const SizedBox(width: 6),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Commencer cette sourate',
+            icon: const Icon(Icons.play_circle_outline_rounded,
+                size: 22, color: AppColors.green700),
+            onPressed: () async {
+              final versets = await QuranApi.fetchVerses(surah.number);
+              if (!context.mounted) return;
+              // Première page seulement : une session ne démarre jamais sur
+              // une sourate de plusieurs pages (même règle que le hub et le
+              // sélecteur de sourate).
+              final premierePage = versets.first.pageNumber;
+              final page = premierePage == null
+                  ? versets
+                  : versets
+                      .where((v) => v.pageNumber == premierePage)
+                      .toList();
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) =>
+                    KaraokeRecitationScreen(verses: page.isEmpty ? versets : page),
+              ));
+            },
+          ),
+        ],
       ),
     );
   }

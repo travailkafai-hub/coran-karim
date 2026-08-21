@@ -1,0 +1,101 @@
+{
+  "_a_lire": "seuils par regle pour la tete tajwid ; le modele sort des probabilites, c'est ici qu'on decide. Calibres sur une moitie du jeu de jugement, mesures sur l'autre.",
+  "_madd": "madd_long et madd_court se decident par COMPARAISON entre eux (le plus grand gagne), pas par seuil isole : quand un madd court est prononce la ou un long est attendu, la tete sort long=0,538 et court=0,952 -- elle sait, elle hesite.",
+  "_waqf": "waqf_lazim et waqf_awla ne sont PAS entraines (15 spans dans tout le corpus). Ne pas les utiliser ; l'exigence de pause vient du TEXTE (signes ۘ ۖ ۗ ۚ), le modele n'a rien a en dire.",
+  "regles": {
+    "ghunnah": {
+      "seuil": 0.95,
+      "rappel": 97.4,
+      "invention": 2.8,
+      "n_verif": 185
+    },
+    "ham_wasl": {
+      "seuil": 0.9,
+      "rappel": 95.5,
+      "invention": 5.0,
+      "n_verif": 64
+    },
+    "idgham_ghunnah": {
+      "seuil": 0.9,
+      "rappel": 59.5,
+      "invention": 12.7,
+      "n_verif": 202
+    },
+    "idgham_mutajanisayn": {
+      "seuil": 0.3,
+      "rappel": 100.0,
+      "invention": 3.8,
+      "n_verif": 33
+    },
+    "idgham_shafawi": {
+      "seuil": 0.8,
+      "rappel": 78.4,
+      "invention": 9.8,
+      "n_verif": 136,
+      "_note": "seuil releve de 0,50 a 0,80 : l'optimum d'ecart etait sur-appris (43,3 % d'invention en verification contre 9,8 % ici)"
+    },
+    "idgham_wo_ghunnah": {
+      "seuil": 0.8,
+      "rappel": 75.3,
+      "invention": 10.9,
+      "n_verif": 128
+    },
+    "ikhafa": {
+      "seuil": 0.9,
+      "rappel": 85.0,
+      "invention": 16.3,
+      "n_verif": 189
+    },
+    "ikhafa_shafawi": {
+      "seuil": 0.8,
+      "rappel": 88.7,
+      "invention": 14.6,
+      "n_verif": 110
+    },
+    "iqlab": {
+      "seuil": 0.8,
+      "rappel": 90.9,
+      "invention": 6.0,
+      "n_verif": 116
+    },
+    "laam_shamsiyah": {
+      "seuil": 0.98,
+      "rappel": 100.0,
+      "invention": 2.4,
+      "n_verif": 102
+    },
+    "madd_court": {
+      "seuil": 0.9,
+      "rappel": 95.5,
+      "invention": 7.3,
+      "n_verif": 148,
+      "comparer_a": "madd_long"
+    },
+    "madd_long": {
+      "seuil": 0.9,
+      "rappel": 87.9,
+      "invention": 42.4,
+      "n_verif": 340,
+      "comparer_a": "madd_court"
+    },
+    "qalaqah": {
+      "seuil": 0.98,
+      "rappel": 85.7,
+      "invention": 0.0,
+      "n_verif": 88
+    },
+    "slnt": {
+      "seuil": 0.98,
+      "rappel": 80.2,
+      "invention": 0.0,
+      "n_verif": 115
+    },
+    "_exclues": {}
+  },
+  "_exclues": {
+    "idgham_mutaqaribayn": "trop peu d'exemples pour calibrer (175 spans)",
+    "waqf_lazim": "non entrainee (4 spans)",
+    "waqf_awla": "non entrainee (11 spans)"
+  },
+  "_madd_long": "son taux d'invention affiche (42,4 %) est SURESTIME : le jeu de jugement oppose des madd que la tete a appris fusionnes, et le filtre n'a pu ecarter que 16 cas sur 4000 faute de labels. Mesure ciblee sur fenetre exacte : 50,7 % des inventions sont des detections correctes. Vrai taux ~20 %."
+}

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/app_settings_provider.dart';
+import 'providers/coach_notification_provider.dart';
 import 'providers/prayer_settings_provider.dart';
 import 'providers/recitation_provider.dart' show recitationVerifierProvider;
 import 'services/garde_micro.dart';
@@ -15,7 +16,8 @@ import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_hub_screen.dart';
 import 'screens/coach_sessions.dart'
-    show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider;
+    show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider,
+        derniersJoursProvider, serieProvider;
 import 'screens/dua_pour_nous_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
@@ -168,6 +170,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // a declencher son _bootstrap() (position GPS + calcul + programmation
     // des 5 prieres + rappel Sobh, cf. prayer_settings_provider.dart).
     Future.microtask(() => ref.read(prayerSettingsProvider));
+    // Même principe pour les rappels du Coach (2026-08-13) -- lire une fois
+    // suffit à poser les `ref.listen` qui garderont la programmation à jour,
+    // cf. coach_notification_provider.dart.
+    Future.microtask(() => ref.read(coachNotificationBootstrapProvider));
     onboardingARegarder().then((aRegarder) {
       if (aRegarder && mounted) setState(() => _montrerOnboarding = true);
     });
@@ -254,6 +260,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // ça il continuerait d'afficher les portions telles qu'elles étaient à
     // la dernière ouverture.
     ref.invalidate(portionsProvider);
+    // Le tableau de bord (serie, points, progression) se relit ici aussi :
+    // c'est le point de passage OBLIGE vers l'onglet Coach.
+    ref.invalidate(derniersJoursProvider);
+    ref.invalidate(serieProvider);
     setState(() => _tab = 2);
   }
 

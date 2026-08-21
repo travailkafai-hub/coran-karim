@@ -246,7 +246,7 @@ class FastConformerVerifier {
   // sans preuve acoustique.
   // Le modèle dual-head précédent reste dans son propre dossier sur le PC pour
   // un rollback sans réexport.
-  static const _kModelSubdir = 'models/trois-tetes-2026-08-04-combine';
+  static const _kModelSubdir = 'models/quatre-tetes-2026-08-21';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // TETE 3 (ecart canonique), OPTIONNELLE -- cf. Tete3.kt : en observation
@@ -265,6 +265,16 @@ class FastConformerVerifier {
   // vérification tajwid doit rester inactive plutôt que de conclure
   // « aucune règle réalisée » sur des détections qui n'existent pas.
   static const _kRulesFile = 'rules.json';
+  // Seuil de détection PAR CLASSE de la tête tajwid (2026-08-16), remplace le
+  // seuil plat 0,5 auparavant en dur côté natif (cf. FastConformerCtc.kt,
+  // decodeTajwid). Mesuré sur audio réel (Al-Afasy, 141 versets, agrégat
+  // toutes classes confondues faute de la table symbole->classe sur ce
+  // poste) : seuil plat = sur-détection +209 % sur la fenêtre de calibrage
+  // et +240 % hors fenêtre ; seuils par classe = +28 %/+38 % -- gain net
+  // ET tenu hors calibrage, cf. AUDIT_EQUIVALENCES_ECRITURE_2026-08-15.md
+  // §3ter. Optionnel comme rules.json/tete3.json : absent -> repli natif sur
+  // 0,5 pour toutes les classes (comportement d'avant, inchangé).
+  static const _kSeuilsFile = 'seuils_tajwid.json';
 
   bool _loaded = false;
 
@@ -357,12 +367,31 @@ class FastConformerVerifier {
     // (pousser un checkpoint sur un build de dev sans `run-as`), la porte est
     // fermée dans le binaire publié.
     if (kDebugMode) {
+      // ── DIAGNOSTIC AVANT CORRECTIF (2026-08-13) ────────────────────────
+      // Constat utilisateur : modèle poussé par `adb push` exactement au
+      // chemin que ce bloc vérifie, présence et permissions confirmées côté
+      // device (`stat` : 0644, inode identique via /sdcard et
+      // /storage/emulated/0) -- et pourtant `ensureLoaded()` retombe sur le
+      // storage privé, vide. L'ancien `debugPrint` ne prouvait rien : il
+      // n'écrit que dans logcat, jamais dans `recitation_diagnostic.log`
+      // (celui qu'on peut relire après coup), et il n'existe QUE dans la
+      // branche "trouvé" -- silence total dans la branche "pas trouvé", donc
+      // aucune preuve pour distinguer "ext est null" de "le fichier n'existe
+      // pas selon Dart". On journalise les deux hypothèses séparément avant
+      // de changer quoi que ce soit : deviner une correction ici serait
+      // exactement l'erreur que ce projet interdit.
       final ext = await getExternalStorageDirectory();
-      if (ext != null &&
-          await File('${ext.path}/$_kModelSubdir/$_kModelFile').exists()) {
-        appDir = ext;
-        debugPrint('[FastConformer] TEST: modele depuis storage EXTERNE '
-            '(${ext.path}/$_kModelSubdir)');
+      final cheminExt = ext == null
+          ? null
+          : File('${ext.path}/$_kModelSubdir/$_kModelFile');
+      final existeExt = cheminExt != null && await cheminExt.exists();
+      DiagnosticLog.log('FastConformer',
+          'verif storage externe : ext=${ext?.path ?? "NULL"} '
+          'chemin=${cheminExt?.path ?? "n/a"} existe=$existeExt');
+      if (existeExt) {
+        appDir = ext!;
+        DiagnosticLog.log('FastConformer',
+            'modele charge depuis storage EXTERNE (${ext.path}/$_kModelSubdir)');
       }
     }
     final modelFile = File('${appDir.path}/$_kModelSubdir/$_kModelFile');
@@ -386,6 +415,8 @@ class FastConformerVerifier {
     _dernierEchecChargement = null;
     final rulesFile = File('${appDir.path}/$_kModelSubdir/$_kRulesFile');
     _hasRuleHead = await rulesFile.exists();
+    final seuilsFile = File('${appDir.path}/$_kModelSubdir/$_kSeuilsFile');
+    final hasSeuils = await seuilsFile.exists();
     final tete3File = File('${appDir.path}/$_kModelSubdir/$_kTete3File');
     final hasTete3 = await tete3File.exists();
     final hasWordTokens = await wordTokensFile.exists();
@@ -399,6 +430,7 @@ class FastConformerVerifier {
         'vocabPath': vocabFile.path,
         'wordTokensPath': hasWordTokens ? wordTokensFile.path : null,
         'rulesPath': _hasRuleHead ? rulesFile.path : null,
+        'seuilsPath': hasSeuils ? seuilsFile.path : null,
         // TETE 3 COUPEE (2026-08-04, isolation d'une regression). Mesure qui
         // l'impose : meme sourate 2, meme depart, 1,68 % de mots non verts le
         // matin (build v13, modele mono-tete) contre 10,61 % l'apres-midi
@@ -487,6 +519,7 @@ class FastConformerVerifier {
           _kModelFile,
           _kVocabFile,
           _kRulesFile,
+          _kSeuilsFile,
           _kTete3File,
           _kWordTokensFile,
         ],

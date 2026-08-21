@@ -242,6 +242,20 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
 
   void _scheduleHeaderHide() {
     _headerHideTimer?.cancel();
+    // ── LE MENU RESTE PENDANT LA LECTURE (2026-08-13) ──────────────────────
+    // Demande utilisateur : « quand on lance l'audio dans le Mushaf, laisse le
+    // menu affiché, ne le réduis pas ».
+    //
+    // Le repli automatique sert la lecture SILENCIEUSE : on lit, le chrome
+    // s'efface, on a le plein écran. Pendant une écoute, il dessert -- les
+    // commandes de transport (pause, vitesse, répétition) sont précisément ce
+    // dont on a besoin sous la main, et il fallait retoucher l'écran pour les
+    // faire revenir à chaque fois.
+    //
+    // On ne coupe pas le mécanisme, on le suspend le temps de l'écoute : dès
+    // que l'audio s'arrête, le prochain `_showHeader` reprogramme le repli et
+    // le plein écran revient de lui-même.
+    if (ref.read(playerProvider).isPlaying) return;
     _headerHideTimer = Timer(_kHeaderAutoHideDelay, () {
       if (mounted) setState(() => _headerVisible = false);
     });
@@ -985,6 +999,28 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         // les garde SYMETRIQUES : si le defaut venait d'ailleurs, une
         // asymetrie de code aurait rendu le diagnostic impossible.
         ),
+        // ── LES DEUX BANDES AVANCENT (2026-08-19) ───────────────────────
+        //
+        // Demande utilisateur : « chaque clic, on avance -- parce qu'on
+        // avance plus qu'on ne recule. Pour reculer, il peut juste defiler
+        // d'en bas, il revient en arriere ».
+        //
+        // La bande GAUCHE reculait. Elle avance desormais comme la droite :
+        // on lit vers l'avant, et le retour en arriere se fait au
+        // defilement, qui n'a jamais eu de probleme.
+        //
+        // Ce changement REGLE AUSSI le defaut decrit juste au-dessus (« je
+        // peux avancer en bas mais je n'arrive pas a reculer en arriere ») :
+        // le bord gauche est la zone du geste systeme « retour » d'Android,
+        // qui capte parfois le tap avant l'application. Le decalage de
+        // `_kMargeGesteSysteme` reduisait le probleme sans le supprimer.
+        // Un cote qui ne PEUT plus rater sa fonction, parce que les deux
+        // font la meme, ne peut plus decevoir -- et un tap capte par le
+        // systeme reste un retour d'ecran, pas une page perdue.
+        //
+        // Les deux bandes restent SEPAREES plutot que fusionnees en une
+        // seule zone : le centre appartient toujours au texte (selection
+        // d'un mot, fiche tajwid), et l'elargir les avalerait.
         Positioned(
           left: _kMargeGesteSysteme,
           top: _reserveHaut(context),
@@ -993,8 +1029,8 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: () {
-              _tapManuel(enAvant: false);
-              _kindleJumpPage(viewportHeight, forward: false);
+              _tapManuel(enAvant: true);
+              _kindleJumpPage(viewportHeight, forward: true);
             },
           ),
         ),
@@ -1093,14 +1129,53 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   // première" -- la 1ère). Donc : pause/resume SEULEMENT si le verset actif
   // de CET écran est déjà celui réellement chargé dans le lecteur ; sinon on
   // (re)lance toujours depuis le début sur le nouveau verset/sourate.
+  // ── CE QUE LE BOUTON MONTRE, LE BOUTON DOIT LE FAIRE (2026-08-13) ────────
+  //
+  // Constat utilisateur : « après le play je clique sur pause, la lecture se
+  // refait, et au deuxième clic il y a la pause ».
+  //
+  // Cause : l'icône vient de `playerState.isPlaying` -- l'état GLOBAL du
+  // lecteur -- alors que la décision ci-dessous exigeait que le verset joué
+  // soit exactement `_activeVerse`. Or la lecture enchaîne toute seule sur le
+  // verset suivant : dès le premier enchaînement les deux divergent, le tap
+  // tombait dans le `else` et RELANÇAIT depuis le verset actif. Le deuxième
+  // tap, lui, retrouvait l'égalité et mettait bien en pause.
+  //
+  // Le bon discriminant n'est pas « le même verset » mais « le même
+  // PASSAGE » : ce qui joue appartient-il à ce que cet écran affiche ?
+  //   - oui  -> le bouton est une commande de transport : pause / reprise ;
+  //   - non  -> c'est un autre passage (autre sourate, autre écran), on lance
+  //             ici, ce qui préserve le correctif du 2026-08-01 (« je change
+  //             de sourate, je fais play, ça reste sur la première »).
   void _onPlayTap() {
     if (_verses.isEmpty) return;
     final player = ref.read(playerProvider);
-    final active = _verses[_activeVerse];
-    final sameVerse = player.currentVerse?.key == active.key;
-    if (sameVerse && player.isPlaying) {
+    final cle = player.currentVerse?.key;
+    // ── LE VERSET CHARGÉ N'EST PAS FORCÉMENT LE VERSET SÉLECTIONNÉ ──────────
+    //
+    // Bug corrigé 2026-08-16, constat utilisateur : « quand je fais pause,
+    // que je sélectionne un autre verset, au play ça doit prendre la
+    // nouvelle sélection, pas continuer sur ce qui était chargé avant ».
+    //
+    // `dansCeQuiEstAffiche` (ci-dessous) ne demandait QUE « le verset chargé
+    // fait-il partie de cette page ? » -- vrai pour N'IMPORTE LEQUEL des
+    // versets affichés. Mettre en pause sur le verset 3, taper le verset 7
+    // (met à jour `_activeVerse`, cf. `onTap` des tuiles), puis Play : le
+    // verset 7 fait toujours partie de la même page, donc l'ancienne
+    // condition prenait la branche `resume()` -- qui reprend le verset 3, en
+    // ignorant totalement la nouvelle sélection.
+    //
+    // Le bon test compare le verset CHARGÉ au verset SÉLECTIONNÉ
+    // (`_verses[_activeVerse]`) : transport (pause/reprise) seulement s'ils
+    // sont IDENTIQUES, sinon c'est un changement de cible -> lecture neuve.
+    final selectionne = _verses[_activeVerse].key;
+    final chargeEstLeSelectionne = cle != null && cle == selectionne;
+    // Le menu doit etre visible des qu'on touche au transport, et le rester
+    // tant que ca joue (cf. `_scheduleHeaderHide`).
+    _showHeader();
+    if (chargeEstLeSelectionne && player.isPlaying) {
       ref.read(playerProvider.notifier).pause();
-    } else if (sameVerse && player.isPaused) {
+    } else if (chargeEstLeSelectionne && player.isPaused) {
       ref.read(playerProvider.notifier).resume();
     } else {
       _playFromActive();

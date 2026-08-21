@@ -4,6 +4,7 @@ import com.corankarim.coran_karim.adhan.AdhanSchedulerPlugin
 import com.corankarim.coran_karim.fastconformer.FastConformerCtcPlugin
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import android.view.WindowManager
 import io.flutter.plugin.common.MethodChannel
 
 /**
@@ -26,6 +27,32 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         flutterEngine.plugins.add(FastConformerCtcPlugin())
         flutterEngine.plugins.add(AdhanSchedulerPlugin())
+        // ── GARDER L'ECRAN ALLUME PENDANT LA RECITATION (2026-08-13) ──────
+        // Constat utilisateur : « lors de la recitation l'ecran peut
+        // s'eteindre, du coup ca coupe le suivi ».
+        //
+        // FLAG_KEEP_SCREEN_ON plutot qu'un wakelock : il est porte par la
+        // FENETRE, donc le systeme le retire tout seul des que l'app passe en
+        // arriere-plan ou se ferme, meme sur un crash. Un wakelock, lui, se
+        // relache a la main -- et un chemin d'erreur qui oublie de le faire
+        // vide la batterie en silence.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL_ECRAN)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "garderAllume" -> {
+                        val actif = call.argument<Boolean>("actif") ?: false
+                        runOnUiThread {
+                            if (actif) {
+                                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            } else {
+                                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            }
+                        }
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL)
             .setMethodCallHandler { call, result ->
                 if (call.method == "lire") {
@@ -108,5 +135,8 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    companion object { private const val CANAL = "coran_karim/recette" }
+    companion object {
+        private const val CANAL = "coran_karim/recette"
+        private const val CANAL_ECRAN = "coran_karim/ecran"
+    }
 }

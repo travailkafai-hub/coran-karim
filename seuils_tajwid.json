@@ -1,0 +1,25 @@
+{
+ "description": "seuil par classe, cale sur audio reel pour que le nombre d'emissions colle au texte recite",
+ "source": "2:6 .. 2:62, 18890 frames",
+ "seuils": {
+  "madda_necessary": 0.5,
+  "madda_obligatory": 0.513,
+  "madda_permissible": 0.9633,
+  "madda_normal": 0.6234,
+  "ghunnah": 0.5812,
+  "ikhafa": 0.7799,
+  "ikhafa_shafawi": 0.8775,
+  "idgham_ghunnah": 0.7781,
+  "idgham_shafawi": 0.8391,
+  "iqlab": 0.8056,
+  "idgham_wo_ghunnah": 0.7419,
+  "idgham_mutajanisayn": 0.5,
+  "idgham_mutaqaribayn": 0.5,
+  "laam_shamsiyah": 0.9163,
+  "ham_wasl": 0.829,
+  "slnt": 0.6433,
+  "qalaqah": 0.7176,
+  "waqf_lazim": 0.5,
+  "waqf_awla": 0.5
+ }
+}

@@ -599,6 +599,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get duasSearchHint => 'Search an invocation, a word, a source…';
 
   @override
+  String get duasRadiosTitre => 'Continuous listening';
+
+  @override
+  String get duasRadioMatin => 'Morning remembrances';
+
+  @override
+  String get duasRadioSoir => 'Evening remembrances';
+
+  @override
+  String get duasRadioRoqya => 'Ruqyah';
+
+  @override
+  String get duasRadioSousTitre => 'Live stream — requires a connection';
+
+  @override
+  String get duasRadioErreur => 'Playback failed. Check your connection.';
+
+  @override
   String get duasExplore => 'Explore';
 
   @override
@@ -1599,6 +1617,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get karaokePausedHint => 'Paused — tap ⏸ to resume';
 
   @override
+  String get karaokeEcouteEnCours => 'I’m listening… keep going';
+
+  @override
+  String get karaokeEcouteBientot => 'Colours appear after the first few words';
+
+  @override
   String get karaokeListeningHint => 'Listening — tap the circle to stop';
 
   @override
@@ -2035,7 +2059,255 @@ class AppLocalizationsEn extends AppLocalizations {
   String get coachMoveToControl => 'Move to control';
 
   @override
-  String get coachPortionsTitle => 'MY PORTIONS';
+  String get coachObjectifTitle => 'MY GOAL';
+
+  @override
+  String coachObjectifStreak(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days in a row',
+      one: '1 day in a row',
+      zero: 'No streak yet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifWeekProgress(int faits, String total) {
+    return 'This week: $faits of $total quarter(s)';
+  }
+
+  @override
+  String get coachObjectifEmptyTitle => 'No goal set';
+
+  @override
+  String get coachObjectifEmptyBody =>
+      'Set a memorization goal to track your streak and progress.';
+
+  @override
+  String get coachObjectifSetButton => 'Set a goal';
+
+  @override
+  String get coachObjectifSheetTitle => 'My memorization goal';
+
+  @override
+  String coachObjectifQuartsLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count quarters of a Hizb',
+      one: '1 quarter of a Hizb',
+      zero: 'No quarters',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifResteAnneesMois(int annees, int mois) {
+    String _temp0 = intl.Intl.pluralLogic(
+      annees,
+      locale: localeName,
+      other: '$annees years left',
+      one: '1 year left',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      mois,
+      locale: localeName,
+      other: ' and $mois months',
+      one: ' and 1 month',
+      zero: '',
+    );
+    return '$_temp0$_temp1';
+  }
+
+  @override
+  String coachObjectifResteMois(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count months left',
+      one: '1 month left',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifResteJours(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days left',
+      one: '1 day left',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifEcheanceDepassee =>
+      'Deadline reached — you can give yourself more time';
+
+  @override
+  String coachObjectifAnneesLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'The whole Qur\'an in $count years',
+      one: 'The whole Qur\'an in 1 year',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifAnneesCourt(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count years',
+      one: '1 year',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifSheetDureeTitle => 'Over how long?';
+
+  @override
+  String get coachObjectifQuartUnite => 'quarter of a Hizb';
+
+  @override
+  String coachObjectifResteLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count quarters of a Hizb left out of 240',
+      one: '1 quarter of a Hizb left out of 240',
+      zero: 'The whole Qur\'an is memorized',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifRythmeDetail(String parJour, String parSemaine) {
+    return 'that is ≈ $parJour per day and ≈ $parSemaine per week, in quarters of a Hizb';
+  }
+
+  @override
+  String get coachObjectifPeriodeCeMois => 'this month';
+
+  @override
+  String get coachObjectifPeriodeCetteAnnee => 'this year';
+
+  @override
+  String get coachObjectifPeriodeCoranEntier => 'the whole Qur\'an';
+
+  @override
+  String get coachDashProgressMoreHorizons =>
+      'See the year and the whole Qur\'an';
+
+  @override
+  String get coachRythmeTenu => 'On track';
+
+  @override
+  String get coachRythmeDerape => 'Slightly behind';
+
+  @override
+  String get coachRythmeARattraper => 'Catching up needed';
+
+  @override
+  String get coachObjectifPeriodeJour => 'per day';
+
+  @override
+  String get coachObjectifPeriodeSemaine => 'per week';
+
+  @override
+  String get coachObjectifPeriodeMois => 'per month';
+
+  @override
+  String coachObjectifPeriodProgress(int faits, int total, String periode) {
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: '$faits of $total quarters — $periode',
+      one: '$faits of 1 quarter — $periode',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifMiniEvolutionCaption => 'Last 7 days';
+
+  @override
+  String get coachObjectifToday => 'Today';
+
+  @override
+  String get karaokePhraseFinTitle => 'End-of-surah phrase';
+
+  @override
+  String get karaokePhraseFinSubtitle =>
+      'Expect « صدق الله العظيم » after the last verse — helps the app judge the final word';
+
+  @override
+  String get coachDashTodayLabel => 'Today';
+
+  @override
+  String get coachDashTodayDone => 'Reached';
+
+  @override
+  String get coachDashTodayPending => 'In progress';
+
+  @override
+  String get coachDashStreakLabel => 'Streak';
+
+  @override
+  String coachDashStreakValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days',
+      one: '1 day',
+      zero: 'None',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachDashPointsLabel => 'Points';
+
+  @override
+  String coachDashProgressTitle(String periode) {
+    return 'Progress — $periode';
+  }
+
+  @override
+  String coachDashProgressRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count quarters to go',
+      one: '1 quarter to go',
+      zero: 'Goal reached',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachNiveauTitle => 'Support level';
+
+  @override
+  String get coachNiveauAMonRythme => 'At my own pace';
+
+  @override
+  String get coachNiveauRegulier => 'Regular';
+
+  @override
+  String get coachNiveauExigeant => 'Demanding';
+
+  @override
+  String get coachObjectifValider => 'Confirm';
+
+  @override
+  String get coachPortionsTitle => 'MEMORIZATION BY SURAH';
 
   @override
   String get coachRefreshTooltip => 'Refresh';
@@ -2115,4 +2387,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get coachPortionContestedBadge => 'Disputed';
+
+  @override
+  String get coachTogglePassageAutoTitre => 'Automatic progression';
+
+  @override
+  String get coachTogglePassageAutoDetail =>
+      'Once the check succeeds, training on the next verse starts on its own.';
+
+  @override
+  String get coachToggleCumulTitre => 'Cumulative check';
+
+  @override
+  String get coachToggleCumulDetail =>
+      'The check covers every verse learned since the session began.';
 }

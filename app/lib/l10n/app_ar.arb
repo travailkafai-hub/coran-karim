@@ -165,6 +165,12 @@
   "tajwidRuleSlntExplanation": "يُكتب ولا يُنطق.",
   "duasScreenTitle": "الأذكار والأدعية",
   "duasSearchHint": "ابحث عن دعاء أو كلمة أو مصدر…",
+  "duasRadiosTitre": "استماع مستمر",
+  "duasRadioMatin": "أذكار الصباح",
+  "duasRadioSoir": "أذكار المساء",
+  "duasRadioRoqya": "الرقية الشرعية",
+  "duasRadioSousTitre": "بث مباشر — يتطلب اتصالاً بالإنترنت",
+  "duasRadioErreur": "تعذّر التشغيل. تحقق من اتصالك.",
   "duasExplore": "استكشاف",
   "duasMyFavorites": "المفضلة",
   "duasNow": "الآن",
@@ -519,6 +525,8 @@
   "karaokeNothingHeardYet": "لم يُسمع شيء بعد.",
   "karaokeFinalizing": "الإنهاء جارٍ…",
   "karaokePausedHint": "متوقف مؤقتًا — المس ⏸ للاستئناف",
+  "karaokeEcouteEnCours": "أسمعك… واصل",
+  "karaokeEcouteBientot": "ستظهر الألوان بعد الكلمات الأولى",
   "karaokeListeningHint": "الاستماع جارٍ — المس الدائرة للتوقف",
   "karaokeFinishedHint": "المس الشاشة لإعادة البدء",
   "karaokeReferenceStartHint": "المس الشاشة لتسجيل تلاوتك المرجعية",
@@ -594,7 +602,6 @@
   "readingSettingsUnlimited": "بلا حد",
   "readingSettingsLoopSection": "التكرار والحلقات",
   "readingSettingsLoopDescription": "مثال: 3 آيات تُكرَّر 3 مرات، والسورة كاملة تُعاد 3 مرات.",
-
   "aboutTitle": "حول التطبيق",
   "aboutTagline": "تلاوة القرآن، مع التحقق داخل جهازك.",
   "aboutVersionLine": "الإصدار {version} (بناء {build})",
@@ -661,8 +668,77 @@
   "coachTrainListening": "أستمع إليك...",
   "coachTrainDone": "انتهت الجولة",
   "coachMoveToControl": "الانتقال إلى المراقبة",
-
-  "coachPortionsTitle": "أقسامي",
+  "coachObjectifTitle": "هدفي",
+  "coachObjectifStreak": "{count, plural, =0{لا سلسلة حالياً} =1{يوم واحد متتالٍ} other{{count} أيام متتالية}}",
+  "coachObjectifWeekProgress": "هذا الأسبوع: {faits} من {total} ربع/أرباع",
+  "coachObjectifEmptyTitle": "لا يوجد هدف محدد",
+  "coachObjectifEmptyBody": "حدّد هدف حفظ لمتابعة سلسلتك وتقدّمك.",
+  "coachObjectifSetButton": "تحديد هدف",
+  "coachObjectifSheetTitle": "هدف الحفظ",
+  "coachObjectifQuartsLabel": "{count, plural, =0{لا أرباع} =1{ربع حزب واحد} other{{count} أرباع حزب}}",
+  "coachObjectifResteAnneesMois": "{annees, plural, =1{بقيت سنة واحدة} other{بقيت {annees} سنوات}}{mois, plural, =0{} =1{ وشهر واحد} other{ و{mois} أشهر}}",
+  "@coachObjectifResteAnneesMois": {
+    "placeholders": {
+      "annees": {
+        "type": "int"
+      },
+      "mois": {
+        "type": "int"
+      }
+    }
+  },
+  "coachObjectifResteMois": "{count, plural, =1{بقي شهر واحد} other{بقي {count} أشهر}}",
+  "@coachObjectifResteMois": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "coachObjectifResteJours": "{count, plural, =1{بقي يوم واحد} other{بقي {count} أيام}}",
+  "@coachObjectifResteJours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "coachObjectifEcheanceDepassee": "انتهى الأجل — يمكنك منح نفسك وقتًا إضافيًا",
+  "coachObjectifAnneesLabel": "{count, plural, =1{القرآن كاملاً في سنة واحدة} =2{القرآن كاملاً في سنتين} other{القرآن كاملاً في {count} سنوات}}",
+  "coachObjectifAnneesCourt": "{count, plural, =1{سنة واحدة} =2{سنتان} other{{count} سنوات}}",
+  "coachObjectifSheetDureeTitle": "في كم من الوقت؟",
+  "coachObjectifQuartUnite": "ربع حزب",
+  "coachObjectifResteLabel": "{count, plural, =0{تم حفظ القرآن كاملاً} =1{بقي ربع حزب واحد من 240} other{بقي {count} أرباع حزب من 240}}",
+  "coachObjectifRythmeDetail": "أي ≈ {parJour} في اليوم و≈ {parSemaine} في الأسبوع، بأرباع الحزب",
+  "coachObjectifPeriodeCeMois": "هذا الشهر",
+  "coachObjectifPeriodeCetteAnnee": "هذه السنة",
+  "coachObjectifPeriodeCoranEntier": "القرآن كاملاً",
+  "coachDashProgressMoreHorizons": "عرض السنة والقرآن كاملاً",
+  "coachRythmeTenu": "على الوتيرة",
+  "coachRythmeDerape": "تأخّر يسير",
+  "coachRythmeARattraper": "يلزم التدارك",
+  "coachObjectifPeriodeJour": "في اليوم",
+  "coachObjectifPeriodeSemaine": "في الأسبوع",
+  "coachObjectifPeriodeMois": "في الشهر",
+  "coachObjectifPeriodProgress": "{total, plural, =1{{faits} من ربع واحد — {periode}} other{{faits} من {total} أرباع — {periode}}}",
+  "coachObjectifMiniEvolutionCaption": "آخر 7 أيام",
+  "coachObjectifToday": "اليوم",
+  "karaokePhraseFinTitle": "عبارة ختام السورة",
+  "karaokePhraseFinSubtitle": "توقّع « صدق الله العظيم » بعد الآية الأخيرة",
+  "coachDashTodayLabel": "اليوم",
+  "coachDashTodayDone": "تم",
+  "coachDashTodayPending": "جارٍ",
+  "coachDashStreakLabel": "السلسلة",
+  "coachDashStreakValue": "{count, plural, =0{لا شيء} =1{يوم واحد} other{{count} أيام}}",
+  "coachDashPointsLabel": "النقاط",
+  "coachDashProgressTitle": "التقدّم — {periode}",
+  "coachDashProgressRemaining": "{count, plural, =0{تم بلوغ الهدف} =1{بقي ربع واحد} other{بقي {count} أرباع}}",
+  "coachNiveauTitle": "المرافقة",
+  "coachNiveauAMonRythme": "بوتيرتي",
+  "coachNiveauRegulier": "منتظم",
+  "coachNiveauExigeant": "صارم",
+  "coachObjectifValider": "تأكيد",
+  "coachPortionsTitle": "الحفظ حسب السورة",
   "coachRefreshTooltip": "تحديث",
   "coachPortionsError": "تعذّرت قراءة الأقسام: {error}",
   "coachPortionsEmpty": "لا يوجد قسم متابَع بعد. ستظهر هنا كل سورة (أو جزء من حزب للسور الطويلة) تتلوها مع تقدّمها التراكمي.",
@@ -693,5 +769,9 @@
   "coachWordUnavailable": "الآية غير متاحة",
   "coachPortionHistorySection": "أُخطئت سابقًا، مُتقَنة الآن",
   "coachPortionCorrectedBadge": "صُحّحت",
-  "coachPortionContestedBadge": "معترَض عليها"
+  "coachPortionContestedBadge": "معترَض عليها",
+  "coachTogglePassageAutoTitre": "الانتقال التلقائي",
+  "coachTogglePassageAutoDetail": "عند نجاح الاختبار يبدأ تدريب الآية التالية من تلقاء نفسه.",
+  "coachToggleCumulTitre": "اختبار تراكمي",
+  "coachToggleCumulDetail": "يشمل الاختبار كل الآيات المحفوظة منذ بداية الجلسة."
 }

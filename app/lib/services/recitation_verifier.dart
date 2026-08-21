@@ -232,6 +232,14 @@ class ArabicNormalizer {
 
 // ── Interface ────────────────────────────────────────────────────────────────
 
+/// Un verdict v2 tel qu'il circule entre le vérificateur et le provider.
+///
+/// Introduit le 2026-08-18 en même temps que le retour de [v2Terminer] : ce
+/// type record était écrit en toutes lettres à chaque usage, et une signature
+/// de plus l'aurait rendu illisible. Les records étant STRUCTURELS, ce nom
+/// coexiste sans friction avec les usages qui l'épellent encore.
+typedef V2StatutFinal = ({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable});
+
 abstract class RecitationVerifier {
   Stream<RecognizedToken> get tokens;
   Stream<double> get soundLevel;
@@ -317,7 +325,25 @@ abstract class RecitationVerifier {
 
   /// FERME la session v2 (dernière analyse de la queue d'audio). Sans elle les
   /// derniers mots prononcés restent PROVISOIRES. No-op par défaut.
-  Future<void> v2Terminer() async {}
+  ///
+  /// ── POURQUOI ELLE REND LES VERDICTS DEPUIS LE 2026-08-18 ─────────────────
+  /// Elle les POSTAIT auparavant dans `v2Statuses` et ne rendait rien. Or un
+  /// `add()` sur un flux est livré au tour de boucle SUIVANT, tandis que le
+  /// passage de la session à `finished` est synchrone : tout écran qui réagit
+  /// à `finished` voyait donc l'état d'AVANT la clôture.
+  ///
+  /// Défaut mesuré, palier de mémorisation sur 80:1 (2 mots) :
+  ///     34.152  [v2] session fermee : 2 mot(s) finalise(s)
+  ///     34.157  [Palier] fin de tour : juges=0 statuts=[current,pending]
+  ///     34.159  [V2] mot=0 -> definitif:vert  | fermeture de session
+  ///     34.160  [V2] mot=1 -> provisoire:vert | fermeture de session
+  /// Les deux mots étaient VERTS ; le palier a conclu à l'échec 7 ms trop tôt,
+  /// et ne pouvait donc JAMAIS valider -- constat utilisateur : « j'ai réussi
+  /// le palier, il reste sur le palier ».
+  ///
+  /// L'appelant qui a besoin de l'ordre applique lui-même le retour AVANT de
+  /// clore ; celui qui n'en a pas besoin peut l'ignorer.
+  Future<List<V2StatutFinal>> v2Terminer() async => const [];
 
   /// Active/désactive le BLOC DE FUSION de la v2 (mesure). No-op par défaut.
   Future<void> v2SetFusion(bool actif,
@@ -447,6 +473,22 @@ abstract class RecitationVerifier {
   /// correcte, puis on reprend exactement où on en était.
   Future<void> pauseCapture();
   Future<void> resumeCapture();
+
+  /// À appeler juste après [pauseCapture] quand la pause peut durer (bouton
+  /// pause de l'utilisateur, pas la pause courte de la correction auto) :
+  /// force un dernier verdict sur les mots encore en attente, pour que la
+  /// série/le décompte Coach ne perdent pas la fin de la récitation si
+  /// l'utilisateur quitte l'écran sans avoir repris.
+  ///
+  /// Attend d'abord que tout envoi de bloc PCM déjà en vol ait fini d'être
+  /// transmis à la chaîne (même attente que [resetBuffer]) avant d'appeler
+  /// [v2Terminer] : sans ça, `v2Terminer()` pourrait trancher avant que les
+  /// tout derniers blocs captés juste avant la pause n'aient atteint le
+  /// natif, et couper le dernier mot au lieu de le juger.
+  ///
+  /// Non destructif (cf. doc de [v2Terminer]) : sûr à appeler avant une
+  /// reprise, ne libère ni le micro ni aucun buffer nécessaire à la suite.
+  Future<void> finaliserPourPause();
 
   /// Pause LOGICIELLE instantanée : la chaîne (transcription, alignement,
   /// jugement) s'arrête net, mais le micro matériel n'est PAS touché.
@@ -875,6 +917,13 @@ class WhisperOnnxVerifier implements RecitationVerifier {
       DiagnosticLog.log('ASR',
           'capture ouverte | suppression de bruit = $_noiseSuppress');
       DiagnosticLog.log('ASR', 'startStream() a retourné un Stream — abonnement…');
+      // Pendant de `Micro RELACHE` (cf. stop()) : la MEME étiquette des deux
+      // côtés, pour qu'un `grep Micro` du journal donne la vie du micro sur
+      // une seule colonne -- prise, relâche, et rien entre les deux qui puisse
+      // se perdre dans le reste du flot.
+      DiagnosticLog.log('Micro',
+          'PRISE effective | continu=$_continuous generation=$_generation '
+          'suppressionBruit=$_noiseSuppress');
 
       _pcmSub = stream.listen(
         (bytes) {
@@ -1147,15 +1196,20 @@ class WhisperOnnxVerifier implements RecitationVerifier {
           maxBloc: maxBloc, maxFusion: maxFusion);
 
   @override
-  Future<void> v2Terminer() async {
+  Future<List<V2StatutFinal>> v2Terminer() async {
     // Les statuts de cette dernière passe ne remontent PAS par le chemin
     // habituel (la réponse de `feed()`, cf. `_v2Ctrl.add(v2)` plus haut) :
-    // `feed` ne sera plus appelé, la capture est arrêtée. On les réinjecte
-    // donc nous-mêmes dans le même flux, pour que `_onV2` les applique
-    // exactement comme les autres.
+    // `feed` ne sera plus appelé, la capture est arrêtée.
+    //
+    // ⚠️ Ils ne sont plus POSTÉS dans `_v2Ctrl` ici (2026-08-18) mais RENDUS :
+    // un `add()` est livré au tour de boucle suivant, donc après le passage à
+    // `finished`, et l'écran qui décide voyait l'état d'avant la clôture (cf.
+    // la doc de `RecitationVerifier.v2Terminer` pour la mesure). Les appelants
+    // qui veulent le comportement « flux » le refont eux-mêmes -- c'est le cas
+    // de `finaliserPourPause` juste en dessous.
     final finaux = await _fastConformer.v2Terminer();
-    if (finaux.isEmpty) return;
-    _v2Ctrl.add(finaux
+    if (finaux.isEmpty) return const [];
+    return (finaux
         .map((e) => (
               index: e.index,
               statut: e.statut,
@@ -1292,6 +1346,24 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   @override
   Future<void> stop() async {
+    // ── TRACE DE FIN DE MICRO (2026-08-14, demande utilisateur) ────────────
+    // « rajoute l'activation et la fin d'activation du micro [...] pour
+    // s'assurer après que la gestion du micro se fait bien ».
+    //
+    // La prise du micro était déjà tracée (`Appel _recorder.startStream()…`),
+    // sa RELÂCHE ne l'était pas : on voyait le micro s'ouvrir, jamais se
+    // fermer, et rien ne distinguait « fermé proprement » de « laissé ouvert
+    // par un chemin de sortie oublié » -- exactement le défaut trouvé le
+    // 2026-08-14 sur `stopContinuous()`, dont le garde d'entrée sautait toute
+    // la fin de session sans laisser une ligne.
+    //
+    // `captureEnCours` est lu AVANT toute libération : il vaut `_pcmSub !=
+    // null`, donc l'état réel du micro et non une intention. Un `stop()` sur
+    // un micro déjà fermé se voit alors tel quel (`micro detenu=false`), ce
+    // qui est une information -- pas une anomalie à cacher.
+    DiagnosticLog.log('Micro',
+        'RELACHE demandee | micro detenu=$captureEnCours continu=$_continuous '
+        'generation=$_generation');
     _levelTimer?.cancel();
     _levelCtrl.add(0);
     _sessionEnding = true;
@@ -1306,6 +1378,8 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         await _fastConformer.disposeStreaming();
         _usingCausalStreaming = false;
       }
+      DiagnosticLog.log('Micro',
+          'RELACHE effective (continu) | micro detenu=$captureEnCours');
       return;
     }
 
@@ -1420,6 +1494,17 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   }
 
   @override
+  Future<void> finaliserPourPause() async {
+    await _continuousFeedTail;
+    // Ce chemin-ci n'a aucun ordre à garantir (aucune session ne se ferme) :
+    // il reposte donc dans le flux, comme `v2Terminer` le faisait elle-même
+    // avant le 2026-08-18.
+    final finaux = await v2Terminer();
+    if (finaux.isNotEmpty) _v2Ctrl.add(finaux);
+    DiagnosticLog.log('ASR', 'finaliserPourPause() | derniers mots tranches');
+  }
+
+  @override
   Future<void> resumeCapture() async {
     try {
       final wasPaused = await _recorder.isPaused();
@@ -1519,7 +1604,7 @@ class MockRecitationVerifier implements RecitationVerifier {
   @override
   Future<bool> v2ReculerAncre(int mot) async => false;
   @override
-  Future<void> v2Terminer() async {}
+  Future<List<V2StatutFinal>> v2Terminer() async => const [];
   @override
   Future<void> v2SetFusion(bool actif,
       {int preuves = 2,
@@ -1604,6 +1689,8 @@ class MockRecitationVerifier implements RecitationVerifier {
 
   @override
   Future<void> pauseCapture() async {}
+  @override
+  Future<void> finaliserPourPause() async {}
   @override
   void pauseCaptureSoft() {}
   @override

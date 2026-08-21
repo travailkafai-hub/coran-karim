@@ -205,6 +205,18 @@ void showTajwidHelpSheet(
   /// directement au lieu d'extraire -- même bouton, même feuille, deux
   /// sources d'audio selon le contexte d'ouverture.
   String? archivedAudioPath,
+  /// Interdit le repli sur `v2ExtraitVoix` quand aucun audio archivé n'existe
+  /// pour ce mot (2026-08-15).
+  ///
+  /// POURQUOI CE N'EST PAS REDONDANT AVEC [archivedAudioPath] : la chaîne
+  /// native SURVIT à la fin d'une session (`v2Chaine` n'est jamais détruite),
+  /// donc en relecture elle répond avec le flux brut d'une AUTRE sourate.
+  /// Mesuré le 2026-08-15 : 0,98 s de la sourate 103 joués pour un mot de la
+  /// sourate 95. Sans ce drapeau, un mot relu SANS audio archivé retombait sur
+  /// ce chemin — et l'utilisateur écoutait un extrait sans rapport, sans que
+  /// rien ne le signale. Mieux vaut le dire (« Audio plus disponible ») que
+  /// faire entendre autre chose.
+  bool interdireExtraction = false,
   /// Appelé quand "Réessayer ce mot" réussit DEPUIS L'ARCHIVE (pas de
   /// session live, donc pas de `markWordCorrected` possible) -- l'appelant
   /// décide quoi faire (ex. retirer l'erreur du journal cumulé). Cf.
@@ -420,6 +432,7 @@ void showTajwidHelpSheet(
                         globalWordIndex: wordIndex,
                         focusWord: focusWord,
                         archivedAudioPath: archivedAudioPath,
+                        interdireExtraction: interdireExtraction,
                         onWordContested: onWordContested,
                       ),
                     ],
@@ -529,6 +542,9 @@ class _ListenRangeControl extends ConsumerStatefulWidget {
   /// rejoue directement au lieu d'extraire depuis le flux v2 en direct.
   final String? archivedAudioPath;
 
+  /// Cf. `showTajwidHelpSheet.interdireExtraction`.
+  final bool interdireExtraction;
+
   /// Cf. `showTajwidHelpSheet.onWordContested`.
   final VoidCallback? onWordContested;
   const _ListenRangeControl({
@@ -537,6 +553,7 @@ class _ListenRangeControl extends ConsumerStatefulWidget {
     required this.focusWord,
     this.globalWordIndex,
     this.archivedAudioPath,
+    this.interdireExtraction = false,
     this.onWordContested,
   });
 
@@ -601,7 +618,10 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
   Future<void> _playVoix() async {
     final archive = widget.archivedAudioPath;
     final g = widget.globalWordIndex;
-    if (archive == null && g == null) return;
+    if (archive == null && (g == null || widget.interdireExtraction)) {
+      setState(() => _erreurVoix = 'Audio plus disponible');
+      return;
+    }
     setState(() {
       _playingVoix = true;
       _erreurVoix = null;
@@ -613,9 +633,13 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
     try {
       // Session ARCHIVÉE (Coach) : l'extrait est déjà sur disque, rien à
       // extraire -- cf. doc sur `showTajwidHelpSheet.archivedAudioPath`.
+      // `interdireExtraction` : en relecture, la chaîne native est celle
+      // d'une AUTRE session -- ne rien jouer plutôt que jouer autre chose.
       final chemin = archive ??
-          await ref.read(recitationVerifierProvider).v2ExtraitVoix(
-              g! - _bounds.$1, g + _bounds.$2);
+          (widget.interdireExtraction
+              ? null
+              : await ref.read(recitationVerifierProvider).v2ExtraitVoix(
+                  g! - _bounds.$1, g + _bounds.$2));
       if (!mounted) return;
       if (chemin == null) {
         // Cas légitimes : audio sorti de l'anneau (session longue), ou mots
@@ -1263,9 +1287,39 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
         .where((w) => w.isNotEmpty)
         .toList();
     final positionCible = _motsDeContexte().length;
-    final heardNorm =
-        positionCible < heardTokens.length ? heardTokens[positionCible] : '';
-    final matches = heardNorm.isNotEmpty && heardNorm == expectedNorm;
+    // ── ON CHERCHE LE MOT, ON NE COMPTE PLUS LES PLACES (2026-08-17) ───────
+    //
+    // DÉFAUT CONSTATÉ PAR L'UTILISATEUR, fiche à l'appui : « dans réessayer le
+    // mot, pourquoi c'est faux ? on juge que le mot en erreur ». Cas réel,
+    // verset 106:3, mot ciblé `ٱلْبَيْتِ`, contexte `رَبَّ هَٰذَا` (2 mots) :
+    // la transcription rendait `ذَاتٍ ٱلْبَيْتِ`, soit DEUX jetons. L'index
+    // visé était le troisième (0-based : 2), qui n'existait pas -> chaîne
+    // vide -> refus. Or le mot ciblé était bien là, décodé exactement, en
+    // deuxième position. L'app redemandait un mot qui venait d'être dit juste.
+    //
+    // La limite était connue et assumée dans le commentaire ci-dessus (« un
+    // faux négatif, jamais un faux positif, donc acceptable »). Elle ne l'est
+    // pas : ce que cette boucle doit établir, c'est que LE MOT a été prononcé
+    // correctement -- pas que la transcription du contexte s'est segmentée en
+    // autant de jetons qu'attendu, ce dont l'app ne maîtrise rien.
+    //
+    // GARDE-FOU CONTRE LE FAUX POSITIF, le seul risque de cette recherche :
+    // si le mot ciblé figure DÉJÀ parmi les mots de contexte (le texte
+    // coranique se répète), le trouver ne prouverait rien -- l'utilisateur
+    // pourrait n'avoir dit que le contexte. Dans ce cas précis on garde la
+    // lecture POSITIONNELLE, plus stricte. Ailleurs, le mot cherché n'est
+    // atteignable qu'en l'ayant réellement prononcé.
+    final contexteNorm =
+        _motsDeContexte().map(ArabicNormalizer.normalize).toSet();
+    final motRepeteDansContexte = contexteNorm.contains(expectedNorm);
+    final bool matches;
+    if (motRepeteDansContexte) {
+      final heardNorm =
+          positionCible < heardTokens.length ? heardTokens[positionCible] : '';
+      matches = heardNorm.isNotEmpty && heardNorm == expectedNorm;
+    } else {
+      matches = heardTokens.contains(expectedNorm);
+    }
 
     setState(() {
       _heardText = (text == null || text.trim().isEmpty)

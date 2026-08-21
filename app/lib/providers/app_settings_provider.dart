@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/riwaya.dart';
+import '../models/objectif_coach.dart';
 import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
 
@@ -760,7 +761,14 @@ const _kPrefPortionGranularity = 'portion_granularity';
 /// sourate qui tient dans un seul Hizb n'est JAMAIS découpée, quel que soit ce
 /// réglage (cf. `PortionService.resolve`) -- il ne s'applique qu'aux sourates
 /// qui s'étalent sur plusieurs Hizb (Al-Baqarah, Al-Imran, An-Nisa...).
-enum PortionGranularity { hizb, demiHizb }
+/// Découpe d'une sourate trop longue pour être suivie d'un bloc.
+///
+/// `rubElHizb` (le QUART de Hizb) est le défaut depuis le 2026-08-13 :
+/// « c'est ce qui est souvent utilisé pour la mémorisation » (utilisateur).
+/// Les deux autres restent disponibles pour qui veut des tranches plus
+/// larges. Une sourate qui tient dans un seul Hizb n'est JAMAIS découpée,
+/// quel que soit ce réglage (cf. `PortionService.resolve`).
+enum PortionGranularity { rubElHizb, demiHizb, hizb }
 
 final portionGranularityProvider = StateNotifierProvider<
     PortionGranularitySettingNotifier, PortionGranularity>((ref) {
@@ -769,19 +777,313 @@ final portionGranularityProvider = StateNotifierProvider<
 
 class PortionGranularitySettingNotifier
     extends StateNotifier<PortionGranularity> {
-  PortionGranularitySettingNotifier() : super(PortionGranularity.hizb) {
+  PortionGranularitySettingNotifier() : super(PortionGranularity.rubElHizb) {
     _restore();
   }
 
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_kPrefPortionGranularity);
-    if (saved == 'demiHizb' && mounted) state = PortionGranularity.demiHizb;
+    if (!mounted || saved == null) return;
+    // Lecture par NOM : un réglage enregistré avant l'ajout du quart de Hizb
+    // (`hizb`/`demiHizb`) est respecté tel quel. Seuls ceux qui n'ont jamais
+    // tranché basculent sur le nouveau défaut.
+    for (final g in PortionGranularity.values) {
+      if (g.name == saved) {
+        state = g;
+        return;
+      }
+    }
   }
 
   Future<void> set(PortionGranularity value) async {
     state = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kPrefPortionGranularity, value.name);
+  }
+}
+
+// ── L'ENGAGEMENT DE MEMORISATION (Coach, 2026-08-13) ──────────────────────
+// Clés de l'ANCIEN réglage (volume + période), conservées en lecture seule
+// pour la migration ci-dessous. Elles ne sont plus écrites depuis le
+// 2026-08-14 -- et volontairement pas effacées : tant qu'elles restent, la
+// migration reste rejouable et un retour en arrière reste possible.
+const _kPrefObjectifQuarts = 'coach_objectif_quarts';
+const _kPrefObjectifPeriode = 'coach_objectif_periode';
+const _kPrefObjectifAnnees = 'coach_objectif_annees';
+/// Jour où l'échéance a été posée (ISO-8601). Cf. `ObjectifCoach.debut` :
+/// sans lui, l'échéance glisse d'un jour chaque jour et aucun retard n'est
+/// visible.
+const _kPrefObjectifDebut = 'coach_objectif_debut';
+const _kPrefCoachNiveau = 'coach_niveau';
+
+/// Objectif de mémorisation et niveau d'accompagnement (cf. `PLAN_COACH.md`).
+///
+/// Un seul réglage saisi par l'utilisateur — en combien d'ANNÉES mémoriser
+/// tout le Coran — dont l'app dérive le rythme par jour, semaine et mois. Le
+/// niveau, lui, ne change QUE la fréquence des relances : il ne touche ni au
+/// jugement de la récitation, ni aux paliers. Un utilisateur « À mon rythme »
+/// voit exactement la même progression qu'un « Exigeant », il n'est simplement
+/// pas relancé.
+final objectifCoachProvider =
+    StateNotifierProvider<ObjectifCoachNotifier, ObjectifCoach>((ref) {
+  return ObjectifCoachNotifier();
+});
+
+class ObjectifCoachNotifier extends StateNotifier<ObjectifCoach> {
+  ObjectifCoachNotifier() : super(const ObjectifCoach()) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final niveau = NiveauCoach.values.firstWhere(
+        (n) => n.name == prefs.getString(_kPrefCoachNiveau),
+        orElse: () => NiveauCoach.regulier);
+    var annees = prefs.getInt(_kPrefObjectifAnnees) ?? 0;
+    if (annees <= 0) {
+      annees = _migrerDepuisVolumeParPeriode(prefs);
+      if (annees > 0) await prefs.setInt(_kPrefObjectifAnnees, annees);
+    }
+    // ── DATE DE POSE DE L'ÉCHÉANCE (2026-08-14) ──────────────────────────
+    //
+    // Sans elle, l'échéance glissait d'un jour chaque jour (cf.
+    // `ObjectifCoach.debut`). Un objectif ANTÉRIEUR à ce changement n'a
+    // évidemment pas de date : on la pose à AUJOURD'HUI, jamais à une date
+    // passée reconstituée.
+    //
+    // Pourquoi ne pas remonter à la première activité connue du Coach, qui
+    // serait plus « exact » : parce que ce serait décider à la place de
+    // l'utilisateur qu'il a déjà consommé une partie de son échéance, sur une
+    // date qu'il n'a jamais choisie -- et ça se traduirait par un rythme
+    // quotidien brutalement plus dur au premier lancement, sans explication.
+    // Repartir d'aujourd'hui ne perd rien d'acquis : les quarts déjà
+    // mémorisés restent comptés, c'est le RESTE qui est réparti.
+    var debut = _lireDate(prefs, _kPrefObjectifDebut);
+    if (annees > 0 && debut == null) {
+      debut = DateTime.now();
+      await prefs.setString(_kPrefObjectifDebut, debut.toIso8601String());
+    }
+    if (!mounted) return;
+    state = ObjectifCoach(annees: annees, niveau: niveau, debut: debut);
+  }
+
+  static DateTime? _lireDate(SharedPreferences prefs, String cle) {
+    final brut = prefs.getString(cle);
+    if (brut == null) return null;
+    return DateTime.tryParse(brut);
+  }
+
+  /// Convertit un ancien objectif « N quarts par jour/semaine/mois » en une
+  /// échéance en années, une seule fois.
+  ///
+  /// On repart du RYTHME QUOTIDIEN, seule grandeur commune aux deux modèles :
+  /// N quarts sur une période de J jours donne N/J quart par jour, donc
+  /// 240 / (N/J) jours pour tout le Coran. Borné à [ObjectifCoach.anneesMin] /
+  /// [ObjectifCoach.anneesMax] — un ancien « 1 quart par mois » vaudrait 20
+  /// ans, hors du curseur ; le ramener à 6 ans est le choix le plus proche que
+  /// l'utilisateur peut désormais exprimer, et il reste libre de le rouvrir.
+  ///
+  /// Volontairement calculée sur les 240 quarts ENTIERS, pas sur le reste à
+  /// mémoriser : la migration doit être reproductible et ne pas dépendre d'un
+  /// état de progression qui, lui, bouge à chaque récitation.
+  int _migrerDepuisVolumeParPeriode(SharedPreferences prefs) {
+    final quarts = prefs.getInt(_kPrefObjectifQuarts) ?? 0;
+    if (quarts <= 0) return 0; // aucun objectif n'avait été fixé
+    final jours = switch (prefs.getString(_kPrefObjectifPeriode)) {
+      'jour' => 1,
+      'mois' => 30,
+      _ => 7, // 'semaine', et défaut historique du réglage
+    };
+    final parJour = quarts / jours;
+    final annees = (ObjectifCoach.quartsDuCoran / parJour / 365).round();
+    return annees.clamp(ObjectifCoach.anneesMin, ObjectifCoach.anneesMax);
+  }
+
+  /// Pose (ou repose) l'échéance : elle court à partir d'AUJOURD'HUI.
+  ///
+  /// Règle utilisateur du 2026-08-14 : « une fois la décision prise, la durée
+  /// diminue avec le temps -- au départ 4 ans, dans 6 mois c'est 3 ans et
+  /// 6 mois ; il peut augmenter à 4 ans, mais ça prend seulement le reste qui
+  /// n'est pas encore appris par cœur ».
+  ///
+  /// Toucher au curseur redéfinit donc la durée QUI RESTE, pas une durée
+  /// totale depuis l'origine : remettre « 4 ans » alors qu'il en restait 3 ans
+  /// et 6 mois redonne bien 4 ans pleins à partir de ce jour. C'est le geste
+  /// d'allongement voulu par PLAN_COACH.md §2 (« mieux vaut des petits pas
+  /// qu'on réussit »), et il reste EXPLICITE : rien ne repousse l'échéance
+  /// tout seul, seul l'utilisateur peut le faire.
+  ///
+  /// L'objectif retiré (`annees = 0`) efface la date : le prochain objectif
+  /// posé repartira d'un jour neuf, il n'hérite pas d'une échéance abandonnée.
+  Future<void> definir({required int annees}) async {
+    final borne = annees <= 0
+        ? 0
+        : annees.clamp(ObjectifCoach.anneesMin, ObjectifCoach.anneesMax);
+    final prefs = await SharedPreferences.getInstance();
+    if (borne <= 0) {
+      state = const ObjectifCoach().copyWith(niveau: state.niveau);
+      await prefs.setInt(_kPrefObjectifAnnees, 0);
+      await prefs.remove(_kPrefObjectifDebut);
+      return;
+    }
+    final debut = DateTime.now();
+    state = ObjectifCoach(annees: borne, niveau: state.niveau, debut: debut);
+    await prefs.setInt(_kPrefObjectifAnnees, borne);
+    await prefs.setString(_kPrefObjectifDebut, debut.toIso8601String());
+  }
+
+  Future<void> setNiveau(NiveauCoach niveau) async {
+    state = state.copyWith(niveau: niveau);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefCoachNiveau, niveau.name);
+  }
+
+  /// Réduit l'objectif après une semaine manquée — JAMAIS en silence, toujours
+  /// depuis une proposition acceptée par l'utilisateur (cf. PLAN_COACH.md §2 :
+  /// « un objectif qui baisse tout seul n'est plus un engagement »).
+  ///
+  /// Baisser l'objectif, c'est désormais ALLONGER l'échéance d'un an — « mieux
+  /// vaut des petits pas qu'on réussit que des grands pas qu'on rate ». Au
+  /// maximum du curseur il n'y a plus rien à détendre : on ne descend jamais à
+  /// « aucun objectif », qui serait un abandon, pas une baisse.
+  /// (AVANT le 2026-08-14 : `quarts * 2 ~/ 3`, plancher à 1 quart.)
+  Future<void> reduireApresAccord() async {
+    if (!state.actif || state.annees >= ObjectifCoach.anneesMax) return;
+    await definir(annees: state.annees + 1);
+  }
+}
+
+const _kPrefPhraseFinRecitation = 'phrase_fin_recitation_enabled';
+
+/// « صدق الله العظيم » attendue APRÈS le dernier mot d'une sourate.
+///
+/// ── POURQUOI CE RÉGLAGE EXISTE (idée utilisateur, 2026-08-14) ──────────────
+///
+/// Le dernier mot d'une sourate ne pouvait JAMAIS être verrouillé : le
+/// Décideur exige deux observations issues de fenêtres distinctes (`k = 2`) et
+/// qu'un mot POSTÉRIEUR ait été observé -- deux conditions qu'aucune fenêtre
+/// future ne peut plus satisfaire quand le récitateur s'arrête. Mesuré sur
+/// device (An-Nasr, 2026-08-14) :
+///     mot=22 "تَوَّابًۢا" -> provisoire:orange  obs=1  entendu="تَوَّابًا"
+/// Le mot était bien récité, bien entendu, et n'a jamais pu être figé.
+///
+/// Proposition de l'utilisateur, préférée à un assouplissement de `k` : « on
+/// peut garder k=2 mais rajouter à la fin de chaque sourate صدق الله العظيم si
+/// on a un audio ». En récitant une phrase APRÈS la sourate, le dernier mot du
+/// Coran cesse d'être le dernier -- il obtient sa seconde observation et son
+/// contexte droit NATURELLEMENT, sans qu'aucune règle de preuve ne cède.
+///
+/// ⚠️ DÉSACTIVÉ PAR DÉFAUT, et ce n'est pas un choix technique : dire
+/// « صدق الله العظيم » après la récitation est une pratique DÉBATTUE entre
+/// savants, plusieurs la considérant non établie de la Sunna. L'application ne
+/// l'impose donc à personne ; elle sait seulement l'attendre pour ceux qui la
+/// disent déjà.
+///
+/// Les mots de la phrase sont ajoutés à la cible de la chaîne mais déclarés
+/// NON JUGEABLES (même mécanisme que la Bismillah non récitée) : ils ne
+/// reçoivent jamais de verdict, ne comptent dans aucun score, et ne sont pas
+/// affichés dans le texte coranique.
+final phraseFinRecitationProvider =
+    StateNotifierProvider<PhraseFinRecitationNotifier, bool>((ref) {
+  return PhraseFinRecitationNotifier();
+});
+
+class PhraseFinRecitationNotifier extends StateNotifier<bool> {
+  PhraseFinRecitationNotifier() : super(false) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefPhraseFinRecitation);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefPhraseFinRecitation, value);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COACH — LES DEUX BASCULES DU CONTRÔLE (2026-08-18)
+//
+// Elles REMPLACENT les deux boutons « Réessayer » / « Retour entraînement » du
+// bas de l'écran Contrôle, jugés inutiles par l'utilisateur : « les deux
+// boutons en bas ne servent à rien, on peut les remplacer par [...] ».
+// Règle de projet appliquée telle quelle : un élément d'IHM jugé inutile se
+// supprime, il ne se déplace pas ailleurs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _kPrefCoachPassageAuto = 'coach_passage_auto';
+
+/// Passage AUTOMATIQUE au verset suivant une fois le contrôle réussi.
+///
+/// Avant le 2026-08-18, cet enchaînement existait déjà mais était IMPOSÉ
+/// (`advanceAfterPerfectControl`, appelé sans condition). Il devient un choix.
+/// Désactivé, l'utilisateur reste sur le résultat et avance par les flèches.
+final coachPassageAutoProvider =
+    StateNotifierProvider<CoachPassageAutoNotifier, bool>((ref) {
+  return CoachPassageAutoNotifier();
+});
+
+class CoachPassageAutoNotifier extends StateNotifier<bool> {
+  CoachPassageAutoNotifier() : super(true) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefCoachPassageAuto);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefCoachPassageAuto, value);
+  }
+}
+
+const _kPrefCoachControleCumulatif = 'coach_controle_cumulatif';
+
+/// Le contrôle porte sur TOUT ce qui a été appris depuis le début de session.
+///
+/// Demande utilisateur (2026-08-18) : « le contrôle se fait sur le cumul de la
+/// session depuis le début de la session ; pour passer au verset 3 on réussit
+/// 1 et 2 ; ou bien si on a commencé depuis le verset 5, pour passer au verset
+/// 7 on doit réussir 5 et 6 ».
+///
+/// Le contrôle cesse alors d'être un bilan de fin pour devenir une PORTE entre
+/// deux versets : entraînement du verset N, puis contrôle sur [départ..N], et
+/// c'est sa réussite qui ouvre le verset N+1. C'est ce qui empêche d'empiler
+/// des versets sans jamais rejouer les précédents -- le défaut même que la
+/// mémorisation cherche à éviter.
+///
+/// Désactivé : comportement d'avant, le contrôle ne porte que sur le verset
+/// courant.
+final coachControleCumulatifProvider =
+    StateNotifierProvider<CoachControleCumulatifNotifier, bool>((ref) {
+  return CoachControleCumulatifNotifier();
+});
+
+class CoachControleCumulatifNotifier extends StateNotifier<bool> {
+  CoachControleCumulatifNotifier() : super(true) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefCoachControleCumulatif);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefCoachControleCumulatif, value);
   }
 }

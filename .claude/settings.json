@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/exige-superviseur.py\" edit 2>&1 || true",
+            "command": "true  # DESACTIVE 2026-08-18 (demande utilisateur : 'enleve ce hook') -- pour reactiver, retirer 'true  # ' : python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/exige-superviseur.py\" edit 2>&1 || true",
             "timeout": 10
           }
         ]

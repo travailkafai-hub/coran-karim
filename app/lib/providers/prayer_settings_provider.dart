@@ -16,6 +16,32 @@ const _kPrefLastPosition = 'prayer_last_position_v1';
 
 enum PrayerLocationStatus { loading, ready, serviceDisabled, permissionDenied, error }
 
+/// Prochaine priere a venir (aujourd'hui, ou Sobh de demain si Ichaa est deja
+/// passe) -- sert au bandeau vedette des reglages ET au rappel pose sur la
+/// liste des sourates.
+///
+/// EXTRAIT le 2026-08-19 de `prayer_times_settings_screen` (ou il etait prive)
+/// plutot que recopie : la regle « apres Ichaa, la prochaine est le Sobh de
+/// DEMAIN » est exactement le genre de detail qu'une copie finit par ne plus
+/// partager -- et deux ecrans qui annoncent une prochaine priere differente
+/// seraient pires que pas de rappel du tout.
+extension ProchainePriere on PrayerState {
+  ({PrayerName name, DateTime time})? get prochainePriere {
+    final aujourdhui = today;
+    if (aujourdhui == null) return null;
+    final maintenant = DateTime.now();
+    for (final p in PrayerName.values) {
+      final t = aujourdhui[p]!;
+      if (t.isAfter(maintenant)) return (name: p, time: t);
+    }
+    final demain = tomorrow;
+    if (demain != null) {
+      return (name: PrayerName.fajr, time: demain[PrayerName.fajr]!);
+    }
+    return null;
+  }
+}
+
 class PrayerState {
   final PrayerSettings settings;
   final PrayerLocationStatus locationStatus;

@@ -605,6 +605,25 @@ class AppLocalizationsFr extends AppLocalizations {
   String get duasSearchHint => 'Chercher une invocation, un mot, une source…';
 
   @override
+  String get duasRadiosTitre => 'Écoute continue';
+
+  @override
+  String get duasRadioMatin => 'Invocations du matin';
+
+  @override
+  String get duasRadioSoir => 'Invocations du soir';
+
+  @override
+  String get duasRadioRoqya => 'Roqya';
+
+  @override
+  String get duasRadioSousTitre =>
+      'Diffusion continue — nécessite une connexion';
+
+  @override
+  String get duasRadioErreur => 'Lecture impossible. Vérifiez votre connexion.';
+
+  @override
   String get duasExplore => 'Explorer';
 
   @override
@@ -1614,6 +1633,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get karaokePausedHint => 'En pause — touche ⏸ pour reprendre';
 
   @override
+  String get karaokeEcouteEnCours => 'Je t’écoute… continue';
+
+  @override
+  String get karaokeEcouteBientot =>
+      'Les couleurs arrivent après les premiers mots';
+
+  @override
   String get karaokeListeningHint =>
       'À l\'écoute — touche le cercle pour t\'arrêter';
 
@@ -2053,7 +2079,255 @@ class AppLocalizationsFr extends AppLocalizations {
   String get coachMoveToControl => 'Passer au controle';
 
   @override
-  String get coachPortionsTitle => 'MES PORTIONS';
+  String get coachObjectifTitle => 'MON OBJECTIF';
+
+  @override
+  String coachObjectifStreak(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count jours de suite',
+      one: '1 jour de suite',
+      zero: 'Aucune série en cours',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifWeekProgress(int faits, String total) {
+    return 'Cette semaine : $faits sur $total quart(s)';
+  }
+
+  @override
+  String get coachObjectifEmptyTitle => 'Aucun objectif fixé';
+
+  @override
+  String get coachObjectifEmptyBody =>
+      'Fixe un objectif de mémorisation pour suivre ta série et ta progression.';
+
+  @override
+  String get coachObjectifSetButton => 'Fixer un objectif';
+
+  @override
+  String get coachObjectifSheetTitle => 'Mon objectif de mémorisation';
+
+  @override
+  String coachObjectifQuartsLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count quarts de Hizb',
+      one: '1 quart de Hizb',
+      zero: 'Aucun quart',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifResteAnneesMois(int annees, int mois) {
+    String _temp0 = intl.Intl.pluralLogic(
+      annees,
+      locale: localeName,
+      other: 'Il reste $annees ans',
+      one: 'Il reste 1 an',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      mois,
+      locale: localeName,
+      other: ' et $mois mois',
+      one: ' et 1 mois',
+      zero: '',
+    );
+    return '$_temp0$_temp1';
+  }
+
+  @override
+  String coachObjectifResteMois(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Il reste $count mois',
+      one: 'Il reste 1 mois',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifResteJours(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Il reste $count jours',
+      one: 'Il reste 1 jour',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifEcheanceDepassee =>
+      'Échéance atteinte — tu peux te redonner du temps';
+
+  @override
+  String coachObjectifAnneesLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Tout le Coran en $count ans',
+      one: 'Tout le Coran en 1 an',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifAnneesCourt(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ans',
+      one: '1 an',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifSheetDureeTitle => 'En combien de temps ?';
+
+  @override
+  String get coachObjectifQuartUnite => 'quart de Hizb';
+
+  @override
+  String coachObjectifResteLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Il te reste $count quarts de Hizb sur 240',
+      one: 'Il te reste 1 quart de Hizb sur 240',
+      zero: 'Tout le Coran est acquis',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifRythmeDetail(String parJour, String parSemaine) {
+    return 'soit ≈ $parJour par jour et ≈ $parSemaine par semaine, en quarts de Hizb';
+  }
+
+  @override
+  String get coachObjectifPeriodeCeMois => 'ce mois-ci';
+
+  @override
+  String get coachObjectifPeriodeCetteAnnee => 'cette année';
+
+  @override
+  String get coachObjectifPeriodeCoranEntier => 'tout le Coran';
+
+  @override
+  String get coachDashProgressMoreHorizons =>
+      'Voir l\'année et le Coran entier';
+
+  @override
+  String get coachRythmeTenu => 'Dans le rythme';
+
+  @override
+  String get coachRythmeDerape => 'Léger retard';
+
+  @override
+  String get coachRythmeARattraper => 'À rattraper';
+
+  @override
+  String get coachObjectifPeriodeJour => 'par jour';
+
+  @override
+  String get coachObjectifPeriodeSemaine => 'par semaine';
+
+  @override
+  String get coachObjectifPeriodeMois => 'par mois';
+
+  @override
+  String coachObjectifPeriodProgress(int faits, int total, String periode) {
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: '$faits sur $total quarts — $periode',
+      one: '$faits sur 1 quart — $periode',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifMiniEvolutionCaption => '7 derniers jours';
+
+  @override
+  String get coachObjectifToday => 'Aujourd\'hui';
+
+  @override
+  String get karaokePhraseFinTitle => 'Phrase de fin de sourate';
+
+  @override
+  String get karaokePhraseFinSubtitle =>
+      'Attendre « صدق الله العظيم » après le dernier verset — aide l\'app à juger le dernier mot';
+
+  @override
+  String get coachDashTodayLabel => 'Aujourd\'hui';
+
+  @override
+  String get coachDashTodayDone => 'Atteint';
+
+  @override
+  String get coachDashTodayPending => 'En cours';
+
+  @override
+  String get coachDashStreakLabel => 'Série';
+
+  @override
+  String coachDashStreakValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count jours',
+      one: '1 jour',
+      zero: 'Aucune',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachDashPointsLabel => 'Points';
+
+  @override
+  String coachDashProgressTitle(String periode) {
+    return 'Progression — $periode';
+  }
+
+  @override
+  String coachDashProgressRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Encore $count quarts',
+      one: 'Encore 1 quart',
+      zero: 'Objectif atteint',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachNiveauTitle => 'Accompagnement';
+
+  @override
+  String get coachNiveauAMonRythme => 'À mon rythme';
+
+  @override
+  String get coachNiveauRegulier => 'Régulier';
+
+  @override
+  String get coachNiveauExigeant => 'Exigeant';
+
+  @override
+  String get coachObjectifValider => 'Valider';
+
+  @override
+  String get coachPortionsTitle => 'MÉMORISATION PAR SOURATE';
 
   @override
   String get coachRefreshTooltip => 'Actualiser';
@@ -2133,4 +2407,18 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get coachPortionContestedBadge => 'Contesté';
+
+  @override
+  String get coachTogglePassageAutoTitre => 'Passage automatique';
+
+  @override
+  String get coachTogglePassageAutoDetail =>
+      'Une fois le contrôle réussi, l\'entraînement du verset suivant démarre seul.';
+
+  @override
+  String get coachToggleCumulTitre => 'Contrôle cumulatif';
+
+  @override
+  String get coachToggleCumulDetail =>
+      'Le contrôle porte sur tous les versets appris depuis le début de la session.';
 }

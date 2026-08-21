@@ -165,6 +165,12 @@
   "tajwidRuleSlntExplanation": "Written but not pronounced.",
   "duasScreenTitle": "Duas & Adhkar",
   "duasSearchHint": "Search an invocation, a word, a source…",
+  "duasRadiosTitre": "Continuous listening",
+  "duasRadioMatin": "Morning remembrances",
+  "duasRadioSoir": "Evening remembrances",
+  "duasRadioRoqya": "Ruqyah",
+  "duasRadioSousTitre": "Live stream — requires a connection",
+  "duasRadioErreur": "Playback failed. Check your connection.",
   "duasExplore": "Explore",
   "duasMyFavorites": "My favorites",
   "duasNow": "NOW",
@@ -519,6 +525,8 @@
   "karaokeNothingHeardYet": "Nothing heard yet.",
   "karaokeFinalizing": "Finalizing…",
   "karaokePausedHint": "Paused — tap ⏸ to resume",
+  "karaokeEcouteEnCours": "I’m listening… keep going",
+  "karaokeEcouteBientot": "Colours appear after the first few words",
   "karaokeListeningHint": "Listening — tap the circle to stop",
   "karaokeFinishedHint": "Tap the screen to restart",
   "karaokeReferenceStartHint": "Tap the screen to record your reference recitation",
@@ -594,7 +602,6 @@
   "readingSettingsUnlimited": "unlimited",
   "readingSettingsLoopSection": "REPEAT AND LOOPS",
   "readingSettingsLoopDescription": "Example: 3 verses repeated 3 times, and the whole surah restarted 3 times.",
-
   "aboutTitle": "About",
   "aboutTagline": "Reciting the Qur'an, checked on your device.",
   "aboutVersionLine": "Version {version} (build {build})",
@@ -661,8 +668,77 @@
   "coachTrainListening": "Listening...",
   "coachTrainDone": "Round finished",
   "coachMoveToControl": "Move to control",
-
-  "coachPortionsTitle": "MY PORTIONS",
+  "coachObjectifTitle": "MY GOAL",
+  "coachObjectifStreak": "{count, plural, =0{No streak yet} =1{1 day in a row} other{{count} days in a row}}",
+  "coachObjectifWeekProgress": "This week: {faits} of {total} quarter(s)",
+  "coachObjectifEmptyTitle": "No goal set",
+  "coachObjectifEmptyBody": "Set a memorization goal to track your streak and progress.",
+  "coachObjectifSetButton": "Set a goal",
+  "coachObjectifSheetTitle": "My memorization goal",
+  "coachObjectifQuartsLabel": "{count, plural, =0{No quarters} =1{1 quarter of a Hizb} other{{count} quarters of a Hizb}}",
+  "coachObjectifResteAnneesMois": "{annees, plural, =1{1 year left} other{{annees} years left}}{mois, plural, =0{} =1{ and 1 month} other{ and {mois} months}}",
+  "@coachObjectifResteAnneesMois": {
+    "placeholders": {
+      "annees": {
+        "type": "int"
+      },
+      "mois": {
+        "type": "int"
+      }
+    }
+  },
+  "coachObjectifResteMois": "{count, plural, =1{1 month left} other{{count} months left}}",
+  "@coachObjectifResteMois": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "coachObjectifResteJours": "{count, plural, =1{1 day left} other{{count} days left}}",
+  "@coachObjectifResteJours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "coachObjectifEcheanceDepassee": "Deadline reached — you can give yourself more time",
+  "coachObjectifAnneesLabel": "{count, plural, =1{The whole Qur'an in 1 year} other{The whole Qur'an in {count} years}}",
+  "coachObjectifAnneesCourt": "{count, plural, =1{1 year} other{{count} years}}",
+  "coachObjectifSheetDureeTitle": "Over how long?",
+  "coachObjectifQuartUnite": "quarter of a Hizb",
+  "coachObjectifResteLabel": "{count, plural, =0{The whole Qur'an is memorized} =1{1 quarter of a Hizb left out of 240} other{{count} quarters of a Hizb left out of 240}}",
+  "coachObjectifRythmeDetail": "that is ≈ {parJour} per day and ≈ {parSemaine} per week, in quarters of a Hizb",
+  "coachObjectifPeriodeCeMois": "this month",
+  "coachObjectifPeriodeCetteAnnee": "this year",
+  "coachObjectifPeriodeCoranEntier": "the whole Qur'an",
+  "coachDashProgressMoreHorizons": "See the year and the whole Qur'an",
+  "coachRythmeTenu": "On track",
+  "coachRythmeDerape": "Slightly behind",
+  "coachRythmeARattraper": "Catching up needed",
+  "coachObjectifPeriodeJour": "per day",
+  "coachObjectifPeriodeSemaine": "per week",
+  "coachObjectifPeriodeMois": "per month",
+  "coachObjectifPeriodProgress": "{total, plural, =1{{faits} of 1 quarter — {periode}} other{{faits} of {total} quarters — {periode}}}",
+  "coachObjectifMiniEvolutionCaption": "Last 7 days",
+  "coachObjectifToday": "Today",
+  "karaokePhraseFinTitle": "End-of-surah phrase",
+  "karaokePhraseFinSubtitle": "Expect « صدق الله العظيم » after the last verse — helps the app judge the final word",
+  "coachDashTodayLabel": "Today",
+  "coachDashTodayDone": "Reached",
+  "coachDashTodayPending": "In progress",
+  "coachDashStreakLabel": "Streak",
+  "coachDashStreakValue": "{count, plural, =0{None} =1{1 day} other{{count} days}}",
+  "coachDashPointsLabel": "Points",
+  "coachDashProgressTitle": "Progress — {periode}",
+  "coachDashProgressRemaining": "{count, plural, =0{Goal reached} =1{1 quarter to go} other{{count} quarters to go}}",
+  "coachNiveauTitle": "Support level",
+  "coachNiveauAMonRythme": "At my own pace",
+  "coachNiveauRegulier": "Regular",
+  "coachNiveauExigeant": "Demanding",
+  "coachObjectifValider": "Confirm",
+  "coachPortionsTitle": "MEMORIZATION BY SURAH",
   "coachRefreshTooltip": "Refresh",
   "coachPortionsError": "Portions unreadable: {error}",
   "coachPortionsEmpty": "No portion tracked yet. Every surah (or Hizb section for longer ones) you recite will appear here with its cumulative progress.",
@@ -693,5 +769,9 @@
   "coachWordUnavailable": "Verse unavailable",
   "coachPortionHistorySection": "PREVIOUSLY MISSED, NOW MASTERED",
   "coachPortionCorrectedBadge": "Corrected",
-  "coachPortionContestedBadge": "Disputed"
+  "coachPortionContestedBadge": "Disputed",
+  "coachTogglePassageAutoTitre": "Automatic progression",
+  "coachTogglePassageAutoDetail": "Once the check succeeds, training on the next verse starts on its own.",
+  "coachToggleCumulTitre": "Cumulative check",
+  "coachToggleCumulDetail": "The check covers every verse learned since the session began."
 }

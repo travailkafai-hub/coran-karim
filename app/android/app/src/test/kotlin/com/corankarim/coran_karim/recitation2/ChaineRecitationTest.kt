@@ -368,4 +368,43 @@ class ChaineRecitationTest {
         }
         assertTrue(verifiees > 0)
     }
+
+    /**
+     * L'EXTRAIT QU'ON FAIT ECOUTER NE DOIT PAS TOMBER A COTE DU MOT.
+     *
+     * Constat utilisateur du 2026-08-14 : « parfois il y a un décalage, du coup
+     * on n'a pas le bon audio du mot ». Mesure dans le journal du jour, pour un
+     * extrait qui couvre DEUX mots et devrait donc durer 1 a 2 s :
+     *     mots 6..7 : 12,10 s      mots 18..19 : 15,62 s
+     *
+     * Cause : `min(debutAbs)`/`max(finAbs)` sur TOUTES les observations, sans
+     * filtre. Ici on reproduit le declencheur -- le recitateur REPETE le
+     * passage, chaque mot possede donc des observations eloignees de plusieurs
+     * secondes -- et on verifie que l'extrait reste de la taille d'un mot.
+     */
+    @Test
+    fun `l'extrait d'un mot reste court meme quand le passage est repete`() {
+        val c = chaine()
+        // Lecture complete, une longue pause, puis REPETITION des 4 premiers
+        // mots : leurs observations sont alors separees par tout le reste.
+        val pcm = avecQueue(
+            Synthese.pcm(texte, tok, blank, 3, 3) +
+                Synthese.silence(2.0) +
+                Synthese.pcm(texte.take(4), tok, blank, 3, 3)
+        )
+        jouer(c, pcm)
+
+        val extrait = c.voixSurPlage(2, 3)
+        assertTrue("un extrait doit exister pour un mot recite deux fois",
+            extrait != null)
+        val secondes = extrait!!.size / Horloge.TAUX.toDouble()
+        // 8 s est le PLAFOND de `voixSurPlage` ; on verifie qu'on est tres en
+        // dessous, sinon le plafond serait le seul garde actif et le filtre des
+        // positions fiables ne servirait a rien.
+        assertTrue(
+            "deux mots ne durent pas $secondes s -- l'extrait a repris de " +
+                "l'audio d'un autre passage",
+            secondes < 5.0
+        )
+    }
 }

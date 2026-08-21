@@ -112,10 +112,32 @@ class JudgementOptions {
   //   tajwid : harakat strictes  + lettres strictes   (le plus exigeant)
   //   adulte : harakat souples   + lettres strictes   (intermédiaire)
   //   enfant : harakat souples   + lettres tolérantes (le plus permissif)
+  //
+  // ── ADULTE REDEVENU STRICT LE 2026-08-14 (décision utilisateur) ──────────
+  //
+  // « tu peux implémenter harakat souple et lettre confusable pour le mode
+  // enfant, garde adulte forcément strict. »
+  //
+  // Le commentaire ci-dessus est CONSERVÉ (il documente pourquoi l'adulte
+  // avait été assoupli et ce que ça valait) mais sa conclusion ne tient plus :
+  // `strictHarakat` repasse à `true` pour l'adulte. La gradation effective
+  // devient donc :
+  //   tajwid : harakat strictes + lettres strictes + RÈGLES de tajwid actives
+  //   adulte : harakat strictes + lettres strictes, aucune règle de tajwid
+  //   enfant : harakat souples  + lettres tolérées
+  //
+  // ⚠️ Conséquence assumée, à ne pas redécouvrir comme un bug : adulte et
+  // tajwid jugent désormais LE TEXTE à l'identique. Ce n'est plus le défaut
+  // constaté le 2026-07-20 (« je ne vois pas la diff entre les deux modes »),
+  // parce qu'entre-temps le contrôle de tajwid a été rebranché sur la v2 : le
+  // mode tajwid dégrade un mot dont une règle ACTIVE n'est pas réalisée, ce
+  // que le mode adulte ne fait jamais (`activeRules` y est vide). La
+  // différence est donc réelle, elle a simplement changé de nature -- elle
+  // porte sur les RÈGLES, plus sur la tolérance aux voyelles.
   static const adulteDefault = JudgementOptions(
     preset: JudgementPreset.adulte,
     activeRules: {},
-    strictHarakat: false,
+    strictHarakat: true,
     tolerateConfusables: false,
   );
 

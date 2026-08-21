@@ -184,9 +184,26 @@ class AligneurEtDecideurTest {
         assertTrue("le mot 2, dit apres le mot 4, est hors de sa place : ${s[2]}",
             s[2] is Statut.Deplace)
         assertTrue("idem pour le mot 3 : ${s[3]}", s[3] is Statut.Deplace)
-        // Ce qui a ete lu dans l'ordre reste acquis : on ne repeint pas la
-        // moitie de l'ecran parce qu'un groupe est arrive en retard.
-        for (i in listOf(0, 1, 4, 5)) {
+        // ── LES DEUX MOITIES, ET PLUS UNE SEULE (2026-08-14) ────────────────
+        //
+        // AVANT, cette assertion attendait VERT pour 4 et 5 : « ce qui a ete lu
+        // dans l'ordre reste acquis ». C'etait faux, et une session live l'a
+        // montre (Al-'Asr, deux mots inverses volontairement) : sur une
+        // inversion, exactement UN mot sur deux etait signale -- celui dit trop
+        // TARD -- pendant que celui dit trop TOT restait vert. Constat
+        // utilisateur : « les mots inverses se mettent en vert sans se soucier
+        // de l'ordre ».
+        //
+        // EF n'a pas ete « lu dans l'ordre » : ce groupe a ete dit AVANT CD,
+        // qui le precede dans le texte. Il participe donc a l'inversion au meme
+        // titre, et la regle miroir (`enAvance`) le signale desormais.
+        for (i in listOf(4, 5)) {
+            assertTrue("le mot $i a ete dit AVANT les mots 2-3 qui le precedent" +
+                " dans le texte : ${s[i]}", s[i] is Statut.Deplace)
+        }
+        // Ce qui a VRAIMENT ete lu a sa place reste acquis : on ne repeint pas
+        // toute la sourate parce qu'un groupe a bouge.
+        for (i in listOf(0, 1)) {
             assertEquals("le mot $i a ete dit a sa place",
                 Statut.Definitif(Couleur.VERT), s[i])
         }
@@ -194,6 +211,45 @@ class AligneurEtDecideurTest {
         // d'une faute de PRONONCIATION serait faux (regle projet : « un mot
         // hors de sa place ne doit pas devenir rouge par le gop »).
         assertFalse("DEPLACE n'est pas une couleur", s[2] is Statut.Definitif)
+    }
+
+    /**
+     * LE CAS REEL QUI A MOTIVE LA SYMETRIE (session live Al-'Asr, 2026-08-14).
+     *
+     * L'utilisateur inverse DEUX mots d'un verset, et le second est le DERNIER
+     * mot du texte -- la ou l'ancienne regle etait structurellement aveugle :
+     * `finApres` y vaut toujours ABSENT, il n'existe aucun mot posterieur a
+     * comparer. Mesure du jour :
+     *     mot=15 "بِٱلْحَقِّ"  -> deplace         (vu)
+     *     mot=17 "بِٱلصَّبْرِ" -> definitif:vert  (INVISIBLE)
+     *
+     * Texte attendu : ... 14 15 16 17. Recite : 14, 17, 16, 15.
+     */
+    @Test
+    fun `inversion de paire -- les DEUX mots sont signales, dernier mot compris`() {
+        val registre = RegistreDePreuves()
+        val decideur = Decideur()
+        // Ordre de PRONONCIATION : 14 puis 17 puis 16 puis 15.
+        val prononce = listOf(14 to 0L, 17 to 100L, 16 to 200L, 15 to 300L)
+        for ((mot, t) in prononce) {
+            registre.ajouter(obs(1, mot, -0.01f, true, t, t + 90))
+            registre.ajouter(obs(2, mot, -0.01f, true, t, t + 90))
+        }
+        val s = decideur.statuts(registre, 18)
+
+        assertTrue("le mot 15, dit APRES le 17 qui le suit : ${s[15]}",
+            s[15] is Statut.Deplace)
+        assertTrue("le mot 17, DERNIER du texte, dit AVANT le 15 qui le " +
+            "precede -- c'est le cas que l'ancienne regle ne pouvait pas " +
+            "voir : ${s[17]}", s[17] is Statut.Deplace)
+        // 14 a bien ete dit en premier, et 16 est entre les deux mots inverses
+        // sans avoir bouge lui-meme : ni l'un ni l'autre n'a participe.
+        assertEquals("le mot 14 a ete dit a sa place",
+            Statut.Definitif(Couleur.VERT), s[14])
+        // Et jamais rouge : le recitateur a PRONONCE ces mots, il les a mal
+        // places. Les accuser d'une faute de prononciation serait faux.
+        assertFalse("un mot deplace n'est pas une couleur", s[15] is Statut.Definitif)
+        assertFalse("un mot deplace n'est pas une couleur", s[17] is Statut.Definitif)
     }
 
     /**

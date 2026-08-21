@@ -1094,6 +1094,42 @@ abstract class AppLocalizations {
   /// **'Chercher une invocation, un mot, une source…'**
   String get duasSearchHint;
 
+  /// No description provided for @duasRadiosTitre.
+  ///
+  /// In fr, this message translates to:
+  /// **'Écoute continue'**
+  String get duasRadiosTitre;
+
+  /// No description provided for @duasRadioMatin.
+  ///
+  /// In fr, this message translates to:
+  /// **'Invocations du matin'**
+  String get duasRadioMatin;
+
+  /// No description provided for @duasRadioSoir.
+  ///
+  /// In fr, this message translates to:
+  /// **'Invocations du soir'**
+  String get duasRadioSoir;
+
+  /// No description provided for @duasRadioRoqya.
+  ///
+  /// In fr, this message translates to:
+  /// **'Roqya'**
+  String get duasRadioRoqya;
+
+  /// No description provided for @duasRadioSousTitre.
+  ///
+  /// In fr, this message translates to:
+  /// **'Diffusion continue — nécessite une connexion'**
+  String get duasRadioSousTitre;
+
+  /// No description provided for @duasRadioErreur.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lecture impossible. Vérifiez votre connexion.'**
+  String get duasRadioErreur;
+
   /// Titre de section : parcourir les univers d'invocations
   ///
   /// In fr, this message translates to:
@@ -2683,6 +2719,18 @@ abstract class AppLocalizations {
   /// **'En pause — touche ⏸ pour reprendre'**
   String get karaokePausedHint;
 
+  /// No description provided for @karaokeEcouteEnCours.
+  ///
+  /// In fr, this message translates to:
+  /// **'Je t’écoute… continue'**
+  String get karaokeEcouteEnCours;
+
+  /// No description provided for @karaokeEcouteBientot.
+  ///
+  /// In fr, this message translates to:
+  /// **'Les couleurs arrivent après les premiers mots'**
+  String get karaokeEcouteBientot;
+
   /// Indication en bas d'écran pendant l'écoute active
   ///
   /// In fr, this message translates to:
@@ -3403,10 +3451,286 @@ abstract class AppLocalizations {
   /// **'Passer au controle'**
   String get coachMoveToControl;
 
+  /// Titre de la section objectif/série du Coach
+  ///
+  /// In fr, this message translates to:
+  /// **'MON OBJECTIF'**
+  String get coachObjectifTitle;
+
+  /// Série de jours consécutifs où l'objectif a été atteint
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Aucune série en cours} =1{1 jour de suite} other{{count} jours de suite}}'**
+  String coachObjectifStreak(int count);
+
+  /// Progression de la semaine en quarts de Hizb
+  ///
+  /// In fr, this message translates to:
+  /// **'Cette semaine : {faits} sur {total} quart(s)'**
+  String coachObjectifWeekProgress(int faits, String total);
+
+  /// État vide de la section objectif, avant tout réglage
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun objectif fixé'**
+  String get coachObjectifEmptyTitle;
+
+  /// Corps de l'état vide de la section objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'Fixe un objectif de mémorisation pour suivre ta série et ta progression.'**
+  String get coachObjectifEmptyBody;
+
+  /// Bouton qui ouvre le réglage de l'objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'Fixer un objectif'**
+  String get coachObjectifSetButton;
+
+  /// Titre de la feuille de réglage de l'objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'Mon objectif de mémorisation'**
+  String get coachObjectifSheetTitle;
+
+  /// Nombre de quarts de Hizb visés, dans le réglage de l'objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Aucun quart} =1{1 quart de Hizb} other{{count} quarts de Hizb}}'**
+  String coachObjectifQuartsLabel(int count);
+
+  /// Décompte de l'échéance datée (2026-08-14) : sans lui, dater l'objectif ne se verrait nulle part
+  ///
+  /// In fr, this message translates to:
+  /// **'{annees, plural, =1{Il reste 1 an} other{Il reste {annees} ans}}{mois, plural, =0{} =1{ et 1 mois} other{ et {mois} mois}}'**
+  String coachObjectifResteAnneesMois(int annees, int mois);
+
+  /// No description provided for @coachObjectifResteMois.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{Il reste 1 mois} other{Il reste {count} mois}}'**
+  String coachObjectifResteMois(int count);
+
+  /// No description provided for @coachObjectifResteJours.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{Il reste 1 jour} other{Il reste {count} jours}}'**
+  String coachObjectifResteJours(int count);
+
+  /// Jamais un reproche (PLAN_COACH.md §2) : on propose d'allonger, on ne punit pas
+  ///
+  /// In fr, this message translates to:
+  /// **'Échéance atteinte — tu peux te redonner du temps'**
+  String get coachObjectifEcheanceDepassee;
+
+  /// L'objectif en toutes lettres : mémoriser tout le Coran en N années (refonte 2026-08-14)
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{Tout le Coran en 1 an} other{Tout le Coran en {count} ans}}'**
+  String coachObjectifAnneesLabel(int count);
+
+  /// Durée seule, pour l'étiquette du curseur de la feuille de réglage
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{1 an} other{{count} ans}}'**
+  String coachObjectifAnneesCourt(int count);
+
+  /// Titre au-dessus du curseur de durée, dans la feuille de réglage de l'objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'En combien de temps ?'**
+  String get coachObjectifSheetDureeTitle;
+
+  /// Unité seule, accolée à un nombre approché ('≈ 1,5 quart de Hizb par semaine') -- volontairement invariable : le nombre est approximatif et souvent décimal
+  ///
+  /// In fr, this message translates to:
+  /// **'quart de Hizb'**
+  String get coachObjectifQuartUnite;
+
+  /// Ce qui reste à mémoriser -- la base sur laquelle le rythme est calculé
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Tout le Coran est acquis} =1{Il te reste 1 quart de Hizb sur 240} other{Il te reste {count} quarts de Hizb sur 240}}'**
+  String coachObjectifResteLabel(int count);
+
+  /// Rythme dérivé de l'échéance, sur les deux horizons courts (le mois est déjà la barre de progression)
+  ///
+  /// In fr, this message translates to:
+  /// **'soit ≈ {parJour} par jour et ≈ {parSemaine} par semaine, en quarts de Hizb'**
+  String coachObjectifRythmeDetail(String parJour, String parSemaine);
+
+  /// Fenêtre de la barre de progression du tableau de bord, fixée au mois depuis 2026-08-14
+  ///
+  /// In fr, this message translates to:
+  /// **'ce mois-ci'**
+  String get coachObjectifPeriodeCeMois;
+
+  /// Deuxième horizon de progression (365 jours glissants)
+  ///
+  /// In fr, this message translates to:
+  /// **'cette année'**
+  String get coachObjectifPeriodeCetteAnnee;
+
+  /// Troisième horizon : progression cumulée sur les 240 quarts, sans échéance
+  ///
+  /// In fr, this message translates to:
+  /// **'tout le Coran'**
+  String get coachObjectifPeriodeCoranEntier;
+
+  /// Ligne repliable qui cache les deux horizons longs -- le mois seul reste visible d'emblée (demande utilisateur 2026-08-14)
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir l\'année et le Coran entier'**
+  String get coachDashProgressMoreHorizons;
+
+  /// État du rythme : au moins ce qui était attendu à cette date (vert)
+  ///
+  /// In fr, this message translates to:
+  /// **'Dans le rythme'**
+  String get coachRythmeTenu;
+
+  /// État du rythme : entre 70 % et 100 % de l'attendu (ambre)
+  ///
+  /// In fr, this message translates to:
+  /// **'Léger retard'**
+  String get coachRythmeDerape;
+
+  /// État du rythme : moins de 70 % de l'attendu (brique) -- jamais un reproche, une indication
+  ///
+  /// In fr, this message translates to:
+  /// **'À rattraper'**
+  String get coachRythmeARattraper;
+
+  /// Période de l'objectif : jour
+  ///
+  /// In fr, this message translates to:
+  /// **'par jour'**
+  String get coachObjectifPeriodeJour;
+
+  /// Période de l'objectif : semaine
+  ///
+  /// In fr, this message translates to:
+  /// **'par semaine'**
+  String get coachObjectifPeriodeSemaine;
+
+  /// Période de l'objectif : mois
+  ///
+  /// In fr, this message translates to:
+  /// **'par mois'**
+  String get coachObjectifPeriodeMois;
+
+  /// Progression vers l'objectif, sur sa propre période (jour/semaine/mois) -- jamais convertie en semaine, pour ne jamais afficher un chiffre fractionnaire comme '0,2 quart'
+  ///
+  /// In fr, this message translates to:
+  /// **'{total, plural, =1{{faits} sur 1 quart — {periode}} other{{faits} sur {total} quarts — {periode}}}'**
+  String coachObjectifPeriodProgress(int faits, int total, String periode);
+
+  /// Légende du mini graphique d'évolution sur 7 jours
+  ///
+  /// In fr, this message translates to:
+  /// **'7 derniers jours'**
+  String get coachObjectifMiniEvolutionCaption;
+
+  /// Repère "aujourd'hui" sous la dernière barre du mini graphique
+  ///
+  /// In fr, this message translates to:
+  /// **'Aujourd\'hui'**
+  String get coachObjectifToday;
+
+  /// Interrupteur : attendre صدق الله العظيم apres la sourate
+  ///
+  /// In fr, this message translates to:
+  /// **'Phrase de fin de sourate'**
+  String get karaokePhraseFinTitle;
+
+  /// Sous-titre de l'interrupteur de phrase de fin
+  ///
+  /// In fr, this message translates to:
+  /// **'Attendre « صدق الله العظيم » après le dernier verset — aide l\'app à juger le dernier mot'**
+  String get karaokePhraseFinSubtitle;
+
+  /// Titre de la tuile "objectif du jour" du tableau de bord
+  ///
+  /// In fr, this message translates to:
+  /// **'Aujourd\'hui'**
+  String get coachDashTodayLabel;
+
+  /// Objectif quotidien atteint
+  ///
+  /// In fr, this message translates to:
+  /// **'Atteint'**
+  String get coachDashTodayDone;
+
+  /// Objectif quotidien pas encore atteint
+  ///
+  /// In fr, this message translates to:
+  /// **'En cours'**
+  String get coachDashTodayPending;
+
+  /// Titre de la tuile série du tableau de bord
+  ///
+  /// In fr, this message translates to:
+  /// **'Série'**
+  String get coachDashStreakLabel;
+
+  /// Valeur compacte de la série, dans la tuile du tableau de bord
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Aucune} =1{1 jour} other{{count} jours}}'**
+  String coachDashStreakValue(int count);
+
+  /// Titre de la tuile points (récompense d'effort) du tableau de bord
+  ///
+  /// In fr, this message translates to:
+  /// **'Points'**
+  String get coachDashPointsLabel;
+
+  /// Titre du bloc de progression vers l'objectif, sur sa propre période
+  ///
+  /// In fr, this message translates to:
+  /// **'Progression — {periode}'**
+  String coachDashProgressTitle(String periode);
+
+  /// Ce qu'il reste à faire pour boucler l'objectif de la période
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =0{Objectif atteint} =1{Encore 1 quart} other{Encore {count} quarts}}'**
+  String coachDashProgressRemaining(int count);
+
+  /// Titre du choix de niveau d'accompagnement (fréquence des rappels)
+  ///
+  /// In fr, this message translates to:
+  /// **'Accompagnement'**
+  String get coachNiveauTitle;
+
+  /// Niveau d'accompagnement : aucun rappel
+  ///
+  /// In fr, this message translates to:
+  /// **'À mon rythme'**
+  String get coachNiveauAMonRythme;
+
+  /// Niveau d'accompagnement : un rappel par jour
+  ///
+  /// In fr, this message translates to:
+  /// **'Régulier'**
+  String get coachNiveauRegulier;
+
+  /// Niveau d'accompagnement : relances multiples
+  ///
+  /// In fr, this message translates to:
+  /// **'Exigeant'**
+  String get coachNiveauExigeant;
+
+  /// Bouton de confirmation de la feuille d'objectif
+  ///
+  /// In fr, this message translates to:
+  /// **'Valider'**
+  String get coachObjectifValider;
+
   /// En-tête de la section suivi permanent par sourate/Hizb dans le Coach
   ///
   /// In fr, this message translates to:
-  /// **'MES PORTIONS'**
+  /// **'MÉMORISATION PAR SOURATE'**
   String get coachPortionsTitle;
 
   /// Infobulle du bouton de rafraîchissement manuel de la section Portions
@@ -3528,6 +3852,30 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Contesté'**
   String get coachPortionContestedBadge;
+
+  /// Titre de la bascule : passer seul au verset suivant apres un controle reussi
+  ///
+  /// In fr, this message translates to:
+  /// **'Passage automatique'**
+  String get coachTogglePassageAutoTitre;
+
+  /// Explication de la bascule de passage automatique
+  ///
+  /// In fr, this message translates to:
+  /// **'Une fois le contrôle réussi, l\'entraînement du verset suivant démarre seul.'**
+  String get coachTogglePassageAutoDetail;
+
+  /// Titre de la bascule : le controle porte sur tout le cumul de la session
+  ///
+  /// In fr, this message translates to:
+  /// **'Contrôle cumulatif'**
+  String get coachToggleCumulTitre;
+
+  /// Explication de la bascule de controle cumulatif
+  ///
+  /// In fr, this message translates to:
+  /// **'Le contrôle porte sur tous les versets appris depuis le début de la session.'**
+  String get coachToggleCumulDetail;
 }
 
 class _AppLocalizationsDelegate

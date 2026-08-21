@@ -255,11 +255,29 @@ class RecitationSessionState {
 
   /// Précision parmi les mots évalués. Un mot "unclear" (bon mot, articulation
   /// imprécise) compte pour moitié — encourageant sans être laxiste.
+  /// ── LE DENOMINATEUR EST LE TEXTE ENTIER, PAS LES MOTS JUGES (2026-08-19) ──
+  ///
+  /// AVANT : `evaluated = correct + unclear + error`. Les mots restes
+  /// `pending`, `omis` ou `skipped` etaient donc EXCLUS du calcul -- reciter
+  /// la moitie d'un verset sans faute donnait 100 %, le mot non dit ne coutant
+  /// rien puisqu'il sortait du denominateur.
+  ///
+  /// Constat utilisateur (2026-08-19) : « si tu recites la moitie avec 100 %
+  /// tu passes, je pense ». C'est exact, et c'est precisement l'erreur que le
+  /// projet s'interdit depuis le 2026-07-29 (skill `analyse-session-recitation`,
+  /// regle n°1) : compter sur les mots JUGES fait BAISSER le taux a chaque mot
+  /// perdu -- plus il manque de recitation, meilleur le score parait. Mesure
+  /// de l'epoque, sur le meme WAV rejoue au bit pres : 7,22 % de non-verts sur
+  /// les mots juges contre 8,16 % sur l'ancre max avant correctif, 3,45 %
+  /// contre 13,40 % apres -- le premier compte divisait les erreurs par deux
+  /// la ou le second les multipliait par 1,6.
+  ///
+  /// Un mot non recite est un mot non su : il compte pour zero, il ne
+  /// s'efface pas. Un `unclear` (bon mot, articulation imprecise) garde sa
+  /// moitie de point -- encourageant sans etre laxiste, comme avant.
   double get accuracy {
-    final evaluated = correctCount + unclearCount + errorCount;
-    return evaluated == 0
-        ? 0
-        : ((correctCount + unclearCount * 0.5) / evaluated) * 100;
+    if (total == 0) return 0;
+    return ((correctCount + unclearCount * 0.5) / total) * 100;
   }
 
   RecitationSessionState copyWith({

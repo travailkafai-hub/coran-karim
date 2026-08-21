@@ -341,6 +341,10 @@ class ConstructeurDeFenetres(
     private val lookaheadEch =
         Horloge.frameVersEch(Horloge.LOOKAHEAD_FRAMES + 1).toInt()
     private val minEch = Horloge.secondesVersEch(minBlocSecondes)
+    /** Longueur MINIMALE de la fenetre de fin de session (cf. [terminer]).
+     *  8 s : mesure du 2026-08-14, le meme dernier mot ressort faux a 4,00 s
+     *  et EXACT des 6,72 s -- 8 s garde une marge sans depasser [maxEch]. */
+    private val minFenetreFinaleEch = Horloge.secondesVersEch(8.0)
     private val apercuEch: Long = if (apercuSecondes > 0)
         Horloge.secondesVersEch(apercuSecondes).toLong() else 0L
     private var dernierApercu: Long = 0L
@@ -661,13 +665,62 @@ class ConstructeurDeFenetres(
      * Sans cet appel, le dernier enonce n'est jamais analyse : la coupe est
      * declenchee par un silence, et le silence final peut ne jamais atteindre
      * la duree requise si la capture s'arrete avec le recitateur.
+     *
+     * ── CONTEXTE DROIT DE FIN, COMPLETE SYNTHETIQUEMENT (2026-08-13) ────────
+     * `lookaheadEch` (voir sa doc) est le silence minimum que le modele exige
+     * APRES le dernier mot pour le rendre interieur/votant. Le cas normal ici
+     * (pause ou arret juste apres le dernier mot recite) ne laisse jamais ce
+     * silence s'accumuler par le micro : la capture s'arrete avant. Attendre
+     * ne sert a rien -- aucun audio de plus ne viendra, le recitateur a deja
+     * fini. On complete donc avec du silence synthetique, exactement la
+     * quantite que le code juge deja necessaire ailleurs dans ce fichier.
+     *
+     * MESURE QUI L'IMPOSE (2026-08-13) : session reelle mise en pause juste
+     * apres le dernier mot d'une sourate -- ce mot ressortait `bande=inconnue`
+     * et `0 mot(s) finalise(s)` cote natif. Confronte au modele hors-device
+     * sur l'audio brut capte par l'app (12 s de contexte GAUCHE) : le mot y
+     * est parfaitement lisible. Le mot etait donc bien dit ; il ne manquait
+     * que le contexte DROIT, jamais fourni faute de temps ecoule.
      */
     fun terminer(): List<Fenetre> {
         if (enAttente.isNotEmpty()) {
             ajouter(enAttente.toFloatArray())
             enAttente.clear()
         }
+        ajouter(FloatArray(lookaheadEch))
         coupeEnAttente = -1
+        // ── LA FENETRE FINALE NE DOIT PAS ETRE PLUS COURTE QUE CE QUE LE
+        //    MODELE EXIGE (2026-08-14) ──────────────────────────────────────
+        //
+        // MESURE QUI L'IMPOSE, session live An-Nasr rejouee hors device sur le
+        // modele DEPLOYE, meme audio, seule la largeur change :
+        //     4,00 s  -> "تَوَّابًا"    (le `ۢ` U+06E2 manque) gop=-0,74 -> ORANGE
+        //     6,72 s  -> "تَوَّابًۢا"   EXACT, caractere pour caractere
+        //     8/10 s  -> EXACT
+        // La fenetre reellement emise ce jour-la faisait 4,00 s : le dernier
+        // mot d'une sourate correctement recitee ressortait donc orange, pour
+        // une seule marque de tajwid que le modele ne peut pas placer sans
+        // contexte. Ce n'est pas une faute du recitateur, c'est un cadrage.
+        //
+        // On repart donc du bord gauche de la coupe PRECEDENTE quand le bloc
+        // final est trop court -- exactement l'audio que la fenetre de fusion
+        // aurait utilise, et qui est encore dans le tampon (cf. `compacter`,
+        // qui conserve toujours `avantDerniereCoupe`). Aucun nouveau seuil
+        // devine : la borne haute reste `maxEch`, deja en place.
+        if (avantDerniereCoupe in 0 until derniereCoupe &&
+            positionTravail - derniereCoupe < minFenetreFinaleEch &&
+            positionTravail - avantDerniereCoupe <= maxEch
+        ) {
+            derniereCoupe = avantDerniereCoupe
+            // ⚠️ ET ON COUPE LA FUSION. Sans cette ligne, `couper()` emettrait
+            // une SECONDE fenetre `bloquer(avantDerniereCoupe, position)` --
+            // desormais le MEME audio que la premiere, avec un id different.
+            // Le Decideur y verrait deux "fenetres distinctes" concordantes et
+            // figerait un verdict sur UNE SEULE mesure deguisee en deux. C'est
+            // exactement la fraude que `k = 2` existe pour empecher : deux ids
+            // ne valent une preuve que s'ils portent deux CONTEXTES differents.
+            avantDerniereCoupe = -1
+        }
         return couper(positionTravail, positionTravail)
     }
 

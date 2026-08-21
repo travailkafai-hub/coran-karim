@@ -53,29 +53,65 @@ class Reciter {
   int get hashCode => id.hashCode;
 }
 
+// ── DEUX RAISONNEMENTS QUI SE COMPLETENT (fusion du 2026-08-21) ────────────
+//
+// Cette liste a ete reduite d'un cote et etendue de l'autre, sur deux
+// branches, pour deux raisons TOUTES LES DEUX valables. Le detail de chacune
+// est conserve ci-dessous : les effacer ferait perdre pourquoi la liste a
+// cette forme, et un futur agent la « simplifierait » dans un sens ou dans
+// l'autre.
+//
+//  - Cote Hafs : l'app est passee MONO-RECITATEUR parce que seul Al-Afasy a
+//    un chemin de correction audio SANS Quran Foundation.
+//  - Cote Warsh : deux recitateurs ont ete ajoutes parce que le Warsh
+//    n'existe pas chez quran.com et se sert depuis everyayah.
+//
+// Les deux tiennent ensemble : le Hafs passe par MP3Quran, le Warsh par
+// everyayah. Aucun des deux ne depend de Quran Foundation, qui est ce que
+// les deux chantiers cherchaient a supprimer.
+
+// ── CE QUI JUSTIFIE LE MONO-RECITATEUR EN HAFS (2026-08-16) ────────────────
+// Seul Al-Afasy dispose d'un chemin de lecture et de correction audio SANS
+// dépendance à Quran Foundation (audio MP3Quran + `word_segments_mp3quran_afasy.json`
+// précalculé, cf. AUDIT_EQUIVALENCES_ECRITURE_2026-08-15.md §3bis). Les 7
+// autres récitateurs Hafs retomberaient sur l'ancien chemin quran.com/QF pour
+// `WordCorrectionAudio` -- exactement la dépendance que ce chantier existe à
+// supprimer -- donc retirés de la sélection tant que leur propre jeu de
+// données n'est pas généré.
+//
+// IDs MP3Quran déjà vérifiés (reciter/moshaf, empiriquement via
+// /ayat_timing, PAS supposés -- cf. §3ter de l'audit) pour la suite quand la
+// demande se présentera : Al-Husary 118, Muhammad Ayyoub 109, Ash-Shaatree
+// 4, Abdul Basit Murattal 53 (PIÈGE : != son reciter_id 51, qui pointe le
+// Mujawwad 51), Al-Sudais 54, Nasser Al-Qatami 86. Remettre l'entrée
+// correspondante ci-dessous une fois `preparer_corpus_mp3quran.py` +
+// `generer_predictions_mp3quran.py` rejoués pour ce récitateur et son JSON
+// embarqué/hébergé.
+//
+// ⚠️ MP3Quran sert AUSSI le Warsh (riwaya 2 de son API, verifie le
+// 2026-08-21 : 13 recitateurs, dont Abdul Basit id=51 moshaf=52 avec les 114
+// sourates). Y passer donnerait au Warsh le meme chemin qu'au Hafs -- mais
+// exige un `word_segments` Warsh, qui n'existe pas : celui d'aujourd'hui est
+// cale sur Al-Afasy ET sur le texte Hafs. Tant qu'il manque, le Warsh reste
+// sur everyayah ci-dessous, ou la correction mot-a-mot n'est pas disponible
+// mais l'ecoute l'est.
+
 // ── RECITATEURS ────────────────────────────────────────────────────────────
 // `id` = identifiant de récitation quran.com, conservé tel quel pour le Hafs
 // (il sert encore aux timings mot-à-mot, `QuranApi.fetchAyahSegments`, que
 // everyayah ne fournit pas). Les récitateurs Warsh n'existent pas chez
 // quran.com : ils reçoivent des id négatifs, jamais envoyés à cette API.
 //
-// ⚠️ Les noms Hafs ci-dessous sont ceux d'origine de l'app. Un contrôle du
-// 2026-08-12 (URL audio réellement renvoyée par quran.com pour chaque id)
-// montre que six de ces associations id -> nom sont fausses (id=5 est Hani
-// ar-Rifai et non Ash-Shaatree, id=9 Minshawi et non Al-Husary, etc.).
-// Défaut préexistant, volontairement NON corrigé ici pour ne pas mêler deux
-// sujets : le corriger changerait la voix entendue par les utilisateurs
-// actuels. Cf. ANALYSE_WARSH.md §6.
+// ⚠️ Les noms Hafs sont ceux d'origine de l'app. Un contrôle du 2026-08-12
+// (URL audio réellement renvoyée par quran.com pour chaque id) montre que six
+// de ces associations id -> nom sont fausses (id=5 est Hani ar-Rifai et non
+// Ash-Shaatree, id=9 Minshawi et non Al-Husary, etc.). Défaut préexistant,
+// volontairement NON corrigé ici pour ne pas mêler deux sujets : le corriger
+// changerait la voix entendue par les utilisateurs actuels. Cf.
+// ANALYSE_WARSH.md §6.
 const kReciters = [
-  // ── Hafs 'an 'Asim ──
+  // ── Hafs 'an 'Asim ── (un seul, cf. le bloc mono-recitateur ci-dessus)
   Reciter(id: 7,  nameAr: 'مشاري العفاسي',      nameFr: 'Mishary Al-Afasy',       style: 'Murattal', everyayahDir: 'Alafasy_128kbps'),
-  Reciter(id: 1,  nameAr: 'عبد الباسط — مرتّل', nameFr: 'Abdul Basit (Murattal)', style: 'Murattal', everyayahDir: 'Abdul_Basit_Murattal_192kbps'),
-  Reciter(id: 2,  nameAr: 'عبد الباسط — مجوّد', nameFr: 'Abdul Basit (Mujawwad)', style: 'Mujawwad', everyayahDir: 'Abdul_Basit_Mujawwad_128kbps'),
-  Reciter(id: 9,  nameAr: 'محمود خليل الحصري',  nameFr: 'Al-Husary',              style: 'Murattal', everyayahDir: 'Husary_128kbps'),
-  Reciter(id: 5,  nameAr: 'أبو بكر الشاطري',    nameFr: 'Abu Bakr Ash-Shaatree',  style: 'Murattal', everyayahDir: 'Abu_Bakr_Ash-Shaatree_128kbps'),
-  Reciter(id: 10, nameAr: 'ناصر القطامي',        nameFr: 'Nasser Al-Qatami',       style: 'Murattal', everyayahDir: 'Nasser_Alqatami_128kbps'),
-  Reciter(id: 12, nameAr: 'محمد أيوب',          nameFr: 'Muhammad Ayyoub',        style: 'Murattal', everyayahDir: 'Muhammad_Ayyoub_128kbps'),
-  Reciter(id: 11, nameAr: 'عبدالرحمن السديس',   nameFr: 'Al-Sudais',              style: 'Murattal', everyayahDir: 'Abdurrahmaan_As-Sudais_192kbps'),
 
   // ── Warsh 'an Nafi' (2026-08-12) ──
   // Les deux seuls récitateurs Warsh dont everyayah a le Coran COMPLET :

@@ -588,6 +588,24 @@ class AppLocalizationsAr extends AppLocalizations {
   String get duasSearchHint => 'ابحث عن دعاء أو كلمة أو مصدر…';
 
   @override
+  String get duasRadiosTitre => 'استماع مستمر';
+
+  @override
+  String get duasRadioMatin => 'أذكار الصباح';
+
+  @override
+  String get duasRadioSoir => 'أذكار المساء';
+
+  @override
+  String get duasRadioRoqya => 'الرقية الشرعية';
+
+  @override
+  String get duasRadioSousTitre => 'بث مباشر — يتطلب اتصالاً بالإنترنت';
+
+  @override
+  String get duasRadioErreur => 'تعذّر التشغيل. تحقق من اتصالك.';
+
+  @override
   String get duasExplore => 'استكشاف';
 
   @override
@@ -1531,6 +1549,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get karaokePausedHint => 'متوقف مؤقتًا — المس ⏸ للاستئناف';
 
   @override
+  String get karaokeEcouteEnCours => 'أسمعك… واصل';
+
+  @override
+  String get karaokeEcouteBientot => 'ستظهر الألوان بعد الكلمات الأولى';
+
+  @override
   String get karaokeListeningHint => 'الاستماع جارٍ — المس الدائرة للتوقف';
 
   @override
@@ -1953,7 +1977,255 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachMoveToControl => 'الانتقال إلى المراقبة';
 
   @override
-  String get coachPortionsTitle => 'أقسامي';
+  String get coachObjectifTitle => 'هدفي';
+
+  @override
+  String coachObjectifStreak(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count أيام متتالية',
+      one: 'يوم واحد متتالٍ',
+      zero: 'لا سلسلة حالياً',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifWeekProgress(int faits, String total) {
+    return 'هذا الأسبوع: $faits من $total ربع/أرباع';
+  }
+
+  @override
+  String get coachObjectifEmptyTitle => 'لا يوجد هدف محدد';
+
+  @override
+  String get coachObjectifEmptyBody => 'حدّد هدف حفظ لمتابعة سلسلتك وتقدّمك.';
+
+  @override
+  String get coachObjectifSetButton => 'تحديد هدف';
+
+  @override
+  String get coachObjectifSheetTitle => 'هدف الحفظ';
+
+  @override
+  String coachObjectifQuartsLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count أرباع حزب',
+      one: 'ربع حزب واحد',
+      zero: 'لا أرباع',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifResteAnneesMois(int annees, int mois) {
+    String _temp0 = intl.Intl.pluralLogic(
+      annees,
+      locale: localeName,
+      other: 'بقيت $annees سنوات',
+      one: 'بقيت سنة واحدة',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      mois,
+      locale: localeName,
+      other: ' و$mois أشهر',
+      one: ' وشهر واحد',
+      zero: '',
+    );
+    return '$_temp0$_temp1';
+  }
+
+  @override
+  String coachObjectifResteMois(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'بقي $count أشهر',
+      one: 'بقي شهر واحد',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifResteJours(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'بقي $count أيام',
+      one: 'بقي يوم واحد',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifEcheanceDepassee =>
+      'انتهى الأجل — يمكنك منح نفسك وقتًا إضافيًا';
+
+  @override
+  String coachObjectifAnneesLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'القرآن كاملاً في $count سنوات',
+      two: 'القرآن كاملاً في سنتين',
+      one: 'القرآن كاملاً في سنة واحدة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifAnneesCourt(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count سنوات',
+      two: 'سنتان',
+      one: 'سنة واحدة',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifSheetDureeTitle => 'في كم من الوقت؟';
+
+  @override
+  String get coachObjectifQuartUnite => 'ربع حزب';
+
+  @override
+  String coachObjectifResteLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'بقي $count أرباع حزب من 240',
+      one: 'بقي ربع حزب واحد من 240',
+      zero: 'تم حفظ القرآن كاملاً',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String coachObjectifRythmeDetail(String parJour, String parSemaine) {
+    return 'أي ≈ $parJour في اليوم و≈ $parSemaine في الأسبوع، بأرباع الحزب';
+  }
+
+  @override
+  String get coachObjectifPeriodeCeMois => 'هذا الشهر';
+
+  @override
+  String get coachObjectifPeriodeCetteAnnee => 'هذه السنة';
+
+  @override
+  String get coachObjectifPeriodeCoranEntier => 'القرآن كاملاً';
+
+  @override
+  String get coachDashProgressMoreHorizons => 'عرض السنة والقرآن كاملاً';
+
+  @override
+  String get coachRythmeTenu => 'على الوتيرة';
+
+  @override
+  String get coachRythmeDerape => 'تأخّر يسير';
+
+  @override
+  String get coachRythmeARattraper => 'يلزم التدارك';
+
+  @override
+  String get coachObjectifPeriodeJour => 'في اليوم';
+
+  @override
+  String get coachObjectifPeriodeSemaine => 'في الأسبوع';
+
+  @override
+  String get coachObjectifPeriodeMois => 'في الشهر';
+
+  @override
+  String coachObjectifPeriodProgress(int faits, int total, String periode) {
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: '$faits من $total أرباع — $periode',
+      one: '$faits من ربع واحد — $periode',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachObjectifMiniEvolutionCaption => 'آخر 7 أيام';
+
+  @override
+  String get coachObjectifToday => 'اليوم';
+
+  @override
+  String get karaokePhraseFinTitle => 'عبارة ختام السورة';
+
+  @override
+  String get karaokePhraseFinSubtitle =>
+      'توقّع « صدق الله العظيم » بعد الآية الأخيرة';
+
+  @override
+  String get coachDashTodayLabel => 'اليوم';
+
+  @override
+  String get coachDashTodayDone => 'تم';
+
+  @override
+  String get coachDashTodayPending => 'جارٍ';
+
+  @override
+  String get coachDashStreakLabel => 'السلسلة';
+
+  @override
+  String coachDashStreakValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count أيام',
+      one: 'يوم واحد',
+      zero: 'لا شيء',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachDashPointsLabel => 'النقاط';
+
+  @override
+  String coachDashProgressTitle(String periode) {
+    return 'التقدّم — $periode';
+  }
+
+  @override
+  String coachDashProgressRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'بقي $count أرباع',
+      one: 'بقي ربع واحد',
+      zero: 'تم بلوغ الهدف',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get coachNiveauTitle => 'المرافقة';
+
+  @override
+  String get coachNiveauAMonRythme => 'بوتيرتي';
+
+  @override
+  String get coachNiveauRegulier => 'منتظم';
+
+  @override
+  String get coachNiveauExigeant => 'صارم';
+
+  @override
+  String get coachObjectifValider => 'تأكيد';
+
+  @override
+  String get coachPortionsTitle => 'الحفظ حسب السورة';
 
   @override
   String get coachRefreshTooltip => 'تحديث';
@@ -2032,4 +2304,18 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachPortionContestedBadge => 'معترَض عليها';
+
+  @override
+  String get coachTogglePassageAutoTitre => 'الانتقال التلقائي';
+
+  @override
+  String get coachTogglePassageAutoDetail =>
+      'عند نجاح الاختبار يبدأ تدريب الآية التالية من تلقاء نفسه.';
+
+  @override
+  String get coachToggleCumulTitre => 'اختبار تراكمي';
+
+  @override
+  String get coachToggleCumulDetail =>
+      'يشمل الاختبار كل الآيات المحفوظة منذ بداية الجلسة.';
 }

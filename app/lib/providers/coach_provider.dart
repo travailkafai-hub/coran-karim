@@ -49,6 +49,44 @@ class CoachNotifier extends StateNotifier<CoachSessionState> {
         .copyWith(mode: CoachMode.apprentissage);
   }
 
+  /// Ajoute un verset A LA FIN de la session, puis s'y place en Entraine.
+  ///
+  /// ── POURQUOI LA SESSION S'ETEND (2026-08-18) ─────────────────────────────
+  /// Constat utilisateur, bascule « passage automatique » activee : « j'ai
+  /// reussi, pas de passage au prochain verset ». Mesure du journal : le
+  /// controle portait sur `cible=4 mots`, soit le seul verset 1:2 -- la
+  /// session ne contenait QU'UN verset, donc `hasNextVerse` valait faux et
+  /// l'avance ne pouvait pas partir. Ce n'etait pas un bug de la bascule :
+  /// il n'y avait litteralement rien apres.
+  ///
+  /// Or entrer dans le Coach sur UN verset est le cas le plus courant (carte
+  /// « Reprendre », revision d'une erreur ponctuelle). Le passage automatique
+  /// n'aurait alors jamais rien fait. On prolonge donc la session avec le
+  /// verset suivant de la sourate, charge a la demande par l'appelant.
+  ///
+  /// Le cumul du controle suit tout seul : `session.verses` s'allonge, et
+  /// `versesControle` en prend `0..currentVerseIndex`.
+  /// ⚠️ [courant] est INDISPENSABLE (2026-08-19). `state.verses` peut etre
+  /// VIDE -- l'ecran le sait depuis toujours et retombe sur son propre repli
+  /// pour l'affichage (`session.verses.isEmpty ? verses.first : ...`). Mais
+  /// cette methode-ci CONSTRUIT l'historique de la session : partir d'une
+  /// liste vide fait commencer le cumul au premier verset PROLONGE, pas au
+  /// verset de depart. MESURE (2026-08-19 07:17) :
+  ///     controle : cumul=true index=0 session=[]        -> porte sur [1:2]
+  ///     controle : cumul=true index=1 session=[1:3,1:4] -> porte sur [1:3,1:4]
+  /// Le verset 1:2, point de depart reel, n'entrait jamais dans le cumul --
+  /// constat utilisateur : « il se contente de valider l'en-cours ».
+  /// On amorce donc la liste avec le verset d'ou l'on vient.
+  void prolongerAvec(Verse courant, Verse suivant) {
+    final liste = state.verses.isEmpty
+        ? [courant, suivant]
+        : [...state.verses, suivant];
+    state = CoachSessionState(
+      verses: liste,
+      currentVerseIndex: liste.length - 1,
+    ).copyWith(mode: CoachMode.apprentissage);
+  }
+
   void nextAppStep() {
     if (state.appStep < 2) state = state.copyWith(appStep: state.appStep + 1);
   }
