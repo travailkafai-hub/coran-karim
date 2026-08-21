@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import '../models/prayer_settings.dart';
+import 'prayer_times_settings_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
@@ -9,6 +12,7 @@ import '../widgets/quran_shazam_sheet.dart';
 import '../widgets/quran_pattern_background.dart';
 import 'mushaf_screen.dart';
 import '../providers/app_settings_provider.dart';
+import '../providers/prayer_settings_provider.dart';
 // Import conservé volontairement, en commentaire : le bouton « Suivre une
 // prière » est retiré de la v1 (cf. plus bas), l'écran lui existe toujours.
 // import 'prayer_follow_screen.dart';
@@ -199,7 +203,8 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
                 ),
               ),
             )
-          else
+          else ...[
+            const SliverToBoxAdapter(child: _RappelPriere()),
             SliverPadding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               sliver: SliverList(
@@ -209,7 +214,131 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
                 ),
               ),
             ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+
+/// Rappel de la prochaine priere, pose en tete de la liste des sourates.
+///
+/// ── POURQUOI ICI (2026-08-19) ───────────────────────────────────────────────
+/// Constat utilisateur : « ce qui manque dans cette page du debut, c'est un
+/// endroit pour mettre la prochaine heure de priere, avec combien il reste de
+/// temps -- parce que pour l'information il faut aller dans le parametrage ».
+/// C'est juste : l'horaire etait calcule et deja affiche, mais seulement sur
+/// l'ecran qui sert a le REGLER. Une information qu'on consulte plusieurs fois
+/// par jour n'a rien a faire derriere un ecran de reglages.
+///
+/// Le bandeau ne calcule rien lui-meme : il lit `prochainePriere`, la meme
+/// regle que l'ecran des reglages (cf. son extraction dans
+/// prayer_settings_provider.dart). Deux endroits qui annonceraient une
+/// prochaine priere differente seraient pires que pas de rappel du tout.
+class _RappelPriere extends ConsumerStatefulWidget {
+  const _RappelPriere();
+  @override
+  ConsumerState<_RappelPriere> createState() => _RappelPriereState();
+}
+
+class _RappelPriereState extends ConsumerState<_RappelPriere> {
+  Timer? _horloge;
+
+  @override
+  void initState() {
+    super.initState();
+    // Une minute : le compte a rebours s'affiche en heures et minutes, donc
+    // rafraichir plus souvent redessinerait pour rien. Plus rarement, et le
+    // « dans 1 h 23 » resterait faux jusqu'a une minute -- visible quand on
+    // regarde justement pour savoir s'il reste du temps.
+    _horloge = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _horloge?.cancel();
+    super.dispose();
+  }
+
+  static const _noms = {
+    PrayerName.fajr: 'Sobh',
+    PrayerName.dhuhr: 'Dhohr',
+    PrayerName.asr: 'Asr',
+    PrayerName.maghrib: 'Maghrib',
+    PrayerName.isha: 'Ichaa',
+  };
+
+  /// « dans 1 h 23 », « dans 24 min », « maintenant ».
+  String _restant(Duration d) {
+    if (d.inMinutes < 1) return 'maintenant';
+    final h = d.inHours, m = d.inMinutes % 60;
+    if (h == 0) return 'dans $m min';
+    return m == 0 ? 'dans $h h' : 'dans $h h $m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final etat = ref.watch(prayerSettingsProvider);
+    final suivante = etat.prochainePriere;
+    // Position pas encore connue, ou refusee : rien a annoncer. On n'affiche
+    // PAS un bandeau vide ni un « -- : -- » qui ferait croire a une panne.
+    if (suivante == null) return const SizedBox.shrink();
+
+    final locale = suivante.time.toLocal();
+    final hm = '${locale.hour.toString().padLeft(2, '0')}:'
+        '${locale.minute.toString().padLeft(2, '0')}';
+    final reste = suivante.time.difference(DateTime.now());
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 2),
+      child: Material(
+        color: AppColors.green900,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const PrayerTimesSettingsScreen())),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
+            child: Row(
+              children: [
+                const Icon(Icons.access_time_rounded,
+                    size: 19, color: AppColors.brassLight),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Prochaine priere'.toUpperCase(),
+                          style: GoogleFonts.manrope(
+                              fontSize: 9.5,
+                              letterSpacing: 1.4,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.brassLight)),
+                      const SizedBox(height: 3),
+                      Text('${_noms[suivante.name]} · $hm',
+                          style: GoogleFonts.manrope(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.cream)),
+                    ],
+                  ),
+                ),
+                Text(_restant(reste),
+                    style: GoogleFonts.manrope(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.brassLight)),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right_rounded,
+                    size: 20, color: AppColors.brassLight),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

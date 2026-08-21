@@ -66,8 +66,21 @@ class CoachNotifier extends StateNotifier<CoachSessionState> {
   ///
   /// Le cumul du controle suit tout seul : `session.verses` s'allonge, et
   /// `versesControle` en prend `0..currentVerseIndex`.
-  void prolongerAvec(Verse suivant) {
-    final liste = [...state.verses, suivant];
+  /// ⚠️ [courant] est INDISPENSABLE (2026-08-19). `state.verses` peut etre
+  /// VIDE -- l'ecran le sait depuis toujours et retombe sur son propre repli
+  /// pour l'affichage (`session.verses.isEmpty ? verses.first : ...`). Mais
+  /// cette methode-ci CONSTRUIT l'historique de la session : partir d'une
+  /// liste vide fait commencer le cumul au premier verset PROLONGE, pas au
+  /// verset de depart. MESURE (2026-08-19 07:17) :
+  ///     controle : cumul=true index=0 session=[]        -> porte sur [1:2]
+  ///     controle : cumul=true index=1 session=[1:3,1:4] -> porte sur [1:3,1:4]
+  /// Le verset 1:2, point de depart reel, n'entrait jamais dans le cumul --
+  /// constat utilisateur : « il se contente de valider l'en-cours ».
+  /// On amorce donc la liste avec le verset d'ou l'on vient.
+  void prolongerAvec(Verse courant, Verse suivant) {
+    final liste = state.verses.isEmpty
+        ? [courant, suivant]
+        : [...state.verses, suivant];
     state = CoachSessionState(
       verses: liste,
       currentVerseIndex: liste.length - 1,

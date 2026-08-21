@@ -7,6 +7,7 @@ import '../models/player_state_model.dart';
 import 'mp3quran_api.dart';
 import 'quran_api.dart';
 import 'reciter_download_service.dart';
+import 'diagnostic_log.dart';
 
 /// Singleton audio service wrapping audioplayers.
 /// Manages one AudioPlayer instance for the whole app lifetime.
@@ -211,20 +212,41 @@ class AudioPlayerService {
     // `t.endMs` augmente d'autant -- sinon le verset finirait trop tôt et
     // grignoterait sur le suivant, déplaçant le défaut au lieu de le retirer.
     final dureeMs = t.endMs - t.startMs + margeReelle;
+    // ── LE LECTEUR PRINCIPAL ETAIT MUET DANS LE JOURNAL (2026-08-19) ───────
+    //
+    // Ce fichier n'avait que des `debugPrint`, qui partent dans logcat et non
+    // dans `recitation_diagnostic.log`. Toute l'etape Lecture du Coach et
+    // toute l'ecoute au Mushaf etaient donc INVISIBLES a l'analyse -- au
+    // point qu'un defaut signale (« elle lance la lecture du Mushaf la ou il
+    // y a le curseur ») ne laissait aucune trace a confronter.
+    //
+    // On journalise ce qui decide : quel verset, de quand a quand, et la
+    // duree du minuteur de frontiere -- c'est lui qui doit arreter le verset
+    // au bon endroit, et lui seul.
+    DiagnosticLog.log('Lecture',
+        'verset=${verse.key} (MP3Quran) debut=${debutMs}ms fin=${t.endMs}ms '
+        'duree=${dureeMs}ms marge=${margeReelle}ms '
+        'fluxDejaOuvert=${_sourateEnCoursMp3Quran == verse.surahNumber}');
     _minuteurFrontiere = Timer(Duration(milliseconds: dureeMs), () {
       _minuteurFrontiere = null;
+      DiagnosticLog.log('Lecture',
+          'fin de verset ${verse.key} atteinte (minuteur) -> signal de fin');
       if (!_completionCtrl.isClosed) _completionCtrl.add(null);
     });
     return true;
   }
 
-  Future<void> pause() => _player.pause();
+  Future<void> pause() {
+    DiagnosticLog.log('Lecture', 'PAUSE demandee');
+    return _player.pause();
+  }
   Future<void> resume() => _player.resume();
   Future<void> stop() async {
     // Le flux MP3Quran réellement ouvert dans le lecteur natif est fermé par
     // `_player.stop()` -- sans remettre `_sourateEnCoursMp3Quran` à null, un
     // `playVerse` ultérieur sur la même sourate croirait le flux encore
     // actif et se contenterait d'un `resume()` sur un lecteur arrêté.
+    DiagnosticLog.log('Lecture', 'STOP : flux ferme, minuteur annule');
     _minuteurFrontiere?.cancel();
     _minuteurFrontiere = null;
     _sourateEnCoursMp3Quran = null;

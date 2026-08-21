@@ -38,6 +38,10 @@ class CoachScreen extends ConsumerStatefulWidget {
 }
 
 class _CoachScreenState extends ConsumerState<CoachScreen> {
+  /// Derniere taille de cible de controle journalisee -- evite de repeter la
+  /// ligne a chaque frame (le build tourne des dizaines de fois par seconde).
+  int _dernierTraceControle = -1;
+
   // ── JAMAIS DÉMARRER UNE SESSION SUR LA SEULE BISMILLAH (2026-08-09) ───────
   //
   // Demande utilisateur : « il ne faut jamais se lancer sur Bismillah, ça
@@ -103,6 +107,32 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
     // n'est pas faite, aucun contenu à afficher -- surtout pas
     // `widget.verses.first` en repli, qui redonnerait exactement le flash
     // qu'on cherche à éviter si ce premier verset est la Bismillah.
+    // ── ABONNE AVANT LE RETOUR ANTICIPE, SINON LA SESSION EST PERDUE ──────
+    //
+    // `coachProvider` est `autoDispose`. Ce `watch` etait place APRES le
+    // garde `verses == null` ci-dessous, donc jamais atteint au PREMIER
+    // frame -- celui ou l'ecran affiche encore son indicateur de chargement.
+    // Sequence mesuree (2026-08-19) :
+    //   1. build #1 : `_verses == null` -> retour anticipe, le provider n'a
+    //      AUCUN ecouteur ;
+    //   2. post-frame : `_resoudreVersets()` fait `ref.read(...).setup(v)` --
+    //      le provider est cree, l'etat pose, puis DETRUIT en fin de frame
+    //      faute d'ecouteur (c'est la definition d'`autoDispose`) ;
+    //   3. build #2 : `ref.watch` le RECREE avec l'etat par defaut, donc
+    //      `verses: []`.
+    //
+    // Ce qu'on a vu a l'ecran, et qui vient de la : la ligne
+    // `session.verses.isEmpty ? verses.first : session.currentVerse` retombe
+    // sur le PREMIER verset du passage au lieu du verset courant -- « il
+    // lance la lecture du Mushaf au lieu du verset sur l'ecran ». Et
+    // `prolongerAvec` construisait l'historique du cumul a partir de cette
+    // liste vide, donc sans son verset de depart -- « il se contente de
+    // valider l'en-cours ».
+    //
+    // Un `watch` pose AVANT le garde donne un ecouteur des le premier frame :
+    // `setup()` survit. Il ne coute rien de plus -- l'ecran l'appelait de
+    // toute facon une ligne plus bas.
+    final session = ref.watch(coachProvider);
     final verses = _verses;
     if (verses == null) {
       return const Scaffold(
@@ -110,7 +140,6 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    final session = ref.watch(coachProvider);
     // Ayah par ayah même sur une sourate entière (demande utilisateur
     // 2026-07-24) : les 3 modes ne travaillent QUE sur le verset courant
     // (session.currentVerse), jamais sur `verses` entier concaténé.
@@ -130,6 +159,18 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
         ? [currentVerse]
         : session.verses.sublist(
             0, (session.currentVerseIndex + 1).clamp(1, session.verses.length));
+    // Trace posee le 2026-08-19. MESURE qui l'impose : le controle de 07:00:21
+    // portait sur `cible=5 mots`, soit 1:3 + 1:4 -- la session avait PERDU
+    // 1:2, son propre point de depart. Constat utilisateur : « il se contente
+    // de valider l'en-cours ». Ce qu'on ne sait pas encore, c'est QUAND la
+    // liste se vide : on ecrit donc la liste elle-meme, a chaque changement.
+    if (session.mode == CoachMode.controle && _dernierTraceControle != versesControle.length) {
+      _dernierTraceControle = versesControle.length;
+      DiagnosticLog.log('Coach',
+          'controle : cumul=$cumulControle index=${session.currentVerseIndex} '
+          'session=[${session.verses.map((v) => v.key).join(",")}] '
+          '-> porte sur [${versesControle.map((v) => v.key).join(",")}]');
+    }
 
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -855,7 +896,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
           final suivants =
               tous.where((x) => x.ayahNumber == courant.ayahNumber + 1);
           if (suivants.isEmpty) return; // fin de sourate : rien apres
-          notifier.prolongerAvec(suivants.first);
+          notifier.prolongerAvec(courant, suivants.first);
         } catch (e) {
           DiagnosticLog.log('Coach',
               'prolongation impossible apres ${courant.key} : $e');

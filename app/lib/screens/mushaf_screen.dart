@@ -999,6 +999,28 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         // les garde SYMETRIQUES : si le defaut venait d'ailleurs, une
         // asymetrie de code aurait rendu le diagnostic impossible.
         ),
+        // ── LES DEUX BANDES AVANCENT (2026-08-19) ───────────────────────
+        //
+        // Demande utilisateur : « chaque clic, on avance -- parce qu'on
+        // avance plus qu'on ne recule. Pour reculer, il peut juste defiler
+        // d'en bas, il revient en arriere ».
+        //
+        // La bande GAUCHE reculait. Elle avance desormais comme la droite :
+        // on lit vers l'avant, et le retour en arriere se fait au
+        // defilement, qui n'a jamais eu de probleme.
+        //
+        // Ce changement REGLE AUSSI le defaut decrit juste au-dessus (« je
+        // peux avancer en bas mais je n'arrive pas a reculer en arriere ») :
+        // le bord gauche est la zone du geste systeme « retour » d'Android,
+        // qui capte parfois le tap avant l'application. Le decalage de
+        // `_kMargeGesteSysteme` reduisait le probleme sans le supprimer.
+        // Un cote qui ne PEUT plus rater sa fonction, parce que les deux
+        // font la meme, ne peut plus decevoir -- et un tap capte par le
+        // systeme reste un retour d'ecran, pas une page perdue.
+        //
+        // Les deux bandes restent SEPAREES plutot que fusionnees en une
+        // seule zone : le centre appartient toujours au texte (selection
+        // d'un mot, fiche tajwid), et l'elargir les avalerait.
         Positioned(
           left: _kMargeGesteSysteme,
           top: _reserveHaut(context),
@@ -1007,8 +1029,8 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: () {
-              _tapManuel(enAvant: false);
-              _kindleJumpPage(viewportHeight, forward: false);
+              _tapManuel(enAvant: true);
+              _kindleJumpPage(viewportHeight, forward: true);
             },
           ),
         ),

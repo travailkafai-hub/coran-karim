@@ -7,6 +7,7 @@ import '../models/reciter.dart';
 import '../models/player_state_model.dart';
 import '../services/audio_player_service.dart';
 import '../services/word_correction_audio.dart';
+import '../services/diagnostic_log.dart';
 
 const _kPrefReciterId = 'preferred_reciter_id';
 
@@ -297,6 +298,9 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       // `_sourateEnCoursMp3Quran` a null, ce qui obligerait a rouvrir le gros
       // fichier au prochain verset de la meme sourate. En pause, un
       // `playVerse` suivant se contente d'un seek+resume.
+      DiagnosticLog.log('Lecture',
+          'fin de playlist (${state.playlist.length} verset(s)) -> pause du '
+          'lecteur + statut idle');
       _svc.pause();
       state = state.copyWith(status: PlayerStatus.idle);
     }

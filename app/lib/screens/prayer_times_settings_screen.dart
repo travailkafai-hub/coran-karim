@@ -40,22 +40,12 @@ const _prayerIcons = {
 
 const _reminderChoices = [5, 10, 15, 20, 30, 45];
 
-/// Prochaine prière à venir (aujourd'hui, ou Sobh de demain si Ichaa est déjà
-/// passé) -- sert au bandeau vedette et au surlignage dans la bande du jour.
-({PrayerName name, DateTime time})? _nextPrayer(PrayerState state) {
-  final today = state.today;
-  if (today == null) return null;
-  final now = DateTime.now();
-  for (final p in PrayerName.values) {
-    final t = today[p]!;
-    if (t.isAfter(now)) return (name: p, time: t);
-  }
-  final tomorrow = state.tomorrow;
-  if (tomorrow != null) {
-    return (name: PrayerName.fajr, time: tomorrow[PrayerName.fajr]!);
-  }
-  return null;
-}
+// Le calcul de la prochaine priere vivait ICI, en prive. Il a ete DEPLACE le
+// 2026-08-19 sur `PrayerState` (extension `ProchainePriere`, cf.
+// prayer_settings_provider.dart) pour que la liste des sourates l'utilise sans
+// le recopier. Sa regle et son commentaire d'origine ont suivi tels quels --
+// notamment « apres Ichaa, la prochaine est le Sobh de DEMAIN », qui est la
+// seule partie non evidente.
 
 class PrayerTimesSettingsScreen extends ConsumerWidget {
   const PrayerTimesSettingsScreen({super.key});
@@ -65,7 +55,7 @@ class PrayerTimesSettingsScreen extends ConsumerWidget {
     final state = ref.watch(prayerSettingsProvider);
     final notifier = ref.read(prayerSettingsProvider.notifier);
     final settings = state.settings;
-    final next = _nextPrayer(state);
+    final next = state.prochainePriere;
 
     return Scaffold(
       backgroundColor: AppColors.cream,

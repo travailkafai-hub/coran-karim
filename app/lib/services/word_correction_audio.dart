@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/reciter.dart';
 import '../models/verse.dart';
+import 'audio_player_service.dart';
 import 'diagnostic_log.dart';
 import 'mp3quran_api.dart';
 import 'quran_api.dart';
@@ -92,6 +93,35 @@ class WordCorrectionAudio {
   /// fichier et le positionnement, et un plancher pour les extraits courts.
   static Duration _plafondLecture(int dureeMs) => Duration(
       milliseconds: dureeMs <= 0 ? 15000 : (dureeMs + 5000).clamp(15000, 180000));
+
+  /// Fait taire le lecteur PRINCIPAL avant de jouer un extrait.
+  ///
+  /// ── LE COUPLAGE ETAIT A SENS UNIQUE (2026-08-19) ─────────────────────────
+  /// Ce fichier a son propre `AudioPlayer`, « volontairement separe du lecteur
+  /// principal » (cf. l'en-tete). `PlayerNotifier.stop()` appelle bien
+  /// `WordCorrectionAudio.stop()` -- le Mushaf fait taire les extraits, au nom
+  /// du « un seul son a la fois dans l'app ». Mais L'INVERSE N'EXISTAIT PAS :
+  /// un extrait ou un palier demarrait par-dessus une lecture du Mushaf
+  /// encore en cours.
+  ///
+  /// Constat utilisateur (2026-08-19) : « dans la memorisation coach, j'ai
+  /// l'impression qu'elle lance parfois la lecture du Mushaf la ou il y a le
+  /// curseur -- il y a un chevauchement de code ». C'est exactement ca : deux
+  /// lecteurs, deux flux, et le meme fichier de sourate ouvert des deux cotes.
+  ///
+  /// Le cas se produit des que l'etape Lecture est quittee autrement que par
+  /// son bouton (glissement, retour, changement de mode) : ce bouton-la est le
+  /// SEUL endroit qui appelait `playerProvider.stop()`.
+  ///
+  /// `pause()` et non `stop()` : le Mushaf garde sa position, l'utilisateur
+  /// reprend ou il en etait apres la correction.
+  static Future<void> _faireTaireLeMushaf() async {
+    try {
+      await AudioPlayerService().pause();
+    } catch (_) {
+      // Best-effort : un lecteur principal jamais demarre n'est pas une erreur.
+    }
+  }
 
   static Future<void> playFile(String path) async {
     DiagnosticLog.log('Voix', 'lecture extrait : $path');
@@ -261,6 +291,7 @@ class WordCorrectionAudio {
     });
     doneSub = _player.onPlayerComplete.listen((_) => finish());
 
+    await _faireTaireLeMushaf();
     final depart = DateTime.now();
     // `stop()` d'abord : remet la position du lecteur à zéro pour qu'aucun
     // événement de l'ancienne lecture ne puisse être pris pour la nouvelle.
@@ -401,6 +432,7 @@ class WordCorrectionAudio {
     });
     doneSub = _player.onPlayerComplete.listen((_) => finish());
 
+    await _faireTaireLeMushaf();
     final depart = DateTime.now();
     // `stop()` d'abord, même raison que le chemin quran.com ci-dessus.
     await _player.stop();

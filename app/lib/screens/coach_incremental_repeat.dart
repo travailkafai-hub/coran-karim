@@ -578,7 +578,18 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
       // (qui vise `apprentissage`), plus aucune étape ne se traverse au tap.
       //
       // Bascule désactivée : comportement d'avant, mot pour mot.
-      if (ref.read(coachControleCumulatifProvider)) {
+      // Trace posee le 2026-08-19 : le journal disait `fin de tour
+      // success=true` sans jamais dire QUELLE branche suivait, ni si le
+      // drapeau cumul avait ete lu. Constat utilisateur : « il se contente de
+      // valider l'en-cours ». Sans cette ligne, impossible de distinguer
+      // « la branche cumul n'a pas ete prise » de « elle a ete prise et le
+      // controle n'a pas suivi ».
+      final cumul = ref.read(coachControleCumulatifProvider);
+      DiagnosticLog.log('Palier',
+          'verset termine : unites=$_unitsIntroduced/$_totalUnits '
+          'cumul=$cumul isLastVerse=${widget.isLastVerse} '
+          '-> ${cumul ? "CONTROLE" : (widget.isLastVerse ? "fin" : "verset suivant")}');
+      if (cumul) {
         widget.onAllVersesDone();
         return;
       }
