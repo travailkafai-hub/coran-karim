@@ -77,13 +77,24 @@ main{padding:60px 0 20px}
           font-size:clamp(19px,3.4vw,25px);color:var(--laiton-clair);
           text-decoration:none;border-bottom:1px solid rgba(217,174,106,.45);padding-bottom:4px}
 .courriel:hover{color:#fff;border-bottom-color:#fff}
-.liens{margin-top:26px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap;font-size:14px}
-.liens a{color:#cfc7b4}
-.liens a:hover{color:#fff}
+/* Formulaire testeur : une ligne qui passe a deux colonnes des qu'il y a la
+   place. Champ et bouton de meme hauteur, sinon la ligne « bascule » a l'oeil. */
+.testeur{margin:26px auto 0;max-width:30em;text-align:left}
+.testeur label{display:block;font-size:13px;font-weight:600;color:#cfc7b4;margin-bottom:8px}
+.ligne{display:flex;gap:10px;flex-wrap:wrap}
+.ligne input{flex:1 1 200px;min-width:0;padding:13px 14px;font:inherit;font-size:16px;
+             border:1px solid rgba(217,174,106,.45);border-radius:12px;
+             background:rgba(255,255,255,.06);color:var(--creme)}
+.ligne input::placeholder{color:#9d968a}
+.ligne input:focus{outline:none;border-color:var(--laiton-clair);background:rgba(255,255,255,.1)}
+.ligne button{padding:13px 22px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;
+              border:none;border-radius:12px;background:var(--laiton-clair);color:var(--vert-900)}
+.ligne button:hover{background:#fff}
+.reponse{min-height:1.2em;margin-top:12px;font-size:14px}
+.reponse.ok{color:#a9dbc0}
+.reponse.ko{color:#f0b3a8}
+.mention{margin-top:12px;font-size:13px;color:#a9a294}
 
-footer{padding:34px 0 44px;text-align:center;font-size:13px;color:var(--encre-doux)}
-footer span{display:block}
-footer span+span{margin-top:6px}
 :focus-visible{outline:2px solid var(--laiton);outline-offset:3px;border-radius:4px}
 </style>
 </head>
@@ -134,10 +145,10 @@ footer span+span{margin-top:6px}
     </div>
 
     <section class="contact">
-      <h2>Une question, une erreur repérée, une idée</h2>
-      <p>Vos retours servent directement à améliorer l'application — surtout
-        quand la correction se trompe. Écrivez aussi à cette adresse pour
-        participer au test.</p>
+      <h2>Aidez-nous à améliorer cette application</h2>
+      <p>Une question, une erreur repérée, une idée : n'importe quel retour
+        nous aidera, in shâ' Allah, à rendre cette application meilleure.
+        Nous comptons sur vous.</p>
 
       <!-- Lien `mailto` DIRECT, et non un formulaire (2026-08-21).
            GitHub Pages ne sert que des fichiers : aucun serveur ne peut recevoir
@@ -149,19 +160,106 @@ footer span+span{margin-top:6px}
            `index.html.avant-simplification-2026-08-21`. -->
       <a class="courriel" href="mailto:travail.kafai@gmail.com">travail.kafai@gmail.com</a>
 
-      <div class="liens">
-        <a href="politique-confidentialite.html">Politique de confidentialité</a>
-      </div>
+      <form class="testeur" id="formTesteur" novalidate>
+        <label for="courriel">Ou laissez votre adresse pour devenir testeur</label>
+        <div class="ligne">
+          <input type="email" id="courriel" required autocomplete="email"
+                 inputmode="email" spellcheck="false" placeholder="vous@exemple.com">
+          <button type="submit" id="envoi">Envoyer</button>
+        </div>
+        <p class="mention">Votre adresse ne sert qu'à vous envoyer l'accès au
+          test. Elle n'est jamais transmise à personne d'autre.</p>
+        <p class="reponse" id="reponse" role="status" aria-live="polite"></p>
+      </form>
     </section>
   </div>
 </main>
 
-<footer>
-  <div class="enveloppe">
-    <span>Coran Karim — application Android</span>
-    <span>Texte coranique : Tanzil / KFGQPC</span>
-  </div>
-</footer>
+<!-- PIED DE PAGE RETIRE (2026-08-21, demande utilisateur : « le bas de page,
+     il sert a rien, enleve-le »). Il portait le lien vers la politique de
+     confidentialite : la PAGE, elle, reste en ligne et accessible a
+     `politique-confidentialite.html` -- c'est son URL qui est declaree dans la
+     console Play, pas un lien depuis l'accueil. La supprimer casserait la
+     fiche Play ; retirer le lien, non. -->
+
+<script>
+/* ── ENVOI DE L'ADRESSE D'UN TESTEUR ────────────────────────────────────────
+   CE QUE CETTE PAGE PEUT ET NE PEUT PAS FAIRE. GitHub Pages ne sert que des
+   FICHIERS : il n'y a aucun serveur derriere, donc rien ici ne peut envoyer un
+   courriel tout seul. Deux chemins existent, et le code prend le second tant
+   que le premier n'est pas configure :
+
+     1. SERVICE TIERS -- creer un formulaire gratuit sur https://formspree.io
+        et coller son identifiant ci-dessous (il se lit dans l'URL fournie :
+        https://formspree.io/f/IDENTIFIANT). L'adresse part alors DIRECTEMENT
+        vers travail.kafai@gmail.com, sans que le visiteur ait rien a faire.
+
+     2. SANS SERVICE -- le bouton ouvre le logiciel de courriel du visiteur
+        avec le message deja ecrit ; il ne lui reste qu'a l'envoyer.
+
+   Le choix du repli plutot qu'un faux succes est deliberé : afficher « c'est
+   note » alors que l'adresse n'est partie nulle part ferait perdre des
+   testeurs SANS que personne s'en apercoive. */
+const FORMSPREE_ID = '';
+const DESTINATAIRE = 'travail.kafai@gmail.com';
+
+const form = document.getElementById('formTesteur');
+const champ = document.getElementById('courriel');
+const bouton = document.getElementById('envoi');
+const reponse = document.getElementById('reponse');
+
+function dire(texte, classe) {
+  reponse.textContent = texte;
+  reponse.className = 'reponse ' + classe;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const adresse = champ.value.trim();
+  // Validation du navigateur plutot qu'une expression maison : elle est plus
+  // juste, et deja traduite dans la langue du visiteur.
+  if (!adresse || !champ.checkValidity()) {
+    dire('Cette adresse ne semble pas valide — vérifiez-la et réessayez.', 'ko');
+    champ.focus();
+    return;
+  }
+
+  if (!FORMSPREE_ID) {
+    const sujet = encodeURIComponent('Je veux tester Coran Karim');
+    const corps = encodeURIComponent(
+      'Bonjour,
+
+Je souhaite participer au test de Coran Karim.
+
+Mon adresse : '
+      + adresse + '
+');
+    window.location.href = 'mailto:' + DESTINATAIRE + '?subject=' + sujet + '&body=' + corps;
+    dire("Votre logiciel de courriel s'ouvre avec le message déjà écrit — il ne reste qu'à l'envoyer.", 'ok');
+    return;
+  }
+
+  bouton.disabled = true;
+  const libelle = bouton.textContent;
+  bouton.textContent = 'Envoi…';
+  try {
+    const r = await fetch('https://formspree.io/f/' + FORMSPREE_ID, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: adresse, sujet: 'Candidature testeur — Coran Karim' })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    form.querySelector('.ligne').style.display = 'none';
+    dire("C'est noté. Vous recevrez le lien d'accès à la prochaine version ouverte aux testeurs.", 'ok');
+  } catch (err) {
+    // On NOMME le repli plutot que « une erreur est survenue » : le visiteur
+    // doit savoir quoi faire, pas seulement que ca a rate.
+    dire("L'envoi n'a pas abouti. Écrivez-nous directement à " + DESTINATAIRE + '.', 'ko');
+    bouton.disabled = false;
+    bouton.textContent = libelle;
+  }
+});
+</script>
 
 </body>
 </html>
