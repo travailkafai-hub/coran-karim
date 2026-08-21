@@ -1339,7 +1339,31 @@ class ChaineRecitation(
         // a `caracteristiques`, jamais la fenetre entiere.
         val tranche = Array(f1 - f0) { logp[f0 + it] }
         val traits = Tete3Traits.caracteristiques(tranche, tokens, variantes) ?: return null
-        val etatVec = Tete3Traits.etatMoyenEtEcartType(etat, f0, f1) ?: return null
+        // -- LA FORME DE L ETAT DEPEND DE LA TETE CHARGEE (2026-08-21) --
+        //
+        // La tete du modele a TROIS tetes attendait moyenne ET ecart-type
+        // de l etat (2 x 512 + 12 = 1036 entrees, couche 0 de 128 x 1036).
+        // Celle du modele a QUATRE tetes n attend que la MOYENNE
+        // (512 + 12 = 524, couche 0 de 32 x 524, environ 16 833 parametres).
+        //
+        // On choisit d apres ce que la tete CHARGEE declare, au lieu de
+        // figer une forme : c est la seule facon de revenir a l ancien
+        // modele sans retoucher ce fichier, ce que la regle du projet
+        // exige.
+        //
+        // CE QUI S EST PASSE SANS CE CHOIX : le code construisait toujours
+        // 1036 valeurs. Face a la tete a 524, l ecart de taille etait
+        // detecte plus haut et le calcul SAUTE -- la tete 3 etait donc
+        // eteinte depuis le deploiement du nouveau modele, sans autre
+        // trace qu une ligne de journal. Le garde a fait son travail ; il
+        // ne remplace pas la correction.
+        val dimEtat = etat[f0].size
+        val attendu = tete3?.tailleEntree ?: (2 * dimEtat + traits.size)
+        val etatVec = (if (attendu == dimEtat + traits.size) {
+            Tete3Traits.etatMoyen(etat, f0, f1)
+        } else {
+            Tete3Traits.etatMoyenEtEcartType(etat, f0, f1)
+        }) ?: return null
         return etatVec + traits
     }
 

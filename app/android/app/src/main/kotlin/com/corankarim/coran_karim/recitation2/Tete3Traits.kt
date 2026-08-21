@@ -251,6 +251,43 @@ object Tete3Traits {
      * pas l'estimateur non biaise (T-1). Sur un mot de 5 frames l'ecart est de
      * 12 %, largement de quoi rendre la normalisation fausse.
      */
+    /**
+     * MOYENNE SEULE de l etat encodeur sur les frames du mot -- 512 valeurs.
+     *
+     * ── POURQUOI UNE SECONDE FONCTION (2026-08-21) ──────────────────────────
+     * La tete livree avec le modele a QUATRE tetes declare
+     * `etat_encodeur_moyen[512]` et attend 524 entrees (512 + 12 scores).
+     * `etatMoyenEtEcartType` ci-dessous en rend 1024 -- moyenne ET
+     * ecart-type --
+     * ce qu attendait la tete du modele a TROIS tetes (1036 entrees au total,
+     * couche 0 de 128 x 1036, environ 133 000 parametres contre 16 833
+     * aujourd hui).
+     *
+     * Les deux formes coexistent volontairement : l ancienne n est pas fausse,
+     * elle appartient a un autre modele, et la regle du projet interdit
+     * d effacer ce qui documente une forme passee. L appelant choisit selon la
+     * taille que la tete chargee declare.
+     *
+     * ⚠️ CE N EST PAS UN DETAIL D IMPLEMENTATION. Passer 1036 valeurs a une
+     * une tete qui en attend 524 ne produit pas un mauvais resultat : cela produit
+     * un ECART DE TAILLE, que `ChaineRecitation` detecte et qui fait
+     * SAUTER le
+     * calcul. C est exactement ce qui s est passe depuis le deploiement du
+     * modele a quatre tetes -- la tete 3 etait eteinte sans que rien ne le
+     * dise, hors une ligne de journal. Le garde a fonctionne ; il ne remplace
+     * pas la correction.
+     */
+    fun etatMoyen(etat: Array<FloatArray>, f0: Int, f1: Int): FloatArray? {
+        if (f1 <= f0 || f0 < 0 || f1 > etat.size) return null
+        val dim = etat[f0].size
+        val n = (f1 - f0).toDouble()
+        return FloatArray(dim) { k ->
+            var somme = 0.0
+            for (t in f0 until f1) somme += etat[t][k].toDouble()
+            (somme / n).toFloat()
+        }
+    }
+
     fun etatMoyenEtEcartType(etat: Array<FloatArray>, f0: Int, f1: Int): FloatArray? {
         if (f1 <= f0 || f0 < 0 || f1 > etat.size) return null
         val dim = etat[f0].size
