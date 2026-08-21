@@ -4,520 +4,155 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Coran Karim</title>
-<meta name="description" content="Application Android de mémorisation du Coran. La récitation est vérifiée par une IA qui tourne sur l'appareil : la voix ne quitte jamais le téléphone. Sans publicité, sans compte, hors ligne.">
+<meta name="description" content="Application Android de mémorisation du Coran : une IA qui écoute la récitation et corrige, sur l'appareil. Un coach, des objectifs, un mode enfant. Sans publicité.">
 <meta name="theme-color" content="#0f3d2e">
-
 <meta property="og:title" content="Coran Karim">
 <meta property="og:description" content="Mémoriser le Coran, avec une écoute qui corrige — et qui ne quitte jamais votre téléphone.">
 <meta property="og:type" content="website">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&family=Scheherazade+New:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&family=Scheherazade+New:wght@400;700&display=swap" rel="stylesheet">
 
 <style>
+/* ── PAGE VOLONTAIREMENT COURTE (2026-08-21) ─────────────────────────────────
+   Demande utilisateur : « elle parle beaucoup, cette page ; je veux qu'elle
+   soit au plus simple, ça tient en une seule page, c'est synthétisé ».
+   La version précédente (620 lignes, six sections) est conservée à côté sous
+   `index.html.avant-simplification-2026-08-21` : rien n'est perdu, et le texte
+   long y reste disponible si une section doit revenir.
+   L'identité visuelle est INCHANGÉE (mêmes couleurs, mêmes polices, même grain
+   de papier) : c'est le bavardage qui part, pas le caractère. */
 :root{
   --vert-900:#0b2c21;
   --vert-800:#0f3d2e;
-  --vert-700:#14532d;
-  --vert-600:#1c6b41;
   --creme:#f7f3e8;
-  --creme-2:#efe9d9;
   --creme-3:#e4dcc6;
   --laiton:#b8894a;
   --laiton-clair:#d9ae6a;
-  --or:#c9a227;
   --encre:#1c1a16;
   --encre-doux:#5b564c;
-
   --serif:'Fraunces',Georgia,'Times New Roman',serif;
   --sans:'Manrope',-apple-system,'Segoe UI',sans-serif;
   --arabe:'Scheherazade New',serif;
-
-  --mesure:min(1180px,92vw);
+  --mesure:min(760px,90vw);
 }
-
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
 body{
-  background:var(--creme);
-  color:var(--encre);
-  font-family:var(--sans);
-  font-size:17px;
-  line-height:1.65;
-  -webkit-font-smoothing:antialiased;
-  overflow-x:hidden;
+  background:var(--creme);color:var(--encre);font-family:var(--sans);
+  font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased;
 }
-
-/* ── grain : donne au fond la matière d'un papier, pas d'un écran ───────── */
-body::after{
-  content:'';position:fixed;inset:0;pointer-events:none;z-index:99;opacity:.035;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
 a{color:inherit}
 ::selection{background:var(--laiton-clair);color:var(--vert-900)}
+.enveloppe{width:var(--mesure);margin:0 auto}
 
-/* ── ornement géométrique, motif à huit branches ────────────────────────── */
-.ornement{
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='%23b8894a' stroke-width='.9' opacity='.5'%3E%3Cpath d='M36 4 44 20 62 22 50 36 62 50 44 52 36 68 28 52 10 50 22 36 10 22 28 20Z'/%3E%3Ccircle cx='36' cy='36' r='9'/%3E%3C/g%3E%3C/svg%3E");
-}
-
-/* ── en-tête ────────────────────────────────────────────────────────────── */
 header{
-  position:relative;overflow:hidden;
-  background:
-    radial-gradient(120% 90% at 80% 0%, rgba(28,107,65,.55) 0%, transparent 60%),
-    linear-gradient(160deg,var(--vert-800) 0%,var(--vert-900) 100%);
-  color:var(--creme);
-  padding:clamp(3rem,9vw,7rem) 0 clamp(4rem,10vw,8rem);
+  background:linear-gradient(165deg,var(--vert-800),var(--vert-900));
+  color:var(--creme);padding:72px 0 60px;text-align:center;
 }
-header::before{
-  content:'';position:absolute;inset:0;opacity:.16;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='%23d9ae6a' stroke-width='.9'%3E%3Cpath d='M36 4 44 20 62 22 50 36 62 50 44 52 36 68 28 52 10 50 22 36 10 22 28 20Z'/%3E%3Ccircle cx='36' cy='36' r='9'/%3E%3C/g%3E%3C/svg%3E");
-}
-.enveloppe{width:var(--mesure);margin-inline:auto;position:relative;z-index:2}
+.bismillah{font-family:var(--arabe);font-size:26px;color:var(--laiton-clair);margin-bottom:22px}
+h1{font-family:var(--serif);font-size:clamp(38px,7vw,60px);font-weight:600;line-height:1.05;text-wrap:balance}
+h1 em{display:block;font-family:var(--arabe);font-style:normal;font-size:clamp(20px,3.4vw,26px);
+      font-weight:400;color:var(--laiton-clair);margin-top:10px}
+.accroche{margin:20px auto 0;max-width:34em;font-size:18px;color:#e8e2d3;text-wrap:balance}
+.puces{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:26px}
+.puce{border:1px solid rgba(217,174,106,.45);border-radius:999px;padding:6px 14px;
+      font-size:13px;font-weight:600;color:var(--laiton-clair)}
 
-.bandeau{
-  display:flex;align-items:center;gap:.7rem;
-  font-family:var(--sans);font-size:.7rem;font-weight:700;
-  letter-spacing:.22em;text-transform:uppercase;color:var(--laiton-clair);
-  margin-bottom:clamp(2rem,6vw,3.5rem);
-}
-.bandeau .trait{height:1px;flex:1;max-width:120px;background:linear-gradient(90deg,var(--laiton),transparent)}
+main{padding:60px 0 20px}
+.titre{font-family:var(--serif);font-size:clamp(24px,4vw,30px);font-weight:600;
+       text-align:center;text-wrap:balance;margin-bottom:34px}
 
-h1{
-  font-family:var(--serif);
-  font-weight:300;
-  font-size:clamp(2.7rem,8.5vw,5.6rem);
-  line-height:.98;
-  letter-spacing:-.02em;
-}
-h1 em{font-style:normal;font-weight:700;color:var(--laiton-clair);display:block}
+/* Une carte par fonction : quatre, pas plus — c'est toute l'application. */
+.fonctions{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.carte{background:#fff;border:1px solid var(--creme-3);border-radius:16px;padding:22px}
+.carte h2{font-family:var(--serif);font-size:19px;font-weight:600;margin-bottom:8px}
+.carte p{font-size:15.5px;color:var(--encre-doux)}
 
-.bismillah{
-  font-family:var(--arabe);
-  font-size:clamp(1.6rem,4.5vw,2.4rem);
-  color:var(--laiton-clair);
-  opacity:.85;
-  margin-bottom:1.6rem;
-  direction:rtl;
-}
+.contact{margin-top:56px;background:var(--vert-800);color:var(--creme);
+         border-radius:20px;padding:40px 28px;text-align:center}
+.contact h2{font-family:var(--serif);font-size:clamp(22px,3.6vw,27px);font-weight:600;text-wrap:balance}
+.contact p{margin:14px auto 0;max-width:36em;color:#e8e2d3;font-size:16px}
+.courriel{display:inline-block;margin-top:24px;font-family:var(--serif);
+          font-size:clamp(19px,3.4vw,25px);color:var(--laiton-clair);
+          text-decoration:none;border-bottom:1px solid rgba(217,174,106,.45);padding-bottom:4px}
+.courriel:hover{color:#fff;border-bottom-color:#fff}
+.liens{margin-top:26px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap;font-size:14px}
+.liens a{color:#cfc7b4}
+.liens a:hover{color:#fff}
 
-.accroche{
-  font-family:var(--serif);
-  font-weight:300;
-  font-size:clamp(1.15rem,2.6vw,1.6rem);
-  line-height:1.5;
-  max-width:34ch;
-  margin-top:1.8rem;
-  color:rgba(247,243,232,.86);
-}
-
-.puces{
-  display:flex;flex-wrap:wrap;gap:.6rem;margin-top:2.6rem;
-}
-.puce{
-  border:1px solid rgba(217,174,106,.42);
-  border-radius:999px;
-  padding:.42rem 1rem;
-  font-size:.78rem;font-weight:600;letter-spacing:.04em;
-  color:var(--laiton-clair);
-  background:rgba(217,174,106,.07);
-}
-
-/* ── sections ───────────────────────────────────────────────────────────── */
-section{padding:clamp(3.5rem,9vw,7rem) 0}
-.titre-section{
-  font-family:var(--serif);font-weight:600;
-  font-size:clamp(1.7rem,4.2vw,2.7rem);
-  line-height:1.15;letter-spacing:-.01em;
-  color:var(--vert-800);
-  max-width:22ch;
-}
-.chapo{
-  font-size:1.02rem;color:var(--encre-doux);max-width:56ch;margin-top:1rem;
-}
-.oeil{
-  font-family:var(--sans);font-size:.7rem;font-weight:700;
-  letter-spacing:.22em;text-transform:uppercase;color:var(--laiton);
-  margin-bottom:1rem;display:block;
-}
-
-/* ── le principe : bloc pleine largeur, vert ────────────────────────────── */
-.principe{
-  background:var(--vert-800);color:var(--creme);position:relative;overflow:hidden;
-}
-.principe::before{
-  content:'';position:absolute;inset:0;opacity:.1;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='%23d9ae6a' stroke-width='.9'%3E%3Cpath d='M36 4 44 20 62 22 50 36 62 50 44 52 36 68 28 52 10 50 22 36 10 22 28 20Z'/%3E%3C/g%3E%3C/svg%3E");
-}
-.principe .titre-section{color:var(--creme)}
-.principe .chapo{color:rgba(247,243,232,.78)}
-.principe .oeil{color:var(--laiton-clair)}
-
-.grille-principe{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
-  gap:2rem;margin-top:3rem;
-}
-.pilier{
-  border-top:2px solid var(--laiton);padding-top:1.2rem;
-}
-.pilier .num{
-  font-family:var(--serif);font-size:.85rem;font-weight:700;
-  color:var(--laiton-clair);letter-spacing:.1em;
-}
-.pilier h3{
-  font-family:var(--serif);font-weight:600;font-size:1.32rem;
-  margin:.5rem 0 .6rem;color:var(--creme);
-}
-.pilier p{font-size:.94rem;color:rgba(247,243,232,.72);line-height:1.6}
-
-/* ── fonctionnalités ────────────────────────────────────────────────────── */
-.grille{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
-  gap:1.4rem;margin-top:3rem;
-}
-.carte{
-  background:#fffdf7;
-  border:1px solid var(--creme-3);
-  border-radius:3px;
-  padding:1.7rem 1.6rem;
-  position:relative;
-  transition:transform .35s cubic-bezier(.2,.8,.3,1),box-shadow .35s,border-color .35s;
-}
-.carte::before{
-  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
-  background:linear-gradient(180deg,var(--laiton),transparent);
-  opacity:0;transition:opacity .35s;
-}
-.carte:hover{
-  transform:translateY(-4px);
-  box-shadow:0 18px 40px -24px rgba(15,61,46,.45);
-  border-color:var(--laiton-clair);
-}
-.carte:hover::before{opacity:1}
-.carte h3{
-  font-family:var(--serif);font-weight:600;font-size:1.22rem;
-  color:var(--vert-700);margin-bottom:.55rem;
-}
-.carte p{font-size:.93rem;color:var(--encre-doux);line-height:1.62}
-
-/* ── ce que l'app ne fait pas ───────────────────────────────────────────── */
-.refus{background:var(--creme-2)}
-.liste-refus{
-  margin-top:2.6rem;display:grid;gap:0;
-  border-top:1px solid var(--creme-3);
-}
-.liste-refus li{
-  list-style:none;display:flex;gap:1.1rem;align-items:baseline;
-  padding:1.05rem .2rem;border-bottom:1px solid var(--creme-3);
-}
-.liste-refus .marque{
-  font-family:var(--serif);color:var(--laiton);font-size:1.05rem;
-  flex:none;width:1.4rem;text-align:center;
-}
-.liste-refus strong{font-weight:700;color:var(--vert-800)}
-.liste-refus span{color:var(--encre-doux);font-size:.95rem}
-
-/* ── citation / dédicace du projet ──────────────────────────────────────── */
-.note{
-  border-left:2px solid var(--laiton);
-  padding:.4rem 0 .4rem 1.6rem;
-  margin-top:3rem;max-width:56ch;
-  font-family:var(--serif);font-size:1.06rem;font-style:italic;
-  color:var(--encre-doux);line-height:1.6;
-}
-
-
-/* -- inscription testeurs ------------------------------------------------ */
-.testeurs{background:var(--vert-800);color:var(--creme);position:relative;overflow:hidden}
-.testeurs::before{
-  content:'';position:absolute;inset:0;opacity:.08;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='%23d9ae6a' stroke-width='.9'%3E%3Cpath d='M36 4 44 20 62 22 50 36 62 50 44 52 36 68 28 52 10 50 22 36 10 22 28 20Z'/%3E%3C/g%3E%3C/svg%3E");
-}
-.testeurs .titre-section{color:var(--creme)}
-.testeurs .chapo{color:rgba(247,243,232,.78)}
-.testeurs .oeil{color:var(--laiton-clair)}
-
-.formulaire{margin-top:2.4rem;max-width:34rem;position:relative}
-.champ{display:flex;flex-wrap:wrap;gap:.7rem;align-items:stretch}
-.champ label{
-  flex:1 1 100%;font-size:.78rem;font-weight:600;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--laiton-clair);margin-bottom:.1rem;
-}
-.champ input[type=email]{
-  flex:1 1 16rem;min-width:0;
-  background:rgba(247,243,232,.06);
-  border:1px solid rgba(217,174,106,.4);
-  border-radius:2px;
-  color:var(--creme);
-  font-family:var(--sans);font-size:1rem;
-  padding:.85rem 1rem;
-  transition:border-color .25s,background .25s;
-}
-.champ input[type=email]::placeholder{color:rgba(247,243,232,.38)}
-.champ input[type=email]:focus{
-  outline:none;border-color:var(--laiton-clair);background:rgba(247,243,232,.1);
-}
-.champ input[type=email]:focus-visible{outline:2px solid var(--laiton-clair);outline-offset:2px}
-.champ button{
-  flex:0 0 auto;
-  background:var(--laiton);border:1px solid var(--laiton);
-  color:#241a0d;
-  font-family:var(--sans);font-size:.92rem;font-weight:700;letter-spacing:.03em;
-  padding:.85rem 1.6rem;border-radius:2px;cursor:pointer;
-  transition:background .25s,color .25s,transform .2s;
-}
-.champ button:hover{background:var(--laiton-clair);transform:translateY(-1px)}
-.champ button:focus-visible{outline:2px solid var(--creme);outline-offset:2px}
-.champ button[disabled]{opacity:.55;cursor:progress;transform:none}
-
-/* Piege a robots : invisible a l'oeil, lisible par un script. Un formulaire
-   d'adresses laisse sur une page publique se fait moissonner en quelques
-   jours sans ca. */
-.leurre{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
-
-.mention{
-  margin-top:1rem;font-size:.84rem;line-height:1.55;
-  color:rgba(247,243,232,.6);max-width:44ch;
-}
-.reponse{
-  margin-top:1.2rem;font-size:.95rem;line-height:1.55;
-  padding:.85rem 1.1rem;border-radius:2px;display:none;
-}
-.reponse.ok{display:block;background:rgba(217,174,106,.14);border-left:2px solid var(--laiton-clair);color:var(--creme)}
-.reponse.ko{display:block;background:rgba(200,90,60,.16);border-left:2px solid #d98a68;color:#f6ded4}
-
-/* ── contact ────────────────────────────────────────────────────────────── */
-.contact{
-  background:var(--vert-900);color:var(--creme);position:relative;overflow:hidden;
-}
-.contact::before{
-  content:'';position:absolute;right:-12%;top:-40%;width:60vw;height:60vw;
-  background:radial-gradient(circle,rgba(184,137,74,.22) 0%,transparent 65%);
-}
-.contact .titre-section{color:var(--creme)}
-.courriel{
-  display:inline-block;margin-top:1.8rem;
-  font-family:var(--serif);font-size:clamp(1.2rem,3.4vw,1.9rem);
-  color:var(--laiton-clair);text-decoration:none;
-  border-bottom:1px solid rgba(217,174,106,.4);
-  padding-bottom:.25rem;
-  transition:border-color .3s,color .3s;
-}
-.courriel:hover{color:var(--creme);border-color:var(--creme)}
-.liens{margin-top:2.4rem;display:flex;flex-wrap:wrap;gap:1.6rem;font-size:.9rem}
-.liens a{color:rgba(247,243,232,.66);text-decoration:none;border-bottom:1px solid transparent;transition:.3s}
-.liens a:hover{color:var(--laiton-clair);border-color:var(--laiton-clair)}
-
-footer{
-  background:var(--vert-900);color:rgba(247,243,232,.42);
-  padding:2rem 0 3rem;font-size:.8rem;
-  border-top:1px solid rgba(217,174,106,.16);
-}
-footer .enveloppe{display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between}
-
-/* ── apparition au défilement ───────────────────────────────────────────── */
-.paraitre{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.8,.3,1)}
-.paraitre.vu{opacity:1;transform:none}
-
-/* ── entrée de l'en-tête, en cascade ────────────────────────────────────── */
-@keyframes monte{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
-header .bandeau,header .bismillah,header h1,header .accroche,header .puces{
-  animation:monte .9s cubic-bezier(.2,.8,.3,1) both;
-}
-header .bismillah{animation-delay:.1s}
-header h1{animation-delay:.2s}
-header .accroche{animation-delay:.35s}
-header .puces{animation-delay:.5s}
-
-@media (prefers-reduced-motion:reduce){
-  *{animation:none!important;transition:none!important}
-  .paraitre{opacity:1;transform:none}
-  html{scroll-behavior:auto}
-}
+footer{padding:34px 0 44px;text-align:center;font-size:13px;color:var(--encre-doux)}
+footer span{display:block}
+footer span+span{margin-top:6px}
+:focus-visible{outline:2px solid var(--laiton);outline-offset:3px;border-radius:4px}
 </style>
 </head>
 <body>
 
 <header>
   <div class="enveloppe">
-    <div class="bandeau"><span>Application Android</span><span class="trait"></span></div>
     <p class="bismillah">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p>
     <h1>Coran Karim<em>مصحف ومعلّم</em></h1>
-    <p class="accroche">Mémoriser le Coran avec une écoute qui corrige —
+    <p class="accroche">Mémoriser le Coran, avec une écoute qui corrige —
       et qui ne quitte jamais votre téléphone.</p>
     <div class="puces">
-      <span class="puce">Hors ligne</span>
       <span class="puce">Sans publicité</span>
+      <span class="puce">Hors ligne</span>
       <span class="puce">Sans compte</span>
-      <span class="puce">La voix reste sur l'appareil</span>
     </div>
   </div>
 </header>
 
-<section class="principe">
+<main>
   <div class="enveloppe">
-    <span class="oeil paraitre">Le principe</span>
-    <h2 class="titre-section paraitre">Une IA qui écoute, sans jamais rien envoyer</h2>
-    <p class="chapo paraitre">La reconnaissance vocale tourne <strong>sur le téléphone</strong>.
-      Aucun enregistrement ne part vers un serveur : ni pendant la récitation,
-      ni après. C'est ce qui permet à l'application de fonctionner en avion,
-      dans une mosquée sans réseau, ou sur une ligne de données comptée.</p>
+    <h2 class="titre">Ce que fait l'application</h2>
 
-    <div class="grille-principe">
-      <div class="pilier paraitre">
-        <span class="num">I</span>
-        <h3>Réciter</h3>
-        <p>Chaque mot est comparé à ce que vous prononcez, en temps réel.
-          Vert, orange ou rouge : vous voyez où ça tient et où ça glisse,
-          pendant que vous récitez.</p>
+    <div class="fonctions">
+      <div class="carte">
+        <h2>Une IA qui écoute la récitation</h2>
+        <p>Elle suit le texte pendant que vous récitez et signale les mots qui
+          ne vont pas. Le modèle tourne sur l'appareil : votre voix n'est
+          envoyée nulle part.</p>
       </div>
-      <div class="pilier paraitre">
-        <span class="num">II</span>
-        <h3>Mémoriser</h3>
-        <p>Le texte se dévoile par paliers, calés sur le phrasé du récitateur
-          plutôt que sur un compte de mots. On écoute, on répète de mémoire,
-          on vérifie.</p>
+      <div class="carte">
+        <h2>Un coach</h2>
+        <p>Il retient ce qui a été récité, sourate par sourate, et montre ce
+          qui est acquis comme ce qui reste à travailler.</p>
       </div>
-      <div class="pilier paraitre">
-        <span class="num">III</span>
-        <h3>Corriger</h3>
-        <p>Chaque mot manqué est retenu, verset par verset. L'application
-          vous ramène dessus plus tard, avec la règle de tajwid concernée et
-          la voix du récitateur sur ce mot précis.</p>
+      <div class="carte">
+        <h2>Des objectifs</h2>
+        <p>Vous choisissez en combien de temps mémoriser le Coran ; l'application
+          en déduit le rythme à tenir, et vous dit où vous en êtes.</p>
+      </div>
+      <div class="carte">
+        <h2>Un mode enfant</h2>
+        <p>Un jugement plus indulgent et un jeu pour enchaîner les versets,
+          pour apprendre sans être découragé.</p>
       </div>
     </div>
-  </div>
-</section>
 
-<section>
-  <div class="enveloppe">
-    <span class="oeil paraitre">Dans l'application</span>
-    <h2 class="titre-section paraitre">Un mushaf complet, et de quoi travailler avec</h2>
+    <section class="contact">
+      <h2>Une question, une erreur repérée, une idée</h2>
+      <p>Les retours sur la détection des erreurs de récitation sont les plus
+        utiles : ils servent directement à améliorer le modèle. Écrivez aussi à
+        cette adresse pour participer au test de l'application.</p>
 
-    <div class="grille">
-      <article class="carte paraitre">
-        <h3>Mushaf et tajwid</h3>
-        <p>Le texte entier, avec les règles de tajwid colorées pour les voir
-          en lisant. Signet pour reprendre où vous en étiez.</p>
-      </article>
-      <article class="carte paraitre">
-        <h3>Récitation vérifiée</h3>
-        <p>L'ancre suit votre voix mot à mot. En cas d'écart, l'application
-          vous fait réentendre exactement le passage concerné.</p>
-      </article>
-      <article class="carte paraitre">
-        <h3>Mémorisation par paliers</h3>
-        <p>Écouter, redire de mémoire, se faire contrôler. Le contrôle porte
-          sur le cumul : pour ouvrir le verset suivant, il faut savoir les
-          précédents.</p>
-      </article>
-      <article class="carte paraitre">
-        <h3>Jeu pour les enfants</h3>
-        <p>Le mot juste à retrouver parmi des propositions, mot après mot.
-          Des couleurs vives, des étoiles, et aucune pénalité.</p>
-      </article>
-      <article class="carte paraitre">
-        <h3>Récitateurs hors ligne</h3>
-        <p>Téléchargez les sourates du récitateur de votre choix une fois,
-          écoutez-les partout ensuite, sans réseau.</p>
-      </article>
-      <article class="carte paraitre">
-        <h3>Règles de tajwid</h3>
-        <p>Chaque règle expliquée et montrée sur le mot où elle s'applique —
-          la règle se voit, elle ne se récite pas.</p>
-      </article>
-      <article class="carte paraitre">
-        <h3>Invocations</h3>
-        <p>Les invocations du matin, du soir et des circonstances, avec leur
-          audio et un compteur.</p>
-      </article>
-      <article class="carte paraitre">
-        <h3>Prière et Qibla</h3>
-        <p>Horaires calculés localement, appel à la prière, et direction de
-          la Qibla — sans que votre position quitte l'appareil.</p>
-      </article>
-      <article class="carte paraitre">
-        <h3>Suivi et objectifs</h3>
-        <p>Un objectif quotidien, une série à tenir, et le compte de ce qui
-          est acquis — sourate par sourate, sans classement ni comparaison
-          avec qui que ce soit.</p>
-      </article>
-      <article class="carte paraitre">
-        <h3>Cartes mentales</h3>
-        <p>La structure d'une sourate en un coup d'œil : ses thèmes, leurs
-          liens, ce qui aide la mémoire à s'accrocher.</p>
-      </article>
-    </div>
-  </div>
-</section>
+      <!-- Lien `mailto` DIRECT, et non un formulaire (2026-08-21).
+           GitHub Pages ne sert que des fichiers : aucun serveur ne peut recevoir
+           un envoi. Le formulaire précédent tombait de toute façon sur ce même
+           `mailto` (sa constante `FORMSPREE_ID` était restée vide) — il ne
+           rendait donc aucun service que ce lien ne rende, et coûtait une
+           centaine de lignes de script. Si une vraie collecte d'adresses devient
+           nécessaire un jour, tout est dans la version conservée
+           `index.html.avant-simplification-2026-08-21`. -->
+      <a class="courriel" href="mailto:travail.kafai@gmail.com">travail.kafai@gmail.com</a>
 
-<section class="refus">
-  <div class="enveloppe">
-    <span class="oeil paraitre">Un engagement, pas un réglage</span>
-    <h2 class="titre-section paraitre">Ce que l'application ne fera jamais</h2>
-    <p class="chapo paraitre">Ce ne sont pas des options désactivées par défaut.
-      Ces choses-là ne sont pas dans le code.</p>
-
-    <ul class="liste-refus">
-      <li class="paraitre"><span class="marque">—</span><span><strong>Aucune publicité.</strong> Ni bannière, ni vidéo, ni écran intercalé.</span></li>
-      <li class="paraitre"><span class="marque">—</span><span><strong>Aucun compte.</strong> Pas d'inscription, pas d'adresse à donner, pas de mot de passe à retenir.</span></li>
-      <li class="paraitre"><span class="marque">—</span><span><strong>Aucun traceur.</strong> Ni analytique, ni identifiant publicitaire, ni profilage.</span></li>
-      <li class="paraitre"><span class="marque">—</span><span><strong>Votre voix ne part pas.</strong> L'analyse est faite sur l'appareil ; rien n'est transmis, rien n'est conservé ailleurs.</span></li>
-      <li class="paraitre"><span class="marque">—</span><span><strong>Pas de sauvegarde silencieuse.</strong> La sauvegarde automatique d'Android est désactivée pour cette application.</span></li>
-    </ul>
-
-    <p class="note paraitre">Le réseau ne sert qu'à une chose : télécharger, à
-      votre demande, les récitations que vous choisissez d'écouter.</p>
-  </div>
-</section>
-
-<section class="testeurs" id="testeurs">
-  <div class="enveloppe">
-    <span class="oeil paraitre">Version d'essai</span>
-    <h2 class="titre-section paraitre">Devenir testeur</h2>
-    <p class="chapo paraitre">L'application est en test fermé. Laissez votre
-      adresse et vous recevrez le lien d'accès dès la prochaine version
-      ouverte aux testeurs.</p>
-
-    <form class="formulaire paraitre" id="formTesteur" novalidate>
-      <div class="champ">
-        <label for="courrielTesteur">Votre adresse</label>
-        <input type="email" id="courrielTesteur" name="email" required
-               autocomplete="email" inputmode="email" spellcheck="false"
-               placeholder="vous@exemple.com">
-        <button type="submit" id="envoiTesteur">Je veux tester</button>
+      <div class="liens">
+        <a href="politique-confidentialite.html">Politique de confidentialité</a>
       </div>
-      <div class="leurre" aria-hidden="true">
-        <label for="siteWeb">Ne pas remplir</label>
-        <input type="text" id="siteWeb" name="_gotcha" tabindex="-1" autocomplete="off">
-      </div>
-      <p class="mention">Votre adresse ne sert qu'à une chose : vous envoyer
-        l'accès au test. Elle n'est ni revendue, ni utilisée pour autre chose,
-        et il suffit de répondre au courriel pour être retiré de la liste.</p>
-      <p class="reponse" id="reponseTesteur" role="status" aria-live="polite"></p>
-    </form>
+    </section>
   </div>
-</section>
-
-<section class="contact">
-  <div class="enveloppe">
-    <span class="oeil paraitre">Écrire</span>
-    <h2 class="titre-section paraitre">Une question, une erreur repérée, une idée</h2>
-    <p class="chapo paraitre">Les retours sur la détection des erreurs de
-      récitation sont particulièrement utiles : ils servent directement à
-      améliorer le modèle.</p>
-
-    <a class="courriel" href="mailto:travail.kafai@gmail.com">travail.kafai@gmail.com</a>
-
-    <div class="liens">
-      <a href="#testeurs">Devenir testeur</a>
-      <a href="politique-confidentialite.html">Politique de confidentialité</a>
-    </div>
-  </div>
-</section>
+</main>
 
 <footer>
   <div class="enveloppe">
@@ -525,96 +160,6 @@ header .puces{animation-delay:.5s}
     <span>Texte coranique : Tanzil / KFGQPC</span>
   </div>
 </footer>
-
-<script>
-// Apparition au défilement — une seule fois par élément, puis on cesse
-// d'observer : rien ne doit tourner en continu sur une page de lecture.
-const io = new IntersectionObserver((entrees) => {
-  for (const e of entrees) {
-    if (!e.isIntersecting) continue;
-    e.target.classList.add('vu');
-    io.unobserve(e.target);
-  }
-}, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
-
-document.querySelectorAll('.paraitre').forEach((el, i) => {
-  // Décalage court à l'intérieur d'un même groupe : la lecture reste fluide,
-  // l'oeil suit l'ordre du texte sans attendre.
-  el.style.transitionDelay = (i % 6) * 55 + 'ms';
-  io.observe(el);
-});
-
-// -- INSCRIPTION DES TESTEURS ------------------------------------------------
-//
-// GitHub Pages ne sert que des fichiers : il n'y a AUCUN serveur pour recevoir
-// un formulaire. La collecte passe donc par un service externe.
-//
-// POUR ACTIVER : creer un formulaire sur https://formspree.io (gratuit), puis
-// coller ici son identifiant -- il ressemble a "xayzbqwe" et se lit dans
-// l'URL que Formspree donne : https://formspree.io/f/IDENTIFIANT
-//
-// Tant que cette constante reste vide, le formulaire NE CASSE PAS : il ouvre
-// le logiciel de courriel avec un message pre-rempli. C'est moins commode,
-// mais ca marche des la mise en ligne -- et surtout ca ne fait jamais croire
-// a un visiteur que son adresse est partie alors qu'elle serait perdue.
-const FORMSPREE_ID = '';
-
-const form = document.getElementById('formTesteur');
-const champ = document.getElementById('courrielTesteur');
-const bouton = document.getElementById('envoiTesteur');
-const reponse = document.getElementById('reponseTesteur');
-
-function dire(texte, classe) {
-  reponse.textContent = texte;
-  reponse.className = 'reponse ' + classe;
-}
-
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-
-  const adresse = champ.value.trim();
-  // Validation du navigateur plutot qu'une expression reguliere maison : elle
-  // est plus juste, et deja traduite dans la langue du visiteur.
-  if (!adresse || !champ.checkValidity()) {
-    dire('Cette adresse ne semble pas valide \u2014 v\u00e9rifiez-la et r\u00e9essayez.', 'ko');
-    champ.focus();
-    return;
-  }
-  // Piege a robots : un humain ne voit pas ce champ, donc ne le remplit pas.
-  if (document.getElementById('siteWeb').value) return;
-
-  if (!FORMSPREE_ID) {
-    // Repli honnete : on n'affiche pas un succes qu'on ne peut pas tenir.
-    const sujet = encodeURIComponent('Je veux tester Coran Karim');
-    const corps = encodeURIComponent(
-      'Bonjour,\n\nJe souhaite participer au test de Coran Karim.\n\nMon adresse : ' + adresse + '\n');
-    window.location.href = 'mailto:travail.kafai@gmail.com?subject=' + sujet + '&body=' + corps;
-    dire("Votre logiciel de courriel s'ouvre avec le message d\u00e9j\u00e0 \u00e9crit \u2014 il ne reste qu'\u00e0 l'envoyer.", 'ok');
-    return;
-  }
-
-  bouton.disabled = true;
-  const libelleInitial = bouton.textContent;
-  bouton.textContent = 'Envoi\u2026';
-  try {
-    const r = await fetch('https://formspree.io/f/' + FORMSPREE_ID, {
-      method: 'POST',
-      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adresse, sujet: 'Candidature testeur \u2014 Coran Karim' })
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    form.querySelector('.champ').style.display = 'none';
-    dire("C'est not\u00e9. Vous recevrez le lien d'acc\u00e8s \u00e0 la prochaine version ouverte aux testeurs.", 'ok');
-  } catch (err) {
-    // On NOMME le repli plutot que de dire « une erreur est survenue » : le
-    // visiteur doit savoir quoi faire, pas seulement que ca a rate.
-    dire("L'envoi n'a pas abouti. \u00c9crivez-nous directement \u00e0 travail.kafai@gmail.com.", 'ko');
-    bouton.disabled = false;
-    bouton.textContent = libelleInitial;
-  }
-});
-
-</script>
 
 </body>
 </html>
