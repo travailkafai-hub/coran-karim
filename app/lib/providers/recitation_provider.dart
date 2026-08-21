@@ -130,8 +130,12 @@ final recitationProvider = StateNotifierProvider.autoDispose<
   // Options de jugement (preset tajwid/adulte/enfant + règles + toggles) :
   // état initial + suivi des changements. Le notifier ne les lit pas lui-même
   // (StateNotifier sans ref) -- on les lui pousse (cf. applyJudgementOptions).
-  notifier.applyJudgementOptions(ref.read(judgementOptionsProvider));
-  ref.listen<JudgementOptions>(judgementOptionsProvider, (_, next) {
+  // `...Effectives` et non `judgementOptionsProvider` (2026-08-21) : en Warsh,
+  // le prereglage tajwid retombe sur adulte, faute de correspondance entre les
+  // noms de madd du texte annote et ceux du modele a quatre tetes. Cf. la doc
+  // de `judgementOptionsEffectivesProvider` pour la mesure qui l'impose.
+  notifier.applyJudgementOptions(ref.read(judgementOptionsEffectivesProvider));
+  ref.listen<JudgementOptions>(judgementOptionsEffectivesProvider, (_, next) {
     notifier.applyJudgementOptions(next);
   });
   return notifier;

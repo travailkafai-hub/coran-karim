@@ -2,11 +2,13 @@
 // Persistance SharedPreferences, même pattern que app_settings_provider.dart.
 
 import 'dart:convert';
+import 'app_settings_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/judgement_options.dart';
+import '../models/riwaya.dart';
 
 // Clé passée en _v2 le 2026-07-20 : les valeurs par défaut du preset « adulte »
 // ont changé (strictHarakat true -> false, cf. judgement_options.dart). Sans ce
@@ -50,6 +52,43 @@ final judgementOptionsProvider =
     if (v != null) n.setReliability(v);
   });
   return n;
+});
+
+
+/// Les options de jugement REELLEMENT appliquees a la chaine de recitation.
+///
+/// ── POURQUOI UN PROVIDER DERIVE (2026-08-21) ────────────────────────────────
+/// En riwaya WARSH, le prereglage tajwid retombe sur ADULTE. Demande
+/// utilisateur : « oublie le tajwid pour le Warsh pour le moment ; en Warsh,
+/// adulte et enfant ». Adulte et enfant passent tels quels -- ils n'activent
+/// AUCUNE regle (`activeRules` vide), donc rien a traduire.
+///
+/// CE QUI L'IMPOSE, ET CE N'EST PAS UN CHOIX DE CONFORT. Le texte annote
+/// (`quran_rules_annotated.json`) nomme les madd a l'ancienne --
+/// `madda_necessary`, `madda_obligatory`, `madda_permissible`,
+/// `madda_normal` -- alors que le modele a quatre tetes sort `madd_long` et
+/// `madd_court`. Constate au journal du 2026-08-21 :
+///     [CTL][PARAMS] preset=tajwid regles=14(madda_necessary, madda_obligatory, ...)
+/// La regle ATTENDUE et la regle DETECTEE ne peuvent donc plus correspondre sur
+/// un madd : le mot serait signale non pas parce que la recitation est fausse,
+/// mais parce que les deux cotes ne parlent pas la meme langue. Laisser le
+/// tajwid actif en Warsh produirait des fautes inventees -- exactement ce que
+/// l'app existe pour ne pas faire.
+///
+/// DERIVE et non ecriture forcee : le choix de l'utilisateur reste intact dans
+/// `judgementOptionsProvider`. Il repasse en Hafs, il retrouve son mode tajwid
+/// sans avoir rien a refaire.
+///
+/// ⚠️ A RETIRER le jour ou la correspondance des noms de madd sera posee (4
+/// anciens noms vers 2 nouveaux). Ce provider est un GARDE-FOU temporaire, pas
+/// une decision sur le Warsh : la tete tajwid du modele fonctionne, c'est son
+/// vocabulaire de regles qui n'est pas encore raccorde.
+final judgementOptionsEffectivesProvider = Provider<JudgementOptions>((ref) {
+  final choisi = ref.watch(judgementOptionsProvider);
+  final riwaya = ref.watch(riwayaProvider);
+  if (riwaya != Riwaya.warsh) return choisi;
+  if (choisi.preset != JudgementPreset.tajwid) return choisi;
+  return JudgementOptions.adulteDefault;
 });
 
 class JudgementOptionsNotifier extends StateNotifier<JudgementOptions> {

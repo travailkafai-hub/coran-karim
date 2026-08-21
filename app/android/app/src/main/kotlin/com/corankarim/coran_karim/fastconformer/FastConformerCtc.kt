@@ -89,12 +89,69 @@ class FastConformerCtc(
     vocabPath: String,
     rulesPath: String? = null,
     seuilsPath: String? = null,
+    vocabWarshPath: String? = null,
 ) {
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
     private val session: OrtSession = env.createSession(modelPath, OrtSession.SessionOptions())
-    private val vocab: List<String> = loadVocab(vocabPath)
-    private val blankId: Int = vocab.size // CTC blank = dernier index (vocab_size), verifie cote Python
+
+    // ── DEUX TETES DE LETTRES, UN SEUL ENCODEUR (2026-08-21) ─────────────────
+    //
+    // Le modele a quatre sorties expose `logprobs` (Hafs, position 0) ET
+    // `warsh_logprobs` (position 2). Les deux partagent l'encodeur : choisir la
+    // riwaya ne coute RIEN de plus en calcul, l'audio n'est encode qu'une fois.
+    //
+    // ⚠️ CE N'EST PAS QU'UN CHANGEMENT DE SORTIE. Les deux tetes ont leur
+    // PROPRE vocabulaire SentencePiece : mesure du 2026-08-21, 1009 pieces sur
+    // 1024 different entre `vocab.json` et `vocab_warsh.json`. Lire la sortie
+    // Warsh en detokenisant avec le vocabulaire Hafs rendrait du charabia --
+    // et, plus insidieux, l'alignement force TOKENISERAIT la cible Warsh avec
+    // les pieces Hafs (`CtcTokenizer` retombe sur un decoupage glouton quand un
+    // mot est absent de `word_tokens.json`, ce qui est le cas de tout mot
+    // Warsh). On bascule donc le vocabulaire ENTIER, pas seulement l'index lu.
+    private val vocabHafs: List<String> = loadVocab(vocabPath)
+    private val vocabWarsh: List<String>? =
+        vocabWarshPath?.let { runCatching { loadVocab(it) }.getOrNull() }
+
+    /// Riwaya courante -- pilotee par Dart (`setRiwaya`). Hafs par defaut :
+    /// c'est le comportement de toutes les versions precedentes, et un modele
+    /// a trois tetes n'a tout simplement pas de sortie Warsh.
+    @Volatile
+    var riwayaWarsh: Boolean = false
+        set(v) {
+            if (field != v) {
+                field = v
+                DiagnosticLog.log("FastConformerCtc", "riwaya = " + (if (v) "WARSH (sortie 2)" else "HAFS (sortie 0)"))
+            }
+        }
+
+    /// Le vocabulaire REELLEMENT utilise, decode comme tokenisation.
+    /// Repli sur le Hafs si la tete Warsh est absente (ancien modele) ou si son
+    /// vocabulaire n'a pas pu etre lu : mieux vaut du Hafs annonce au journal
+    /// qu'un plantage au milieu d'une recitation.
+    private var repliVocabJournalise = false
+    private val vocab: List<String>
+        get() {
+            if (!riwayaWarsh) return vocabHafs
+            val w = vocabWarsh
+            if (w != null) return w
+            // Repli BRUYANT, et une seule fois par session : juger du Warsh avec
+            // le vocabulaire Hafs est precisement le defaut que cette bascule
+            // existe pour supprimer. S il doit arriver quand meme (modele a
+            // trois tetes, fichier illisible), il ne doit pas arriver en
+            // silence -- sinon on rediagnostique un jour "le Warsh est mal
+            // juge" sans savoir que c est le vocabulaire qui manquait.
+            if (!repliVocabJournalise) {
+                repliVocabJournalise = true
+                DiagnosticLog.log("FastConformerCtc",
+                    "REPLI : riwaya Warsh demandee mais vocab_warsh.json absent " +
+                    "ou illisible -> le Hafs sert de vocabulaire. La detokenisation " +
+                    "ET la tokenisation de la cible sont donc FAUSSES pour le Warsh.")
+            }
+            return vocabHafs
+        }
+
+    private val blankId: Int get() = vocab.size // CTC blank = dernier index (vocab_size), verifie cote Python
 
     // ── TETE 2 (regles tajwid), modeles a deux tetes uniquement ──────────────
     // Architecture adoptee le 2026-07-22 : lettres et regles ne partagent plus
@@ -352,7 +409,17 @@ class FastConformerCtc(
                 val inputs = mapOf("audio_signal" to audioTensor, "length" to lengthTensor)
                 session.run(inputs).use { results ->
                     @Suppress("UNCHECKED_CAST")
-                    val letters = (results[0].value as Array<Array<FloatArray>>)[0]
+                    // Sortie 0 = Hafs, sortie 2 = Warsh. Par NOM plutot que par
+                    // index quand on vise le Warsh : `logprobs` doit rester en 0
+                    // (le contrat du modele le dit), mais rien ne garantit que
+                    // `warsh_logprobs` reste en 2 sur un futur export.
+                    val brut = if (riwayaWarsh && session.outputNames.contains(WARSH_OUTPUT)) {
+                        results.get(WARSH_OUTPUT).get().value
+                    } else {
+                        results[0].value
+                    }
+                    @Suppress("UNCHECKED_CAST")
+                    val letters = (brut as Array<Array<FloatArray>>)[0]
                     // Recuperation PAR NOM (et non par index) : robuste a un
                     // eventuel reordonnancement des sorties par l'exporteur.
                     val tajwid: Array<FloatArray>? = if (hasTajwidHead) {
@@ -422,5 +489,6 @@ class FastConformerCtc(
          *  lisible par du code qui n'en attend qu'une. */
         const val TAJWID_OUTPUT = "tajwid_logprobs"
         const val ENCODER_STATE_OUTPUT = "encoder_state"
+        const val WARSH_OUTPUT = "warsh_logprobs"
     }
 }
