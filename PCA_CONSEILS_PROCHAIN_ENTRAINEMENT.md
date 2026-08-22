@@ -3,16 +3,19 @@
 **Écrit le 2026-08-22, après intégration du paquet `deux-geles-int8-2026-08-22-tajwid2`
 sur device et six sessions de récitation Warsh réelles.**
 
-Ce document ne demande **pas** de réentraîner le modèle acoustique. Les trois
-points ci-dessous se corrigent dans les scripts qui **génèrent les fichiers
-livrés** — sauf le point 2, qui touche le vocabulaire SentencePiece.
+Ce document ne demande **pas** de réentraîner le modèle acoustique.
+
+Les points 1 et 2 ont été **contournés localement** pour débloquer les tests en
+cours — ces contournements seront écrasés à votre prochaine livraison. Le
+point 2 garde en plus une **cause de fond non tranchée**, qui est de votre
+ressort.
 
 ---
 
 ## ⚠️ À lire en premier : un correctif local a été appliqué, il sera ÉCRASÉ
 
 `word_tokens_warsh.json` a été **réparé à la main sur le PC de dev** le
-2026-08-22 (525 mots). Ce fichier étant un livrable de PC A, **la prochaine
+2026-08-22 : 525 mots (yeh barree, point 1) + 26 mots (hamza, point 2). Ce fichier étant un livrable de PC A, **la prochaine
 livraison écrasera cette réparation** et le défaut reviendra tel quel.
 
 C'est la raison d'être de ce document : la correction doit remonter dans le
@@ -69,16 +72,59 @@ Après correction : `<unk>` tombe de 525/540 à **0/540** sur ces mots.
 
 ---
 
-## 2. Hamza suscrite `ٕ` (U+0655) — 26 mots, correction dans le VOCABULAIRE
+## 2. Hamza `ٕ` (U+0655) — 26 mots — CONTOURNÉ localement, cause de fond à trancher
 
-C'est le seul point qui **ne peut pas** se corriger côté script.
+**Contourné sur le poste de dev le 2026-08-22** (comme le point 1, et comme
+lui **il sera écrasé à la prochaine livraison**). Mais la cause de fond reste
+entière et vous seuls pouvez la trancher — d'où ce qui suit.
 
-**Vérifié :** ce caractère n'apparaît dans **aucune** des 1024 pièces de
-`vocab_warsh.json`. Aucune tokenisation ne peut donc l'encoder — c'est le
-vocabulaire lui-même qui doit l'apprendre, ou une équivalence explicite qui
-doit être décidée.
+### Le constat, établi SANS aucune référence au Hafs
 
-**Les 26 mots concernés** (tous coraniques et courants) :
+Le texte Warsh embarqué n'est pas homogène avec lui-même :
+
+| dans `quran_verses_warsh.json` | versets |
+|---|---|
+| U+0654 (hamza dessus) | **562** |
+| U+0655 (hamza dessous) | **44** |
+
+Et le vocabulaire Warsh **connaît U+0654** (pièce 1017) mais **ignore
+U+0655**. Les 44 versets minoritaires sont donc en désaccord avec les 562
+autres versets Warsh **et** avec le tokenizer Warsh.
+
+### Le contournement appliqué, et ses limites
+
+`ٕ` → `ٔ` **à la tokenisation uniquement** : la clé du dictionnaire et le texte
+affiché restent **intacts au caractère près** (le mushaf continue d'afficher
+`اَ۬لنَّبِيٓـِٕۧنَ` tel que le KFGQPC l'écrit). 26/26 mots réparés, vérifié.
+
+⚠️ **C'est un contournement, pas la solution.** Il traite le symptôme dans le
+dictionnaire livré ; il ne dit pas *pourquoi* deux graphies coexistent.
+
+### Ce qui reste à trancher — la solution de fond
+
+Trois hypothèses possibles, que je ne peux pas départager d'ici :
+
+1. **le texte source Warsh est hétérogène** (deux graphies pour le même son
+   selon les passages) — auquel cas c'est l'asset qu'il faut homogénéiser ;
+2. **le corpus du tokenizer différait du texte livré** — le tokenizer n'a
+   jamais vu U+0655 parce qu'il a été entraîné sur une autre édition ;
+3. **la distinction est voulue et porte du sens** — auquel cas c'est le
+   VOCABULAIRE qui doit apprendre U+0655, et surtout pas le texte qu'il faut
+   changer.
+
+L'hypothèse 3 interdirait le contournement ci-dessus. **Vous êtes les seuls à
+pouvoir le dire** : ça dépend de l'édition source et de ce que le tokenizer a
+réellement vu à l'entraînement.
+
+### Note de méthode
+
+Une première analyse justifiait cette substitution en comparant à l'écriture
+Hafs du même mot. **Écarté** sur remarque de l'utilisateur : l'écriture diffère
+entre Hafs et Warsh même pour un mot identique, et « chacun jugé selon son
+token ». L'argument retenu ne fait donc intervenir que le Warsh — c'est le
+Warsh qui doit être cohérent avec le Warsh.
+
+### Les 26 mots concernés
 
 ```
 أَفْـِٕدَةُ          أَفْـِٕدَتَهُمْ        أَفْـِٕدَتُهُم        اَفْـِٕدَةٗ
@@ -89,15 +135,6 @@ doit être décidée.
 مُّتَّكِـِٕينَ        وَأَفْـِٕدَةٗۖ        وَأَفْـِٕدَتُهُمْ      وَالنَّبِيٓـِٕۧنَ
 وَالَافْـِٕدَةَ       وَالَافْـِٕدَةَۖ
 ```
-
-**Deux voies possibles, à trancher côté entraînement** — je ne tranche pas,
-c'est un choix qui engage la fidélité au texte :
-
-- faire couvrir U+0655 par le vocabulaire SentencePiece (corpus d'entraînement
-  du tokenizer contenant ces formes) ;
-- ou décider d'une normalisation explicite vers une forme déjà couverte, **si
-  et seulement si** elle est phonétiquement neutre. À ne pas décider à la
-  légère : l'app affiche le texte tel quel.
 
 ---
 
