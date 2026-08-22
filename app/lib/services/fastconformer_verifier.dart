@@ -1,4 +1,5 @@
 import 'dart:async' show unawaited;
+import 'dart:convert' show jsonDecode;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/services.dart';
@@ -321,6 +322,12 @@ class FastConformerVerifier {
   String? get dernierEchecChargement => _dernierEchecChargement;
   bool _hasRuleHead = false;
 
+  /// Noms des classes de la tête tajwid, dans l'ordre du modèle déployé (lus
+  /// depuis `rules.json`, cf. [ensureLoaded]). Vide si le modèle n'a pas de
+  /// tête tajwid ou si le fichier est illisible -- auquel cas aucun id n'est
+  /// traduit, ce qui est le repli sûr.
+  List<String> _ruleNames = const [];
+
   /// Le modèle déployé expose-t-il une TÊTE TAJWID (architecture à deux têtes) ?
   /// Déterminé par la présence de `rules.json` à côté du modèle.
   ///
@@ -450,6 +457,23 @@ class FastConformerVerifier {
     _dernierEchecChargement = null;
     final rulesFile = File('${appDir.path}/$_kModelSubdir/$_kRulesFile');
     _hasRuleHead = await rulesFile.exists();
+    // Les NOMS des classes, dans l'ordre du modèle -- lus depuis LE MÊME
+    // fichier que le natif (cf. FastConformerCtc.ruleNames), donc les deux ne
+    // peuvent pas diverger. Sert à traduire un id de règle en [TajwidRule] par
+    // le nom et jamais par la position : cf. le commentaire long au point de
+    // traduction, et le décalage de 2 qu'il documente.
+    _ruleNames = const [];
+    if (_hasRuleHead) {
+      try {
+        final brut = jsonDecode(await rulesFile.readAsString());
+        if (brut is List) _ruleNames = brut.cast<String>();
+      } catch (e) {
+        // Illisible : on retombe sur une liste vide, donc AUCUNE règle
+        // traduite -- jamais une traduction au hasard. Même esprit que le
+        // repli de `rules.json` lui-même.
+        DiagnosticLog.log('FastConformer', 'rules.json illisible : $e');
+      }
+    }
     final seuilsFile = File('${appDir.path}/$_kModelSubdir/$_kSeuilsFile');
     final hasSeuils = await seuilsFile.exists();
     final tete3File = File('${appDir.path}/$_kModelSubdir/$_kTete3File');
@@ -841,13 +865,40 @@ class FastConformerVerifier {
         // sans les trois, le log fait chercher au mauvais endroit.
         String f(Object? v) =>
             v == null ? '-' : (v as num).toDouble().toStringAsFixed(2);
-        // TETE 2 : ids de regles -> TajwidRule par INDEX, meme convention que
-        // rule_annotation_service.dart et le chemin v1 (recitation_provider.dart)
-        // -- TajwidRule.values[i] doit rester le meme ordre que rules.json.
+        // ── TETE 2 : ids -> TajwidRule PAR NOM, JAMAIS PAR INDEX (2026-08-22)
+        //
+        // CE QUI ETAIT ECRIT ICI, ET QUI N EST PLUS VRAI : « TajwidRule.values[i]
+        // doit rester le meme ordre que rules.json ». Cette condition a cesse
+        // d etre tenue avec le modele a 17 classes, et RIEN ne le signalait.
+        //
+        // LE DECALAGE, MESURE (classes du modele contre l enum Dart) :
+        //   le modele a DEUX madd (madd_long, madd_court) la ou l enum en a
+        //   QUATRE (madda_necessary/obligatory/permissible/normal). Tout est
+        //   donc decale de 2 a partir de l index 2 :
+        //     id 2  = ghunnah        -> l enum lisait madda_permissible
+        //     id 3  = ikhafa         -> l enum lisait madda_normal
+        //     id 11 = laam_shamsiyah -> l enum lisait idgham_mutajanisayn
+        //     id 12 = ham_wasl       -> l enum lisait idgham_mutaqaribayn
+        //     id 14 = qalaqah        -> l enum lisait ham_wasl
+        //   et le modele ajoute waqf_lazim/waqf_awla (15, 16) que l enum n a pas.
+        //
+        // POURQUOI C ETAIT INERTE JUSQU ICI : `_activeRules` est vide tant que
+        // le preset n est pas `tajwid`, donc aucun verdict tajwid n etait rendu.
+        // Le defaut ne se serait revele qu au REBRANCHEMENT du tajwid -- et il
+        // aurait ete particulierement dur a voir, puisque le journal natif
+        // (`[tajwidDuree]`, qui passe par `front.nomsRegles`) serait reste JUSTE
+        // pendant que les verdicts Dart auraient ete faux.
+        //
+        // LE CORRECTIF : on traduit par le NOM que le natif expose, jamais par
+        // la position. `ruleNames` vient de rules.json cote natif, c est-a-dire
+        // de la MEME source que les ids -- les deux ne peuvent plus diverger.
+        // Un nom inconnu de l enum (waqf_lazim, waqf_awla, ou un madd non encore
+        // ponte) est IGNORE plutot que traduit au hasard.
+        final noms = _ruleNames;
         final regles = <TajwidRule>{
           for (final id in ((m['rules'] as List?) ?? const []))
-            if ((id as int) >= 0 && id < TajwidRule.values.length)
-              TajwidRule.values[id],
+            if ((id as int) >= 0 && id < noms.length)
+              if (TajwidRule.fromKey(noms[id]) case final r?) r,
         };
         v2.add((
           index: m['i'] as int,

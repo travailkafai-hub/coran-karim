@@ -11,6 +11,15 @@ import '../models/judgement_options.dart';
 /// main 2026-07-19). La correspondance est reconstruite ici par index plutôt
 /// que recopiée en dur, pour qu'un ajout de règle reste cohérent des deux
 /// côtés tant que l'ordre est préservé.
+///
+/// ⚠️ NE PAS CONFONDRE AVEC LES IDS DE LA TÊTE 2 (2026-08-22). Cet index-ci
+/// traduit les symboles du TEXTE ANNOTÉ (`rules_map.json`, U+E000+i) et sa
+/// correspondance avec l'enum est TOUJOURS VALIDE. Les ids que le MODÈLE émet
+/// suivent un autre ordre (`rules.json` du paquet déployé : deux madd au lieu
+/// de quatre, plus waqf_lazim/waqf_awla), décalé de 2 à partir de l'index 2 --
+/// ceux-là se traduisent par le NOM, cf. FastConformerVerifier. Les deux
+/// tables portent des noms proches et ne doivent surtout pas être alignées
+/// l'une sur l'autre.
 class RuleSymbols {
   RuleSymbols._();
 
