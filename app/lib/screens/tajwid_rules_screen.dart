@@ -74,7 +74,9 @@ class TajwidRulesScreen extends ConsumerWidget {
               style: GoogleFonts.manrope(fontSize: 12.5, color: AppColors.inkLight),
             ),
             const SizedBox(height: 8),
-            for (final rule in TajwidRule.values)
+            // `selectionnables` et non `values` : maddLong/maddCourt nomment
+            // ce que le modele EMET, jamais ce qui est attendu sur un mot.
+            for (final rule in TajwidRule.selectionnables)
               _RuleTile(
                 rule: rule,
                 active: options.activeRules.contains(rule),

@@ -27,10 +27,41 @@ enum TajwidRule {
   laamShamsiyah('laam_shamsiyah'),
   hamWasl('ham_wasl'),
   slnt('slnt'),
-  qalaqah('qalaqah');
+  qalaqah('qalaqah'),
+  // ── LES DEUX MADD DU MODELE (2026-08-22) ────────────────────────────────
+  // Le texte annote nomme les madd par leur STATUT juridique (les quatre
+  // `madda_*` ci-dessus) ; le modele a 17 classes les nomme par leur DUREE.
+  // Ces deux entrees existent pour que la sortie du modele soit traduisible
+  // TELLE QUELLE -- la correspondance statut -> duree est faite dans
+  // `RecitationNotifier._madSatisfaitParDuree`, pas ici.
+  //
+  // Elles ne sont JAMAIS attendues sur un mot : le texte annote ne les produit
+  // pas. Elles n'apparaissent donc dans aucun preset et ne peuvent pas etre
+  // "activees" -- elles ne servent qu'a nommer ce que la tete 2 emet.
+  maddLong('madd_long'),
+  maddCourt('madd_court');
 
   final String key;
   const TajwidRule(this.key);
+
+  /// Les règles qu'un utilisateur peut voir et activer — c'est-à-dire celles
+  /// que le TEXTE ANNOTÉ peut attendre sur un mot.
+  ///
+  /// EXCLUT [maddLong] et [maddCourt] (2026-08-22) : ces deux-là nomment ce que
+  /// la tête 2 du modèle ÉMET, jamais ce qui est attendu. Le texte annoté ne
+  /// les produit pas — les afficher dans l'écran des règles montrerait deux
+  /// entrées qu'aucun mot ne porte jamais, et les activer n'aurait aucun effet.
+  /// La correspondance statut -> durée est faite ailleurs
+  /// (`RecitationNotifier._madSatisfaitParDuree`).
+  ///
+  /// ⚠️ Itérer sur `TajwidRule.values` pour de l'IHM ou pour un preset est donc
+  /// un défaut : passer par cette liste.
+  static const List<TajwidRule> selectionnables = [
+    maddaNecessary, maddaObligatory, maddaPermissible, maddaNormal,
+    ghunnah, ikhafa, ikhafaShafawi, idghamGhunnah, idghamShafawi, iqlab,
+    idghamWoGhunnah, idghamMutajanisayn, idghamMutaqaribayn,
+    laamShamsiyah, hamWasl, slnt, qalaqah,
+  ];
 
   static TajwidRule? fromKey(String key) {
     for (final r in TajwidRule.values) {

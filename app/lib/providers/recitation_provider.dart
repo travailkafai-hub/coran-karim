@@ -469,6 +469,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     return [
       for (final r in expected)
         if (_activeRules.contains(r) &&
+            !_madSatisfaitParDuree(r, emitted) &&
             !emitted.contains(r) &&
             // Règle de jonction : tolère la détection sur le voisin de
             // frontière (cf. _junctionRules). Les règles intra-mot (madda,
@@ -476,6 +477,58 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
             !(_junctionRules.contains(r) && neigh.contains(r)))
           r,
     ];
+  }
+
+  /// ── LE PONT DES MADD : QUATRE NOMS D'UN CÔTÉ, DEUX DURÉES DE L'AUTRE ─────
+  ///
+  /// Le texte annoté nomme les madd par leur STATUT juridique
+  /// (`madda_necessary/obligatory/permissible/normal`) ; le modèle à 17 classes
+  /// les nomme par leur DURÉE (`madd_long`, `madd_court`). Sans traduction,
+  /// aucune règle de madd ne peut jamais être satisfaite : l'app cherche un nom
+  /// que le modèle ne produit jamais, et tout madd correct serait signalé.
+  ///
+  /// LA CORRESPONDANCE SE FAIT PAR LA DURÉE, et elle est déjà écrite dans le
+  /// projet — `tajweed_text.dart` documente chaque madd en temps, et la légende
+  /// du mushaf relevée dans `modele_4tetes_2026-08-21/docs/` la confirme :
+  ///
+  ///   madda_normal ......... 2 temps            -> madd_court
+  ///   madda_obligatory ..... 4 ou 5 temps       -> madd_long
+  ///   madda_necessary ...... 6 temps (lâzim)    -> madd_long
+  ///   madda_permissible .... 2, 4 OU 6 au choix -> NI L'UN NI L'AUTRE
+  ///
+  /// ⚠️ `madda_permissible` EST EXCLU, ET CE N'EST PAS UN OUBLI. Le mushaf
+  /// l'écrit `مدّ 2 أو 4 أو 6 جوازاً` : la durée est laissée au CHOIX du
+  /// récitant. Exiger `madd_long` condamnerait celui qui le fait à 2 temps,
+  /// exiger `madd_court` condamnerait celui qui le tient à 6 — les deux
+  /// récitations sont licites. On accepte donc les DEUX, ce que réalise le
+  /// `any` ci-dessous. 4 543 occurrences dans le texte, soit près d'un madd sur
+  /// quatre : s'en remettre à un seul des deux aurait inventé des fautes en
+  /// masse.
+  ///
+  /// ⚠️ FIABILITÉ TRÈS INÉGALE ENTRE LES DEUX (mesure de la machine
+  /// d'entraînement, `DECOUVERTES_ENTRAINEMENT_2026-08-20.md` §15) :
+  ///     madd_court .... 10-11 % d'invention -> exploitable
+  ///     madd_long ..... 50,4 % d'invention  -> invente une fois sur deux
+  /// Raison donnée : « c'est une règle de DURÉE, pas de timbre ». Le pont est
+  /// posé pour les deux — il ne PEUT que retirer une fausse alerte, jamais en
+  /// créer, puisqu'il ne fait qu'ajouter des façons de satisfaire une règle
+  /// attendue. Mais un `madda_obligatory` réellement écourté ne sera détecté
+  /// qu'une fois sur deux tant que ce chiffre tient : cf.
+  /// `PCA_CONSEILS_PROCHAIN_ENTRAINEMENT.md` §6b.
+  static bool _madSatisfaitParDuree(TajwidRule r, Set<TajwidRule> emitted) {
+    switch (r) {
+      case TajwidRule.maddaNormal:
+        return emitted.contains(TajwidRule.maddCourt);
+      case TajwidRule.maddaObligatory:
+      case TajwidRule.maddaNecessary:
+        return emitted.contains(TajwidRule.maddLong);
+      case TajwidRule.maddaPermissible:
+        // Durée au choix du récitant : les deux réalisations sont licites.
+        return emitted.contains(TajwidRule.maddLong) ||
+            emitted.contains(TajwidRule.maddCourt);
+      default:
+        return false;
+    }
   }
 
   /// Classe une erreur de récitation (demande utilisateur 2026-07-20 :
