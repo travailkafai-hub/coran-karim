@@ -113,9 +113,32 @@ class ConstructeurDeFenetresTest {
         val silence = Synthese.silence(3.0)
         val parole2 = parole(2.0)
         jouer(c, listOf(parole1, silence, parole2))
+        // ── L'EGALITE STRICTE EST DEVENUE FAUSSE, ET C'EST VOULU (2026-08-22)
+        //
+        // Ce test comparait `positionTravail` a la somme exacte de l'audio
+        // fourni. Il echouait depuis que `terminer()` COMPLETE le flux avec du
+        // silence synthetique (correctif du 2026-08-13) : le dernier mot d'une
+        // sourate n'obtenait jamais son contexte DROIT, la capture s'arretant
+        // avec le recitateur -- il ressortait `bande=inconnue`, jamais juge.
+        //
+        // Ecart mesure : 129 920 - 112 000 = 17 920 echantillons, soit
+        // EXACTEMENT (LOOKAHEAD_FRAMES + 1) x ECH_PAR_FRAME = 14 x 1280. Ce
+        // n'est donc pas de l'audio perdu ni duplique, c'est la queue que le
+        // code ajoute deliberement.
+        //
+        // Ce que ce test doit continuer de protéger -- et qu'il protege
+        // toujours -- c'est qu'AUCUN audio RECU ne soit JETE (le portier RMS de
+        // la v2.0 ecartait le silence au-dela de 0,3 s, reconstruisant le flux
+        // mutile de la v1 : meme taux au centieme, 36,61 %). On verifie donc
+        // que tout l'audio recu est present, et que le seul supplement est la
+        // queue de lookahead -- pas une egalite qui interdirait au code une
+        // amelioration qu'il a deja mesuree.
+        val recu = (parole1.size + silence.size + parole2.size).toLong()
+        val queue = Horloge.frameVersEch(Horloge.LOOKAHEAD_FRAMES + 1)
         assertEquals(
-            "tout l'audio recu doit se retrouver dans le flux de travail",
-            (parole1.size + silence.size + parole2.size).toLong(),
+            "tout l'audio recu doit se retrouver dans le flux de travail, " +
+                "plus la queue de lookahead ajoutee par terminer()",
+            recu + queue,
             c.positionTravail,
         )
     }

@@ -470,12 +470,42 @@ class AligneurForce(
                     }
                 }
             }
+            // ── HESITATION : PISTE INSTRUITE PUIS ECARTEE (2026-08-22) ──────
+            //
+            // Cas signale : mot 30 `عَلَيْكُمْ` orange, `entendu` montrant
+            // « عَلَيْ عَلَيْكُمْ », l'utilisateur confirmant avoir hesite. Un
+            // rattrapage a ete ecrit ici : rescorer la sequence complete sur des
+            // sous-plages se terminant a la fin du mot, pour ignorer un faux
+            // depart place en tete.
+            //
+            // ECARTE PAR LA MESURE, ET LE DIAGNOSTIC DE DEPART ETAIT FAUX. La
+            // ligne du device porte `frames=2` -- 160 ms. Une hesitation humaine
+            // ne tient pas dans 160 ms : il n'y a AUCUN audio en trop dans la
+            // plage, donc rien a retirer. Le doublement de `entendu` vient
+            // d'ailleurs : `▁عَلَيْ` et `▁عَلَيْكُمْ` sont DEUX PIECES du
+            // vocabulaire (133 et 746), et le decodage libre restreint a deux
+            // frames a simplement emis l'une puis l'autre. C'est le CTC « pique »
+            // deja documente dans PlancherDureeTest, pas une repetition audible.
+            //
+            // Contre-epreuve faite avant de conclure : le banc synthetique rendait
+            // des chiffres IDENTIQUES avec et sans le rattrapage (ecart 1,1e-5,
+            // du bruit numerique) -- le mecanisme ne se declenchait pas, et le
+            // test ne prouvait donc rien. Le code a ete retire plutot que laisse
+            // en place : il coutait des treillis supplementaires par mot et par
+            // fenetre, en temps reel, pour un defaut qu'il ne traite pas.
+            //
+            // CE QUI RESTE VRAI ET NON RESOLU : un mot peut recevoir deux pieces
+            // qui se recouvrent textuellement sur tres peu de frames. La cause est
+            // la meme que celle de PlancherDureeTest (la cible impose une
+            // decomposition que le modele n'a pas produite), et elle touche le
+            // treillis lui-meme -- pas un rattrapage local.
+
             // CONCURRENTES : meme fenetre de frames, mais leur score est
             // SOUSTRAIT au lieu de remplacer. `f` est deja le meilleur des
-            // ecritures equivalentes ci-dessus, donc la marge compare bien
-            // « ce qui se prononce comme attendu » a « ce qui se prononce
-            // autrement ». Cout : un treillis minuscule par candidat, sur les
-            // seules frames du mot -- aucune passe d'encodeur supplementaire.
+            // ecritures equivalentes, donc la marge compare bien « ce qui se
+            // prononce comme attendu » a « ce qui se prononce autrement ».
+            // Cout : un treillis minuscule par candidat, sur les seules frames
+            // du mot -- aucune passe d'encodeur supplementaire.
             fun marge(cands: List<List<IntArray>>): Float? {
                 if (n <= 0 || w >= cands.size) return null
                 var meilleur = neginf
