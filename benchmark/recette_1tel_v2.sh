@@ -74,13 +74,32 @@ PY
 
 # ── 2. sur l'appareil ─────────────────────────────────────────────────────────
 $ADB get-state >/dev/null 2>&1 || mort "aucun appareil (adb devices)"
-DIST=/sdcard/Download/recette_v2.wav
+# ── LE WAV VA DANS LE DOSSIER DE L APP, PAS DANS Download (2026-08-21) ──────
+# Depuis Android 11, une app sans MANAGE_EXTERNAL_STORAGE ne lit QUE son propre
+# repertoire. Depuis /sdcard/Download, la source deterministe est bien prise,
+# la chaine v2 bien activee -- et le flux meurt aussitot :
+#   [ASR] SOURCE DETERMINISTE : /sdcard/Download/recette_v2.wav
+#   [ASR] Erreur sur le flux PCM : PathAccessException: Permission denied
+# Zero verdict, sans que rien d autre ne le signale. Le dossier ci-dessous est
+# accessible par adb push ET lisible par l app : c est celui ou le modele est
+# deja deploye.
+DIST=/sdcard/Android/data/$PKG/files/recette_v2.wav
 $ADB push "$WAV" "$DIST" >/dev/null || mort "push du WAV impossible"
 
 JOURNAL=/sdcard/Android/data/$PKG/files/recitation_diagnostic.log
 $ADB shell "echo '' >> $JOURNAL" 2>/dev/null || true
 MARQUE="RECETTE-1TEL-$HORO"
 $ADB shell "echo '=== $MARQUE ===' >> $JOURNAL" 2>/dev/null || true
+
+# -- REVEILLER ET DEVERROUILLER, SINON RIEN NE DEMARRE (2026-08-22) --------
+# Telephone verrouille : l activite se lance, l ecran de recitation s affiche
+# bien... et reste sur "Touche l ecran pour commencer". autoDemarrer ne prend
+# pas derriere l ecran de verrouillage. Le journal s arrete alors juste apres
+# "fichier natif relie", sans une seule ligne d erreur -- on croit a un
+# probleme de modele. Deux commandes suffisent, et elles sont sans effet si
+# le telephone est deja reveille.
+$ADB shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+$ADB shell wm dismiss-keyguard >/dev/null 2>&1 || true
 
 $ADB shell am force-stop $PKG
 $ADB shell am start -n $PKG/.MainActivity \
@@ -133,10 +152,21 @@ if verdicts:
     # doit compter comme non vert, sinon plus le fenetrage casse, meilleur le
     # taux parait (regle du projet, mesuree le 2026-07-29).
     ancre = max(verdicts) + 1
-    nv = [k for k, v in verdicts.items() if not v[1].endswith('vert')]
+    signales = [k for k, v in verdicts.items() if not v[1].endswith('vert')]
+    # LE COMMENTAIRE CI-DESSUS L EXIGEAIT, LE CODE NE LE FAISAIT PAS (2026-08-22)
+    # `signales` ne voit que les mots QUI ONT UN VERDICT. Un mot saute n a
+    # AUCUNE ligne : il restait au denominateur sans jamais compter au
+    # numerateur, si bien que chaque mot perdu par le fenetrage FAISAIT BAISSER
+    # le taux. C est precisement l erreur que la regle du projet nomme et que
+    # ce commentaire pretendait avoir evitee. Mesure du 2026-08-22 : 2 non verts
+    # signales et 2 mots jamais juges -> 0,9 % annonce contre 1,7 % reel.
+    manquants = [k for k in range(ancre) if k not in verdicts]
+    nv = len(signales) + len(manquants)
     r.append("")
     r.append(f"mots juges = {len(verdicts)} / ancre max = {ancre}")
-    r.append(f"NON VERTS  = {len(nv)}  soit {100*len(nv)/ancre:.1f} % de l'ancre")
+    r.append(f"  signales non verts = {len(signales)}")
+    r.append(f"  jamais juges       = {len(manquants)}  {manquants[:15]}")
+    r.append(f"NON VERTS  = {nv}  soit {100*nv/ancre:.1f} % de l'ancre")
 else:
     r.append("")
     r.append("aucun verdict par mot dans le journal")
