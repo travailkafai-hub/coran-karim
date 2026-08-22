@@ -170,10 +170,50 @@ un seuil déjà atteint par l'autre riwāya du même paquet.
 **Aucun réentraînement acoustique n'est nécessaire pour les trois points
 ci-dessus** (sauf reconstruction du tokenizer pour le point 2).
 
-Un point distinct a été observé et **volontairement écarté** : le tokenizer
-Warsh découpe certains mots plus finement que le Hafs (`وَبَثَّ` → 4 tokens en
-Warsh contre 3 en Hafs, la pièce fusionnée `fatha+shadda` existant côté Hafs
-seulement). Cela abaisse le score de ces mots même bien prononcés. Corriger
-cela demanderait de reconstruire le tokenizer **et** de réentraîner la tête
-acoustique sur le nouveau vocabulaire — décision prise le 2026-08-22 de ne pas
-l'engager pour le moment.
+## 5. LE DEFAUT QUI RESTE — la shadda decoupee en micro-jetons
+
+**Ecarte par decision utilisateur le 2026-08-22** (« oublie l'entrainement sur
+le PC A »). Documente ici parce que c'est desormais le SEUL defaut Warsh
+identifie apres correction des points 1 a 3, et qu'il est chiffre.
+
+### Mesure
+
+Session Warsh reelle du 2026-08-22 21:14, Al-Fatiha, 29 mots, apres les deux
+correctifs de dictionnaire : **22 verts**. Les trois mots non verts ont tous la
+meme signature :
+
+| mot | `entendu` | `gop` | `free` |
+|---|---|---|---|
+| `اَ۬لرَّحْمَٰنِ` | **identique a l'attendu** | −3,27 | −0,20 |
+| `اَ۬لصِّرَٰطَ` | **identique a l'attendu** | −3,72 | −0,07 |
+| `وَإِيَّاكَ` | `وَإِيَّكَ` | −2,41 | −0,08 |
+
+`free` proche de 0 = le modele est CERTAIN de ce qu'il entend, et il entend le
+bon mot. Ce n'est donc pas de la prononciation.
+
+### La cause, lue dans le dictionnaire
+
+Les trois portent une shadda, et le tokenizer Warsh l'isole en micro-jetons :
+
+```
+اَ۬لرَّحْمَٰنِ  →  ▁اَ۬ل · ر · ّ · َ · حْ · مَٰنِ
+اَ۬لصِّرَٰطَ   →  ▁اَ۬ل · ص · ّ · ِ · رَٰ · طَ
+وَإِيَّاكَ    →  ▁وَ · إِي · ّ · َا · كَ
+```
+
+La shadda `ّ` et sa voyelle sont des tokens SEPARES, coinces entre deux
+morceaux de mot. L'alignement force exige que le modele emette chacun a un
+instant precis, alors que le CTC est « pique » sur ce genre de micro-jeton.
+
+Meme racine que le cas `وَبَثَّ` observe plus tot dans la journee.
+
+### Ce que ca demanderait
+
+Reconstruire le tokenizer Warsh pour qu'il fusionne shadda + voyelle en une
+piece (comportement qu'il a deja pour d'autres sequences), **et** reentrainer
+la tete acoustique sur le nouveau vocabulaire — les IDs changeant, le modele
+actuel ne les reconnaitrait plus.
+
+C'est le seul point de ce document qui exige un vrai run. Rien ne presse : 22
+mots sur 29 passent deja, et les trois restants ne sont pas des fautes de
+recitation.
