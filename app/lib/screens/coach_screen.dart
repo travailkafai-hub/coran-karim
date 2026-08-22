@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/coach_session.dart';
 import '../models/recitation_state.dart';
+import '../models/riwaya.dart' show Riwaya;
 import '../models/verse.dart';
 import '../providers/app_settings_provider.dart'
     show coachPassageAutoProvider, coachControleCumulatifProvider;
@@ -1217,14 +1218,22 @@ class VerseDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // `QuranApi.riwaya` : ce widget reçoit des `Verse` déjà chargés au bon
+    // riwaya par l'appelant (cf. QuranApi._versesAsset) -- cloisonnement
+    // Hafs/Warsh, cf. ArabicNormalizer.normalizeWarsh.
+    final warsh = QuranApi.riwaya == Riwaya.warsh;
     final display = words.isNotEmpty
         ? words
         : verses
             .expand((v) => ArabicNormalizer.splitExpectedWords(v.textUthmani)
                 .map((w) => RecitedWord(
                       display: w,
-                      normalized: ArabicNormalizer.normalize(w),
-                      strict: ArabicNormalizer.normalizeStrict(w),
+                      normalized: warsh
+                          ? ArabicNormalizer.normalizeWarsh(w)
+                          : ArabicNormalizer.normalize(w),
+                      strict: warsh
+                          ? ArabicNormalizer.normalizeStrictWarsh(w)
+                          : ArabicNormalizer.normalizeStrict(w),
                       training: ArabicNormalizer.normalizeTraining(w),
                     )))
             .toList();

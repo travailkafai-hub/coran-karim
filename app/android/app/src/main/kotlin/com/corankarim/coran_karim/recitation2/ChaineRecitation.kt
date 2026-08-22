@@ -33,6 +33,8 @@ class ChaineRecitation(
      *  Par defaut on retombe sur [tokeniser] — les tests JVM n'ont pas besoin
      *  de la distinction. */
     private val tokeniserConfusion: (String) -> IntArray = tokeniser,
+    /** Ecritures equivalentes. Par defaut = chemin historique Hafs. */
+    private val variantesOrthographe: (String) -> List<String> = Orthographe::variantes,
     /** Confusions de LETTRE d'un mot. Injectee plutot qu'importee : le paquet
      *  recitation2 ne doit pas dependre de `fastconformer`. */
     private val confusionsLettres: (String) -> List<String> = { emptyList() },
@@ -444,7 +446,7 @@ class ChaineRecitation(
         // Ecritures equivalentes (cf. Orthographe) : la premiere entree est le
         // mot canonique, deja couvert par la DP -- on ne garde que les autres.
         variantesAttendues = variantesAttendues + mots.map { m ->
-            Orthographe.variantes(m).drop(1).map(tokeniser).filter { it.isNotEmpty() }
+            variantesOrthographe(m).drop(1).map(tokeniser).filter { it.isNotEmpty() }
         }
         // CONCURRENTES : elles se prononcent AUTREMENT. Leur score sert a
         // repondre « l'audio prefere-t-il le mot attendu ou sa confusion la plus

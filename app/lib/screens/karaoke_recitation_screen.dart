@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
+import '../models/riwaya.dart' show Riwaya;
 import '../models/verse.dart';
 // `JudgementPreset` retire de ce `show` le 2026-08-14 : son seul usage ici
 // etait le garde des etoiles (cf. leur retrait plus bas).
@@ -709,6 +710,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   RecitationSessionState _construireEtatRelecture(String texte) {
     final verdicts = widget.relecture!;
     final mots = ArabicNormalizer.splitExpectedWords(texte);
+    // `QuranApi.riwaya` : la relecture suit immédiatement la session
+    // archivée, donc le riwaya courant est celui de cette session (pas de
+    // bascule à chaud possible entre-temps, cf. RecitationNotifier).
+    final warsh = QuranApi.riwaya == Riwaya.warsh;
     final out = <RecitedWord>[];
     var dernierJuge = -1;
     for (var i = 0; i < mots.length; i++) {
@@ -727,8 +732,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       if (atteint) dernierJuge = i;
       out.add(RecitedWord(
         display: mots[i],
-        normalized: ArabicNormalizer.normalize(mots[i]),
-        strict: ArabicNormalizer.normalizeStrict(mots[i]),
+        normalized: warsh
+            ? ArabicNormalizer.normalizeWarsh(mots[i])
+            : ArabicNormalizer.normalize(mots[i]),
+        strict: warsh
+            ? ArabicNormalizer.normalizeStrictWarsh(mots[i])
+            : ArabicNormalizer.normalizeStrict(mots[i]),
         training: ArabicNormalizer.normalizeTraining(mots[i]),
         status: v?.statut ??
             (atteint ? WordStatus.correct : WordStatus.pending),

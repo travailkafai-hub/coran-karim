@@ -246,7 +246,25 @@ class FastConformerVerifier {
   // sans preuve acoustique.
   // Le modèle dual-head précédent reste dans son propre dossier sur le PC pour
   // un rollback sans réexport.
-  static const _kModelSubdir = 'models/quatre-tetes-2026-08-21';
+  // UN DOSSIER PAR MODELE, ET LE NOM DIT LEQUEL (2026-08-22)
+  //
+  // Le paquet du 22 aout (deux tetes gelees, tete tajwid v2) n'est PAS
+  // le meme modele que celui du 21 : mesure sur un vrai mel, l'etat de
+  // l'encodeur a bouge (cosinus 0,883 entre les deux etats moyens sur le
+  // meme audio). Le deployer sous l'ancien nom de dossier aurait fait
+  // TROIS modeles differents sous une seule etiquette -- l'ancien 3 tetes
+  // y a deja tourne le 21 lors du A/B. Le projet porte deja ce piege
+  // ailleurs (le dossier fastconformer-ctc-mixed-e02 contient en realite
+  // l'epoch 14) et il coute a chaque fois qu'on relit une mesure.
+  //
+  // Le paquet precedent reste intact sur le PC : le retour arriere tient
+  // au changement de cette seule ligne, ce que la regle projet exige.
+  // Le nom EXACT du paquet livre, tiret pour tiret : le dossier deja
+  // depose sur l'appareil s'appelle ainsi, et un nom approchant
+  // (deux-geles-2026-08-22, sans -int8) donne un modele introuvable que
+  // le journal signale correctement mais qu'on lit d'abord comme un
+  // probleme de droits ou de storage. Paye le 2026-08-22.
+  static const _kModelSubdir = 'models/deux-geles-int8-2026-08-22';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // TETE 3 (ecart canonique), OPTIONNELLE -- cf. Tete3.kt : en observation
@@ -259,6 +277,17 @@ class FastConformerVerifier {
   // forcé (celle-ci reste un repli pour les mots hors dictionnaire, ex. texte
   // hors-Coran). Optionnel : absent → CtcTokenizer.kt gère tout en greedy.
   static const _kWordTokensFile = 'word_tokens.json';
+  // ── CHANTIER WARSH (2026-08-22) ─────────────────────────────────────────
+  // Vocabulaire et dictionnaire de tokens de la TÊTE WARSH -- symétriques aux
+  // deux constantes ci-dessus, mais pour l'autre riwaya. `FastConformerCtc.kt`
+  // sait déjà les recevoir (constructeur `vocabWarshPath`, switch
+  // `riwayaWarsh`) : jusqu'ici RIEN ne les lui passait, donc basculer
+  // l'utilisateur sur Warsh laissait tourner le vocabulaire ET le dictionnaire
+  // Hafs sans qu'aucune erreur ne le signale. Optionnels comme leurs
+  // équivalents Hafs : absents -> le natif retombe sur Hafs pour tout
+  // (`FastConformerCtc.vocab` getter, déjà écrit ainsi).
+  static const _kVocabWarshFile = 'vocab_warsh.json';
+  static const _kWordTokensWarshFile = 'word_tokens_warsh.json';
   // Noms des classes de la TÊTE 2 (modèles à deux têtes, cf.
   // benchmark/export_dual_head_checkpoint.py). Sa PRÉSENCE est ce qui
   // distingue un modèle à deux têtes d'un ancien modèle : sans lui, la
@@ -397,6 +426,12 @@ class FastConformerVerifier {
     final modelFile = File('${appDir.path}/$_kModelSubdir/$_kModelFile');
     final vocabFile = File('${appDir.path}/$_kModelSubdir/$_kVocabFile');
     final wordTokensFile = File('${appDir.path}/$_kModelSubdir/$_kWordTokensFile');
+    // Warsh : chargés UNE FOIS ici, à côté du Hafs -- le moteur natif garde
+    // les DEUX vocabulaires en mémoire en permanence, cf. `setRiwaya` plus
+    // bas pour la bascule (qui NE recharge PAS le modèle, seulement un bool).
+    final vocabWarshFile = File('${appDir.path}/$_kModelSubdir/$_kVocabWarshFile');
+    final wordTokensWarshFile =
+        File('${appDir.path}/$_kModelSubdir/$_kWordTokensWarshFile');
     if (!await modelFile.exists() || !await vocabFile.exists()) {
       final manquant = <String>[
         if (!await modelFile.exists()) _kModelFile,
@@ -424,6 +459,8 @@ class FastConformerVerifier {
       debugPrint('[FastConformer] word_tokens.json absent — alignement forcé '
           'utilisera la tokenisation greedy (repli) pour tous les mots');
     }
+    final hasVocabWarsh = await vocabWarshFile.exists();
+    final hasWordTokensWarsh = await wordTokensWarshFile.exists();
     try {
       final ok = await _channel.invokeMethod<bool>('loadModel', {
         'modelPath': modelFile.path,
@@ -431,6 +468,9 @@ class FastConformerVerifier {
         'wordTokensPath': hasWordTokens ? wordTokensFile.path : null,
         'rulesPath': _hasRuleHead ? rulesFile.path : null,
         'seuilsPath': hasSeuils ? seuilsFile.path : null,
+        'vocabWarshPath': hasVocabWarsh ? vocabWarshFile.path : null,
+        'wordTokensWarshPath':
+            hasWordTokensWarsh ? wordTokensWarshFile.path : null,
         // TETE 3 COUPEE (2026-08-04, isolation d'une regression). Mesure qui
         // l'impose : meme sourate 2, meme depart, 1,68 % de mots non verts le
         // matin (build v13, modele mono-tete) contre 10,61 % l'apres-midi
@@ -463,7 +503,9 @@ class FastConformerVerifier {
       // ne permet pas de savoir quel modele a produit les scores qu'on y lit.
       DiagnosticLog.log('FastConformer',
           'modele charge=$_loaded subdir=$_kModelSubdir '
-          'word_tokens=${hasWordTokens ? "oui" : "non (repli greedy)"}');
+          'word_tokens=${hasWordTokens ? "oui" : "non (repli greedy)"} '
+          'vocab_warsh=${hasVocabWarsh ? "oui" : "non"} '
+          'word_tokens_warsh=${hasWordTokensWarsh ? "oui" : "non"}');
       // Relie le fichier de log natif (BufferedTranscriber, ForcedAligner) au
       // MÊME fichier persistant que le côté Dart (cf. diagnostic_log.dart) —
       // une seule chronologie, récupérable par adb pull sans connexion
@@ -494,6 +536,36 @@ class FastConformerVerifier {
       debugPrint('[FastConformer] Échec chargement modèle : $e');
       DiagnosticLog.log('FastConformer', _dernierEchecChargement!);
       return false;
+    }
+  }
+
+  /// Riwaya EFFECTIVEMENT active côté natif depuis le dernier [setRiwaya] --
+  /// pour journal/diagnostic seulement, ne pilote rien elle-même.
+  bool _riwayaWarshActive = false;
+  bool get riwayaWarshActive => _riwayaWarshActive;
+
+  /// Bascule le moteur natif sur la tête/le vocabulaire WARSH (ou les rend au
+  /// Hafs). NE RECHARGE PAS le modèle -- vocab Hafs ET Warsh sont déjà tous
+  /// les deux en mémoire côté natif depuis [ensureLoaded] ; ceci ne fait que
+  /// pointer `FastConformerCtc.riwayaWarsh`, un bool.
+  ///
+  /// ── QUAND L'APPELER, ET SURTOUT QUAND NE PAS L'APPELER (2026-08-22) ─────
+  /// Décision utilisateur explicite : changer de riwaya PENDANT une
+  /// récitation active ne doit rien changer avant la PROCHAINE session --
+  /// « interdire, forcer un nouveau démarrage ». Cette méthode ne doit donc
+  /// être appelée QU'AU DÉMARRAGE d'une session (juste après [ensureLoaded],
+  /// avant tout `setAlignmentTarget`/flux audio), jamais pendant qu'une
+  /// récitation est en cours -- l'appelant (`RecitationNotifier._startInterne`)
+  /// est le seul point qui doit le faire.
+  Future<void> setRiwaya(bool warsh) async {
+    if (!_loaded) return; // rien à basculer -- ensureLoaded() posera la bonne valeur au premier chargement
+    try {
+      await _channel.invokeMethod('setRiwaya', {'warsh': warsh});
+      _riwayaWarshActive = warsh;
+      DiagnosticLog.log(
+          'FastConformer', 'riwaya native -> ${warsh ? "WARSH" : "HAFS"}');
+    } catch (e) {
+      debugPrint('[FastConformer] setRiwaya($warsh) a échoué : $e');
     }
   }
 

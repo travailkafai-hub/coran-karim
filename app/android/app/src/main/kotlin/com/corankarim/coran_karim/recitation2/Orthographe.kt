@@ -1,5 +1,7 @@
 package com.corankarim.coran_karim.recitation2
 
+import java.text.Normalizer
+
 /**
  * Les ecritures d'un MEME son.
  *
@@ -74,9 +76,25 @@ object Orthographe {
      *   Liste bornee : au plus [MAX] entrees, pour que le cout reste negligeable
      *   devant une inference.
      */
-    fun variantes(mot: String): List<String> {
+    fun variantes(mot: String): List<String> = variantes(mot, inclureNfc = false)
+
+    /**
+     * Variante Warsh : ajoute seulement ici l'equivalence Unicode NFC
+     * shadda/haraka observee sur la tete Warsh.
+     */
+    fun variantesWarsh(mot: String): List<String> = variantes(mot, inclureNfc = true)
+
+    private fun variantes(mot: String, inclureNfc: Boolean): List<String> {
         val out = LinkedHashSet<String>()
         out.add(mot)
+
+        if (inclureNfc) {
+            // Meme mot Unicode, ordre canonique des diacritiques. Le vocab Warsh
+            // contient des pieces NFC (ex. kasra+shadda) que le texte cible peut
+            // fournir en ordre shadda+kasra.
+            val nfc = Normalizer.normalize(mot, Normalizer.Form.NFC)
+            if (nfc != mot) out.add(nfc)
+        }
 
         // 1) alif suscrit ecrit en alif plein  (فِرَٰشًا -> فِرَاشًا)
         if (mot.indexOf(ALIF_SUSCRIT) >= 0) {

@@ -209,15 +209,54 @@ class FastConformerCtc(
         }
         val plats = racine?.optJSONObject("seuils")
         val riches = racine?.optJSONObject("regles")
+        // TROISIEME FORME : LES SEUILS A LA RACINE (2026-08-22)
+        //
+        // Le paquet deux-geles-int8-2026-08-22-tajwid2 livre le fichier SANS
+        // objet enveloppant : { "madd_long": 0.8, "ghunnah": 0.95, ... }.
+        // Les deux lectures ci-dessus rendaient alors null toutes les deux, et
+        // le repli portait les 17 classes a ln(0,5) SANS UNE LIGNE DE JOURNAL
+        // -- soit exactement le seuil plat que ce fichier existe pour
+        // remplacer, mesure a +209 % de sur-detection sur la fenetre de
+        // calibrage et +240 % hors fenetre. Un fichier livre, lu, et sans
+        // effet : la pire des trois situations, parce qu elle se lit comme un
+        // succes.
+        //
+        // On accepte donc la racine elle-meme comme table de seuils, en ne
+        // retenant qu une valeur NUMERIQUE portee par un nom de classe connu
+        // -- les cles de commentaire du format riche (_a_lire, _madd, _waqf)
+        // sont des chaines et ne peuvent pas etre prises pour des seuils.
+        val aRacine = racine != null && tajwidNames.any { racine.optDouble(it, Double.NaN).let { d -> !d.isNaN() } }
         tajwidNames.forEachIndexed { i, nom ->
             val v = when {
                 plats != null && plats.has(nom) -> plats.optDouble(nom, 0.5)
                 riches != null && riches.has(nom) ->
                     riches.optJSONObject(nom)?.optDouble("seuil", 0.5) ?: 0.5
+                aRacine -> racine!!.optDouble(nom, Double.NaN)
                 else -> Double.NaN
             }
             if (!v.isNaN() && v > 0.0) arr[i] = Math.log(v).toFloat()
         }
+        // CE QUE LE JOURNAL DOIT DIRE, ET POURQUOI (2026-08-22). Sans cette
+        // ligne, rien ne distingue un fichier lu d un fichier ignore : les
+        // deux donnent une app qui demarre. La forme retenue est nommee, et le
+        // nombre de classes REELLEMENT servies est compte -- un seuil manquant
+        // pour une classe est un repli silencieux de plus.
+        val servis = tajwidNames.indices.count { arr[it] != Math.log(0.5).toFloat() }
+        val forme = when {
+            racine == null -> "absent (repli 0,5 pour tout)"
+            plats != null -> "plat sous seuils"
+            riches != null -> "riche sous regles"
+            aRacine -> "plat a la racine"
+            else -> "ILLISIBLE (repli 0,5 pour tout)"
+        }
+        // DiagnosticLog ET NON android.util.Log : ce fichier met lui-meme en
+        // garde plus haut (commentaire du 2026-08-13) -- logcat ne se relit pas
+        // apres coup, seul recitation_diagnostic.log sert a une analyse. Ecrit
+        // d abord vers logcat le 2026-08-22, la ligne etait invisible dans le
+        // journal de la session, donc inutilisable pour instruire une mesure.
+        DiagnosticLog.log("FastConformerCtc",
+            "seuils tajwid : forme=" + forme + " classes=" + tajwidNames.size +
+            " servies=" + servis)
     }
     /**
      * ⚠️ N'EST PLUS UTILISE, ET NE DOIT PAS L'ETRE (2026-08-04). Conserve pour

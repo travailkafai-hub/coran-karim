@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/judgement_options.dart';
 import '../models/recitation_state.dart';
+import '../models/riwaya.dart' show Riwaya;
 import '../models/verse.dart' show Verse;
 import '../providers/judgement_provider.dart';
 import '../services/diagnostic_log.dart';
@@ -2285,15 +2286,30 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// libre) et comme repli. Le modèle stage1b-260h émet quand même ses
   /// symboles librement, mais le chemin FORCÉ ne les attend pas -> léger biais
   /// gop sur les frames de symbole (borné, == comportement d'avant l'annotation).
-  static List<RecitedWord> _wordsFromText(String arabicText) =>
-      ArabicNormalizer.splitExpectedWords(arabicText)
-          .map((w) => RecitedWord(
-                display: w,
-                normalized: ArabicNormalizer.normalize(w),
-                strict: ArabicNormalizer.normalizeStrict(w),
-                training: ArabicNormalizer.normalizeTraining(w),
-              ))
-          .toList();
+  ///
+  /// `QuranApi.riwaya` lu ICI, une seule fois, capture la riwaya de la
+  /// SESSION qui démarre (cf. `RecitedWord.normalized/.strict` à la frontière
+  /// texte-brut -> mots) — décision utilisateur 2026-08-22 : pas de bascule
+  /// à chaud, un changement de réglage pendant une récitation active ne doit
+  /// affecter que la PROCHAINE session, jamais celle en cours. C'est du texte
+  /// hors-Coran la plupart du temps (repli neutre : la fonction Warsh ne
+  /// change rien à un texte qui ne contient jamais de yeh barree), mais le
+  /// cas de repli sur du texte coranique Warsh doit rester correct.
+  static List<RecitedWord> _wordsFromText(String arabicText) {
+    final warsh = QuranApi.riwaya == Riwaya.warsh;
+    return ArabicNormalizer.splitExpectedWords(arabicText)
+        .map((w) => RecitedWord(
+              display: w,
+              normalized: warsh
+                  ? ArabicNormalizer.normalizeWarsh(w)
+                  : ArabicNormalizer.normalize(w),
+              strict: warsh
+                  ? ArabicNormalizer.normalizeStrictWarsh(w)
+                  : ArabicNormalizer.normalizeStrict(w),
+              training: ArabicNormalizer.normalizeTraining(w),
+            ))
+        .toList();
+  }
 
   /// Planchers de durée de référence PARALLÈLES à la cible d'alignement
   /// envoyée au natif — toujours construits à partir de la MÊME liste de mots
@@ -2311,12 +2327,25 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// tout écart de comptage retombe en silence sur le canonique (sûr) plutôt
   /// que de risquer un décalage mot-à-mot.
   static List<RecitedWord> _wordsFromSegments(List<RecitationSegment> segments) {
+    // Capturé UNE FOIS pour toute la construction (pas par mot) : même
+    // raisonnement que `_wordsFromText` -- la riwaya de la session est figée
+    // à son démarrage, un changement de réglage pendant qu'elle tourne ne
+    // doit rien changer avant la prochaine session.
+    final warsh = QuranApi.riwaya == Riwaya.warsh;
     final out = <RecitedWord>[];
     for (final seg in segments) {
       final canonWords = ArabicNormalizer.splitExpectedWords(seg.text);
       List<String>? annotated;
       List<int>? refMs;
       if (seg.surah != null && seg.ayah != null) {
+        // ⚠️ RISQUE LATENT NON CORRIGÉ ICI (2026-08-22) : `annotatedWords`
+        // n'a AUCUNE notion de riwaya -- `quran_rules_annotated.json` est un
+        // asset Hafs uniquement. En session Warsh, ceci reste HAFS ; ça ne
+        // fausse rien AUJOURD'HUI seulement parce que
+        // `judgementOptionsEffectivesProvider` retombe déjà sur adulte/enfant
+        // en Warsh (aucun preset n'exploite `expectedRules` dans ce cas). Le
+        // jour où le tajwid Warsh est câblé, ce point devra être traité
+        // AVANT -- soit un asset annoté Warsh dédié, soit ce garde étendu ici.
         annotated =
             RuleAnnotationService.instance.annotatedWords(seg.surah!, seg.ayah!);
         if (annotated != null && annotated.length != canonWords.length) {
@@ -2368,8 +2397,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
             (refMs == null ? null : WordTimingService.minFramesFromMs(refMs[i]));
         out.add(RecitedWord(
           display: w,
-          normalized: ArabicNormalizer.normalize(w),
-          strict: ArabicNormalizer.normalizeStrict(w),
+          normalized: warsh
+              ? ArabicNormalizer.normalizeWarsh(w)
+              : ArabicNormalizer.normalize(w),
+          strict: warsh
+              ? ArabicNormalizer.normalizeStrictWarsh(w)
+              : ArabicNormalizer.normalizeStrict(w),
           training: training,
           isBasmala: isBasmalaSeg,
           // Cible d'alignement = texte NU (lettres + harakat), PAS la forme
@@ -2537,6 +2570,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // Forme fidèle à l'entraînement (PAS `strict`, qui fusionne des lettres
     // que le modèle a appris à distinguer — cf. normalizeTraining).
     final cible = state.words.map((w) => w.alignTarget).toList();
+    // CHGPT : chaque entrée de session fige la riwaya native avant alignement.
+    await _verifier.ensureModelLoaded();
+    await _verifier.setRiwaya(QuranApi.riwaya == Riwaya.warsh);
     // start() est le mode VERSET UNIQUE : jamais de session de
     // reference, cf. la doc de startControle/startTest -- ce mode n'est
     // atteint que via la lecture normale d'un verset.
@@ -2725,6 +2761,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // `ensureModelLoaded()` est idempotent -- sur toutes les sessions
     // suivantes il rend la main immediatement.
     await _verifier.ensureModelLoaded();
+    // Bascule le moteur natif sur la riwaya de CETTE session, une fois pour
+    // toute sa durée -- cf. `RecitationVerifier.setRiwaya` pour le POURQUOI
+    // (pas de bascule à chaud, décision utilisateur 2026-08-22). Doit venir
+    // APRÈS ensureModelLoaded() (le moteur doit exister) et AVANT toute cible
+    // d'alignement envoyée plus bas.
+    await _verifier.setRiwaya(QuranApi.riwaya == Riwaya.warsh);
     await _verifier.setNeverBlockAnchor(referenceSession);
     await _applyDiagnosticCapture();
     // Forme fidèle à l'entraînement — cible de l'alignement forcé GOP.
@@ -2874,6 +2916,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // qui tranche. « Il va se déclencher au début, et peut-être plusieurs
     // fois, pour bien cibler la sourate. Mais après, c'est juste se localiser
     // parce qu'il ne va pas changer de sourate. »
+    // CHGPT : meme sans cible initiale, le decodeur libre doit lire la riwaya
+    // de cette session, pas celle laissee par une session precedente.
+    await _verifier.ensureModelLoaded();
+    await _verifier.setRiwaya(QuranApi.riwaya == Riwaya.warsh);
     await _verifier.v2Activer(true, const [], mode: 'PRIERE');
     DiagnosticLog.log('Priere',
         'chaine v2 en mode PRIERE : decodage libre + localisation, saut '
@@ -3855,8 +3901,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       if (estBasmala) {
         if (c.statut != 'omis' && c.heard.trim().isNotEmpty) {
           var d = c.index, f = c.index;
-          while (d > 0 && words[d - 1].isBasmala) d--;
-          while (f + 1 < words.length && words[f + 1].isBasmala) f++;
+          while (d > 0 && words[d - 1].isBasmala) {
+            d--;
+          }
+          while (f + 1 < words.length && words[f + 1].isBasmala) {
+            f++;
+          }
           var bascule = 0;
           for (var j = d; j <= f; j++) {
             if (words[j].status == WordStatus.correct) continue;
@@ -4206,9 +4256,15 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // Emis APRES la mise a jour de l'etat : l'ecran karaoke lit
       // `recitationProvider` dans `_onWordFailed`, il doit y voir le mot
       // deja verrouille.
-      for (final i in nouveauxEchecs) _wordFailedCtrl.add(i);
-      for (final i in nouveauxNonVerts) _nonVertCtrl.add(i);
-      for (final i in nouveauxVerrouilles) _wordLockedCtrl.add(i);
+      for (final i in nouveauxEchecs) {
+        _wordFailedCtrl.add(i);
+      }
+      for (final i in nouveauxNonVerts) {
+        _nonVertCtrl.add(i);
+      }
+      for (final i in nouveauxVerrouilles) {
+        _wordLockedCtrl.add(i);
+      }
     }
   }
 

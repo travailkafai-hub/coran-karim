@@ -60,6 +60,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private var tokenizer: CtcTokenizer? = null
     // Dictionnaire mot->tokens precalcule (cf. loadModel) -- null si absent.
     @Volatile private var wordTokenLookup: Map<String, IntArray>? = null
+    // Symetrique Warsh (2026-08-22) -- chercher un mot dans le mauvais
+    // dictionnaire donnerait des IDs de tokens VALIDES mais faux (silence
+    // total, aucune exception), puisque les deux vocabulaires ont des IDs
+    // qui se recoupent en partie. `CtcTokenizer.kt` choisit lequel des deux
+    // lire via `engine?.riwayaWarsh`, cf. wordTokenLookupPourRiwaya.
+    @Volatile private var wordTokenLookupWarsh: Map<String, IntArray>? = null
     private var fingerprint: VoiceFingerprint? = null
     // ── CHAINE v2, BRANCHEE EN PARALLELE (2026-07-30) ────────────────────────
     // Elle tourne EN PLUS de la v1, sur le meme PCM, et rend ses verdicts a
@@ -72,6 +78,18 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     @Volatile private var v2Depart = -1
     private var v2Chaine: com.corankarim.coran_karim.recitation2.ChaineRecitation? = null
     @Volatile private var v2Mots: List<String> = emptyList()
+
+    // CHGPT : point unique du cloisonnement Hafs/Warsh pour l'alignement.
+    private fun wordTokenLookupPourRiwaya(moteur: FastConformerCtc?): Map<String, IntArray>? =
+        if (moteur?.riwayaWarsh == true) wordTokenLookupWarsh else wordTokenLookup
+
+    private fun variantesOrthographePourRiwaya(
+        moteur: FastConformerCtc
+    ): (String) -> List<String> =
+        if (moteur.riwayaWarsh)
+            com.corankarim.coran_karim.recitation2.Orthographe::variantesWarsh
+        else
+            com.corankarim.coran_karim.recitation2.Orthographe::variantes
 
     // ── MODE CONTROLE / TEST (2026-08-05, REFONTE_IHM.md §14) ────────────────
     //
@@ -496,7 +514,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // au point de chargement dans FastConformerCtc. Optionnel comme
                     // rules.json : absent -> repli sur 0,5 pour toutes les classes.
                     val seuilsPath = call.argument<String>("seuilsPath")
-                    engine = FastConformerCtc(modelPath, vocabPath, rulesPath, seuilsPath)
+                    // Vocabulaire WARSH (2026-08-22) : optionnel comme les
+                    // precedents. Sans lui, `engine.vocab` retombe sur le
+                    // vocabulaire Hafs meme si `riwayaWarsh` est mis a true
+                    // par la suite (cf. le getter dans FastConformerCtc) --
+                    // repli SUR, jamais un crash.
+                    val vocabWarshPath = call.argument<String>("vocabWarshPath")
+                    engine = FastConformerCtc(modelPath, vocabPath, rulesPath, seuilsPath, vocabWarshPath)
                     DiagnosticLog.log(TAG, "modele charge — tete tajwid : " +
                         if (engine!!.hasTajwid) "OUI (${engine!!.ruleNames.size} classes)"
                         else "non (modele a une seule tete)")
@@ -517,6 +541,8 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // (CtcTokenizer se rabat alors sur le greedy pour tout).
                     val wordTokensPath = call.argument<String>("wordTokensPath")
                     wordTokenLookup = wordTokensPath?.let { loadWordTokenLookup(it) }
+                    val wordTokensWarshPath = call.argument<String>("wordTokensWarshPath")
+                    wordTokenLookupWarsh = wordTokensWarshPath?.let { loadWordTokenLookup(it) }
                     tokenizer = null // reconstruit au prochain setAlignmentTarget avec le bon lookup
                     withContext(Dispatchers.Main) { result.success(true) }
                 } catch (e: Exception) {
@@ -824,7 +850,11 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     val words = call.argument<List<String>>("words")!!
                     val anchor = call.argument<Int>("anchor") ?: 0
                     if (tokenizer == null) {
-                        tokenizer = CtcTokenizer(vocabPieces, wordTokenLookup)
+                        // Warsh (2026-08-22) : seulement si le moteur qui a
+                        // fourni vocabPieces est bien `engine` (le streaming
+                        // causal n'a pas de tete Warsh) ET que sa riwaya
+                        // active l'est.
+                        tokenizer = CtcTokenizer(vocabPieces, wordTokenLookupPourRiwaya(current))
                     }
                     val tokens = words.map { tokenizer!!.tokenizeWord(it) }
                     val empty = tokens.count { it.isEmpty() }
@@ -872,7 +902,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     }
                     val words = call.argument<List<String>>("words")!!
                     if (tokenizer == null) {
-                        tokenizer = CtcTokenizer(vocabPieces, wordTokenLookup)
+                        tokenizer = CtcTokenizer(vocabPieces, wordTokenLookupPourRiwaya(current))
                     }
                     val newTokens = words.map { tokenizer!!.tokenizeWord(it) }
                     alignTokens = (alignTokens ?: emptyList()) + newTokens
@@ -977,6 +1007,19 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 val enabled = call.argument<Boolean>("enabled") ?: false
                 rescoringEnabled = enabled
                 result.success(null)
+            }
+            // Bascule Hafs/Warsh du moteur DEJA charge (2026-08-22, cf.
+            // FastConformerVerifier.setRiwaya cote Dart pour le POURQUOI et le
+            // QUAND -- appele UNE FOIS au demarrage d'une session, jamais en
+            // cours de recitation). NE recharge PAS le modele : les deux
+            // vocabulaires sont deja en memoire depuis loadModel, ceci ne fait
+            // que pointer un bool qui decide quelle sortie/vocabulaire lire.
+            "setRiwaya" -> {
+                val warsh = call.argument<Boolean>("warsh") ?: false
+                engine?.riwayaWarsh = warsh
+                tokenizer = null // vocabulaire + lookup mot->tokens dependent de la riwaya
+                DiagnosticLog.log(TAG, "riwaya cote natif -> " + if (warsh) "WARSH" else "HAFS")
+                result.success(true)
             }
             // Profil de pauses personnel (par passage, cf. BufferedTranscriber) :
             // le seuil de gel s'adapte a la facon dont CET utilisateur recite CE
@@ -1208,11 +1251,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // comparaison a WAV identique (banc 4) mesurerait les deux
                     // chaines en interaction. Meme construction, meme
                     // dictionnaire precalcule -- seule la duree de vie change.
-                    val tk = CtcTokenizer(moteur.vocabPieces, wordTokenLookup)
+                    val tk = CtcTokenizer(moteur.vocabPieces, wordTokenLookupPourRiwaya(moteur))
                     val journal = ArrayList<String>()
                     val chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
                         front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
                         tokeniser = { mot -> tk.tokenizeWord(mot) },
+                        variantesOrthographe = variantesOrthographePourRiwaya(moteur),
                     // Tokenisation SILENCIEUSE : une confusion est un mot
                     // volontairement hors-Coran, quasi jamais dans le
                     // dictionnaire precalcule -- logger chaque repli en ferait
@@ -1389,7 +1433,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         return try {
             var chaine = v2Chaine
             if (chaine == null) {
-                val tk = CtcTokenizer(moteur.vocabPieces, wordTokenLookup)
+                val tk = CtcTokenizer(moteur.vocabPieces, wordTokenLookupPourRiwaya(moteur))
                 chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
                     // Le Decideur recoit LES MEMES `nonJugeables` que la
                     // chaine : sans eux, il declarait `Omis` tout ce qui
@@ -1399,6 +1443,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         .Decideur(k = v2Preuves, nonJugeables = v2NonJugeables),
                     front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
                     tokeniser = { mot -> tk.tokenizeWord(mot) },
+                    variantesOrthographe = variantesOrthographePourRiwaya(moteur),
                     // CURSEUR GLISSANT toutes les 3 s -- fenetre de LONGUEUR
                     // FIXE qui avance, pas une fenetre qui grossit depuis la
                     // derniere coupe. Les quatre essais precedents partaient

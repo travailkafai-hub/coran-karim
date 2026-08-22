@@ -22,12 +22,24 @@ class RecognizedToken {
 class ArabicNormalizer {
   static final _harakat = RegExp(r'[ً-ٰٟؐ-ؚۖ-ۭـ]');
 
-  static String _collapseVariants(String t) {
-    // Variantes orthographiques du script Uthmani — MÊMES mappings que la
-    // normalisation du corpus d'entraînement (prepare_nemo_data.normalize_text,
-    // 2026-07-05) : le modèle écrit "الرَّحْمَانِ" (alif normal) là où le texte
-    // de l'app contient "ٱلرَّحْمَـٰنِ" (wasla + dagger alif + tatweel). Sans ces
-    // mappings côté comparaison, le MÊME mot bien récité ressort orange/rouge.
+  // ── CLOISONNEMENT HAFS / WARSH (2026-08-22) ─────────────────────────────
+  //
+  // Décision utilisateur : « garder cette séparation, on peut s'inspirer de
+  // l'autre mais je veux un cloisonnement ». Avant cette date, la règle
+  // Warsh (yeh barree) vivait au milieu du pipeline Hafs dans une fonction
+  // UNIQUE — vérifiée sans collision (0/1024 tokens vocab, 0/19001 mots),
+  // mais une future règle Warsh aurait pu percuter Hafs sans qu'aucune
+  // structure ne l'empêche. Le tronc ci-dessous ne porte plus AUCUNE règle
+  // propre à un seul script : chaque riwaya a sa propre fonction publique,
+  // qui peut s'appuyer sur le tronc commun mais ne peut pas faire fuiter sa
+  // règle dans le pipeline de l'autre.
+  static String _collapseVariantsCommun(String t) {
+    // Variantes orthographiques du script Uthmani, communes aux deux
+    // riwayas — MÊMES mappings que la normalisation du corpus d'entraînement
+    // (prepare_nemo_data.normalize_text, 2026-07-05) : le modèle écrit
+    // "الرَّحْمَانِ" (alif normal) là où le texte de l'app contient
+    // "ٱلرَّحْمَـٰنِ" (wasla + dagger alif + tatweel). Sans ces mappings côté
+    // comparaison, le MÊME mot bien récité ressort orange/rouge.
     t = t
         .replaceAll('ٱ', 'ا')  // alif wasla -> alif
         // Rasm ancien à "waw muet" (وٰ) porteur du petit alif suscrit —
@@ -45,21 +57,6 @@ class ArabicNormalizer {
         .replaceAll('ٰ', 'ا')  // dagger alif (voyelle longue suscrite) -> alif
         .replaceAll('ۥ', 'و')  // petit waw -> waw
         .replaceAll('ۦ', 'ي')  // petit yeh -> yeh
-        // ── YEH BARREE, LETTRE DU SCRIPT WARSH (2026-08-12) ────────────────
-        // Le mushaf Warsh du KFGQPC écrit le ya final avec ce caractère
-        // (2 996 occurrences dans le texte Warsh embarqué) : فے، الذے، شےء.
-        // C'est une LETTRE, pas un diacritique -- `_harakat` ne la retire donc
-        // pas, et sans cette ligne « فے » (attendu) ne matcherait jamais
-        // « في » (sortie modèle), soit un mot sur seize condamné au rouge quoi
-        // que récite l'utilisateur.
-        //
-        // NE PEUT RIEN CHANGER AU COMPORTEMENT HAFS, vérifié par comptage le
-        // 2026-08-12 : ce caractère apparaît 0 fois dans le texte Hafs de
-        // l'app, 0 fois dans les 1 024 tokens du vocabulaire du modèle, 0 fois
-        // dans les 19 001 mots de `word_tokens.json`. Le modèle ne peut donc
-        // structurellement jamais le produire : la règle ne s'applique qu'au
-        // texte ATTENDU, et seulement en Warsh.
-        .replaceAll('ے', 'ى')  // yeh barree (script Warsh) -> ya sans points
         .replaceAll('ٔ', 'ء')  // hamza suscrite combinante -> hamza
         .replaceAll('ٓ', '')   // maddah combinante (portée par la lettre de base)
         .replaceAll('ـ', '')   // tatweel (allongement purement visuel)
@@ -97,21 +94,67 @@ class ArabicNormalizer {
     return t.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
-  /// Normalisation "squelette" (sans harakat) — tolérante au bruit ASR,
-  /// utilisée uniquement pour ALIGNER le mot reconnu sur sa position dans
-  /// le verset (pas pour juger si la prononciation est correcte).
-  /// _collapseVariants d'ABORD : le dagger alif (ٰ) doit devenir un alif
-  /// AVANT le retrait des harakat, sinon il est supprimé comme diacritique et
-  /// "رحمٰن" (attendu) ne matche plus "رحمان" (sortie modèle).
-  static String normalize(String input) {
-    return _collapseVariants(input).replaceAll(_harakat, '');
+  static String _collapseVariantsHafs(String t) => _collapseVariantsCommun(t);
+
+  /// Tronc commun + règle(s) EXCLUSIVEMENT Warsh. La substitution ci-dessous
+  /// doit avoir lieu AVANT le tronc commun (et non après), pour occuper
+  /// exactement la même place dans le pipeline que l'implémentation
+  /// d'origine — le tronc convertit ensuite 'ى' en 'ي' comme pour toute
+  /// autre lettre, donc l'ordre ne change rien au résultat final.
+  static String _collapseVariantsWarsh(String t) {
+    // ── YEH BARREE, LETTRE DU SCRIPT WARSH (2026-08-12) ────────────────────
+    // Le mushaf Warsh du KFGQPC écrit le ya final avec ce caractère
+    // (2 996 occurrences dans le texte Warsh embarqué) : فے، الذے، شےء.
+    // C'est une LETTRE, pas un diacritique -- `_harakat` ne la retire donc
+    // pas, et sans cette ligne « فے » (attendu) ne matcherait jamais
+    // « في » (sortie modèle), soit un mot sur seize condamné au rouge quoi
+    // que récite l'utilisateur.
+    //
+    // NE PEUT RIEN CHANGER AU COMPORTEMENT HAFS (raison d'être de cette
+    // fonction séparée) : ce caractère apparaît 0 fois dans le texte Hafs de
+    // l'app, 0 fois dans les 1 024 tokens du vocabulaire Hafs OU Warsh du
+    // modèle (vérifié sur les deux vocabulaires le 2026-08-22), 0 fois dans
+    // les 19 001 mots de `word_tokens.json`. Le modèle ne peut donc
+    // structurellement jamais le produire en sortie, quel que soit le
+    // riwaya — cette règle ne s'applique qu'au texte ATTENDU en Warsh.
+    return _collapseVariantsCommun(t.replaceAll('ے', 'ى'));
   }
 
-  /// Normalisation stricte (garde les harakat) — utilisée pour juger si le
-  /// mot reconnu est réellement correct. Une voyelle courte différente
-  /// (ex: رَبِّ vs رَبُّ) doit compter comme une erreur, pas un match.
+  /// Normalisation "squelette" (sans harakat), riwaya HAFS — tolérante au
+  /// bruit ASR, utilisée uniquement pour ALIGNER le mot reconnu sur sa
+  /// position dans le verset (pas pour juger si la prononciation est
+  /// correcte). `_collapseVariantsHafs` d'ABORD : le dagger alif (ٰ) doit
+  /// devenir un alif AVANT le retrait des harakat, sinon il est supprimé
+  /// comme diacritique et "رحمٰن" (attendu) ne matche plus "رحمان" (sortie
+  /// modèle).
+  ///
+  /// Historiquement nommée `normalize` (sans suffixe) : ~50 sites d'appel
+  /// existants la présupposent Hafs — conservée telle quelle plutôt que
+  /// renommée en bloc, ce qui préserve le comportement exact d'aujourd'hui
+  /// pour tout ce qui n'a pas encore été rendu riwaya-conscient.
+  static String normalize(String input) {
+    return _collapseVariantsHafs(input).replaceAll(_harakat, '');
+  }
+
+  /// Équivalent Warsh de [normalize]. À utiliser partout où le texte source
+  /// (`text_uthmani`) provient de `quran_verses_warsh.json` — jamais sur la
+  /// sortie ASR (le vocabulaire du modèle ne produit jamais de yeh barree,
+  /// vérifié sur les deux têtes Hafs et Warsh).
+  static String normalizeWarsh(String input) {
+    return _collapseVariantsWarsh(input).replaceAll(_harakat, '');
+  }
+
+  /// Normalisation stricte (garde les harakat), riwaya HAFS — utilisée pour
+  /// juger si le mot reconnu est réellement correct. Une voyelle courte
+  /// différente (ex: رَبِّ vs رَبُّ) doit compter comme une erreur, pas un
+  /// match.
   static String normalizeStrict(String input) {
-    return _collapseVariants(input);
+    return _collapseVariantsHafs(input);
+  }
+
+  /// Équivalent Warsh de [normalizeStrict].
+  static String normalizeStrictWarsh(String input) {
+    return _collapseVariantsWarsh(input);
   }
 
   /// Normalisation "fidèle à l'entraînement" — DOIT matcher EXACTEMENT la
@@ -154,11 +197,29 @@ class ArabicNormalizer {
   /// est découpé en mots (jamais un `.split` direct), pour que la liste de
   /// mots à réciter reste alignée avec `tajweedSpansPerWord` (qui, lui,
   /// fusionne déjà naturellement ces marques au mot précédent).
+  /// N'A PAS de variante Warsh, volontairement (2026-08-22). Le seul rôle de
+  /// `normalize(w)` ici est de repérer un "mot" qui n'est en réalité qu'une
+  /// marque de waqf isolée (donc vide une fois nettoyé) — la règle Warsh
+  /// (yeh barree) ne rend jamais un mot vide qui ne l'était pas, ni l'inverse
+  /// (elle ne fait que remplacer une lettre par une autre). Le résultat de ce
+  /// filtre est donc rigoureusement identique quel que soit le riwaya du
+  /// texte reçu : router ~30 sites d'appel vers une variante Warsh pour ce
+  /// seul filtre n'apporterait rien, et multiplierait le risque de casse pour
+  /// un gain nul.
   static List<String> splitExpectedWords(String text) => text
       .split(RegExp(r'\s+'))
       .where((w) => w.isNotEmpty && normalize(w).isNotEmpty)
       .toList();
 
+  /// N'A PAS de variante Warsh (2026-08-22). Tous les appelants lui passent
+  /// des chaînes DÉJÀ normalisées une fois (`heardNorm`, `words[i].normalized`
+  /// — construites au bon riwaya à la frontière `RecitedWord`, cf.
+  /// `RecitationNotifier._wordsFromSegments`). Le `normalize()` interne
+  /// ci-dessous ne fait alors qu'une passe idempotente : la lettre Warsh a
+  /// déjà été résolue en amont, il ne reste donc rien sur quoi la règle Hafs
+  /// puisse se tromper. Si un futur appelant lui passait du texte BRUT non
+  /// encore normalisé, cette hypothèse casserait silencieusement -- vérifier
+  /// l'amont avant d'ajouter un nouveau site d'appel.
   static double similarity(String a, String b) {
     a = normalize(a);
     b = normalize(b);
@@ -550,6 +611,14 @@ abstract class RecitationVerifier {
   /// d'entrée permet à l'UI d'attendre explicitement AVANT de signaler
   /// "à toi" et de lancer l'écoute automatique.
   Future<bool> ensureModelLoaded();
+
+  /// Bascule le moteur natif sur la tête/le vocabulaire Warsh (ou les rend
+  /// au Hafs). À appeler UNE FOIS au démarrage d'une session, juste après
+  /// [ensureModelLoaded] et avant tout `setAlignmentTarget` -- décision
+  /// utilisateur 2026-08-22 : changer de riwaya en cours de récitation ne
+  /// doit rien changer avant la PROCHAINE session. Cf.
+  /// `FastConformerVerifier.setRiwaya` pour le détail natif.
+  Future<void> setRiwaya(bool warsh);
 
   /// Charge le moteur utilisé par une récitation CONTINUE sans ouvrir le
   /// micro. Le graphe causal streaming est prioritaire ; le modèle bufferisé
@@ -1535,6 +1604,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   Future<bool> ensureModelLoaded() => _fastConformer.ensureLoaded();
 
   @override
+  Future<void> setRiwaya(bool warsh) => _fastConformer.setRiwaya(warsh);
+
+  @override
   Future<bool> ensureContinuousModelLoaded() async {
     final causalOk = await _fastConformer.ensureStreamingLoaded();
     return causalOk || await _fastConformer.ensureLoaded();
@@ -1706,6 +1778,9 @@ class MockRecitationVerifier implements RecitationVerifier {
 
   @override
   Future<bool> ensureModelLoaded() async => true;
+
+  @override
+  Future<void> setRiwaya(bool warsh) async {}
 
   @override
   Future<bool> ensureContinuousModelLoaded() async => true;
