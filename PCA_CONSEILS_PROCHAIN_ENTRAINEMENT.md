@@ -217,3 +217,68 @@ actuel ne les reconnaitrait plus.
 C'est le seul point de ce document qui exige un vrai run. Rien ne presse : 22
 mots sur 29 passent deja, et les trois restants ne sont pas des fautes de
 recitation.
+
+---
+
+## 6. TAJWID — deux prérequis avant de pouvoir le rebrancher
+
+Trouvés le 2026-08-22 en lisant `modele_4tetes_2026-08-21/docs/` (votre propre
+documentation) et en analysant une session Hafs réelle. Le tajwid est
+aujourd'hui **désactivé** (preset `adulte`) ; ces deux points doivent être
+levés avant de le réactiver, sinon il produira des verdicts faux.
+
+### 6a. Les seuils livrés sont ceux du F1, pas ceux de la discrimination
+
+`DECOUVERTES_ENTRAINEMENT_2026-08-20.md` §15 le dit explicitement :
+
+> « Calibrer sur le F1 ne calibre pas la discrimination. Écarts entre les deux
+> optima : **0,10 contre 0,95** (`idgham_mutaqaribayn`), 0,40 contre 0,80
+> (`idgham_mutajanisayn`), 0,60 contre 0,95 (`idgham_shafawi`). »
+
+Or `seuils_tajwid.json` livré porte bien **0,95** pour `idgham_mutaqaribayn` —
+le seuil que votre propre document qualifie d'absurde, celui qui donne **0 % de
+rappel** alors que la classe remonte à **80 % de rappel pour 2,7 % d'invention**
+à 0,10.
+
+**NON CORRIGÉ ICI, VOLONTAIREMENT** : le même document pose la réserve qui
+l'interdit —
+
+> « Ces seuils-ci sont optimisés SUR le jeu de jugement : ils sont
+> potentiellement sur-ajustés à lui. Avant de les livrer, il faut les vérifier
+> sur une part tenue à l'écart. »
+
+C'est exactement cette vérification qui manque, et elle est de votre côté.
+Livrer les seuils de discrimination validés hors calibrage remplacerait
+`seuils_tajwid.json` **sans aucune modification de code** (le parseur lit déjà
+les trois formes).
+
+### 6b. `madd_long` invente une fois sur deux
+
+| règle | rappel | invention |
+|---|---|---|
+| `qalaqah`, `idgham_wo_ghunnah`, `idgham_mutajanisayn` | 64-99 % | **0,0 %** |
+| `ghunnah`, `madd_court`, `ikhafa_shafawi` | 77-99 % | 10-11 % |
+| **`madd_long`** | 94,5 % | **50,4 %** |
+
+Votre analyse en donne la raison : « c'est une règle de DURÉE, pas de timbre ».
+
+**Conséquence côté app** : le pont entre les 4 noms de madd du texte annoté
+(`madda_necessary/obligatory/permissible/normal`) et les 2 du modèle
+(`madd_long`/`madd_court`) **n'a pas été posé**, et ne le sera pas tant que ce
+chiffre tient — il produirait un faux positif sur un madd long correct une fois
+sur deux. `madd_court` (10-11 %) est, lui, exploitable.
+
+### Ce qui A été corrigé côté app
+
+Le décalage d'index : les ids de la tête étaient traduits par POSITION dans
+l'enum Dart, or le modèle a 2 madd là où l'enum en a 4 — décalage de 2 à partir
+de l'index 2 (`ghunnah` lu `madda_permissible`, `qalaqah` lu `ham_wasl`…).
+Corrigé : traduction par le NOM lu dans `rules.json`.
+
+⚠️ Ce défaut était INERTE (tajwid désactivé) et serait resté très difficile à
+voir au rebranchement : le journal natif `[tajwidDuree]` serait resté JUSTE
+pendant que les verdicts Dart auraient été faux.
+
+L'app suit désormais l'ordre du modèle toute seule — mais **un nom que l'enum
+ne connaît pas est ignoré**. Prévenez-nous si vous ajoutez une classe destinée
+à être jugée.
