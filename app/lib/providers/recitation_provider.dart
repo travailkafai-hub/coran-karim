@@ -2306,7 +2306,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
               strict: warsh
                   ? ArabicNormalizer.normalizeStrictWarsh(w)
                   : ArabicNormalizer.normalizeStrict(w),
-              training: ArabicNormalizer.normalizeTraining(w),
+              training: warsh
+                  ? ArabicNormalizer.normalizeTrainingWarsh(w)
+                  : ArabicNormalizer.normalizeTraining(w),
             ))
         .toList();
   }
@@ -2391,7 +2393,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         // `training` = la clé du magasin : c'est aussi ce que devient
         // `alignTarget` ici (passé à null juste en dessous), donc la même forme
         // que celle sous laquelle la durée a été apprise.
-        final training = ArabicNormalizer.normalizeTraining(w);
+        final training = warsh
+            ? ArabicNormalizer.normalizeTrainingWarsh(w)
+            : ArabicNormalizer.normalizeTraining(w);
         final learned = WordDurationStore.instance.minFramesFor(training);
         final refMinFrames = learned ??
             (refMs == null ? null : WordTimingService.minFramesFromMs(refMs[i]));
@@ -2481,7 +2485,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   void setPhraseFin(bool actif) {
     _motsPhraseFin = actif
         ? ArabicNormalizer.splitExpectedWords(_kPhraseFinTexte)
-            .map(ArabicNormalizer.normalizeTraining)
+            .map(QuranApi.riwaya == Riwaya.warsh
+                ? ArabicNormalizer.normalizeTrainingWarsh
+                : ArabicNormalizer.normalizeTraining)
             .toList()
         : const [];
   }

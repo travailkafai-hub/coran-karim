@@ -168,11 +168,9 @@ class ArabicNormalizer {
   /// 2026-07-16) : "لَّ" peut s'écrire shadda(0651)+voyelle OU voyelle+shadda --
   /// visuellement identiques, chaînes différentes, échec de lookup silencieux
   /// sinon.
+  /// ⚠️ CETTE RÈGLE EST PROPRE AU HAFS — cf. [normalizeTrainingWarsh].
   static String normalizeTraining(String input) {
-    var t = input;
-    t = t.replaceAll('۞', '');    // rub el hizb -> supprime (aucune valeur phonetique)
-    t = t.replaceAll('﻿', '');    // BOM eventuel
-    t = t.replaceAll(RegExp(r'\s+'), ' ');
+    var t = _nettoyerPourEntrainement(input);
     // Canonicalise l'ordre harakat+shadda -> shadda+harakat :
     // une harakat courte (fathatan/dammatan/kasratan/fatha/damma/kasra/sukun
     // -- PAS le shadda U+0651 lui-même) suivie du shadda devient shadda+harakat.
@@ -180,6 +178,71 @@ class ArabicNormalizer {
         RegExp('[ًٌٍَُِْ]' 'ّ'),
         (m) => 'ّ' '${m[0]![0]}');
     return t.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  /// Retraits communs aux deux riwayas : ni l'un ni l'autre ne porte de valeur
+  /// phonétique, et aucun n'est dans le vocabulaire d'un modèle.
+  static String _nettoyerPourEntrainement(String input) {
+    var t = input;
+    t = t.replaceAll('۞', '');    // rub el hizb -> supprime (aucune valeur phonetique)
+    t = t.replaceAll('﻿', '');    // BOM eventuel
+    return t.replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  /// Équivalent WARSH de [normalizeTraining] — et la différence est l'essentiel.
+  ///
+  /// ── LES DEUX RIWAYAS ORDONNENT LA SHADDA DANS DES SENS OPPOSÉS ───────────
+  ///
+  /// [normalizeTraining] force l'ordre shadda+voyelle, calibré sur le HAFS le
+  /// 2026-07-16 (« vérifié 100 % shadda-premier sur les manifests réels »).
+  /// Mesuré sur les fichiers Warsh eux-mêmes le 2026-08-22 :
+  ///
+  ///   texte Warsh embarqué .......... shadda+voyelle (comme le Hafs)
+  ///   vocabulaire Warsh du modèle ... voyelle+shadda (`ِّ` pièce 23,
+  ///                                   `َّ` 46, `ُّ` 55)  ← L'INVERSE
+  ///
+  /// Le vocabulaire Warsh a donc été appris sur l'ordre OPPOSÉ à celui du
+  /// texte. Conséquence sur la tokenisation : la pièce fusionnée `ِّ` ne peut
+  /// jamais être choisie, et la shadda part en jeton ISOLÉ (`ّ` seule), coincé
+  /// entre deux morceaux de mot. L'alignement forcé exige alors que le modèle
+  /// émette ce micro-jeton à un instant précis -- ce que le CTC, « piqué », ne
+  /// fait pas. Score effondré sur un mot parfaitement prononcé, `free` proche
+  /// de 0 à l'appui (le modèle entendait bien le bon mot).
+  ///
+  /// MESURE, sur les 22 643 mots distincts du texte Warsh :
+  ///     shadda isolée, ordre du texte (shadda+voyelle) .. 5 940 (26,2 %)
+  ///     shadda isolée, ordre du vocabulaire ................ 173 (0,8 %)
+  ///     => 5 767 mots réparés, soit 25,5 % du texte
+  ///
+  /// CE N'EST PAS DE L'ENTRAÎNEMENT, c'est du calibrage : `model.onnx`,
+  /// `vocab_warsh.json` et `warsh.model` sont inchangés. On présente juste le
+  /// texte dans l'ordre que ce vocabulaire attend.
+  ///
+  /// ⚠️ `word_tokens_warsh.json` a été régénéré avec ses clés dans CE MÊME
+  /// ordre. Les deux vont ensemble : changer l'un sans l'autre fait chuter le
+  /// taux de clés trouvées de 100 % à 74 % (mesuré en le cassant, 2026-08-22).
+  ///
+  /// ⚠️ Les 173 restants ne sont PAS réparés par ceci (dont `اَ۬لصِّرَٰطَ`,
+  /// `وَإِيَّاكَ`, `وَبَثَّ`) : pour eux, aucune pièce fusionnée n'existe au
+  /// vocabulaire, dans un ordre comme dans l'autre. Cause distincte, qui
+  /// demande de reconstruire le tokenizer -- cf.
+  /// `PCA_CONSEILS_PROCHAIN_ENTRAINEMENT.md` §5.
+  ///
+  /// LEÇON DE MÉTHODE (règle projet, 2026-08-22) : une règle calibrée sur une
+  /// riwaya ne vaut PAS pour l'autre tant qu'elle n'y a pas été remesurée --
+  /// « l'écriture est différente entre Hafs et Warsh même si c'est le même
+  /// mot », « chacun jugé selon son token ». Ici les deux riwayas ordonnent la
+  /// shadda à l'opposé l'une de l'autre : appliquer la règle du Hafs au Warsh
+  /// ET ne rien appliquer du tout sont TOUS DEUX faux.
+  static String normalizeTrainingWarsh(String input) {
+    final t = _nettoyerPourEntrainement(input);
+    // shadda+voyelle -> voyelle+shadda : l'INVERSE exact de [normalizeTraining],
+    // parce que le vocabulaire Warsh a été appris dans l'autre sens.
+    return t
+        .replaceAllMapped(
+            RegExp('ّ' '([ًٌٍَُِْ])'), (m) => '${m[1]}' 'ّ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   /// Découpe le texte coranique attendu (`text_uthmani`) en mots récitables,

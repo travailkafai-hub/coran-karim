@@ -738,7 +738,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         strict: warsh
             ? ArabicNormalizer.normalizeStrictWarsh(mots[i])
             : ArabicNormalizer.normalizeStrict(mots[i]),
-        training: ArabicNormalizer.normalizeTraining(mots[i]),
+        training: warsh
+            ? ArabicNormalizer.normalizeTrainingWarsh(mots[i])
+            : ArabicNormalizer.normalizeTraining(mots[i]),
         status: v?.statut ??
             (atteint ? WordStatus.correct : WordStatus.pending),
         // ── `locked: true` EN RELECTURE (2026-08-15) ────────────────────

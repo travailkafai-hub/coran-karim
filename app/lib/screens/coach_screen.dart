@@ -1234,7 +1234,9 @@ class VerseDisplay extends StatelessWidget {
                       strict: warsh
                           ? ArabicNormalizer.normalizeStrictWarsh(w)
                           : ArabicNormalizer.normalizeStrict(w),
-                      training: ArabicNormalizer.normalizeTraining(w),
+                      training: warsh
+                          ? ArabicNormalizer.normalizeTrainingWarsh(w)
+                          : ArabicNormalizer.normalizeTraining(w),
                     )))
             .toList();
 
