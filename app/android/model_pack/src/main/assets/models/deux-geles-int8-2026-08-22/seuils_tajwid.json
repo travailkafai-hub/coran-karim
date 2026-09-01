@@ -1,0 +1,19 @@
+{
+  "madd_long": 0.8,
+  "madd_court": 0.8,
+  "ghunnah": 0.95,
+  "ikhafa": 0.8,
+  "ikhafa_shafawi": 0.95,
+  "idgham_ghunnah": 0.8,
+  "idgham_shafawi": 0.95,
+  "iqlab": 0.9,
+  "idgham_wo_ghunnah": 0.95,
+  "idgham_mutajanisayn": 0.9,
+  "idgham_mutaqaribayn": 0.95,
+  "laam_shamsiyah": 0.95,
+  "ham_wasl": 0.8,
+  "slnt": 0.9,
+  "qalaqah": 0.9,
+  "waqf_lazim": 0.3,
+  "waqf_awla": 0.3
+}
