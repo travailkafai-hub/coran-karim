@@ -171,6 +171,32 @@ L'export ONNX doit exposer **`audio_signal`** (mel), jamais `raw_audio` : le mel
 est calculé côté app par `MelSpectrogram.kt`. Piège tombé deux fois.
 (`piege_audio_signal`)
 
+## Ajouts du 2026-09-01 — modèle 4 têtes, waqf, données Warsh
+
+Douze nœuds ajoutés (`captured_at: 2026-09-01`). Les cinq qui changent une
+décision, pas seulement un chiffre :
+
+- `mesure_export_a_remplace_encoder_state` — l export livré comme « 3 têtes »
+  avait **remplacé** `encoder_state` par `warsh_logprobs` au lieu de
+  l ajouter. La 4ᵉ tête a été rétablie sans réentraînement : l état de
+  l encodeur existait toujours dans le graphe ONNX, exposé par un nœud
+  `Identity` (jamais par un renommage — il a trois consommateurs).
+- `mesure_rules_json_ordre_change_mais_sur` — l ordre des 17 classes a
+  **entièrement** changé, et ce n est plus dangereux **uniquement** parce que
+  l app traduit par NOM depuis le 2026-08-22. Ne jamais revenir à l index.
+- `mort_ajouter_les_1788_arrets_canoniques` — les waqf écrits ne servent qu à
+  **interdire** une coupe de palier, jamais à en créer : 69 % d entre eux
+  tombent là où le récitateur ne marque aucune pause.
+- `piege_doc_transfert_word_tokens_identique` — un document de transfert peut
+  affirmer une identité de fichier qui est fausse. Vérifier le contenu.
+- `mesure_quatre_regles_portees_par_le_texte` — quatre règles ne sont pas
+  détectables au micro ; les attendre produisait 30 violets sur 55.
+
+Rappel de méthode que ces mesures ont re-payé : comparer des chaînes arabes
+**sans décomposition NFD** fabrique de faux écarts (`آ` U+0622 se décompose en
+`ا`+`ٓ`) — 741 alefs et 829 maddahs comptés comme perdus alors qu ils ne
+l étaient pas.
+
 ## Régénérer
 
 Les scripts de génération sont dans `/tmp/gen/` (non pérenne). Le graphe se

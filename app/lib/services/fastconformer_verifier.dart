@@ -265,13 +265,36 @@ class FastConformerVerifier {
   // (deux-geles-2026-08-22, sans -int8) donne un modele introuvable que
   // le journal signale correctement mais qu'on lit d'abord comme un
   // probleme de droits ou de storage. Paye le 2026-08-22.
-  static const _kModelSubdir = 'models/deux-geles-int8-2026-08-22';
+  // ── MODÈLE QUATRE TÊTES (2026-09-01) ────────────────────────────────────
+  // Paquet `warsh-v5-epoch6`, transfert du 2026-08-31, dossier RENOMMÉ pour
+  // la raison écrite juste au-dessus : un contenu nouveau sous un nom déjà
+  // employé fait deux modèles sous une seule étiquette, et toute mesure
+  // relue ensuite est ambiguë.
+  //
+  // La 4ᵉ tête a été AJOUTÉE ICI, pas reçue : l'export livré n'avait que
+  // trois sorties (`logprobs`, `warsh_logprobs`, `tajwid_logprobs`), la
+  // sortie `encoder_state` ayant été remplacée par `warsh_logprobs` au lieu
+  // d'être ajoutée -- effet de bord non voulu, écrit tel quel dans le
+  // document de transfert. L'état de l'encodeur existait toujours dans le
+  // graphe (`/encoder/layers.16/norm_out/…`, (batch, time, 512), exactement
+  // les 512 dimensions que `tete3.json` attend en moyenne+écart-type) : il a
+  // été exposé par un nœud `Identity`, sans réentraînement ni ré-export NeMo.
+  // Renommer le tenseur aurait cassé ses trois consommateurs.
+  static const _kModelSubdir = 'models/quatre-tetes-warsh-v5-2026-08-31';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // TETE 3 (ecart canonique), OPTIONNELLE -- cf. Tete3.kt : en observation
   // seule (journal), n'influence aucun verdict tant que la parite des 12
   // scores n'est pas verifiee sur device.
   static const _kTete3File = 'tete3.json';
+  // Calibration de la tête 3 pour l'autre riwaya (2026-09-01) -- symétrique
+  // de `_kVocabWarshFile`/`_kWordTokensWarshFile`. Les deux calibrations ont
+  // été mesurées sur le même encodeur, avec un écart assumé et expliqué :
+  // Hafs 96,4 % de détection à 2 % de fausses alarmes (3 174 exemples),
+  // Warsh 75,1 % (157 877 exemples, corpus entier) -- le signal GOP y est
+  // deux fois plus faible, ce n'est pas un défaut de calibration.
+  // Optionnelle comme les autres : absente -> le natif garde la tête Hafs.
+  static const _kTete3WarshFile = 'tete3_warsh.json';
   // Dictionnaire mot -> IDs de tokens précalculé avec le VRAI tokenizer NeMo
   // (benchmark/build_word_token_lookup.py) — remplace la tokenisation greedy
   // heuristique de CtcTokenizer.kt comme source PRIMAIRE pour l'alignement
@@ -478,6 +501,9 @@ class FastConformerVerifier {
     final hasSeuils = await seuilsFile.exists();
     final tete3File = File('${appDir.path}/$_kModelSubdir/$_kTete3File');
     final hasTete3 = await tete3File.exists();
+    final tete3WarshFile =
+        File('${appDir.path}/$_kModelSubdir/$_kTete3WarshFile');
+    final hasTete3Warsh = await tete3WarshFile.exists();
     final hasWordTokens = await wordTokensFile.exists();
     if (!hasWordTokens) {
       debugPrint('[FastConformer] word_tokens.json absent — alignement forcé '
@@ -515,6 +541,12 @@ class FastConformerVerifier {
         // il n'influence aucun verdict tant que la parite des 12 scores n'est
         // pas verifiee sur device (cf. Tete3.kt).
         'tete3Path': hasTete3 ? tete3File.path : null,
+        // Transmis dès maintenant : une clé que le natif ne lit pas encore est
+        // simplement ignorée par le MethodChannel, donc ce passage est sans
+        // effet de bord et évite d'avoir à retoucher le Dart le jour où la
+        // bascule par riwaya est câblée côté Kotlin. La tête 3 est en
+        // observation seule, aucun verdict n'en dépend d'ici là.
+        'tete3WarshPath': hasTete3Warsh ? tete3WarshFile.path : null,
       });
       _loaded = ok ?? false;
       debugPrint('[FastConformer] Modèle chargé : $_loaded');
@@ -611,13 +643,22 @@ class FastConformerVerifier {
         // silencieusement (FileNotFoundException) ceux absents du pack, la
         // même tolérance que le reste de cette fonction applique déjà à
         // rules.json/tete3.json/word_tokens.json.
+        //
+        // ⚠️ CORRIGÉ (2026-08-23) : `_kVocabWarshFile`/`_kWordTokensWarshFile`
+        // manquaient ICI -- le pack livrait le modèle Hafs mais jamais les
+        // fichiers Warsh, donc un premier lancement depuis Play Store (release,
+        // sans repli storage externe) aurait le Hafs fonctionnel et le Warsh
+        // silencieusement cassé. Trouvé en préparant le premier AAB.
         'files': [
           _kModelFile,
           _kVocabFile,
           _kRulesFile,
           _kSeuilsFile,
           _kTete3File,
+          _kTete3WarshFile,
           _kWordTokensFile,
+          _kVocabWarshFile,
+          _kWordTokensWarshFile,
         ],
       });
     } catch (e) {
@@ -794,9 +835,12 @@ class FastConformerVerifier {
            bool v2Decrochage, int v2DecrochageMot,
            // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
            // `v2Libre` : decodage libre de la derniere fenetre, base de
-           // l'identification de sourate. `v2SautDe/A` : bornes d'un passage
+           // l'identification de sourate. `v2LibrePosition` (2026-08-28) :
+           // position audio (`travailDebut`) de cette fenetre -- cf. la doc
+           // du meme champ sur feedBufferedAudio plus bas, seul chemin ou il
+           // est reellement alimente. `v2SautDe/A` : bornes d'un passage
            // probablement saute -- de quoi le SOUFFLER, pas un verdict.
-           String v2Libre, int v2SautDe, int v2SautA})?>
+           String v2Libre, int v2LibrePosition, int v2SautDe, int v2SautA})?>
       feedCausalAudio(Uint8List pcm16) async {
     if (!_streamingLoaded) return null;
     try {
@@ -812,6 +856,7 @@ class FastConformerVerifier {
         v2Decrochage: false, // la v2 ne tourne pas sur ce chemin
         v2DecrochageMot: -1,
         v2Libre: '',
+        v2LibrePosition: -1,
         v2SautDe: -1,
         v2SautA: -1,
       );
@@ -848,9 +893,21 @@ class FastConformerVerifier {
            bool v2Decrochage, int v2DecrochageMot,
            // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
            // `v2Libre` : decodage libre de la derniere fenetre, base de
-           // l'identification de sourate. `v2SautDe/A` : bornes d'un passage
-           // probablement saute -- de quoi le SOUFFLER, pas un verdict.
-           String v2Libre, int v2SautDe, int v2SautA})?>
+           // l'identification de sourate.
+           // `v2LibrePosition` (2026-08-28) -- BUG CONFIRME PAR LOG DEVICE :
+           // les fenetres n'arrivent pas toujours dans l'ordre chronologique
+           // de l'audio (mesure : travailDebut 209920 -> 200960 -> 131840 sur
+           // 3 appels consecutifs). `_libreRecent` cote Dart
+           // (recitation_provider.dart) empilait chaque bribe dans l'ordre
+           // D'ARRIVEE, jamais chronologique -- le texte envoye a
+           // l'identification de sourate en mode priere pouvait donc melanger
+           // fin de sourate precedente et debut de la suivante, dans le
+           // desordre. Ce champ (= `ChaineRecitation.dernierEntenduLibrePosition`)
+           // permet a Dart d'ignorer toute bribe anterieure a la derniere
+           // acceptee plutot que de tout empiler aveuglement.
+           // `v2SautDe/A` : bornes d'un passage probablement saute -- de quoi
+           // le SOUFFLER, pas un verdict.
+           String v2Libre, int v2LibrePosition, int v2SautDe, int v2SautA})?>
       feedBufferedAudio(Uint8List pcm16) async {
     if (!_loaded) return null;
     try {
@@ -926,6 +983,7 @@ class FastConformerVerifier {
         v2Decrochage: (raw['v2Decrochage'] as bool?) ?? false,
         v2DecrochageMot: (raw['v2DecrochageMot'] as int?) ?? -1,
         v2Libre: raw['v2Libre'] as String? ?? '',
+        v2LibrePosition: (raw['v2LibrePosition'] as int?) ?? -1,
         v2SautDe: (raw['v2SautDe'] as int?) ?? -1,
         v2SautA: (raw['v2SautA'] as int?) ?? -1,
       );

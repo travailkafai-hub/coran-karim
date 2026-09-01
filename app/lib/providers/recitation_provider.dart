@@ -142,6 +142,50 @@ final recitationProvider = StateNotifierProvider.autoDispose<
   return notifier;
 });
 
+/// LE CURSEUR QUI SE DÉPLACE (2026-08-29, demande utilisateur : « faut pas
+/// chercher tout le temps mais un curseur qui se déplace, ou un algorithme
+/// simpliste qui cherche d'une manière intelligente »).
+///
+/// ── CE QUE ÇA EXPLOITE, ET QUE RIEN N'EXPLOITAIT AVANT ─────────────────
+/// En prière, l'imam ne récite pas une sourate au hasard parmi 114 : il suit
+/// l'ordre du mushaf d'une rak'ah à l'autre (sunna établie). Si la rak'ah
+/// précédente était la sourate N, la suivante est presque toujours :
+///   - la MÊME (sourate longue poursuivie), ou
+///   - N+1, N+2, N+3 (enchaînement normal).
+/// Cette information, l'app la possède déjà (`_lastTargetSurahForContinuation`,
+/// mémorisé à chaque sortie de phase `target`) -- elle ne s'en servait
+/// simplement jamais, et refaisait une recherche « à froid » dans les 6236
+/// versets à chaque rak'ah.
+///
+/// ── CE QUE ÇA NE FAIT PAS, ET C'EST VOLONTAIRE ─────────────────────────
+/// Ça N'ABAISSE JAMAIS le seuil : [candidats] arrive déjà filtré au seuil de
+/// l'oreille (0.45, cf. l'appelant). Ce prior ne fait que DÉPARTAGER des
+/// candidats tous légitimes -- exactement le cas qui a produit les erreurs
+/// mesurées le 2026-08-29 (3:200 retenu à 0,60 alors que 4:1 était aussi
+/// au-dessus du seuil). Si aucun candidat ne colle à l'ordre de prière, on
+/// rend le meilleur score, comme avant.
+///
+/// Sans rak'ah précédente ([precedente] == null, donc la 1ʳᵉ rak'ah de la
+/// session), le comportement est identique à `locate()` : meilleur score.
+QuranMatch? choisirSelonOrdreDePriere(
+    List<QuranMatch> candidats, int? precedente) {
+  if (candidats.isEmpty) return null;
+  if (precedente == null) return candidats.first;
+  // 1) La MÊME sourate poursuivie (rak'ah 2 d'une sourate longue).
+  for (final c in candidats) {
+    if (c.surahNumber == precedente) return c;
+  }
+  // 2) La sourate SUIVANTE dans l'ordre du mushaf (enchaînement normal).
+  //    Borné à +3 : au-delà, ce n'est plus un enchaînement, c'est un choix
+  //    libre de l'imam -- et le score doit alors trancher seul.
+  for (final c in candidats) {
+    final ecart = c.surahNumber - precedente;
+    if (ecart >= 1 && ecart <= 3) return c;
+  }
+  // 3) Rien ne colle à l'ordre de prière : le score décide, comme avant.
+  return candidats.first;
+}
+
 class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   final RecitationVerifier _verifier;
   StreamSubscription<RecognizedToken>? _tokenSub;
@@ -150,7 +194,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   StreamSubscription<({String committed, String preview})>? _structSub;
   // MODE PRIERE seulement (2026-08-07) : le decodage libre de la v2 et le
   // signal de passage saute. Nuls dans tous les autres modes.
-  StreamSubscription<String>? _libreSub;
+  StreamSubscription<({String texte, int position})>? _libreSub;
   StreamSubscription<({int de, int a})>? _sautSub;
 
   // ── CHAINE v2, BRANCHÉE EN PARALLÈLE (2026-07-30) ────────────────────────
@@ -458,6 +502,43 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     return out;
   }
 
+  /// Règles PORTÉES PAR LE TEXTE, jamais par l'acoustique (2026-08-31).
+  ///
+  /// Leur position est entièrement déterminée par l'orthographe : la hamzat
+  /// waṣl est écrite, le lām solaire se lit sur le rasm, les lettres muettes
+  /// sont marquées, l'allongement naturel se déduit des lettres de madd.
+  /// Elles viennent de `text_uthmani_tajweed`, pas d'une détection au micro.
+  ///
+  /// POURQUOI LES EXCLURE DU VIOLET : la tête tajwid ne les émet jamais --
+  /// elle n'a pas été entraînée dessus. Les attendre produisait donc un
+  /// violet SYSTÉMATIQUE, indépendant de la récitation. Mesure du 2026-08-31
+  /// (Ayman Sowaid, récitateur d'enseignement, sourate 90) : 30 mots violets
+  /// sur 55 porteurs de règle, TOUS dus à ces quatre règles (`ham_wasl` 13,
+  /// `madda_normal` 10, `slnt` 5, `laam_shamsiyah` 2) -- alors que les huit
+  /// règles réellement acoustiques étaient réalisées à 39/40. Les signaler
+  /// revenait à accuser le récitant d'une faute que le modèle est
+  /// structurellement incapable de constater.
+  ///
+  /// CE QUI LE CONFIRME CÔTÉ MODÈLE (vérifié le 2026-09-01, absent du
+  /// document de transfert) : le paquet `warsh-v5` a 10 classes réelles
+  /// redistribuées sur 17 canaux ; `classes_10.json` contient bien
+  /// `madda_necessary`, `madda_obligatory` et `madda_permissible`, mais NI
+  /// `madda_normal`, NI `ham_wasl`, NI `laam_shamsiyah`, NI `slnt`. Ces
+  /// quatre canaux-là sont constants à -20. L'ensemble ci-dessous est donc
+  /// exactement le complément des 13 canaux alimentés -- ce n'est pas une
+  /// liste d'opinion, elle se relit dans le modèle.
+  ///
+  /// ⚠️ À RETIRER le jour où la tête apprend ces classes : elles sont alors
+  /// vérifiables comme les autres. Ce n'est PAS une tolérance de confort,
+  /// c'est le refus d'un verdict sans preuve -- règle projet « aucun verdict
+  /// sans preuve acoustique ».
+  static const _textCarriedRules = {
+    TajwidRule.hamWasl,
+    TajwidRule.laamShamsiyah,
+    TajwidRule.slnt,
+    TajwidRule.maddaNormal,
+  };
+
   List<TajwidRule> unrealizedRulesFor(int wordIndex, Set<TajwidRule> emitted,
       {Set<TajwidRule>? neighborEmitted}) {
     if (_activeRules.isEmpty) return const [];
@@ -469,6 +550,17 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     return [
       for (final r in expected)
         if (_activeRules.contains(r) &&
+            // Portée par le texte : aucune preuve acoustique possible, donc
+            // aucun verdict (cf. _textCarriedRules).
+            !_textCarriedRules.contains(r) &&
+            // ⚠️ `_madSatisfaitParDuree` est devenu INERTE avec le paquet
+            // `warsh-v5` (2026-09-01) : ce modèle nomme les madd par leur
+            // STATUT (madda_necessary/obligatory/permissible), plus par leur
+            // DURÉE -- il n'émet donc jamais `madd_long`/`madd_court`, les
+            // deux seules valeurs que ce pont sait lire. Conservé tel quel :
+            // il redevient utile au premier modèle qui renomme par durée, et
+            // l'effacer ferait perdre la trace de la correspondance
+            // statut -> durée, qui elle reste vraie.
             !_madSatisfaitParDuree(r, emitted) &&
             !emitted.contains(r) &&
             // Règle de jonction : tolère la détection sur le voisin de
@@ -984,6 +1076,16 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// eux). 1,3 accepte les six cas mesures avec de la marge, et refuse encore
   /// un peloton serre -- exactement le cas ou il faut attendre plus de texte
   /// plutot que de deviner.
+  ///
+  /// ── PLUS APPLIQUÉ (2026-08-28) ──────────────────────────────────────────
+  /// `_tryIdentifyTarget` utilise désormais directement l'algorithme du
+  /// Shazam coranique (`QuranVerseLocatorService.locate`, seuil absolu 0,45,
+  /// aucun classement) -- demande utilisateur après qu'une session réelle a
+  /// montré ce critère d'avance écarter à tort la bonne réponse (4:1,
+  /// classée première par CE ratio mais retenue seulement après 46 s, sur un
+  /// faux résultat). Gardé comme trace (convention projet) -- plus lu nulle
+  /// part ailleurs dans ce fichier.
+  // ignore: unused_field
   static const _kEcartMinSurSecond = 1.3;
 
   /// Nombre ABSOLU de paires devant voter pour le verset retenu.
@@ -1008,7 +1110,50 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// precipiter ». Ce plancher EST le mecanisme d'attente -- tant qu'il n'y a
   /// pas assez de matiere, on ne tranche pas, et l'imam continue de reciter
   /// pendant ce temps.
+  ///
+  /// ── PLUS APPLIQUÉ (2026-08-28) ──────────────────────────────────────────
+  /// Constat utilisateur, log device : `_verifierDebutFatihaParFaisceau`
+  /// restait bloqué à "3 vote(s) seulement" plusieurs secondes d'affilée,
+  /// jamais 5, alors que la reconnaissance semblait correcte. Les deux
+  /// appelants (celui-ci et `_tryIdentifyTarget`) utilisent désormais le
+  /// seuil de SCORE absolu du Shazam coranique (0.45) à la place -- même
+  /// décision, même jour, cf. la doc de `_kMinScoreMeilleur`/
+  /// `_kEcartMinSurSecond` juste au-dessus pour le détail. Gardé comme trace.
+  // ignore: unused_field
   static const _kVotesMinIdentification = 5;
+
+  /// Score ABSOLU minimal du candidat retenu, en plus de son avance sur le
+  /// second (`_kEcartMinSurSecond`).
+  ///
+  /// AJOUTÉ 2026-08-28 après un faux verrouillage en conditions réelles :
+  /// session "Suivre une prière" sur sourate An-Nisa, verrouillée à tort sur
+  /// 95:8 (Ash-Shams) avec un score de 0,051 et 6 votes -- les deux planchers
+  /// existants (`_kMinIdentifyConfidence`=0,05, `_kVotesMinIdentification`=5)
+  /// étaient franchis, et l'avance sur le second a suffi pour trancher.
+  ///
+  /// Or le commentaire qui justifie 0,05 (cf. `_kMinIdentifyConfidence`, plus
+  /// haut) le dit noir sur blanc : « le vrai verset n'est jamais descendu
+  /// sous 0,088 ». 0,051 est donc, par la propre mesure qui a calibré ce
+  /// code, un score que jamais un vrai verset n'atteint. Le ratio `avance`
+  /// n'y change rien : un rapport entre deux nombres proches du bruit
+  /// (0,051 contre ~0,03) reste instable et peut dépasser 1,3x sans qu'aucun
+  /// des deux candidats ne soit un vrai signal.
+  ///
+  /// Ce plancher ne remplace pas `_kMinIdentifyConfidence` (qui reste le
+  /// filtre anti-bruit du POOL entier, utilisé pour calculer l'avance) --
+  /// il s'ajoute en aval, sur le seul candidat retenu, sans changer la
+  /// composition du pool ni le calcul du ratio.
+  ///
+  /// ── RETIRÉ DE L'APPLICATION LE MÊME JOUR (2026-08-28) ───────────────────
+  /// Une session réelle a suivi dans les heures qui ont suivi ce plancher :
+  /// `4:1` (le vrai verset récité, An-Nisa) classé premier par `avance` avec
+  /// un score de 0,057 -- sous ce plancher, qui l'a donc écarté à tort. Voir
+  /// le commentaire au point d'appel (désormais retiré, cf. l'appelant de
+  /// `_tryIdentifyTarget`) pour la mesure complète. Constante gardée comme
+  /// trace de la tentative (convention projet) ; `_kEcartMinSurSecond`
+  /// (l'avance sur le second) reste le seul critère appliqué.
+  // ignore: unused_field
+  static const _kMinScoreMeilleur = 0.088;
 
   /// Taille de la fenetre RECENTE soumise a l'identification, en mots.
   /// Assez pour etre distinctif (le localisateur vote sur des paires de mots),
@@ -1421,6 +1566,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // _beginIdentifiedTargetPhase) : borne combien de mots ont PU être
     // récités entre la fin d'Al-Fatiha et le moment de l'identification.
     _lastAnchorAdvanceAt = DateTime.now();
+    // Départ du délai d'écoute avant la 1ère tentative `locate()` -- cf. la
+    // doc de `_kDureeEcouteAvantIdentification`/`_detectionCommenceeA`.
+    _detectionCommenceeA = DateTime.now();
     // Repli "continuité entre rak'ah" (cf. commentaire des champs) : armé
     // dès l'entrée en détection, réarmé tant que du texte NOUVEAU arrive
     // (cf. _onStructured) -- ne se déclenche donc que sur un vrai silence
@@ -1452,6 +1600,283 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     DiagnosticLog.log('Priere',
         'Al-Fatiha terminee -- debut de l\'identification de la sourate '
         '(scan a partir de $_targetDetectScanStart caracteres)');
+    // Capture DEDIEE facon "oreille" -- demande utilisateur explicite
+    // (2026-08-29), cf. la doc de `_identifierParCaptureDediee`. REMPLACE le
+    // mecanisme incrementif sur `v2Libre` (cf. le garde ajoute dans
+    // `_onDecodageLibrePriere`, ci-dessous) : celui-ci restait alimente par
+    // des fenetres natives structurellement moins fiables (jamais de contexte
+    // DROIT sur un `apercu`), ce qu'aucun reglage de la recherche n'a pu
+    // compenser (delai, bornage, troncature -- tous mesures insuffisants le
+    // meme jour).
+    unawaited(_identifierParCaptureDediee());
+  }
+
+  /// Un cycle de [_identifierParCaptureDediee] est-il en cours ? Empeche un
+  /// second declenchement concurrent (ex. un takbir suivi d'une nouvelle
+  /// Fatiha alors que le cycle precedent n'a pas fini de se demonter).
+  bool _captureIdentificationEnCours = false;
+
+  /// Capture DÉDIÉE façon "oreille" (Shazam coranique, `quran_shazam_sheet
+  /// .dart`) pour l'identification de sourate en mode prière -- demande
+  /// utilisateur explicite (2026-08-29) : « avant de suivre il faut se
+  /// positionner, chercher, tu peux carrément lancer la fonction de l'oreille,
+  /// après tu suis ! ».
+  ///
+  /// ── POURQUOI (mesure device 2026-08-29, builds v185-v188) ─────────────
+  /// Le texte alimentant l'identification venait des fenêtres natives
+  /// `v2Libre`, décodées par `Decodage.texte()` (glouton, cf. sa doc) -- EXACT
+  /// même stratégie de décodage que `BufferedTranscriber.greedyDecode()`
+  /// (utilisé par l'oreille). La différence n'est PAS l'algorithme : c'est le
+  /// CONTEXTE audio donné au modèle. `BufferedTranscriber` ne décode un
+  /// segment qu'une fois ~3s de contexte gauche ET ~2s de contexte droit
+  /// disponibles (`OVERLAP_SECONDS`/`RIGHT_CONTEXT_SECONDS`). Les fenêtres
+  /// `apercu=true` de `ConstructeurDeFenetres`, elles, n'ont PAR CONSTRUCTION
+  /// jamais de contexte droit (« jamais fourni faute de temps écoulé ») : le
+  /// modèle doit deviner un mot avant d'avoir entendu la suite -- compromis
+  /// nécessaire pour suivre le récitateur en direct pendant l'alignement
+  /// forcé, mais qui dégrade la transcription libre. Vérifié isolément (texte
+  /// du log, sans ce bruit de contexte) : le MÊME passage retrouve la bonne
+  /// sourate avec un score PARFAIT (1.000). Trois correctifs successifs sur
+  /// la couche recherche (délai d'écoute, bornage de requête, troncature de
+  /// tête anti-résidu) ont chacun réduit un symptôme sans jamais pouvoir
+  /// compenser cette perte de contexte -- la cause est en amont, dans le
+  /// décodage, pas dans ce qu'on en fait.
+  ///
+  /// ⚠️ EFFET DE BORD ACCEPTÉ EXPLICITEMENT (validé utilisateur avant
+  /// implémentation, cf. le message ci-dessus) : ARRÊTE la capture continue
+  /// le temps de la capture dédiée, puis la RELANCE -- contrairement au reste
+  /// du mode prière, qui ne touche jamais au cycle de vie de `_verifier` une
+  /// fois démarré. `startPrayerFollow` (cf. son commentaire) a déjà cassé
+  /// silencieusement 4 fois pour des oublis sur CE point d'entrée précis
+  /// (moteur non déclaré, cible v2 non posée, capture audio non armée,
+  /// décrochage non écouté) -- risque nommé, pas ignoré. Le schéma stop/start
+  /// reprend celui déjà éprouvé de `_toggle` (karaoke_recitation_screen.dart).
+  Future<void> _identifierParCaptureDediee() async {
+    if (_captureIdentificationEnCours) return;
+    if (state.prayerPhase != PrayerPhase.detectingTarget) return;
+    _captureIdentificationEnCours = true;
+    DiagnosticLog.log('Priere',
+        'capture dediee (facon oreille) : arret de la capture continue');
+    await _verifier.stop();
+    // ── ACCUMULATION ENTRE CAPTURES (2026-08-29) ───────────────────────────
+    //
+    // CAUSE MESUREE (log device v201, 18:59:09 -> 18:59:24 = 15,1s pour
+    // afficher la sourate, constat utilisateur : « il prend plus que 20s
+    // depuis le dernier mot valide ») : la 1re capture de 7s tombe sur la
+    // PAUSE entre "الضالين" et le debut de la sourate (le "آمين", la reprise
+    // de souffle) -- elle n'a capte qu'un fragment ("يَـٰٓ"). Elle etait alors
+    // integralement JETEE, et il fallait attendre 7s de plus pour la
+    // suivante. Sept secondes perdues a chaque fois, structurellement.
+    //
+    // On garde donc ce que chaque capture rapporte, et on retente sur le
+    // CUMUL. Les captures dediees ne se chevauchent pas (stop entre chacune),
+    // donc pas de risque de duplication de texte -- contrairement au chemin
+    // v2Libre qui, lui, devait fusionner les chevauchements
+    // (`_fusionnerChevauchement`).
+    //
+    // Le cumul est BORNE (`_kMotsMaxCumulIdentification`) : `locate()` note
+    // votes/paires_testees, donc une requete qui grossit sans fin DILUE le
+    // score -- defaut deja mesure le meme jour sur le chemin v2Libre.
+    final motsCumules = <String>[];
+    // Captures d'affilee qui n'ont RIEN pu identifier -- cf. le bloc
+    // "LE TROU NOIR" plus bas.
+    var capturesInfructueuses = 0;
+    try {
+      while (state.prayerPhase == PrayerPhase.detectingTarget) {
+        var latest = '';
+        final sub = _verifier.rawTranscript.listen((t) => latest = t);
+        try {
+          await _verifier.start(const [], continuous: false);
+          await Future.delayed(_kDureeCaptureDediee);
+          await _verifier.stop();
+        } finally {
+          await sub.cancel();
+        }
+        if (state.prayerPhase != PrayerPhase.detectingTarget) break;
+        motsCumules.addAll(
+            latest.split(RegExp(r'\s+')).where((m) => m.isNotEmpty));
+        while (motsCumules.length > _kMotsMaxCumulIdentification) {
+          motsCumules.removeAt(0);
+        }
+        DiagnosticLog.log('Priere',
+            'identification (capture dediee '
+            '${_kDureeCaptureDediee.inSeconds}s) : entendu="$latest" '
+            '-- cumul ${motsCumules.length} mot(s) : "${motsCumules.join(" ")}"');
+        // Sous 3 mots, `locate()` n'a qu'une paire ou deux a tester : le
+        // score n'y a aucune valeur statistique (mesure : 2 mots -> 59,6 %
+        // d'identification correcte seulement, cf.
+        // `test/simulation_priere_limites_test.dart`). On continue d'ecouter
+        // plutot que de tenter dans le vide.
+        if (motsCumules.length < 3) continue;
+        final latestCumul = motsCumules.join(' ');
+        // CAUSE TROUVEE (constat utilisateur 2026-08-29) : "يَـٰٓأَيُّهَا
+        // ٱلنَّاسُ ٱتَّقُوا۟ رَبَّكُمُ" tape SEUL dans l'oreille retrouve 4:1 --
+        // mais precede du residu capte ici ("وَحِيف"), le meme texte tombe sur
+        // 3:200. La troncature anti-residu (`_meilleureTroncatureDeTete`,
+        // deja construite pour l'ancien chemin v2Libre) n'etait jamais
+        // appliquee ICI : la capture dediee appelait `locate()` directement
+        // sur le texte brut. Meme correctif, applique au bon endroit.
+        final requete = await _meilleureTroncatureDeTete(latestCumul);
+        QuranMatch? match;
+        try {
+          // Candidats AU-DESSUS du seuil de l'oreille (0.45) -- exactement le
+          // meme plancher que `locate()`, cf. `choisirSelonOrdreDePriere`
+          // pour ce qui les departage ensuite.
+          final candidats = await QuranVerseLocatorService.instance
+              .locateTopMatches(requete, k: 5, minScore: 0.45);
+          match = choisirSelonOrdreDePriere(
+              candidats, _lastTargetSurahForContinuation);
+          if (match != null && candidats.length > 1) {
+            DiagnosticLog.log('Priere',
+                'identification : ${candidats.length} candidats au-dessus du '
+                'seuil (${candidats.map((c) => "${c.surahNumber}:${c.ayahNumber}="
+                    "${c.confidence.toStringAsFixed(2)}").join(", ")}) '
+                '-- retenu ${match.surahNumber}:${match.ayahNumber} '
+                '(rak\'ah precedente : '
+                '${_lastTargetSurahForContinuation ?? "aucune"})');
+          }
+        } catch (e) {
+          DiagnosticLog.log(
+              'Priere', 'identification (capture dediee) : ECHEC technique : $e');
+        }
+        // ── PLANCHER DE VOTES RETIRE (2026-08-29, demande utilisateur) ────
+        //
+        // Il avait ete ajoute le meme jour pour bloquer un faux positif
+        // mesure ("RETENU 2:21, 1 vote, score 1.000") survenu quand l'ecoute
+        // etait descendue a 3s : sur 2 mots captes, une seule paire est
+        // testee, donc 1 vote = 100% mecaniquement, sans aucune valeur.
+        //
+        // POURQUOI IL DISPARAIT : l'oreille (`quran_shazam_sheet.dart`) n'a
+        // AUCUN plancher de votes -- son seul critere est le seuil de score
+        // de `locate()` (0.45). Elle n'en a jamais eu besoin parce que ses
+        // 7s pleines produisent structurellement assez de mots pour que le
+        // cas degenere n'arrive pas. Demande utilisateur explicite : faire
+        // PAREIL que l'oreille -- donc meme critere de decision, pas une
+        // variante locale qui compenserait autre chose.
+        //
+        // Le test deterministe qui documentait ce cas est CONSERVE
+        // (`test/identification_priere_deterministe_test.dart`) : il montre
+        // toujours qu'un probe de 2 mots produit un score trompeur -- ce qui
+        // reste vrai. Ce qui protege desormais n'est plus une duree de bloc
+        // fixe mais le CUMUL (on n'appelle `locate()` qu'a partir de 3 mots
+        // cumules, et le cumul grossit a chaque capture jusqu'a trouver).
+        if (match != null && match.surahNumber != 1) {
+          DiagnosticLog.log('Priere',
+              'identification (capture dediee) : RETENU '
+              '${match.surahNumber}:${match.ayahNumber} ${match.votes} '
+              'vote(s), score ${match.confidence.toStringAsFixed(3)} '
+              '(facon oreille)');
+          // Relance la capture CONTINUE AVANT de reposer la cible -- sinon
+          // `v2Activer`/`replaceAlignmentTarget` (cf.
+          // `_beginIdentifiedTargetPhase`) n'ont plus de session native
+          // active a retargeter.
+          await _relancerCaptureContinuePriere();
+          await _beginIdentifiedTargetPhase(match);
+          return;
+        }
+        // ── LE TROU NOIR : ON CHERCHE UNE SOURATE ALORS QU'IL EST ENCORE
+        //    DANS AL-FATIHA (trouve le 2026-08-29 dans les logs device) ─────
+        //
+        // MESURE : session 13:03:50 -- NEUF captures dediees consecutives,
+        // 63 SECONDES, `retenu=None`. En lisant les textes captes, la cause
+        // saute aux yeux : le recitateur etait dans AL-FATIHA
+        // ("مالك يوم الدين", "صراط الذين", "الحمد لله رب العالمين"...). La
+        // bascule vers l'identification s'etait faite a tort (fin de Fatiha
+        // detectee trop tot, ou reprise de la Fatiha), et comme tout candidat
+        // `surahNumber == 1` est rejete ici -- a juste titre, c'est un residu
+        // dans le cas normal -- la boucle ne pouvait RIEN retenir, jamais.
+        // L'app tournait dans le vide pendant que l'imam recitait.
+        //
+        // On distingue donc les deux situations, que l'ancien code
+        // confondait :
+        //   - UN residu de fin de Fatiha en tete d'une capture : normal, on
+        //     ecarte et on continue (comportement inchange) ;
+        //   - PLUSIEURS captures d'affilee qui pointent la Fatiha : ce n'est
+        //     plus un residu, c'est qu'on N'EN EST PAS SORTI. On y retourne.
+        // ── CE QUE LA MESURE A CORRIGE DANS CE GARDE ─────────────────────
+        // Premiere version : compter les captures CONSECUTIVES dont le
+        // meilleur candidat est la sourate 1. REFUTEE par les donnees reelles
+        // du 13:03 (`test/identification_sur_audio_reel_test.dart`) : au
+        // seuil de 0,45, la Fatiha ne ressort qu'une fois sur neuf captures
+        // -- le garde ne se serait JAMAIS declenche. Les captures de Fatiha
+        // deformee tombent sous le seuil (1:5 a 0,30, 1:2 a 0,43, 1:3 a
+        // 0,33) ou ailleurs, elles ne se signalent pas comme Fatiha.
+        //
+        // On compte donc ce qui est REELLEMENT observable : les captures
+        // INFRUCTUEUSES. Si, cumul plein, rien ne franchit le seuil pendant
+        // plusieurs captures d'affilee, c'est qu'aucune sourate identifiable
+        // n'a commence -- le cas de loin le plus probable en priere etant
+        // qu'on est encore dans Al-Fatiha (mesure du 13:03 : neuf captures,
+        // 63 s, l'imam etait bien dans la Fatiha).
+        //
+        // POURQUOI RETOURNER EN PHASE FATIHA EST LE CHOIX SUR : s'y remettre
+        // a tort est RATTRAPABLE (`_checkLeftFatihaViaShazam` rebascule vers
+        // l'identification des qu'il voit du hors-Fatiha, avec son propre
+        // plancher de 8 mots), alors que la boucle de recherche infinie ne
+        // l'est PAS -- elle ne s'arrete jamais d'elle-meme, et pendant ce
+        // temps l'ecran ne montre rien du tout a l'imam.
+        capturesInfructueuses++;
+        if (capturesInfructueuses >= _kCapturesAvantRetourPhaseFatiha) {
+          DiagnosticLog.log('Priere',
+              'identification : $capturesInfructueuses captures sans resultat '
+              '-- aucune sourate ne commence, on etait probablement encore '
+              'dans Al-Fatiha. Retour en phase Fatiha (au lieu de chercher '
+              'indefiniment -- mesure du 2026-08-29 : 63 s dans le vide)');
+          await _relancerCaptureContinuePriere();
+          await _beginFatihaPhase();
+          return;
+        }
+        DiagnosticLog.log('Priere',
+            'identification (capture dediee) : '
+            "${match == null ? "rien d'assez confiant" : "candidat 1:${match.ayahNumber} ecarte (residu Bismillah/Fatiha)"} "
+            '($capturesInfructueuses sans resultat d\'affilee, retour en phase '
+            'Fatiha a $_kCapturesAvantRetourPhaseFatiha) '
+            '-- nouvelle capture dediee');
+        // Boucle : une nouvelle capture, tant que la phase n'a pas change
+        // (takbir, sortie d'ecran...).
+      }
+    } finally {
+      // Quoi qu'il arrive (succes deja gere ci-dessus, phase changee en
+      // cours de route, erreur) : la capture CONTINUE du mode priere ne doit
+      // JAMAIS rester eteinte. Idempotent si deja relancee (le check `_verifier
+      // .captureEnCours` evite un second `start()` inutile).
+      if (!_verifier.captureEnCours) {
+        await _relancerCaptureContinuePriere();
+      }
+      _captureIdentificationEnCours = false;
+    }
+  }
+
+  /// Relance la capture CONTINUE du mode prière après une capture dédiée
+  /// (cf. `_identifierParCaptureDediee`) -- même séquence que la fin de
+  /// `startPrayerFollow` : `_verifier.start(const [], continuous: true)` PUIS
+  /// `_myGeneration = _verifier.sessionGeneration` (sans quoi les verdicts
+  /// suivants seraient rejetés comme appartenant à une génération périmée).
+  /// `_applyDiagnosticCapture()` est réappelé par prudence -- même famille de
+  /// risque que les 4 oublis déjà documentés sur ce point d'entrée : mieux
+  /// vaut un appel redondant qu'un cinquième oubli silencieux.
+  Future<void> _relancerCaptureContinuePriere() async {
+    // ── LE DÉLAI DE 400ms (v193) N'A RIEN RÉSOLU -- RETIRÉ ─────────────────
+    //
+    // Mesure device (build v193 puis v195, MÊME symptôme les deux fois) :
+    // après ce redémarrage, le premier bloc PCM arrivait bien, la cible
+    // s'armait bien, puis PLUS AUCUN bloc PCM pendant 38 à 45s -- le flux
+    // natif s'est tu net, jusqu'à ce que le minuteur de silence (8s)
+    // abandonne et appelle `resetTrackingToStart()` -- CE QUI, dans les DEUX
+    // sessions mesurées, a fait REPARTIR le flux dans la seconde qui suit.
+    //
+    // CAUSE (constat en lisant `resetTrackingToStart()`) : cette fonction
+    // rappelle `_verifier.v2Activer(true, const [], mode: 'PRIERE')` --
+    // c'est ce ré-appel, pas le passage par `standby`, qui semble débloquer
+    // le natif (hypothèse toujours pas vérifiée côté Kotlin, mais deux
+    // mesures concordantes valent mieux qu'un délai qui n'a jamais rien
+    // changé). On le déclenche donc ICI, tout de suite après le
+    // redémarrage, au lieu d'attendre 45s que le minuteur de silence le
+    // fasse par accident.
+    await _applyDiagnosticCapture();
+    await _verifier.start(const [], continuous: true);
+    _myGeneration = _verifier.sessionGeneration;
+    await _verifier.v2Activer(true, const [], mode: 'PRIERE');
   }
 
   void _armDetectingTargetFallbackTimer() {
@@ -1820,8 +2245,217 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   static const _kFenetresLibresGardees = 6;
   final _libreRecent = <String>[];
 
-  void _onDecodageLibrePriere(String texte) {
+  /// Position (`v2LibrePosition`, cf. sa doc côté service) de la dernière
+  /// bribe ACCEPTÉE dans [_libreRecent] -- -1 = aucune encore, ou position
+  /// inconnue. Cf. la doc du champ jumeau côté natif
+  /// (`ChaineRecitation.dernierEntenduLibrePosition`) pour le bug qu'il
+  /// corrige (fenêtres traitées hors ordre chronologique).
+  int _libreRecentDernierePosition = -1;
+
+  /// Dernier probe (texte fusionné de [_libreRecent]) réellement soumis à
+  /// `_tryIdentifyTarget` -- évite de relancer l'identification sur un texte
+  /// STRICTEMENT IDENTIQUE au précédent (mesure device 2026-08-29 : le même
+  /// texte "score 0.100 (1 vote(s))" réévalué ~20 fois en moins d'une
+  /// seconde, au rythme du flux audio plutôt qu'à celui de l'inférence --
+  /// aucune ligne côté natif ni Dart ne filtrait un texte inchangé). Un
+  /// probe VRAIMENT nouveau (même d'un seul mot) n'est jamais retenu ici.
+  String? _libreDernierProbeTeste;
+
+  /// Durée d'écoute avant la PREMIÈRE tentative d'identification -- copie
+  /// délibérée de `_kListenDuration` du Shazam coranique
+  /// (`quran_shazam_sheet.dart`), sur demande utilisateur explicite
+  /// (2026-08-29) : « l'écoute est continue, on n'arrête pas ; on teste si
+  /// c'est Fatiha, et une fois qu'on transcrit un mot ou deux hors Fatiha ça
+  /// veut dire que c'est l'autre sourate -- on lance la fonction oreille qui
+  /// va nous renvoyer la sourate, après y'a le suivi ».
+  ///
+  /// CAUSE CORRIGÉE PAR CE DÉLAI (mesure device 2026-08-29, build v185) :
+  /// avec la fusion de chevauchement seule, la 1ère tentative partait ~150ms
+  /// après le décrochage d'Al-Fatiha sur 2 mots, la 2e ~4s après sur 8 mots
+  /// -- et ces 8 mots ("رحم يا أيها الناس اتقوا ربكم الذي خلق", An-Nisa 4:1)
+  /// ont suffi à franchir le seuil Shazam (0,462) sur la MAUVAISE sourate
+  /// (3:200 retenue). Le Shazam coranique n'a jamais ce défaut car il attend
+  /// les 7s PLEINES avant son unique appel `locate()` -- plus de mots, donc
+  /// beaucoup moins de coïncidences sur une formule récurrente ("يا أيها
+  /// الناس" ouvre plusieurs sourates). Ici, `locate()` continue d'être
+  /// rappelé à chaque texte nouveau (contrairement à Shazam qui n'appelle
+  /// qu'une fois) : la différence assumée, déjà documentée dans
+  /// `_tryIdentifyTarget`, est volontairement conservée -- seul le DÉPART du
+  /// chrono change.
+  /// RÉDUIT de 7s à 5s (2026-08-29, demande utilisateur : « entre moi j'ai
+  /// fini fatiha et le lancement de ma recherche c'est une éternité »).
+  /// Mesuré ce jour-là : le décrochage natif lui-même (mécanisme séparé, PAS
+  /// touché ici -- exige 3 fenêtres "hors texte" confirmées) a déjà pris
+  /// 15,5s après le dernier mot d'Al-Fatiha ; ces 7s s'ajoutaient PAR-DESSUS,
+  /// pour ~23s de silence perçu au total. Réduction jugée acceptable
+  /// maintenant que `_meilleureTroncatureDeTete` (v194) protège contre les
+  /// probes courts/bruités qui justifiaient à l'origine les 7s pleines --
+  /// deux cas réels (résidu "وَحِيف", résidu Bismillah garblé) sont
+  /// maintenant récupérés par la troncature plutôt que par la seule durée
+  /// d'écoute. À revalider par la recette : si de nouveaux faux positifs
+  /// apparaissent, remonter cette valeur plutôt que d'empiler un correctif
+  /// de plus sur la recherche.
+  ///
+  /// RÉDUIT ENCORE de 5s à 3s (2026-08-29, demande utilisateur : « 10s c
+  /// trop » -- constat : identification correcte mais 2 tentatives de 5s
+  /// = 10,8s au total). Le cas RETENU 4:1 mesuré ce jour-là tenait sur 7
+  /// mots captés en ~5s (~1,3 mot/s) ; 3s en capte encore ~4, au-dessus du
+  /// plancher de 2 mots exigé par `locate()`. Risque assumé : plus de
+  /// tentatives "rien d'assez confiant" avant de trouver -- acceptable, la
+  /// boucle continue d'elle-même et la troncature protège toujours contre
+  /// un residu court.
+  /// REVU a 4s (2026-08-29, apres mesure du meme jour) : 3s a produit un
+  /// faux positif direct (2:21 sur 1 seul vote, cf.
+  /// `_kVotesMinCaptureDediee`) -- 3s est trop court pour cette capture SANS
+  /// accumulation entre tentatives (contrairement a l'ancien chemin
+  /// v2Libre).
+  ///
+  /// REVU A 7s -- « fait pareil » (2026-08-29, demande utilisateur explicite
+  /// apres avoir appris que l'oreille N'A AUCUN plancher de votes : elle n'en
+  /// a jamais eu besoin parce que ses 7s pleines produisent structurellement
+  /// assez de mots -- 15 a 25 en continu -- pour que le cas degenere (1
+  /// seule paire testee) n'arrive quasiment jamais. Compenser une duree
+  /// courte par un plancher de votes (cf. `_kVotesMinCaptureDediee`) reglait
+  /// le SYMPTOME (le faux positif) sans reproduire la CAUSE de la fiabilite
+  /// de l'oreille (assez de matiere des le depart). On revient donc a la
+  /// duree EXACTE de l'oreille, ET le plancher de votes a ete RETIRE dans la
+  /// foulee (cf. le commentaire dans `_identifierParCaptureDediee`) : "faire
+  /// pareil" veut dire meme duree et meme critere de decision, pas une
+  /// variante locale.
+  ///
+  /// ── REMPLACEE PAR `_kDureeCaptureDediee` + CUMUL (2026-08-29, mesure) ──
+  /// La question « quelle duree de bloc ? » etait la MAUVAISE question, et
+  /// c'est elle qui a fait tourner en rond toute la journee (7 -> 5 -> 3 ->
+  /// 4 -> 7s). Mesure device qui l'a tranchee : la 1re capture de 7s tombe
+  /// sur la PAUSE entre Al-Fatiha et la sourate, ne capte qu'un fragment, et
+  /// se fait JETER -- 7s perdues quelle que soit la valeur choisie. Un bloc
+  /// plus long capte plus de mots mais rate plus longtemps ; un bloc plus
+  /// court rate moins longtemps mais capte moins de mots. Aucune valeur ne
+  /// gagne sur les deux tableaux.
+  /// La sortie est de ne plus rien jeter : captures COURTES + CUMUL entre
+  /// elles (cf. `_identifierParCaptureDediee`). Constante conservee, jamais
+  /// supprimee (convention projet) -- elle documente la piste et sa limite.
+  ///   static const _kDureeEcouteAvantIdentification = Duration(seconds: 7);
+
+  /// Duree d'UNE capture dediee. Courte VOLONTAIREMENT : ce qu'elle capte
+  /// n'est jamais jete, il s'ajoute au cumul (cf.
+  /// `_identifierParCaptureDediee`). Elle ne decide donc plus de la QUALITE
+  /// de l'identification (c'est le cumul qui la porte), seulement de la
+  /// REACTIVITE -- a quelle frequence on retente. 3s = une nouvelle chance
+  /// toutes les 3 secondes au lieu de toutes les 7.
+  static const _kDureeCaptureDediee = Duration(seconds: 3);
+
+  /// Plafond du cumul de mots soumis a `locate()`. `locate()` note
+  /// votes/paires_testees : une requete qui grossit sans fin DILUE le score
+  /// (defaut mesure le 2026-08-29 sur le chemin v2Libre -- 4 tentatives sur
+  /// 21s, aucune au-dessus du seuil, alors que le meme passage court
+  /// passait). 15 mots : au-dessus des 10 qui donnent 100 %
+  /// d'identification correcte en simulation
+  /// (`test/simulation_priere_limites_test.dart`), avec de la marge pour les
+  /// mots abimes qui ne votent pas.
+  static const _kMotsMaxCumulIdentification = 15;
+
+  /// Combien de captures d'affilee SANS AUCUN RESULTAT avant de conclure
+  /// qu'aucune sourate n'a commence et de retourner en phase Fatiha (cf. le
+  /// bloc "LE TROU NOIR" dans `_identifierParCaptureDediee`).
+  ///
+  /// 5 captures x 3 s = ~15 s. Choisi sur les donnees reelles du 13:03 : sur
+  /// une vraie sourate, l'identification aboutit en 1 a 2 captures (mesure :
+  /// toutes les sequences reussies du 2026-08-29 tenaient en <= 2 captures) ;
+  /// cinq echecs d'affilee ne s'expliquent donc plus par une sourate lente a
+  /// reconnaitre. 15 s au lieu des 63 s mesurees -- et surtout, ca S'ARRETE.
+  static const _kCapturesAvantRetourPhaseFatiha = 5;
+
+  /// Nombre MINIMUM de votes qu'exigeait la capture dediee -- RETIRE de la
+  /// decision le 2026-08-29 (demande utilisateur : faire PAREIL que
+  /// l'oreille, qui n'a aucun plancher de votes). Constante gardee en
+  /// commentaire, convention projet : elle redeviendrait pertinente si la
+  /// duree d'ecoute etait un jour raccourcie sous les 7s de l'oreille --
+  /// c'est cette duree, et elle seule, qui rend le plancher inutile.
+  ///   static const _kVotesMinCaptureDediee = 3;
+
+  /// Horodatage du début de la phase [PrayerPhase.detectingTarget] en cours
+  /// -- posé par `_beginTargetDetection`. `null` : aucune détection en cours
+  /// (ou pas encore commencée), traité comme "délai déjà écoulé" pour ne
+  /// jamais bloquer indéfiniment sur un champ non initialisé.
+  DateTime? _detectionCommenceeA;
+
+  /// Fusionne [nouveau] à la suite de [precedent] en retirant le plus long
+  /// chevauchement mot-à-mot entre la fin de [precedent] et le début de
+  /// [nouveau] -- CAUSE TROUVÉE le 2026-08-29 (distincte de celle du
+  /// 2026-08-28, cf. le commentaire de `dernierEntenduLibrePosition` côté
+  /// natif) : les fenêtres v2 se chevauchent en AUDIO par construction (« le
+  /// recouvrement des fenêtres fait le travail EN AMONT », en-tête de
+  /// `ChaineRecitation.kt`) -- voulu et correct pour l'alignement forcé, qui
+  /// sait où chaque fenêtre se positionne. Mais `_libreRecent.join(' ')`
+  /// concaténait les textes bruts de 6 fenêtres consécutives SANS jamais
+  /// retirer cette part commune : un segment prononcé UNE fois par le
+  /// récitateur apparaissait dupliqué autant de fois que de fenêtres qui le
+  /// recouvraient (mesuré : "وَبَتَّ مِنْ" x6 dans un seul probe). Ce probe
+  /// corrompu a ensuite produit un FAUX POSITIF Shazam (`RETENU 6:19` alors
+  /// que le récitateur récitait le début d'An-Nisa 4:1).
+  ///
+  /// EFFET DE BORD CONNU (annoncé avant implémentation, PROPOSER ET FAIRE
+  /// VALIDER) : la fusion compare les mots TELS QUE DÉCODÉS (pas de
+  /// normalisation) -- si le modèle décode différemment le même son selon le
+  /// contexte de fenêtre à la frontière (non-déterminisme possible en bord
+  /// de fenêtre), le chevauchement ne sera pas détecté à l'identique et une
+  /// duplication résiduelle PARTIELLE peut subsister. Ce correctif réduit le
+  /// défaut mesuré, ne garantit pas 0 % -- à confirmer par la recette, pas
+  /// affirmé ici comme parfait.
+  static String _fusionnerChevauchement(String precedent, String nouveau) {
+    final motsPrecedents = precedent.trim().split(RegExp(r'\s+'));
+    final motsNouveaux = nouveau.trim().split(RegExp(r'\s+'));
+    if (motsPrecedents.isEmpty || motsNouveaux.isEmpty) return nouveau;
+    final maxK = motsPrecedents.length < motsNouveaux.length
+        ? motsPrecedents.length
+        : motsNouveaux.length;
+    for (var k = maxK; k > 0; k--) {
+      final suffixePrecedent =
+          motsPrecedents.sublist(motsPrecedents.length - k);
+      final prefixeNouveau = motsNouveaux.sublist(0, k);
+      var identique = true;
+      for (var i = 0; i < k; i++) {
+        if (suffixePrecedent[i] != prefixeNouveau[i]) {
+          identique = false;
+          break;
+        }
+      }
+      if (identique) {
+        return motsNouveaux.sublist(k).join(' ');
+      }
+    }
+    return nouveau; // aucun chevauchement détecté -- ajout intégral, comme avant.
+  }
+
+  // ── VA-ET-VIENT DU MÊME JOUR : V1 SEUL, PUIS V2 REBRANCHÉ (2026-08-28) ──
+  //
+  // Ce texte (v2Libre) a d'abord été retiré de l'identification au profit du
+  // seul chemin V1 (`sinceDetect`/`rawProbe` dans `_onStructured` plus bas --
+  // c'est LUI qui utilise `parts.committed`/`parts.preview`, exactement la
+  // source du Shazam coranique) : les deux chemins appelaient
+  // `_tryIdentifyTarget` EN CONCURRENCE, protégés par le même garde
+  // `_targetLookupInFlight` -- un simple "premier arrivé", et les fenêtres v2
+  // (courtes, ~80-100 ms d'écart) gagnaient presque toujours la course avec
+  // un texte de moins bonne qualité.
+  //
+  // MESURE QUI A SUIVI CE RETRAIT (même jour, constat utilisateur : « tjrd
+  // rien ») : sur une vraie session longue, le V1 s'est tu ENTIÈREMENT après
+  // Al-Fatiha -- aucune ligne `identification :` pendant plusieurs dizaines
+  // de secondes -- alors que V2 continuait de produire du texte tout du
+  // long (confirmé au journal). Le commentaire de tête de fichier avait donc
+  // raison depuis le début : « V1 quasi muette pendant la prière » -- vrai
+  // sur une session réelle, pas seulement sur la capture courte de 7 s de
+  // Shazam (`_kListenDuration`, quran_shazam_sheet.dart).
+  //
+  // V2 est donc REBRANCHÉ ici, avec les deux correctifs du jour conservés :
+  // l'ordre chronologique (`_libreRecentDernierePosition`, ci-dessus) et
+  // l'algorithme de décision de Shazam (`locate()`, dans
+  // `_tryIdentifyTarget`). Le chemin V1 reste branché en parallèle,
+  // inoffensif s'il ne parle plus, utile les rares fois où il parle encore.
+  void _onDecodageLibrePriere(({String texte, int position}) evenement) {
     if (!_dynamicTargetDiscovery) return;
+    final texte = evenement.texte;
     if (texte.trim().isEmpty) return;
 
     // Un takbir renvoie en attente, quelle que soit la phase : c'est la
@@ -1845,6 +2479,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       DiagnosticLog.log('Priere', 'takbir entendu ("$texte") -- retour en '
           'attente, la cible precedente ne vaut plus');
       _libreRecent.clear();
+      _libreRecentDernierePosition = -1;
+      _libreDernierProbeTeste = null;
+      _detectionCommenceeA = null;
       _enterPrayerStandby();
       resetTrackingToStart();
       return;
@@ -1859,17 +2496,152 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       return;
     }
 
-    _libreRecent.add(texte);
+    // Ignore toute bribe dont la position audio recule par rapport à la
+    // dernière acceptée (cf. la doc de `_libreRecentDernierePosition`) --
+    // c'est ce qui mélangeait fin de sourate précédente et début de la
+    // suivante. `-1` (position inconnue) n'est jamais écartée.
+    if (evenement.position >= 0 &&
+        evenement.position < _libreRecentDernierePosition) {
+      DiagnosticLog.log('Priere',
+          'bribe ecartee (position ${evenement.position} < derniere '
+          '$_libreRecentDernierePosition, hors ordre) : "$texte"');
+      return;
+    }
+    if (evenement.position >= 0) {
+      _libreRecentDernierePosition = evenement.position;
+    }
+
+    // Fusion du chevauchement (cf. la doc de `_fusionnerChevauchement`) :
+    // les fenetres v2 se recouvrent en audio par construction, donc leur
+    // texte brut se recouvre aussi -- ne garder que la part NOUVELLE de
+    // chaque fenetre par rapport a la precedente stockee.
+    if (_libreRecent.isEmpty) {
+      _libreRecent.add(texte);
+    } else {
+      final net = _fusionnerChevauchement(_libreRecent.last, texte);
+      if (net.trim().isNotEmpty) {
+        _libreRecent.add(net);
+      }
+    }
     while (_libreRecent.length > _kFenetresLibresGardees) {
       _libreRecent.removeAt(0);
     }
     final probe = _libreRecent.join(' ');
 
+    // ── CHEMIN REMPLACE (2026-08-29) PAR LA CAPTURE DEDIEE ────────────────
+    //
+    // `_identifierParCaptureDediee` (cf. sa doc) fait maintenant tout le
+    // travail d'identification, sur un texte bien mieux contextualise. Le
+    // garde ci-dessous coupe court ce chemin-ci PENDANT qu'une capture
+    // dediee tourne : la capture continue est arretee le temps de celle-ci,
+    // donc `v2Libre` ne devrait normalement plus rien envoyer -- mais si le
+    // v2 natif reste actif en parallele (mode PRIERE sticky), ce garde
+    // empeche les deux mecanismes de tourner en meme temps sur le meme
+    // probe. Le corps ci-dessous (delai, bornage, troncature) reste en place
+    // intact : c'est la trace des trois correctifs successifs du meme jour,
+    // et le repli si jamais la capture dediee devait etre desactivee.
+    if (_captureIdentificationEnCours) return;
     if (state.prayerPhase == PrayerPhase.detectingTarget) {
+      // Attendre le meme delai d'ecoute que "l'oreille" (Shazam coranique)
+      // AVANT la toute premiere tentative -- cf. la doc de
+      // `_kDureeEcouteAvantIdentification`. Pendant ce delai, le texte
+      // continue de s'accumuler dans `_libreRecent` (rien n'est perdu), mais
+      // aucun appel `locate()` n'est tente sur un probe encore trop court
+      // pour discriminer une formule qui revient a plusieurs endroits du
+      // Coran (mesure device 2026-08-29 : 8 mots ont suffi a verrouiller la
+      // MAUVAISE sourate au bout de 4s).
+      // Delai EN DUR ici (7s) : ce chemin-ci est desactive depuis que la
+      // capture dediee existe (garde `_captureIdentificationEnCours`
+      // ci-dessus), et sa constante partagee a ete retiree quand la capture
+      // dediee est passee au cumul. On garde la valeur historique telle
+      // quelle pour que ce repli reste FIDELE a ce qu'il faisait, plutot que
+      // de le lier a un reglage qui ne le concerne plus.
+      const dureeEcouteHistorique = Duration(seconds: 7);
+      final debut = _detectionCommenceeA;
+      if (debut != null &&
+          DateTime.now().difference(debut) < dureeEcouteHistorique) {
+        return;
+      }
+      // Bornage a la fenetre RECENTE (`_kMotsFenetreIdentification`, deja
+      // utilisee par le chemin V1 -- cf. sa doc) avant de soumettre :
+      // `locate()` note score=votes/paires_testees (cf. la doc de
+      // `QuranMatch.votes`), donc une requete qui grossit sans borne DILUE
+      // le score au lieu de le renforcer. Mesure device 2026-08-29 (build
+      // v186, avant ce bornage) : 4 tentatives sur 21s, la requete grossissant
+      // a chaque fois (jusqu'a plusieurs dizaines de mots via les 6 fenetres
+      // de `_libreRecent`, chacune pouvant fusionner jusqu'a 18s cote natif)
+      // -- AUCUNE n'a franchi 0.45, alors qu'un probe de 8 mots seulement
+      // avait suffi (a tort, mais AU-DESSUS du seuil) dans la session
+      // precedente. Le probe complet reste dans `_libreRecent` (rien n'est
+      // perdu pour les tentatives suivantes), seule la requete SOUMISE est
+      // bornee -- meme logique que le chemin V1, jamais appliquee au V2
+      // jusqu'ici.
+      final mots =
+          probe.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+      final requete = mots.length > _kMotsFenetreIdentification
+          ? mots.sublist(mots.length - _kMotsFenetreIdentification).join(' ')
+          : probe;
       // Plusieurs tentatives sont normales et voulues : chaque nouvelle
-      // fenetre enrichit la requete jusqu'a ce qu'un candidat soit unique.
-      unawaited(_tryIdentifyTarget(probe));
+      // fenetre enrichit la requete jusqu'a ce qu'un candidat soit assez
+      // confiant pour `locate()` (algorithme Shazam, cf. `_tryIdentifyTarget`).
+      // Mais UNIQUEMENT si la requete a change depuis le dernier essai --
+      // mesure device 2026-08-29 : le meme probe etait reevalue ~20 fois en
+      // moins d'une seconde, au rythme du flux audio (~80ms) plutot qu'a
+      // celui de l'inference (~300ms), sans rien de nouveau a y trouver.
+      if (requete == _libreDernierProbeTeste) return;
+      _libreDernierProbeTeste = requete;
+      if (_libreTroncatureEnCours) return;
+      _libreTroncatureEnCours = true;
+      unawaited(() async {
+        try {
+          final troncature = await _meilleureTroncatureDeTete(requete);
+          await _tryIdentifyTarget(troncature);
+        } finally {
+          _libreTroncatureEnCours = false;
+        }
+      }());
     }
+  }
+
+  /// Garde le fil unique de [_meilleureTroncatureDeTete] -- distinct de
+  /// `_targetLookupInFlight` (proprie a `_tryIdentifyTarget`) : le poser ICI
+  /// ferait entrer `_tryIdentifyTarget` sur un flag deja vrai et retourner
+  /// immediatement sans jamais appeler `locate()`.
+  bool _libreTroncatureEnCours = false;
+
+  /// Essaie plusieurs troncatures de TETE de [requete] et retourne celle qui
+  /// donne le meilleur score `locate()` -- CAUSE TROUVEE (mesure device
+  /// 2026-08-29, build v187, verifiee hors app dans
+  /// `test/diagnostic_locate_annisa.dart`) : un residu de Bismillah GARBLE
+  /// ("ءامي بسمنحيم مي يا" -- pas reconnu par `_stripBismillahPrefix`, qui
+  /// exige une correspondance EXACTE de la formule) accroche au vrai debut
+  /// d'An-Nisa (4:1) a fait tomber le score de 1,000 (le texte reel du log,
+  /// teste SEUL, retrouve 4:1 parfaitement) a 0,467 sur un MAUVAIS verset
+  /// (3:200) une fois le residu mele. `locate()` note
+  /// score=votes/paires_testees : le residu ajoute des paires qui ne votent
+  /// pas pour le bon decalage, et dilue.
+  ///
+  /// Retirer 0 a 4 mots de tete et garder la meilleure variante retrouve le
+  /// bon verset SANS dependre d'une reconnaissance exacte de la formule --
+  /// robuste a un residu bruite comme a un residu propre. Cout borne (au
+  /// plus 5 appels `locate()`, chacun de l'ordre de la milliseconde sur
+  /// l'index deja charge, mesure identique au diagnostic isole).
+  Future<String> _meilleureTroncatureDeTete(String requete) async {
+    final mots =
+        requete.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    var meilleure = requete;
+    var meilleurScore = -1.0;
+    for (var drop = 0; drop <= 4 && mots.length - drop >= 2; drop++) {
+      final variante = mots.sublist(drop).join(' ');
+      final matches = await QuranVerseLocatorService.instance
+          .locateTopMatches(variante, k: 1, minScore: 0.0);
+      final score = matches.isEmpty ? 0.0 : matches.first.confidence;
+      if (score > meilleurScore) {
+        meilleurScore = score;
+        meilleure = variante;
+      }
+    }
+    return meilleure;
   }
 
   /// Passage probablement saute : on le SOUFFLE, on ne le juge pas.
@@ -1920,10 +2692,24 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       final fatiha = matches.where((m) => m.surahNumber == 1).toList();
       if (fatiha.isEmpty) return;
       final m = fatiha.first;
-      if (m.votes < _kVotesMinIdentification) {
+      // ── PLANCHER DE VOTES REMPLACÉ PAR LE SEUIL SHAZAM (2026-08-28) ──────
+      // Constat utilisateur, log device : bloqué à "3 vote(s) seulement" sur
+      // plusieurs secondes consécutives, jamais 5 -- la fenêtre récente
+      // (`_kRecentWindowWords`) ne fournit apparemment jamais assez de PAIRES
+      // pour ce plancher, même quand la reconnaissance est bonne. Même
+      // décision que pour `_tryIdentifyTarget` (demande utilisateur :
+      // « utilise exactement l'algorithme de l'oreille qui marche ») : un
+      // seuil de SCORE absolu (0.45, celui du Shazam coranique) plutôt qu'un
+      // décompte de votes. `locateTopMatches` reste utilisé ICI (pas
+      // `locate`) parce que cette fonction doit spécifiquement retrouver le
+      // candidat surah=1 dans le classement, pas juste "le meilleur, quel
+      // qu'il soit" -- mais l'ACCEPTATION du candidat trouvé suit désormais
+      // le même seuil que Shazam.
+      const seuilShazam = 0.45;
+      if (m.confidence < seuilShazam) {
         DiagnosticLog.log('Priere',
-            'debut Al-Fatiha : ${m.votes} vote(s) seulement '
-            '(< $_kVotesMinIdentification) -- on attend');
+            'debut Al-Fatiha : score ${m.confidence.toStringAsFixed(3)} '
+            '(${m.votes} vote(s)) sous le seuil Shazam $seuilShazam -- on attend');
         return;
       }
       // On ne cherche pas le DEBUT, on cherche OU IL EN EST : l'ancre se pose
@@ -1946,77 +2732,60 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     }
   }
 
+  /// Identification de sourate en mode prière -- RÉÉCRITE (2026-08-28) pour
+  /// utiliser EXACTEMENT l'algorithme du Shazam coranique (demande
+  /// utilisateur : « remplace-moi lors de la recherche de la sourate,
+  /// utilise exactement l'algorithme de l'oreille qui marche »).
+  ///
+  /// ── POURQUOI L'ANCIENNE VERSION EST ABANDONNÉE, PAS AJUSTÉE ────────────
+  /// Trois réglages successifs dans la même journée (seuil pool 0,05,
+  /// plancher `_kVotesMinIdentification`, plancher `_kMinScoreMeilleur`
+  /// ajouté puis retiré) sur un mécanisme à PLUSIEURS critères empilés
+  /// (score pool + votes + avance sur le 2e + plancher absolu) -- et la
+  /// dernière mesure réelle montre que ce mécanisme a écarté la BONNE
+  /// réponse (4:1, classée première par son propre ratio d'avance) puis mis
+  /// 46 s à verrouiller un FAUX résultat. Le Shazam coranique
+  /// (`quran_shazam_sheet.dart`), lui, n'a jamais eu ce genre de défaut
+  /// rapporté : un seul critère, un plancher ABSOLU haut (0,45), aucun
+  /// classement ni vote à départager. On adopte donc EXACTEMENT son appel
+  /// (`QuranVerseLocatorService.locate`, le même que Shazam) plutôt que de
+  /// continuer à empiler des réglages sur un mécanisme dont la mesure vient
+  /// de montrer qu'il se trompe de la manière la plus grave possible (écarter
+  /// la bonne réponse).
+  ///
+  /// Seule différence assumée avec Shazam : Shazam décide UNE fois, après une
+  /// durée d'écoute fixe choisie par l'utilisateur. Ici, `locate()` est
+  /// rappelé à chaque nouveau texte reconnu (comme avant), et on s'arrête au
+  /// premier appel qui renvoie un résultat -- l'équivalent en continu de
+  /// « écouter puis décider ».
   Future<void> _tryIdentifyTarget(String cleanedProbe) async {
     if (_targetLookupInFlight) return;
     _targetLookupInFlight = true;
     try {
-      final matches = await QuranVerseLocatorService.instance.locateTopMatches(
-          cleanedProbe,
-          minScore: _kMinIdentifyConfidence);
+      final match = await QuranVerseLocatorService.instance.locate(cleanedProbe);
       if (state.prayerPhase != PrayerPhase.detectingTarget) return;
-      // Bismillah/fin d'Al-Fatiha résiduelle (cf. §3.6 du journal) : jamais
-      // un candidat exploitable à ce stade, quel que soit son score.
-      final candidates = matches.where((m) => m.surahNumber != 1).toList();
-      if (candidates.isEmpty) {
+      if (match == null) {
         DiagnosticLog.log('Priere',
-            'identification : AUCUN candidat >= $_kMinIdentifyConfidence sur '
+            'identification : rien d\'assez confiant sur '
             '"${cleanedProbe.length > 90 ? "${cleanedProbe.substring(0, 90)}..." : cleanedProbe}" '
-            '(${matches.length} match(s) bruts, tous ecartes) -- on reessaiera '
-            'au prochain texte reconnu');
+            '(seuil Shazam 0.45) -- on reessaiera au prochain texte reconnu');
         return;
       }
-      // ── PRIORISER, PLUTOT QUE D'EXIGER L'UNICITE (2026-08-07) ─────────
-      //
-      // Demande utilisateur : « si on descend la barre, il y en aura plusieurs
-      // qui vont respecter. Mais il faut avoir un ordre [...] les prioriser,
-      // la meilleure qui va sortir. »
-      //
-      // L'ancienne regle refusait des qu'il y avait DEUX candidats. Combinee a
-      // un seuil quatre fois trop haut (cf. _kMinIdentifyConfidence), elle
-      // rendait l'identification quasi impossible. Et elle etait mal fondee :
-      // la mesure montre que le bon verset est PREMIER a chaque fois -- ce
-      // n'est pas l'unicite qui le distingue, c'est son AVANCE sur le second.
-      //
-      // On prend donc le meilleur des que son avance depasse
-      // _kEcartMinSurSecond. Un peloton serre (avance insuffisante) reste
-      // refuse : c'est le seul cas ou attendre plus de texte vaut mieux que
-      // deviner.
-      //
-      // ANCIEN CODE, conserve (convention projet) :
-      //   if (candidates.length > 1) { ... return; }
-      //   final only = candidates.single;
-      final meilleur = candidates.first;
-      final second = candidates.length > 1 ? candidates[1] : null;
-      final avance = second == null || second.confidence <= 0
-          ? double.infinity
-          : meilleur.confidence / second.confidence;
-      // Pas assez de PAIRES votantes : on ne tranche pas, quelle que soit
-      // l'avance (cf. `_kVotesMinIdentification`).
-      if (meilleur.votes < _kVotesMinIdentification) {
+      // Bismillah/fin d'Al-Fatiha résiduelle (cf. §3.6 du journal) : jamais
+      // un candidat exploitable à ce stade, quel que soit son score --
+      // spécifique à ce point du mode prière, Shazam n'a pas ce problème
+      // (il n'est jamais appelé juste après Al-Fatiha).
+      if (match.surahNumber == 1) {
         DiagnosticLog.log('Priere',
-            'identification : seulement ${meilleur.votes} paire(s) votante(s) '
-            'pour ${meilleur.surahNumber}:${meilleur.ayahNumber} '
-            '(< $_kVotesMinIdentification) -- trop peu de matiere, on attend '
-            'que la recitation en donne davantage');
-        return;
-      }
-      if (avance < _kEcartMinSurSecond) {
-        DiagnosticLog.log('Priere',
-            'identification : peloton serre, avance ${avance.toStringAsFixed(2)}x '
-            '< ${_kEcartMinSurSecond}x '
-            '(${candidates.take(3).map((m) => "${m.surahNumber}:${m.ayahNumber}="
-                "${m.confidence.toStringAsFixed(3)}").join(", ")}) '
-            '-- on attend plus de texte pour departager');
+            'identification : candidat 1:${match.ayahNumber} ecarte '
+            '(residu Bismillah/Fatiha) -- on reessaiera au prochain texte reconnu');
         return;
       }
       DiagnosticLog.log('Priere',
-          'identification : RETENU ${meilleur.surahNumber}:${meilleur.ayahNumber} '
-          '${meilleur.votes} vote(s), score ${meilleur.confidence.toStringAsFixed(3)}'
-          '${second == null ? " (seul candidat)" : ", second "
-              "${second.surahNumber}:${second.ayahNumber} "
-              "${second.confidence.toStringAsFixed(3)}, avance "
-              "${avance.toStringAsFixed(2)}x"}');
-      await _beginIdentifiedTargetPhase(meilleur);
+          'identification : RETENU ${match.surahNumber}:${match.ayahNumber} '
+          '${match.votes} vote(s), score ${match.confidence.toStringAsFixed(3)} '
+          '(algorithme Shazam)');
+      await _beginIdentifiedTargetPhase(match);
     } catch (e) {
       DiagnosticLog.log('Priere', 'identification : ECHEC technique : $e');
     } finally {
@@ -2114,9 +2883,26 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// Seuil aligné sur `_kMinIdentifyConfidence` (0.70) : cette vérification
   /// déclenche un changement de PHASE, pas un simple rattrapage de position,
   /// donc mérite la même rigueur que la première identification.
+  /// Plancher de mots AVANT de faire confiance à ce signal -- CAUSE TROUVÉE
+  /// (mesure device 2026-08-29) : « Al-Fatiha visiblement terminée (Shazam
+  /// retrouve 10:10 hors Al-Fatiha, confiance 1.00) » déclenché ~30ms après
+  /// qu'Al-Fatiha vient tout juste d'être reconnue -- impossible que le
+  /// récitateur l'ait déjà quittée. MÊME défaut de fond que celui déjà mesuré
+  /// et corrigé sur l'identification de sourate (`locate()` note
+  /// score=votes/paires_testées -- un probe de 2-3 mots a très peu de paires
+  /// à départager, donc peut coïncider par hasard sur un décalage fort
+  /// ailleurs). Ce garde-fou est une SÉCURITÉ supplémentaire (les chemins
+  /// principaux -- `_looksLikeFatihaEnd`, l'avancée du pointeur -- restent
+  /// inchangés) : un retard ici ne bloque rien, il attend juste d'avoir assez
+  /// de matière avant de faire confiance à un signal qui bascule une PHASE.
+  static const _kMinMotsAvantQuitteFatiha = 8;
+
   Future<void> _checkLeftFatihaViaShazam(String probe) async {
     if (_leftFatihaCheckInFlight || probe.isEmpty) return;
     if (state.prayerPhase != PrayerPhase.fatiha) return;
+    final mots =
+        probe.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    if (mots.length < _kMinMotsAvantQuitteFatiha) return;
     _leftFatihaCheckInFlight = true;
     try {
       final match = await QuranVerseLocatorService.instance.locate(probe);
@@ -2331,7 +3117,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _previewNegativeStreak.clear();
     _previewNegativeSeq.clear();
     _failureSignalled.clear();
-    state = RecitationSessionState(words: words);
+    // Riwaya figée ICI, pour toute la durée de la session -- cf. la doc du
+    // champ sur `RecitationSessionState.riwaya`.
+    state = RecitationSessionState(words: words, riwaya: QuranApi.riwaya);
   }
 
   /// Construit les mots d'un texte SANS annotation de règles (cible
@@ -2490,7 +3278,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _previewNegativeStreak.clear();
     _previewNegativeSeq.clear();
     _failureSignalled.clear();
-    state = RecitationSessionState(words: _wordsFromSegments(segments));
+    // Riwaya figée ICI, pour toute la durée de la session -- cf. la doc du
+    // champ sur `RecitationSessionState.riwaya`.
+    state = RecitationSessionState(
+        words: _wordsFromSegments(segments), riwaya: QuranApi.riwaya);
   }
 
   /// Mots annotés d'une liste de [Verse] (chacun sait sa surah/ayah) — raccourci
@@ -2630,8 +3421,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // que le modèle a appris à distinguer — cf. normalizeTraining).
     final cible = state.words.map((w) => w.alignTarget).toList();
     // CHGPT : chaque entrée de session fige la riwaya native avant alignement.
+    // `state.riwaya` (pas `QuranApi.riwaya`) : setup() l'a déjà figée pour
+    // cette session, cf. RecitationSessionState.riwaya.
     await _verifier.ensureModelLoaded();
-    await _verifier.setRiwaya(QuranApi.riwaya == Riwaya.warsh);
+    await _verifier.setRiwaya(state.riwaya == Riwaya.warsh);
     // start() est le mode VERSET UNIQUE : jamais de session de
     // reference, cf. la doc de startControle/startTest -- ce mode n'est
     // atteint que via la lecture normale d'un verset.
@@ -2824,8 +3617,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // toute sa durée -- cf. `RecitationVerifier.setRiwaya` pour le POURQUOI
     // (pas de bascule à chaud, décision utilisateur 2026-08-22). Doit venir
     // APRÈS ensureModelLoaded() (le moteur doit exister) et AVANT toute cible
-    // d'alignement envoyée plus bas.
-    await _verifier.setRiwaya(QuranApi.riwaya == Riwaya.warsh);
+    // d'alignement envoyée plus bas. `state.riwaya` (pas `QuranApi.riwaya`) :
+    // setup()/setupVerses() l'a déjà figée pour cette session.
+    await _verifier.setRiwaya(state.riwaya == Riwaya.warsh);
     await _verifier.setNeverBlockAnchor(referenceSession);
     await _applyDiagnosticCapture();
     // Forme fidèle à l'entraînement — cible de l'alignement forcé GOP.
@@ -2977,8 +3771,17 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // parce qu'il ne va pas changer de sourate. »
     // CHGPT : meme sans cible initiale, le decodeur libre doit lire la riwaya
     // de cette session, pas celle laissee par une session precedente.
+    //
+    // AJOUT (2026-08-23) : ce mode n'appelle jamais `setup()`/`setupVerses()`,
+    // donc `state.riwaya` (RecitationSessionState.riwaya) ne serait jamais
+    // figée sans cette ligne -- elle resterait celle laissée par la session
+    // précédente, exactement le défaut que le commentaire ci-dessus élimine
+    // déjà côté moteur natif. Fige ici pour que les consommateurs EN DEHORS
+    // du moteur (audio du souffleur dans prayer_follow_screen.dart, cf.
+    // word_correction_audio.dart) lisent, eux aussi, la bonne riwaya.
+    state = state.copyWith(riwaya: QuranApi.riwaya);
     await _verifier.ensureModelLoaded();
-    await _verifier.setRiwaya(QuranApi.riwaya == Riwaya.warsh);
+    await _verifier.setRiwaya(state.riwaya == Riwaya.warsh);
     await _verifier.v2Activer(true, const [], mode: 'PRIERE');
     DiagnosticLog.log('Priere',
         'chaine v2 en mode PRIERE : decodage libre + localisation, saut '
@@ -4714,7 +5517,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     final cleared = state.words
         .map((w) => w.copyWith(status: WordStatus.pending))
         .toList();
-    state = RecitationSessionState(words: cleared);
+    // riwaya PRESERVEE (pas une nouvelle session, cf. RecitationSessionState.riwaya).
+    state = RecitationSessionState(words: cleared, riwaya: state.riwaya);
   }
 
   /// Boucle de correction interactive (demande utilisateur 2026-07-05) : marque
