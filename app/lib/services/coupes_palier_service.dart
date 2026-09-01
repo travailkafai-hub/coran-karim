@@ -33,6 +33,36 @@ import 'package:flutter/services.dart' show rootBundle;
 /// Généré par `benchmark/generer_pauses_reciteur.py` : 6 236 versets,
 /// 9 241 coupes (1,5 par verset).
 ///
+/// ── LES WAQF REVIENNENT, MAIS SEULEMENT POUR INTERDIRE (2026-09-01) ────────
+/// Le critère 2 ci-dessus reste écarté comme SOURCE de coupes. Mais la mesure
+/// qui n'avait jamais été faite -- comparer les coupes d'énergie aux waqf
+/// écrits -- a montré que l'énergie, qui ignore la syntaxe, plaçait
+/// **14 coupes exactement sur un waqf `mamnu` (لا), où le tajwid INTERDIT de
+/// s'arrêter** : 2:25 mot 17, 2:174 mot 11, 5:3 mot 56, 5:106 mot 42, 8:31,
+/// 8:53, 9:12, 10:15, 10:22, 16:24, 16:64, 24:37, 47:25, 60:12.
+///
+/// Un palier de mémorisation s'arrêtait donc précisément là où l'élève ne doit
+/// jamais s'arrêter, dans une app qui enseigne le tajwid. Ces 14 coupes ont
+/// été retirées (9 241 -> 9 227), à la fois de l'asset et du générateur, pour
+/// qu'une régénération ne les ramène pas.
+///
+/// POURQUOI SEULEMENT `mamnu` (arbitrage utilisateur du 2026-09-01, sur
+/// mesure) : waqf et énergie sont largement indépendants -- 31 % de
+/// coïncidence exacte, 53 % à ±1 mot -- et 1 788 arrêts canoniques licites ne
+/// correspondent à aucune coupe. Les ajouter ferait couper le texte là où
+/// Al-Afasy ne marque aucune pause, soit exactement le défaut 22:32 qui a
+/// motivé ce fichier. `mamnu` est le seul cas où le waqf dit « non » : il ne
+/// crée aucune coupe, il en supprime, donc il ne peut pas casser la
+/// concordance texte/audio qui est la raison d'être de cet asset.
+///
+/// Effet de bord unique et vérifié : 16:24 (10 mots) perd sa seule coupe et
+/// devient un palier entier -- cas déjà prévu, cf. `coupes()` plus bas.
+///
+/// ⚠️ Ce filtre ne vaut que pour HAFS. En Warsh, `quran_waqf.json` n'est pas
+/// utilisable : le texte ne porte qu'un seul type de signe (9 946 occurrences
+/// de ۖ, aucune autre), la typologie y a été écrasée. Aucun `mamnu` n'y est
+/// donc distinguable.
+///
 /// ── CE QUE ÇA N'EST PAS ─────────────────────────────────────────────────────
 /// Pas une autorité religieuse sur les arrêts licites. C'est la lecture d'UN
 /// récitateur (Al-Afasy), mesurée sur SON enregistrement. Un autre récitateur

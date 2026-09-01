@@ -13,6 +13,8 @@ import '../services/fastconformer_verifier.dart';
 import '../services/recitation_verifier.dart';
 import '../services/recitation_v2_bench.dart';
 import 'karaoke_recitation_screen.dart';
+import 'mushaf_maquette_screen.dart';
+import 'prayer_follow_screen.dart';
 
 /// Harnais de RECETTE — écran unique, pilotable par intent, pour le banc à deux
 /// téléphones (décision utilisateur 2026-07-28).
@@ -176,6 +178,49 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
           DiagnosticLog.log('RECETTE', 'source deterministe : ${widget.wav}');
         }
         _ecouter();
+      } else if (widget.mode == 'priere') {
+        // ── REJEU DU MODE "SUIVRE UNE PRIERE" SUR UN WAV (2026-08-29) ─────
+        //
+        // Demande utilisateur : « envoie le wav vers le tel et teste » --
+        // suivi de « non c'est pas ça la suivi priere » quand j'ai lance le
+        // banc `v2` (qui, lui, fait de l'alignement force sur une cible
+        // CONNUE : ce n'est pas du tout le mode priere).
+        //
+        // Ce mode-ci rejoue la chaine COMPLETE du mode priere -- detection
+        // d'Al-Fatiha, bascule, identification de la sourate, puis suivi --
+        // en remplacant la seule chose qui ne doit pas varier d'une mesure a
+        // l'autre : la source audio. Tout le reste est le code de
+        // production, sans aucune branche de test.
+        //
+        // Pourquoi ca comblait un vrai trou : jusqu'ici ce mode ne pouvait
+        // etre teste QU'EN RECITANT devant le telephone, avec un audio
+        // different a chaque prise -- impossible de distinguer « le code a
+        // change » de « la prise etait differente ». C'est ce qui a fait
+        // perdre une journee entiere le 2026-08-29.
+        if (widget.wav != null) {
+          ref.read(recitationVerifierProvider).wavRejoue = widget.wav;
+          DiagnosticLog.log('RECETTE-PRIERE',
+              'source deterministe : ${widget.wav}');
+        } else {
+          DiagnosticLog.log('RECETTE-PRIERE',
+              'aucun WAV fourni (--es wav <chemin>) : le micro sera utilise');
+        }
+        if (!mounted) return;
+        Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const PrayerFollowScreen()));
+      } else if (widget.mode == 'mushaf') {
+        // MAQUETTE COMPARATIVE du rendu mushaf (demande utilisateur
+        // 2026-09-01). Point d'entree RECETTE uniquement : rien n'est
+        // ajoute a l'IHM de l'utilisateur final tant que le rendu n'est pas
+        // valide, et l'affichage actuel n'est pas touche.
+        //   adb shell am start -n <pkg>/.MainActivity \
+        //       --es recette mushaf --ei sourate 2
+        DiagnosticLog.log('RECETTE-MUSHAF',
+            'maquette ouverte -- page de depart ${v.isNotEmpty ? v.first.pageNumber : 1}');
+        if (!mounted) return;
+        Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => MushafMaquetteScreen(
+                pageInitiale: v.isNotEmpty ? (v.first.pageNumber ?? 1) : 1)));
       } else if (widget.mode == 'lecture') {
         _lire();
       } else if (widget.mode == 'v2') {

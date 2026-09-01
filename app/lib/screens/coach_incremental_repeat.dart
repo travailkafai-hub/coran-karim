@@ -48,6 +48,7 @@ import '../providers/coach_provider.dart';
 import '../providers/judgement_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
+import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../providers/app_settings_provider.dart'
     show coachControleCumulatifProvider;
@@ -155,8 +156,26 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
   /// deux écartés par la mesure). Sur 22:32, la coupe tombe bien après
   /// `ٱللَّهِ`, et la suite démarre sur `فَإِنَّهَا`.
   ///
-  /// Le mode ENFANT garde un mot par unité : le but y est d'ancrer chaque mot
-  /// séparément, pas de respecter le phrasé.
+  /// Le mode ENFANT ne suit pas ces coupes : le but y est d'ancrer le texte
+  /// morceau par morceau, pas de respecter le phrasé du récitateur.
+  ///
+  /// ── UN MOT -> DEUX MOTS (2026-09-01) ──────────────────────────────────
+  /// Il découpait UN mot par unité. Demande utilisateur : « pour le mode
+  /// enfant c'est mieux de faire 2 mots par 2, si impair garder le dernier
+  /// impair ». Le commentaire d'origine ci-dessus reste vrai sur l'INTENTION
+  /// (ancrer, ne pas suivre le phrasé) ; c'est la granularité qui change.
+  ///
+  /// Un mot isolé porte rarement un sens complet en arabe coranique -- un
+  /// nom sans son article, un verbe sans son pronom -- et l'enfant répétait
+  /// donc des fragments qu'il ne pouvait pas rattacher. Deux mots donnent
+  /// presque toujours un groupe qui tient debout, sans pour autant approcher
+  /// la longueur d'une proposition entière.
+  ///
+  /// Nombre de mots IMPAIR : le dernier mot forme une unité à lui seul,
+  /// jamais un groupe de trois. C'est explicitement ce qui a été demandé, et
+  /// c'est aussi le seul choix qui garde toutes les unités à leur taille
+  /// annoncée -- un groupe de trois en fin de verset serait le plus long
+  /// alors que c'est là que l'enfant fatigue.
   ///
   /// Repli si l'asset manque ou ne couvre pas ce verset : le verset entier
   /// forme une seule unité. Dégradé, jamais cassé -- et jamais un découpage
@@ -166,7 +185,14 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     final dernier = _words.length - 1;
     if (dernier < 0) return const [];
     if (preset == JudgementPreset.enfant) {
-      return [for (var i = 0; i <= dernier; i++) i];
+      // Fins d'unité aux index impairs (1, 3, 5 …) = des paires 0-1, 2-3 …
+      final fins = [for (var i = 1; i <= dernier; i += 2) i];
+      // Total impair : `dernier` est pair, il n'est donc pas dans la liste.
+      // On l'ajoute pour que le mot restant forme sa propre unité (et non
+      // pour l'agréger à la paire précédente). Couvre aussi le verset d'UN
+      // seul mot, où la boucle ci-dessus ne produit rien.
+      if (fins.isEmpty || fins.last != dernier) fins.add(dernier);
+      return fins;
     }
     final coupes = CoupesPalierService.instance
         .coupes(widget.verse.surahNumber, widget.verse.ayahNumber)
@@ -246,15 +272,40 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     // à `addPostFrameCallback`, qui attendrait ce premier rendu et laisserait
     // passer le flash que ce correctif visait justement à éviter).
     Future.microtask(() => ref.read(recitationProvider.notifier).setup(''));
-    // Coupes de palier mesurées sur la récitation (cf. `_finsUnite`).
-    // Idempotent, et sans conséquence si l'asset manque : `coupes()` rend
-    // alors une liste vide et le verset forme un seul palier.
-    CoupesPalierService.instance.ensureLoaded().then((_) {
-      if (mounted) setState(() {});
-    });
-    final reciter = ref.read(playerProvider).reciter;
+    // `QuranApi.riwaya` ICI (pas `recitationProvider.riwaya`) : `setup()`
+    // vient d'être planifié en microtask juste au-dessus et n'a pas encore
+    // tourné -- l'état de session n'a donc pas encore figé sa riwaya. C'est
+    // un simple prefetch (best-effort) ; la lecture réelle plus bas
+    // (`_startRound`) tourne, elle, après `setup()` et lit `recitationProvider.riwaya`.
+    final reciter =
+        ref.read(playerProvider.notifier).reciterPour(QuranApi.riwaya);
     unawaited(WordCorrectionAudio.prefetch(widget.verse, reciter));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // ── LES COUPES AVANT LE PREMIER PALIER (2026-08-27) ────────────────────
+    //
+    // DÉFAUT TROUVÉ EN LISANT CE CODE, constat utilisateur : « il y a toujours
+    // un écart dans la mémorisation par palier entre l'audio qui récite et le
+    // texte », persistant malgré les correctifs du 2026-08-09 (glissement de
+    // fenêtre) et du 2026-08-11 (ordre setup/audio).
+    //
+    // C'ÉTAIT UNE COURSE. L'ancienne forme lançait DEUX choses en parallèle :
+    //   CoupesPalierService.ensureLoaded().then((_) => setState(...));   // A
+    //   addPostFrameCallback((_) => _startRound(playAudio: true));       // B
+    // Si B gagne (asset pas encore chargé), `coupes()` rend une liste VIDE,
+    // donc `_finsUnite = [dernier]`, donc `_totalUnits = 1` : la fenêtre du
+    // premier palier vaut TOUT LE VERSET. L'audio part sur cette fenêtre-là.
+    // Puis A arrive, `setState` rebâtit l'écran avec les VRAIES coupes -- le
+    // texte affiché devient le premier palier, court -- pendant que l'audio
+    // déjà lancé, lui, récite le verset entier. Exactement l'écart décrit,
+    // et intermittent par nature puisqu'il dépend de qui gagne la course.
+    //
+    // Les correctifs précédents ne pouvaient pas l'attraper : ils portaient
+    // sur le CONTENU de la fenêtre, pas sur le fait qu'elle change sous
+    // l'audio après coup.
+    //
+    // On attend donc les coupes AVANT de calculer la première fenêtre. Le
+    // `setState` n'a plus lieu d'être : les coupes sont là avant le premier
+    // `_startRound`, il n'y a plus rien à rafraîchir après coup.
+    CoupesPalierService.instance.ensureLoaded().then((_) {
       if (mounted) _startRound(playAudio: true);
     });
   }
@@ -316,7 +367,12 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
       // fois après avoir réellement attendu le chargement, et l'échec
       // définitif est journalisé au lieu de passer inaperçu.
       setState(() => _phase = _RoundPhase.playingAudio);
-      final reciter = ref.read(playerProvider).reciter;
+      // riwaya de LA SESSION (pas du réglage global vivant) -- `setup()` a
+      // déjà tourné à ce stade (appelé plus haut dans `_startRound`), donc
+      // `recitationProvider.riwaya` est fiable ici.
+      final reciter = ref
+          .read(playerProvider.notifier)
+          .reciterPour(ref.read(recitationProvider).riwaya);
       var joue = await WordCorrectionAudio.playWordWindow(widget.verse, reciter,
           startWordIdx: start, endWordIdx: end);
       if (!mounted) return;
@@ -327,9 +383,25 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
             startWordIdx: start, endWordIdx: end);
         if (!mounted) return;
       }
+      // ── TEXTE ET AUDIO DANS LA MÊME LIGNE (2026-08-27) ──────────────────
+      //
+      // Constat utilisateur, persistant : « il y a toujours un écart dans la
+      // mémorisation par palier entre l'audio qui récite et le texte ».
+      // Deux causes déjà traitées et écartées ici : le glissement de fenêtre
+      // (2026-08-09) et l'ordre setup/audio (2026-08-11) ; l'indexation des
+      // mots a été vérifiée le 2026-08-27 -- `splitExpectedWords` et
+      // `word_segments_mp3quran_afasy.json` donnent le MÊME nombre de mots
+      // sur les 6 236 versets, sans une seule exception. La cause restante
+      // n'est donc pas décidable depuis le code seul.
+      //
+      // On journalise donc les deux côtés CÔTE À CÔTE : le texte réellement
+      // affiché et les bornes réellement jouées. La prochaine occurrence dira
+      // lequel des deux a raison, au lieu d'avoir à le deviner.
       DiagnosticLog.log('Palier',
-          'audio du palier ${_unitsIntroduced}/$_totalUnits mots=$start..$end : '
-          '${joue ? "joue" : "ABSENT -- l utilisateur n a rien entendu"}');
+          'audio du palier ${_unitsIntroduced}/$_totalUnits mots=$start..$end '
+          '(total mots verset=${_words.length}) : '
+          '${joue ? "joue" : "ABSENT -- l utilisateur n a rien entendu"} '
+          '| texte affiche="$windowText"');
     }
 
     _handledThisSession = false;

@@ -45,14 +45,21 @@ class TajwidRulesScreen extends ConsumerWidget {
             // n'est plus intéressante »). `strictHarakat` reste dans le
             // modèle/le moteur de jugement (presets tajwid/adulte/enfant le
             // pilotent toujours) -- seul ce réglage manuel disparaît.
-            SwitchListTile(
-              title: const Text('Tolérer les lettres proches'),
-              subtitle: const Text(
-                  'ص/س, ط/ت, ض/د, ذ/ز, ح/ه, ق/ك, ع/ء comptées équivalentes (mode enfant)'),
-              value: options.tolerateConfusables,
-              onChanged: notifier.setTolerateConfusables,
-              activeTrackColor: AppColors.green700,
-            ),
+            // ── « TOLÉRER LES LETTRES PROCHES » RETIRÉ (2026-09-01) ────────
+            // Demande utilisateur : « en option enfant la tolérance des
+            // lettres proches est active, du coup enlève le paramètre ».
+            // Vérifié avant de retirer : `JudgementOptions.enfantDefault`
+            // porte `tolerateConfusables: true` en dur. Le réglage affichait
+            // donc un interrupteur déjà positionné par le preset, que
+            // l'utilisateur pouvait éteindre sans que le libellé
+            // « (mode enfant) » n'explique ce qu'il défaisait.
+            //
+            // Même traitement que « Harakat exigées » juste au-dessus
+            // (2026-08-10) : le champ `tolerateConfusables` RESTE dans le
+            // modèle et le moteur de jugement, piloté par les presets. Seul
+            // ce réglage manuel disparaît. `setTolerateConfusables` est
+            // conservé côté notifier (convention projet : on n'efface pas ce
+            // qui a servi), simplement plus appelé depuis l'IHM.
             const Divider(height: 32),
             _RepeatEngineSettings(preset: options.preset),
             const Divider(height: 32),
@@ -192,9 +199,13 @@ class _RepeatEngineSettings extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
-    final chunkWords = ref.watch(adultChunkWordCountProvider);
     final windowSize = ref.watch(repeatWindowSizeProvider);
-    final isEnfant = preset == JudgementPreset.enfant;
+    // `chunkWords` et `isEnfant` retirés le 2026-09-01 : ils survivaient au
+    // réglage « mots par palier » supprimé le 2026-08-17 (cf. le bloc de
+    // commentaire plus bas) et n'étaient plus lus par rien -- `isEnfant`
+    // était d'ailleurs signalé par l'analyseur. Le mode Enfant découpe
+    // maintenant par PAIRES de mots, et cela se décide dans
+    // `coach_incremental_repeat.dart`, pas dans un réglage.
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

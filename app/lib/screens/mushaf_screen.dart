@@ -7,11 +7,13 @@ import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../models/player_state_model.dart';
 import '../providers/app_settings_provider.dart';
+import '../providers/mushaf_annotation_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
+import 'mushaf_maquette_screen.dart';
 import '../widgets/verse_tile.dart';
 import '../widgets/mushaf_header.dart';
 import '../widgets/reading_settings_sheet.dart';
@@ -182,6 +184,12 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     if (ref.read(kindleAutoTurnProvider)) {
       _demarrerCalibration();
     }
+    // Position de lecture (2026-08-26, demande utilisateur : « faut se
+    // rappeler de la page et l'ouvrir directement au prochain ouverture de
+    // l'application ») -- automatique, sans geste, cf. la doc de
+    // `enregistrerPositionLecture` (app_settings_provider.dart).
+    unawaited(enregistrerPositionLecture(
+        widget.surah.number, widget.initialAyahNumber ?? 1));
   }
 
   /// Un tournage AUTOMATIQUE : la page tourne, l'horloge de mesure repart, et
@@ -384,6 +392,11 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         _loadedSurahs = chargees;
         _nextPage = page < 604 ? page + 1 : null;
       });
+      // Le scroll a atteint cette page : elle devient la nouvelle position de
+      // lecture retenue (cf. la doc du provider, même raison qu'à
+      // l'ouverture dans `initState`).
+      unawaited(enregistrerPositionLecture(
+          verses.first.surahNumber, verses.first.ayahNumber));
     } catch (e) {
       DiagnosticLog.log('Mushaf', 'echec chargement page $page : $e');
       debugPrint('[Mushaf] échec chargement page $page : $e');
@@ -400,6 +413,33 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         (s) => s.number == number,
         orElse: () => widget.surah,
       );
+
+  /// Ouvre la VUE PAGE (mise en page façon mushaf) sur la page courante.
+  ///
+  /// Aller-retour : on empile un écran, celui-ci reste tel quel derrière. La
+  /// riwaya suit celle de la lecture en cours -- les pages photo sont des
+  /// scans WARSH, les afficher à un lecteur Hafs serait un faux, donc l'écran
+  /// reçoit l'information et le signale au lieu de mélanger silencieusement.
+  ///
+  /// ⚠️ LIMITE ASSUMÉE : la page d'ouverture est celle du PREMIER verset
+  /// chargé, pas du verset réellement sous les yeux -- cet écran n'a pas de
+  /// suivi de position de scroll (pas d'`ItemPositionsListener`), donc la
+  /// position exacte n'est pas connue ici. En faire une estimation à partir de
+  /// l'offset de scroll serait une fausse précision : la hauteur d'un verset
+  /// varie du simple au décuple. À reprendre le jour où l'écran expose un
+  /// verset visible ; d'ici là, mieux vaut une page juste et un peu en amont
+  /// qu'une page fausse.
+  void _ouvrirVuePage() {
+    final page = _verses.isEmpty ? 1 : (_verses.first.pageNumber ?? 1);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MushafMaquetteScreen(
+          pageInitiale: page,
+          riwaya: ref.read(riwayaProvider),
+        ),
+      ),
+    );
+  }
 
   void _openReadingSettings() {
     showReadingSettingsSheet(
@@ -634,6 +674,38 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                         ),
                       ),
                     ),
+                    // BASCULE « vue page » (2026-09-01). Demande
+                    // utilisateur : « comment passer d'un affichage à l'autre
+                    // dans l'app ? » -- jusqu'ici la vue page n'existait QUE
+                    // dans le banc de recette, donc la réponse était « on ne
+                    // peut pas ». Posé en miroir du retour (haut/droite), même
+                    // traitement visuel : translucide, jamais masqué par le
+                    // minuteur, car une bascule qu'il faut découvrir en tapant
+                    // au hasard n'est pas une bascule.
+                    //
+                    // N'ENLÈVE RIEN : c'est un aller-retour vers un second
+                    // écran, l'affichage actuel reste intact derrière (cf. la
+                    // demande d'origine, « je demande pas d'enlever ce qu'on a
+                    // mais une possibilité en plus »).
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: SafeArea(
+                        child: Material(
+                          color: (modeSombre
+                                  ? AppColors.sombreBgDeep
+                                  : AppColors.green900)
+                              .withAlpha(110),
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            tooltip: 'Vue page',
+                            icon: const Icon(Icons.auto_stories_rounded,
+                                color: AppColors.cream),
+                            onPressed: _ouvrirVuePage,
+                          ),
+                        ),
+                      ),
+                    ),
                     // Le header lui-même, hauteur fixe, qui glisse hors écran
                     // (translation -- ne touche pas à ses contraintes de
                     // layout internes, donc pas de risque de rognage/overflow
@@ -713,6 +785,20 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                         ),
                       ),
                     ),
+                    // Barre d'outils du crayon (2026-08-28) -- flotte
+                    // au-dessus de la barre du bas, seulement pendant le mode
+                    // annotation (cf. `mushafAnnotationModeProvider`, activé
+                    // depuis le menu "Plus" -> `reading_settings_sheet.dart`).
+                    if (ref.watch(mushafAnnotationModeProvider))
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: _kBottomBarHeight + 8,
+                        child: SafeArea(
+                          top: false,
+                          child: _AnnotationToolbar(modeSombre: modeSombre),
+                        ),
+                      ),
                   ],
                 ),
     );
@@ -1051,6 +1137,45 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     );
   }
 
+  /// Marques de surlignage du verset [verse], reconstruites depuis la map
+  /// plate du provider (cf. mushaf_annotation_provider.dart) -- `null` si
+  /// aucun mot du verset n'est marqué (évite d'allouer une Map vide par
+  /// verset affiché, l'immense majorité n'en porte aucune).
+  Map<int, Color>? _wordHighlightsFor(
+      Verse verse, Map<String, int> marques, String riwaya) {
+    final n = ArabicNormalizer.splitExpectedWords(verse.textUthmani).length;
+    Map<int, Color>? resultat;
+    for (var i = 0; i < n; i++) {
+      final couleur = marques[MushafHighlightsNotifier.cle(
+          verse.surahNumber, verse.ayahNumber, i, riwaya)];
+      if (couleur != null) {
+        (resultat ??= {})[i] = Color(couleur);
+      }
+    }
+    return resultat;
+  }
+
+  /// Tap sur un mot EN MODE ANNOTATION (cf. `mushafAnnotationModeProvider`) :
+  /// pose la couleur sélectionnée, ou -- outil gomme (`couleur == null`) ou
+  /// tap sur un mot déjà marqué de la MÊME couleur -- retire la marque.
+  /// Basculer plutôt qu'empiler : reposer la même couleur sur un mot déjà
+  /// marqué est le geste naturel pour « je me suis trompé, j'annule ».
+  void _onWordTapAnnoter(Verse verse, int wordIndex) {
+    final riwaya = ref.read(riwayaProvider).name;
+    final couleur = ref.read(mushafAnnotationColorProvider);
+    final notifier = ref.read(mushafHighlightsProvider.notifier);
+    final existant = notifier.couleurDe(
+        verse.surahNumber, verse.ayahNumber, wordIndex, riwaya);
+    if (couleur == null || (existant != null && existant.toARGB32() == couleur.toARGB32())) {
+      if (existant != null) {
+        notifier.effacer(verse.surahNumber, verse.ayahNumber, wordIndex, riwaya);
+      }
+      return;
+    }
+    notifier.definir(
+        verse.surahNumber, verse.ayahNumber, wordIndex, riwaya, couleur);
+  }
+
   // Extrait du switch de `_buildVerses` (jusqu'au 2026-08-01, dupliqué en
   // dur dans l'itemBuilder) -- réutilisé tel quel par le mode Kindle
   // paginé (§ _buildKindlePages) pour ne PAS réimplémenter le rendu d'un
@@ -1076,8 +1201,35 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
       case _EntryKind.verse:
         final idx = entry.verseIndex!;
         final verse = _verses[idx];
-        return VerseTile(
-          // En mode Kindle un même verset peut être rendu en DEUX morceaux
+        // ── SURLIGNAGE LIBRE ("crayon", 2026-08-28) ─────────────────────
+        //
+        // Les marques restent visibles hors mode annotation (ce sont des
+        // notes posées, pas un outil d'édition transitoire) -- seul le tap
+        // qui les POSE dépend du mode ET de l'outil actifs (surligneur
+        // uniquement -- en outil crayon, le tap sur un mot doit amorcer un
+        // tracé, pas basculer une marque, cf. `_AnnotableVerse`).
+        //
+        // ── LA GOMME EST COMMUNE AUX DEUX OUTILS (2026-08-28) ────────────
+        // « également effacer, ça doit fonctionner sur les deux ». Avant ce
+        // correctif, une marque de mot ne s'effaçait qu'en outil surligneur
+        // et un trait qu'en outil crayon -- il fallait rebasculer d'outil
+        // rien que pour effacer l'AUTRE sorte de marque. La gomme (couleur
+        // sélectionnée = null) active désormais le tap-mot ET la surface de
+        // trait EN MÊME TEMPS, quel que soit l'outil affiché.
+        final annotationMode = ref.watch(mushafAnnotationModeProvider);
+        final outilAnnotation = ref.watch(mushafAnnotationToolProvider);
+        final couleurAnnotation = ref.watch(mushafAnnotationColorProvider);
+        final gommeActive = annotationMode && couleurAnnotation == null;
+        final marques = ref.watch(mushafHighlightsProvider);
+        final riwaya = ref.watch(riwayaProvider).name;
+        final wordHighlights = _wordHighlightsFor(verse, marques, riwaya);
+        final surligneurActif = annotationMode &&
+            (outilAnnotation == MushafAnnotationTool.highlighter || gommeActive);
+        return _AnnotableVerse(
+          verse: verse,
+          scrollController: _scrollController,
+          child: VerseTile(
+            // En mode Kindle un même verset peut être rendu en DEUX morceaux
           // (page N et page N+1) potentiellement montés en même temps
           // (PageView garde la page voisine en mémoire) -- réutiliser la
           // même GlobalKey partagée (`_verseKeys`, utilisée par le scroll
@@ -1094,6 +1246,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           modeSombre: modeSombre,
           wordStart: wordStart,
           wordEnd: wordEnd,
+          wordHighlights: wordHighlights,
           onTap: () => setState(() => _activeVerse = idx),
           onLongPress: () => _menuVerset(idx),
           // ── EXPLICATION PAR MOT RETIRÉE (2026-08-09, demande utilisateur)
@@ -1105,9 +1258,17 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           // (2026-07-10), passé en appui long (2026-08-07) pour ne plus
           // concurrencer le changement de page en mode lecture.
           //
-          // `onWordTap`/`onWordLongPress` non fournis : sans eux, le texte
-          // ne pose aucun détecteur sur les mots, et le geste redescend
-          // intact au parent (`onLongPress` ci-dessus, menu du verset).
+          // `onWordTap` reste non fourni HORS mode annotation, ET hors
+          // outil surligneur : sans lui, le texte ne pose aucun détecteur
+          // sur les mots, et le geste redescend intact au parent
+          // (`onLongPress` ci-dessus, menu du verset) -- notamment en outil
+          // crayon, où le tap doit pouvoir amorcer un tracé sans qu'un mot
+          // ne le capte au passage. EN outil surligneur, il capte le tap
+          // pour poser/retirer une marque -- cf. `_onWordTapAnnoter`.
+            onWordTap: surligneurActif
+                ? (i) => _onWordTapAnnoter(verse, i)
+                : null,
+          ),
         );
     }
   }
@@ -1429,7 +1590,10 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                   onTap: () { Navigator.pop(ctx); _openKaraoke(); },
                 ),
                 _ActionVerset(
-                  icone: Icons.school_rounded,
+                  // Icône dédiée (2026-08-28, demande utilisateur) --
+                  // `Icons.school_rounded` était aussi celle du hub Coach
+                  // ("Mémoriser une sourate"), les deux se confondaient.
+                  icone: Icons.psychology_rounded,
                   libelle: t.mushafMemorize,
                   onTap: () { Navigator.pop(ctx); _openMemorization(); },
                 ),
@@ -1500,7 +1664,25 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   void _openKaraoke() {
     Navigator.push(context,
         MaterialPageRoute(
-            builder: (_) => KaraokeRecitationScreen(verses: _fragmentFromActive())));
+            // `autoDemarrer` (2026-08-23, demande utilisateur) : l'appui sur
+            // "réciter" est déjà le geste explicite qui déclenche cet écran --
+            // demander ENSUITE un second tap sur le halo pour vraiment
+            // commencer à écouter était redondant. `_autoDemarrage()` attend
+            // que le modèle soit chargé et la session prête (jusqu'à 15 s)
+            // avant de démarrer seule, donc le chargement du modèle n'a plus
+            // besoin d'un geste séparé non plus.
+            // ⚠️ CORRECTIF (2026-08-23, même jour) : `autoDemarrer` seul FORCE
+            // le mode RÉFÉRENCE (texte visible, aucune correction, cf.
+            // `_toggle` : `_isReferenceSession = !widget.forcerModeNormal`) --
+            // conçu à l'origine pour le seul banc de recette. Oublié ici :
+            // toute récitation lancée depuis le Mushaf devenait une session
+            // de référence, texte visible et erreurs jamais signalées.
+            // `forcerModeNormal: true` restaure le comportement normal
+            // (texte masqué tant que non jugé, correction active).
+            builder: (_) => KaraokeRecitationScreen(
+                verses: _fragmentFromActive(),
+                autoDemarrer: true,
+                forcerModeNormal: true)));
   }
 
   /// Versets du verset actif jusqu'à la fin de SA page (repli : toute la fin de
@@ -1628,6 +1810,521 @@ class _BismillahBanner extends StatelessWidget {
       );
 }
 
+/// Superpose au verset une surface de tracé libre (mode crayon, 2026-08-28) --
+/// capte les gestes SEULEMENT quand ce mode est actif (`IgnorePointer`
+/// sinon, cf. plus bas), et peint les traits déjà posés PAR-DESSUS le texte,
+/// qu'on soit ou non en mode annotation -- une note posée doit rester
+/// visible en lecture normale, comme un vrai surlignage papier.
+///
+/// ── UN DOIGT DESSINE, DEUX DOIGTS FONT DÉFILER (2026-08-28) ─────────────
+///
+/// Retour utilisateur, crayon déployé : « il y a une contradiction avec
+/// scroll qui veut scroller et l'autre qui veut dessiner ». Cause réelle :
+/// la 1ʳᵉ version captait tout geste de pan à un doigt pour dessiner, ce qui
+/// avalait aussi le balayage vertical qu'on utilise pour FAIRE DÉFILER la
+/// page -- plus aucun moyen de bouger dans le texte sans quitter le crayon.
+///
+/// Convention reprise des apps d'annotation à stylet (Notability, GoodNotes,
+/// Notes Samsung -- référence montrée par l'utilisateur) : **un doigt trace,
+/// deux doigts font défiler**. `onScale*` (pas `onPan*`) donne le nombre de
+/// pointeurs actifs (`pointerCount`) à chaque mise à jour -- dès qu'un 2ᵉ
+/// doigt touche l'écran en cours de geste, le tracé en cours est ABANDONNÉ
+/// (jamais persisté à moitié) et le déplacement fait défiler le
+/// `ScrollController` de la liste à la place. Le geste ne redevient jamais
+/// un tracé même s'il repasse à un seul doigt (ordre de levée des doigts
+/// ambigu) -- `_devientDefilement` verrouille la décision pour tout le
+/// geste, une fois prise.
+class _AnnotableVerse extends ConsumerStatefulWidget {
+  final Verse verse;
+  final ScrollController scrollController;
+  final Widget child;
+  const _AnnotableVerse(
+      {required this.verse, required this.scrollController, required this.child});
+
+  @override
+  ConsumerState<_AnnotableVerse> createState() => _AnnotableVerseState();
+}
+
+class _AnnotableVerseState extends ConsumerState<_AnnotableVerse> {
+  /// Points NORMALISÉS du trait en cours de tracé (null = aucun geste en
+  /// cours, ou geste devenu un défilement -- cf. `_devientDefilement`).
+  List<Offset>? _traitEnCours;
+
+  /// Le geste EN COURS a vu un 2ᵉ doigt au moins une fois -> défilement pour
+  /// le reste du geste, plus jamais un tracé (cf. doc de la classe).
+  bool _devientDefilement = false;
+
+  Offset _normaliser(Offset local, Size taille) =>
+      Offset(local.dx / taille.width, local.dy / taille.height);
+
+  void _onScaleStart(ScaleStartDetails d, Size taille) {
+    _devientDefilement = false;
+    setState(() => _traitEnCours = [_normaliser(d.localFocalPoint, taille)]);
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails d, Size taille) {
+    if (_devientDefilement || d.pointerCount >= 2) {
+      if (!_devientDefilement) {
+        // Bascule au 1er instant à 2 doigts : le tracé amorcé ne sera
+        // jamais persisté (cf. `_onScaleEnd`, il exige `!_devientDefilement`).
+        setState(() {
+          _devientDefilement = true;
+          _traitEnCours = null;
+        });
+      }
+      final position = widget.scrollController.position;
+      widget.scrollController.jumpTo(
+          (position.pixels - d.focalPointDelta.dy)
+              .clamp(position.minScrollExtent, position.maxScrollExtent));
+      return;
+    }
+    setState(() => _traitEnCours?.add(_normaliser(d.localFocalPoint, taille)));
+  }
+
+  Future<void> _onScaleEnd(String riwaya, Color? couleur, Size taille,
+      List<MushafStroke> traitsExistants) async {
+    final geste = _traitEnCours;
+    final futDefilement = _devientDefilement;
+    setState(() {
+      _traitEnCours = null;
+      _devientDefilement = false;
+    });
+    if (futDefilement || geste == null || geste.length < 2) return;
+    if (couleur == null) {
+      // ── OUTIL GOMME : efface tout trait EFFLEURÉ par ce geste ───────────
+      // Comparaison en PIXELS (dénormalisés via `taille`), pas en unités
+      // normalisées -- un même écart normalisé vaut des pixels différents
+      // en largeur et en hauteur, le seuil de tolérance doit porter sur ce
+      // que le doigt touche réellement à l'écran.
+      const seuilPx = 26.0;
+      final notifier = ref.read(mushafStrokesProvider.notifier);
+      for (final trait in traitsExistants) {
+        if (trait.id == null) continue;
+        final touche = trait.points.any((sp) {
+          final spPx = Offset(sp.dx * taille.width, sp.dy * taille.height);
+          return geste.any((gp) {
+            final gpPx = Offset(gp.dx * taille.width, gp.dy * taille.height);
+            return (spPx - gpPx).distance < seuilPx;
+          });
+        });
+        if (touche) {
+          await notifier.effacer(widget.verse.surahNumber,
+              widget.verse.ayahNumber, riwaya, trait.id!);
+        }
+      }
+      return;
+    }
+    await ref.read(mushafStrokesProvider.notifier).ajouter(
+        widget.verse.surahNumber, widget.verse.ayahNumber, riwaya, couleur, geste);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final annotationMode = ref.watch(mushafAnnotationModeProvider);
+    final outil = ref.watch(mushafAnnotationToolProvider);
+    final riwaya = ref.watch(riwayaProvider).name;
+    final couleur = ref.watch(mushafAnnotationColorProvider);
+    // ── LA GOMME EST COMMUNE AUX DEUX OUTILS (2026-08-28) ─────────────────
+    // Cf. le commentaire jumeau dans `_buildEntry` (`gommeActive`) : cette
+    // surface s'active aussi hors outil crayon dès que la gomme est
+    // sélectionnée, pour pouvoir effacer un TRAIT sans rebasculer d'outil.
+    final gommeActive = annotationMode && couleur == null;
+    final actif =
+        annotationMode && (outil == MushafAnnotationTool.pen || gommeActive);
+    final tousLesTraits = ref.watch(mushafStrokesProvider);
+    final traits = tousLesTraits[
+            MushafStrokesNotifier.cle(widget.verse.surahNumber, widget.verse.ayahNumber, riwaya)] ??
+        const <MushafStroke>[];
+
+    return Stack(
+      children: [
+        widget.child,
+        if (actif || traits.isNotEmpty)
+          Positioned.fill(
+            child: IgnorePointer(
+              ignoring: !actif,
+              child: LayoutBuilder(builder: (context, constraints) {
+                final taille = Size(
+                    constraints.maxWidth.isFinite ? constraints.maxWidth : 0,
+                    constraints.maxHeight.isFinite ? constraints.maxHeight : 0);
+                return GestureDetector(
+                  // OPAQUE en train de DESSINER : le geste ne doit jamais
+                  // fuiter vers le `VerseTile` en dessous, sinon un simple
+                  // tap pour dessiner un point déclenche AUSSI la sélection
+                  // du verset (constaté par l'utilisateur). TRANSLUCENT à la
+                  // GOMME : un tap doit au contraire pouvoir continuer
+                  // jusqu'au mot en dessous pour y effacer une marque de
+                  // surligneur (cf. `surligneurActif` dans `_buildEntry`,
+                  // câblé en même temps que cette surface quand la gomme est
+                  // active) -- la sélection accidentelle du verset qu'on
+                  // évite ci-dessus devient ici un effet secondaire mineur
+                  // et sans conséquence (un tap dans le vide sélectionne le
+                  // verset, comme partout ailleurs dans le Mushaf).
+                  // Sans effet quand cette surface est inactive : ce
+                  // `GestureDetector` est alors sous `IgnorePointer`, retiré
+                  // du hit-test entier, quel que soit son `behavior`.
+                  behavior: gommeActive
+                      ? HitTestBehavior.translucent
+                      : HitTestBehavior.opaque,
+                  onScaleStart: (d) => _onScaleStart(d, taille),
+                  onScaleUpdate: (d) => _onScaleUpdate(d, taille),
+                  onScaleEnd: (_) => _onScaleEnd(riwaya, couleur, taille, traits),
+                  child: CustomPaint(
+                    size: taille,
+                    painter: _TraitsPainter(
+                      traits: traits,
+                      traitEnCours: _traitEnCours,
+                      couleurEnCours: couleur,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Peint les traits déjà posés (en pixels, dénormalisés via [size]) plus,
+/// s'il y en a un, le trait en cours de tracé -- dans la couleur active,
+/// pour un retour visuel immédiat même avant que le geste ne soit terminé
+/// et persisté.
+class _TraitsPainter extends CustomPainter {
+  final List<MushafStroke> traits;
+  final List<Offset>? traitEnCours;
+  final Color? couleurEnCours;
+  const _TraitsPainter(
+      {required this.traits, required this.traitEnCours, required this.couleurEnCours});
+
+  void _peindreTrait(Canvas canvas, Size size, List<Offset> points, Color couleur) {
+    // Pleine opacité à l'affichage, quelle que soit l'alpha STOCKÉE (cf.
+    // kMushafHighlightColors -- pensée pour le fond translucide du
+    // surligneur). Une encre de crayon doit être une encre, pas un lavis :
+    // demande utilisateur « 4 couleurs élémentaires bien foncées ».
+    final peinture = Paint()
+      ..color = couleur.withAlpha(255)
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    if (points.length == 1) {
+      canvas.drawCircle(
+          Offset(points[0].dx * size.width, points[0].dy * size.height),
+          peinture.strokeWidth / 2,
+          peinture..style = PaintingStyle.fill);
+      return;
+    }
+    final chemin = Path()
+      ..moveTo(points[0].dx * size.width, points[0].dy * size.height);
+    for (final p in points.skip(1)) {
+      chemin.lineTo(p.dx * size.width, p.dy * size.height);
+    }
+    canvas.drawPath(chemin, peinture);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final t in traits) {
+      _peindreTrait(canvas, size, t.points, t.couleur);
+    }
+    if (traitEnCours != null && couleurEnCours != null) {
+      _peindreTrait(canvas, size, traitEnCours!, couleurEnCours!);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TraitsPainter oldDelegate) =>
+      oldDelegate.traits != traits ||
+      oldDelegate.traitEnCours != traitEnCours ||
+      oldDelegate.couleurEnCours != couleurEnCours;
+}
+
+/// Barre d'outils du surlignage libre (« crayon », 2026-08-28) : la palette
+/// de couleurs, la gomme, et le bouton qui referme le mode annotation.
+///
+/// Reste volontairement simple (demande utilisateur : « je veux quelque
+/// chose de simple ») -- pas de tracé libre au pixel : un surlignage MOT PAR
+/// MOT s'accroche naturellement au texte même si le Mushaf défile ou change
+/// de taille de police, ce qu'un tracé en coordonnées absolues ne ferait pas
+/// (cf. TajweedText.wordHighlights pour le mécanisme d'affichage, et
+/// mushaf_annotation_provider.dart pour la persistance).
+class _AnnotationToolbar extends ConsumerWidget {
+  final bool modeSombre;
+  const _AnnotationToolbar({required this.modeSombre});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final outil = ref.watch(mushafAnnotationToolProvider);
+    final reduite = ref.watch(mushafAnnotationToolbarReducedProvider);
+
+    // ── VERSION RÉDUITE (2026-08-28) ───────────────────────────────────────
+    //
+    // « le widget soit minimaliste, placé en bas qui se réduit également ».
+    // Une simple pastille flottante, l'icône de l'outil actif -- tap pour
+    // redéployer la barre complète. Laisse le plus d'écran possible visible
+    // pendant qu'on lit/trace, la barre complète ne revenant qu'au besoin
+    // (changer de couleur, d'outil, ou sortir du mode annotation).
+    if (reduite) {
+      return _PastilleReduction(
+        icone: outil == MushafAnnotationTool.pen
+            ? Icons.edit_rounded
+            : Icons.border_color_rounded,
+        modeSombre: modeSombre,
+        onTap: () =>
+            ref.read(mushafAnnotationToolbarReducedProvider.notifier).state = false,
+      );
+    }
+
+    final couleurActive = ref.watch(mushafAnnotationColorProvider);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: modeSombre ? AppColors.sombreBgDeep : AppColors.cream,
+        borderRadius: BorderRadius.circular(20),
+        border: modeSombre
+            ? Border.all(color: AppColors.sombreAccent.withAlpha(120))
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.green900.withAlpha(90),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      // ── UNE SEULE LIGNE (2026-08-28, retour utilisateur après capture) ──
+      //
+      // La 1ʳᵉ version tenait sur deux rangées (outils, puis couleurs) --
+      // « ya moyen d'organiser sur une seule ligne ? ». Tout tient dans UNE
+      // `Row` : outils + séparateur + couleurs + gomme défilent ensemble
+      // horizontalement si l'écran est trop étroit (même mécanisme que le
+      // correctif de débordement plus bas), pendant que réduction et
+      // "terminé" restent épinglés à droite, toujours visibles.
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _OutilBascule(
+                    icone: Icons.edit_rounded,
+                    selectionne: outil == MushafAnnotationTool.pen,
+                    onTap: () => ref
+                        .read(mushafAnnotationToolProvider.notifier)
+                        .state = MushafAnnotationTool.pen,
+                  ),
+                  const SizedBox(width: 6),
+                  _OutilBascule(
+                    icone: Icons.border_color_rounded,
+                    selectionne: outil == MushafAnnotationTool.highlighter,
+                    onTap: () => ref
+                        .read(mushafAnnotationToolProvider.notifier)
+                        .state = MushafAnnotationTool.highlighter,
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 1,
+                    height: 24,
+                    color: modeSombre
+                        ? AppColors.sombreAccent.withAlpha(90)
+                        : AppColors.cream300,
+                  ),
+                  const SizedBox(width: 10),
+                  for (final c in kMushafHighlightColors) ...[
+                    _PastilleCouleur(
+                      couleur: c,
+                      selectionnee: couleurActive?.toARGB32() == c.toARGB32(),
+                      onTap: () => ref
+                          .read(mushafAnnotationColorProvider.notifier)
+                          .state = c,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  _OutilGomme(
+                    selectionnee: couleurActive == null,
+                    tooltip: t.mushafAnnotateEraser,
+                    onTap: () => ref
+                        .read(mushafAnnotationColorProvider.notifier)
+                        .state = null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          // Réduction -- cf. _PastilleReduction pour l'état replié.
+          InkWell(
+            onTap: () => ref
+                .read(mushafAnnotationToolbarReducedProvider.notifier)
+                .state = true,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(Icons.keyboard_arrow_down_rounded,
+                  size: 20,
+                  color: modeSombre ? AppColors.sombreAccent : AppColors.inkLight),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.check_rounded,
+                color:
+                    modeSombre ? AppColors.sombreAccent : AppColors.green800),
+            tooltip: t.mushafAnnotateDone,
+            onPressed: () =>
+                ref.read(mushafAnnotationModeProvider.notifier).state = false,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Échantillon de couleur de la barre d'outils -- affiché en PLEIN (alpha
+/// remis à 255) : ici c'est un choix à faire, pas un fond de texte, il doit
+/// se voir net (cf. `kMushafHighlightColors`, semi-transparentes pour
+/// l'usage inverse : rester lisible PAR-DESSUS le texte).
+/// Bouton du sélecteur d'outil (crayon / surligneur) -- pastille carrée aux
+/// angles arrondis plutôt que ronde, pour se distinguer visuellement des
+/// pastilles de couleur juste en dessous (deux familles de boutons, deux
+/// formes -- pas la même chose au premier coup d'œil).
+/// État réduit de la barre d'outils (cf. `_AnnotationToolbar`) : une pastille
+/// flottante minimale, juste l'icône de l'outil actif. Placée là où la barre
+/// complète se tenait, pour que le tap de réouverture reste au même endroit.
+class _PastilleReduction extends StatelessWidget {
+  final IconData icone;
+  final bool modeSombre;
+  final VoidCallback onTap;
+  const _PastilleReduction(
+      {required this.icone, required this.modeSombre, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: modeSombre ? AppColors.sombreBgDeep : AppColors.cream,
+            shape: BoxShape.circle,
+            border: modeSombre
+                ? Border.all(color: AppColors.sombreAccent.withAlpha(120))
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.green900.withAlpha(90),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Icon(icone,
+              size: 20,
+              color: modeSombre ? AppColors.sombreAccent : AppColors.green800),
+        ),
+      ),
+    );
+  }
+}
+
+class _OutilBascule extends StatelessWidget {
+  final IconData icone;
+  final bool selectionne;
+  final VoidCallback onTap;
+  const _OutilBascule(
+      {required this.icone, required this.selectionne, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 40,
+        height: 34,
+        decoration: BoxDecoration(
+          color: selectionne ? AppColors.green100 : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selectionne ? AppColors.green900 : AppColors.cream300,
+            width: selectionne ? 1.5 : 1,
+          ),
+        ),
+        child: Icon(icone,
+            size: 18,
+            color: selectionne ? AppColors.green900 : AppColors.inkLight),
+      ),
+    );
+  }
+}
+
+class _PastilleCouleur extends StatelessWidget {
+  final Color couleur;
+  final bool selectionnee;
+  final VoidCallback onTap;
+  const _PastilleCouleur(
+      {required this.couleur, required this.selectionnee, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: couleur.withAlpha(255),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selectionnee ? AppColors.green900 : AppColors.cream300,
+            width: selectionnee ? 2.5 : 1,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OutilGomme extends StatelessWidget {
+  final bool selectionnee;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _OutilGomme(
+      {required this.selectionnee, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: selectionnee ? AppColors.green50 : Colors.transparent,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selectionnee ? AppColors.green900 : AppColors.cream300,
+              width: selectionnee ? 2.5 : 1,
+            ),
+          ),
+          child: const Icon(Icons.remove_circle_outline_rounded,
+              size: 17, color: AppColors.inkLight),
+        ),
+      ),
+    );
+  }
+}
+
 class _BottomBar extends StatelessWidget {
   final VoidCallback? onPlayTap;
   final VoidCallback? onMicTap;
@@ -1739,7 +2436,9 @@ class _BottomBar extends StatelessWidget {
                   onTap: onReciteTap ?? () {},
                 ),
                 _BarButton(
-                  icon: Icons.school_rounded,
+                  // Cf. le commentaire jumeau dans `_menuVerset` -- même
+                  // changement, même raison (confusion avec l'icône Coach).
+                  icon: Icons.psychology_rounded,
                   label: t.mushafMemorize,
                   onTap: onMicTap ?? () {},
                 ),

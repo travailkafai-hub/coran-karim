@@ -41,6 +41,9 @@ class VerseTile extends StatelessWidget {
   final int? wordStart;
   final int? wordEnd;
 
+  /// Surlignage libre posé par l'utilisateur (cf. TajweedText.wordHighlights).
+  final Map<int, Color>? wordHighlights;
+
   const VerseTile({
     super.key,
     required this.verse,
@@ -56,6 +59,7 @@ class VerseTile extends StatelessWidget {
     this.modeSombre = false,
     this.wordStart,
     this.wordEnd,
+    this.wordHighlights,
   });
 
   @override
@@ -170,6 +174,7 @@ class VerseTile extends StatelessWidget {
                 onWordLongPress: onWordLongPress,
                 wordStart: wordStart,
                 wordEnd: wordEnd,
+                wordHighlights: wordHighlights,
                 couleurTexte: encre,
                 modeSombre: modeSombre,
                 // Le badge ne doit apparaître qu'une fois, sur la portion qui
@@ -177,8 +182,25 @@ class VerseTile extends StatelessWidget {
                 // page suivante, n'en a pas -- ce n'est pas "un nouveau
                 // verset qui commence").
                 leading: (wordStart == null || wordStart == 0)
-                    ? _VerseNumberBadge(verse.ayahNumber,
-                        kindleMode: kindleMode, modeSombre: modeSombre)
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _VerseNumberBadge(verse.ayahNumber,
+                              kindleMode: kindleMode, modeSombre: modeSombre),
+                          // ── MARQUE DE SAJDA (2026-09-01, constat
+                          // utilisateur : « il manque dans le mushaf les
+                          // signes en lien avec la sajda, c'est important »).
+                          //
+                          // Le signe ۩ est deja DANS le texte uthmani, donc
+                          // deja rendu au fil de la ligne -- mais noye dedans,
+                          // il ne se voit pas. Un mushaf imprime le signale en
+                          // MARGE, ou l'oeil le trouve sans lire la ligne :
+                          // c'est ce role que joue ce marqueur, a cote du
+                          // numero de verset. On n'ajoute rien au texte, on
+                          // ne fait que le signaler.
+                          if (verse.aSajda) _MarqueSajda(modeSombre: modeSombre),
+                        ],
+                      )
                     : null,
               ),
               // French translation (optional) -- jamais en mode arabe : la
@@ -212,12 +234,25 @@ class VerseTile extends StatelessWidget {
                       // traduction n'est pas le texte, elle doit rester
                       // secondaire.
                       //
-                      // Elle suit donc a MOITIE : la moitie de l'ecart a 1.
-                      // A textScale=1 elle vaut 13 (inchangee) ; a 1,6 elle
-                      // vaut 15,9 au lieu de 20,8 -- l'arabe passe de 26 a
-                      // 41,6, donc l'ecart se creuse mais la traduction ne
-                      // reste plus figee.
-                      fontSize: 13 * (1 + (textScale - 1) * 0.5),
+                      // Elle suivait a MOITIE : la moitie de l'ecart a 1.
+                      //
+                      // ── REVU (2026-08-28, demande utilisateur) ─────────────
+                      // « en augmentant la taille [du] texte arabe il faut
+                      // garder le meme ratio pour augmenter [la] taille
+                      // francais/anglais, actuellement il reste petit voire
+                      // invisible ». A la MOITIE, l'ecart se creusait
+                      // justement aux GRANDES tailles -- l'inverse de ce que
+                      // demande cette fois l'utilisateur : meme
+                      // MULTIPLICATEUR que l'arabe (`textScale`, tel quel),
+                      // chacun gardant sa base propre (13 vs 26) donc jamais
+                      // la meme taille, seulement le meme RATIO de croissance.
+                      // Mise en gras au meme geste : « le texte actuel arabe
+                      // est en gras » (impression visuelle du Scheherazade
+                      // New calligraphique, pas un poids de police explicite
+                      // -- reproduite ici avec un vrai FontWeight.w700, seul
+                      // levier dont Manrope dispose pour la meme lecture).
+                      fontSize: 13 * textScale,
+                      fontWeight: FontWeight.w700,
                       color: encreDouce,
                       height: 1.5,
                     ),
@@ -330,4 +365,46 @@ class _OctagonBadgePainter extends CustomPainter {
   bool shouldRepaint(covariant _OctagonBadgePainter oldDelegate) =>
       oldDelegate.kindleMode != kindleMode ||
       oldDelegate.modeSombre != modeSombre;
+}
+
+
+/// Marque de prosternation affichee EN MARGE, a cote du numero de verset.
+///
+/// Pourquoi elle existe alors que le signe est deja dans le texte : dans le
+/// flux d'une ligne, ۩ passe inapercu. Un mushaf imprime le sort de la ligne
+/// (trait au-dessus, mention en marge) precisement parce que ce verset
+/// demande une ACTION au lecteur -- se prosterner. Le manquer n'est pas un
+/// detail de mise en page.
+///
+/// Fonde sur `Verse.aSajda`, donc sur le SIGNE porte par le texte (15
+/// versets) et non sur `sajdah_number` (14) : cf. la doc de ces deux membres,
+/// l'ecart 22:77 est une divergence d'ecoles que l'app n'a pas a trancher.
+class _MarqueSajda extends StatelessWidget {
+  final bool modeSombre;
+  const _MarqueSajda({this.modeSombre = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final couleur = modeSombre ? AppColors.brassLight : AppColors.brass;
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Tooltip(
+        message: 'Verset de prosternation (sajda)',
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('۩',
+                style: TextStyle(
+                    fontSize: 17, color: couleur, height: 1.0)),
+            Container(
+              margin: const EdgeInsets.only(top: 2),
+              width: 20,
+              height: 1.2,
+              color: couleur.withValues(alpha: 0.65),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

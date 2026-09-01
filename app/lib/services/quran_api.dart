@@ -82,6 +82,7 @@ class QuranApi {
       pageNumber: verse.pageNumber,
       hizbNumber: verse.hizbNumber,
       rubElHizbNumber: verse.rubElHizbNumber,
+      sajdahNumber: verse.sajdahNumber,
       translationFr: translations?.isNotEmpty == true
           ? translations!.first['text'] as String?
           : null,
