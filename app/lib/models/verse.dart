@@ -18,6 +18,14 @@ class Verse {
   final int? hizbNumber;
   final int? rubElHizbNumber;
 
+  /// Numero de JUZ (1..30), tel que le portent les donnees (2026-09-02).
+  ///
+  /// Le champ existait dans  depuis toujours mais n'etait
+  /// pas remonte : la vue page en etait reduite a l'estimer (604 pages / 30),
+  /// ce qui se trompe sur toutes les pages de charniere. Un chiffre juste
+  /// etait dans le fichier, il suffisait de le lire.
+  final int? juzNumber;
+
   /// Numéro de sajda (prosternation) porté par les données, ou `null`.
   ///
   /// ⚠️ NE PAS s'en servir SEUL pour décider d'un marquage à l'écran : il
@@ -37,6 +45,7 @@ class Verse {
     this.pageNumber,
     this.hizbNumber,
     this.rubElHizbNumber,
+    this.juzNumber,
     this.sajdahNumber,
   });
 
@@ -84,6 +93,7 @@ class Verse {
       pageNumber: json['page_number'] as int?,
       hizbNumber: json['hizb_number'] as int?,
       rubElHizbNumber: json['rub_el_hizb_number'] as int?,
+      juzNumber: json['juz_number'] as int?,
       sajdahNumber: json['sajdah_number'] as int?,
     );
   }

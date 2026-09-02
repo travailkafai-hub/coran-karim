@@ -30,6 +30,14 @@ class QuranApi {
   ));
 
   static List<Surah>? _chapters;
+
+  /// Catalogue des sourates DEJA charge, ou `null` s'il ne l'est pas encore.
+  ///
+  /// Lecture seule et NON bloquante (2026-09-02) : la vue page a besoin du nom
+  /// arabe pendant un `build`, ou l'on ne peut pas attendre un Future. Rendre
+  /// `null` plutot que declencher un chargement laisse l'appelant afficher un
+  /// repli ; le nom apparait au rendu suivant, sans jamais bloquer la peinture.
+  static List<Surah>? get chapitresCharges => _chapters;
   static Map<int, List<Verse>>? _versesBySurah;
   static Map<int, List<Verse>>? _versesByPage;
   static Future<void>? _loading;
@@ -82,6 +90,7 @@ class QuranApi {
       pageNumber: verse.pageNumber,
       hizbNumber: verse.hizbNumber,
       rubElHizbNumber: verse.rubElHizbNumber,
+      juzNumber: verse.juzNumber,
       sajdahNumber: verse.sajdahNumber,
       translationFr: translations?.isNotEmpty == true
           ? translations!.first['text'] as String?

@@ -1,7 +1,7 @@
 name: coran_karim
 description: "Application de mémorisation du Coran assistée par IA"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.3+4
 
 environment:
   sdk: ^3.12.2
@@ -126,6 +126,9 @@ flutter:
     # récitation) -- cf. benchmark/build_warsh_search_index.py.
     - assets/data/quran_search_index_warsh.json
     - assets/data/quran_chapters.json
+    # Cadre ornemental de la vue page, extrait d un mushaf scanne
+    # (cf. mushaf_maquette_screen.dart) -- 207 Ko en WebP a 900 px.
+    - assets/images/cadre_mushaf.webp
     - assets/data/quran_verses.json
     # Texte Warsh (riwaya Warsh 'an Nafi', source KFGQPC) -- meme forme et
     # memes cles de verset que l'asset ci-dessus, cf.

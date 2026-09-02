@@ -12,6 +12,8 @@ import '../models/verse.dart';
 import '../services/quran_api.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tajweed_text.dart';
+import '../widgets/tajwid_help_sheet.dart' show kTajwidRuleInfo;
+import '../l10n/app_localizations.dart';
 
 /// MAQUETTE COMPARATIVE « vrai mushaf » (demande utilisateur 2026-09-01 :
 /// « on dirait pas un mushaf [...] je demande pas d'enlever ce qu'on a mais
@@ -95,6 +97,57 @@ class MushafMaquetteScreen extends ConsumerStatefulWidget {
   ConsumerState<MushafMaquetteScreen> createState() =>
       _MushafMaquetteScreenState();
 }
+
+/// Interligne du texte de la page (2026-09-02).
+///
+/// 2,0 auparavant. Retour utilisateur, capture d'un mushaf de reference a
+/// l'appui : « le rendu visuel est plus joli et plus lisible, on dirait les
+/// lettres plus grandes ».
+///
+/// Le mecanisme en cause n'est PAS la taille de police -- elle est calculee
+/// pour remplir la page -- mais l'INTERLIGNE, qui consomme la hauteur avant
+/// elle. A 2,0, chaque ligne occupait le double de sa hauteur de glyphe : la
+/// recherche binaire trouvait donc une police plus petite pour tenir. A 1,72,
+/// la meme page rend des lettres nettement plus grandes, en gardant l'air
+/// qu'exige un texte a diacritiques (les harakat montent et descendent hors
+/// du corps de la lettre : trop serrer les ferait se toucher).
+///
+/// Le plafond de la recherche binaire passe de 46 a 72 dans la foulee : a
+/// 46 il devenait atteignable sur les pages courtes, et bridait alors la
+/// taille au lieu de laisser le remplissage decider.
+const double _kInterligne = 1.52;
+
+/// Charte du mushaf de reference, RELEVEE sur sa capture (2026-09-02) et non
+/// choisie a l'oeil : extraction des couleurs par saturation, mesure des
+/// bordures en pixels. Cf. le script `charte_reference.py` du scratchpad.
+class _Charte {
+  /// Papier : #FDFDF3, plus blanc que le creme qu'on utilisait (#FBF5E6).
+  static const papier = Color(0xFFFDFDF3);
+  /// Bande exterieure du cadre, 25 px sur 1080 dans la reference.
+  static const cadreClair = Color(0xFFBAE7D2);
+  /// Bande mediane.
+  static const cadreMedian = Color(0xFF92CAB9);
+  /// Filet fonce qui souligne le cadre.
+  static const filet = Color(0xFF1A5B56);
+  /// Vert des cartouches de legende.
+  static const legende = Color(0xFF69BA9A);
+}
+
+/// Police de la page. MESURE du 2026-09-02, capture contre capture :
+/// la reference (scan d'un mushaf imprime) couvre 15,1 % de pixels sombres,
+/// notre rendu Amiri en poids normal seulement 5,0 % -- trois fois moins
+/// d'encre, d'ou « les lettres ne sont pas aussi grasses et visibles ».
+///
+/// `scheherazadeNew` est plus pleine qu'Amiri a taille egale, et w600 epaissit
+/// encore le trait. C'est la meme famille que le reste de l'app pour l'arabe
+/// (cf. `main.dart`), donc aucune police supplementaire a embarquer.
+TextStyle _policePage({double? taille, Color? couleur}) =>
+    GoogleFonts.scheherazadeNew(
+      fontSize: taille,
+      height: _kInterligne,
+      fontWeight: FontWeight.w600,
+      color: couleur,
+    );
 
 class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
   static const _kPages = 604;
@@ -188,6 +241,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
               variante: _variante,
               tajwid: _tajwid,
               sombre: sombre,
+              controlesVisibles: _controles,
               onTap: () => setState(() => _controles = !_controles),
             ),
           ),
@@ -363,12 +417,19 @@ class _PageMushaf extends StatelessWidget {
   final VarianteMushaf variante;
   final bool tajwid;
   final bool sombre;
+
+  /// Les barres de controle sont-elles affichees ? Elles sont en overlay
+  /// AU-DESSUS de la page : sans cette information, l'en-tete et le pied
+  /// existent mais restent caches dessous.
+  final bool controlesVisibles;
+
   final VoidCallback onTap;
   const _PageMushaf(
       {required this.page,
       required this.variante,
       required this.tajwid,
       required this.sombre,
+      required this.controlesVisibles,
       required this.onTap});
 
   @override
@@ -404,13 +465,13 @@ class _PageMushaf extends StatelessWidget {
                 child: Text('page $page vide',
                     style: GoogleFonts.manrope(color: AppColors.inkLight)));
           }
-          return _pageMushaf(versets);
+          return _pageMushaf(context, versets);
         },
       ),
     );
   }
 
-  Widget _pageMushaf(List<Verse> versets) {
+  Widget _pageMushaf(BuildContext context, List<Verse> versets) {
     final texte = versets
         .map((v) => '${v.textUthmani} ${_medaillon(v.ayahNumber)}')
         .join(' ');
@@ -432,7 +493,7 @@ class _PageMushaf extends StatelessWidget {
                 .map((v) =>
                     '${v.textUthmaniTajweed ?? v.textUthmani} ${_medaillon(v.ayahNumber)}')
                 .join(' '),
-            GoogleFonts.amiri(height: 2.0),
+            _policePage(),
             // `tajweed_text.dart` porte une seconde palette, calculée pour un
             // fond noir (`_pourFondNoir`). Réutiliser la palette claire sur
             // fond sombre donnerait des rouges et des bleus qui vibrent et
@@ -442,70 +503,280 @@ class _PageMushaf extends StatelessWidget {
           )
         : null;
     final sourates = versets.map((v) => v.surahNumber).toSet().toList()..sort();
+    // Le juz et le hizb VIENNENT DES DONNEES (2026-09-02) : ils etaient
+    // estimes a partir du numero de page, ce qui se trompe des qu'une page
+    // enjambe une frontiere. `juz_number` et `hizb_number` sont dans
+    // `quran_verses.json` depuis le debut.
+    final juz = versets.map((v) => v.juzNumber).whereType<int>().toSet();
+    final hizb = versets.map((v) => v.hizbNumber).whereType<int>().toSet();
+
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+        // Marges resserrees : la page doit occuper l'ecran (demande
+        // utilisateur), le decor remplace ce que les marges laissaient vide.
+        // Haut et bas dégagés : les barres de contrôle sont en overlay
+        // AU-DESSUS de la page ; sans cette réserve elles recouvraient
+        // l'en-tête (sourate/hizb/juz) et le pied, qui existaient donc sans
+        // jamais se voir.
+        padding: EdgeInsets.fromLTRB(2, controlesVisibles ? 70 : 2, 2, controlesVisibles ? 58 : 2),
         child: Container(
+          // ── CADRE ORNEMENTAL, EXTRAIT D'UN MUSHAF SCANNE (2026-09-03) ──
+          //
+          // Demande utilisateur : « peut-etre tu peux recuperer un peu de
+          // graphisme qui se trouve dans photo pour ameliorer le rendu ».
+          //
+          // Il ne s'agit pas d'une imitation dessinee : c'est le cadre REEL
+          // de la page 2 du mushaf scanne, decoupe avec son centre rendu
+          // transparent (motifs floraux, coins, filets). 207 Ko en WebP a
+          // 900 px de large -- aucune tentative de le redessiner en Flutter
+          // n'aurait approche ce niveau de detail.
+          //
+          // `BoxFit.fill` et non `contain` : le cadre doit epouser la page,
+          // quelle que soit la proportion de l'ecran. La deformation reste
+          // faible (le cadre est en 1080x1543, la page en ~1080x1900) et
+          // porte sur des motifs repetitifs, ou elle ne se voit pas.
           decoration: BoxDecoration(
-            color: sombre ? AppColors.sombreBgDeep : const Color(0xFFFBF5E6),
-            border: Border.all(
-                color: sombre
-                    ? AppColors.brass.withValues(alpha: 0.65)
-                    : AppColors.brass,
-                width: 2.5),
-            borderRadius: BorderRadius.circular(4),
+            color: sombre ? AppColors.sombreBgDeep : _Charte.papier,
           ),
-          padding: const EdgeInsets.all(5),
-          child: Container(
+          padding: const EdgeInsets.all(2),
+          child: Stack(
+            children: [
+              Container(
             decoration: BoxDecoration(
+              color: sombre ? AppColors.sombreBgDeep : _Charte.papier,
               border: Border.all(
-                  color: AppColors.brass.withValues(alpha: 0.55), width: 1),
+                  color: sombre
+                      ? AppColors.brass.withValues(alpha: 0.55)
+                      : _Charte.filet,
+                  width: 1.4),
             ),
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-            child: Column(
+            // ── RESERVE PROPORTIONNELLE AU CADRE (2026-09-03) ───────────
+            // MESURE sur le scan d'origine : la fenetre interieure du cadre
+            // va de x=238 a x=842 sur 1080, soit 22 % de reserve de chaque
+            // cote ; et de y=340 a y=1403 sur 1543, soit 22 % en haut et
+            // 9 % en bas.
+            //
+            // Une valeur FIXE (46 px, premier essai) ne pouvait pas marcher :
+            // le cadre est etire a la taille de la page, sa bordure grandit
+            // donc avec elle. Le texte passait dessous des que l'ecran
+            // s'elargissait -- constate a l'ecran, moitie des lignes coupees.
+            padding: EdgeInsets.zero,
+            child: LayoutBuilder(builder: (context, cts) {
+              final rx = cts.maxWidth * 0.215;
+              final ryHaut = cts.maxHeight * 0.215;
+              final ryBas = cts.maxHeight * 0.09;
+              return Padding(
+                padding: EdgeInsets.fromLTRB(rx, ryHaut, rx, ryBas),
+                child: Column(
               children: [
-                _enTete(sourates),
+                _bandeauOrne(epais: true),
+                _enTete(sourates, juz, hizb),
+                _bandeauOrne(),
                 const SizedBox(height: 6),
+                // `ClipRect` : meme avec la marge de securite ci-dessus,
+                // une diacritique haute de la derniere ligne pouvait deborder
+                // sous la legende (medaillon du dernier verset coupe, vu a
+                // l'ecran). On garantit ici que rien ne sort de la fenetre du
+                // cadre.
                 Expanded(
-                  child: _blocAjuste(texte, spans),
+                  child: ClipRect(child: _blocAjuste(texte, spans)),
                 ),
-                Divider(
-                    color: AppColors.brass.withValues(alpha: 0.4), height: 14),
-                Text(_chiffresArabes(page),
-                    style:
-                        GoogleFonts.amiri(fontSize: 15, color: AppColors.brass)),
+                if (tajwid) _legendeTajwid(context),
+                const SizedBox(height: 4),
+                _bandeauOrne(),
+                _pied(sourates, juz),
+                _bandeauOrne(epais: true),
               ],
-            ),
+                ),
+              );
+            }),
+          ),
+              // Le cadre est pose EN DERNIER : dans un Stack, le dernier
+              // enfant est au-dessus. Place avant, il etait recouvert par le
+              // fond opaque du papier -- il ne s'affichait pas du tout.
+              // `IgnorePointer` : purement decoratif, il ne doit intercepter
+              // ni le tap qui masque les controles ni le balayage de page.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Opacity(
+                    // Legerement attenue en mode sombre : les motifs sont
+                    // tres satures, en plein sur fond noir ils ecrasent le
+                    // texte au lieu de l'encadrer.
+                    opacity: sombre ? 0.55 : 1,
+                    child: Image.asset('assets/images/cadre_mushaf.webp',
+                        fit: BoxFit.fill, filterQuality: FilterQuality.medium),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _enTete(List<int> sourates) {
-    // Juz approximé sur la page (604 pages / 30 juz) : c'est une MAQUETTE
-    // dont le sujet est le rendu, pas l'exactitude des métadonnées.
-    final juz = ((page - 1) ~/ 20 + 1).clamp(1, 30);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text('جزء ${_chiffresArabes(juz)}',
-            style: GoogleFonts.amiri(
-                fontSize: 13.5,
-                color: AppColors.brass.withValues(alpha: 0.9))),
-        Text(
-          sourates.map((s) => 'سورة ${_chiffresArabes(s)}').join(' · '),
-          style: GoogleFonts.amiri(
-              fontSize: 13.5, color: AppColors.brass.withValues(alpha: 0.9)),
-        ),
-      ],
+  /// Bandeau decoratif : losanges et traits alternes, facon encadrement de
+  /// mushaf imprime. Dessine et non image -- il suit la largeur reelle, prend
+  /// la couleur du theme, et ne coute aucun asset a embarquer.
+  Widget _bandeauOrne({bool epais = false}) {
+    final c = sombre
+        ? AppColors.brass.withValues(alpha: 0.6)
+        : _Charte.cadreMedian;
+    return SizedBox(
+      height: epais ? 14 : 10,
+      child: LayoutBuilder(builder: (context, cts) {
+        final n = (cts.maxWidth / 16).floor().clamp(3, 60);
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            for (var i = 0; i < n; i++)
+              i.isEven
+                  ? Transform.rotate(
+                      angle: 0.785398,
+                      child: Container(
+                          width: epais ? 5 : 3.6,
+                          height: epais ? 5 : 3.6,
+                          color: c))
+                  : Container(
+                      width: epais ? 7 : 5,
+                      height: 1.2,
+                      color: c.withValues(alpha: 0.55)),
+          ],
+        );
+      }),
+    );
+  }
+
+  /// Legende des couleurs tajwid, en pied de page.
+  ///
+  /// Ne liste QUE les regles reellement presentes dans la palette de
+  /// `tajweed_text.dart` et nommees : une legende qui annonce une couleur
+  /// absente de la page apprend une fausse correspondance. Deux colonnes,
+  /// comme sur un mushaf imprime, pour tenir en trois lignes.
+  Widget _legendeTajwid(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final entrees = [
+      for (final e in kTajwidRuleInfo.entries)
+        if (e.value.color != const Color(0xFF9E9E9E))
+          (e.value.color, e.value.name(t)),
+    ];
+    // Doublons de couleur : deux classes peuvent partager une teinte (les
+    // shafawi, par exemple). Une seule pastille par couleur, sinon la
+    // legende repete la meme information.
+    final vues = <int>{};
+    final uniques = [
+      for (final (c, nom) in entrees)
+        if (vues.add(c.toARGB32())) (c, nom),
+    ];
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        // Bloc pose sur le papier, pas des pastilles flottantes : la legende
+        // doit se lire comme un cartouche, separee du texte coranique.
+        color: sombre
+            ? Colors.white.withValues(alpha: 0.04)
+            : _Charte.legende.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: _Charte.legende.withValues(alpha: 0.55)),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 9,
+        runSpacing: 1,
+        children: [
+          for (final (c, nom) in uniques)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 3),
+                Text(nom,
+                    style: GoogleFonts.manrope(
+                        fontSize: 8,
+                        color: sombre
+                            ? AppColors.cream.withValues(alpha: 0.75)
+                            : _Charte.filet)),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Pied de page : sourate a droite, numero au centre, juz a gauche --
+  /// disposition d'un mushaf imprime.
+  Widget _pied(List<int> sourates, Set<int> juz) {
+    final style = GoogleFonts.amiri(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: sombre ? AppColors.brass : _Charte.filet);
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(juz.isEmpty ? '' : 'جزء ${_chiffresArabes(juz.first)}',
+              style: style),
+          Text(_chiffresArabes(page), style: style),
+          Text(_nomSourate(sourates.isEmpty ? 1 : sourates.first),
+              style: style),
+        ],
+      ),
+    );
+  }
+
+  /// Nom arabe de la sourate, depuis le catalogue deja charge par `QuranApi`.
+  /// Repli sur le numero si le catalogue n'est pas encore la : mieux vaut
+  /// « ٢ » qu'un vide, et il se remplira au prochain rendu.
+  String _nomSourate(int numero) {
+    final s = QuranApi.chapitresCharges;
+    if (s == null) return _chiffresArabes(numero);
+    for (final c in s) {
+      if (c.number == numero) return c.nameArabic;
+    }
+    return _chiffresArabes(numero);
+  }
+
+  /// En-tete : sourate(s) a droite, hizb et juz a gauche -- les trois
+  /// reperes qu'un lecteur cherche pour se situer. Le juz etait ESTIME
+  /// jusqu'au 2026-09-02 (cf. `_pageMushaf`), il vient maintenant des donnees.
+  Widget _enTete(List<int> sourates, Set<int> juz, Set<int> hizb) {
+    final style = GoogleFonts.amiri(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: sombre ? AppColors.brass : _Charte.filet);
+    final gauche = [
+      if (hizb.isNotEmpty) 'حزب ${_chiffresArabes(hizb.first)}',
+      if (juz.isNotEmpty) 'جزء ${_chiffresArabes(juz.first)}',
+    ].join(' · ');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(gauche, style: style),
+          Flexible(
+            child: Text(
+              sourates.map((s) => 'سورة ${_nomSourate(s)}').join(' · '),
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _bloc(String texte, double taille, List<TextSpan>? spans) {
     final style = GoogleFonts.amiri(
       fontSize: taille,
-      height: 2.0,
+      height: _kInterligne,
       // Blanc pur sur fond sombre fatigue sur une page pleine de texte : on
       // reprend l'encre crème du reste de l'app plutôt que `sombreInk`.
       color: sombre ? AppColors.cream : const Color(0xFF1A1208),
@@ -530,8 +801,21 @@ class _PageMushaf extends StatelessWidget {
   Widget _blocAjuste(String texte, List<TextSpan>? spans) {
     return LayoutBuilder(
       builder: (context, contraintes) {
-        final style = GoogleFonts.amiri(height: 2.0);
-        double basse = 12, haute = 46;
+        final style = _policePage();
+        // ── PLAFOND DE TAILLE (2026-09-02) ────────────────────────────
+        // Mesure contre la reference : elle tient 15 lignes fines par page,
+        // nous en affichions 9 enormes. Un mushaf imprime garde une taille
+        // de police CONSTANTE -- c'est le NOMBRE DE LIGNES qui varie d'une
+        // page a l'autre, pas le corps des lettres. Sans plafond, une page
+        // courte (debut de sourate) produisait des lettres geantes qui ne
+        // ressemblaient a aucun mushaf.
+        //
+        // 38 : cale sur la reference, ou le corps mesure ~34-38 px pour une
+        // largeur d'ecran de 1080. Le remplissage reste actif SOUS ce
+        // plafond : une page dense reduit encore, une page courte laisse du
+        // blanc en bas -- exactement ce que fait un mushaf a la derniere page
+        // d'une sourate.
+        double basse = 12, haute = 38;
         for (var i = 0; i < 9; i++) {
           final milieu = (basse + haute) / 2;
           // La MESURE doit porter sur ce qui sera réellement peint : mesurer
@@ -545,7 +829,11 @@ class _PageMushaf extends StatelessWidget {
             textDirection: TextDirection.rtl,
             textAlign: TextAlign.justify,
           )..layout(maxWidth: contraintes.maxWidth);
-          if (peintre.height <= contraintes.maxHeight) {
+          // Marge de securite de 2 % : sans elle, la derniere ligne
+          // depassait de quelques pixels sous le cadre (constate a l ecran,
+          // le medaillon du dernier verset coupe). La recherche binaire
+          // s arrete a la taille juste inferieure, ce qui ne se voit pas.
+          if (peintre.height <= contraintes.maxHeight * 0.93) {
             basse = milieu;
           } else {
             haute = milieu;
