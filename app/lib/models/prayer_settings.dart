@@ -64,19 +64,37 @@ class PrayerSettings {
   static const defaultValues = PrayerSettings(
     method: PrayerCalculationMethod.muslimWorldLeague,
     methodIsAuto: true,
+    // ── ADHAN ET VIBREUR ETEINTS PAR DEFAUT (2026-09-03) ──────────────────
+    //
+    // Demande utilisateur : « je veux que par defaut l'adhan et le vibreur
+    // soient desactives ».
+    //
+    // Le raisonnement se tient : une application de lecture du Coran qui se
+    // met a diffuser l'appel a la priere et a vibrer sans qu'on le lui ait
+    // demande impose un comportement, et au mauvais moment -- l'adhan est un
+    // acte, pas une notification. Celui qui le veut l'allume ; c'est un geste,
+    // pas un reglage a defaire dans l'urgence a 5 h du matin.
+    //
+    // ⚠️ CECI NE TOUCHE QUE LES NOUVELLES INSTALLATIONS. `fromJson` lit les
+    // valeurs deja enregistrees et ne retombe sur ces defauts que pour une
+    // cle absente : personne ne perd un adhan qu'il avait active.
+    //
+    // Le reglage est PAR PRIERE depuis le 2026-08-23, il l'etait deja quand la
+    // demande a ete faite -- la bascule simple de l'ecran regle les cinq d'un
+    // coup, la section « avance » permet de s'en ecarter priere par priere.
     adhanEnabled: {
-      PrayerName.fajr: true,
-      PrayerName.dhuhr: true,
-      PrayerName.asr: true,
-      PrayerName.maghrib: true,
-      PrayerName.isha: true,
+      PrayerName.fajr: false,
+      PrayerName.dhuhr: false,
+      PrayerName.asr: false,
+      PrayerName.maghrib: false,
+      PrayerName.isha: false,
     },
     vibrateEnabled: {
-      PrayerName.fajr: true,
-      PrayerName.dhuhr: true,
-      PrayerName.asr: true,
-      PrayerName.maghrib: true,
-      PrayerName.isha: true,
+      PrayerName.fajr: false,
+      PrayerName.dhuhr: false,
+      PrayerName.asr: false,
+      PrayerName.maghrib: false,
+      PrayerName.isha: false,
     },
     reminderEnabled: {
       PrayerName.fajr: false,

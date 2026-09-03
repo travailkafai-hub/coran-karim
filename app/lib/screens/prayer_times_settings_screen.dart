@@ -450,6 +450,19 @@ Widget _prayerNotificationRow(PrayerName p, PrayerSettings settings,
           onTap: () => notifier.setAdhanEnabled(p, !adhanOn),
         ),
         const SizedBox(width: 4),
+        // ── LE VIBREUR JUSTE A COTE DE L'ADHAN (2026-09-03) ───────────────
+        // Demande utilisateur : « rajoute signe vibreur a cote de chaque
+        // priere, a cote de l'adhan ». Il etait la 3ᵉ icone ET cache derriere
+        // le mode avance depuis le 2026-08-23 : personne ne le trouvait.
+        // Il passe en 2ᵉ position, toujours visible -- le son et la vibration
+        // sont deux facons d'etre prevenu, elles se lisent ensemble.
+        _toggleIcon(
+          active: vibrateOn,
+          onIcon: Icons.vibration_rounded,
+          offIcon: Icons.phone_android_rounded,
+          onTap: () => notifier.setVibrateEnabledForPrayer(p, !vibrateOn),
+        ),
+        const SizedBox(width: 4),
         _toggleIcon(
           active: reminderOn,
           onIcon: Icons.alarm_on_rounded,
@@ -482,17 +495,6 @@ Widget _prayerNotificationRow(PrayerName p, PrayerSettings settings,
                     color: reminderOn ? AppColors.brass : AppColors.inkLight)),
           ),
         ),
-        // 3ᵉ icône, seulement en mode avancé -- même ligne que adhan/rappel,
-        // pas une ligne à part (cf. la doc sur _NotificationsTable).
-        if (avanceOuvert) ...[
-          const SizedBox(width: 4),
-          _toggleIcon(
-            active: vibrateOn,
-            onIcon: Icons.vibration_rounded,
-            offIcon: Icons.phone_android_rounded,
-            onTap: () => notifier.setVibrateEnabledForPrayer(p, !vibrateOn),
-          ),
-        ],
       ],
     ),
   );
