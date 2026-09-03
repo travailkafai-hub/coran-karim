@@ -74,8 +74,10 @@ interface FrontAcoustique {
     /** Detections de regles tajwid sur un extrait de [SortiesFront.tajwid] --
      *  cf. [FastConformerCtc.decodeTajwid]. Liste vide par defaut (bancs JVM,
      *  ou modele sans tete tajwid). */
-    fun decodeTajwid(tajwid: Array<FloatArray>?):
-        List<com.corankarim.coran_karim.fastconformer.DetectedRule> = emptyList()
+    fun decodeTajwid(
+        tajwid: Array<FloatArray>?,
+        facteurSeuil: Float = 1f,
+    ): List<com.corankarim.coran_karim.fastconformer.DetectedRule> = emptyList()
 
     /** Noms des regles, index = ruleId. Vide si le modele n'a pas de tete
      *  tajwid (rien a nommer). */
@@ -126,7 +128,8 @@ class FrontOnnx(private val moteur: FastConformerCtc) : FrontAcoustique {
         return SortiesFront(o.letters, o.tajwid, o.etatEncodeur)
     }
 
-    override fun decodeTajwid(tajwid: Array<FloatArray>?) = moteur.decodeTajwid(tajwid)
+    override fun decodeTajwid(tajwid: Array<FloatArray>?, facteurSeuil: Float) =
+        moteur.decodeTajwid(tajwid, facteurSeuil)
 
     /** Le modele charge expose-t-il l'etat de l'encodeur ? */
     val exposeEtat: Boolean get() = moteur.exposeEtatEncodeur

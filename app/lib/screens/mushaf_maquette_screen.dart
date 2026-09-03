@@ -217,6 +217,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     // defaut `Amiri` -- le rendu d'origine, inchange tant qu'aucun autre choix
     // n'est fait.
     final ecriture = ref.watch(policeMushafPageProvider);
+    final tajwid = ref.watch(tajwidMushafPageProvider);
     return Scaffold(
       backgroundColor: sombre ? AppColors.sombreBg : const Color(0xFFF3EAD6),
       // CHGPT : la page reste toujours en plein ecran. Un toucher avance
@@ -230,6 +231,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
           sombre: sombre,
           warsh: warsh,
           ecriture: ecriture,
+          tajwid: tajwid,
           onTap: () => _ctrl.nextPage(
             duration: const Duration(milliseconds: 260),
             curve: Curves.easeOutCubic,
@@ -251,6 +253,10 @@ class _PageMushaf extends StatelessWidget {
   final bool sombre;
   final bool warsh;
 
+  /// Colorer le texte selon les regles de tajwid (cf.
+  /// `tajwidMushafPageProvider`). Eteint, la page se peint en une seule encre.
+  final bool tajwid;
+
   /// Nom Google Fonts de l'ecriture du TEXTE CORANIQUE (cf.
   /// `policeMushafPageProvider`). L'en-tete et le pied gardent Amiri : ce sont
   /// des reperes de navigation, les faire varier brouillerait la comparaison
@@ -264,6 +270,7 @@ class _PageMushaf extends StatelessWidget {
     required this.sombre,
     required this.warsh,
     required this.ecriture,
+    required this.tajwid,
     required this.onTap,
     required this.onLongPress,
   });
@@ -349,11 +356,17 @@ class _PageMushaf extends StatelessWidget {
     // tajwid l'utilisent deja ; cette vue etait le seul endroit de l'app a
     // peindre les caracteres de l'annotation. NE PAS revenir a
     // `parseTajweedHtml` sur `text_uthmani_tajweed` : c'est ce defaut-la.
-    // Le mode papier applique toujours le Tajwid ; il n'y a plus de variante
-    // visuelle a selectionner avant de lire.
-    final spansParSegment = [
-      for (final s in segments) _spansCanoniques(s.versets),
-    ];
+    // ── LA COULEUR TAJWID REDEVIENT UN CHOIX (2026-09-03) ────────────────
+    // « tu peux laisser option couleur tajwid ou pas ». La vue l'appliquait en
+    // permanence depuis que la barre du bas a disparu. La bascule vit dans la
+    // feuille d'appui long, avec les ecritures -- pas en bouton permanent, qui
+    // reprendrait la place rendue au texte.
+    //
+    // ⚠️ Couper la couleur ne change RIEN aux caracteres : ils viennent
+    // toujours de `text_uthmani`, l'annotation ne fournit que la teinte.
+    final spansParSegment = tajwid
+        ? [for (final s in segments) _spansCanoniques(s.versets)]
+        : null;
     final sourates = versets.map((v) => v.surahNumber).toSet().toList()..sort();
     // Le juz et le hizb VIENNENT DES DONNEES (2026-09-02) : ils etaient
     // estimes a partir du numero de page, ce qui se trompe des qu'une page

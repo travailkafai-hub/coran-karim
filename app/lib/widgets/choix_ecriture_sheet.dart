@@ -370,7 +370,7 @@ Future<void> ouvrirChoixEcriture(
         builder: (contexte, controleur) => ListView.separated(
           controller: controleur,
           padding: const EdgeInsets.symmetric(vertical: 12),
-          itemCount: kEcrituresMushaf.length + 1,
+          itemCount: kEcrituresMushaf.length + 2,
           separatorBuilder: (contexte, index) => Divider(
             height: 1,
             color: (sombre ? AppColors.brass : AppColors.green800)
@@ -378,7 +378,8 @@ Future<void> ouvrirChoixEcriture(
           ),
           itemBuilder: (contexte, i) {
             if (i == 0) return _EnTeteFeuille(sombre: sombre);
-            final e = triees[i - 1].$2;
+            if (i == 1) return const _BasculeTajwid();
+            final e = triees[i - 2].$2;
             final choisie = e.famille == actuelle;
             return ListTile(
               contentPadding:
@@ -438,6 +439,59 @@ Future<void> ouvrirChoixEcriture(
       ),
     ),
   );
+}
+
+/// Couleurs du tajwid : allumées ou éteintes.
+///
+/// Demande utilisateur 2026-09-03 : « tu peux laisser option couleur tajwid ou
+/// pas, avec icône tablette de coloriage enfant ». D'où la palette.
+///
+/// Elle vit ICI, dans la feuille d'appui long, et non en bouton permanent :
+/// l'utilisateur a demandé plusieurs fois que l'écran revienne au texte, et un
+/// bouton reprendrait la place qu'on vient de lui rendre. L'appui long est
+/// déjà le geste qui ouvre les options de la page.
+///
+/// ⚠️ Couper la couleur ne change RIEN aux caractères peints : ils viennent
+/// toujours de `text_uthmani`, l'annotation ne fournit que la teinte. Le champ
+/// `text_uthmani_tajweed` diffère du texte de référence sur 100 % des versets ;
+/// il ne doit jamais fournir de caractères, avec ou sans couleur.
+class _BasculeTajwid extends ConsumerWidget {
+  const _BasculeTajwid();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(tajwidMushafPageProvider);
+    final sombre = ref.watch(modeSombreProvider);
+    return SwitchListTile.adaptive(
+      value: on,
+      onChanged: (v) => ref.read(tajwidMushafPageProvider.notifier).set(v),
+      secondary: Icon(
+        Icons.palette_rounded,
+        color: on
+            ? AppColors.green800
+            : (sombre ? AppColors.cream : AppColors.inkLight)
+                .withValues(alpha: 0.5),
+      ),
+      title: Text(
+        'Couleurs du tajwid',
+        style: GoogleFonts.manrope(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: sombre ? AppColors.cream : AppColors.green900,
+        ),
+      ),
+      subtitle: Text(
+        on ? 'Règles colorées sur la page' : 'Page en une seule encre',
+        style: GoogleFonts.manrope(
+          fontSize: 11,
+          color: sombre
+              ? AppColors.cream.withValues(alpha: 0.6)
+              : AppColors.inkLight,
+        ),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+    );
+  }
 }
 
 class _EnTeteFeuille extends StatelessWidget {

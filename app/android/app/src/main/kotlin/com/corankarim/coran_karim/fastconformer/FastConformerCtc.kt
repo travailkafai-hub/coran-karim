@@ -365,7 +365,24 @@ class FastConformerCtc(
      * a ce mot, cf. ForcedAligner). Une approche par position dans le texte
      * serait approximative ; ici l'attribution est temporelle, donc exacte.
      */
-    fun decodeTajwid(tajwid: Array<FloatArray>?): List<DetectedRule> {
+    /** @param facteurSeuil rigueur appliquee aux seuils de probabilite
+     *  (2026-09-03). Les seuils du fichier sont les MOYENNES mesurees sur cinq
+     *  recitateurs professionnels ; exiger la moyenne elle-meme en rejetterait
+     *  la moitie. Regle posee par l'utilisateur : 0,90 en strict, 0,70 en
+     *  tolerant -- « le strict ne doit pas etre plus que la moyenne mesuree ».
+     *
+     *  Les seuils sont stockes en LOG : multiplier une probabilite par f
+     *  revient a AJOUTER ln(f) au log, d'ou l'addition ci-dessous et non une
+     *  multiplication.
+     *
+     *  ⚠️ Un seuil >= 1 (les quatre regles neutralisees : madda_normal,
+     *  laam_shamsiyah, ham_wasl, slnt) doit RESTER infranchissable. Le facteur
+     *  ne leur est donc pas applique -- 1,1 x 0,7 = 0,77 les rallumerait, ce
+     *  que l'utilisateur a explicitement refuse. */
+    fun decodeTajwid(
+        tajwid: Array<FloatArray>?,
+        facteurSeuil: Float = 1f,
+    ): List<DetectedRule> {
         if (tajwid == null || !hasTajwidHead) return emptyList()
         // ── UN SEUIL PAR CLASSE, ET NON UN ARGMAX ENTRE CLASSES ─────────────
         //
@@ -418,7 +435,13 @@ class FastConformerCtc(
         for (c in 0 until nClasses) {
             var debut = -1
             var probMax = 0f
-            val seuilLog = if (c < tajwidSeuilsLog.size) tajwidSeuilsLog[c] else Math.log(0.5).toFloat()
+            val seuilBrut =
+                if (c < tajwidSeuilsLog.size) tajwidSeuilsLog[c] else Math.log(0.5).toFloat()
+            // Les regles neutralisees (seuil >= 1, donc log >= 0) gardent leur
+            // seuil tel quel : le facteur les rallumerait.
+            val seuilLog =
+                if (seuilBrut >= 0f) seuilBrut
+                else seuilBrut + Math.log(facteurSeuil.toDouble()).toFloat()
             // ── LES MADD SE DECIDENT PAR COMPARAISON (2026-08-21) ─────────
             //
             // `madd_long` et `madd_court` ne se seuillent PAS separement :

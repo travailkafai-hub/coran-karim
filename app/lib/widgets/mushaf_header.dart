@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
+import '../models/prayer_settings.dart';
+import '../providers/prayer_settings_provider.dart';
 import '../theme/app_theme.dart';
 
 class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
@@ -53,7 +58,7 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
             Column(
               children: [
                 // Status bar space + prayer time banner
-                _PrayerTimeBanner(),
+                const _PrayerTimeBanner(),
                 const SizedBox(height: 4),
                 // Navigation row
                 _SurahNavRow(surah: surah, onBack: onBack, onMindMap: onMindMap),
@@ -66,28 +71,94 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-class _PrayerTimeBanner extends StatelessWidget {
+/// Rappel de la PROCHAINE priere, en haut du Mushaf.
+///
+/// ── CE QU'IL Y AVAIT AVANT, ET POURQUOI C'ETAIT GRAVE (2026-09-03) ────────
+///
+/// Ce bandeau affichait deux chaines de traduction ECRITES EN DUR --
+/// `mushafPrayerNextIn` = « Dhuhr dans 2h 14m » et `mushafPrayerTimeLabel` =
+/// « Dhuhr 13:30 » -- telles quelles, a n'importe quelle heure. Rien n'etait
+/// calcule. Signale par l'utilisateur : « il y a en haut le temps pour les
+/// prieres qui ne correspond a rien ! ». Une maquette jamais branchee, restee
+/// en place : un affichage faux est pire qu'un affichage absent.
+///
+/// ── CE QU'IL FAIT MAINTENANT ──────────────────────────────────────────────
+///
+/// Il LIT `PrayerState.prochainePriere`, le calcul deja partage par l'ecran des
+/// reglages et par le rappel de la liste des sourates. Il ne le refait pas : le
+/// commentaire de son extraction le dit, « deux ecrans qui annonceraient une
+/// prochaine priere differente seraient pires que pas de rappel du tout ».
+///
+/// Position inconnue ou refusee : on n'affiche RIEN. Ni bandeau vide, ni
+/// « --:-- » qui ferait croire a une panne -- meme regle que la liste des
+/// sourates.
+class _PrayerTimeBanner extends ConsumerStatefulWidget {
+  const _PrayerTimeBanner();
+
+  @override
+  ConsumerState<_PrayerTimeBanner> createState() => _PrayerTimeBannerState();
+}
+
+class _PrayerTimeBannerState extends ConsumerState<_PrayerTimeBanner> {
+  Timer? _horloge;
+
+  @override
+  void initState() {
+    super.initState();
+    // Une minute, pas plus : le compte a rebours s'affiche en heures et
+    // minutes, rafraichir plus souvent redessinerait pour rien. Plus rarement,
+    // et le « dans 1 h 23 » resterait faux jusqu'a une minute -- visible
+    // precisement quand on regarde pour savoir s'il reste du temps.
+    _horloge = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _horloge?.cancel();
+    super.dispose();
+  }
+
+  /// Les memes noms que le rappel de la liste des sourates.
+  static const _noms = {
+    PrayerName.fajr: 'Sobh',
+    PrayerName.dhuhr: 'Dhohr',
+    PrayerName.asr: 'Asr',
+    PrayerName.maghrib: 'Maghrib',
+    PrayerName.isha: 'Ichaa',
+  };
+
+  String _restant(Duration d) {
+    if (d.inMinutes < 1) return 'maintenant';
+    final h = d.inHours, m = d.inMinutes % 60;
+    if (h == 0) return 'dans $m min';
+    return m == 0 ? 'dans $h h' : 'dans $h h $m';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final suivante = ref.watch(prayerSettingsProvider).prochainePriere;
+    if (suivante == null) return const SizedBox(height: 4);
+
+    final locale = suivante.time.toLocal();
+    final hm = '${locale.hour.toString().padLeft(2, '0')}:'
+        '${locale.minute.toString().padLeft(2, '0')}';
+    final nom = _noms[suivante.name] ?? '';
+    final style = GoogleFonts.manrope(
+      fontSize: 11,
+      color: AppColors.brassLight,
+      fontWeight: FontWeight.w500,
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            AppLocalizations.of(context)!.mushafPrayerNextIn,
-            style: GoogleFonts.manrope(
-              fontSize: 11, color: AppColors.brassLight,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          Text(
-            AppLocalizations.of(context)!.mushafPrayerTimeLabel,
-            style: GoogleFonts.manrope(
-              fontSize: 11, color: AppColors.brassLight,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          Text('$nom ${_restant(suivante.time.difference(DateTime.now()))}',
+              style: style),
+          Text('$nom $hm', style: style),
         ],
       ),
     );

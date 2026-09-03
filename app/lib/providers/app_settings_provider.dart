@@ -1256,3 +1256,42 @@ class MicroBluetoothNotifier extends StateNotifier<bool> {
     await prefs.setBool(_kPrefMicroBluetooth, value);
   }
 }
+
+const _kPrefTajwidMushafPage = 'tajwid_mushaf_page';
+
+/// Coloration tajwid dans la vue Page du Mushaf.
+///
+/// Demande utilisateur 2026-09-03 : « tu peux laisser option couleur tajwid ou
+/// pas ». La vue l'appliquait en permanence depuis que la barre du bas a
+/// disparu, sans aucun moyen de la couper.
+///
+/// ALLUME par defaut : c'est le comportement en place, et on ne change pas ce
+/// qui est affiche tant qu'un choix n'est pas fait.
+///
+/// ⚠️ Couper la couleur ne change RIEN aux caracteres peints : depuis le
+/// 2026-09-03 le texte vient toujours de `text_uthmani`, l'annotation ne
+/// fournit que la couleur (cf. `_spansCanoniques`). Le champ
+/// `text_uthmani_tajweed` differe du texte de reference sur 100 % des versets
+/// -- il ne doit jamais fournir de caracteres, avec ou sans couleur.
+final tajwidMushafPageProvider =
+    StateNotifierProvider<TajwidMushafPageNotifier, bool>((ref) {
+  return TajwidMushafPageNotifier();
+});
+
+class TajwidMushafPageNotifier extends StateNotifier<bool> {
+  TajwidMushafPageNotifier() : super(true) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefTajwidMushafPage);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefTajwidMushafPage, value);
+  }
+}

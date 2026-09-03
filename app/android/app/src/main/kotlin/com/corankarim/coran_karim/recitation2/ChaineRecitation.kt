@@ -91,14 +91,46 @@ object SeuilsDureeTajwid {
      *  idgham_shafawi (2), ghunnah (2), idgham_mutaqaribayn (1). Un seuil
      *  tire d'une ou deux observations n'est pas une mesure. Elles passent
      *  donc comme avant, jusqu'a ce qu'on ait de l'audio pour les calibrer. */
+    // ── DERIVES DE LA MOYENNE MESUREE SUR CINQ RECITATEURS (2026-09-03) ──
+    //
+    // Source : `transfert_2026-08-31/tajwid/seuils_tajwid_5reciteurs_jvm.json`
+    // -- Ayman Sowaid, Husary, Abdul Basit Murattal, Minshawy Murattal,
+    // As-Sudais, sur 90:1..20, decoupage de la VRAIE chaine de l'app
+    // (BancFluxBrut / ConstructeurDeFenetres), pas d'une reimplementation.
+    //
+    // Regle posee par l'utilisateur : « le strict ne doit pas etre plus que la
+    // moyenne mesuree ; strict a 90 % de la moyenne, tolere a 70 % ». Le
+    // raisonnement tient : exiger PLUS que la moyenne de recitateurs
+    // professionnels en rejetterait la moitie.
+    //
+    //   regle                moyenne   strict 90%   tolere 70%
+    //   ghunnah               179 ms      161 ms       125 ms
+    //   idgham_ghunnah        247 ms      222 ms       173 ms
+    //   idgham_wo_ghunnah      83 ms       75 ms        58 ms
+    //   ikhafa                247 ms      222 ms       173 ms
+    //   iqlab                 247 ms      222 ms       173 ms
+    //   madda_obligatory      113 ms      102 ms        79 ms
+    //   madda_permissible     166 ms      149 ms       116 ms
+    //   qalaqah               121 ms      109 ms        85 ms
+    //
+    // CE QUI CHANGE PAR RAPPORT AUX VALEURS PRECEDENTES (p10/p25 d'un banc
+    // anterieur) : `madda_permissible` etait a 160 ms en strict alors que la
+    // moyenne mesuree vaut 166 -- un professionnel y etait juge TROP COURT.
+    // `ghunnah` n'etait pas calibree du tout et ne l'est plus par defaut.
+    // `ikhafa`/`iqlab`/`idgham_ghunnah` passent de 320 a 222 ms en strict.
+    //
+    // ⚠️ Les neuf autres regles n'ont PAS de duree mesuree chez les cinq
+    // (`duree_moyenne_s: null`) : elles restent hors de cette table, et
+    // `minMs` rend 0 pour elles -- aucune exigence de duree, comme avant.
     private val SEUILS_MS = mapOf(
-        "qalaqah" to Pair(80, 160),
-        "ikhafa" to Pair(160, 320),
-        "idgham_ghunnah" to Pair(160, 320),
-        "iqlab" to Pair(160, 320),
-        "idgham_wo_ghunnah" to Pair(80, 160),
-        "madda_obligatory" to Pair(80, 160),
-        "madda_permissible" to Pair(80, 160),
+        "ghunnah" to Pair(125, 161),
+        "idgham_ghunnah" to Pair(173, 222),
+        "idgham_wo_ghunnah" to Pair(58, 75),
+        "ikhafa" to Pair(173, 222),
+        "iqlab" to Pair(173, 222),
+        "madda_obligatory" to Pair(79, 102),
+        "madda_permissible" to Pair(116, 149),
+        "qalaqah" to Pair(85, 109),
     )
 
     /** @param nom nom de la regle tel que `rules.json` le donne.
@@ -1341,8 +1373,11 @@ class ChaineRecitation(
                     .coerceIn(0, sorties.tajwid.size)
                 val fin = (bornes?.second ?: (m.derniereFrame + 1))
                     .coerceIn(debut, sorties.tajwid.size)
+                // Meme regle que pour les durees : 0,90 de la moyenne
+                // mesuree en strict, 0,70 en tolerant (2026-09-03).
                 val detections = front.decodeTajwid(
-                    sorties.tajwid.copyOfRange(debut, fin))
+                    sorties.tajwid.copyOfRange(debut, fin),
+                    if (tajwidStrict) 0.90f else 0.70f)
                 // DUREE JOURNALISEE, JAMAIS JUGEE (2026-08-04). Le type d'un
                 // madd (`wajib` / `tabi'i`) est une categorie GRAMMATICALE que
                 // le texte connait deja ; l'acoustique ne peut repondre qu'a
@@ -1361,7 +1396,16 @@ class ChaineRecitation(
                             // pas distinguer une regle franchie de justesse
                             // d'une regle franchie largement, ni voir qu'un
                             // seuil etait aberrant.
-                            val seuil = front.seuilRegle(d.ruleId)
+                            // Le seuil EFFECTIVEMENT applique, pas le brut du
+                            // fichier : la decision passe par le facteur de
+                            // rigueur (0,90 strict / 0,70 tolerant, 2026-09-03).
+                            // Journaliser le brut faisait lire « p=0,928/0,999 »
+                            // sur une regle pourtant DETECTEE -- le journal
+                            // mentait sur ce qu'il comparait, defaut deja
+                            // signale une fois (« tu ne m'as pas montre mes
+                            // valeurs »).
+                            val seuil = front.seuilRegle(d.ruleId) *
+                                (if (tajwidStrict) 0.90f else 0.70f)
                             "$nom=${d.frames}f(${d.frames * 80}ms) " +
                                 "p=${"%.3f".format(d.prob)}/${"%.3f".format(seuil)}"
                         })
