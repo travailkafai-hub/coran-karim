@@ -90,6 +90,7 @@ dependencies:
   # cause à ajouter un serveur pour un simple formulaire de contact).
   url_launcher: ^6.3.1
   package_info_plus: ^10.2.0
+  audio_service: ^0.18.19
 
 dev_dependencies:
   flutter_test:

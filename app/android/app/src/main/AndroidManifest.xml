@@ -117,6 +117,31 @@
              AdhanPlaybackService : remplace le son de canal pour l'adhan
              (toujours utilise par le RAPPEL, un simple bip court, inchange). -->
         <receiver android:name=".adhan.AdhanAlarmReceiver" android:exported="false" />
+        <!-- ── SESSION MEDIA (2026-09-03) ─────────────────────────────
+             Le service qui porte la lecture du Coran quand l'app est reduite,
+             et le receveur des boutons d'un casque. Demande utilisateur :
+             « pause/play depuis la notification [...] mais garder toute l'app
+             en arriere-plan, c'est pas une bonne idee ». Ce service est
+             justement ce qui permet au systeme de suspendre l'interface.
+
+             DISTINCT de AdhanPlaybackService juste en dessous, qui ne sert
+             qu'a l'appel a la priere sur le flux ALARME. Deux usages, deux
+             services, pour qu'une pause de lecture ne puisse jamais faire
+             taire un adhan. -->
+        <service android:name="com.ryanheise.audioservice.AudioService"
+                 android:foregroundServiceType="mediaPlayback"
+                 android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+        <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver"
+                  android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
         <service android:name=".adhan.AdhanPlaybackService"
                  android:exported="false"
                  android:foregroundServiceType="mediaPlayback" />

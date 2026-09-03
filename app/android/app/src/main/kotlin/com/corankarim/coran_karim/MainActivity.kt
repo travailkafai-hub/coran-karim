@@ -2,6 +2,7 @@ package com.corankarim.coran_karim
 
 import com.corankarim.coran_karim.adhan.AdhanSchedulerPlugin
 import com.corankarim.coran_karim.fastconformer.FastConformerCtcPlugin
+import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import android.view.WindowManager
@@ -21,7 +22,16 @@ import io.flutter.plugin.common.MethodChannel
  * une session qui n'a jamais demarre. L'intent porte le mode explicitement, et
  * Dart le journalise : la session dit elle-meme ce qu'elle teste.
  */
-class MainActivity : FlutterActivity() {
+// ── AudioServiceActivity ET NON FlutterActivity (2026-09-03) ─────────────────
+//
+// `audio_service` a besoin que l'activite soit la sienne : c'est elle qui
+// rattache l'activite au service de lecture, de sorte qu'un appui sur la
+// notification rouvre l'app SUR LA MEME instance au lieu d'en creer une
+// seconde -- et que le service survive a la mise en arriere-plan.
+//
+// `AudioServiceActivity` etend `FlutterActivity` : tout ce qui existait ici
+// (canal ecran, plugins natifs, extras de recette) fonctionne a l'identique.
+class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

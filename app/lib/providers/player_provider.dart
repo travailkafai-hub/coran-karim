@@ -7,6 +7,7 @@ import '../models/reciter.dart';
 import '../models/riwaya.dart';
 import '../models/player_state_model.dart';
 import '../services/audio_player_service.dart';
+import '../services/session_media.dart';
 import '../services/quran_api.dart';
 import '../services/word_correction_audio.dart';
 import '../services/diagnostic_log.dart';
@@ -24,9 +25,16 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
 
   PlayerNotifier(this._svc) : super(const PlayerStateModel()) {
     _restoreReciter();
+    _brancherSessionMedia();
     _subs = [
-      _svc.positionStream.listen((p) => state = state.copyWith(position: p)),
-      _svc.durationStream.listen((d) => state = state.copyWith(duration: d)),
+      _svc.positionStream.listen((p) {
+        state = state.copyWith(position: p);
+        _publierSessionMedia();
+      }),
+      _svc.durationStream.listen((d) {
+        state = state.copyWith(duration: d);
+        _publierSessionMedia();
+      }),
       _svc.onComplete.listen((_) => _onComplete()),
       _svc.stateStream.listen((ps) {
         if (ps == PlayerState.playing) {
@@ -34,8 +42,68 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
         } else if (ps == PlayerState.paused) {
           state = state.copyWith(status: PlayerStatus.paused);
         }
+        _publierSessionMedia();
       }),
     ];
+  }
+
+  // ── NOTIFICATION MEDIA (2026-09-03) ───────────────────────────────────────
+  //
+  // Demande utilisateur : contrôler pause/play depuis la notification, l'app
+  // réduite, « pour libérer, économiser la batterie ». Et sa remarque, qui
+  // guide le montage : « garder toute l'app en arrière-plan, c'est pas une
+  // bonne idée ». C'est précisément ce qu'évite une session média — l'interface
+  // Flutter est suspendue par le système, seul un service natif continue.
+  //
+  // Le handler ne connaît ni Riverpod ni le lecteur : on lui BRANCHE des
+  // rappels. `AudioService.init` doit tourner avant `runApp`, donc avant qu'un
+  // provider existe ; l'inverse ferait de l'ordre d'initialisation un piège.
+  void _brancherSessionMedia() {
+    final s = sessionMedia;
+    if (s == null) return; // init échouée : l'app marche sans notification
+    s.auPlay = resume;
+    s.auPause = pause;
+    s.auStop = stop;
+    s.auSuivant = next;
+    s.auPrecedent = prev;
+    s.auSeek = seek;
+  }
+
+  /// Reflète l'état courant dans la notification.
+  ///
+  /// Appelé sur chaque changement du lecteur plutôt qu'à la demande : la
+  /// notification doit rester juste même quand l'app est réduite, moment où
+  /// aucun widget ne reconstruit et où rien ne viendrait la rafraîchir.
+  void _publierSessionMedia() {
+    final s = sessionMedia;
+    if (s == null) return;
+    final v = state.currentVerse;
+    if (v == null || state.status == PlayerStatus.idle) {
+      s.publierArret();
+      return;
+    }
+    s.publierPiste(
+      titre: '${_nomSourate(v.surahNumber)} · ${v.ayahNumber}',
+      sousTitre: state.reciter.nameFr,
+      duree: state.duration,
+    );
+    s.publierEtat(
+      enLecture: state.status == PlayerStatus.playing,
+      charge: state.status == PlayerStatus.loading,
+      position: state.position,
+      vitesse: state.speed,
+    );
+  }
+
+  /// Nom arabe de la sourate pour la notification, ou son numéro si le
+  /// catalogue n'est pas encore chargé — mieux vaut « 18 » qu'un titre vide.
+  String _nomSourate(int numero) {
+    final chapitres = QuranApi.chapitresCharges;
+    if (chapitres == null) return '$numero';
+    for (final c in chapitres) {
+      if (c.number == numero) return c.nameArabic;
+    }
+    return '$numero';
   }
 
   @override

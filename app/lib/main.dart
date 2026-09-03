@@ -24,6 +24,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
 import 'services/quran_api.dart';
+import 'services/session_media.dart';
 import 'services/reciter_download_service.dart';
 import 'theme/app_theme.dart';
 
@@ -37,6 +38,21 @@ void main() async {
   // sans ça `localPathIfPresent` renvoie toujours null et une sourate pourtant
   // téléchargée repart en streaming, sans le moindre message d'erreur.
   await ReciterDownloadService().ensureReady();
+  // ── SESSION MEDIA (2026-09-03) ───────────────────────────────────────────
+  // Doit etre initialisee AVANT runApp : c'est elle qui declare le service de
+  // premier plan qui portera la lecture quand l'app sera reduite. Demande
+  // utilisateur : « pause/play depuis la notification [...] mais garder toute
+  // l'app en arriere-plan, c'est pas une bonne idee » -- une session media
+  // laisse justement le systeme suspendre l'interface Flutter.
+  //
+  // Un echec n'est PAS fatal : mieux vaut une app sans notification qu'une app
+  // qui ne demarre pas. La variable globale sessionMedia reste alors null,
+  // et tout le branchement cote PlayerNotifier se desactive de lui-meme.
+  try {
+    await initSessionMedia();
+  } catch (e) {
+    DiagnosticLog.log('Lecture', 'session media indisponible : $e');
+  }
   // Le moteur LiteRT-LM du Coach IA (Gemma 4 E2B) était initialisé ici.
   // RETIRÉ le 2026-08-10 : le modèle `.litertlm` n'a jamais été livré, donc
   // aucune explication n'a jamais été produite — mais ses bibliothèques
