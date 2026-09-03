@@ -426,9 +426,8 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   /// Ouvre la VUE PAGE (mise en page façon mushaf) sur la page courante.
   ///
   /// Aller-retour : on empile un écran, celui-ci reste tel quel derrière. La
-  /// riwaya suit celle de la lecture en cours -- les pages photo sont des
-  /// scans WARSH, les afficher à un lecteur Hafs serait un faux, donc l'écran
-  /// reçoit l'information et le signale au lieu de mélanger silencieusement.
+  /// vue utilise directement le texte de la riwaya active et l'ajuste dans une
+  /// page dessinee par Flutter ; il n'y a plus de variante photo a choisir.
   ///
   /// ⚠️ LIMITE ASSUMÉE : la page d'ouverture est celle du PREMIER verset
   /// chargé, pas du verset réellement sous les yeux -- cet écran n'a pas de
@@ -442,10 +441,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     final page = _verses.isEmpty ? 1 : (_verses.first.pageNumber ?? 1);
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MushafMaquetteScreen(
-          pageInitiale: page,
-          riwaya: ref.read(riwayaProvider),
-        ),
+        builder: (_) => MushafMaquetteScreen(pageInitiale: page),
       ),
     );
   }

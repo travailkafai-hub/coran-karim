@@ -137,6 +137,8 @@ flutter:
     # memes cles de verset que l'asset ci-dessus, cf.
     # benchmark/build_warsh_verses_asset.py pour le pourquoi de ce choix.
     - assets/data/quran_verses_warsh.json
+    # Pagination native du Mushaf papier Warsh, sans images (affichage seul).
+    - assets/data/quran_mushaf_warsh.json
     - assets/data/rule_reliability.json
     - assets/data/gop_word_baseline.json
     - assets/data/quran_rules_annotated.json

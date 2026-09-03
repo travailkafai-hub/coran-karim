@@ -23,11 +23,13 @@ import '../models/verse.dart';
 /// `fetchAyahSegments`, `fetchSurahInfo`.
 class QuranApi {
   static const _base = 'https://api.quran.com/api/v4';
-  static final _dio = Dio(BaseOptions(
-    baseUrl: _base,
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 30),
-  ));
+  static final _dio = Dio(
+    BaseOptions(
+      baseUrl: _base,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  );
 
   static List<Surah>? _chapters;
 
@@ -75,9 +77,9 @@ class QuranApi {
   /// exactement la même forme et les mêmes clés de verset (cf.
   /// `benchmark/build_warsh_verses_asset.py`), donc rien en aval ne change.
   static String get _versesAsset => switch (_riwaya) {
-        Riwaya.hafs => 'assets/data/quran_verses.json',
-        Riwaya.warsh => 'assets/data/quran_verses_warsh.json',
-      };
+    Riwaya.hafs => 'assets/data/quran_verses.json',
+    Riwaya.warsh => 'assets/data/quran_verses_warsh.json',
+  };
 
   static Verse _parseVerse(Map<String, dynamic> map) {
     final verse = Verse.fromJson(map);
@@ -104,8 +106,11 @@ class QuranApi {
   static Future<void> _ensureLoaded() {
     if (_chapters != null) return Future.value();
     return _loading ??= () async {
-      final chaptersRaw = json.decode(
-          await rootBundle.loadString('assets/data/quran_chapters.json')) as List;
+      final chaptersRaw =
+          json.decode(
+                await rootBundle.loadString('assets/data/quran_chapters.json'),
+              )
+              as List;
       _chapters = chaptersRaw
           .map((e) => Surah.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -158,13 +163,15 @@ class QuranApi {
   /// `Dua.verseRanges` (cf. son commentaire). Une plage introuvable/vide est
   /// simplement omise plutôt que de faire échouer toute la playlist.
   static Future<List<Verse>> fetchVerseRanges(
-      List<(int surah, int ayahStart, int ayahEnd)> ranges) async {
+    List<(int surah, int ayahStart, int ayahEnd)> ranges,
+  ) async {
     await _ensureLoaded();
     final result = <Verse>[];
     for (final (surah, start, end) in ranges) {
       final verses = _versesBySurah![surah] ?? const [];
       result.addAll(
-          verses.where((v) => v.ayahNumber >= start && v.ayahNumber <= end));
+        verses.where((v) => v.ayahNumber >= start && v.ayahNumber <= end),
+      );
     }
     return result;
   }
@@ -181,10 +188,53 @@ class QuranApi {
     return _versesByPage![pageNumber] ?? const [];
   }
 
+  static Map<int, List<Verse>>? _warshMushafByPage;
+  static Map<int, int>? _warshMushafVerseCounts;
+
+  static int? warshMushafVerseCount(int surahNumber) =>
+      _warshMushafVerseCounts?[surahNumber];
+
+  /// Pagination native du Mushaf papier Warsh. Cet index est volontairement
+  /// distinct de l'asset de recitation Warsh, dont les cles Hafs restent
+  /// necessaires pour faire correspondre les fichiers audio verset par verset.
+  static Future<List<Verse>> fetchWarshMushafVersesByPage(
+    int pageNumber,
+  ) async {
+    // Le catalogue alimente les bandeaux. Il est deja charge dans le parcours
+    // normal, mais pas lors d'un lancement direct du banc de capture.
+    await _ensureLoaded();
+    if (_warshMushafByPage == null) {
+      final raw =
+          json.decode(
+                await rootBundle.loadString(
+                  'assets/data/quran_mushaf_warsh.json',
+                ),
+              )
+              as List;
+      final byPage = <int, List<Verse>>{};
+      final counts = <int, int>{};
+      for (final item in raw) {
+        final verse = _parseVerse(item as Map<String, dynamic>);
+        byPage.putIfAbsent(verse.pageNumber!, () => []).add(verse);
+        if (verse.ayahNumber > 0) {
+          final previous = counts[verse.surahNumber] ?? 0;
+          if (verse.ayahNumber > previous) {
+            counts[verse.surahNumber] = verse.ayahNumber;
+          }
+        }
+      }
+      _warshMushafByPage = byPage;
+      _warshMushafVerseCounts = counts;
+    }
+    return _warshMushafByPage![pageNumber] ?? const [];
+  }
+
   /// Returns all audio file URLs for a surah, keyed by verse_key.
   /// CDN base: https://verses.quran.com/
   static Future<Map<String, String>> fetchSurahAudioUrls(
-      int recitationId, int surahNumber) async {
+    int recitationId,
+    int surahNumber,
+  ) async {
     final r = await _dio.get(
       '/recitations/$recitationId/by_chapter/$surahNumber',
       queryParameters: {'per_page': '286'},
@@ -192,8 +242,7 @@ class QuranApi {
     final files = r.data['audio_files'] as List;
     return {
       for (final f in files)
-        f['verse_key'] as String:
-            'https://verses.quran.com/${f['url']}',
+        f['verse_key'] as String: 'https://verses.quran.com/${f['url']}',
     };
   }
 
@@ -211,7 +260,9 @@ class QuranApi {
   /// automatique plutôt que tout le verset — pas d'estimation inventée, un
   /// découpage réel fourni par la même source que le texte/l'audio.
   static Future<List<List<int>>> fetchAyahSegments(
-      int recitationId, String verseKey) async {
+    int recitationId,
+    String verseKey,
+  ) async {
     final r = await _dio.get(
       '/recitations/$recitationId/by_ayah/$verseKey',
       queryParameters: {'fields': 'segments'},
@@ -222,7 +273,8 @@ class QuranApi {
     if (segments == null) return [];
     return segments
         .map<List<int>>(
-            (s) => (s as List).map((e) => (e as num).toInt()).toList())
+          (s) => (s as List).map((e) => (e as num).toInt()).toList(),
+        )
         .toList();
   }
 }
