@@ -1121,16 +1121,17 @@ class _ControleModeState extends ConsumerState<_ControleMode>
           // Before finish: blurred card. After: colored words revealed.
           finished
               ? VerseDisplay(
-                  // Les mots dont la cause est le tajwid : `classifyError`,
-                  // meme source que la recitation et la fiche du mot.
-                  motsTajwidRates: {
-                    for (var i = 0; i < rst.words.length; i++)
-                      if (ref
-                              .read(recitationProvider.notifier)
-                              .classifyError(i) ==
-                          RecitationErrorKind.tajwid)
-                        i
-                  },
+                  // Les mots dont la cause est le tajwid.
+                  //
+                  // ⚠️ C'ETAIT `classifyError` (2026-09-03) : il REDEVINE la
+                  // cause en recomparant attendu et entendu, et il teste les
+                  // harakat AVANT le tajwid -- une diacritique de plus dans la
+                  // transcription suffisait a le faire sortir sur `harakat`, et
+                  // le mot se peignait en orange au lieu de violet.
+                  // Le provider, lui, l'a ENREGISTRE au moment de degrader le
+                  // mot : on lui demande, on ne redevine plus.
+                  motsTajwidRates:
+                      ref.read(recitationProvider.notifier).motsDegradesTajwid,
                   words: rst.words,
                   verses: widget.verses,
                   onProblemWordTap: (i) => _openWordHelp(rst.words, i),

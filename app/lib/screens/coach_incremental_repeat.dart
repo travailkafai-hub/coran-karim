@@ -652,6 +652,43 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
         motifFautif = 'trop de fautes ($okU/${jU.length})';
         break;
       }
+      // ── LE TAJWID NE SE MOYENNE PAS (2026-09-03) ──────────────────────
+      //
+      // Constat utilisateur, palier franchi sous ses yeux : « j'ai eu un
+      // violet mais il est passé au palier suivant ». Puis la consigne :
+      // « obligé de valider la règle quand c'est mode règle de tajwid, ça
+      // devient obligatoire ».
+      //
+      // POURQUOI ÇA PASSAIT. `acceptable()` teste bien le tajwid -- mais
+      // elle ne servait qu'à COMPTER (`acceptables`, journalisé). La
+      // décision, elle, se prenait sur `okU`, qui accepte `correct` ET
+      // `unclear` : le violet y comptait comme un mot réussi. Un palier de
+      // quatre mots dont un violet donnait 4/4, et passait.
+      //
+      // LES DEUX TOLÉRANCES SONT DIFFÉRENTES, et c'est voulu :
+      //   PRONONCIATION -- 2/3 suffisent (tolérance du mode adulte,
+      //     inchangée au caractère près ci-dessus) ;
+      //   TAJWID -- aucune tolérance. Une seule règle attendue et non
+      //     constatée fait échouer le palier.
+      //
+      // Hors mode tajwid, `unrealizedRulesFor` rend toujours vide (aucune
+      // règle active) : `tajwidRates` est alors vide et ce test est inerte,
+      // le comportement historique est conservé exactement.
+      final tajwidRates = [
+        for (var k = 0; k < motsU.length; k++)
+          if (motsU[k].status != WordStatus.pending &&
+              motsU[k].status != WordStatus.current &&
+              !acceptable(a + k, motsU[k]) &&
+              (motsU[k].status == WordStatus.correct ||
+                  motsU[k].status == WordStatus.unclear))
+            a + k
+      ];
+      if (tajwidRates.isNotEmpty) {
+        uniteFautive = u + 1;
+        motifFautif =
+            'règle de tajwid non validée (mots ${tajwidRates.join(",")})';
+        break;
+      }
     }
     final assezDit = uniteFautive < 0;
     final success = assezDit;
@@ -854,6 +891,37 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
           // que la mémoire travaille), visible ensuite comme avant.
           if (_phase != _RoundPhase.listening)
             VerseDisplay(
+                // ── LE VIOLET DU TAJWID MANQUAIT ICI (2026-09-03) ────────
+                //
+                // Constat utilisateur : « je ne vois aucun violet alors que je
+                // fais exprès de ne pas faire de règle ». Le moteur faisait
+                // pourtant son travail -- le journal porte bien les lignes
+                // `[V2tajwid] mot=N règle(s) ATTENDUE(S) et NON DÉTECTÉE(S)`,
+                // et le statut passait bien à `unclear`.
+                //
+                // C'était l'AFFICHAGE : `motsTajwidRates` n'était pas passé,
+                // donc il valait `const {}` et `VerseDisplay` peignait le mot
+                // en ORANGE (imprécis) au lieu de VIOLET (règle manquante).
+                // Les deux n'appellent pas le même geste : l'orange dit
+                // « redis-le mieux », le violet dit « les lettres étaient
+                // justes, c'est la règle qui manque ».
+                //
+                // ── ET POURQUOI CE N'EST PAS `classifyError` ────────────
+                //
+                // Première version : `classifyError(i) == tajwid`. Elle ne
+                // peignait toujours rien, et la cause n'est pas dans le tajwid.
+                // `classifyError` REDEVINE la cause après coup en recomparant
+                // attendu et entendu, et il teste les harakat AVANT le tajwid
+                // -- à juste titre, une règle ne se juge que si les lettres et
+                // les voyelles sont bonnes. Mais la transcription porte presque
+                // toujours une diacritique de plus ou de moins : il sortait sur
+                // `harakat`, et n'atteignait jamais la branche `tajwid`.
+                //
+                // Le provider, lui, SAIT : il vient de constater la règle
+                // manquante au moment où il a dégradé le mot. On lui demande ce
+                // qu'il a enregistré, au lieu de le redériver depuis le texte.
+                motsTajwidRates:
+                    ref.read(recitationProvider.notifier).motsDegradesTajwid,
                 words: _phase == _RoundPhase.playingAudio
                     ? _motsAvecEssaiPrecedent(rst.words)
                     : rst.words,

@@ -4535,8 +4535,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             (verse.surahNumber, verse.ayahNumber, local)];
         return v?.kind == 'tajwid';
       }
-      return ref.read(recitationProvider.notifier).classifyError(index) ==
-          RecitationErrorKind.tajwid;
+      // Le registre pose par le provider AU MOMENT de la degradation, et non
+      // `classifyError` qui la redevinait apres coup en recomparant les
+      // chaines -- il sortait sur `harakat` des que la transcription portait
+      // une diacritique differente, et le violet ne s'affichait jamais.
+      return ref
+          .read(recitationProvider.notifier)
+          .motsDegradesTajwid
+          .contains(index);
     }
     switch (effectiveStatus) {
       case WordStatus.correct:
@@ -4876,9 +4882,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // fiche ne peut pas reprocher autre chose que ce qui a ete reproche.
       // Vide hors erreur de tajwid, donc le bandeau ne s'affiche pas.
       reglesManquantes: ref
-                  .read(recitationProvider.notifier)
-                  .classifyError(wordIndex) ==
-              RecitationErrorKind.tajwid
+              .read(recitationProvider.notifier)
+              .motsDegradesTajwid
+              .contains(wordIndex)
           ? ref.read(recitationProvider.notifier).unrealizedRulesFor(
               wordIndex, st.words[wordIndex].detectedRules)
           : const <TajwidRule>[],
