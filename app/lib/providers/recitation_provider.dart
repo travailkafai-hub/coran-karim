@@ -532,12 +532,17 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// vérifiables comme les autres. Ce n'est PAS une tolérance de confort,
   /// c'est le refus d'un verdict sans preuve -- règle projet « aucun verdict
   /// sans preuve acoustique ».
-  static const _textCarriedRules = {
-    TajwidRule.hamWasl,
-    TajwidRule.laamShamsiyah,
-    TajwidRule.slnt,
-    TajwidRule.maddaNormal,
-  };
+  /// SOURCE UNIQUE (2026-09-02) : la liste vit dans `TajwidRule`, à côté de
+  /// `selectionnables` qui l'exclut. La dupliquer ici, comme c'était le cas
+  /// jusqu'au 2026-09-02, laissait les deux diverger en silence -- une règle
+  /// retirée de l'IHM mais oubliée ici serait redevenue accusatrice sans que
+  /// rien ne le signale.
+  ///
+  /// Cette garde reste utile MÊME si l'IHM ne propose plus ces règles :
+  /// `_activeRules` peut venir d'un réglage persisté écrit par une version
+  /// antérieure, où elles étaient activables. Ceinture et bretelles, sur le
+  /// seul point où un faux verdict est possible.
+  static final _textCarriedRules = TajwidRule.porteesParLeTexte.toSet();
 
   List<TajwidRule> unrealizedRulesFor(int wordIndex, Set<TajwidRule> emitted,
       {Set<TajwidRule>? neighborEmitted}) {
@@ -733,7 +738,13 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     if (expected.isEmpty) return const [];
     return [
       for (final r in expected)
-        if (_activeRules.contains(r)) r,
+        // Même exclusion qu'au verdict (2026-09-02) : ces règles ne sont plus
+        // proposées par l'écran, mais un réglage PERSISTÉ écrit par une
+        // version antérieure peut encore les porter -- mesuré le 2026-09-02,
+        // une session tournait avec `reglesActives=14` dont ces trois-là.
+        // Sans ce filtre, elles resteraient affichées en badge sur le mot :
+        // l'app annoncerait vérifier ce qu'elle ne vérifie pas.
+        if (!_textCarriedRules.contains(r) && _activeRules.contains(r)) r,
     ];
   }
 
@@ -3110,6 +3121,77 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
 
   RecitationNotifier(this._verifier) : super(const RecitationSessionState());
 
+  /// Comme [setup], mais en CHARGEANT les regles attendues du passage.
+  ///
+  /// Ajoutee le 2026-09-02. `setup(String)` ne recoit qu'un texte : il ne peut
+  /// pas savoir ou l'on se trouve dans le Coran, donc pas charger
+  /// `quran_rules_annotated.json`, donc pas peupler `expectedRules`. Tout
+  /// appelant qui passait par lui rendait la verification tajwid INERTE sans
+  /// que rien ne le signale -- c'est ce qui est arrive au Coach : mode tajwid
+  /// actif, tete qui tourne, et zero regle attendue.
+  ///
+  /// [premierMot] est l'index, DANS LE VERSET, du premier mot de la fenetre :
+  /// le Coach recite des paliers, pas des versets entiers, et les annotations
+  /// sont indexees par position dans le verset. Se tromper d'origine
+  /// attribuerait a chaque mot les regles de son voisin.
+  ///
+  /// Repli silencieux et sur : si les annotations manquent ou ne couvrent pas
+  /// la fenetre, on retombe sur `setup` -- pas de regle attendue, exactement
+  /// le comportement d'avant, jamais une regle attribuee au hasard.
+  Future<void> setupDepuisVerset(
+    String arabicText, {
+    required int surah,
+    required int ayah,
+    required int premierMot,
+  }) async {
+    await RuleAnnotationService.instance.ensureLoaded();
+    final annotes =
+        RuleAnnotationService.instance.annotatedWords(surah, ayah);
+    final mots = ArabicNormalizer.splitExpectedWords(arabicText);
+    if (annotes == null || premierMot + mots.length > annotes.length) {
+      setup(arabicText);
+      return;
+    }
+    final warsh = QuranApi.riwaya == Riwaya.warsh;
+    final words = <RecitedWord>[
+      for (var i = 0; i < mots.length; i++)
+        RecitedWord(
+          display: mots[i],
+          normalized: warsh
+              ? ArabicNormalizer.normalizeWarsh(mots[i])
+              : ArabicNormalizer.normalize(mots[i]),
+          strict: warsh
+              ? ArabicNormalizer.normalizeStrictWarsh(mots[i])
+              : ArabicNormalizer.normalizeStrict(mots[i]),
+          expectedRules: RuleSymbols.rulesIn(annotes[premierMot + i]),
+          // Meme normalisation que le chemin sans annotation : ce champ ne
+          // depend pas des regles attendues.
+          training: warsh
+              ? ArabicNormalizer.normalizeTrainingWarsh(mots[i])
+              : ArabicNormalizer.normalizeTraining(mots[i]),
+        ),
+    ];
+    _lastTextDiffLine.clear();
+    _previewNegative.clear();
+    _previewNegativeStreak.clear();
+    _previewNegativeSeq.clear();
+    _failureSignalled.clear();
+    state = RecitationSessionState(words: words, riwaya: QuranApi.riwaya);
+    DiagnosticLog.log(
+        'Rules',
+        'palier $surah:$ayah mots $premierMot..${premierMot + mots.length - 1} : '
+        '${words.where((w) => w.expectedRules.isNotEmpty).length} mot(s) '
+        'porteur(s) de regle');
+  }
+
+  /// Exiger le tajwid MEME sans double observation (2026-09-02).
+  ///
+  /// Pose par le Coach de memorisation, remis a false en sortant. Cf. le
+  /// commentaire de son unique lecture plus bas (`c.tajwidFiable`) pour la
+  /// mesure qui explique pourquoi ce n'est PAS le defaut, et pourquoi ce
+  /// compromis ne vaut que sur des paliers courts et repetables.
+  bool tajwidSansDoubleObservation = false;
+
   void setup(String arabicText) {
     final words = _wordsFromText(arabicText);
     _lastTextDiffLine.clear();
@@ -4890,7 +4972,20 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
             'attendues=${attendues.map((r) => r.key).join(",")} '
             'detectees=${c.detectedRules.map((r) => r.key).join(",")}');
       }
-      if (!estBasmala && statutBase == WordStatus.correct && c.tajwidFiable) {
+      // `tajwidFiable` exige DEUX observations completes du mot (cote natif :
+      // `votantes.size >= 2 || estDefinitif`). Sur un palier court du Coach,
+      // la chaine ne repasse jamais : les mots restent provisoires et le
+      // controle tajwid ne s'executait donc JAMAIS -- le palier se validait
+      // avec zero regle detectee. `tajwidSansDoubleObservation` leve cette
+      // exigence, et uniquement la ou le Coach l'a posee.
+      //
+      // Le prix est connu et mesure (2026-07-23) : sur une seule observation,
+      // une regle coupee au bord d'une fenetre disparait, donc une part de
+      // faux signalements. Acceptable ici -- le palier se rejoue -- jamais en
+      // recitation, ou le verdict est definitif.
+      if (!estBasmala &&
+          statutBase == WordStatus.correct &&
+          (c.tajwidFiable || tajwidSansDoubleObservation)) {
         final manquantes = unrealizedRulesFor(c.index, c.detectedRules);
         if (manquantes.isNotEmpty) {
           statutFinal = WordStatus.unclear;

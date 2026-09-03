@@ -103,11 +103,18 @@ class CoachSessionState {
         difficultWords: difficultWords,
       );
 
-  /// Nouveau verset = nouvelle passe Lecture->Entraîne->Contrôle : le score,
-  /// les mots difficiles et l'étape en cours ne doivent pas fuiter d'un
-  /// verset à l'autre (chaque ayah se travaille indépendamment).
+  /// Nouveau verset = nouvelle passe Entraîne->Contrôle : le score, les mots
+  /// difficiles et l'étape en cours ne doivent pas fuiter d'un verset à
+  /// l'autre (chaque ayah se travaille indépendamment).
+  ///
+  /// `mode: CoachMode.apprentissage` explicite (2026-08-24) : sans lui, le
+  /// constructeur retombe sur son défaut `CoachMode.lecture` -- exactement
+  /// l'étape retirée du chemin normal (cf. `CoachNotifier.setup`). Sans ce
+  /// correctif ICI, une navigation manuelle entre versets (glissement,
+  /// flèches) y ramenait quand même.
   CoachSessionState withVerseIndex(int index) => CoachSessionState(
         verses: verses,
         currentVerseIndex: index,
+        mode: CoachMode.apprentissage,
       );
 }

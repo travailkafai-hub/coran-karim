@@ -41,9 +41,28 @@ object ConfusableVariants {
         // ⚠️ Leur rendement n'est PAS mesure comme celui des sept paires
         // ci-dessus (80,8 % sur 854 clips) : elles n'etaient pas dans le corpus
         // de validation. A mesurer des qu'un corpus les contient.
-        'ر' to charArrayOf('ز'), 
+        'ر' to charArrayOf('ز'),
         'ج' to charArrayOf('ح', 'خ'),
         'خ' to charArrayOf('ح', 'ج'),
+        // Ajoutees le 2026-08-23 : alif nu / hamza portee par l'alif -- pas une
+        // faute de prononciation mais une variation du RASM lui-meme. Mesure
+        // sur le texte Warsh (112:1 « أَحَدٌ » avec hamza contre 112:4 « اَحَدٞ »
+        // sans, MEME MOT, MEME SENS, MEME PRONONCIATION -- la hamza se
+        // prononce dans les deux cas, seul le dessin change). Verifie sur
+        // device : le modele decode correctement la hamza (entendu="أَحَدٌ...")
+        // la ou le texte attendu porte un alif nu -- mot condamne au rouge/
+        // orange quoi que recite l'utilisateur.
+        // ⚠️ NE PAS confondre avec une normalisation de texte globale (rejetee
+        // volontairement) : sur tout le corpus, 279 groupes de mots partagent
+        // le meme squelette alif/hamza SANS etre le meme mot une fois les
+        // harakat regardees (« أَنْ »/« إِنْ »/« اِنَّ », trois particules
+        // distinctes). C'est pour ca que le remplacement se fait ICI, lettre
+        // par lettre sur un mot DEJA fixe avec sa propre haraka -- jamais en
+        // regroupant des mots differents par leur seul squelette de lettres.
+        // Rendement NON mesure (meme reserve que ر/ز et ج/ح/خ ci-dessus).
+        'ا' to charArrayOf('أ', 'إ'),
+        'أ' to charArrayOf('ا', 'إ'),
+        'إ' to charArrayOf('ا', 'أ'),
     )
 
     /**

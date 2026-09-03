@@ -56,11 +56,45 @@ enum TajwidRule {
   ///
   /// ⚠️ Itérer sur `TajwidRule.values` pour de l'IHM ou pour un preset est donc
   /// un défaut : passer par cette liste.
+  /// Règles PORTÉES PAR L'ORTHOGRAPHE, qu'aucun modèle acoustique ne peut
+  /// constater (2026-09-02).
+  ///
+  /// La hamzat waṣl est écrite, le lām solaire se lit sur le rasm, les lettres
+  /// muettes sont marquées, l'allongement naturel se déduit des lettres de
+  /// madd. Rien de tout cela ne s'entend comme un événement distinct : ces
+  /// quatre règles se LISENT, elles ne s'écoutent pas.
+  ///
+  /// CE QUI LE PROUVE, CÔTÉ MODÈLE (vérifié le 2026-09-02 sur le paquet
+  /// warsh-v5) : la tête tajwid a 10 classes réelles, dépliées sur 17 canaux
+  /// (deux fusions : `ikhfa_idgham_noun` -> ikhafa/idgham_ghunnah/iqlab, et
+  /// `shafawi` -> ikhafa_shafawi/idgham_shafawi). 13 canaux sont alimentés.
+  /// Les 4 qui restent constants à -20 sont EXACTEMENT ceux-ci -- la liste
+  /// n'est pas une opinion, elle se relit dans `classes_10.json`.
+  ///
+  /// POURQUOI LES RETIRER DE L'IHM, ET PAS SEULEMENT DU VERDICT : les
+  /// neutraliser au moment de juger (ce que fait `_textCarriedRules`) empêche
+  /// le faux violet, mais les laisse s'afficher comme ATTENDUES sur le mot --
+  /// l'utilisateur croit alors qu'on vérifie une règle que personne ne
+  /// vérifie. Mesure du 2026-09-02, mot 11 `ٱلصَّلَوٰةَ` :
+  /// `attendues=laam_shamsiyah,slnt,madda_normal` pour `detectees=ghunnah`,
+  /// soit trois règles annoncées dont aucune n'est vérifiable. Annoncer un
+  /// contrôle qu'on ne fait pas est une forme de verdict sans preuve.
+  ///
+  /// ⚠️ À RETIRER de cette liste dès qu'un modèle apprend ces classes : elles
+  /// redeviennent alors des règles comme les autres.
+  static const List<TajwidRule> porteesParLeTexte = [
+    maddaNormal, laamShamsiyah, hamWasl, slnt,
+  ];
+
+  /// Les règles qu'un utilisateur peut voir et activer.
+  ///
+  /// = ce que le texte annoté attend, MOINS [porteesParLeTexte] (2026-09-02).
+  /// Restent les 13 canaux que la tête alimente réellement.
   static const List<TajwidRule> selectionnables = [
-    maddaNecessary, maddaObligatory, maddaPermissible, maddaNormal,
+    maddaNecessary, maddaObligatory, maddaPermissible,
     ghunnah, ikhafa, ikhafaShafawi, idghamGhunnah, idghamShafawi, iqlab,
     idghamWoGhunnah, idghamMutajanisayn, idghamMutaqaribayn,
-    laamShamsiyah, hamWasl, slnt, qalaqah,
+    qalaqah,
   ];
 
   static TajwidRule? fromKey(String key) {

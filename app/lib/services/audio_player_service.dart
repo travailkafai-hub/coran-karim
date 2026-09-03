@@ -87,6 +87,20 @@ class AudioPlayerService {
       return _jouerViaMp3Quran(verse, reciter);
     }
 
+    // ── RÉCITEUR CHANGÉ : LE FLUX MP3QURAN N'EST PLUS CELUI CHARGÉ ─────────
+    //
+    // BUG CORRIGÉ (2026-08-28, constat utilisateur : « si on change le
+    // récitateur il y a des bugs »). `_sourateEnCoursMp3Quran` ne servait
+    // qu'à éviter de rouvrir le MÊME flux Afasy d'un verset au suivant --
+    // mais rien ne la remettait à zéro en quittant ce chemin. Revenir
+    // ensuite sur Afasy, MÊME SOURATE, faisait croire à `_jouerViaMp3Quran`
+    // que son fichier était toujours celui chargé dans `_player` : il se
+    // contentait alors d'un `seek()` dans ce qui pouvait être un tout autre
+    // flux (celui du récitateur intercalé ci-dessous), avec les positions
+    // `startMs`/`endMs` d'Afasy appliquées à un audio différent -- audio et
+    // texte plus alignés du tout.
+    _sourateEnCoursMp3Quran = null;
+
     // Sourate téléchargée : on ne touche AUCUNEMENT au réseau -- ni pour
     // l'audio, ni pour la liste d'URLs (`preloadSurah` est lui aussi un appel
     // HTTP). C'est ce qui supprime la fenêtre pendant laquelle un appui sur

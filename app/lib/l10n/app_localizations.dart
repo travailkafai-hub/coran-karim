@@ -268,6 +268,12 @@ abstract class AppLocalizations {
   /// **'Warsh ‘an Nâfi‘'**
   String get settingsRiwayaWarsh;
 
+  /// Bandeau (SnackBar) affiché juste après avoir basculé la riwaya, pour rassurer sur le fait que les récitations/mémorisation passées gardent leur propre riwaya (2026-08-23)
+  ///
+  /// In fr, this message translates to:
+  /// **'Récitations et mémorisation déjà faites : suivies séparément par riwāya, elles ne changent pas.'**
+  String get settingsRiwayaChangeNotice;
+
   /// Style de récitation : Murattal (rythme régulier)
   ///
   /// In fr, this message translates to:
@@ -463,7 +469,7 @@ abstract class AppLocalizations {
   /// Tooltip de l'icône Shazam coranique sur la page d'accueil
   ///
   /// In fr, this message translates to:
-  /// **'Identifier une récitation'**
+  /// **'Chercher un verset par la voix'**
   String get homeIdentifyTooltip;
 
   /// Tooltip de l'icône "suivre une prière" sur la page d'accueil
@@ -548,6 +554,24 @@ abstract class AppLocalizations {
   /// **'Plus'**
   String get mushafMore;
 
+  /// Feuille de réglages de lecture : interrupteur qui active le mode annotation (crayon) du Mushaf
+  ///
+  /// In fr, this message translates to:
+  /// **'Surligner le texte'**
+  String get mushafAnnotateButton;
+
+  /// Barre d'outils du crayon : bulle-info de l'outil gomme (retire une marque)
+  ///
+  /// In fr, this message translates to:
+  /// **'Gomme'**
+  String get mushafAnnotateEraser;
+
+  /// Barre d'outils du crayon : bouton qui referme le mode annotation
+  ///
+  /// In fr, this message translates to:
+  /// **'Terminé'**
+  String get mushafAnnotateDone;
+
   /// Badge flottant : défilement automatique actif
   ///
   /// In fr, this message translates to:
@@ -569,7 +593,7 @@ abstract class AppLocalizations {
   /// Feuille Shazam coranique : état écoute en cours
   ///
   /// In fr, this message translates to:
-  /// **'Écoute en cours...\nApproche le téléphone du son.'**
+  /// **'Récite ou fais écouter un passage —\nle verset est retrouvé puis ouvert.'**
   String get shazamListening;
 
   /// Feuille Shazam coranique : état recherche
@@ -1097,7 +1121,7 @@ abstract class AppLocalizations {
   /// No description provided for @duasRadiosTitre.
   ///
   /// In fr, this message translates to:
-  /// **'Écoute continue'**
+  /// **'Écoute radio invocations'**
   String get duasRadiosTitre;
 
   /// No description provided for @duasRadioMatin.
@@ -1111,12 +1135,6 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Invocations du soir'**
   String get duasRadioSoir;
-
-  /// No description provided for @duasRadioRoqya.
-  ///
-  /// In fr, this message translates to:
-  /// **'Roqya'**
-  String get duasRadioRoqya;
 
   /// No description provided for @duasRadioSousTitre.
   ///
@@ -1838,11 +1856,41 @@ abstract class AppLocalizations {
   /// **'Trouve le mot suivant. Erreur = -5 et retour au verset précédent.'**
   String get memorizationGameRulesHint;
 
+  /// Titre du pont de transition affiché avant de demander le premier mot d'un verset (demande utilisateur 2026-08-26 : aider à mémoriser les débuts de verset, la rupture étant à la jonction)
+  ///
+  /// In fr, this message translates to:
+  /// **'LA FIN DU VERSET PRÉCÉDENT'**
+  String get memorizationGameBridgeHint;
+
   /// Bandeau affiché pendant la révélation de la bonne réponse, pour expliquer pourquoi le jeu recule (demande utilisateur 2026-08-10 : « qu'on montre qu'on revient en arrière, sinon celui qui joue ne va pas comprendre »)
   ///
   /// In fr, this message translates to:
   /// **'Retour au verset précédent (-5)'**
   String get memorizationGameWrongAnswerBanner;
+
+  /// Bascule de style du jeu de mémorisation : mode habituel (mot par mot, dans l'ordre)
+  ///
+  /// In fr, this message translates to:
+  /// **'Enchaînement'**
+  String get memorizationGameStyleChaining;
+
+  /// Bascule de style du jeu de mémorisation : mode alternatif (2 mots, versets mélangés, demande utilisateur 2026-08-28)
+  ///
+  /// In fr, this message translates to:
+  /// **'Début de verset'**
+  String get memorizationGameStyleVerseStart;
+
+  /// Rappel permanent des règles en haut de l'écran du mode Début de verset
+  ///
+  /// In fr, this message translates to:
+  /// **'Retrouve les deux premiers mots de ce verset.'**
+  String get memorizationGameStyleVerseStartHint;
+
+  /// Message affiché en mode Début de verset quand la portion ouverte a moins de 2 versets exploitables
+  ///
+  /// In fr, this message translates to:
+  /// **'Cette portion n\'a pas assez de versets pour ce mode.'**
+  String get memorizationGameStyleVerseStartTooShort;
 
   /// Indicateur de progression dans la sourate
   ///
@@ -2664,6 +2712,12 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Refaire ma récitation de référence'**
   String get karaokeRedoReferenceTooltip;
+
+  /// Tooltip : recommencer la récitation depuis le premier mot
+  ///
+  /// In fr, this message translates to:
+  /// **'Refaire'**
+  String get karaokeRestartTooltip;
 
   /// Titre du bandeau annonçant une session de référence à venir
   ///

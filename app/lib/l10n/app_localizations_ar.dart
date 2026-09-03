@@ -101,6 +101,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get settingsRiwayaWarsh => 'ورش عن نافع';
 
   @override
+  String get settingsRiwayaChangeNotice =>
+      'التلاوات والحفظ السابقان: يُتابَعان بشكل منفصل حسب الرواية، ولن يتغيّرا.';
+
+  @override
   String get settingsStyleMurattal => 'مرتّل';
 
   @override
@@ -222,7 +226,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get commonRetry => 'إعادة المحاولة';
 
   @override
-  String get homeIdentifyTooltip => 'التعرّف على تلاوة';
+  String get homeIdentifyTooltip => 'البحث عن آية بالصوت';
 
   @override
   String get homeFollowPrayerTooltip => 'متابعة صلاة';
@@ -274,6 +278,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get mushafMore => 'المزيد';
 
   @override
+  String get mushafAnnotateButton => 'تظليل النص';
+
+  @override
+  String get mushafAnnotateEraser => 'ممحاة';
+
+  @override
+  String get mushafAnnotateDone => 'تم';
+
+  @override
   String get mushafAutoScroll => 'تمرير تلقائي';
 
   @override
@@ -283,7 +296,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get commonClose => 'إغلاق';
 
   @override
-  String get shazamListening => 'الاستماع جارٍ...\nقرّب الهاتف من الصوت.';
+  String get shazamListening => 'اتلُ أو شغّل مقطعًا —\nتُوجد الآية ثم تُفتح.';
 
   @override
   String get shazamSearching => 'البحث في القرآن...';
@@ -588,16 +601,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get duasSearchHint => 'ابحث عن دعاء أو كلمة أو مصدر…';
 
   @override
-  String get duasRadiosTitre => 'استماع مستمر';
+  String get duasRadiosTitre => 'إذاعة الأذكار';
 
   @override
   String get duasRadioMatin => 'أذكار الصباح';
 
   @override
   String get duasRadioSoir => 'أذكار المساء';
-
-  @override
-  String get duasRadioRoqya => 'الرقية الشرعية';
 
   @override
   String get duasRadioSousTitre => 'بث مباشر — يتطلب اتصالاً بالإنترنت';
@@ -1005,8 +1015,25 @@ class AppLocalizationsAr extends AppLocalizations {
       'ابحث عن الكلمة التالية. الخطأ يكلف -5 ويعيدك إلى الآية السابقة.';
 
   @override
+  String get memorizationGameBridgeHint => 'خاتمة الآية السابقة';
+
+  @override
   String get memorizationGameWrongAnswerBanner =>
       'العودة إلى الآية السابقة (-5)';
+
+  @override
+  String get memorizationGameStyleChaining => 'تسلسل';
+
+  @override
+  String get memorizationGameStyleVerseStart => 'بداية الآية';
+
+  @override
+  String get memorizationGameStyleVerseStartHint =>
+      'اعثر على أول كلمتين من هذه الآية.';
+
+  @override
+  String get memorizationGameStyleVerseStartTooShort =>
+      'لا يحتوي هذا الجزء على آيات كافية لهذا الوضع.';
 
   @override
   String memorizationGameVerseProgress(int current, int total) {
@@ -1519,6 +1546,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get karaokeRedoReferenceTooltip => 'إعادة تلاوتي المرجعية';
+
+  @override
+  String get karaokeRestartTooltip => 'إعادة';
 
   @override
   String get karaokeReferenceRecordingTitle => 'تلاوة مرجعية';

@@ -34,7 +34,14 @@ class PrayerSettings {
   /// le service, en parallèle du `MediaPlayer` -- pas besoin d'un second
   /// canal, ni de figer quoi que ce soit à la création : ce flag continue de
   /// n'être qu'un simple booléen passé jusqu'au natif via `EXTRA_VIBRATE`.
-  final bool vibrateEnabled;
+  ///
+  /// PASSÉ PAR PRIÈRE le 2026-08-23 (demande utilisateur : « rajoute le
+  /// vibreur par prière comme option avancée ») -- même généralisation déjà
+  /// appliquée à `adhanEnabled` et `reminderEnabled`. La bascule simple de
+  /// l'écran règle les 5 prières d'un coup (`PrayerSettingsNotifier
+  /// .setVibrateEnabled`) ; la section « avancé » permet de s'écarter
+  /// prière par prière (`setVibrateEnabledForPrayer`).
+  final Map<PrayerName, bool> vibrateEnabled;
 
   /// Rappel configurable AVANT l'adhan, activable prière par prière (pas
   /// seulement Sobh : généralisé le 2026-07-24 sur demande utilisateur, qui
@@ -64,7 +71,13 @@ class PrayerSettings {
       PrayerName.maghrib: true,
       PrayerName.isha: true,
     },
-    vibrateEnabled: true,
+    vibrateEnabled: {
+      PrayerName.fajr: true,
+      PrayerName.dhuhr: true,
+      PrayerName.asr: true,
+      PrayerName.maghrib: true,
+      PrayerName.isha: true,
+    },
     reminderEnabled: {
       PrayerName.fajr: false,
       PrayerName.dhuhr: false,
@@ -85,7 +98,7 @@ class PrayerSettings {
     PrayerCalculationMethod? method,
     bool? methodIsAuto,
     Map<PrayerName, bool>? adhanEnabled,
-    bool? vibrateEnabled,
+    Map<PrayerName, bool>? vibrateEnabled,
     Map<PrayerName, bool>? reminderEnabled,
     Map<PrayerName, int>? reminderMinutesBefore,
   }) {
@@ -103,7 +116,7 @@ class PrayerSettings {
         'method': method.name,
         'methodIsAuto': methodIsAuto,
         'adhanEnabled': adhanEnabled.map((k, v) => MapEntry(k.name, v)),
-        'vibrateEnabled': vibrateEnabled,
+        'vibrateEnabled': vibrateEnabled.map((k, v) => MapEntry(k.name, v)),
         'reminderEnabled': reminderEnabled.map((k, v) => MapEntry(k.name, v)),
         'reminderMinutesBefore':
             reminderMinutesBefore.map((k, v) => MapEntry(k.name, v)),
@@ -114,6 +127,20 @@ class PrayerSettings {
     final adhan = <PrayerName, bool>{
       for (final p in PrayerName.values)
         p: (rawAdhan?[p.name] as bool?) ?? defaultValues.adhanEnabled[p]!,
+    };
+    // Migration 2026-08-23 : ancien format = un seul bool partagé par les 5
+    // prières (avant le passage par-prière). Même règle que `legacyMinutes`
+    // plus bas -- sert de repli pour une prière absente du nouveau format
+    // map, plutôt que de perdre le réglage déjà choisi par l'utilisateur.
+    final legacyVibrate = j['vibrateEnabled'] is bool ? j['vibrateEnabled'] as bool : null;
+    final rawVibrate = j['vibrateEnabled'] is Map
+        ? (j['vibrateEnabled'] as Map).cast<String, dynamic>()
+        : null;
+    final vibrate = <PrayerName, bool>{
+      for (final p in PrayerName.values)
+        p: (rawVibrate?[p.name] as bool?) ??
+            legacyVibrate ??
+            defaultValues.vibrateEnabled[p]!,
     };
     final rawReminder = (j['reminderEnabled'] as Map?)?.cast<String, dynamic>();
     final reminder = <PrayerName, bool>{
@@ -141,7 +168,7 @@ class PrayerSettings {
           orElse: () => PrayerCalculationMethod.muslimWorldLeague),
       methodIsAuto: j['methodIsAuto'] as bool? ?? true,
       adhanEnabled: adhan,
-      vibrateEnabled: j['vibrateEnabled'] as bool? ?? true,
+      vibrateEnabled: vibrate,
       reminderEnabled: reminder,
       reminderMinutesBefore: minutes,
     );

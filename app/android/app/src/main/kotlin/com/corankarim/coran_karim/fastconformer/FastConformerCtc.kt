@@ -275,6 +275,21 @@ class FastConformerCtc(
      *  modele n'a pas de tete tajwid. */
     val ruleNames: List<String> get() = tajwidNames
 
+    /** Seuil de detection PAR CLASSE, en probabilite (2026-09-02).
+     *
+     *  `tajwidSeuilsLog` est stocke en LOG (comparable directement aux
+     *  logprobs de la tete) ; on rend ici la probabilite equivalente, seule
+     *  forme comparable a `DetectedRule.prob` dans un journal lisible.
+     *  Ajoute parce que le journal disait « detectee / non detectee » sans
+     *  jamais montrer NI la valeur NI le seuil : impossible de voir qu'une
+     *  regle passait de justesse, ou qu'une classe avait un seuil aberrant.
+     *  Un seuil >= 1 est infranchissable par construction (c'est ainsi que
+     *  les 4 regles portees par le texte sont neutralisees cote modele). */
+    fun seuilProba(ruleId: Int): Float =
+        if (ruleId in tajwidSeuilsLog.indices)
+            Math.exp(tajwidSeuilsLog[ruleId].toDouble()).toFloat()
+        else 0.5f
+
     /** Le modele charge expose-t-il une tete tajwid exploitable ? */
     val hasTajwid: Boolean get() = hasTajwidHead
 

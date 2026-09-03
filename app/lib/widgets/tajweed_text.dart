@@ -397,6 +397,11 @@ class TajweedText extends StatelessWidget {
   /// concurrence rien.
   final void Function(int wordIndex)? onWordLongPress;
 
+  /// Surlignage libre posé par l'utilisateur (crayon du Mushaf, 2026-08-28) --
+  /// couleur de fond par index de mot RÉEL dans le verset (même indexation
+  /// que [onWordTap]). `null`/absent = aucune marque sur ce mot.
+  final Map<int, Color>? wordHighlights;
+
   const TajweedText({
     super.key,
     required this.textUthmani,
@@ -410,6 +415,7 @@ class TajweedText extends StatelessWidget {
     this.couleurTexte,
     this.modeSombre = false,
     this.onWordLongPress,
+    this.wordHighlights,
   });
 
   @override
@@ -469,8 +475,14 @@ class TajweedText extends StatelessWidget {
           : (onWordTap != null
               ? (TapGestureRecognizer()..onTap = () => onWordTap!(wordIndex))
               : null);
+      final surlignage = wordHighlights?[wordIndex];
       for (final s in wordSpans[i]) {
-        children.add(TextSpan(text: s.text, style: s.style, recognizer: recognizer));
+        children.add(TextSpan(
+            text: s.text,
+            style: surlignage == null
+                ? s.style
+                : (s.style ?? base).copyWith(backgroundColor: surlignage),
+            recognizer: recognizer));
       }
       if (i < wordSpans.length - 1) {
         children.add(TextSpan(text: ' ', style: base));
@@ -492,7 +504,13 @@ class TajweedText extends StatelessWidget {
   }
 
   Widget _plainTappable(TextStyle base) {
-    if (onWordTap == null && onWordLongPress == null) {
+    // Un surlignage doit s'afficher MÊME hors mode annotation (les marques
+    // sont permanentes, cf. mushaf_annotation_provider.dart) -- le raccourci
+    // "aucun geste -> Text nu sans découpage par mot" ci-dessous ne peut donc
+    // s'appliquer que si aucune marque n'existe non plus sur ce verset.
+    if (onWordTap == null &&
+        onWordLongPress == null &&
+        (wordHighlights == null || wordHighlights!.isEmpty)) {
       // ── LE NUMÉRO DE VERSET DOIT SURVIVRE ICI AUSSI (2026-08-12) ─────────
       // Ce retour anticipé rendait un `Text` nu, qui LAISSAIT TOMBER
       // `_leadingSpans()` -- donc le badge de numéro de verset -- alors que
@@ -537,12 +555,16 @@ class TajweedText extends StatelessWidget {
           for (int i = 0; i < words.length; i++)
             TextSpan(
               text: i < words.length - 1 ? '${words[i]} ' : words[i],
-              style: base,
+              style: wordHighlights?[start + i] == null
+                  ? base
+                  : base.copyWith(backgroundColor: wordHighlights![start + i]),
               recognizer: onWordLongPress != null
                   ? (LongPressGestureRecognizer()
                     ..onLongPress = () => onWordLongPress!(start + i))
-                  : (TapGestureRecognizer()
-                    ..onTap = () => onWordTap!(start + i)),
+                  : (onWordTap != null
+                      ? (TapGestureRecognizer()
+                        ..onTap = () => onWordTap!(start + i))
+                      : null),
             ),
         ],
       ),

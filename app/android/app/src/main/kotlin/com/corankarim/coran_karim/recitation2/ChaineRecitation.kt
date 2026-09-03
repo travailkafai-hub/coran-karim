@@ -23,6 +23,93 @@ package com.corankarim.coran_karim.recitation2
  * segmentation ayant disparu, les reintroduire serait le signal que le
  * probleme est revenu — pas un correctif.
  */
+/** Duree MINIMALE qu'une regle de tajwid doit tenir pour etre comptee
+ *  realisee (2026-09-02).
+ *
+ *  ── POURQUOI LA DUREE, ET PAS LA PROBABILITE ────────────────────────────
+ *  Mesure du 2026-09-02, meme sourate (Al-Balad), deux recitations : celle
+ *  de l'utilisateur s'efforcant de NE PAS appliquer le tajwid, et celle d'un
+ *  recitateur professionnel qui l'applique.
+ *
+ *  Les POIDS de la tete ne separent pas les deux : 0,98-1,00 des deux cotes,
+ *  9 ecarts sur 14 sous 0,05, et meme DEUX mots ou le professionnel sort un
+ *  poids PLUS BAS. La tete dit « la regle est la », pas « elle est faite ».
+ *
+ *  Les DUREES, elles, separent nettement : mediane x2,0, total 3 600 ms
+ *  contre 7 280 ms sur les memes 14 regles. C'est coherent avec ce qu'est le
+ *  tajwid -- une ghunna se tient deux temps, un madd s'allonge, une qalqala
+ *  resonne. Ce sont des durees, pas des presences.
+ *
+ *  ── D'OU VIENNENT CES CHIFFRES ──────────────────────────────────────────
+ *  STRICT = 75e percentile du RECITATEUR PROFESSIONNEL, par regle, arrondi a
+ *  la frame (80 ms). TOLERANT = la moitie, choix utilisateur du 2026-09-02
+ *  (« strict p75 et tolerant on va dire 50 % »).
+ *
+ *  ⚠️ ECHANTILLON FAIBLE, a reprendre des qu'on a plus d'audio : n=16 pour
+ *  qalaqah, mais n=1 pour iqlab, n=2 pour ghunnah, n=3 pour idgham_ghunnah.
+ *  Un seuil tire d'une seule observation n'est pas une mesure, c'est un point.
+ *  Les valeurs sont volontairement dans UNE table lisible plutot que dispersees
+ *  dans le code, pour qu'un recalibrage soit un changement de chiffres.
+ *
+ *  Une regle absente de la table n'est PAS filtree (seuil 0) : on ne rejette
+ *  jamais sur un seuil qu'aucune mesure ne fonde. */
+object SeuilsDureeTajwid {
+    /** (tolerant, strict) en ms, par regle.
+     *
+     *  ── RECALIBRE LE 2026-09-02, APRES UN PREMIER JEU TROP SEVERE ────────
+     *  Le premier calibrage prenait le p75 du professionnel comme STRICT et
+     *  sa moitie comme tolerant. Mesure immediate : le professionnel
+     *  lui-meme ne passait qu'a 34 % en strict et 87 % en tolerant --
+     *  autrement dit le mode « tolerant » refusait une regle sur huit a un
+     *  recitateur qui les applique toutes. Signale par l'utilisateur :
+     *  « tu l'as rendu trop exigeant, meme le dernier test recitateur vrai
+     *  ne passe pas dans le tolerant ». Il avait raison, et l'erreur etait
+     *  de calibrer par le HAUT de la distribution : un seuil place au p75
+     *  rejette par construction 25 % de ce qu'il devrait accepter.
+     *
+     *  ── CE SUR QUOI CES CHIFFRES SONT MESURES ────────────────────────────
+     *  Al-Afasy sur Al-Balad, WAV deterministe rejoue dans l'app, MODELE
+     *  REELLEMENT DEPLOYE (le PC ne sait pas executer cet INT8 : ConvInteger
+     *  en UINT8, absent d'onnxruntime CPU). n = 40 mesures pour qalaqah,
+     *  37 pour le triplet du nun, 33 pour idgham_wo_ghunnah -- au lieu des
+     *  1 a 3 du premier jeu.
+     *
+     *  TOLERANT = p10 du professionnel, STRICT = p25, arrondis a la frame
+     *  (80 ms). Taux de passage VERIFIES sur lui : 95-100 % en tolerant,
+     *  73-82 % en strict.
+     *
+     *  ⚠️ FAIT MESURE A CONNAITRE : meme chez le professionnel, le MINIMUM
+     *  observe est 80 ms (une frame) sur presque toutes les regles. Aucun
+     *  seuil au-dessus d'une frame ne peut donc accepter 100 % de ses
+     *  detections -- une part d'entre elles sont des declenchements parasites
+     *  qu'il ne « fait » pas non plus. C'est la raison pour laquelle on vise
+     *  un percentile bas et non le minimum.
+     *
+     *  ── REGLES SANS SEUIL, ET POURQUOI ───────────────────────────────────
+     *  Sous 8 mesures, aucun seuil n'est pose (0 = pas de filtre) :
+     *  idgham_mutajanisayn (7), madda_necessary (3), ikhafa_shafawi (2),
+     *  idgham_shafawi (2), ghunnah (2), idgham_mutaqaribayn (1). Un seuil
+     *  tire d'une ou deux observations n'est pas une mesure. Elles passent
+     *  donc comme avant, jusqu'a ce qu'on ait de l'audio pour les calibrer. */
+    private val SEUILS_MS = mapOf(
+        "qalaqah" to Pair(80, 160),
+        "ikhafa" to Pair(160, 320),
+        "idgham_ghunnah" to Pair(160, 320),
+        "iqlab" to Pair(160, 320),
+        "idgham_wo_ghunnah" to Pair(80, 160),
+        "madda_obligatory" to Pair(80, 160),
+        "madda_permissible" to Pair(80, 160),
+    )
+
+    /** @param nom nom de la regle tel que `rules.json` le donne.
+     *  @param strict rigueur choisie dans l'ecran Reciter.
+     *  @return duree minimale en ms, 0 si la regle n'est pas calibree. */
+    fun minMs(nom: String, strict: Boolean): Int {
+        val s = SEUILS_MS[nom] ?: return 0
+        return if (strict) s.second else s.first
+    }
+}
+
 class ChaineRecitation(
     private val front: FrontAcoustique,
     private val tokeniser: (String) -> IntArray,
@@ -129,7 +216,18 @@ class ChaineRecitation(
      * n'est pas touchee par ce parametre.
      */
     private val sautLibre: Boolean = false,
+    /** Rigueur du tajwid au moment de creer la chaine. Passee au constructeur
+     *  plutot que laissee au defaut : une chaine recreee en cours de session
+     *  (nouvelle cible, changement de mode) doit repartir sur le choix de
+     *  l'utilisateur, pas sur le defaut. */
+    tajwidStrictInitial: Boolean = true,
 ) {
+    /** Rigueur du tajwid, poussee par `v2SetFusion(tajwidStrict:)`.
+     *  STRICT par defaut : c'est la valeur qu'avait le commutateur « Rigueur
+     *  de la correction » quand il a ete retire le 2026-08-10, et partir en
+     *  tolerant changerait le comportement de qui n'y touche jamais. */
+    @Volatile var tajwidStrict: Boolean = tajwidStrictInitial
+
     /**
      * Bornes du dernier trou constate quand [sautLibre] est actif : les mots
      * `sautPresumeDe + 1 .. sautPresumeA - 1` n'ont pas ete entendus alors que
@@ -186,6 +284,22 @@ class ChaineRecitation(
      * que du silence.
      */
     var dernierEntenduLibre: String = ""
+
+    /**
+     * Position (`travailDebut`) de la fenetre qui a produit [dernierEntenduLibre].
+     *
+     * AJOUTE (2026-08-28) -- BUG CONFIRME PAR LOG DEVICE : les fenetres ne sont
+     * PAS toujours traitees dans l'ordre chronologique de l'audio (un apercu de
+     * parole recente peut etre journalise avant qu'un bloc plus ancien ne soit
+     * finalise -- mesure : travailDebut 209920 -> 200960 -> 131840 sur 3 appels
+     * consecutifs). Cote Dart, `_libreRecent` empilait chaque bribe dans l'ORDRE
+     * D'ARRIVEE, jamais dans l'ordre chronologique -- le texte envoye a
+     * l'identification de sourate en mode priere pouvait donc melanger fin de
+     * sourate precedente et debut de la suivante, dans le desordre. Cette
+     * position permet a Dart d'IGNORER toute bribe anterieure a la derniere
+     * acceptee plutot que de tout empiler aveuglement.
+     */
+    var dernierEntenduLibrePosition: Long = -1L
 
     private var motsAttendus: List<String> = emptyList()
     private var tokensAttendus: List<IntArray> = emptyList()
@@ -397,6 +511,7 @@ class ChaineRecitation(
         trouEnAttenteA = -1
         idFenetreTrou = -1L
         dernierEntenduLibre = ""
+        dernierEntenduLibrePosition = -1L
         statutsCourants = emptyMap()
         ajouterMots(mots, journalCible = true)
         // La region de recherche du localisateur est calee sur
@@ -702,9 +817,31 @@ class ChaineRecitation(
             // ou non, et c'est justement quand elle est INCONNUE que ce texte
             // sert le plus (aucune cible encore identifiee).
             dernierEntenduLibre = entenduLibre
+            dernierEntenduLibrePosition = fenetre.travailDebut
+            // ── DIAGNOSTIC AJOUTE (2026-08-28), CAUSE TROUVEE ────────────────
+            // Constat utilisateur, mode priere : le texte libre reste bloque a
+            // repeter la MEME phrase plusieurs fois de suite pendant la
+            // recherche de la 2e sourate (log : "يَـٰٓأَيُّهَا" x6 en ~0,7 s).
+            // Le journal instrumente (`travailDebut` ci-dessous) a montre que
+            // les fenetres ne sont PAS toujours traitees dans l'ordre
+            // chronologique de l'audio (mesure : travailDebut 209920 -> 200960
+            // -> 131840 sur 3 appels consecutifs -- proprete reconnue de cette
+            // couche, pas un bug ici). La VRAIE cause etait cote Dart :
+            // `_libreRecent` (recitation_provider.dart) empilait chaque bribe
+            // dans l'ordre d'ARRIVEE, jamais chronologique -- le texte envoye
+            // a l'identification de sourate melangeait donc fin de sourate
+            // precedente et debut de la suivante, dans le desordre.
+            // [dernierEntenduLibrePosition] permet desormais a Dart d'ignorer
+            // toute bribe anterieure a la derniere acceptee.
+            // Pas de correctif ici -- mesure d'abord (regle projet), cf.
+            // CLAUDE.md sur BufferedTranscriber : jamais de correctif de
+            // segmentation sans preuve device prealable.
             journal?.invoke("[v2] f=${fenetre.id} bande=inconnue " +
                 "entendu=\"$entenduLibre\" horsTexte=$fenetresHorsTexte " +
-                "dejaSignale=$decrochageDejaSignale")
+                "dejaSignale=$decrochageDejaSignale " +
+                "travailDebut=${fenetre.travailDebut} " +
+                "dureeS=${"%.2f".format(fenetre.dureeSecondes)} " +
+                "apercu=${fenetre.apercu}")
             // Decrochage (cf. le commentaire de `fenetresHorsTexte`) : on ne
             // compte QUE les fenetres ou quelque chose a ete entendu. Une
             // fenetre muette est un silence, pas une recitation etrangere.
@@ -1216,10 +1353,40 @@ class ChaineRecitation(
                     journal?.invoke("[tajwidDuree] mot=${m.index} " +
                         detections.joinToString(" ") { d ->
                             val nom = front.nomsRegles.getOrNull(d.ruleId) ?: "?${d.ruleId}"
-                            "$nom=${d.frames}f(${d.frames * 80}ms)"
+                            // VALEUR + SEUIL, pas seulement la duree
+                            // (2026-09-02, demande utilisateur : « tu ne m'as
+                            // pas montre mes valeurs ? »). La probabilite
+                            // etait DEJA calculee (DetectedRule.prob) et
+                            // simplement jamais ecrite -- on ne pouvait donc
+                            // pas distinguer une regle franchie de justesse
+                            // d'une regle franchie largement, ni voir qu'un
+                            // seuil etait aberrant.
+                            val seuil = front.seuilRegle(d.ruleId)
+                            "$nom=${d.frames}f(${d.frames * 80}ms) " +
+                                "p=${"%.3f".format(d.prob)}/${"%.3f".format(seuil)}"
                         })
                 }
-                detections.map { it.ruleId }.distinct()
+                // FILTRE DE DUREE (2026-09-02) -- c'est ici que la rigueur
+                // agit. Avant, toute detection au-dessus du seuil de
+                // PROBABILITE comptait comme regle realisee, quelle que soit
+                // sa duree : une qalqala de 80 ms valait celle de 480 ms du
+                // professionnel. Les poids ne distinguant pas les deux (cf.
+                // SeuilsDureeTajwid), c'etait un tampon automatique.
+                //
+                // Une regle non calibree a un seuil de 0 : elle passe comme
+                // avant. On ne rejette jamais sur un chiffre qu'aucune mesure
+                // ne fonde.
+                detections.filter { d ->
+                    val nom = front.nomsRegles.getOrNull(d.ruleId) ?: ""
+                    val min = SeuilsDureeTajwid.minMs(nom, tajwidStrict)
+                    val gardee = d.frames * 80 >= min
+                    if (!gardee) {
+                        journal?.invoke("[tajwidDuree] mot=${m.index} $nom " +
+                            "REJETEE ${d.frames * 80}ms < ${min}ms " +
+                            "(${if (tajwidStrict) "strict" else "tolerant"})")
+                    }
+                    gardee
+                }.map { it.ruleId }.distinct()
             } else emptyList()
             // TETE 3 : OBSERVATION SEULE (journal), cf. vecteurTete3 ci-dessous
             // -- ne touche ni Observation ni le statut.

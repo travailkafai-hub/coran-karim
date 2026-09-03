@@ -20,8 +20,10 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
+import '../providers/debut_verset_game_provider.dart';
 import '../providers/memorization_game_provider.dart';
 import '../providers/memorization_game_records_provider.dart';
+import '../providers/memorization_word_difficulty_provider.dart';
 import '../theme/app_theme.dart';
 
 class MemorizationGameScreen extends ConsumerWidget {
@@ -41,6 +43,16 @@ class MemorizationGameScreen extends ConsumerWidget {
     final provider = memorizationGameProvider(verses);
     final state = ref.watch(provider);
     final notifier = ref.read(provider.notifier);
+    // ── STYLE « DÉBUT DE VERSET » (2026-08-28, demande utilisateur) ─────────
+    //
+    // « à l'ouverture du jeu enchaînement tu peux basculer style start
+    // verset -- ça va se jouer que sur les débuts de verset [...] deux mots
+    // par deux mots avec des mélanges de début [...] le numéro du verset,
+    // bien décoré, avec les 4 propositions ». Un mode alternatif, PAS un
+    // remplacement : bascule visible dès l'ouverture (`_StyleToggle`
+    // ci-dessous), l'enchaînement habituel reste le défaut inchangé tant
+    // qu'on ne la touche pas. Cf. debut_verset_game_provider.dart.
+    final debutVersetMode = ref.watch(debutVersetModeProvider);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -52,11 +64,15 @@ class MemorizationGameScreen extends ConsumerWidget {
             textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
             style: GoogleFonts.baloo2(fontSize: 18, fontWeight: FontWeight.w700)),
         actions: [
-          IconButton(
-            tooltip: t.memorizationGameRestartVerseTooltip,
-            icon: const Icon(Icons.replay_rounded),
-            onPressed: notifier.restartVerse,
-          ),
+          // "Recommencer le verset" n'a pas de sens en "début de verset" (il
+          // n'y a pas de verset EN COURS à reprendre, chaque question pioche
+          // un verset différent) -- masqué plutôt que branché sur rien.
+          if (!debutVersetMode)
+            IconButton(
+              tooltip: t.memorizationGameRestartVerseTooltip,
+              icon: const Icon(Icons.replay_rounded),
+              onPressed: notifier.restartVerse,
+            ),
         ],
       ),
       body: Container(
@@ -68,22 +84,35 @@ class MemorizationGameScreen extends ConsumerWidget {
           ),
         ),
         child: SafeArea(
-          child: state.isGameComplete
-              ? _CompletionView(
-                  surah: surah,
-                  isArabic: isArabic,
-                  finalWords: state.totalWordsCompleted,
-                  portionLabel: state.currentPortionLabel,
-                  portionTotal: state.currentPortionWordsTotal,
-                  portionBest: state.currentPortionUnitKey == null
-                      ? 0
-                      : ref.watch(memorizationGameRecordsProvider)[
-                              state.currentPortionUnitKey!] ??
-                          0,
-                )
-              : Column(
+          child: Column(
+            children: [
+              const SizedBox(height: 60), // sous l'AppBar transparente
+              // Bascule de style -- visible dans les DEUX modes, à
+              // l'ouverture du jeu comme demandé (« à l'ouverture du jeu
+              // enchaînement tu peux basculer style »). Masquée une fois la
+              // partie d'enchaînement terminée (`_CompletionView` prend tout
+              // l'écran) : rebasculer dessus n'aurait aucun sens sur un écran
+              // qui ne montre déjà plus de question.
+              if (debutVersetMode || !state.isGameComplete)
+                const _StyleToggle(),
+              Expanded(
+                child: debutVersetMode
+                    ? _DebutVersetGameBody(surah: surah, verses: verses)
+                    : state.isGameComplete
+                        ? _CompletionView(
+                            surah: surah,
+                            isArabic: isArabic,
+                            finalWords: state.totalWordsCompleted,
+                            portionLabel: state.currentPortionLabel,
+                            portionTotal: state.currentPortionWordsTotal,
+                            portionBest: state.currentPortionUnitKey == null
+                                ? 0
+                                : ref.watch(memorizationGameRecordsProvider)[
+                                        state.currentPortionUnitKey!] ??
+                                    0,
+                          )
+                        : Column(
                   children: [
-                    const SizedBox(height: 60), // sous l'AppBar transparente
                     _ScoreBar(
                       words: state.totalWordsCompleted,
                       portionLabel: state.currentPortionLabel,
@@ -166,6 +195,17 @@ class MemorizationGameScreen extends ConsumerWidget {
                       verse: state.currentVerse,
                       validatedCount: state.currentWordIndex,
                     ),
+                    // ── PONT DE TRANSITION (2026-08-26) ──────────────────────
+                    // Demande utilisateur : « le début des mots des versets
+                    // sont souvent assujettis à l'oubli, cherche une
+                    // méthodologie pour aider à mémoriser le début de
+                    // verset ». La rupture est à la JONCTION : on montre la
+                    // fin du verset PRÉCÉDENT au moment exact où on demande
+                    // le premier mot du suivant, pour faire travailler ce
+                    // lien-là plutôt que le mot isolé. Cf.
+                    // `MemorizationGameState.pontVersetPrecedent`.
+                    if (state.pontVersetPrecedent != null)
+                      _PontTransition(texte: state.pontVersetPrecedent!),
                     Expanded(
                       child: Center(
                         child: state.isLoadingNextPage
@@ -180,12 +220,350 @@ class MemorizationGameScreen extends ConsumerWidget {
                                     choices: state.choices,
                                     wrongFlash: state.wrongFlash,
                                     revealedAnswer: state.revealedAnswer,
+                                    justRedeemed: state.justRedeemed,
+                                    difficultes:
+                                        ref.watch(memorizationWordDifficultyProvider),
                                     onChoiceTap: notifier.submitWord,
                                   ),
                       ),
                     ),
                   ],
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bascule de style, visible dès l'ouverture du jeu (2026-08-28, demande
+/// utilisateur). UN SEUL contrôle segmenté (pas deux puces flottantes,
+/// corrigé le même jour -- retour utilisateur : « style toggle mais c'est
+/// mal agencé ») : un fond neutre unique, un indicateur doré qui glisse d'un
+/// côté à l'autre. Motif standard (segmented control iOS/Material) plutôt
+/// qu'inventé, et sa largeur pleine (comme le reste de la colonne) l'aligne
+/// proprement avec `_ScoreBar`/`_DebutVersetScoreBar` juste en dessous, là où
+/// deux puces de tailles différentes créaient un bord gauche irrégulier.
+class _StyleToggle extends ConsumerWidget {
+  const _StyleToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final mode = ref.watch(debutVersetModeProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppColors.cream300, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 6,
+                offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Stack(
+          children: [
+            AnimatedAlign(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              alignment: mode ? Alignment.centerRight : Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: 0.5,
+                heightFactor: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.gameStar,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                          color: AppColors.gameStar.withValues(alpha: 0.45),
+                          blurRadius: 8),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: _StyleSegment(
+                    label: t.memorizationGameStyleChaining,
+                    selected: !mode,
+                    onTap: () =>
+                        ref.read(debutVersetModeProvider.notifier).state = false,
+                  ),
+                ),
+                Expanded(
+                  child: _StyleSegment(
+                    label: t.memorizationGameStyleVerseStart,
+                    selected: mode,
+                    onTap: () =>
+                        ref.read(debutVersetModeProvider.notifier).state = true,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StyleSegment extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _StyleSegment({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Center(
+        child: Text(
+          label,
+          style: GoogleFonts.baloo2(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : AppColors.inkLight,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Jeu « début de verset » (2026-08-28) : pioche un verset au hasard dans la
+/// PORTION déjà ouverte (même `verses` que l'enchaînement, cf. la doc de
+/// `debutVersetGameProvider`), affiche son numéro en grand, et propose 4 QCM
+/// pour ses deux premiers mots. Cf. debut_verset_game_provider.dart pour le
+/// pourquoi de ce mode (ancrer le numéro du verset à SON début, l'endroit le
+/// plus sujet à l'oubli).
+class _DebutVersetGameBody extends ConsumerWidget {
+  final Surah surah;
+  final List<Verse> verses;
+  const _DebutVersetGameBody({required this.surah, required this.verses});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final provider = debutVersetGameProvider(verses);
+    final state = ref.watch(provider);
+    final notifier = ref.read(provider.notifier);
+    final q = state.question;
+
+    if (state.pool.length < 2) {
+      // Portion trop courte pour fournir 2 versets distincts (ex. une
+      // sourate d'un seul verset) -- le dire plutôt qu'un écran vide muet.
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            t.memorizationGameStyleVerseStartTooShort,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.manrope(fontSize: 14, color: AppColors.inkLight),
+          ),
+        ),
+      );
+    }
+    if (q == null) return const SizedBox.shrink();
+
+    // ── CONTENU REMONTÉ, PAS ÉTALÉ (2026-08-28, retour utilisateur : « remonte
+    // plus en haut ») ──────────────────────────────────────────────────────
+    // La version précédente enveloppait la grille dans `Expanded(child:
+    // Center(...))` : sur un écran haut, ça la centrait dans TOUT l'espace
+    // restant sous le médaillon -- un grand vide entre les deux. Un simple
+    // `Column` sans `Expanded` empile médaillon et grille l'un sous l'autre,
+    // resserrés, plutôt que dispersés sur toute la hauteur disponible.
+    return Column(
+      children: [
+        _DebutVersetScoreBar(score: state.score, streak: state.streak),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
+          child: Text(
+            t.memorizationGameStyleVerseStartHint,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.manrope(fontSize: 11.5, color: AppColors.inkLight),
+          ),
+        ),
+        _VerseNumberMedallion(surah: surah, ayah: q.verset.verse.ayahNumber),
+        _DebutVersetChoiceGrid(
+          propositions: q.propositions,
+          correcte: q.reponseCorrecte,
+          revele: state.revele,
+          wrongFlash: state.wrongFlash,
+          onTap: notifier.repondre,
+        ),
+      ],
+    );
+  }
+}
+
+class _DebutVersetScoreBar extends StatelessWidget {
+  final int score;
+  final int streak;
+  const _DebutVersetScoreBar({required this.score, required this.streak});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 6, 24, 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.star_rounded, color: AppColors.gameStar, size: 20),
+          const SizedBox(width: 6),
+          Text('$score',
+              style: GoogleFonts.baloo2(
+                  fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.ink)),
+          if (streak >= 3) ...[
+            const SizedBox(width: 14),
+            const Icon(Icons.local_fire_department_rounded,
+                color: AppColors.gameWrong, size: 18),
+            const SizedBox(width: 4),
+            Text('$streak',
+                style: GoogleFonts.baloo2(
+                    fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.inkLight)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Le numéro du verset, « bien décoré » (demande utilisateur explicite) :
+/// médaillon doré à deux anneaux plutôt que le petit badge octogonal sobre du
+/// Mushaf (`verse_tile.dart`) -- ici le numéro EST la question, il doit
+/// dominer l'écran, pas se fondre dans le texte.
+class _VerseNumberMedallion extends StatelessWidget {
+  final Surah surah;
+  final int ayah;
+  const _VerseNumberMedallion({required this.surah, required this.ayah});
+
+  @override
+  Widget build(BuildContext context) {
+    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        children: [
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.gameStar, Color(0xFFFFA000)],
+              ),
+              border: Border.all(color: Colors.white, width: 4),
+              boxShadow: [
+                BoxShadow(
+                    color: AppColors.gameStar.withValues(alpha: 0.5),
+                    blurRadius: 16,
+                    spreadRadius: 2),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                '$ayah',
+                style: GoogleFonts.baloo2(
+                    fontSize: 30, fontWeight: FontWeight.w800, color: Colors.white),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            isArabic ? surah.nameArabic : surah.nameSimple,
+            textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
+            style: GoogleFonts.baloo2(
+                fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.inkLight),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Grille des 4 propositions -- réutilise `_ChoiceChip` (même style que
+/// l'enchaînement) sans les extras propres à celui-ci (anneau de difficulté,
+/// onde de rédemption) : pas de mesure de difficulté par mot construite pour
+/// ce mode, et « juste redeemed » suppose un mot déjà raté puis retrouvé au
+/// même endroit, ce que ce mode -- qui pioche un verset différent à chaque
+/// question -- ne peut pas offrir.
+class _DebutVersetChoiceGrid extends StatefulWidget {
+  final List<String> propositions;
+  final String correcte;
+  final String? revele;
+  final bool wrongFlash;
+  final void Function(String) onTap;
+  const _DebutVersetChoiceGrid({
+    required this.propositions,
+    required this.correcte,
+    required this.revele,
+    required this.wrongFlash,
+    required this.onTap,
+  });
+
+  @override
+  State<_DebutVersetChoiceGrid> createState() => _DebutVersetChoiceGridState();
+}
+
+class _DebutVersetChoiceGridState extends State<_DebutVersetChoiceGrid>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shake =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+
+  @override
+  void didUpdateWidget(covariant _DebutVersetChoiceGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.wrongFlash && !oldWidget.wrongFlash) _shake.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _shake.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = widget.revele != null;
+    return AnimatedBuilder(
+      animation: _shake,
+      builder: (context, child) {
+        final offset = sin(_shake.value * pi * 6) * 10 * (1 - _shake.value);
+        return Transform.translate(offset: Offset(offset, 0), child: child);
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            for (final p in widget.propositions)
+              _ChoiceChip(
+                word: p,
+                color: couleurDuMot(p),
+                anneau: null,
+                flashWrong: widget.wrongFlash,
+                revealed: p == widget.revele,
+                locked: locked,
+                onTap: locked ? null : () => widget.onTap(p),
+              ),
+          ],
         ),
       ),
     );
@@ -472,10 +850,24 @@ class _ChoiceGrid extends StatefulWidget {
   final String? revealedAnswer;
   final void Function(String) onChoiceTap;
 
+  /// Le mot qui vient d'être validé avait été raté auparavant (2026-08-26,
+  /// demande utilisateur -- précisée le même jour : « pas vraiment le texte
+  /// bravo mais un effet bravo »). D'où une ONDE de célébration dessinée
+  /// par-dessus la grille (`_OndeReussite`), sans le moindre libellé : le
+  /// geste se félicite tout seul, il n'a pas besoin d'être commenté.
+  final bool justRedeemed;
+
+  /// Échecs cumulés par mot (clé normalisée), cf.
+  /// `memorization_word_difficulty_provider.dart` -- pilote la teinte fixe
+  /// de chaque puce selon la règle unique `couleurDifficulte`.
+  final Map<String, int> difficultes;
+
   const _ChoiceGrid({
     required this.choices,
     required this.wrongFlash,
     required this.revealedAnswer,
+    required this.justRedeemed,
+    required this.difficultes,
     required this.onChoiceTap,
   });
 
@@ -484,10 +876,17 @@ class _ChoiceGrid extends StatefulWidget {
 }
 
 class _ChoiceGridState extends State<_ChoiceGrid>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _shake = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 400),
+  );
+
+  /// L'effet de réussite sur un mot précédemment raté -- une seule passe,
+  /// jamais en boucle : c'est une récompense ponctuelle.
+  late final AnimationController _celebration = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
   );
 
   @override
@@ -496,11 +895,15 @@ class _ChoiceGridState extends State<_ChoiceGrid>
     if (widget.wrongFlash && !oldWidget.wrongFlash) {
       _shake.forward(from: 0);
     }
+    if (widget.justRedeemed && !oldWidget.justRedeemed) {
+      _celebration.forward(from: 0);
+    }
   }
 
   @override
   void dispose() {
     _shake.dispose();
+    _celebration.dispose();
     super.dispose();
   }
 
@@ -511,7 +914,7 @@ class _ChoiceGridState extends State<_ChoiceGrid>
     // -- désactiver le geste ici évite en plus le petit "enfoncement" visuel
     // d'une puce qui ne va rien déclencher.
     final locked = widget.revealedAnswer != null;
-    return AnimatedBuilder(
+    final grille = AnimatedBuilder(
       animation: _shake,
       builder: (context, child) {
         final offset = sin(_shake.value * pi * 6) * 10 * (1 - _shake.value);
@@ -527,12 +930,133 @@ class _ChoiceGridState extends State<_ChoiceGrid>
             for (var i = 0; i < widget.choices.length; i++)
               _ChoiceChip(
                 word: widget.choices[i],
-                color: AppColors.gameChipColors[i % AppColors.gameChipColors.length],
+                // COULEUR DU MOT, jamais de la position dans la grille (la
+                // grille est remélangée à chaque tour) -- cf. `couleurDuMot`
+                // et le défaut qu'elle corrige.
+                color: couleurDuMot(widget.choices[i]),
+                // Canal SÉPARÉ pour la difficulté, pour que la couleur du mot
+                // reste constante (cf. `anneauDifficulte`).
+                anneau: anneauDifficulte(widget.difficultes[
+                        MemorizationWordDifficulty.cle(widget.choices[i])] ??
+                    0),
                 flashWrong: widget.wrongFlash,
                 revealed: widget.choices[i] == widget.revealedAnswer,
                 locked: locked,
                 onTap: locked ? null : () => widget.onChoiceTap(widget.choices[i]),
               ),
+          ],
+        ),
+      ),
+    );
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        grille,
+        // L'onde ne capte aucun geste (`IgnorePointer`) : elle passe
+        // par-dessus la grille pendant que le jeu continue dessous.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: _OndeReussite(animation: _celebration),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// EFFET DE RÉUSSITE sur un mot qui avait été raté (2026-08-26).
+///
+/// Demande utilisateur, précisée en cours de route : « pas vraiment le texte
+/// bravo mais un effet bravo ». Donc aucun libellé, aucune icône de
+/// félicitation -- une onde dorée qui s'ouvre depuis le centre de la grille
+/// et s'efface. Le joueur comprend qu'il vient de récupérer un mot qui lui
+/// résistait, sans qu'on ait besoin de le lui écrire.
+///
+/// Dessiné plutôt qu'animé en widgets : trois anneaux concentriques décalés
+/// coûtent un seul repaint, là où trois `AnimatedContainer` empilés
+/// relayeraient une reconstruction à chaque frame.
+class _OndeReussite extends StatelessWidget {
+  final Animation<double> animation;
+  const _OndeReussite({required this.animation});
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) => animation.value == 0
+            ? const SizedBox.shrink()
+            : CustomPaint(painter: _OndePainter(animation.value)),
+      );
+}
+
+class _OndePainter extends CustomPainter {
+  final double t; // 0 -> 1
+  _OndePainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centre = Offset(size.width / 2, size.height / 2);
+    final rayonMax = size.shortestSide * 0.9;
+    // Trois anneaux décalés dans le temps : le premier part tout de suite, les
+    // suivants avec un retard, ce qui donne la pulsation plutôt qu'un cercle
+    // unique qui grandit.
+    for (var i = 0; i < 3; i++) {
+      final avance = (t - i * 0.15).clamp(0.0, 1.0);
+      if (avance <= 0) continue;
+      final opacite = (1 - avance) * 0.55;
+      if (opacite <= 0) continue;
+      canvas.drawCircle(
+        centre,
+        rayonMax * avance,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4 * (1 - avance) + 1
+          ..color = AppColors.gameStar.withValues(alpha: opacite),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OndePainter old) => old.t != t;
+}
+
+/// PONT DE TRANSITION : la fin du verset précédent, affichée au moment où le
+/// premier mot du verset suivant est demandé (2026-08-26). Cf. la doc de
+/// `MemorizationGameState.pontVersetPrecedent` pour le raisonnement.
+class _PontTransition extends StatelessWidget {
+  final String texte;
+  const _PontTransition({required this.texte});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.gameStar.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.gameStar.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              t.memorizationGameBridgeHint,
+              style: GoogleFonts.manrope(
+                  fontSize: 10,
+                  letterSpacing: 1.1,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.inkLight),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              texte,
+              textDirection: TextDirection.rtl,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.scheherazadeNew(
+                  fontSize: 22, color: AppColors.ink),
+            ),
           ],
         ),
       ),
@@ -543,6 +1067,10 @@ class _ChoiceGridState extends State<_ChoiceGrid>
 class _ChoiceChip extends StatefulWidget {
   final String word;
   final Color color;
+
+  /// Anneau de DIFFICULTÉ, canal distinct de [color] pour que la couleur du
+  /// mot reste constante (cf. `anneauDifficulte`). `null` = mot jamais raté.
+  final Color? anneau;
   final bool flashWrong;
   final bool revealed;
   final bool locked;
@@ -551,6 +1079,7 @@ class _ChoiceChip extends StatefulWidget {
   const _ChoiceChip({
     required this.word,
     required this.color,
+    required this.anneau,
     required this.flashWrong,
     required this.revealed,
     required this.locked,
@@ -584,9 +1113,14 @@ class _ChoiceChipState extends State<_ChoiceChip> {
           decoration: BoxDecoration(
             color: widget.color,
             borderRadius: BorderRadius.circular(28),
+            // La révélation prime sur l'anneau de difficulté : pendant cette
+            // fenêtre, c'est « voici la bonne réponse » qui doit se lire, pas
+            // l'historique du mot.
             border: widget.revealed
                 ? Border.all(color: Colors.white, width: 3)
-                : null,
+                : widget.anneau != null
+                    ? Border.all(color: widget.anneau!, width: 3)
+                    : null,
             boxShadow: [
               BoxShadow(
                 color: glow.withValues(alpha: widget.revealed ? 0.9 : 0.5),

@@ -168,17 +168,18 @@ class PrayerNotificationService {
       final enabled = settings.adhanEnabled[p] ?? true;
       final label = _prayerLabels[p]!;
       if (enabled) {
+        final vibrate = settings.vibrateEnabled[p] ?? true;
         await _scheduleAdhan(
           id: _idForToday(p),
           label: label,
           when: today[p]!,
-          vibrate: settings.vibrateEnabled,
+          vibrate: vibrate,
         );
         await _scheduleAdhan(
           id: _idForTomorrow(p),
           label: label,
           when: tomorrow[p]!,
-          vibrate: settings.vibrateEnabled,
+          vibrate: vibrate,
         );
       } else {
         await _cancelAdhan(_idForToday(p));

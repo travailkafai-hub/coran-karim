@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show Offset;
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -54,7 +55,7 @@ class SessionArchiveService {
     final chemin = p.join(await getDatabasesPath(), 'session_archive.db');
     return openDatabase(
       chemin,
-      version: 7,
+      version: 11,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE sessions(
@@ -69,7 +70,8 @@ class SessionArchiveService {
             words_total INTEGER NOT NULL DEFAULT 0,
             words_green INTEGER NOT NULL DEFAULT 0,
             words_reached INTEGER NOT NULL DEFAULT 0,
-            words_skipped INTEGER NOT NULL DEFAULT 0
+            words_skipped INTEGER NOT NULL DEFAULT 0,
+            riwaya TEXT NOT NULL DEFAULT 'hafs'
           )
         ''');
         // Un mot NON VERT d'une session. `audio_path` peut être null : l'audio
@@ -97,6 +99,8 @@ class SessionArchiveService {
         await _creerTablesPortions(db);
         await _creerTableJours(db);
         await _creerTablePointsQuart(db);
+        await _creerTableMushafMarks(db);
+        await _creerTableMushafStrokes(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         // v1 -> v2 (2026-08-10) : suivi PERMANENT par sourate/Hizb, à côté de
@@ -150,8 +154,265 @@ class SessionArchiveService {
           await db.execute(
               'ALTER TABLE jours_actifs ADD COLUMN objectif_mots_du_jour INTEGER NOT NULL DEFAULT 0');
         }
+        // v7 -> v8 (2026-08-23) : TAGUER chaque session/portion avec la
+        // riwaya sous laquelle elle a été récitée -- décision utilisateur :
+        // « ma récitation était Warsh, ça doit pas changer, c'est fixe ».
+        // AVANT ce correctif, `portions`/`portion_words` n'avaient AUCUNE
+        // notion de riwaya (`UNIQUE(surah_number, unit_key)` seul) : réciter
+        // un mot en Hafs PUIS en Warsh écrivait dans la MÊME ligne --
+        // `upsertPortionWord` retrouve la ligne par position, pas par riwaya
+        // -- et le second verdict écrasait silencieusement le premier
+        // (verdict, `expected_word`, audio archivé). Toutes les lignes
+        // déjà là sont marquées 'hafs' par défaut : le Warsh vient d'être
+        // câblé (2026-08-22/23), rien n'a pu être enregistré en Warsh avant
+        // cette migration -- ce n'est donc pas une supposition, c'est un fait
+        // temporel.
+        //
+        // `sessions` : simple ALTER, pas de contrainte UNIQUE à revoir
+        // (chaque récitation y est une nouvelle ligne, jamais un upsert par
+        // position -- rien n'y a jamais été écrasé par la riwaya).
+        //
+        // `portions` : SQLite ne sait pas modifier une contrainte UNIQUE en
+        // place -- reconstruction complète de la table (id préservés, donc
+        // les FOREIGN KEY de `portion_words.portion_id` restent valides sans
+        // y toucher).
+        if (oldVersion < 8) {
+          await db.execute(
+              "ALTER TABLE sessions ADD COLUMN riwaya TEXT NOT NULL DEFAULT 'hafs'");
+          await db.execute('ALTER TABLE portions RENAME TO portions_v7');
+          await db.execute('''
+            CREATE TABLE portions(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              surah_number INTEGER NOT NULL,
+              unit_key TEXT NOT NULL,
+              label TEXT NOT NULL,
+              first_ayah INTEGER NOT NULL,
+              last_ayah INTEGER NOT NULL,
+              words_total INTEGER NOT NULL,
+              created_at TEXT NOT NULL,
+              last_recited_at TEXT NOT NULL,
+              riwaya TEXT NOT NULL DEFAULT 'hafs',
+              UNIQUE(surah_number, unit_key, riwaya)
+            )
+          ''');
+          await db.execute('''
+            INSERT INTO portions (id, surah_number, unit_key, label,
+                first_ayah, last_ayah, words_total, created_at,
+                last_recited_at, riwaya)
+            SELECT id, surah_number, unit_key, label, first_ayah, last_ayah,
+                words_total, created_at, last_recited_at, 'hafs'
+            FROM portions_v7
+          ''');
+          await db.execute('DROP TABLE portions_v7');
+        }
+        // v8 -> v9 (2026-08-28) : surlignage libre du Mushaf (« crayon »,
+        // demande utilisateur). Table neuve, aucune existante touchée.
+        if (oldVersion < 9) {
+          await _creerTableMushafMarks(db);
+        }
+        // v9 -> v10 (2026-08-28, même jour) : la demande initiale de
+        // surlignage mot-par-mot s'est révélée insuffisante -- l'utilisateur
+        // voulait un vrai tracé libre (référence montrée : l'outil stylet de
+        // Notes Samsung). Table neuve à côté de `mushaf_marks`, qui reste
+        // utile pour marquer un mot entier d'un coup.
+        if (oldVersion < 10) {
+          await _creerTableMushafStrokes(db);
+        }
+        // v10 -> v11 (2026-08-29) : badges de répétition (demande
+        // utilisateur). Cf. la doc de la colonne sur `_creerTablesPortions` --
+        // les installations qui passent par elle (fraîches, ou upgrade depuis
+        // < v2) l'ont déjà, seules celles déjà en v2+ ont besoin de l'ALTER.
+        if (oldVersion < 11) {
+          await db.execute(
+              'ALTER TABLE portions ADD COLUMN repetitions INTEGER NOT NULL DEFAULT 0');
+        }
       },
     );
+  }
+
+  /// Marques posées à la main sur le texte du Mushaf (surlignage couleur),
+  /// PAS un verdict de récitation -- cf. `session_words`/`portion_words` pour
+  /// ça. Une ligne par MOT marqué ; l'absence de ligne = pas de marque.
+  ///
+  /// Dans la MÊME base que le suivi de mémorisation (`session_archive.db`),
+  /// délibérément (demande utilisateur 2026-08-28 : « ça doit rester avec
+  /// mémorisation sauf si il lance initialisation qui efface tout ») -- pas
+  /// un fichier séparé. Conséquence directe : [toutEffacer] doit vider CETTE
+  /// table aussi, sinon une marque survivrait à une remise à zéro complète
+  /// alors que rien ne la distingue plus des données qu'elle est censée
+  /// accompagner.
+  ///
+  /// `riwaya` fait partie de la clé : Hafs et Warsh n'ont pas forcément le
+  /// même découpage en mots pour un même verset (cf. `models/riwaya.dart`),
+  /// donc un `word_in_ayah` de l'un ne désigne pas forcément le même mot chez
+  /// l'autre -- les marques ne doivent jamais fuiter d'une riwaya vers
+  /// l'autre.
+  Future<void> _creerTableMushafMarks(Database db) async {
+    await db.execute('''
+      CREATE TABLE mushaf_marks(
+        surah_number INTEGER NOT NULL,
+        ayah_number INTEGER NOT NULL,
+        word_in_ayah INTEGER NOT NULL,
+        riwaya TEXT NOT NULL DEFAULT 'hafs',
+        color INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(surah_number, ayah_number, word_in_ayah, riwaya)
+      )
+    ''');
+  }
+
+  /// Pose ou change la couleur de marque d'UN mot (upsert -- appui sur un mot
+  /// déjà marqué change sa couleur plutôt que d'empiler une 2e ligne).
+  Future<void> definirMarqueMushaf({
+    required int surahNumber,
+    required int ayahNumber,
+    required int wordInAyah,
+    required String riwaya,
+    required int color,
+  }) async {
+    final db = await _database;
+    await db.insert(
+      'mushaf_marks',
+      {
+        'surah_number': surahNumber,
+        'ayah_number': ayahNumber,
+        'word_in_ayah': wordInAyah,
+        'riwaya': riwaya,
+        'color': color,
+        'created_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Retire la marque d'UN mot (tap sur un mot déjà marqué de la MÊME couleur
+  /// -- cf. l'appelant -- ou outil gomme).
+  Future<void> effacerMarqueMushaf({
+    required int surahNumber,
+    required int ayahNumber,
+    required int wordInAyah,
+    required String riwaya,
+  }) async {
+    final db = await _database;
+    await db.delete('mushaf_marks',
+        where:
+            'surah_number = ? AND ayah_number = ? AND word_in_ayah = ? AND riwaya = ?',
+        whereArgs: [surahNumber, ayahNumber, wordInAyah, riwaya]);
+  }
+
+  /// TOUTES les marques, chargées en une fois au démarrage de l'écran Mushaf
+  /// -- une requête par verset affiché serait autant d'allers-retours SQLite
+  /// pendant un défilement, pour un volume de données qui tient sans effort
+  /// en mémoire (quelques marques, jamais un mot sur deux du Coran entier).
+  /// Clé de la map : `"surah:ayah:mot:riwaya"`, format partagé avec
+  /// `MushafMarksNotifier` (providers/mushaf_annotation_provider.dart).
+  Future<Map<String, int>> toutesLesMarquesMushaf() async {
+    final db = await _database;
+    final rows = await db.query('mushaf_marks',
+        columns: ['surah_number', 'ayah_number', 'word_in_ayah', 'riwaya', 'color']);
+    return {
+      for (final r in rows)
+        '${r['surah_number']}:${r['ayah_number']}:${r['word_in_ayah']}:${r['riwaya']}':
+            r['color'] as int,
+    };
+  }
+
+  /// Traits libres (« crayon », 2026-08-28) : un tracé au doigt/stylet
+  /// par-dessus le texte -- cf. `MushafStroke` (providers/
+  /// mushaf_annotation_provider.dart) pour le choix de coordonnées
+  /// NORMALISÉES par verset plutôt que des pixels d'écran absolus.
+  ///
+  /// Table séparée de `mushaf_marks` (pas une évolution de son schéma) :
+  /// un trait n'appartient pas à UN mot comme une marque de surlignage, sa
+  /// clé naturelle est le verset entier, et ses points forment une liste de
+  /// longueur variable -- deux formes de données trop différentes pour une
+  /// même table sans complexifier les deux usages.
+  Future<void> _creerTableMushafStrokes(Database db) async {
+    await db.execute('''
+      CREATE TABLE mushaf_strokes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        surah_number INTEGER NOT NULL,
+        ayah_number INTEGER NOT NULL,
+        riwaya TEXT NOT NULL DEFAULT 'hafs',
+        color INTEGER NOT NULL,
+        points TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+        'CREATE INDEX idx_mushaf_strokes ON mushaf_strokes(surah_number, ayah_number, riwaya)');
+  }
+
+  /// `points` -> texte compact `"x1,y1;x2,y2;..."` (coordonnées déjà
+  /// normalisées côté appelant, donc de simples nombres à virgule -- pas
+  /// besoin de JSON pour une liste de paires).
+  static String _encoderPoints(List<Offset> points) =>
+      points.map((p) => '${p.dx.toStringAsFixed(4)},${p.dy.toStringAsFixed(4)}').join(';');
+
+  static List<Offset> _decoderPoints(String texte) {
+    if (texte.isEmpty) return const [];
+    return texte.split(';').map((paire) {
+      final parts = paire.split(',');
+      return Offset(double.parse(parts[0]), double.parse(parts[1]));
+    }).toList();
+  }
+
+  Future<int> ajouterTraitMushaf({
+    required int surahNumber,
+    required int ayahNumber,
+    required String riwaya,
+    required int color,
+    required List<Offset> points,
+  }) async {
+    final db = await _database;
+    return db.insert('mushaf_strokes', {
+      'surah_number': surahNumber,
+      'ayah_number': ayahNumber,
+      'riwaya': riwaya,
+      'color': color,
+      'points': _encoderPoints(points),
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Vide TOUTES les annotations du Mushaf -- marques de surlignage ET traits
+  /// au crayon, toutes riwayat, toutes sourates, quelle que soit leur date.
+  ///
+  /// Ajoutee le 2026-09-02. Le provider la documentait depuis le debut
+  /// (« la remise a zero complete les efface ensemble ») sans qu'elle existe
+  /// nulle part. Demande utilisateur : « il faut un qui initialise tout ».
+  ///
+  /// IRREVERSIBLE : aucune corbeille, aucun historique. L'appelant DOIT
+  /// demander confirmation -- ce sont des annotations que l'utilisateur a
+  /// posees a la main, parfois il y a des mois.
+  Future<void> effacerToutesAnnotationsMushaf() async {
+    final db = await _database;
+    await db.delete('mushaf_marks');
+    await db.delete('mushaf_strokes');
+  }
+
+  Future<void> effacerTraitMushaf(int strokeId) async {
+    final db = await _database;
+    await db.delete('mushaf_strokes', where: 'id = ?', whereArgs: [strokeId]);
+  }
+
+  /// TOUS les traits, groupés par `"surah:ayah:riwaya"` -- même raison de
+  /// tout charger en une fois qu'au-dessus (`toutesLesMarquesMushaf`).
+  Future<Map<String, List<({int id, int color, List<Offset> points})>>>
+      tousLesTraitsMushaf() async {
+    final db = await _database;
+    final rows = await db.query('mushaf_strokes',
+        columns: ['id', 'surah_number', 'ayah_number', 'riwaya', 'color', 'points']);
+    final resultat = <String, List<({int id, int color, List<Offset> points})>>{};
+    for (final r in rows) {
+      final c = '${r['surah_number']}:${r['ayah_number']}:${r['riwaya']}';
+      (resultat[c] ??= []).add((
+        id: r['id'] as int,
+        color: r['color'] as int,
+        points: _decoderPoints(r['points'] as String),
+      ));
+    }
+    return resultat;
   }
 
   /// LE JOURNAL DES JOURS ACTIFS — la seule mémoire longue du Coach.
@@ -203,6 +464,18 @@ class SessionArchiveService {
   /// s'étale sur plusieurs Hizb) ; `portion_words` = le dernier verdict connu
   /// de CHAQUE mot de la portion, mis à jour (pas dupliqué) à chaque
   /// récitation qui rejoue ce mot.
+  ///
+  /// `repetitions` (2026-08-29, demande utilisateur : « des badges selon le
+  /// nombre de répétitions de la récitation, 5, 10, 20, 30 ») : compte le
+  /// nombre de fois où cette portion a franchi le seuil des 100 % de mots
+  /// acquis -- cf. `upsertPortionWord` pour le point exact où il s'incrémente
+  /// (une TRANSITION incomplet -> complet, jamais un simple maintien à 100 %
+  /// entre deux mots réécrits). `portion_words` étant un suivi CUMULÉ et
+  /// permanent (un mot correct le reste sans qu'on le rejoue), une portion
+  /// déjà à 100 % peut repasser sous 100 % si un mot déjà acquis est rerécité
+  /// et cette fois mal dit -- la reconquérir ensuite compte comme une
+  /// nouvelle répétition, ce qui correspond bien à l'intention : le nombre de
+  /// fois où l'utilisateur a effectivement tenu toute la portion.
   Future<void> _creerTablesPortions(Database db) async {
     await db.execute('''
       CREATE TABLE portions(
@@ -215,7 +488,9 @@ class SessionArchiveService {
         words_total INTEGER NOT NULL,
         created_at TEXT NOT NULL,
         last_recited_at TEXT NOT NULL,
-        UNIQUE(surah_number, unit_key)
+        riwaya TEXT NOT NULL DEFAULT 'hafs',
+        repetitions INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(surah_number, unit_key, riwaya)
       )
     ''');
     // `status` inclut 'conteste' (pouce vers le bas sur "Ma voix") : un mot
@@ -272,6 +547,7 @@ class SessionArchiveService {
     int? fromAyah,
     int? toAyah,
     String? preset,
+    String riwaya = 'hafs',
   }) async {
     await purgerAnciennes();
     final db = await _database;
@@ -282,6 +558,7 @@ class SessionArchiveService {
       'from_ayah': fromAyah,
       'to_ayah': toAyah,
       'preset': preset,
+      'riwaya': riwaya,
     });
     DiagnosticLog.log('Archive',
         'session $_sessionCourante ouverte (sourate=$surahNumber $fromAyah-$toAyah)');
@@ -507,6 +784,7 @@ class SessionArchiveService {
     required int firstAyah,
     required int lastAyah,
     required int wordsTotal,
+    required String riwaya,
   }) async {
     final db = await _database;
     final now = DateTime.now().toIso8601String();
@@ -521,12 +799,17 @@ class SessionArchiveService {
         'words_total': wordsTotal,
         'created_at': now,
         'last_recited_at': now,
+        'riwaya': riwaya,
       },
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
+    // riwaya DANS la clé de recherche : Hafs et Warsh sont deux portions
+    // distinctes pour la même sourate/unité (cf. la migration v7->v8 sur
+    // `portions.riwaya` -- sans cette clause, on retrouverait la ligne de
+    // l'AUTRE riwaya et on écraserait sa progression).
     final rows = await db.query('portions',
-        where: 'surah_number = ? AND unit_key = ?',
-        whereArgs: [surahNumber, unitKey]);
+        where: 'surah_number = ? AND unit_key = ? AND riwaya = ?',
+        whereArgs: [surahNumber, unitKey, riwaya]);
     final id = rows.first['id'] as int;
     await db.update(
       'portions',
@@ -565,6 +848,7 @@ class SessionArchiveService {
     String? heardWord,
     String? kind,
     String? audioSource,
+    String riwaya = 'hafs',
   }) async {
     final portionId = await _upsertPortion(
       surahNumber: surahNumber,
@@ -573,6 +857,7 @@ class SessionArchiveService {
       firstAyah: firstAyah,
       lastAyah: lastAyah,
       wordsTotal: wordsTotal,
+      riwaya: riwaya,
     );
     String? destination;
     String? expiration;
@@ -595,6 +880,11 @@ class SessionArchiveService {
     }
     final db = await _database;
     final now = DateTime.now().toIso8601String();
+    // ── COMPTE LES RÉPÉTITIONS (2026-08-29) ──────────────────────────────
+    // « Acquis » avant l'écriture de CE mot -- cf. `palierRepetition`/la doc
+    // de la colonne pour la définition exacte (une répétition = une
+    // TRANSITION incomplet -> 100 %, jamais un simple maintien).
+    final completeAvant = await _portionEstComplete(db, portionId, wordsTotal);
     final existant = await db.query('portion_words',
         where: 'portion_id = ? AND ayah_number = ? AND word_in_ayah = ?',
         whereArgs: [portionId, ayahNumber, wordInAyah]);
@@ -646,6 +936,35 @@ class SessionArchiveService {
         ...valeurs,
       });
     }
+    // Transition incomplet -> complet : UNE répétition de plus. Comparer à
+    // l'état AVANT (capturé plus haut, avant la moindre écriture) plutôt
+    // qu'à un simple "est complet maintenant" évite de compter deux fois la
+    // même portion déjà à 100 % quand un mot QUELCONQUE de cette portion est
+    // rejoué et reste correct (pas une nouvelle répétition, juste une preuve
+    // de plus sur un mot déjà acquis).
+    if (!completeAvant && await _portionEstComplete(db, portionId, wordsTotal)) {
+      await db.rawUpdate(
+          'UPDATE portions SET repetitions = repetitions + 1 WHERE id = ?',
+          [portionId]);
+      DiagnosticLog.log('Archive',
+          'portion $portionId : repetition complete (badge de repetition)');
+    }
+  }
+
+  /// `wordsTotal` mots acquis ('correct'/'conteste'/'skipped', même règle que
+  /// [PortionResume.reussite]) sur cette portion -- utilisé UNIQUEMENT pour
+  /// détecter la transition incomplet -> complet (cf. `upsertPortionWord`),
+  /// jamais pour l'affichage (qui reste `portions()`, une seule requête pour
+  /// toute la liste).
+  Future<bool> _portionEstComplete(
+      Database db, int portionId, int wordsTotal) async {
+    if (wordsTotal <= 0) return false;
+    final rows = await db.rawQuery('''
+      SELECT COUNT(*) AS n FROM portion_words
+      WHERE portion_id = ? AND status IN ('correct','conteste','skipped')
+    ''', [portionId]);
+    final vertes = (rows.first['n'] as int?) ?? 0;
+    return vertes >= wordsTotal;
   }
 
   /// Pouce vers le bas ("Ma voix", cf. `tajwid_help_sheet.dart._onPouceBas`) :
@@ -709,7 +1028,11 @@ class SessionArchiveService {
   /// liste de portions SUIVIES DANS LA DURÉE, pas un historique d'activité
   /// récente -- l'ordre canonique est celui qui permet de la parcourir comme
   /// on parcourt le Mushaf.
-  Future<List<PortionResume>> portions({int limit = 60}) async {
+  /// [riwaya] : si fourni, ne renvoie que les portions de CETTE riwaya --
+  /// Hafs et Warsh sont deux progressions distinctes pour la même sourate
+  /// depuis la migration v7->v8 (`portions.riwaya`). `null` renvoie tout
+  /// (diagnostic/migration), jamais utilisé par l'écran normal.
+  Future<List<PortionResume>> portions({int limit = 60, String? riwaya}) async {
     final db = await _database;
     // `words_green` = mots ACQUIS : corrects, contestés par l'utilisateur, ou
     // laissés sans verdict par la chaîne ('skipped') -- ces derniers ne
@@ -720,9 +1043,10 @@ class SessionArchiveService {
         (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status IN ('correct','conteste','skipped')) AS words_green,
         (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status = 'skipped') AS words_skipped
       FROM portions p
+      ${riwaya != null ? 'WHERE p.riwaya = ?' : ''}
       ORDER BY p.surah_number ASC, p.first_ayah ASC
       LIMIT ?
-    ''', [limit]);
+    ''', [if (riwaya != null) riwaya, limit]);
     return rows.map(PortionResume.fromMap).toList();
   }
 
@@ -842,14 +1166,15 @@ class SessionArchiveService {
   /// Une portion, par sa clé exacte -- pour savoir si ELLE VIENT d'être
   /// complétée (badge) sans recharger toute la liste. `null` si la portion
   /// n'a encore aucune ligne.
-  Future<PortionResume?> portionParCle(int surahNumber, String unitKey) async {
+  Future<PortionResume?> portionParCle(int surahNumber, String unitKey,
+      {String riwaya = 'hafs'}) async {
     final db = await _database;
     final rows = await db.rawQuery('''
       SELECT p.*,
         (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id) AS words_reached,
         (SELECT COUNT(*) FROM portion_words w WHERE w.portion_id = p.id AND w.status IN ('correct','conteste','skipped')) AS words_green
-      FROM portions p WHERE p.surah_number = ? AND p.unit_key = ?
-    ''', [surahNumber, unitKey]);
+      FROM portions p WHERE p.surah_number = ? AND p.unit_key = ? AND p.riwaya = ?
+    ''', [surahNumber, unitKey, riwaya]);
     if (rows.isEmpty) return null;
     return PortionResume.fromMap(rows.first);
   }
@@ -958,7 +1283,12 @@ class SessionArchiveService {
   /// donc le mot lui-même, pas la portion : une portion revisitée ne fait pas
   /// rentrer dans la fenêtre les mots acquis des mois plus tôt). C'est ce que
   /// lit la barre de progression du mois.
-  Future<int> motsAcquisTousCoran({DateTime? depuis}) async {
+  /// [riwaya] : compte UNIQUEMENT les mots acquis dans cette riwaya --
+  /// sans ce filtre, un mot maîtrisé séparément en Hafs ET en Warsh (deux
+  /// portions distinctes depuis la migration v7->v8) ne compterait qu'une
+  /// fois pour « tout le Coran » alors que les deux progressions sont
+  /// réellement indépendantes.
+  Future<int> motsAcquisTousCoran({DateTime? depuis, String riwaya = 'hafs'}) async {
     final db = await _database;
     final filtreDate = depuis == null ? '' : 'AND w.updated_at >= ?';
     final rows = await db.rawQuery('''
@@ -966,9 +1296,10 @@ class SessionArchiveService {
         SELECT DISTINCT p.surah_number, w.ayah_number, w.word_in_ayah
         FROM portion_words w
         JOIN portions p ON p.id = w.portion_id
-        WHERE w.status IN ('correct','conteste','skipped') $filtreDate
+        WHERE w.status IN ('correct','conteste','skipped')
+          AND p.riwaya = ? $filtreDate
       )
-    ''', [if (depuis != null) depuis.toIso8601String()]);
+    ''', [riwaya, if (depuis != null) depuis.toIso8601String()]);
     return rows.isEmpty ? 0 : ((rows.first['n'] as int?) ?? 0);
   }
 
@@ -1076,6 +1407,11 @@ class SessionArchiveService {
     await db.delete('sessions');
     await db.delete('portion_words');
     await db.delete('portions');
+    // Cf. la doc de _creerTableMushafMarks : les marques du Mushaf vivent
+    // volontairement dans cette même base, donc une remise à zéro complète
+    // doit aussi les emporter.
+    await db.delete('mushaf_marks');
+    await db.delete('mushaf_strokes');
     try {
       final d = await _audioDir;
       await for (final e in d.list()) {
@@ -1107,6 +1443,10 @@ class SessionResume {
   /// pénalise pas ».
   final int wordsSkipped;
 
+  /// Riwaya sous laquelle cette session a été récitée (2026-08-23, migration
+  /// v7->v8). `'hafs'` ou `'warsh'`.
+  final String riwaya;
+
   const SessionResume({
     required this.id,
     required this.startedAt,
@@ -1121,6 +1461,7 @@ class SessionResume {
     this.wordsReached = 0,
     this.nonVerts = 0,
     this.wordsSkipped = 0,
+    this.riwaya = 'hafs',
   });
 
   /// Mots ACQUIS : les verts, PLUS ceux que la chaîne n'a pas su juger.
@@ -1160,6 +1501,7 @@ class SessionResume {
         wordsReached: (m['words_reached'] as int?) ?? 0,
         nonVerts: (m['non_verts'] as int?) ?? 0,
         wordsSkipped: (m['words_skipped'] as int?) ?? 0,
+        riwaya: (m['riwaya'] as String?) ?? 'hafs',
       );
 }
 
@@ -1228,6 +1570,15 @@ class PortionResume {
   /// même principe que la Bismillah dans `_compterMots` (session).
   final int wordsSkipped;
 
+  /// Riwaya sous laquelle CETTE portion a été récitée (2026-08-23, migration
+  /// v7->v8). `'hafs'` ou `'warsh'` -- cf. la doc sur `portions.riwaya`.
+  final String riwaya;
+
+  /// Nombre de fois où cette portion a franchi les 100 % de mots acquis
+  /// (2026-08-29). Cf. la doc de la colonne `portions.repetitions` pour le
+  /// détail de ce qui compte comme une répétition.
+  final int repetitions;
+
   const PortionResume({
     required this.id,
     required this.surahNumber,
@@ -1241,6 +1592,8 @@ class PortionResume {
     required this.wordsReached,
     required this.wordsGreen,
     this.wordsSkipped = 0,
+    this.riwaya = 'hafs',
+    this.repetitions = 0,
   });
 
   /// Part de mots ACQUIS sur le total de la portion (Bismillah déjà exclue du
@@ -1272,6 +1625,20 @@ class PortionResume {
   /// `reussite == 1.0`.
   bool get badge => wordsTotal > 0 && wordsGreen >= wordsTotal;
 
+  /// Palier de répétition atteint (2026-08-29, demande utilisateur : « des
+  /// badges selon le nombre de répétitions, 5, 10, 20, 30 ») -- `null` avant
+  /// le premier palier (5). Décroissant : un compte de 37 vaut le palier 30,
+  /// pas un badge à part au-delà.
+  int? get palierRepetition => repetitions >= 30
+      ? 30
+      : repetitions >= 20
+          ? 20
+          : repetitions >= 10
+              ? 10
+              : repetitions >= 5
+                  ? 5
+                  : null;
+
   factory PortionResume.fromMap(Map<String, Object?> m) => PortionResume(
         id: m['id'] as int,
         surahNumber: m['surah_number'] as int,
@@ -1285,6 +1652,8 @@ class PortionResume {
         wordsReached: (m['words_reached'] as int?) ?? 0,
         wordsGreen: (m['words_green'] as int?) ?? 0,
         wordsSkipped: (m['words_skipped'] as int?) ?? 0,
+        riwaya: (m['riwaya'] as String?) ?? 'hafs',
+        repetitions: (m['repetitions'] as int?) ?? 0,
       );
 }
 

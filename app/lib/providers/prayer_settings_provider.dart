@@ -218,9 +218,23 @@ class PrayerSettingsNotifier extends StateNotifier<PrayerState> {
     await _recomputeAndSchedule();
   }
 
+  /// Bascule SIMPLE : règle les 5 prières d'un coup (celle affichée hors de
+  /// la section « avancé »). Cf. [setVibrateEnabledForPrayer] pour le
+  /// réglage fin, prière par prière.
   Future<void> setVibrateEnabled(bool enabled) async {
+    final map = {for (final p in PrayerName.values) p: enabled};
     state = state.copyWith(
-        settings: state.settings.copyWith(vibrateEnabled: enabled));
+        settings: state.settings.copyWith(vibrateEnabled: map));
+    await _persist();
+    await _recomputeAndSchedule();
+  }
+
+  /// Option avancée (2026-08-23, demande utilisateur) : vibreur par prière,
+  /// même forme que [setAdhanEnabled]/[setReminderEnabled].
+  Future<void> setVibrateEnabledForPrayer(PrayerName prayer, bool enabled) async {
+    final map = {...state.settings.vibrateEnabled, prayer: enabled};
+    state = state.copyWith(
+        settings: state.settings.copyWith(vibrateEnabled: map));
     await _persist();
     await _recomputeAndSchedule();
   }

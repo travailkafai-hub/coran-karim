@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../l10n/app_localizations.dart';
+import '../models/riwaya.dart';
+import '../models/judgement_options.dart' show TajwidRule;
 import '../models/verse.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
@@ -192,6 +194,28 @@ void showTajwidHelpSheet(
   /// d'une lettre, et un `entendu` IDENTIQUE a l'attendu dit que le defaut
   /// n'est pas dans la prononciation.
   String? entendu,
+  /// Regles ATTENDUES sur ce mot que le modele n'a PAS constatees (2026-09-02).
+  ///
+  /// Demande utilisateur : « quand on clique sur le mot il faut dire quelle
+  /// regle manque ». La feuille listait jusqu'ici toutes les regles du verset
+  /// sans distinguer celle qui a fait echouer le mot -- l'utilisateur devait
+  /// deviner laquelle des cinq pastilles etait en cause.
+  ///
+  /// Vient de `RecitationNotifier.unrealizedRulesFor`, la MEME source que le
+  /// journal et le Coach : la fiche ne peut donc pas dire autre chose que ce
+  /// qui a ete reellement reproche.
+  ///
+  /// Vide = le mot est en erreur pour une autre raison (lettre, harakat) ou
+  /// n'est pas en erreur du tout : on n'affiche alors rien de plus.
+  List<TajwidRule> reglesManquantes = const [],
+  /// Regles ATTENDUES sur ce mot et actives dans le preset (2026-09-02).
+  ///
+  /// Distincte de [reglesManquantes] : celle-ci dit ce qu'il FAUT constater
+  /// pour valider un reessai, l'autre ce qui avait echoue. En mode tajwid un
+  /// mot signale pour ses lettres doit quand meme realiser ses regles pour
+  /// etre declare corrige -- sinon on valide une recitation que le mode
+  /// courant promet justement de verifier. Vide hors mode tajwid.
+  List<TajwidRule> reglesAVerifier = const [],
   int? wordIndex,
   int? localWordIndex,
   /// Chemin d'un extrait "Ma voix" DÉJÀ archivé (2026-08-09).
@@ -243,6 +267,12 @@ void showTajwidHelpSheet(
   /// calculée par l'APPELANT, qui seul connaît les verdicts.
   int? extraitDebut,
   int? extraitFin,
+  /// Riwaya à laquelle appartient CE mot -- jamais le réglage global vivant
+  /// (2026-08-23, cf. `RecitationSessionState.riwaya`/`PortionResume.riwaya`).
+  /// Relire un mot archivé Warsh doit faire entendre un récitateur Warsh même
+  /// si le réglage courant est repassé sur Hafs entre-temps. Défaut Hafs :
+  /// tous les appels historiques (avant le Warsh) restent inchangés.
+  Riwaya riwaya = Riwaya.hafs,
 }) {
   // ── LES REGLES DU MOT, PAS CELLES DU VERSET (2026-08-06) ────────────────
   //
@@ -277,15 +307,20 @@ void showTajwidHelpSheet(
         .map((m) => m.group(1) ?? m.group(2) ?? '')
         .toSet();
   }
-  final rules = [
+  // La CLE est gardee a cote de l'info (2026-09-02) : sans elle, impossible
+  // de savoir laquelle de ces lignes correspond a une regle non realisee --
+  // `TajwidRuleInfo` ne porte que couleur et libelles.
+  final rules = <(String, TajwidRuleInfo)>[
     for (final c in classes)
       if (kTajwidRuleInfo.containsKey(c) && kTajwidRuleInfo[c]!.color != _kGray)
-        kTajwidRuleInfo[c]!,
+        (c, kTajwidRuleInfo[c]!),
     // Règles "grises" (wasl, lâm solaire, muettes) en fin de liste.
     for (final c in classes)
       if (kTajwidRuleInfo.containsKey(c) && kTajwidRuleInfo[c]!.color == _kGray)
-        kTajwidRuleInfo[c]!,
+        (c, kTajwidRuleInfo[c]!),
   ];
+  // Cles des regles non realisees, pour le surlignage plus bas.
+  final clesManquantes = {for (final r in reglesManquantes) r.key};
 
   showModalBottomSheet(
     context: context,
@@ -386,9 +421,32 @@ void showTajwidHelpSheet(
                             color: AppColors.inkLight),
                       ),
                       const SizedBox(height: 8),
-                      for (final r in rules)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
+                      // Le bandeau « Regle non realisee » pose plus
+                      // tot le meme jour a ete RETIRE : il repetait un nom
+                      // deja present dans la liste ci-dessous. Le surlignage
+                      // de la ligne concernee dit la meme chose sans redite,
+                      // et garde le contexte (ce qui manquait ET ce qui etait
+                      // attendu autour).
+                      for (final (cle, r) in rules)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: clesManquantes.contains(cle)
+                              ? const EdgeInsets.fromLTRB(8, 6, 8, 6)
+                              : EdgeInsets.zero,
+                          decoration: clesManquantes.contains(cle)
+                              // Rouge CLAIR, pas fonce : c'est un reperage,
+                              // pas une alarme -- le mot est deja signale
+                              // ailleurs. Demande utilisateur : « surligner en
+                              // rouge pas tres fonce ».
+                              ? BoxDecoration(
+                                  color: const Color(0xFFE53935)
+                                      .withValues(alpha: .10),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: const Color(0xFFE53935)
+                                          .withValues(alpha: .30)),
+                                )
+                              : null,
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -434,6 +492,7 @@ void showTajwidHelpSheet(
                         archivedAudioPath: archivedAudioPath,
                         interdireExtraction: interdireExtraction,
                         onWordContested: onWordContested,
+                        riwaya: riwaya,
                       ),
                     ],
                     // ── DISPONIBLE AUSSI DEPUIS L'ARCHIVE (2026-08-10) ───────
@@ -448,6 +507,8 @@ void showTajwidHelpSheet(
                     if (localWordIndex != null && focusWord != null) ...[
                       const SizedBox(height: 18),
                       _CorrectionLoop(
+                        reglesManquantes: reglesManquantes,
+                        reglesAVerifier: reglesAVerifier,
                         wordIndex: wordIndex,
                         focusWord: focusWord,
                         verse: verse,
@@ -547,6 +608,10 @@ class _ListenRangeControl extends ConsumerStatefulWidget {
 
   /// Cf. `showTajwidHelpSheet.onWordContested`.
   final VoidCallback? onWordContested;
+
+  /// Cf. `showTajwidHelpSheet.riwaya`.
+  final Riwaya riwaya;
+
   const _ListenRangeControl({
     required this.verse,
     required this.localWordIndex,
@@ -555,6 +620,7 @@ class _ListenRangeControl extends ConsumerStatefulWidget {
     this.archivedAudioPath,
     this.interdireExtraction = false,
     this.onWordContested,
+    this.riwaya = Riwaya.hafs,
   });
 
   @override
@@ -593,7 +659,10 @@ class _ListenRangeControlState extends ConsumerState<_ListenRangeControl> {
 
   Future<void> _play() async {
     setState(() => _playing = true);
-    final reciter = ref.read(playerProvider).reciter;
+    // riwaya DU MOT relu (widget.riwaya), pas le réglage global vivant --
+    // cf. `showTajwidHelpSheet.riwaya`.
+    final reciter =
+        ref.read(playerProvider.notifier).reciterPour(widget.riwaya);
     final (before, after) = _bounds;
     try {
       await WordCorrectionAudio.playWordRange(
@@ -1161,12 +1230,24 @@ class _CorrectionLoop extends ConsumerStatefulWidget {
   /// (archive) -- l'appelant décide ce que "corrigé" veut dire hors session
   /// live (ex. retirer l'erreur du journal cumulé).
   final VoidCallback? onCorrectedArchived;
+
+  /// Regles attendues que le modele n'avait PAS constatees sur ce mot.
+  /// Le reessai doit les revoir pour compter le mot corrige -- sinon on
+  /// felicite pour la faute qu'on vient de signaler (2026-09-02).
+  final List<TajwidRule> reglesManquantes;
+
+  /// Ce qu'il faut CONSTATER pour valider ce reessai -- cf. la doc du
+  /// parametre homonyme de `showTajwidHelpSheet`.
+  final List<TajwidRule> reglesAVerifier;
+
   const _CorrectionLoop({
     required this.wordIndex,
     required this.focusWord,
     required this.verse,
     required this.localWordIndex,
     this.onCorrectedArchived,
+      this.reglesManquantes = const [],
+    this.reglesAVerifier = const [],
   });
 
   @override
@@ -1178,6 +1259,13 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
   final _engine = FastConformerVerifier();
   _LoopState _state = _LoopState.idle;
   String? _heardText;
+
+  /// Regles attendues qui MANQUENT ENCORE apres ce reessai (2026-09-02).
+  ///
+  /// Vide = rien a reprocher cote tajwid. Sert a nommer ce qui manque plutot
+  /// qu'a dire « faux » : l'utilisateur qui redit son mot correctement mais
+  /// sans la ghunna doit savoir que c'est la ghunna, pas les lettres.
+  List<TajwidRule> _reglesEncoreManquantes = const [];
 
   /// Jusqu'à 2 mots avant [focusWord], pour donner du contexte au modèle --
   /// moins près du début du verset s'il y en a moins. Lu depuis le TEXTE du
@@ -1234,7 +1322,11 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
       setState(() => _state = _LoopState.idle);
       return;
     }
-    final text = await _engine.transcribe(path);
+    // Un seul passage du modele rend le texte ET les regles detectees.
+    // Repli sur `transcribe` si l'appel echoue : on verifie alors les lettres
+    // seules, comme avant -- jamais un verdict invente faute de donnees.
+    final avecRegles = await _engine.transcribeAvecRegles(path);
+    final text = avecRegles?.texte ?? await _engine.transcribe(path);
     try {
       await File(path).delete();
     } catch (_) {}
@@ -1312,7 +1404,7 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
     final contexteNorm =
         _motsDeContexte().map(ArabicNormalizer.normalize).toSet();
     final motRepeteDansContexte = contexteNorm.contains(expectedNorm);
-    final bool matches;
+    bool matches;
     if (motRepeteDansContexte) {
       final heardNorm =
           positionCible < heardTokens.length ? heardTokens[positionCible] : '';
@@ -1321,12 +1413,44 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
       matches = heardTokens.contains(expectedNorm);
     }
 
+    // ── LA REGLE COMPTE AUTANT QUE LES LETTRES (2026-09-02) ──────────────
+    //
+    // Si ce mot avait echoue sur une regle de tajwid, la redire correctement
+    // ne suffit pas : la regle doit etre CONSTATEE cette fois-ci. Sans cela,
+    // l'app demandait de recommencer puis felicitait pour la meme faute.
+    //
+    // Critere volontairement IDENTIQUE a celui de la chaine : la regle doit
+    // etre detectee ET tenir la duree minimale de son seuil (cf.
+    // `SeuilsDureeTajwid` cote natif). Un critere plus laxiste ici rendrait le
+    // reessai plus facile que la recitation elle-meme.
+    //
+    // Ne s'applique QUE si des regles manquantes ont ete transmises et que le
+    // modele a bien rendu ses detections : sinon on garde le verdict des
+    // lettres, jamais un refus faute d'information.
+    // On verifie ce qui est ATTENDU sur ce mot dans le mode courant, pas
+    // seulement ce qui avait echoue la premiere fois : un mot signale pour
+    // ses lettres doit lui aussi realiser ses regles en mode tajwid.
+    // `reglesAVerifier` est vide hors de ce mode -> test inerte.
+    final aVerifierTajwid =
+        widget.reglesAVerifier.isNotEmpty && avecRegles != null;
+    final reglesVues = aVerifierTajwid
+        ? {for (final r in avecRegles.regles) r.nom}
+        : const <String>{};
+    final reglesToujoursAbsentes = aVerifierTajwid
+        ? [for (final r in widget.reglesAVerifier)
+            if (!reglesVues.contains(r.key)) r]
+        : const <TajwidRule>[];
+    final tajwidOk = reglesToujoursAbsentes.isEmpty;
+
     setState(() {
       _heardText = (text == null || text.trim().isEmpty)
           ? AppLocalizations.of(context)!.tajwidHelpNothingHeard
           : text.trim();
-      _state = matches ? _LoopState.success : _LoopState.retry;
+      _reglesEncoreManquantes = reglesToujoursAbsentes;
+      _state = (matches && tajwidOk) ? _LoopState.success : _LoopState.retry;
     });
+    // Le mot n'est marque corrige que si les DEUX passent.
+    matches = matches && tajwidOk;
 
     if (matches) {
       final wi = widget.wordIndex;
@@ -1409,7 +1533,7 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
               ],
             )
           else ...[
-            if (_state == _LoopState.retry)
+            if (_state == _LoopState.retry) ...[
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
@@ -1417,6 +1541,36 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
                   style: GoogleFonts.manrope(fontSize: 12.5, color: const Color(0xFFb00020)),
                 ),
               ),
+              // ── NOMMER LA REGLE, PAS SEULEMENT REFUSER (2026-09-02) ──────
+              // Quand les LETTRES sont bonnes mais qu'une regle manque encore,
+              // « pas encore » sans plus laisse croire a une erreur de
+              // prononciation et on recommence a l'identique. Demande
+              // utilisateur : « dire la regle qui manque ».
+              if (_reglesEncoreManquantes.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE53935).withValues(alpha: .10),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: const Color(0xFFE53935).withValues(alpha: .30)),
+                  ),
+                  child: Text(
+                    _reglesEncoreManquantes.length > 1
+                        ? 'Regles encore non realisees : '
+                            '${_reglesEncoreManquantes.map((r) => kTajwidRuleInfo[r.key]?.name(t) ?? r.key).join(", ")}'
+                        : 'Regle encore non realisee : '
+                            '${kTajwidRuleInfo[_reglesEncoreManquantes.first.key]?.name(t) ?? _reglesEncoreManquantes.first.key}',
+                    style: GoogleFonts.manrope(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.ink),
+                  ),
+                ),
+            ],
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(

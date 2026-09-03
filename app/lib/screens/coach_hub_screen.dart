@@ -266,8 +266,9 @@ class _ObjectifSection extends ConsumerWidget {
               tooltip: t.coachVerificationModeTooltip,
               icon: const Icon(Icons.auto_awesome,
                   size: 18, color: AppColors.green800),
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const TajwidRulesScreen())),
+              // Feuille courte (modes seuls) plutot que l'ecran complet :
+              // cf. `afficherFeuilleModes`. L'ecran entier reste a un tap.
+              onPressed: () => afficherFeuilleModes(context),
             ),
             IconButton(
               visualDensity: VisualDensity.compact,
@@ -1638,7 +1639,16 @@ class _ReciteSection extends StatelessWidget {
             onPicked: (surah, verses) => Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                  builder: (_) => KaraokeRecitationScreen(verses: _firstPageOf(verses))),
+                  // autoDemarrer (2026-08-23) : choisir la sourate dans ce
+                  // picker EST le geste explicite -- cf. mushaf_screen.dart._openKaraoke.
+                  // forcerModeNormal: true (correctif same-day) -- sans lui,
+                  // `autoDemarrer` seul force le mode RÉFÉRENCE (texte
+                  // visible, pas de correction), cf. la doc dans
+                  // mushaf_screen.dart._openKaraoke.
+                  builder: (_) => KaraokeRecitationScreen(
+                      verses: _firstPageOf(verses),
+                      autoDemarrer: true,
+                      forcerModeNormal: true)),
             ),
           ),
         ),

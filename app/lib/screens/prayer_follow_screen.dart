@@ -165,8 +165,13 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
         // verset. Si le contexte deborde, ses propres garde-fous ramenent au
         // premier/dernier segment disponible -- on souffle alors un peu moins,
         // jamais le mauvais passage.
+        // riwaya de LA SESSION (pas du réglage global vivant) -- cf.
+        // `RecitationSessionState.riwaya` et `PlayerNotifier.reciterPour`.
         await WordCorrectionAudio.playWordRange(
-          verse, ref.read(playerProvider).reciter,
+          verse,
+          ref
+              .read(playerProvider.notifier)
+              .reciterPour(ref.read(recitationProvider).riwaya),
           errorWordIndex: local,
           wordsBefore: _kMotsAvantSouffle,
           wordsAfter: (bornes.a - bornes.de) + _kMotsApresSouffle,
@@ -237,7 +242,11 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
     final wasListening = st.status == RecitationStatus.listening;
     try {
       if (wasListening) await verifier.pauseCapture();
-      final reciter = ref.read(playerProvider).reciter;
+      // riwaya de LA SESSION (pas du réglage global vivant) -- cf.
+      // `RecitationSessionState.riwaya` et `PlayerNotifier.reciterPour`.
+      final reciter = ref
+          .read(playerProvider.notifier)
+          .reciterPour(ref.read(recitationProvider).riwaya);
       try {
         await WordCorrectionAudio.playWordRange(verse, reciter,
             errorWordIndex: local,
@@ -542,14 +551,38 @@ class _WordsArea extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (state.words.isEmpty) {
+      // Indicateur ANIMÉ pendant l'identification (demande utilisateur
+      // 2026-08-29 : « efface écran pour que je sache quand tu as commencé
+      // la recherche, il y a un vrai décalage » -- le texte seul
+      // (`prayerFollowIdentifying`) était déjà affiché ici, mais statique :
+      // rien ne signalait D'UN COUP D'ŒIL qu'une recherche tournait
+      // réellement, plutôt qu'un écran figé. `CircularProgressIndicator`
+      // s'anime tout seul, sans AnimationController à gérer ici.
+      final identifie = state.prayerPhase == PrayerPhase.detectingTarget;
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Text(
-            _emptyLabel(AppLocalizations.of(context)!),
-            textAlign: TextAlign.center,
-            style: GoogleFonts.manrope(
-                color: AppColors.cream.withAlpha(190), fontSize: 15),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (identifie) ...[
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: AppColors.brassLight,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              Text(
+                _emptyLabel(AppLocalizations.of(context)!),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.manrope(
+                    color: AppColors.cream.withAlpha(190), fontSize: 15),
+              ),
+            ],
           ),
         ),
       );

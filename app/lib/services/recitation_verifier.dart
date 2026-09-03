@@ -234,11 +234,35 @@ class ArabicNormalizer {
   /// mot », « chacun jugé selon son token ». Ici les deux riwayas ordonnent la
   /// shadda à l'opposé l'une de l'autre : appliquer la règle du Hafs au Warsh
   /// ET ne rien appliquer du tout sont TOUS DEUX faux.
+  /// ⚠️ AJOUT (2026-08-23) : YEH BARREE (ے, U+06D2) -> ALIF MAKSOURA (ى,
+  /// U+0649), ABSENT jusqu'ici de cette fonction alors que
+  /// `_collapseVariantsWarsh` (couche jugement) fait ce remplacement depuis
+  /// le 2026-08-12. Constat sur log device réel (recitations du 2026-08-23,
+  /// build v185) : « اِ۬لذِے »/« فِے » restaient `definitif:rouge` malgré une
+  /// prononciation jugée quasi certaine par le modèle lui-même
+  /// (`free`=-0,47 et -0,00), alors même que `word_tokens_warsh.json` ne
+  /// contenait plus aucun `<unk>` pour ces mots depuis le 2026-08-22 (cf.
+  /// commentaire ci-dessus, § shadda). Cause RÉELLE, distincte de celle du
+  /// 2026-08-22 : le dictionnaire retokenisait ے -> ي (yeh normal,
+  /// U+064A) -- mais `sp.encode` prouve que ي et ى sont deux PIÈCES
+  /// DIFFÉRENTES du vocabulaire (« في » -> [213] contre « فى » -> [91],
+  /// aucun recouvrement) ; le modèle, lui, décode systématiquement en ى
+  /// (vérifié sur le code point exact du log, U+0649). La cible
+  /// d'alignement pointait donc vers la MAUVAISE pièce. Corrigé ICI (source
+  /// unique, cohérent avec `_collapseVariantsWarsh`) et dans
+  /// `word_tokens_warsh.json` (535/540 clés renommées ے->ى et
+  /// retokenisées ; 5 restent hors périmètre, cf. la doc du § shadda ci-
+  /// dessus -- une AUTRE lettre, hamza suscrite U+0655, absente du
+  /// vocabulaire).
+  /// ⚠️ LES DEUX VONT ENSEMBLE, comme pour la shadda : changer cette
+  /// fonction sans regénérer les clés du dictionnaire casse le lookup (le
+  /// natif chercherait une clé ى que le dictionnaire n'aurait jamais eue).
   static String normalizeTrainingWarsh(String input) {
     final t = _nettoyerPourEntrainement(input);
     // shadda+voyelle -> voyelle+shadda : l'INVERSE exact de [normalizeTraining],
     // parce que le vocabulaire Warsh a été appris dans l'autre sens.
     return t
+        .replaceAll('ے', 'ى')
         .replaceAllMapped(
             RegExp('ّ' '([ًٌٍَُِْ])'), (m) => '${m[1]}' 'ّ')
         .replaceAll(RegExp(r'\s+'), ' ')
@@ -389,9 +413,19 @@ abstract class RecitationVerifier {
   Stream<int> get decrochage;
 
   /// Décodage libre de la dernière fenêtre v2 (mode prière) : le texte que le
-  /// modèle entend, SANS cible imposée. Base de l'identification de sourate.
+  /// modèle entend, SANS cible imposée, avec la position audio
+  /// (`travailDebut` natif) de la fenêtre qui l'a produit. Base de
+  /// l'identification de sourate.
+  ///
+  /// `position` EXISTE (2026-08-28) parce que les fenêtres n'arrivent pas
+  /// toujours dans l'ordre chronologique de l'audio (mesure device :
+  /// `travailDebut` 209920 -> 200960 -> 131840 sur 3 appels consécutifs) --
+  /// sans elle, l'appelant qui accumule ce texte (`_libreRecent` dans
+  /// recitation_provider.dart) l'empilait dans l'ordre d'ARRIVÉE, mélangeant
+  /// fin de sourate précédente et début de la suivante dans le désordre.
   /// Vide par défaut -- une implémentation sans v2 n'a rien à en dire.
-  Stream<String> get v2DecodageLibre => const Stream.empty();
+  Stream<({String texte, int position})> get v2DecodageLibre =>
+      const Stream.empty();
 
   /// Passage probablement sauté (mode prière) : les mots `de + 1 .. a - 1`
   /// n'ont pas été entendus. PAS un verdict -- de quoi souffler le passage.
@@ -1267,17 +1301,21 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     // (pour identifier la sourate), le second des bornes de passage à
     // souffler. Rien de ce qui précède n'en dépend.
     final libre = parts?.v2Libre ?? '';
-    if (libre.isNotEmpty) _libreCtrl.add(libre);
+    if (libre.isNotEmpty) {
+      _libreCtrl.add((texte: libre, position: parts?.v2LibrePosition ?? -1));
+    }
     final de = parts?.v2SautDe ?? -1;
     if (de >= 0) _sautCtrl.add((de: de, a: parts!.v2SautA));
   }
 
-  final _libreCtrl = StreamController<String>.broadcast();
+  final _libreCtrl = StreamController<({String texte, int position})>.broadcast();
   final _sautCtrl = StreamController<({int de, int a})>.broadcast();
 
   /// Décodage libre de la dernière fenêtre v2, sans aucune cible imposée.
-  /// C'est ce qui permet d'identifier la sourate en début de rak'ah.
-  Stream<String> get v2DecodageLibre => _libreCtrl.stream;
+  /// C'est ce qui permet d'identifier la sourate en début de rak'ah. Cf. la
+  /// doc du getter abstrait (plus haut dans ce fichier) pour `position`.
+  @override
+  Stream<({String texte, int position})> get v2DecodageLibre => _libreCtrl.stream;
 
   /// Bornes d'un passage que le récitateur semble avoir sauté (mode prière).
   /// Les mots `de + 1 .. a - 1` n'ont pas été entendus alors qu'il est déjà
@@ -1714,7 +1752,8 @@ class MockRecitationVerifier implements RecitationVerifier {
   @override
   Stream<int> get decrochage => const Stream.empty(); // pas de v2 en mock
   @override
-  Stream<String> get v2DecodageLibre => const Stream.empty();
+  Stream<({String texte, int position})> get v2DecodageLibre =>
+      const Stream.empty();
   @override
   Stream<({int de, int a})> get v2SautPresume => const Stream.empty();
   @override

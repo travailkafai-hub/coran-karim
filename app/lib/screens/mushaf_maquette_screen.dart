@@ -10,7 +10,9 @@ import '../providers/app_settings_provider.dart';
 import '../models/riwaya.dart';
 import '../models/verse.dart';
 import '../services/quran_api.dart';
+import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
+import '../widgets/surah_ornament_header.dart';
 import '../widgets/tajweed_text.dart';
 import '../widgets/tajwid_help_sheet.dart' show kTajwidRuleInfo;
 import '../l10n/app_localizations.dart';
@@ -167,10 +169,15 @@ class _Charte {
 /// L'Amiri standard etait deja la au depart, avec 5,0 % d'encre seulement --
 /// mais la cause etait l'INTERLIGNE (2,0) et le poids (normal), pas la
 /// famille. A 1,42 et w600 elle rend bien plus dense, medaillons compris.
-TextStyle _policePage({double? taille, Color? couleur}) =>
+/// `interligne` : par defaut la valeur de reference, mais la vue Page le
+/// RELEVE pour consommer le reliquat de sa dichotomie (cf. `_blocAjuste`).
+/// Toujours vers le haut -- le baisser rapprocherait les harakat de la ligne
+/// suivante, defaut mesure et rejete le 2026-09-03.
+TextStyle _policePage(
+        {double? taille, Color? couleur, double interligne = _kInterligne}) =>
     GoogleFonts.amiri(
       fontSize: taille,
-      height: _kInterligne,
+      height: interligne,
       fontWeight: FontWeight.w600,
       color: couleur,
     );
@@ -502,30 +509,44 @@ class _PageMushaf extends StatelessWidget {
     // La page etait un seul flux de texte : deux sourates s'y suivaient sans
     // rien entre elles. On regroupe donc les versets par sourate, pour
     // pouvoir intercaler un bandeau de titre a chaque changement.
-    final segments = <({int sourate, String texte, String annote})>[];
+    final segments = <({int sourate, String texte, List<Verse> versets})>[];
     for (final v in versets) {
-      final mot = '${v.textUthmani} ${_medaillon(v.ayahNumber)}';
-      final annote =
-          '${v.textUthmaniTajweed ?? v.textUthmani} ${_medaillon(v.ayahNumber)}';
+      // Meme rattachement que pour la version coloree (cf. _spansCanoniques) :
+      // une marque de waqf isolee, sans lettre porteuse, flotte vers la ligne
+      // du dessus. Le rub el hizb est exclu, il s imprime seul.
+      final mot = '${_waqfRattache(v.textUthmani)} ${_medaillon(v.ayahNumber)}';
       if (segments.isNotEmpty && segments.last.sourate == v.surahNumber) {
         final d = segments.removeLast();
         segments.add((
           sourate: d.sourate,
           texte: '${d.texte} $mot',
-          annote: '${d.annote} $annote',
+          versets: [...d.versets, v],
         ));
       } else {
-        segments.add((sourate: v.surahNumber, texte: mot, annote: annote));
+        segments.add((sourate: v.surahNumber, texte: mot, versets: [v]));
       }
     }
 
-    // COLORATION TAJWID : un jeu de spans PAR SEGMENT, meme raison que
-    // ci-dessus (cf. 2026-09-01 pour le pourquoi de l'analyse unique et du
-    // style de base sans taille ni couleur).
+    // ── LE TEXTE PEINT EST LE TEXTE CANONIQUE, PAS CELUI DE L'ANNOTATION ──
+    //
+    // Corrige le 2026-09-03 apres un constat utilisateur a l'oeil nu (« tu
+    // n'as pas les vrais signes »), confirme par un recensement sur les 6236
+    // versets : depouille de ses balises, `text_uthmani_tajweed` differe du
+    // texte de reference sur 100 % des versets -- petit zero rond des lettres
+    // muettes remplace par un sukun (3676x), alif suscrit devenu alef a hamza
+    // ondulee (1479x), tanwin degrades en voyelle simple (313x), alefs perdus
+    // (395x), et le numero de verset deja present en fin de texte (6208x),
+    // qui faisait double emploi avec le medaillon ajoute ici.
+    //
+    // `tajweedSpansPerWord` existe depuis le 2026-07-10 pour exactement cela :
+    // elle reconstruit chaque mot depuis `text_uthmani` et n'emprunte a
+    // l'annotation QUE la couleur. L'ecran de lecture, le karaoke et la fiche
+    // tajwid l'utilisent deja ; cette vue etait le seul endroit de l'app a
+    // peindre les caracteres de l'annotation. NE PAS revenir a
+    // `parseTajweedHtml` sur `text_uthmani_tajweed` : c'est ce defaut-la.
     final spansParSegment = tajwid
         ? [
-            for (final s in segments)
-              parseTajweedHtml(s.annote, _policePage(), sombre: sombre)
+            for (final s in segments) _spansCanoniques(s.versets)
           ]
         : null;
     final sourates = versets.map((v) => v.surahNumber).toSet().toList()..sort();
@@ -537,6 +558,15 @@ class _PageMushaf extends StatelessWidget {
     final hizb = versets.map((v) => v.hizbNumber).whereType<int>().toSet();
 
     return SafeArea(
+      // ── LE CADRE VA JUSQU'AU BORD (2026-09-03) ───────────────────────
+      // « tu peux profiter du max de l'ecran du tel ». L'ecran est deja en
+      // `immersiveSticky` (barre d'etat cachee) ; ce qui restait etait la
+      // reserve d'encoche du SafeArea -- une bande beige d'environ 90 px
+      // au-dessus du cadre, entouree en rouge sur sa capture. On la rend au
+      // texte, en gardant 6 px pour que le filet ne colle pas au bord.
+      top: false,
+      bottom: false,
+      minimum: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
         // Marges resserrees : la page doit occuper l'ecran (demande
         // utilisateur), le decor remplace ce que les marges laissaient vide.
@@ -546,8 +576,19 @@ class _PageMushaf extends StatelessWidget {
         // jamais se voir.
         // Bande de 2,3 % de la largeur : sur 1080 px cela fait 25 px, la
         // mesure exacte de la reference.
+        // ⚠️ `padding.top` EXPLICITE (2026-09-03). Les 68 px compensaient la
+        // barre de controle, qui est un OVERLAY pose au-dessus de la page ;
+        // ils s'ajoutaient alors a la reserve d'encoche du SafeArea. Depuis
+        // que celle-ci est retiree (« profiter du max de l'ecran »), il faut
+        // la nommer ici, sinon la barre recouvre l'en-tete -- constate a
+        // l'ecran, sourate/hizb/juz a moitie caches derriere le bandeau vert.
         padding: EdgeInsets.fromLTRB(
-            0, controlesVisibles ? 68 : 0, 0, controlesVisibles ? 56 : 0),
+            0,
+            controlesVisibles
+                ? 68 + MediaQuery.of(context).padding.top
+                : 0,
+            0,
+            controlesVisibles ? 56 : 0),
         child: Container(
           // ── CADRE ORNEMENTAL, EXTRAIT D'UN MUSHAF SCANNE (2026-09-03) ──
           //
@@ -597,9 +638,12 @@ class _PageMushaf extends StatelessWidget {
               // 4 % au lieu de 21,5 % : la bande fine ne mange plus la
               // page, donc la quasi-totalite de l'ecran revient au texte --
               // « tu occupes l'ecran pour que le texte soit visible ».
-              // Au plus juste : la bande fine encadre deja, inutile d'y
-              // ajouter du vide. Tout ce qui n'est pas cadre est du texte.
-              final rx = cts.maxWidth * 0.028;
+              // 5,5 % et non 2,8 % (2026-09-03) : MESURE sur capture, le
+              // texte s'arretait a 6 px du bord et touchait le cadre --
+              // signale par l'utilisateur, capture annotee a l'appui. Les
+              // lettres arabes ont des jambages qui debordent de la boite
+              // du glyphe : une marge quasi nulle les fait mordre le filet.
+              final rx = cts.maxWidth * 0.055;
               final ryHaut = cts.maxHeight * 0.008;
               final ryBas = cts.maxHeight * 0.008;
               return Padding(
@@ -799,14 +843,130 @@ class _PageMushaf extends StatelessWidget {
     );
   }
 
-  Widget _bloc(String texte, double taille, List<TextSpan>? spans) {
+  /// Colle au mot precedent les marques de waqf encodees isolement.
+  ///
+  /// Le texte Hafs les separe par des espaces (4578 occurrences) ; sans lettre
+  /// porteuse ces marques HAUTES flottent vers la ligne du dessus. Le texte
+  /// Warsh, lui, les encode deja collees -- on aligne le Hafs dessus.
+  /// U+06DE (rub el hizb) est HORS de la plage : ornement autonome, il
+  /// s imprime seul entre deux mots, le coller a un mot serait une faute.
+  static final _waqfIsole = RegExp(r'\s+([ۖ-ۜ۩])');
+  String _waqfRattache(String texte) =>
+      texte.replaceAllMapped(_waqfIsole, (m) => m[1]!);
+
+  /// Spans colores d'un segment, batis sur le TEXTE CANONIQUE.
+  ///
+  /// Chaque mot vient de `text_uthmani` ; l'annotation tajwid ne fournit que
+  /// la couleur (cf. `tajweedSpansPerWord` et le commentaire de
+  /// `_pageMushaf`). Le medaillon de fin de verset est ajoute ici, une seule
+  /// fois -- l'annotation en portait deja un en clair, d'ou le doublon.
+  List<TextSpan> _spansCanoniques(List<Verse> versets) {
+    final base = _policePage();
+    final out = <TextSpan>[];
+    for (final v in versets) {
+      final mots = tajweedSpansPerWord(
+          v.textUthmani, v.textUthmaniTajweed, base,
+          sombre: sombre);
+      // ⚠️ `tajweedSpansPerWord` ne rend que les mots RECITABLES : son filtre
+      // est celui de la chaine de jugement, qui ecarte a dessein `۩` (sajda)
+      // et `۞` (rub el hizb) -- un recitateur ne les prononce pas. Mais un
+      // mushaf les IMPRIME. On reparcourt donc le verset et on remet en place
+      // celles qui manquent. Constate a l'ecran le 2026-09-03 : sans cela, la
+      // sajda d'Al-Isra 17:109 disparaissait de la page.
+      var k = 0;
+      for (final token in v.textUthmani.split(RegExp(r'\s+'))) {
+        if (token.isEmpty) continue;
+        if (ArabicNormalizer.normalize(token).isNotEmpty) {
+          if (k < mots.length) {
+            out.addAll(mots[k]);
+          } else {
+            out.add(TextSpan(text: token, style: base));
+          }
+          k++;
+          out.add(TextSpan(text: ' ', style: base));
+        } else {
+          // ── LA MARQUE DE WAQF SE POSE SUR LE MOT, PAS ENTRE DEUX LIGNES ──
+          //
+          // Ces signes sont des marques HAUTES (leur nom Unicode le dit :
+          // SMALL HIGH JEEM, SMALL HIGH LIGATURE SAD...), faites pour
+          // surmonter une lettre. Le texte Hafs les encode isolees, entourees
+          // d'espaces : sans lettre porteuse, elles flottent a leur hauteur
+          // nominale au-dessus du vide et paraissent appartenir a la ligne du
+          // dessus -- defaut signale a l'ecran le 2026-09-03.
+          //
+          // On retire donc l'espace qui les precede : la marque se rattache au
+          // mot qu'elle concerne. C'est la forme que le texte WARSH du projet
+          // utilise deja nativement (0 marque isolee sur 6236 versets) et
+          // celle qu'un mushaf imprime.
+          //
+          // EXCEPTION : le rub el hizb `۞` n'est pas une marque de pause posee
+          // sur un mot, c'est un ornement autonome qui s'imprime SEUL entre
+          // deux mots. On le laisse detache.
+          const rubElHizb = '\u06DE';
+          if (token != rubElHizb &&
+              out.isNotEmpty &&
+              out.last.text == ' ') {
+            out.removeLast();
+          }
+          // ── LE SIGNE DE SAJDA EMPRUNTE SON DESSIN A UNE AUTRE POLICE ───
+          //
+          // « le signe de sajda ressemble plutot a une porte que le signe que
+          // tu m'as fait » (2026-09-03). Le CARACTERE est le bon -- verifie
+          // dans l'asset : U+06E9 ARABIC PLACE OF SAJDAH. C'est Amiri qui le
+          // dessine en rosace florale, la ou un mushaf imprime une forme en
+          // niche, rectangulaire.
+          //
+          // On ne change pas la police de la PAGE pour autant : des trois
+          // essayees le 2026-09-03, Amiri est la seule a composer U+06DD (le
+          // medaillon de fin de verset englobant son numero) ET a laisser les
+          // harakat noires -- amiriQuran les rend ROUGES, scheherazadeNew ne
+          // compose pas U+06DD. On emprunte donc le glyphe pour ce SEUL
+          // caractere : aucun des deux defauts n'est reintroduit.
+          out.add(TextSpan(
+            text: token,
+            style: token == '۩'
+                ? base.copyWith(
+                    fontFamily: GoogleFonts.scheherazadeNew().fontFamily)
+                : base,
+          ));
+          out.add(TextSpan(text: ' ', style: base));
+        }
+      }
+      out.add(TextSpan(text: '${_medaillon(v.ayahNumber)} ', style: base));
+    }
+    return out;
+  }
+
+  Widget _bloc(String texte, double taille, List<TextSpan>? spans,
+      {double interligne = _kInterligne}) {
     final style = GoogleFonts.amiri(
       fontSize: taille,
-      height: _kInterligne,
+      height: interligne,
       // Blanc pur sur fond sombre fatigue sur une page pleine de texte : on
       // reprend l'encre crème du reste de l'app plutôt que `sombreInk`.
       color: sombre ? AppColors.cream : const Color(0xFF1A1208),
     );
+    // ── LA DERNIERE LIGNE N'EST PAS JUSTIFIEE, ET FLUTTER NE SAIT PAS ───
+    //
+    // Demande utilisateur 2026-09-03, deux rectangles rouges sur sa capture :
+    // le blanc laisse par la derniere ligne d'Al-Isra et par celle d'Al-Kahf.
+    // `TextAlign.justify` ne touche jamais la derniere ligne d'un paragraphe
+    // -- regle typographique par defaut, celle de Word comme celle du web --
+    // et Flutter n'expose aucun equivalent de `text-align-last: justify`.
+    //
+    // ⚠️ TENTATIVE MESUREE INEFFICACE, NE PAS LA REFAIRE : terminer le texte
+    // par un saut de ligne (`'\$texte\n'`, et un `TextSpan(text: '\n')` en
+    // queue pour la version coloree) devait faire que la ligne portant du
+    // texte ne soit plus « la derniere », donc justifiable. Essaye le
+    // 2026-09-03, build v256 : AUCUN effet, blanc identique sur la capture.
+    // Le moteur traite une ligne terminee par un saut DUR comme une fin de
+    // paragraphe et refuse de l'etirer, exactement comme la vraie derniere.
+    //
+    // La seule voie qui reste est de composer la derniere ligne soi-meme
+    // (la decouper via `computeLineMetrics` et repartir ses mots), avec deux
+    // couts a arbitrer : une ligne de deux ou trois mots etiree sur toute la
+    // largeur donne des espaces enormes, et il faut redecouper les spans de
+    // coloration tajwid au meme offset.
     return Directionality(
       textDirection: TextDirection.rtl,
       child: spans == null
@@ -831,14 +991,17 @@ class _PageMushaf extends StatelessWidget {
   /// (2026-09-03) : mesurer un seul bloc, comme avant, ferait deborder la page
   /// des qu'un bandeau s'intercale entre deux sourates.
   Widget _blocAjuste(
-      List<({int sourate, String texte, String annote})> segments,
+      List<({int sourate, String texte, List<Verse> versets})> segments,
       List<List<TextSpan>>? spansParSegment) {
     return LayoutBuilder(
       builder: (context, contraintes) {
         final style = _policePage();
         // 58 et non 46 : en dessous, le libelle des medaillons
         // (`آياتها`, `ترتيبها`) devient illisible.
-        const hauteurBandeau = 58.0;
+        // La hauteur vient du widget lui-meme (`hauteurCompacte`), elle
+        // n'est plus une valeur devinee ici : le bandeau la GARANTIT par
+        // un `SizedBox`, donc la reservation ne peut pas etre fausse.
+        const hauteurBandeau = SurahOrnamentHeader.hauteurCompacte;
         final nBandeaux = segments.length - 1;
         final dispo =
             contraintes.maxHeight - nBandeaux * hauteurBandeau;
@@ -860,20 +1023,81 @@ class _PageMushaf extends StatelessWidget {
             )..layout(maxWidth: contraintes.maxWidth);
             total += peintre.height;
           }
-          // Marge de securite : une diacritique haute de la derniere ligne
-          // depasse ce que TextPainter annonce.
-          if (total <= dispo * 0.93) {
+          // Reserve de securite ABSOLUE et non proportionnelle : ce qu'elle
+          // protege, c'est une diacritique haute de la DERNIERE ligne qui
+          // depasse la hauteur annoncee par TextPainter. Ce depassement vaut
+          // une fraction du corps -- il ne grandit pas avec la page. En
+          // pourcentage (0,93 avant le 2026-09-03) il reservait ~125 px sur
+          // une page de 1800 pour un besoin d'une quinzaine, et c'est ce vide
+          // que l'utilisateur voyait en haut et en bas.
+          if (total <= dispo - milieu * 0.5) {
             basse = milieu;
           } else {
             haute = milieu;
           }
         }
+
+        // ── LE RELIQUAT DEVIENT DE L'INTERLIGNE (2026-09-03) ──────────────
+        //
+        // « il y a de l'espace en hauteur, tu peux occuper tout l'ecran ». La
+        // dichotomie s'arrete sur la plus grande taille qui TIENT : il reste
+        // donc toujours jusqu'a une ligne entiere de rab. On le rend au texte
+        // en ecartant les lignes, au lieu de le laisser en marges.
+        var hauteurTexte = 0.0;
+        var lignes = 0;
+        for (var s = 0; s < segments.length; s++) {
+          final sp = spansParSegment?[s];
+          final peintre = TextPainter(
+            text: sp == null
+                ? TextSpan(
+                    text: segments[s].texte,
+                    style: style.copyWith(fontSize: basse))
+                : TextSpan(
+                    style: style.copyWith(fontSize: basse), children: sp),
+            textDirection: TextDirection.rtl,
+            textAlign: TextAlign.justify,
+          )..layout(maxWidth: contraintes.maxWidth);
+          hauteurTexte += peintre.height;
+          lignes += peintre.computeLineMetrics().length;
+        }
+        final residu = dispo - basse * 0.5 - hauteurTexte;
+        // Plafond : sur une page peu remplie la police bute deja sur son
+        // maximum et sans borne les quelques lignes s'etaleraient comme un
+        // poeme. Au-dela, le reste redevient du vide centre -- le bon rendu
+        // dans ce cas precis.
+        final interligne = lignes == 0 || residu <= 0
+            ? _kInterligne
+            : (_kInterligne + residu / lignes / basse).clamp(_kInterligne, 2.45);
+
+        // Hauteur REELLE de chaque segment, mesuree avec l'interligne
+        // definitif : c'est elle qui borne le `SizedBox` ci-dessous et coupe
+        // la ligne vide ajoutee par `_bloc` pour justifier la derniere ligne.
+        final hauteurs = <double>[];
+        for (var s = 0; s < segments.length; s++) {
+          final sp = spansParSegment?[s];
+          final st = style.copyWith(fontSize: basse, height: interligne);
+          final peintre = TextPainter(
+            text: sp == null
+                ? TextSpan(text: segments[s].texte, style: st)
+                : TextSpan(style: st, children: sp),
+            textDirection: TextDirection.rtl,
+            textAlign: TextAlign.justify,
+          )..layout(maxWidth: contraintes.maxWidth);
+          hauteurs.add(peintre.height);
+        }
+
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             for (var s = 0; s < segments.length; s++) ...[
               if (s > 0) _bandeauSourate(segments[s].sourate, hauteurBandeau),
-              _bloc(segments[s].texte, basse, spansParSegment?[s]),
+              ClipRect(
+                child: SizedBox(
+                  height: hauteurs[s],
+                  child: _bloc(segments[s].texte, basse, spansParSegment?[s],
+                      interligne: interligne),
+                ),
+              ),
             ],
           ],
         );
@@ -881,117 +1105,50 @@ class _PageMushaf extends StatelessWidget {
     );
   }
 
-  /// Bandeau de titre de sourate, entre deux sourates d'une meme page.
+  /// Separateur de sourate : L'ORNEMENT DE L'ECRAN DE LECTURE, en compact.
   ///
-  /// Le fond est le MOTIF REEL du mushaf scanne (90x115 px, 4,6 Ko), repete
-  /// horizontalement ; le cartouche et les medaillons sont dessines par-dessus
-  /// pour porter les donnees de CHAQUE sourate. Copier le bandeau entier
-  /// n'aurait servi qu'a une sourate : son nom y est peint.
+  /// Demande utilisateur 2026-09-03, capture de l'ecran de lecture a l'appui :
+  /// « le signe que tu as cree ici c'est plutot joli, mieux que ce que tu me
+  /// proposais tout a l'heure ». Les deux ecrans montrent donc desormais le
+  /// MEME dessin -- medaillon vectoriel numerote, nom de la sourate flanque de
+  /// ses filets a losange, lieu et nombre de versets en dessous.
   ///
-  /// Les deux medaillons reprennent ceux du mushaf : `آياتها` (nombre de
-  /// versets) et `ترتيبها` (rang de la sourate).
+  /// ── CE QU'IL REMPLACE, ET POURQUOI ON GARDE LA TRACE ──────────────────
+  /// Version precedente (meme jour, retiree) : le MOTIF REEL du mushaf scanne
+  /// (`assets/images/motif_bandeau.webp`, 90x115 px, 4,6 Ko) repete en fond,
+  /// avec un cartouche blanc central et deux medaillons ronds dessines par
+  /// dessus -- `آياتها` (nombre de versets) et `ترتيبها` (rang de la sourate),
+  /// disposition relevee sur le scan de la page 293. Elle fonctionnait ; elle
+  /// a simplement moins plu que celle-ci. L'asset n'est plus declare dans
+  /// `pubspec.yaml` (poids inutile dans l'APK) mais le fichier reste sur le
+  /// disque : le rebrancher tient a une ligne.
+  ///
+  /// ⚠️ PIEGE PAYE PAR CETTE VERSION RETIREE, qui reste vrai partout :
+  /// `AspectRatio` dans une `Row` de hauteur contrainte reclame une largeur
+  /// egale a la hauteur SANS tenir compte du padding vertical -- d'ou un
+  /// « BOTTOM OVERFLOWED » a l'ecran. Calculer le diametre depuis la hauteur
+  /// reellement disponible (`LayoutBuilder`), jamais via `AspectRatio`.
+  ///
+  /// Le voile sombre est le meme traitement que dans l'ecran de lecture
+  /// (`_SurahBanner`) : l'ornement est un decor CLAIR, laisse tel quel il
+  /// forme un pave blanc au milieu d'une page nocturne.
   Widget _bandeauSourate(int numero, double hauteur) {
-    const vert = Color(0xFF1A7A3C);
     final s = QuranApi.chapitresCharges
         ?.where((c) => c.number == numero)
         .firstOrNull;
-    return Container(
-      height: hauteur,
-      margin: const EdgeInsets.symmetric(vertical: 3),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black87, width: 1.6),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Fond : le motif du scan, repete. `repeat` et non `fill` -- un
-          // etirement deformerait les entrelacs, qui sont faits pour se
-          // repeter.
-          Image.asset('assets/images/motif_bandeau.webp',
-              repeat: ImageRepeat.repeatX,
-              alignment: Alignment.centerLeft,
-              fit: BoxFit.fitHeight),
-          Row(
-            children: [
-              _medaillonSourate('آياتها', s?.versesCount ?? 0, vert),
-              // Cartouche central : bords coupes comme sur le scan, pas un
-              // rectangle arrondi.
-              Expanded(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.black87, width: 1.4),
-                    borderRadius: BorderRadius.circular(hauteur * 0.28),
-                  ),
-                  alignment: Alignment.center,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: Text('سورة ${_nomSourate(numero)}',
-                          style: GoogleFonts.amiri(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black)),
-                    ),
-                  ),
-                ),
-              ),
-              _medaillonSourate('ترتيبها', numero, vert),
-            ],
-          ),
-        ],
-      ),
+    if (s == null) return SizedBox(height: hauteur);
+    final ornement = SurahOrnamentHeader(surah: s, compact: true);
+    if (!sombre) return ornement;
+    return ColorFiltered(
+      colorFilter: const ColorFilter.matrix(<double>[
+        0.45, 0, 0, 0, 0,
+        0, 0.45, 0, 0, 0,
+        0, 0, 0.45, 0, 0,
+        0, 0, 0, 1, 0,
+      ]),
+      child: ornement,
     );
   }
-
-  /// Un des deux medaillons ronds du bandeau : le libelle au-dessus, le
-  /// chiffre dedans -- disposition du mushaf.
-  /// ⚠️ `LayoutBuilder` et non `AspectRatio` : dans une `Row` de hauteur
-  /// contrainte, `AspectRatio` reclame une largeur egale a la hauteur SANS
-  /// tenir compte du padding vertical -- d'ou un « BOTTOM OVERFLOWED » visible
-  /// a l'ecran (2026-09-03). On calcule donc le diametre depuis la hauteur
-  /// reellement disponible.
-  Widget _medaillonSourate(String libelle, int valeur, Color vert) =>
-      LayoutBuilder(builder: (context, cts) {
-        final d = cts.maxHeight - 6;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-          child: SizedBox(
-            width: d,
-            height: d,
-            child: Container(
-            decoration: BoxDecoration(
-              color: vert,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(libelle,
-                      style: GoogleFonts.amiri(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white)),
-                ),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text('$valeur',
-                      style: GoogleFonts.manrope(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white)),
-                ),
-              ],
-            ),
-            ),
-          ),
-        );
-      });
 
   /// Fin de verset : le signe ۝ suivi du numéro en chiffres arabes orientaux.
   String _medaillon(int ayah) => '۝${_chiffresArabes(ayah)}';

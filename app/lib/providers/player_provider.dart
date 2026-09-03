@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/verse.dart';
 import '../models/reciter.dart';
+import '../models/riwaya.dart';
 import '../models/player_state_model.dart';
 import '../services/audio_player_service.dart';
 import '../services/quran_api.dart';
@@ -165,6 +166,16 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     if (state.reciter.riwaya == QuranApi.riwaya) return;
     state = state.copyWith(reciter: Reciter.defautPour(QuranApi.riwaya));
   }
+
+  /// Même logique qu'[accorderALaRiwaya], mais SANS MUTER `state.reciter` --
+  /// pour choisir le récitateur d'un audio de correction sans faire suivre le
+  /// lecteur global (2026-08-23, cf. `RecitationSessionState.riwaya`). La
+  /// riwaya d'une correction doit être celle de LA SESSION qui la déclenche,
+  /// jamais celle affichée en ce moment dans les réglages -- sans quoi un
+  /// changement de réglage pendant une session Warsh active ferait parler un
+  /// récitateur Hafs sur une récitation jugée en Warsh (ou l'inverse).
+  Reciter reciterPour(Riwaya riwaya) =>
+      state.reciter.riwaya == riwaya ? state.reciter : Reciter.defautPour(riwaya);
 
   // ── Internal ──────────────────────────────────────────────────────────────
 

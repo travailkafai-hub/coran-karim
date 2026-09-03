@@ -13,6 +13,19 @@ class AppColors {
   static const brassLight = Color(0xFFe6cf8f);
 
   static const cream    = Color(0xFFfbf7ee);
+
+  /// Papier du Mushaf en theme clair -- BLANC FRANC (2026-09-02).
+  ///
+  /// Le fond de lecture utilisait `cream` (#fbf7ee), un blanc casse tirant sur
+  /// le creme. Constat utilisateur : « le blanc n'est pas vraiment un vrai
+  /// blanc dans le Mushaf ». Il avait raison, et l'ecart se voyait d'autant
+  /// plus depuis que la pastille de theme montre le fond reel.
+  ///
+  /// Couleur SEPAREE et non `cream` modifiee : `cream` sert AUSSI d'encre
+  /// claire sur les fonds verts (en-tetes, barres) -- la deplacer vers le
+  /// blanc pur aurait change des dizaines de textes sans rapport avec le
+  /// papier. Un fond et une encre ne partagent pas une constante.
+  static const mushafPapier = Color(0xFFFFFFFF);
   static const cream200 = Color(0xFFf3ead6);
   static const cream300 = Color(0xFFe8dfc4);
 

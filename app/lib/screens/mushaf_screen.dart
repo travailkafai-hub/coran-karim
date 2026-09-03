@@ -117,7 +117,16 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   // chrome de navigation, le plein écran ne vise que le texte + son header.
   bool _headerVisible = true;
   Timer? _headerHideTimer;
-  static const _kHeaderAutoHideDelay = Duration(seconds: 4);
+  /// Delai avant que le menu du Mushaf se replie tout seul.
+  ///
+  /// 4 s a l'origine, porte a 10 s le 2026-09-02 sur demande utilisateur :
+  /// « reviens au menu, avec cette fois 10 s -- ca veut dire qu'il a commence
+  /// a lire ». C'est le meme raisonnement que la tentative de tap-pour-masquer
+  /// (cf. son commentaire dans `build`) : le menu doit s'effacer quand
+  /// l'utilisateur LIT, pas quand une temporisation arbitraire expire. Faute
+  /// de pouvoir capter le geste, 10 s est le proxy retenu -- assez long pour
+  /// chercher son verset, assez court pour rendre le plein ecran a qui lit.
+  static const _kHeaderAutoHideDelay = Duration(seconds: 10);
   // Doit correspondre à MushafHeader.preferredSize (widgets/mushaf_header.dart)
   // -- dupliqué en constante locale ici pour éviter d'instancier un widget
   // juste pour lire sa taille.
@@ -551,7 +560,9 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     return Scaffold(
       backgroundColor: modeSombre
           ? AppColors.sombreBg
-          : (kindleMode ? AppColors.kindleBg : AppColors.cream),
+          // `mushafPapier` (blanc franc) et non `cream` : cf. sa doc dans
+          // app_theme.dart -- « le blanc n'est pas vraiment un vrai blanc ».
+          : (kindleMode ? AppColors.kindleBg : AppColors.mushafPapier),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.green800))
           : _error != null
@@ -565,6 +576,16 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                     // fait un voile grisatre et mange le contraste du texte.
                     if (!kindleMode && !modeSombre)
                       const QuranPatternBackground(),
+                    // ── TAP-POUR-MASQUER ESSAYE PUIS RETIRE (2026-09-02) ──
+                    // Tentative : un `GestureDetector` translucent autour du
+                    // contenu, qui masquait le menu au tap. Retour utilisateur
+                    // immediat : « le tap ne marche pas ». Cause : le contenu
+                    // est un ScrollView dont les enfants (VerseTile, mots,
+                    // surfaces d'annotation) remportent l'arene de gestes sur
+                    // toute la surface utile -- il ne restait presque aucun
+                    // pixel pour le detecteur parent. Un geste qui ne marche
+                    // qu'aux interlignes n'est pas un geste.
+                    // Remplace par le minuteur, porte de 4 s a 10 s.
                     _buildVerses(playingVerseKey,
                         kindleMode: kindleMode, modeSombre: modeSombre),
                     // Bande invisible en haut de l'écran (~15% de hauteur) :
@@ -1023,6 +1044,8 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     final size = MediaQuery.of(context).size;
     final viewportHeight =
         size.height - _reserveHaut(context) - _reserveBas();
+    // Bandes laterales retirees pendant l'annotation, cf. plus bas.
+    final annotationModeActif = ref.watch(mushafAnnotationModeProvider);
     return Stack(
       children: [
         NotificationListener<ScrollNotification>(
@@ -1107,6 +1130,23 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         // Les deux bandes restent SEPAREES plutot que fusionnees en une
         // seule zone : le centre appartient toujours au texte (selection
         // d'un mot, fiche tajwid), et l'elargir les avalerait.
+        // ── LES BANDES SE RETIRENT EN MODE ANNOTATION (2026-09-02) ───────
+        //
+        // Demande utilisateur : « quand il y a le stylo deploye, ca desactive
+        // le clic sur les cotes, car on peut selectionner les mots du bord ;
+        // il reste que le scroll qui fonctionne ».
+        //
+        // Ces deux bandes sont en `translucent` : elles tournent la page ET
+        // laissent le tap descendre jusqu'au mot en dessous. Pendant qu'on
+        // dessine, un appui pres du bord faisait donc deux choses non
+        // voulues d'un coup -- tourner la page et selectionner un mot -- au
+        // moment precis ou la main repose naturellement sur les cotes.
+        //
+        // On les RETIRE de l'arbre plutot que de les rendre inertes : une
+        // bande presente mais sans effet reste dans le hit-test et continue
+        // d'intercepter. Le defilement, lui, n'est pas touche : il vient du
+        // ScrollView en dessous, pas de ces bandes.
+        if (!annotationModeActif) ...[
         Positioned(
           left: _kMargeGesteSysteme,
           top: _reserveHaut(context),
@@ -1133,6 +1173,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
             },
           ),
         ),
+        ],
       ],
     );
   }
@@ -1929,12 +1970,35 @@ class _AnnotableVerseState extends ConsumerState<_AnnotableVerse> {
     // surface s'active aussi hors outil crayon dès que la gomme est
     // sélectionnée, pour pouvoir effacer un TRAIT sans rebasculer d'outil.
     final gommeActive = annotationMode && couleur == null;
-    final actif =
-        annotationMode && (outil == MushafAnnotationTool.pen || gommeActive);
     final tousLesTraits = ref.watch(mushafStrokesProvider);
     final traits = tousLesTraits[
             MushafStrokesNotifier.cle(widget.verse.surahNumber, widget.verse.ayahNumber, riwaya)] ??
         const <MushafStroke>[];
+    // ── LA GOMME NE BLOQUE PLUS LE TAP QUAND IL N'Y A RIEN A GOMMER ────────
+    //
+    // Defaut signale (2026-09-02) : « la gomme n'enleve pas le surlignement,
+    // elle supprime le stylet ».
+    //
+    // Cause : cette surface couvre le verset entier et arme un
+    // `ScaleGestureRecognizer`. Meme en `translucent`, elle remporte l'arene
+    // de gestes sur un simple tap, qui n'atteint donc jamais le mot -- alors
+    // que `onWordTap` est bien cable pour effacer un surlignage (cf.
+    // `surligneurActif` dans `_buildEntry`). Et cote traits, le tap ne faisait
+    // rien non plus : `_onScaleEnd` exige `geste.length >= 2`, un vrai
+    // balayage. Le tap etait donc capte pour rien, puis jete.
+    //
+    // Correctif : en GOMME, la surface ne s'active que si ce verset porte
+    // reellement des traits. Sans trait, elle sort du hit-test et le tap
+    // descend jusqu'au mot, ou il efface le surlignage. Le balayage pour
+    // effacer un trait reste intact la ou il y en a.
+    //
+    // Limite ASSUMEE : sur un verset qui porte a la fois des traits ET des
+    // surlignages, la surface reste prioritaire et le tap continue de ne pas
+    // atteindre le mot. Traiter ce cas demanderait de decider, au moment du
+    // tap, s'il vise un trait ou un mot -- un arbitrage geometrique que rien
+    // n'impose aujourd'hui. A reprendre si l'usage le montre genant.
+    final actif = annotationMode &&
+        (gommeActive || outil == MushafAnnotationTool.pen);
 
     return Stack(
       children: [
@@ -1966,9 +2030,42 @@ class _AnnotableVerseState extends ConsumerState<_AnnotableVerse> {
                   behavior: gommeActive
                       ? HitTestBehavior.translucent
                       : HitTestBehavior.opaque,
-                  onScaleStart: (d) => _onScaleStart(d, taille),
-                  onScaleUpdate: (d) => _onScaleUpdate(d, taille),
-                  onScaleEnd: (_) => _onScaleEnd(riwaya, couleur, taille, traits),
+                  // ── EN GOMME : LE GLISSEMENT SEULEMENT ────────────────
+                  // `onScale*` reclame le pointeur des qu'il se pose, y
+                  // compris pour un tap immobile : le tap n'atteignait donc
+                  // jamais le mot, et `_onScaleEnd` le jetait de toute facon
+                  // (il exige `geste.length >= 2`). On ecoute donc `onPan*`,
+                  // qui ne se declenche qu'au MOUVEMENT : le balayage efface
+                  // les traits, le tap descend au mot et y efface le
+                  // surlignage. Les deux gestes cohabitent au lieu de se
+                  // disputer l'arene.
+                  //
+                  // Le crayon garde `onScale*` : il a besoin du nombre de
+                  // pointeurs (`d.pointerCount`) pour distinguer un trace a
+                  // un doigt d'un defilement a deux, ce que `onPan*` ne
+                  // fournit pas.
+                  onScaleStart: gommeActive
+                      ? null
+                      : (d) => _onScaleStart(d, taille),
+                  onScaleUpdate: gommeActive
+                      ? null
+                      : (d) => _onScaleUpdate(d, taille),
+                  onScaleEnd: gommeActive
+                      ? null
+                      : (_) => _onScaleEnd(riwaya, couleur, taille, traits),
+                  onPanStart: !gommeActive
+                      ? null
+                      : (d) => setState(() =>
+                          _traitEnCours = [_normaliser(d.localPosition, taille)]),
+                  onPanUpdate: !gommeActive
+                      ? null
+                      : (d) => setState(() => _traitEnCours = [
+                            ...?_traitEnCours,
+                            _normaliser(d.localPosition, taille)
+                          ]),
+                  onPanEnd: !gommeActive
+                      ? null
+                      : (_) => _onScaleEnd(riwaya, couleur, taille, traits),
                   child: CustomPaint(
                     size: taille,
                     painter: _TraitsPainter(
@@ -2112,17 +2209,29 @@ class _AnnotationToolbar extends ConsumerWidget {
                   _OutilBascule(
                     icone: Icons.edit_rounded,
                     selectionne: outil == MushafAnnotationTool.pen,
-                    onTap: () => ref
-                        .read(mushafAnnotationToolProvider.notifier)
-                        .state = MushafAnnotationTool.pen,
+                    // Convertit la couleur active dans la palette cible :
+                    // rouge reste rouge, seul le rendu change. Sans cela la
+                    // couleur retenue appartiendrait a l'autre palette et
+                    // aucune pastille ne paraitrait selectionnee.
+                    onTap: () {
+                      ref.read(mushafAnnotationColorProvider.notifier).state =
+                          equivalenteDans(
+                              couleurActive, MushafAnnotationTool.pen);
+                      ref.read(mushafAnnotationToolProvider.notifier).state =
+                          MushafAnnotationTool.pen;
+                    },
                   ),
                   const SizedBox(width: 6),
                   _OutilBascule(
                     icone: Icons.border_color_rounded,
                     selectionne: outil == MushafAnnotationTool.highlighter,
-                    onTap: () => ref
-                        .read(mushafAnnotationToolProvider.notifier)
-                        .state = MushafAnnotationTool.highlighter,
+                    onTap: () {
+                      ref.read(mushafAnnotationColorProvider.notifier).state =
+                          equivalenteDans(
+                              couleurActive, MushafAnnotationTool.highlighter);
+                      ref.read(mushafAnnotationToolProvider.notifier).state =
+                          MushafAnnotationTool.highlighter;
+                    },
                   ),
                   const SizedBox(width: 10),
                   Container(
@@ -2133,7 +2242,7 @@ class _AnnotationToolbar extends ConsumerWidget {
                         : AppColors.cream300,
                   ),
                   const SizedBox(width: 10),
-                  for (final c in kMushafHighlightColors) ...[
+                  for (final c in couleursPour(outil)) ...[
                     _PastilleCouleur(
                       couleur: c,
                       selectionnee: couleurActive?.toARGB32() == c.toARGB32(),
@@ -2154,6 +2263,61 @@ class _AnnotationToolbar extends ConsumerWidget {
               ),
             ),
           ),
+          // ── « TOUT EFFACER » EPINGLE, HORS DEFILEMENT (2026-09-02) ────
+          // Pose d'abord DANS la zone qui defile horizontalement, il en
+          // sortait des que la barre depassait la largeur -- invisible sans
+          // faire glisser les outils, donc invisible tout court. C'est
+          // exactement ce qui avait fait croire que la gomme manquait.
+          // Une action GLOBALE n'a rien a faire dans la liste des outils :
+          // elle est epinglee a droite, comme la reduction et « terminé ».
+          // Demande utilisateur : « il faut un qui initialise tout ».
+          // La gomme travaille mot par mot et trait par trait ; sur
+          // des annotations accumulees depuis des mois, la reprendre
+          // une par une n'est pas un geste realiste.
+          //
+          // CONFIRMATION OBLIGATOIRE : l'action est irreversible et
+          // porte sur TOUT le Coran, pas seulement la page visible.
+          // Le libelle le dit explicitement -- « toutes les sourates »
+          // -- parce que l'utilisateur appuie depuis une page, et
+          // pourrait croire que seule celle-ci est concernee.
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Tout effacer',
+            icon: Icon(Icons.delete_sweep_rounded,
+                size: 20,
+                color: modeSombre
+                    ? AppColors.sombreInkSoft
+                    : AppColors.inkLight),
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (d) => AlertDialog(
+                  backgroundColor:
+              modeSombre ? AppColors.sombreBgDeep : AppColors.cream,
+                  title: const Text('Tout effacer ?'),
+                  content: const Text(
+              'Toutes les annotations du Mushaf seront '
+              'supprimees : surlignages et traits, toutes les '
+              'sourates, quelle que soit leur date. Cette '
+              'action est irreversible.'),
+                  actions: [
+                    TextButton(
+                onPressed: () => Navigator.pop(d, false),
+                child: const Text('Annuler')),
+                    TextButton(
+                onPressed: () => Navigator.pop(d, true),
+                child: const Text('Tout effacer',
+                    style: TextStyle(color: Color(0xFFC62828)))),
+                  ],
+                ),
+              );
+              if (ok != true) return;
+              await ref
+                  .read(mushafHighlightsProvider.notifier)
+                  .toutEffacer(ref.read(mushafStrokesProvider.notifier));
+            },
+                  ),
+
           const SizedBox(width: 6),
           // Réduction -- cf. _PastilleReduction pour l'état replié.
           InkWell(
@@ -2317,8 +2481,13 @@ class _OutilGomme extends StatelessWidget {
               width: selectionnee ? 2.5 : 1,
             ),
           ),
-          child: const Icon(Icons.remove_circle_outline_rounded,
-              size: 17, color: AppColors.inkLight),
+          // Icone CONTRASTEE quand l'outil est actif (2026-09-02) : elle
+          // restait en `inkLight` meme selectionnee, si bien qu'on ne voyait
+          // pas qu'on etait en train de gommer -- et l'on cherchait pourquoi
+          // le tap n'effacait rien alors qu'un autre outil etait actif.
+          child: Icon(Icons.remove_circle_outline_rounded,
+              size: 17,
+              color: selectionnee ? AppColors.green900 : AppColors.inkLight),
         ),
       ),
     );

@@ -101,6 +101,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsRiwayaWarsh => 'Warsh ‘an Nâfi‘';
 
   @override
+  String get settingsRiwayaChangeNotice =>
+      'Récitations et mémorisation déjà faites : suivies séparément par riwāya, elles ne changent pas.';
+
+  @override
   String get settingsStyleMurattal => 'Murattal';
 
   @override
@@ -228,7 +232,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get commonRetry => 'Réessayer';
 
   @override
-  String get homeIdentifyTooltip => 'Identifier une récitation';
+  String get homeIdentifyTooltip => 'Chercher un verset par la voix';
 
   @override
   String get homeFollowPrayerTooltip => 'Suivre une prière';
@@ -286,6 +290,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get mushafMore => 'Plus';
 
   @override
+  String get mushafAnnotateButton => 'Surligner le texte';
+
+  @override
+  String get mushafAnnotateEraser => 'Gomme';
+
+  @override
+  String get mushafAnnotateDone => 'Terminé';
+
+  @override
   String get mushafAutoScroll => 'Défilement auto';
 
   @override
@@ -296,7 +309,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get shazamListening =>
-      'Écoute en cours...\nApproche le téléphone du son.';
+      'Récite ou fais écouter un passage —\nle verset est retrouvé puis ouvert.';
 
   @override
   String get shazamSearching => 'Recherche dans le Coran...';
@@ -605,16 +618,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get duasSearchHint => 'Chercher une invocation, un mot, une source…';
 
   @override
-  String get duasRadiosTitre => 'Écoute continue';
+  String get duasRadiosTitre => 'Écoute radio invocations';
 
   @override
   String get duasRadioMatin => 'Invocations du matin';
 
   @override
   String get duasRadioSoir => 'Invocations du soir';
-
-  @override
-  String get duasRadioRoqya => 'Roqya';
 
   @override
   String get duasRadioSousTitre =>
@@ -1052,8 +1062,25 @@ class AppLocalizationsFr extends AppLocalizations {
       'Trouve le mot suivant. Erreur = -5 et retour au verset précédent.';
 
   @override
+  String get memorizationGameBridgeHint => 'LA FIN DU VERSET PRÉCÉDENT';
+
+  @override
   String get memorizationGameWrongAnswerBanner =>
       'Retour au verset précédent (-5)';
+
+  @override
+  String get memorizationGameStyleChaining => 'Enchaînement';
+
+  @override
+  String get memorizationGameStyleVerseStart => 'Début de verset';
+
+  @override
+  String get memorizationGameStyleVerseStartHint =>
+      'Retrouve les deux premiers mots de ce verset.';
+
+  @override
+  String get memorizationGameStyleVerseStartTooShort =>
+      'Cette portion n\'a pas assez de versets pour ce mode.';
 
   @override
   String memorizationGameVerseProgress(int current, int total) {
@@ -1601,6 +1628,9 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get karaokeRedoReferenceTooltip =>
       'Refaire ma récitation de référence';
+
+  @override
+  String get karaokeRestartTooltip => 'Refaire';
 
   @override
   String get karaokeReferenceRecordingTitle => 'Récitation de référence';

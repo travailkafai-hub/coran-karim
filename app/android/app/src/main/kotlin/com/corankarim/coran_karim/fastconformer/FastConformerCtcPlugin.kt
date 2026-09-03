@@ -25,6 +25,18 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     // TETE 3 (ecart canonique) : cf. Tete3.kt -- EN OBSERVATION SEULE tant que
     // la parite des 12 scores n'est pas verifiee sur device.
     private var tete3: com.corankarim.coran_karim.recitation2.Tete3? = null
+    // Symetrique Warsh (2026-09-02). Meme motif exactement que
+    // wordTokenLookup/wordTokenLookupWarsh juste en dessous, et pour la meme
+    // raison : les deux calibrations ont la MEME forme (13 caracteristiques,
+    // couches 32x1036 puis 1x32), donc utiliser celle de l'autre riwaya ne
+    // leve aucune exception -- elle rend un logit parfaitement bien forme et
+    // faux. Le silence est le risque, pas le plantage.
+    // Les deux ont ete calibrees sur le meme encodeur, avec un ecart connu et
+    // explique : Hafs 96,4 % de detection a 2 % de fausses alarmes (3 174
+    // exemples), Warsh 75,1 % (157 877, corpus entier) -- le signal GOP y est
+    // ~2x plus faible (separation gopA 2,32 contre 1,11), c'est un plafond de
+    // corpus, pas un defaut de calibration.
+    private var tete3Warsh: com.corankarim.coran_karim.recitation2.Tete3? = null
     private var causalAlignment: CausalAlignmentSession? = null
     private var buffered: BufferedTranscriber? = null
     /** Etat du calibrage en cours (cf. "calibrageDemarrer"). Volontairement
@@ -83,6 +95,15 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private fun wordTokenLookupPourRiwaya(moteur: FastConformerCtc?): Map<String, IntArray>? =
         if (moteur?.riwayaWarsh == true) wordTokenLookupWarsh else wordTokenLookup
 
+    // Meme point unique, pour la tete 3. Repli sur Hafs si la calibration
+    // Warsh est absente du paquet : un logit approximatif vaut mieux qu'une
+    // tete muette TANT QUE la tete reste en observation seule -- le jour ou
+    // elle tranchera un verdict, ce repli devra devenir une abstention.
+    private fun tete3PourRiwaya(
+        moteur: FastConformerCtc?
+    ): com.corankarim.coran_karim.recitation2.Tete3? =
+        if (moteur?.riwayaWarsh == true) (tete3Warsh ?: tete3) else tete3
+
     private fun variantesOrthographePourRiwaya(
         moteur: FastConformerCtc
     ): (String) -> List<String> =
@@ -127,6 +148,11 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     @Volatile private var v2NonJugeables: MutableSet<Int> = v2NonJugeablesInit
 
     @Volatile private var v2Fusion = true
+
+    /** Rigueur du tajwid (cf. SeuilsDureeTajwid). Poussee par v2SetFusion,
+     *  appliquee a la chaine vivante SANS la recreer -- changer la rigueur ne
+     *  doit pas jeter les verdicts deja figes. */
+    @Volatile private var v2TajwidStrict = true
 
     /** Nombre de preuves concordantes exigees pour FIGER un verdict (Decideur.k).
      *  Pilotable par `v2SetFusion(preuves:)` pour tester en recette REELLE
@@ -534,7 +560,14 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                             java.io.File(it).readText(Charsets.UTF_8)) }
                         catch (e: Exception) { null }
                     }
-                    DiagnosticLog.log(TAG, "tete3 chargee : ${tete3 != null}")
+                    val tete3WarshPath = call.argument<String>("tete3WarshPath")
+                    tete3Warsh = tete3WarshPath?.let {
+                        try { com.corankarim.coran_karim.recitation2.Tete3.charger(
+                            java.io.File(it).readText(Charsets.UTF_8)) }
+                        catch (e: Exception) { null }
+                    }
+                    DiagnosticLog.log(TAG,
+                        "tete3 chargee : hafs=${tete3 != null} warsh=${tete3Warsh != null}")
                     // Dictionnaire mot->tokens precalcule (optionnel, cf.
                     // build_word_token_lookup.py) -- source primaire du
                     // tokenizer de l'alignement force, null si absent
@@ -549,6 +582,49 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     withContext(Dispatchers.Main) { result.error("LOAD_FAILED", e.message, null) }
                 }
             }
+            // ── TRANSCRIRE *ET* JUGER LE TAJWID (2026-09-02) ─────────────
+            // Demande utilisateur : « pour le reessayer mot, il doit traiter
+            // aussi la regle -- si elle est bien detectee, pas que l'entendu ».
+            //
+            // `transcribe` ne rend que du texte : la boucle « Reessayer ce
+            // mot » ne pouvait donc verifier QUE les lettres. Un mot redit
+            // avec les bonnes lettres mais sans sa ghunna passait pour
+            // corrige, alors que c'est precisement la regle qui avait echoue.
+            //
+            // Rend, en plus du texte, les regles detectees avec leur duree et
+            // leur probabilite -- de quoi appliquer cote Dart le MEME critere
+            // que la chaine (seuil de duree selon la rigueur, cf.
+            // SeuilsDureeTajwid). Un seul passage du modele pour les deux.
+            "transcribeAvecRegles" -> scope.launch {
+                try {
+                    val wavPath = call.argument<String>("wavPath")!!
+                    val current = engine
+                    if (current == null) {
+                        withContext(Dispatchers.Main) {
+                            result.error("NOT_LOADED", "loadModel() n'a pas ete appele", null)
+                        }
+                        return@launch
+                    }
+                    val pcm = WavReader.readMono16kFloat(wavPath)
+                    val sorties = current.computeAll(pcm)
+                    val texte = current.greedyDecode(sorties.letters)
+                    val regles = current.decodeTajwid(sorties.tajwid).map { d ->
+                        mapOf(
+                            "nom" to (current.ruleNames.getOrNull(d.ruleId) ?: ""),
+                            "ms" to d.frames * 80,
+                            "p" to d.prob.toDouble(),
+                        )
+                    }
+                    withContext(Dispatchers.Main) {
+                        result.success(mapOf("texte" to texte, "regles" to regles))
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        result.error("TRANSCRIBE_FAILED", e.message, null)
+                    }
+                }
+            }
+
             "transcribe" -> scope.launch {
                 try {
                     val wavPath = call.argument<String>("wavPath")!!
@@ -789,9 +865,30 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         // de rak'ah (« Shazam ») sans aucune cible prealable.
                         // Emis SEULEMENT s'il porte du texte : une fenetre de
                         // silence n'a rien a dire.
-                        (v2Chaine?.dernierEntenduLibre
-                            ?.takeIf { it.isNotBlank() }
-                            ?.let { mapOf("v2Libre" to it) } ?: emptyMap()) +
+                        // `v2LibrePosition` (2026-08-28) : la position audio
+                        // (`travailDebut`) de cette fenetre -- les fenetres
+                        // n'arrivent pas toujours dans l'ordre chronologique
+                        // (mesure device), Dart s'en sert pour ignorer une
+                        // bribe anterieure a la derniere acceptee plutot que
+                        // de tout empiler dans l'ordre d'arrivee (cf. la doc
+                        // de `dernierEntenduLibrePosition`).
+                        //
+                        // Copie locale `val` avant le `?.let` : `v2Chaine` est
+                        // un `var` (mutable), Kotlin refuse le smart-cast sur
+                        // une 2e lecture de la propriete dans le lambda
+                        // (erreur de compilation : "could be mutated
+                        // concurrently").
+                        (run {
+                            val chaine = v2Chaine
+                            chaine?.dernierEntenduLibre
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let {
+                                    mapOf(
+                                        "v2Libre" to it,
+                                        "v2LibrePosition" to chaine.dernierEntenduLibrePosition,
+                                    )
+                                }
+                        } ?: emptyMap()) +
                         // `v2SautDe`/`v2SautA` : bornes d'un passage que le
                         // recitateur semble avoir saute. PAS un verdict --
                         // « on ne sera pas sur qu'il a vraiment rate »
@@ -1107,6 +1204,22 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // etre juge ».
             // Bascule le bloc de FUSION (cf. v2Fusion). Recree la chaine pour
             // que le changement prenne effet au prochain bloc audio.
+            // Canal DEDIE a la rigueur du tajwid (2026-09-02).
+            // Separe de v2SetFusion parce que le Dart n'a pas de singleton :
+            // renvoyer tous les reglages depuis une instance fraiche les
+            // remettrait a leurs valeurs par defaut. Ici un seul reglage
+            // change, un seul arrive -- et la chaine vivante n'est PAS
+            // recreee, les verdicts deja figes sont conserves.
+            "v2SetTajwidStrict" -> {
+                v2TajwidStrict = call.argument<Boolean>("strict") ?: true
+                v2Chaine?.tajwidStrict = v2TajwidStrict
+                DiagnosticLog.log(TAG,
+                    "[tajwid] rigueur = " +
+                    (if (v2TajwidStrict) "STRICT" else "TOLERANT") +
+                    " (chaine vivante=" + (v2Chaine != null) + ")")
+                result.success(true)
+            }
+
             "v2SetFusion" -> {
                 val ancienFusion = v2Fusion
                 val ancienPreuves = v2Preuves
@@ -1120,6 +1233,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 v2Largeur = call.argument<Double>("largeur") ?: 4.0
                 v2MaxBloc = call.argument<Double>("maxbloc") ?: 10.0
                 v2MaxFusion = call.argument<Double>("maxfusion") ?: 18.0
+                // Rigueur du tajwid : appliquee A CHAUD, et volontairement
+                // HORS de la comparaison "quelque chose a change" ci-dessous.
+                // Elle ne modifie ni la fenetre ni la fusion, donc rien ne
+                // justifie de detruire la chaine -- et la detruire perdrait
+                // les verdicts deja figes de la recitation en cours.
+                v2TajwidStrict = call.argument<Boolean>("tajwidStrict") ?: true
+                v2Chaine?.tajwidStrict = v2TajwidStrict
                 // ── NE DETRUIRE LA CHAINE QUE SI QUELQUE CHOSE A CHANGE ─────
                 //
                 // DEFAUT MESURE (2026-08-06, session utilisateur) : apres avoir
@@ -1546,7 +1666,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     aligneur = com.corankarim.coran_karim.recitation2
                         .AligneurForce(moteur.vocabPieces, moteur.blank),
                     journal = { l -> DiagnosticLog.log(TAG, l) },
-                    tete3 = tete3,
+                    tete3 = tete3PourRiwaya(moteur),
+                    // Reprend la rigueur courante : sans cette ligne, une
+                    // chaine recreee (nouvelle cible, changement de mode)
+                    // repartirait au defaut et perdrait le choix de
+                    // l'utilisateur en silence.
+                    tajwidStrictInitial = v2TajwidStrict,
                     // CLOISONNEMENT CTL/REF -- cf. le commentaire de
                     // [ChaineRecitation.referenceSession]. v2Mode est mis a
                     // jour par v2SetMode, appele avant v2SetTarget (donc avant

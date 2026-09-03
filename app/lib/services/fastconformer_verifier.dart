@@ -685,6 +685,47 @@ class FastConformerVerifier {
     }
   }
 
+  /// Transcrit ET rend les regles de tajwid detectees (2026-09-02).
+  ///
+  /// `transcribe` ne rend que du texte, ce qui limitait la boucle « Reessayer
+  /// ce mot » a une verification des LETTRES : un mot redit correctement mais
+  /// sans sa ghunna passait pour corrige, alors que c'est la regle qui avait
+  /// echoue. Demande utilisateur : « il doit traiter aussi la regle, si elle
+  /// est bien detectee, pas que l'entendu ».
+  ///
+  /// Un seul passage du modele rend les deux. Chaque regle porte son nom, sa
+  /// duree en ms et sa probabilite -- de quoi appliquer le MEME critere de
+  /// duree que la chaine (cf. `SeuilsDureeTajwid` cote natif).
+  ///
+  /// `null` si le modele n'est pas charge ou si l'appel echoue : l'appelant
+  /// retombe alors sur la verification par le texte seul, jamais sur un
+  /// verdict invente.
+  Future<({String texte, List<({String nom, int ms, double p})> regles})?>
+      transcribeAvecRegles(String wavPath) async {
+    if (!_loaded) return null;
+    try {
+      final r = await _channel.invokeMethod<Map<Object?, Object?>>(
+          'transcribeAvecRegles', {'wavPath': wavPath});
+      if (r == null) return null;
+      final brut = (r['regles'] as List?) ?? const [];
+      return (
+        texte: (r['texte'] as String?) ?? '',
+        regles: [
+          for (final e in brut)
+            if (e is Map)
+              (
+                nom: (e['nom'] as String?) ?? '',
+                ms: (e['ms'] as num?)?.toInt() ?? 0,
+                p: (e['p'] as num?)?.toDouble() ?? 0.0,
+              ),
+        ],
+      );
+    } catch (e) {
+      DiagnosticLog.log('FastConformer', '[reessai] regles indisponibles : $e');
+      return null;
+    }
+  }
+
   Future<void> dispose() async {
     if (!_loaded) return;
     try {
@@ -1069,6 +1110,34 @@ class FastConformerVerifier {
     await _envoyerReglagesV2();
   }
 
+  /// Rigueur du tajwid, pilotee par le commutateur « Rigueur de la
+  /// correction » de l'ecran Reciter (`strictCorrectionProvider`).
+  ///
+  /// STRICT par defaut : c'est la valeur qu'avait ce reglage quand son
+  /// commutateur a ete retire le 2026-08-10, et la remettre en tolerant
+  /// changerait silencieusement le comportement de tous ceux qui n'y
+  /// toucheront jamais.
+  bool _tajwidStrict = true;
+
+  /// Pousse la rigueur au natif, SANS toucher aux autres reglages v2.
+  ///
+  /// STATIQUE et sur un canal dedie, volontairement : `FastConformerVerifier`
+  /// n'est PAS un singleton (chaque `FastConformerVerifier()` est une instance
+  /// neuve). Passer par `_envoyerReglagesV2` depuis une instance fraiche
+  /// renverrait `fusion/preuves/pas/largeur/maxbloc/maxfusion` a leurs valeurs
+  /// PAR DEFAUT et ecraserait en silence les reglages de la session en cours.
+  /// Un seul reglage change : un seul reglage part.
+  static Future<void> pousserTajwidStrict(bool strict) async {
+    try {
+      await _channel.invokeMethod('v2SetTajwidStrict', {'strict': strict});
+      DiagnosticLog.log('FastConformer',
+          '[tajwid] rigueur -> ${strict ? "STRICT" : "TOLERANT"}');
+    } catch (e) {
+      // Jamais silencieux : cf. `_envoyerReglagesV2`.
+      DiagnosticLog.log('FastConformer', '[tajwid] rigueur NON APPLIQUEE : $e');
+    }
+  }
+
   bool _v2FusionSouhaitee = true;
   int _v2PreuvesSouhaitees = 2;
   double _v2Pas = 4.0;
@@ -1089,6 +1158,11 @@ class FastConformerVerifier {
             'largeur': _v2Largeur,
             'maxbloc': _v2MaxBloc,
             'maxfusion': _v2MaxFusion,
+            // RIGUEUR DU TAJWID (2026-09-02). Le natif s'en sert pour choisir
+            // la DUREE minimale qu'une regle doit tenir avant d'etre comptee
+            // realisee (cf. SeuilsDureeTajwid). Envoye avec les autres
+            // reglages v2 pour ne pas ouvrir un second canal.
+            'tajwidStrict': _tajwidStrict,
           });
     } catch (e) {
       // JAMAIS silencieux : un reglage de mesure qui n'arrive pas invalide

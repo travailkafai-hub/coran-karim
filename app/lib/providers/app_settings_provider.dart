@@ -322,6 +322,46 @@ class KindlePageSecondsNotifier extends StateNotifier<double> {
 // vitesse, eux, sont persistés.
 final kindleAutoTurnProvider = StateProvider<bool>((ref) => false);
 
+const _kPrefSuivrePriereAccesCache = 'suivre_priere_acces_cache';
+
+/// Accès caché de « Suivre une prière » (2026-08-26, demande utilisateur).
+///
+/// Le bouton qui menait à `PrayerFollowScreen` a été retiré de la barre du
+/// haut le 2026-08-09 (« désactive le mode prière, je ne vais pas l'inclure
+/// dans la première version [...] reste dans l'app mais pas utilisé ») --
+/// l'écran et toute la chaîne restent fonctionnels, cf. le commentaire dans
+/// `surah_list_screen.dart`. Ce drapeau rouvre l'icône SANS revenir sur cette
+/// décision pour tous les utilisateurs : 5 taps sur l'onglet Coach de la page
+/// d'accueil (cf. `main.dart::_HomeScreenState`) la fait réapparaître dans la
+/// barre du haut de la liste des sourates.
+///
+/// PERSISTÉ (2026-08-26, correction du premier jet -- constat utilisateur :
+/// « ça devrait être tout le temps une fois qu'on a fait ça »). Une fois
+/// débloqué, l'icône reste, y compris après redémarrage ; retrouver le geste
+/// reste la seule façon de la découvrir la première fois.
+final suivrePriereAccesCacheProvider =
+    StateNotifierProvider<SuivrePriereAccesCacheNotifier, bool>((ref) {
+  return SuivrePriereAccesCacheNotifier();
+});
+
+class SuivrePriereAccesCacheNotifier extends StateNotifier<bool> {
+  SuivrePriereAccesCacheNotifier() : super(false) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefSuivrePriereAccesCache);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefSuivrePriereAccesCache, value);
+  }
+}
+
 const _kPrefAdultChunkWordCount = 'adult_chunk_word_count';
 const kAdultChunkWordCountMin = 1;
 const kAdultChunkWordCountMax = 15;
@@ -716,6 +756,53 @@ class MarquePagesNotifier extends StateNotifier<Set<String>> {
     await prefs.setStringList(_kPrefMarquePages, suivant.toList());
     return ajoute;
   }
+}
+
+const _kPrefDerniereLectureSourate = 'derniere_lecture_sourate';
+const _kPrefDerniereLectureVerset = 'derniere_lecture_verset';
+
+/// Dernière position atteinte en lecture du Mushaf (2026-08-26, demande
+/// utilisateur : « si ouverture une sourate en lecture faut se rappeler de la
+/// page et l'ouvrir directement au prochain ouverture de l'application »).
+///
+/// Distinct de [marquePagesProvider] (signet MANUEL, plusieurs possibles, un
+/// tap pour le poser) : ici un seul point, mis à jour tout seul par
+/// `MushafScreen` à chaque ouverture et à chaque page chargée en scrollant,
+/// sans aucun geste. Relu par `HomeScreen` au lancement de l'app pour y
+/// rouvrir directement -- le signet, lui, reste une action délibérée de
+/// l'utilisateur et continue d'exister séparément.
+///
+/// ⚠️ PAS DE StateNotifierProvider (retiré le 2026-08-26) -- rien dans l'app
+/// n'observe cette position de façon réactive (les deux seuls appelants,
+/// `mushaf_screen.dart` en écriture et `main.dart` en lecture au lancement,
+/// s'en passent très bien). CAUSE RÉELLE, mesurée : `state = (sourate,
+/// verset)` levait systématiquement « At least [one] listener of the
+/// StateNotifier ... threw an exception », qui empêchait la persistance
+/// elle-même de s'exécuter (le throw survient AVANT `SharedPreferences
+/// .getInstance()`) -- la position ne s'enregistrait donc JAMAIS, malgré
+/// l'écran de lecture bel et bien ouvert et scrollé. Retirer la couche
+/// `StateNotifier` (inutile ici) supprime le mécanisme qui déclenchait
+/// l'erreur, pas seulement l'erreur elle-même.
+Future<void> enregistrerPositionLecture(int sourate, int verset) async {
+  final prefs = await SharedPreferences.getInstance();
+  if (prefs.getInt(_kPrefDerniereLectureSourate) == sourate &&
+      prefs.getInt(_kPrefDerniereLectureVerset) == verset) {
+    return; // deja cette position, rien a reecrire
+  }
+  await prefs.setInt(_kPrefDerniereLectureSourate, sourate);
+  await prefs.setInt(_kPrefDerniereLectureVerset, verset);
+  DiagnosticLog.log(
+      'Lecture', 'position enregistree : sourate=$sourate verset=$verset');
+}
+
+/// Utilisée UNE FOIS au lancement de l'app (`HomeScreen.initState`) et par
+/// `enregistrerPositionLecture` ci-dessus -- mêmes clés, même source de
+/// vérité.
+Future<(int, int)?> lireDernierePositionLecture() async {
+  final prefs = await SharedPreferences.getInstance();
+  final s = prefs.getInt(_kPrefDerniereLectureSourate);
+  final v = prefs.getInt(_kPrefDerniereLectureVerset);
+  return (s != null && v != null) ? (s, v) : null;
 }
 
 const _kPrefRiwaya = 'riwaya';

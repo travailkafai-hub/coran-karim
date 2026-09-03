@@ -53,6 +53,7 @@ systématiquement `sans objet (supprimé par conception)`, et la colonne
 | `[v2] f=N DECROCHAGE (saut)? : … dernier atteste vu=… reprise apres le mot R` | le natif signale |
 | `[v2] cible etendue : +k mots -> N mots (chaine active=…)` | enchaînement de page **répercuté au natif** |
 | `[t3] mot=N logit=… ` / `[tajwidDuree] mot=N …` | têtes 2/3, **observation seule, aucun verdict** |
+| `[CTL][V2tajwidDetail] mot=N "x" statut=… tajwidFiable=… attendues=… detectees=…` | **⚠️ CORRECTIF (2026-08-23) : la ligne ci-dessus (`[tajwidDuree]`) reste observation seule, mais CETTE ligne-ci, elle, PORTE un vrai verdict** — cf. Étape 4 ter |
 
 **Statuts possibles** (à lire tels quels, ne pas les traduire) :
 `definitif:vert` `definitif:orange` `definitif:rouge` `provisoire:vert`
@@ -132,6 +133,51 @@ grep -oE 'nouvelle position max|mot=[0-9]+' $S | ...   # ancre max atteinte
 **Si `ancre max` dépasse la cible initiale sans aucune ligne `cible etendue`,
 l'analyse est faussée** : les mots au-delà ne pouvaient pas être jugés, et tout
 « taux » calculé dessus est faux.
+
+---
+
+## Étape 0 ter (v2) — LA FIN DE SESSION AVALE-T-ELLE LES DERNIERS MOTS ?
+
+Ajoutée le 2026-08-23 après plusieurs occurrences CONFIRMÉES du même
+symptôme sur des sourates différentes (Al-Ikhlas : « أحد »/« الصمد » jamais
+verrouillés ; Al-Baqara : la suite après « يُنفِقُونَ » jamais rattachée).
+**Vérifier ce point à CHAQUE analyse, pas seulement quand l'utilisateur le
+signale** — le pattern est systématique, pas un accident isolé.
+
+La signature à chercher, dans les toutes dernières lignes `[v2]` avant
+`session fermee` :
+
+```
+[v2] f=N bande=inconnue entendu="…" horsTexte=k dejaSignale=true
+[v2] f=N verif encoreEnCours : dernierDefinitif=D prochains=[mot_D+1, mot_D+2, …] entenduNorm="…" -> false
+[v2] f=N horsTexte : fenetresHorsTexte=k fenetresAvantDecrochage=j decrochageDejaSignale=true
+[v2] session fermee : 0 mot(s) finalise(s)
+```
+
+**Ce que ça dit** : à l'instant de la pause/fermeture, la dernière fenêtre
+active a décodé un texte qui ne correspond à AUCUN des mots encore attendus
+(`prochains=[…]`) — `hors texte`. La fermeture arrive alors que ce
+désaccord est déjà signalé (`dejaSignale=true`), et la dernière passe ne
+finalise RIEN (`0 mot(s) finalise(s)`). Tout ce que le récitateur a dit
+après le dernier mot verrouillé (souvent encore `provisoire`, jamais
+`definitif`) est donc perdu pour le jugement, même si l'audio brut le
+contient (cf. Étape 5 pour le confirmer sur `stream_*.wav`).
+
+**Ne pas confondre avec** : un `entendu` hors-texte peut aussi être un
+artefact réel de fin de récitation (parole non coranique, « صدق الله
+العظيم », toux, un mot dit deux fois en cherchant ses mots) -- dans ce cas
+le comportement est correct, il n'y a rien à corriger. Le distinguer
+demande de confronter au WAV (Étape 5) : si le mot attendu s'y trouve
+clairement prononcé et que la fenêtre ne l'a simplement pas rattrapé, c'est
+le défaut ; si l'utilisateur a réellement dit autre chose, ce n'est pas un
+défaut de la chaîne.
+
+**Compter systématiquement** : le dernier mot verrouillé est-il `definitif`
+ou resté `provisoire` ? Un dernier mot `provisoire` en fin de session est un
+signal fort de ce même mécanisme (aucune 2ᵉ observation n'a eu le temps
+d'arriver avant la fermeture) -- cf. la note projet existante sur
+`phraseFinRecitationProvider` (`RECITATION_PROVIDER`, `CLAUDE.md`), qui
+existe précisément pour donner au dernier mot quelque chose « après » lui.
 
 ---
 
@@ -445,6 +491,93 @@ passage qui figure deux fois dans la sourate (`وَلَآ أَنتُمْ عَـ�
 أَعْبُدُ`). Sans le balayage, l'hypothèse « mauvaise sourate chargée » aurait
 été retenue -- elle avait d'ailleurs été affirmée à tort avant vérification.
 
+## Étape 4 ter (v2) — LE TAJWID : violet, vert, et comment mesurer une vraie probabilité
+
+Ajoutée le 2026-08-23, après une session d'analyse réelle en préréglage
+« tajwid » (An-Nasr puis Al-Balad) qui a fait remonter un piège d'analyse
+neuf ET une méthode de mesure qui n'existait pas encore dans ce skill.
+
+### La ligne qui porte le vrai verdict tajwid
+
+```
+[CTL][V2tajwidDetail] mot=N "x" statut=… tajwidFiable=… attendues=… detectees=…
+```
+
+- `attendues` — règle(s) que le texte annoté (`quran_rules_annotated.json`,
+  symboles PUA U+E000+i traduits par `RuleSymbols`) porte sur CE mot.
+- `detectees` — règles que la tête tajwid a effectivement vues au-dessus de
+  son seuil, à cette observation.
+- `statut` — `correct` (vert), `unclear` (**violet**, spécifique au tajwid —
+  lettres/harakat justes, règle manquante), ou `error` (rouge).
+- `tajwidFiable` — la tête a-t-elle assez de frames pour qu'on la croie.
+
+**Violet = `WordStatus.unclear` + `classifyError(mot) == RecitationErrorKind.tajwid`**
+(cf. `karaoke_recitation_screen.dart`, le cas `WordStatus.unclear` du switch de
+couleur). Ce n'est PAS une simple prononciation douteuse : c'est le signal
+dédié « la règle de tajwid n'est pas confirmée ».
+
+### Le mot passe souvent VIOLET PUIS VERT — c'est voulu, pas un bug
+
+Mesuré et chronométré sur plusieurs mots (Al-Balad, mots 9, 69, 70, 71, 72) :
+la tête émet d'abord `tajwidFiable=false` (peu de frames encore observées),
+et le statut tenu à ce moment est `unclear` → violet à l'écran. Une à deux
+secondes plus tard, une fois assez de frames accumulées, `tajwidFiable`
+passe à `true` et le statut se résout en `correct` → vert. C'est le
+mécanisme de PRUDENCE voulu : le violet ne doit jamais être lu comme un
+verdict définitif tant qu'il reste `provisoire`, exactement comme n'importe
+quel autre statut (cf. Règle n°1 plus haut). Un mot qui reste bloqué en
+`unclear`/violet en fin de session, lui, EST un non-vert à compter.
+
+**Contre-exemple observé, à surveiller** : un mot (Al-Balad mot=22 « لَّن »,
+règle idgham_ghunnah) a montré une transition INVERSE de la normale --
+`error` → `unclear`, sans jamais atteindre `correct`, alors que la mesure
+hors-app (balayage ci-dessous) donnait 100 % de probabilité pour la règle
+attendue. Cause non élucidée : ne pas supposer qu'une haute probabilité
+mesurée après coup garantit que l'app, EN DIRECT, a vu la même chose au bon
+instant -- le revérifier au lieu de conclure.
+
+### ⚠️ PIÈGE : comparer `attendues` et `detectees` À LA MAIN fait mentir
+
+`attendues` peut porter les 4 anciens noms de madd (`madda_necessary`,
+`madda_obligatory`, `madda_permissible`, `madda_normal`, hérités du texte
+annoté), alors que `detectees` ne contient QUE le vocabulaire du modèle
+déployé (`madd_long`, `madd_court`, ...). Une comparaison naïve
+`attendues ⊆ detectees` (faite par un premier jet de ce skill, corrigée le
+jour même) déclare alors TOUJOURS « règle manquante » sur tout mot annoté en
+madd -- alors que l'app, elle, résout ce pont ailleurs (cf. le bridge madd
+statut→durée côté `recitation_provider.dart`) et rend `statut=correct`
+comme sur tous les autres mots. **Le seul verdict qui compte est le champ
+`statut` déjà écrit par l'app -- ne jamais recalculer une correspondance de
+noms à la main pour le contredire.**
+
+### Obtenir une VRAIE probabilité par mot, pas juste un nom de règle
+
+Le log ne journalise ni logprob ni pourcentage pour la tête tajwid (seulement
+des durées en frames/ms, `[tajwidDuree]`). Pour une probabilité réelle,
+décoder l'audio brut (`stream_*.wav`, cf. Étape 5) directement à travers le
+modèle déployé :
+
+```python
+# 1) mel du clip (ou d'une fenetre de quelques s), meme calcul que l'app
+#    (benchmark/mel_numpy_reference.py, normalize="per_feature")
+# 2) session ONNX sur modele_2geles_2026-08-22/model_int8.onnx (ou le
+#    paquet reellement deploye), lire la sortie "tajwid_logprobs" (T,17)
+# 3) probabilite = exp(logprob)  (sorties log-sigmoid par classe)
+# 4) comparer contre seuils_tajwid.json (17 seuils, PAS 0 -- cf. le piege
+#    des 3 formes de fichier, deja documente ailleurs dans ce projet)
+```
+
+**Pour attribuer une fenêtre à UN mot précis** : ne pas se fier à une
+règle de trois (horodatage de session ÷ durée du flux) -- le portier RMS
+retire du silence de façon non uniforme, et la latence de traitement décale
+tout. À la place, décoder le MÊME clip pour le TEXTE (sortie `logprobs`,
+CTC glouton) en parallèle du tajwid, fenêtres de 2-3 s glissantes -- la
+fenêtre où le mot cherché apparaît **au centre** du texte décodé (pas à un
+bord, où il serait tronqué/pollué par le mot voisin) est la bonne fenêtre
+pour lire sa probabilité tajwid. Deux sorties du même passage `session.run`,
+donc un seul appel modèle par fenêtre (cf. l'avertissement déjà écrit dans
+ce projet : « ne jamais faire tourner l'encodeur deux fois »).
+
 ## Étape 5 — Confronter à l'AUDIO, toujours
 
 Un verdict n'est établi qu'après vérification sur le son. Le log seul dit ce que
@@ -618,3 +751,6 @@ colonne — jamais laisser croire qu'elle l'a été.
 | « l'ancre monte au-dela de la cible, tant mieux » | verifier `cible etendue` : sans elle les mots au-dela ne pouvaient PAS etre juges, et le taux calcule dessus est faux (defaut trouve le 2026-08-05) |
 | « margeL vaut 3e+29, c'est une marge enorme » | c'est une SENTINELLE qui fuit — une valeur inatteignable utilisee comme « pas de candidat ». La lire comme un score fausse toute moyenne |
 | « la session est en mode confiant mais ca teste quand meme » | `modeConfiant=true` coupe le decrochage a la source (`if (_confidentMode) return`). Cette session ne valide RIEN sur le decrochage |
+| « attendues (madda_obligatory) n'est pas dans detectees (madd_long), donc la regle manque » | deux vocabulaires differents (texte annote vs modele) -- l'app fait le pont ailleurs. Le seul verdict qui compte est le champ `statut` deja ecrit, jamais un recalcul de correspondance de noms a la main (2026-08-23) |
+| « violet puis vert, c'est un bug d'affichage » | c'est voulu : `tajwidFiable=false` -> `true` a mesure que les frames s'accumulent, et le violet est un etat PROVISOIRE de prudence -- ne conclure qu'une fois `definitif` (2026-08-23) |
+| « j'ai mesure 100 % de probabilite apres coup, donc l'app aurait du voir la regle » | pas garanti : un mot (Al-Balad, `لَّن`) est reste bloque en `unclear` malgre 100 % mesure hors-app -- l'app juge EN DIRECT, a l'instant precis ou elle verrouille, pas sur le clip entier relu apres coup (2026-08-23) |

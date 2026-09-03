@@ -11,10 +11,23 @@ import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/judgement_options.dart';
 import '../providers/app_settings_provider.dart';
+import '../providers/app_settings_provider.dart';
+import '../services/fastconformer_verifier.dart';
 import '../providers/judgement_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tajwid_help_sheet.dart' show kTajwidRuleInfo;
 
+/// ⚠️ ECRAN SANS ACCES DEPUIS LE 2026-09-02 -- conserve, pas supprime.
+///
+/// Constat utilisateur, capture a l'appui : « cette page n'a plus raison
+/// d'etre ». Ses trois contenus ont perdu leur raison d'etre ici le meme jour :
+/// les MODES sont remontes dans la feuille de recitation et dans celle du
+/// Coach ; les REGLES sont informatives depuis le 2026-08-10 ; reste le
+/// curseur de paliers, seul reglage vivant, qui ne justifie pas un ecran.
+///
+/// Le code reste compilable et complet : le rouvrir tient a une ligne
+/// `Navigator.push`. Ne pas le supprimer sans avoir reloge
+/// `repeatWindowSizeProvider`, qui n'a plus d'autre point de reglage.
 class TajwidRulesScreen extends ConsumerWidget {
   const TajwidRulesScreen({super.key});
 
@@ -38,7 +51,7 @@ class TajwidRulesScreen extends ConsumerWidget {
         data: (reliability) => ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _PresetRow(current: options.preset, notifier: notifier),
+            PresetRow(current: options.preset, notifier: notifier),
             const SizedBox(height: 20),
             // « Harakat exigées » (rigueur de correction) retiré le
             // 2026-08-10 (demande utilisateur : « la rigueur de correction
@@ -96,10 +109,108 @@ class TajwidRulesScreen extends ConsumerWidget {
   }
 }
 
-class _PresetRow extends StatelessWidget {
+/// Feuille courte de choix du MODE de verification (2026-09-02).
+///
+/// Ouverte depuis le Coach a la place de `TajwidRulesScreen` en entier :
+/// on vient y changer de mode avant de reviser, pas regler les 13 regles ni
+/// la taille des paliers. Ces derniers restent a un tap, par le bouton en bas
+/// de la feuille.
+void afficherFeuilleModes(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: AppColors.cream,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) => Consumer(
+      builder: (ctx, ref, _) {
+        final t = AppLocalizations.of(ctx)!;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.coachVerificationModeTooltip,
+                    style: GoogleFonts.manrope(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink)),
+                const SizedBox(height: 14),
+                PresetRow(
+                  current: ref.watch(judgementOptionsProvider).preset,
+                  notifier: ref.read(judgementOptionsProvider.notifier),
+                ),
+                // ── LA TOLERANCE AUSSI (2026-09-02) ──────────────────
+                // Constat utilisateur sur cette feuille : « il manque la
+                // tolerance ». Le mode dit CE QUI est verifie, la tolerance
+                // dit AVEC QUELLE SEVERITE -- les deux se decident au meme
+                // moment, avant de reviser. N'en donner qu'un obligeait a
+                // ressortir vers l'ecran de recitation pour l'autre.
+                //
+                // Meme reglage que la feuille de recitation (un seul curseur
+                // gouverne toute la severite) : il porte la sensibilite du
+                // jugement ET la rigueur du tajwid (seuils de duree).
+                const SizedBox(height: 16),
+                Text('Tolerance',
+                    style: GoogleFonts.manrope(
+                        fontSize: 11,
+                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.inkLight)),
+                const SizedBox(height: 8),
+                Builder(builder: (_) {
+                  final strict =
+                      ref.watch(correctionSensitivityProvider) >= 0.5;
+                  return SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: false, label: Text('Tolerant')),
+                      ButtonSegment(value: true, label: Text('Strict')),
+                    ],
+                    selected: {strict},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (s) {
+                      ref.read(correctionSensitivityProvider.notifier).state =
+                          s.first ? 1.0 : 0.0;
+                      // Pousse aussi la rigueur du tajwid au natif, comme le
+                      // fait la feuille de recitation -- sinon le meme
+                      // reglage n'aurait pas le meme effet selon l'endroit
+                      // ou on le touche.
+                      FastConformerVerifier.pousserTajwidStrict(s.first);
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+/// Selecteur de mode (Tajwid / Adulte / Enfant).
+///
+/// PUBLIC depuis le 2026-09-02 : la feuille « Parametres de verification » de
+/// l'ecran de recitation l'affiche desormais en ligne, au lieu de renvoyer vers
+/// cet ecran-ci. Un seul rendu pour les deux endroits -- dupliquer trois puces
+/// aurait garanti qu'elles divergent.
+class PresetRow extends StatelessWidget {
   final JudgementPreset current;
   final JudgementOptionsNotifier notifier;
-  const _PresetRow({required this.current, required this.notifier});
+
+  /// Adapte les couleurs au fond vert fonce de la feuille de recitation.
+  /// Les teintes par defaut sont pensees pour le fond creme de cet ecran :
+  /// telles quelles sur fond sombre, la puce selectionnee (`green800`) se
+  /// fondrait dans le fond et les non-selectionnees (`cream200`) crieraient.
+  final bool surFondSombre;
+
+  const PresetRow({
+    super.key,
+    required this.current,
+    required this.notifier,
+    this.surFondSombre = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -129,10 +240,18 @@ class _PresetRow extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.fromLTRB(0, 14, 0, 14),
               decoration: BoxDecoration(
-                color: selected ? AppColors.green800 : AppColors.cream200,
+                color: selected
+                    ? (surFondSombre ? AppColors.brassLight : AppColors.green800)
+                    : (surFondSombre
+                        ? Colors.white.withValues(alpha: .07)
+                        : AppColors.cream200),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                    color: selected ? AppColors.brass : AppColors.cream300,
+                    color: selected
+                        ? AppColors.brass
+                        : (surFondSombre
+                            ? Colors.white24
+                            : AppColors.cream300),
                     width: selected ? 1.6 : 1),
               ),
               child: Stack(
@@ -141,7 +260,13 @@ class _PresetRow extends StatelessWidget {
                   Column(
                     children: [
                       Icon(icon,
-                          color: selected ? AppColors.brassLight : AppColors.inkLight,
+                          color: selected
+                              ? (surFondSombre
+                                  ? AppColors.green900
+                                  : AppColors.brassLight)
+                              : (surFondSombre
+                                  ? AppColors.cream
+                                  : AppColors.inkLight),
                           size: 22),
                       const SizedBox(height: 6),
                       Text(label,
@@ -149,7 +274,13 @@ class _PresetRow extends StatelessWidget {
                           style: GoogleFonts.manrope(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: selected ? AppColors.cream : AppColors.ink)),
+                              color: selected
+                                  ? (surFondSombre
+                                      ? AppColors.green900
+                                      : AppColors.cream)
+                                  : (surFondSombre
+                                      ? AppColors.cream
+                                      : AppColors.ink))),
                     ],
                   ),
                   if (beta)

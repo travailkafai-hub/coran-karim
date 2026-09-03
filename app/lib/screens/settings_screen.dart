@@ -124,6 +124,17 @@ class SettingsScreen extends ConsumerWidget {
                 // Le récitateur doit suivre le texte, sinon on entend une
                 // riwāya et on en lit une autre.
                 ref.read(playerProvider.notifier).accorderALaRiwaya();
+                // Bandeau de réassurance (2026-08-23, demande utilisateur) :
+                // ce bouton change ce qu'on VA réciter/entendre, pas ce qu'on
+                // A DÉJÀ récité -- sans lui, rien à l'écran ne dit que la
+                // mémorisation passée reste intacte, séparée par riwaya (cf.
+                // la migration `portions.riwaya`/`sessions.riwaya`).
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(t.settingsRiwayaChangeNotice),
+                    duration: const Duration(seconds: 4),
+                  ));
+                }
               },
             ),
           ),

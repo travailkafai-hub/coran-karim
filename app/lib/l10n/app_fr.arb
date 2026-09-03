@@ -129,6 +129,10 @@
   "@settingsRiwayaWarsh": {
     "description": "Sous-titre du réglage riwaya quand Warsh est actif"
   },
+  "settingsRiwayaChangeNotice": "Récitations et mémorisation déjà faites : suivies séparément par riwāya, elles ne changent pas.",
+  "@settingsRiwayaChangeNotice": {
+    "description": "Bandeau (SnackBar) affiché juste après avoir basculé la riwaya, pour rassurer sur le fait que les récitations/mémorisation passées gardent leur propre riwaya (2026-08-23)"
+  },
   "@settingsReciterTitle": {
     "description": "Réglage : choix du récitateur"
   },
@@ -280,7 +284,7 @@
   "@commonRetry": {
     "description": "Bouton générique pour relancer une action après erreur"
   },
-  "homeIdentifyTooltip": "Identifier une récitation",
+  "homeIdentifyTooltip": "Chercher un verset par la voix",
   "@homeIdentifyTooltip": {
     "description": "Tooltip de l'icône Shazam coranique sur la page d'accueil"
   },
@@ -363,6 +367,18 @@
   "@mushafMore": {
     "description": "Bouton barre du bas : plus d'options"
   },
+  "mushafAnnotateButton": "Surligner le texte",
+  "@mushafAnnotateButton": {
+    "description": "Feuille de réglages de lecture : interrupteur qui active le mode annotation (crayon) du Mushaf"
+  },
+  "mushafAnnotateEraser": "Gomme",
+  "@mushafAnnotateEraser": {
+    "description": "Barre d'outils du crayon : bulle-info de l'outil gomme (retire une marque)"
+  },
+  "mushafAnnotateDone": "Terminé",
+  "@mushafAnnotateDone": {
+    "description": "Barre d'outils du crayon : bouton qui referme le mode annotation"
+  },
   "mushafAutoScroll": "Défilement auto",
   "@mushafAutoScroll": {
     "description": "Badge flottant : défilement automatique actif"
@@ -375,7 +391,7 @@
   "@commonClose": {
     "description": "Bouton générique de fermeture"
   },
-  "shazamListening": "Écoute en cours...\nApproche le téléphone du son.",
+  "shazamListening": "Récite ou fais écouter un passage —\nle verset est retrouvé puis ouvert.",
   "@shazamListening": {
     "description": "Feuille Shazam coranique : état écoute en cours"
   },
@@ -679,10 +695,9 @@
   "@duasSearchHint": {
     "description": "Placeholder du champ de recherche des invocations"
   },
-  "duasRadiosTitre": "Écoute continue",
+  "duasRadiosTitre": "Écoute radio invocations",
   "duasRadioMatin": "Invocations du matin",
   "duasRadioSoir": "Invocations du soir",
-  "duasRadioRoqya": "Roqya",
   "duasRadioSousTitre": "Diffusion continue — nécessite une connexion",
   "duasRadioErreur": "Lecture impossible. Vérifiez votre connexion.",
   "duasExplore": "Explorer",
@@ -1248,9 +1263,29 @@
   "@memorizationGameRulesHint": {
     "description": "Rappel permanent des règles en haut de l'écran du jeu (demande utilisateur 2026-08-10 : « que les règles du jeu soient claires »)"
   },
+  "memorizationGameBridgeHint": "LA FIN DU VERSET PRÉCÉDENT",
+  "@memorizationGameBridgeHint": {
+    "description": "Titre du pont de transition affiché avant de demander le premier mot d'un verset (demande utilisateur 2026-08-26 : aider à mémoriser les débuts de verset, la rupture étant à la jonction)"
+  },
   "memorizationGameWrongAnswerBanner": "Retour au verset précédent (-5)",
   "@memorizationGameWrongAnswerBanner": {
     "description": "Bandeau affiché pendant la révélation de la bonne réponse, pour expliquer pourquoi le jeu recule (demande utilisateur 2026-08-10 : « qu'on montre qu'on revient en arrière, sinon celui qui joue ne va pas comprendre »)"
+  },
+  "memorizationGameStyleChaining": "Enchaînement",
+  "@memorizationGameStyleChaining": {
+    "description": "Bascule de style du jeu de mémorisation : mode habituel (mot par mot, dans l'ordre)"
+  },
+  "memorizationGameStyleVerseStart": "Début de verset",
+  "@memorizationGameStyleVerseStart": {
+    "description": "Bascule de style du jeu de mémorisation : mode alternatif (2 mots, versets mélangés, demande utilisateur 2026-08-28)"
+  },
+  "memorizationGameStyleVerseStartHint": "Retrouve les deux premiers mots de ce verset.",
+  "@memorizationGameStyleVerseStartHint": {
+    "description": "Rappel permanent des règles en haut de l'écran du mode Début de verset"
+  },
+  "memorizationGameStyleVerseStartTooShort": "Cette portion n'a pas assez de versets pour ce mode.",
+  "@memorizationGameStyleVerseStartTooShort": {
+    "description": "Message affiché en mode Début de verset quand la portion ouverte a moins de 2 versets exploitables"
   },
   "memorizationGameVerseProgress": "Verset {current} sur {total}",
   "@memorizationGameVerseProgress": {
@@ -1984,6 +2019,10 @@
   "karaokeRedoReferenceTooltip": "Refaire ma récitation de référence",
   "@karaokeRedoReferenceTooltip": {
     "description": "Tooltip : redemander une session de référence"
+  },
+  "karaokeRestartTooltip": "Refaire",
+  "@karaokeRestartTooltip": {
+    "description": "Tooltip : recommencer la récitation depuis le premier mot"
   },
   "karaokeReferenceRecordingTitle": "Récitation de référence",
   "@karaokeReferenceRecordingTitle": {

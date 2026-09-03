@@ -19,6 +19,7 @@ import '../providers/recitation_provider.dart';
 import '../services/diagnostic_log.dart';
 import '../services/pause_profile_service.dart';
 import '../services/portion_service.dart';
+import '../services/portion_word_archiver.dart';
 import '../services/quran_api.dart';
 import '../providers/error_review_provider.dart';
 import '../services/recitation_error_log_service.dart';
@@ -33,6 +34,7 @@ import 'coach_sessions.dart'
 import '../services/recitation_start_sequence.dart';
 import '../services/reference_timing_extractor.dart';
 import '../services/rule_annotation_service.dart';
+import '../services/fastconformer_verifier.dart' show FastConformerVerifier;
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
@@ -150,6 +152,13 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// bon rendu.
   final int? motsAtteintsRelecture;
 
+  /// Riwaya de la session/portion RELUE (2026-08-23) -- `null` = pas de
+  /// relecture. `QuranApi.riwaya` (réglage global vivant) ne convient pas
+  /// ici : on relit une TENTATIVE PASSÉE, dont la riwaya peut différer du
+  /// réglage affiché aujourd'hui, cf. `PortionResume.riwaya`/
+  /// `SessionResume.riwaya` et `RecitationSessionState.riwaya`.
+  final Riwaya? riwayaRelecture;
+
   const KaraokeRecitationScreen({
     super.key,
     required this.verses,
@@ -159,6 +168,7 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
     this.relecture,
     this.titreRelecture,
     this.motsAtteintsRelecture,
+    this.riwayaRelecture,
   });
 
   /// Vrai quand l'écran sert à revoir des verdicts archivés, pas à réciter.
@@ -421,6 +431,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // ça dynamiquement, une page avant et une page après").
   late List<Verse> _verses;
   bool _extending = false; // évite deux extensions concurrentes
+
+  // Incrémenté par `_refaireRecitation` -- garde-fou contre un enchaînement
+  // de page (`_maybeExtendNextPage`) encore EN VOL au moment du tap sur
+  // « refaire », qui atterrirait sinon APRÈS la remise à zéro et la
+  // recorromprait avec les mots d'une session déjà abandonnée (bug device
+  // 2026-08-29, cf. la doc de `_refaireRecitation`).
+  int _generationRecitation = 0;
   // Dernier verset pour lequel WordCorrectionAudio.prefetch a été déclenché
   // (demande utilisateur 2026-07-11 : "en cas d'erreur ça prend beaucoup de
   // temps pour réagir" -- log natif a confirmé 4,5-9,2s de fetch réseau
@@ -713,7 +730,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // `QuranApi.riwaya` : la relecture suit immédiatement la session
     // archivée, donc le riwaya courant est celui de cette session (pas de
     // bascule à chaud possible entre-temps, cf. RecitationNotifier).
-    final warsh = QuranApi.riwaya == Riwaya.warsh;
+    //
+    // CORRECTIF (2026-08-23) : cette hypothèse est FAUSSE dès qu'on ouvre une
+    // relecture DEPUIS L'ARCHIVE (Coach), potentiellement des jours après la
+    // récitation elle-même -- rien n'empêche le réglage global d'avoir
+    // changé entre-temps. `widget.riwayaRelecture` porte la riwaya
+    // ENREGISTRÉE avec la session/portion (cf. sa doc) ; `QuranApi.riwaya`
+    // ne reste le repli que pour un appelant qui ne la fournirait pas.
+    final warsh = (widget.riwayaRelecture ?? QuranApi.riwaya) == Riwaya.warsh;
     final out = <RecitedWord>[];
     var dernierJuge = -1;
     for (var i = 0; i < mots.length; i++) {
@@ -764,6 +788,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // connu, et le défilement libre fait le reste.
       pointer: dernierJuge < 0 ? 0 : dernierJuge,
       status: RecitationStatus.idle,
+      riwaya: widget.riwayaRelecture ?? QuranApi.riwaya,
     );
   }
 
@@ -862,6 +887,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   Future<void> _maybeExtendNextPage() async {
     if (_extending || _noMorePages || !mounted) return;
     if (_verses.isEmpty) return;
+    // Capturé AVANT le premier `await` -- cf. la doc de
+    // `_generationRecitation` : si « refaire » est tapé pendant que cette
+    // extension est en vol, elle doit s'abandonner à son retour plutôt que
+    // d'écrire sur un écran déjà remis à zéro.
+    final generationDepart = _generationRecitation;
     final lastVerse = _verses.last;
     final lastPage = lastVerse.pageNumber;
     if (lastPage == null) return; // pagination inconnue -- pas d'enchaînement possible
@@ -998,6 +1028,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         }
       }));
       if (!mounted) return;
+      if (generationDepart != _generationRecitation) {
+        // « Refaire » a été tapé pendant cette extension -- cf. la doc de
+        // `_generationRecitation` : l'écran a déjà été remis à zéro, cette
+        // extension appartient à une tentative abandonnée. Ne PAS écrire.
+        DiagnosticLog.log('Karaoke',
+            'enchaînement page $nextPage abandonné : refaire tapé entre-temps');
+        return;
+      }
       final newWordCount = ArabicNormalizer.splitExpectedWords(chunk.text).length;
       final newKeys = List.generate(newWordCount, (_) => GlobalKey());
       DiagnosticLog.log('Karaoke', 'Enchaînement page $nextPage : '
@@ -1034,7 +1072,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final verse = _verseContaining(pointer);
     if (verse == null || verse.key == _prefetchedVerseKey) return;
     _prefetchedVerseKey = verse.key;
-    final reciter = ref.read(playerProvider).reciter;
+    // riwaya de LA SESSION (pas du réglage global vivant) -- cf.
+    // `RecitationSessionState.riwaya` et `PlayerNotifier.reciterPour`.
+    final reciter = ref
+        .read(playerProvider.notifier)
+        .reciterPour(ref.read(recitationProvider).riwaya);
     unawaited(WordCorrectionAudio.prefetch(verse, reciter));
   }
 
@@ -1096,16 +1138,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         'verset=${verse.key} local=$local');
     try {
       if (wasListening) await verifier.pauseCapture();
-      final reciter = ref.read(playerProvider).reciter;
+      // riwaya de LA SESSION (pas du réglage global vivant) -- cf.
+      // `RecitationSessionState.riwaya` et `PlayerNotifier.reciterPour`.
+      final reciter = ref
+          .read(playerProvider.notifier)
+          .reciterPour(ref.read(recitationProvider).riwaya);
       try {
-        // wordsAfter = 1 (2026-08-05, demande utilisateur : "l'audio doit
-        // dire deux mots") -- le mot demandé PLUS le suivant, pour donner un
-        // peu d'élan à la reprise. Même réglage que la correction déclenchée
-        // par décrochage (`wordsBefore: 0, wordsAfter: 1`) : dans les deux
-        // cas le récitateur est arrêté et doit repartir, pas rejouer ce qu'il
-        // vient de dire.
+        // wordsBefore = 1, wordsAfter = 1 (2026-08-28, demande utilisateur :
+        // « il ne répète pas le mot dernier plus les deux mots futurs » --
+        // clarifié ensuite : le DERNIER mot dit, le mot courant (bloqué), et
+        // le suivant, 3 mots au total). Avant ce correctif, `wordsBefore: 0`
+        // ne rejouait QUE le mot courant + le suivant -- aucun rappel du mot
+        // qui précède, alors que c'est justement le point d'ancrage dont le
+        // réciteur a besoin après un trou de mémoire pour reprendre le fil.
+        // Aligne ce réglage sur celui déjà en vigueur pour le décrochage
+        // (`_kCorrectionWordsBefore = 1`, cf. sa doc) -- les deux jouaient
+        // jusqu'ici des fenêtres différentes sans raison de fond.
         await WordCorrectionAudio.playWordRange(verse, reciter,
-            errorWordIndex: local, wordsBefore: 0, wordsAfter: 1);
+            errorWordIndex: local, wordsBefore: 1, wordsAfter: 1);
       } catch (e) {
         // Même raison que dans _onWordFailed : audio/timing indisponible pour
         // ce récitateur/verset ne doit jamais casser la session en cours.
@@ -1492,8 +1542,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               .incrementerRepetitionQuart(info.unitKey);
           if (fois <= _kPlafondRepetitionsParJour) quartsRepetesRecompenses++;
         }
-        final apres = await SessionArchiveService.instance
-            .portionParCle(v.surahNumber, info.unitKey);
+        final apres = await SessionArchiveService.instance.portionParCle(
+            v.surahNumber, info.unitKey,
+            riwaya: _lireProvider(recitationProvider).riwaya == Riwaya.warsh
+                ? 'warsh'
+                : 'hafs');
         if (apres != null && apres.badge && departDuQuart) quartsValides++;
       }
       final bonusDepart = quartsRepetesRecompenses > 0;
@@ -1567,48 +1620,21 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     if (_isReferenceSession) return;
     final words = _lireProvider(recitationProvider).words;
     if (wordIndex < 0 || wordIndex >= words.length) return;
-    final mot = words[wordIndex];
-    if (mot.isBasmala) return; // jamais jugée, cf. _compterMots -- rien à suivre
     final verse = _verseContaining(wordIndex);
     final local = _localIndexInVerse(wordIndex);
     if (verse == null || local == null) return;
-    String? extrait;
-    if (mot.status != WordStatus.correct) {
-      try {
-        extrait = await ref
-            .read(recitationVerifierProvider)
-            .v2ExtraitVoix(wordIndex > 0 ? wordIndex - 1 : wordIndex, wordIndex);
-      } catch (e) {
-        DiagnosticLog.log(
-            'Archive', 'extrait voix (portion) impossible mot=$wordIndex : $e');
-      }
-    }
-    try {
-      final granularite = _lireProvider(portionGranularityProvider);
-      final portion =
-          await PortionService.resolve(verse: verse, granularity: granularite);
-      await SessionArchiveService.instance.upsertPortionWord(
-        surahNumber: verse.surahNumber,
-        unitKey: portion.unitKey,
-        label: portion.label,
-        firstAyah: portion.firstAyah,
-        lastAyah: portion.lastAyah,
-        wordsTotal: portion.wordsTotal,
-        ayahNumber: verse.ayahNumber,
-        wordInAyah: local,
-        expectedWord: mot.display,
-        status: mot.status.name,
-        heardWord: mot.heard,
-        kind: mot.status == WordStatus.correct
-            ? null
-            : _lireProvider(recitationProvider.notifier).classifyError(wordIndex).name,
-        audioSource: extrait,
-      );
-    } catch (e) {
-      // La portion est un suivi en plus, jamais une condition de la
-      // récitation en cours : une panne ici ne doit rien bloquer.
-      DiagnosticLog.log('Archive', 'archivage portion impossible mot=$wordIndex : $e');
-    }
+    // Délègue à `services/portion_word_archiver.dart` -- FACTORISÉ le
+    // 2026-08-24 (demande utilisateur : « ça sera mieux de réutiliser »)
+    // avec l'écran Contrôle (`coach_screen.dart`), qui avait dérivé de cette
+    // logique-ci sans jamais la partager -- verset entier affiché au tap,
+    // et pouce vers le bas sans ligne `portion_words` à mettre à jour.
+    await archiverMotDansPortion(
+      lire: _lireProvider,
+      verse: verse,
+      wordIndexLocal: local,
+      wordIndexGlobal: wordIndex,
+      mot: words[wordIndex],
+    );
   }
 
   /// Mots que L'ANCRE A DÉPASSÉS SANS QUE LE MODÈLE NE LES AIT JAMAIS JUGÉS
@@ -1692,6 +1718,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           expectedWord: words[i].display,
           heardWord: words[i].heard,
           status: status,
+          // riwaya de LA SESSION -- cf. RecitationSessionState.riwaya.
+          riwaya: _lireProvider(recitationProvider).riwaya == Riwaya.warsh
+              ? 'warsh'
+              : 'hafs',
         );
         ecrits++;
       } catch (e) {
@@ -2375,7 +2405,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           'ancre v2 reculee au mot $rewindTo -- les verdicts posterieurs sont '
           'liberes, le passage peut etre repris et rejuge');
       if (mounted) setState(() => _resumeHintIndex = rewindTo);
-      final reciter = ref.read(playerProvider).reciter;
+      // riwaya de LA SESSION (pas du réglage global vivant) -- cf.
+      // `RecitationSessionState.riwaya` et `PlayerNotifier.reciterPour`.
+      final reciter = ref
+          .read(playerProvider.notifier)
+          .reciterPour(ref.read(recitationProvider).riwaya);
       // Ne rejoue QUE le mot précédent + la plage fautive (demande
       // utilisateur 2026-07-05/06), pas tout le verset — c'est au réciteur de
       // se souvenir de la suite, mais il doit entendre TOUT ce qu'il faut
@@ -2411,19 +2445,31 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             //    mots que je viens de dire alors qu'ils sont bien jugés ; il
             //    fallait me dire la suite ». On part donc du premier mot NON
             //    validé (déjà calculé par l'appelant) et on en donne deux.
-            // ⚠️ DÉFAUT CONNU, NON CORRIGÉ ICI (constaté 2026-08-15) : cette
-            // expression et le recul de l'ancre (`rewindTo`, plus haut)
-            // divergent quand `surSilence` est vrai -- l'audio part du mot N
-            // pendant que l'ancre revient au mot N-1. La doc de
+            // ⚠️ DÉFAUT CONNU (constaté 2026-08-15, CORRIGÉ le 2026-08-24) :
+            // cette expression et le recul de l'ancre (`rewindTo`, plus haut)
+            // divergeaient quand `surSilence` était vrai -- l'audio partait du
+            // mot N pendant que l'ancre revenait au mot N-1. La doc de
             // `_kCorrectionWordsBefore` exige pourtant que « les deux ne soient
             // JAMAIS réglés séparément ». Mesuré sur device (log 16:53:09,
             // sourate 106) : `reprise=121`, `ancre reculee au mot 120`, audio
             // `fromIdx=1 toIdx=2`.
-            // Le correctif a été écrit puis RETIRÉ le 2026-08-15 sur consigne
-            // utilisateur (« aucun changement sur mode ASR pour l'instant ») :
-            // il touche la chaîne de récitation, qui n'était pas le sujet.
-            // Conservé hors dépôt en attendant : `correctif_asr_reprise.patch`.
-            wordsBefore: surSilence ? 0 : _kCorrectionWordsBefore,
+            // Un premier correctif avait été écrit puis RETIRÉ le 2026-08-15
+            // sur consigne utilisateur (« aucun changement sur mode ASR pour
+            // l'instant »).
+            //
+            // DÉCISION UTILISATEUR EXPLICITE (2026-08-24) : « je veux que
+            // l'audio commence du N-1 ». `wordsBefore` n'est plus conditionné
+            // par `surSilence` -- l'audio s'aligne désormais sur `rewindTo`
+            // dans les deux cas. Effet de bord ASSUMÉ, nommé et validé avant
+            // codage : ça réintroduit le cas que le retrait du 2026-08-01
+            // évitait (rejouer un mot déjà attesté avant de donner la suite,
+            // cf. le commentaire ci-dessus sur `هُدًى لِّلْمُتَّقِينَ`), ET ça
+            // porte le décrochage à 3 mots (N-1, N, N+1), au-dessus du
+            // plafond « 2 mots max » du 2026-07-25 -- l'utilisateur a choisi
+            // cette option en connaissance des deux, plutôt que
+            // `wordsBefore=1, wordsAfter=0` (2 mots, N-1 et N, sans "la
+            // suite").
+            wordsBefore: _kCorrectionWordsBefore,
             wordsAfter: 1);
       } catch (e) {
         // Ne bloque pas la correction si l'audio (URL/segments de timing)
@@ -2962,6 +3008,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           fromAyah: _verses.isEmpty ? null : _verses.first.ayahNumber,
           toAyah: _verses.isEmpty ? null : _verses.last.ayahNumber,
           preset: ref.read(judgementOptionsProvider).preset.name,
+          // riwaya de LA SESSION (déjà figée par setup(), cf.
+          // RecitationSessionState.riwaya) -- pas le réglage global vivant.
+          riwaya: ref.read(recitationProvider).riwaya == Riwaya.warsh
+              ? 'warsh'
+              : 'hafs',
         );
         for (final s in _verses.map((v) => v.surahNumber).toSet()) {
           await RecitationErrorLogService.instance.clearSurah(s);
@@ -3067,6 +3118,82 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       await ref.read(recitationProvider.notifier).flushTraces();
       setState(() => _manuallyPaused = true);
     }
+  }
+
+  /// « Refaire » (demande utilisateur 2026-08-29, action immédiate sans
+  /// confirmation -- choix explicite) : arrête proprement la capture si elle
+  /// tourne, clôture HONNÊTEMENT la tentative en cours dans l'archive (cf.
+  /// `_cloturerArchive` -- ses mots déjà atteints sont comptés tels quels,
+  /// rien n'est effacé ni fabriqué), puis remet l'écran au tout premier mot
+  /// du texte de DÉPART de cette session. Ne relance PAS la capture toute
+  /// seule -- le tap normal sur le halo s'en charge, avec toute sa logique
+  /// existante (choix référence/correction, etc.).
+  ///
+  /// ── BUG CORRIGÉ (2026-08-29, constat device juste après la 1ère version) :
+  /// « pourquoi c'est obligé de recharger le modèle, j'ai recommencé à
+  /// réciter, puis se passe rien » -- la 1ère version ne remettait à zéro que
+  /// `RecitationSessionState.words` (côté PROVIDER), jamais les champs MIROIR
+  /// de cet écran (`_verses`, `_tajwidSpans`, `_wordKeys`) qui restaient donc
+  /// ceux de la session ENCHAÎNÉE précédente. Pire : un enchaînement de page
+  /// (`_maybeExtendNextPage`) encore EN VOL au moment du tap atterrissait
+  /// APRÈS la remise à zéro et la recorrompait -- mesuré au log : « cible
+  /// étendue : +119 mots -> 524 mots » réapparu ~17 s après le tap, le temps
+  /// que sa tokénisation (des centaines de lignes `CtcTokenizer`) se termine.
+  /// Ces 17 s de silence, c'est le « il faut recharger le modèle » perçu.
+  ///
+  /// `_generationRecitation` (incrémenté ici) est le garde-fou : tout
+  /// enchaînement encore en vol se voit `gen != _generationRecitation` à son
+  /// retour et abandonne SANS toucher à l'écran (cf. `_maybeExtendNextPage`).
+  Future<void> _refaireRecitation() async {
+    final st = _dernierEtatConnu;
+    DiagnosticLog.log('IHM',
+        'CLIC bouton=REFAIRE | actif=${st?.isActive} enPause=$_manuallyPaused');
+    final notifier = ref.read(recitationProvider.notifier);
+    _generationRecitation++;
+    if (st != null && st.status == RecitationStatus.listening) {
+      if (_manuallyPaused) setState(() => _manuallyPaused = false);
+      await notifier.stopContinuous();
+      await _closeAudioCapture();
+      _maybeSaveProfile();
+    }
+    await _cloturerArchive();
+    if (!mounted) return;
+    // Reconstruction complète depuis le texte de DÉPART (widget.verses) --
+    // MÊME séquence que `_initAsync`, pas un raccourci : `_verses` doit
+    // redevenir la liste d'origine (perdre tout enchaînement de page acquis
+    // pendant la tentative précédente), et `_tajwidSpans`/`_wordKeys` doivent
+    // rester alignés dessus (même compte de mots, mêmes clés stables).
+    final verses = List.of(widget.verses);
+    final bismillahVerse = await QuranApi.fetchBismillah();
+    final chunk = _buildChunk(verses, null, bismillahVerse);
+    final wordKeys = List.generate(
+        ArabicNormalizer.splitExpectedWords(chunk.text).length,
+        (_) => GlobalKey());
+    if (!mounted) return;
+    setState(() {
+      _verses = verses;
+      _tajwidSpans = chunk.spans;
+      _wordKeys = wordKeys;
+      _noMorePages = false;
+      _resumeHintIndex = null;
+      _sessionNotice = null;
+      _glypheEtatJusqua = null;
+      _profileSaved = false;
+      _rebuildWordVerseMap();
+    });
+    await notifier.setupVerses(chunk.segments);
+    // ── ENCHAÎNE DIRECTEMENT SUR L'ÉCOUTE (2026-08-29) ────────────────────
+    //
+    // Constat utilisateur, capture d'écran à l'appui : après « refaire »,
+    // l'écran retombait sur la bannière de transition (« Touche l'écran pour
+    // commencer ») -- l'entrée normale d'une PREMIÈRE session, qui redemande
+    // un tap. « Refaire » part d'un modèle déjà chargé, cette étape n'a pas
+    // lieu d'être ici : rappelle `_toggle` avec l'état FRAÎCHEMENT posé
+    // (status != listening) -- exactement le même chemin de démarrage que le
+    // tap normal (choix référence/correction, sensibilité, etc.), sans le
+    // dupliquer.
+    if (!mounted) return;
+    await _toggle(ref.read(recitationProvider), notifier);
   }
 
   /// Fin d'une session de RÉFÉRENCE : si la récitation était bonne, sa
@@ -3233,33 +3360,51 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                               color: AppColors.cream)),
                       const SizedBox(height: 16),
 
-                      // ── Mode de vérification (presets + 17 règles) ────────
-                      _SheetRow(
-                        icon: Icons.auto_awesome,
-                        title: t.karaokeVerificationModeTitle,
-                        subtitle: t.karaokeVerificationModeSubtitle,
-                        onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const TajwidRulesScreen())),
+                      // ── LES MODES, EN LIGNE (2026-09-02) ─────────────
+                      // Ils etaient derriere une ligne « Mode de verification >
+                      // » qui ouvrait un ecran entier, ou ils cotoyaient la
+                      // liste des regles et le curseur de paliers. C'est le
+                      // reglage le plus frequent qui etait le plus loin.
+                      // L'ecran des regles reste joignable par le chevron a
+                      // droite du titre -- il n'est simplement plus le seul
+                      // chemin vers les modes.
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(t.karaokeVerificationModeTitle,
+                                style: GoogleFonts.manrope(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.cream)),
+                          ),
+                          // Le renvoi vers `TajwidRulesScreen` a ete retire
+                          // le 2026-09-02 : cette page ne portait plus que la
+                          // liste informative des regles et le curseur de
+                          // paliers, les modes etant desormais juste en
+                          // dessous. Cf. l'en-tete de `tajwid_rules_screen`.
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      PresetRow(
+                        current: ref.watch(judgementOptionsProvider).preset,
+                        notifier:
+                            ref.read(judgementOptionsProvider.notifier),
+                        surFondSombre: true,
                       ),
                       const Divider(color: Colors.white12, height: 20),
 
-                      // ── Phrase de fin de sourate (optionnelle) ────────────
-                      // Cf. `phraseFinRecitationProvider` : DÉSACTIVÉE par
-                      // défaut, et ce n'est pas un choix technique -- la
-                      // pratique est débattue entre savants. L'app sait
-                      // seulement l'attendre pour ceux qui la disent déjà.
-                      _SheetSwitch(
-                        icon: Icons.done_all_rounded,
-                        title: t.karaokePhraseFinTitle,
-                        subtitle: t.karaokePhraseFinSubtitle,
-                        value: ref.watch(phraseFinRecitationProvider),
-                        onChanged: (v) => ref
-                            .read(phraseFinRecitationProvider.notifier)
-                            .set(v),
-                      ),
-                      const Divider(color: Colors.white12, height: 20),
+                      // ── « PHRASE DE FIN DE SOURATE » RETIREE (2026-09-02)
+                      //
+                      // Demande utilisateur : « phrase de fin sadaqa Allah
+                      // al-'Adhim, ca sert a rien, enleve ca ».
+                      //
+                      // `phraseFinRecitationProvider` est CONSERVE et reste lu
+                      // par la chaine (il donne au dernier mot quelque chose
+                      // « apres » lui, ce qui aide a le figer). Seul le
+                      // reglage manuel disparait : il restait desactive par
+                      // defaut, et la pratique est debattue entre savants --
+                      // ce n'etait pas a un interrupteur d'ecran de lecture de
+                      // poser cette question.
 
                       // ── Sensibilité (réglable en direct) ──────────────────
                       Text(t.karaokeSensitivityTitle,
@@ -3286,9 +3431,20 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                         ],
                         selected: {strictSensitivity},
                         showSelectedIcon: false,
-                        onSelectionChanged: (s) => ref
-                            .read(correctionSensitivityProvider.notifier)
-                            .state = s.first ? 1.0 : 0.0,
+                        onSelectionChanged: (s) {
+                          ref
+                              .read(correctionSensitivityProvider.notifier)
+                              .state = s.first ? 1.0 : 0.0;
+                          // Un seul curseur pour toute la severite : ce
+                          // segment porte desormais aussi la rigueur du
+                          // TAJWID (seuils de duree par regle, calibres sur
+                          // un recitateur professionnel -- cf.
+                          // SeuilsDureeTajwid). Pousse tout de suite au
+                          // natif : un reglage qui n'arrive qu'a la
+                          // prochaine session se lit a tort comme « ca ne
+                          // change rien ».
+                          FastConformerVerifier.pousserTajwidStrict(s.first);
+                        },
                         style: ButtonStyle(
                           foregroundColor: WidgetStateProperty.resolveWith(
                               (st) => st.contains(WidgetState.selected)
@@ -3937,6 +4093,22 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                   ? null
                   : _promptCurrentWord,
             ),
+          // Refaire (demande utilisateur 2026-08-29) : repart du premier mot
+          // de cette session, action immédiate sans confirmation (choix
+          // explicite -- cf. `_refaireRecitation`). Désactivé pendant une
+          // correction automatique (qui pilote déjà capture+audio, comme le
+          // souffleur juste au-dessus) pour éviter de couper la capture
+          // qu'elle contrôle.
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: AppLocalizations.of(context)!.karaokeRestartTooltip,
+            icon: Icon(
+              Icons.replay_rounded,
+              color: _autoCorrecting ? Colors.white24 : Colors.white70,
+              size: 24,
+            ),
+            onPressed: _autoCorrecting ? null : _refaireRecitation,
+          ),
           // Sensibilité du jugement (vert/orange/rouge) réglable EN DIRECT,
           // y compris pendant l'écoute (demande utilisateur 2026-07-12).
           // Icône UNIQUE d'accès à TOUS les paramètres de vérification
@@ -4650,54 +4822,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             ? _etatRelecture!
             : ref.read(recitationProvider);
 
-    // ── N'AFFICHER QUE LE MOT EN CAUSE, PAS TOUTE L'AYA (2026-08-05) ───────
+    // ── N'AFFICHER QUE LE MOT EN CAUSE, PAS TOUTE L'AYA ─────────────────────
     //
-    // Demande utilisateur : « quand je clique sur le mot en erreur j'ai toute
-    // l'aya qui s'affiche ; je veux que ça reste sur le mot en question. Si
-    // deux ou trois mots en erreur sont côte à côte, on peut les fusionner
-    // dans la même fenêtre. »
-    //
-    // On étend donc la plage aux mots CONTIGUS qui portent aussi un verdict
-    // négatif. Deux fautes voisines forment presque toujours une seule et même
-    // difficulté (une liaison, un enchaînement) : les présenter séparément
-    // obligerait à ouvrir deux fois la fenêtre pour une seule cause.
-    //
-    // ⚠️ SEULS LES VERDICTS NÉGATIFS FUSIONNENT. Un mot `pending` ou `current`
-    // n'a pas été jugé : l'inclure ferait grossir l'extrait au fil de la
-    // récitation jusqu'à redonner le verset entier -- exactement ce qu'on
-    // supprime ici.
-    bool estEnErreur(int i) {
-      if (i < 0 || i >= st.words.length) return false;
-      final s = st.words[i].status;
-      return s == WordStatus.error ||
-          s == WordStatus.unclear ||
-          s == WordStatus.skipped;
-    }
-
-    var debut = local;
-    var fin = local;
-    if (estEnErreur(wordIndex)) {
-      // On borne l'extension au VERSET (indices locaux) : déborder sur le
-      // verset voisin afficherait un texte que la feuille ne sait pas rendre,
-      // puisqu'elle part de `verse.textUthmani`.
-      while (debut > 0 && estEnErreur(wordIndex - (local - debut) - 1)) {
-        debut--;
-      }
-      // ⚠️ BORNER AU VERSET (2026-08-06). `estEnErreur` teste des indices
-      // GLOBAUX alors que `fin` est un indice LOCAL au verset : si les mots en
-      // erreur se poursuivent dans le verset SUIVANT, `fin` sortait du verset
-      // courant et la feuille faisait `sublist(debut, fin+1)` hors bornes ->
-      // RangeError au tap sur un mot en erreur (constaté en production). Le
-      // commentaire ci-dessus disait déjà « on borne l'extension au VERSET » ;
-      // la boucle du haut le faisait (`debut > 0`), celle-ci l'avait oublié.
-      final motsDuVerset =
-          ArabicNormalizer.splitExpectedWords(verse.textUthmani).length;
-      while (fin + 1 < motsDuVerset &&
-          estEnErreur(wordIndex + (fin - local) + 1)) {
-        fin++;
-        if (fin - local > 12) break; // garde-fou : jamais un verset entier
-      }
-    }
+    // Demande utilisateur (2026-08-05) : « quand je clique sur le mot en
+    // erreur j'ai toute l'aya qui s'affiche ; je veux que ça reste sur le mot
+    // en question ». Logique désormais dans `services/portion_word_archiver
+    // .dart::etendreAuxMotsContigusEnErreur` -- FACTORISÉE le 2026-08-24 avec
+    // l'écran Contrôle (« ça sera mieux de réutiliser »), qui n'en disposait
+    // pas et affichait le verset entier. Sa doc porte aussi le correctif du
+    // 2026-08-06 (`RangeError` si l'extension débordait sur le verset
+    // suivant, indices globaux vs locaux) -- ne pas le redécouvrir ici.
+    final motsDuVerset =
+        ArabicNormalizer.splitExpectedWords(verse.textUthmani).length;
+    final (debut, finExclusif) = etendreAuxMotsContigusEnErreur(
+      words: st.words,
+      wordIndexGlobal: wordIndex,
+      wordIndexLocal: local,
+      motsDuVerset: motsDuVerset,
+    );
 
     // ── EN RELECTURE, L'AUDIO VIENT DE LA BASE, JAMAIS DE LA CHAINE ──────
     //
@@ -4726,12 +4868,29 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       playlist: _verses,
       focusWord: st.words[wordIndex].display,
       entendu: st.words[wordIndex].heard,
+      // MEME source que le journal et le Coach (`unrealizedRulesFor`) : la
+      // fiche ne peut pas reprocher autre chose que ce qui a ete reproche.
+      // Vide hors erreur de tajwid, donc le bandeau ne s'affiche pas.
+      reglesManquantes: ref
+                  .read(recitationProvider.notifier)
+                  .classifyError(wordIndex) ==
+              RecitationErrorKind.tajwid
+          ? ref.read(recitationProvider.notifier).unrealizedRulesFor(
+              wordIndex, st.words[wordIndex].detectedRules)
+          : const <TajwidRule>[],
+      // Ce que le mode courant EXIGE sur ce mot : `shownRulesFor` rend les
+      // regles attendues ET actives, deja purgees de celles que le modele ne
+      // peut pas constater (portees par le texte). Vide hors mode tajwid.
+      reglesAVerifier:
+          ref.read(recitationProvider.notifier).shownRulesFor(wordIndex),
       wordIndex: wordIndex,
       localWordIndex: local,
       archivedAudioPath: vRelecture?.audio,
       interdireExtraction: widget.relecture != null,
       extraitDebut: debut,
-      extraitFin: fin + 1, // borne haute exclusive, comme le mode Kindle
+      extraitFin: finExclusif,
+      // riwaya de LA SESSION (live OU relecture, cf. `RecitationSessionState.riwaya`).
+      riwaya: st.riwaya,
       // Contestation (pouce vers le bas) pendant une récitation EN DIRECT :
       // le mot peut appartenir à une portion suivie -- rafraîchir la liste
       // pour que son pourcentage en tienne compte au prochain passage sur

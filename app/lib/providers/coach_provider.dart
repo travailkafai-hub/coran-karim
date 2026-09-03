@@ -8,10 +8,47 @@ final coachProvider =
 });
 
 class CoachNotifier extends StateNotifier<CoachSessionState> {
+  /// Le mode Controle doit-il ouvrir le micro de lui-meme ? (2026-09-02)
+  ///
+  /// Pose UNIQUEMENT par la validation du dernier palier
+  /// (`IncrementalRepeatStep.onAllVersesDone`), et consomme une seule fois par
+  /// `_ControleMode` a son montage. Toute autre entree dans le Controle --
+  /// menu, retour entrainement -- laisse le micro ferme : la seule chose qui
+  /// autorise a l'ouvrir sans geste, c'est de savoir que l'utilisateur vient
+  /// d'enchainer des paliers et se tient pret a reciter.
+  bool demarrerControleAuto = false;
+
+  /// Rend `true` UNE fois, puis retombe a false. Un drapeau qui reste arme
+  /// rouvrirait le micro a chaque reconstruction de l'ecran.
+  bool consommerDemarrageAuto() {
+    if (!demarrerControleAuto) return false;
+    demarrerControleAuto = false;
+    return true;
+  }
+
   CoachNotifier() : super(const CoachSessionState());
 
+  /// Démarre directement en Entraîne, jamais en Lecture (2026-08-24, demande
+  /// utilisateur : « je veux enlever la première étape Lecture, on passe
+  /// directement à Entraînement »).
+  ///
+  /// ── CE QUE ÇA RÈGLE, PAS SEULEMENT SIMPLIFIE ──────────────────────────
+  /// Lecture joue le récitateur via le lecteur PRINCIPAL (`AudioPlayerService`
+  /// /`playerProvider`, le même que le Mushaf) ; Entraîne/Contrôle jouent
+  /// leur propre extrait via `WordCorrectionAudio`, VOLONTAIREMENT séparé
+  /// (cf. sa doc). Le couplage entre les deux (`_faireTaireLeMushaf`, ajouté
+  /// le 2026-08-19 pour un chevauchement déjà mesuré) n'existe que parce que
+  /// Lecture peut laisser le lecteur principal en cours. Retirer Lecture du
+  /// chemin normal supprime la cause plutôt que d'ajouter un correctif de
+  /// plus par-dessus.
+  ///
+  /// `CoachMode.lecture` et `_LectureMode` restent dans le code (cf. règle
+  /// projet -- aucune piste n'est éliminée tant que le retour en arrière est
+  /// possible) : simplement plus JAMAIS sélectionnés par défaut, et retirés
+  /// de la barre d'étapes (`_StepBar`, `coach_screen.dart`).
   void setup(List<Verse> verses) {
-    state = CoachSessionState(verses: verses);
+    state =
+        CoachSessionState(verses: verses).copyWith(mode: CoachMode.apprentissage);
   }
 
   void setMode(CoachMode mode) => state = state.copyWith(mode: mode);

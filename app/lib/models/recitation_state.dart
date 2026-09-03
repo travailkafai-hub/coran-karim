@@ -5,6 +5,7 @@
 // sans aucune interaction manuelle pendant la récitation.
 import '../l10n/app_localizations.dart';
 import 'judgement_options.dart';
+import 'riwaya.dart';
 
 enum WordStatus {
   pending,  // pas encore atteint (gris)
@@ -231,6 +232,15 @@ class RecitationSessionState {
   final int pendingSegments;    // segments en file d'attente/en cours d'analyse
   final PrayerPhase prayerPhase; // cycle de prière (mode "réciteur confiant")
 
+  /// Riwāya de CETTE session, figée par `setup()` (capture de `QuranApi.riwaya`
+  /// une seule fois, cf. `RecitationNotifier._wordsFromText`/`_wordsFromSegments`).
+  /// Ne JAMAIS relire `QuranApi.riwaya` ailleurs pour une session déjà démarrée
+  /// (archivage, audio de correction) : ce champ est la seule source fiable,
+  /// précisément parce que le réglage global peut changer pendant que la
+  /// session tourne sans que la session, elle, ne doive en tenir compte
+  /// (décision utilisateur 2026-08-22, « pas de bascule à chaud »).
+  final Riwaya riwaya;
+
   const RecitationSessionState({
     this.words = const [],
     this.pointer = 0,
@@ -243,6 +253,7 @@ class RecitationSessionState {
     this.continuous = false,
     this.pendingSegments = 0,
     this.prayerPhase = PrayerPhase.none,
+    this.riwaya = Riwaya.hafs,
   });
 
   int get total => words.length;
@@ -292,6 +303,7 @@ class RecitationSessionState {
     bool? continuous,
     int? pendingSegments,
     PrayerPhase? prayerPhase,
+    Riwaya? riwaya,
   }) {
     return RecitationSessionState(
       words: words ?? this.words,
@@ -305,6 +317,7 @@ class RecitationSessionState {
       continuous: continuous ?? this.continuous,
       pendingSegments: pendingSegments ?? this.pendingSegments,
       prayerPhase: prayerPhase ?? this.prayerPhase,
+      riwaya: riwaya ?? this.riwaya,
     );
   }
 }

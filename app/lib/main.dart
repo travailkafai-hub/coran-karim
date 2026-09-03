@@ -19,9 +19,11 @@ import 'screens/coach_sessions.dart'
     show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider,
         derniersJoursProvider, serieProvider;
 import 'screens/dua_pour_nous_screen.dart';
+import 'screens/mushaf_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
+import 'services/quran_api.dart';
 import 'services/reciter_download_service.dart';
 import 'theme/app_theme.dart';
 
@@ -175,8 +177,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // cf. coach_notification_provider.dart.
     Future.microtask(() => ref.read(coachNotificationBootstrapProvider));
     onboardingARegarder().then((aRegarder) {
-      if (aRegarder && mounted) setState(() => _montrerOnboarding = true);
+      if (aRegarder && mounted) {
+        setState(() => _montrerOnboarding = true);
+      } else {
+        _reprendreLectureAuLancement();
+      }
     });
+  }
+
+  /// Rouvre directement le Mushaf là où la lecture s'était arrêtée, si une
+  /// position a été enregistrée (2026-08-26, demande utilisateur : « si
+  /// ouverture une sourate en lecture faut se rappeler de la page et
+  /// l'ouvrir directement au prochain ouverture de l'application »).
+  ///
+  /// Jamais si la présentation du premier lancement doit s'afficher (cf.
+  /// l'appelant, `else` du test `aRegarder`) : un nouvel utilisateur doit
+  /// d'abord voir l'app, pas se retrouver en plein milieu d'une sourate
+  /// qu'il n'a jamais ouverte.
+  Future<void> _reprendreLectureAuLancement() async {
+    final position = await lireDernierePositionLecture();
+    if (position == null) {
+      DiagnosticLog.log('Lecture', 'reprise au lancement : aucune position enregistree');
+      return;
+    }
+    if (!mounted) return;
+    final (sourate, verset) = position;
+    DiagnosticLog.log(
+        'Lecture', 'reprise au lancement : sourate=$sourate verset=$verset');
+    try {
+      final sourates = await QuranApi.fetchSurahs();
+      final trouvee = sourates.where((x) => x.number == sourate);
+      if (trouvee.isEmpty) {
+        DiagnosticLog.log('Lecture', 'reprise annulee : sourate $sourate introuvable');
+        return;
+      }
+      if (!mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) =>
+            MushafScreen(surah: trouvee.first, initialAyahNumber: verset),
+      ));
+    } catch (e) {
+      // Best-effort : sans les metadonnees on n'ouvre pas un ecran vide.
+      DiagnosticLog.log('Lecture', 'reprise echouee : $e');
+    }
   }
 
   // Keep all tabs alive
@@ -264,7 +307,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // c'est le point de passage OBLIGE vers l'onglet Coach.
     ref.invalidate(derniersJoursProvider);
     ref.invalidate(serieProvider);
+    _detecterAccesCachePriere();
     setState(() => _tab = 2);
+  }
+
+  /// 5 taps sur l'onglet Coach en moins de 2 s = accès caché à « Suivre une
+  /// prière » (2026-08-26, demande utilisateur -- cf. la doc de
+  /// `suivrePriereAccesCacheProvider`). Compteur remis à zéro si l'écart
+  /// entre deux taps dépasse ce délai : sans ça, cinq visites NORMALES et
+  /// espacées de l'onglet Coach finiraient par déclencher l'accès sans que
+  /// personne ne l'ait cherché.
+  int _tapsCoach = 0;
+  DateTime? _dernierTapCoach;
+  static const _delaiTapsCoach = Duration(seconds: 2);
+
+  void _detecterAccesCachePriere() {
+    final maintenant = DateTime.now();
+    final precedent = _dernierTapCoach;
+    _dernierTapCoach = maintenant;
+    _tapsCoach = (precedent != null && maintenant.difference(precedent) <= _delaiTapsCoach)
+        ? _tapsCoach + 1
+        : 1;
+    if (_tapsCoach < 5) return;
+    _tapsCoach = 0;
+    if (ref.read(suivrePriereAccesCacheProvider)) return; // déjà actif
+    ref.read(suivrePriereAccesCacheProvider.notifier).set(true);
   }
 
   Widget _buildNav() {

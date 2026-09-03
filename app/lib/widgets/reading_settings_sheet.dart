@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/app_settings_provider.dart';
+import '../providers/mushaf_annotation_provider.dart';
 import '../providers/player_provider.dart';
 import '../theme/app_theme.dart';
 
@@ -42,7 +43,23 @@ void showReadingSettingsSheet(
   );
 }
 
-class _ReadingSettingsSheet extends ConsumerWidget {
+/// ⚠️ STATEFUL, ET C'EST NECESSAIRE (2026-09-02).
+///
+/// Defaut signale : « quand j'active la traduction elle s'active, mais
+/// l'interrupteur ne se met pas a jour instantanement -- on pense que ce n'est
+/// pas active et on s'acharne ».
+///
+/// Cause : `showTranslation` est capture PAR VALEUR a l'ouverture de la
+/// feuille. Le basculement changeait bien l'etat du Mushaf (`onToggleTranslation`
+/// ecrit dans `_MushafScreenState`), mais cette feuille-ci, ouverte par
+/// `showModalBottomSheet`, ne se reconstruit pas quand l'ecran DERRIERE elle se
+/// reconstruit : elle affichait donc eternellement la valeur d'origine. La
+/// traduction s'activait vraiment ; seul le temoin mentait.
+///
+/// Correctif : un etat LOCAL, initialise sur la valeur recue et bascule au
+/// meme instant que l'appel au parent. L'interrupteur suit le doigt, le
+/// Mushaf suit l'interrupteur.
+class _ReadingSettingsSheet extends ConsumerStatefulWidget {
   final bool showTranslation;
   final VoidCallback? onToggleTranslation;
   const _ReadingSettingsSheet({
@@ -51,7 +68,19 @@ class _ReadingSettingsSheet extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ReadingSettingsSheet> createState() =>
+      _ReadingSettingsSheetState();
+}
+
+class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
+  /// Copie locale : cf. la doc de la classe. Le parent reste la source de
+  /// verite pour l'AFFICHAGE du Mushaf, celle-ci ne sert qu'au temoin.
+  late bool _traduction = widget.showTranslation;
+
+  VoidCallback? get onToggleTranslation => widget.onToggleTranslation;
+
+  @override
+  Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     // Pas de traduction en mode 100% arabe (REFONTE_IHM.md §7bis) -- même
     // règle que l'ex-icône de la barre du bas.
@@ -151,11 +180,42 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                   t.mushafTranslation,
                   style: GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink),
                 ),
-                value: showTranslation,
+                value: _traduction,
                 activeColor: AppColors.green700,
-                onChanged: (_) => onToggleTranslation!(),
+                onChanged: (_) {
+                  // Les deux d'un coup : le temoin local pour que
+                  // l'interrupteur bouge tout de suite, et le parent pour que
+                  // le Mushaf suive.
+                  setState(() => _traduction = !_traduction);
+                  onToggleTranslation!();
+                },
               ),
             ],
+            // ── SURLIGNAGE LIBRE ("crayon", 2026-08-28, demande utilisateur)
+            //
+            // « on permet de tracer sur le mushaf en train d'apprendre, il
+            // surligne quelque chose avec différentes couleurs [...] ça doit
+            // rester avec mémorisation sauf si il lance initialisation qui
+            // efface tout ». Le mode se pilote par un provider global
+            // (`mushafAnnotationModeProvider`) -- pas de callback à faire
+            // remonter jusqu'ici, contrairement à `onToggleTranslation` (état
+            // local de l'écran) : une fois activé, la barre d'outils du
+            // crayon flotte au-dessus de la barre du bas du Mushaf tant que
+            // ce switch reste actif.
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.edit_rounded,
+                  color: AppColors.green800, size: 20),
+              title: Text(
+                t.mushafAnnotateButton,
+                style: GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink),
+              ),
+              value: ref.watch(mushafAnnotationModeProvider),
+              activeColor: AppColors.green700,
+              onChanged: (v) =>
+                  ref.read(mushafAnnotationModeProvider.notifier).state = v,
+            ),
             // Défilement automatique (off/slow/normal/fast) RETIRÉ
             // 2026-08-01 (demande utilisateur : "plus raison d'être" une fois
             // le mode Kindle en place, qui couvre ce besoin -- cf. §Kindle
@@ -330,8 +390,22 @@ class _ReadingSettingsSheet extends ConsumerWidget {
             // pouvaient être cochés ensemble).
             Row(
               children: [
+                // ── LA PASTILLE MONTRE LE FOND, PAS LA MARQUE (2026-09-02)
+                // Elle affichait `green700`, la couleur d'identite de l'app.
+                // Or le fond de lecture du mode normal est `cream` (#fbf7ee),
+                // un blanc casse : la pastille annoncait donc une couleur que
+                // l'ecran n'a jamais. Signale par l'utilisateur : « il y a
+                // vert, aucun rapport, il est pareil que le marron ; ca
+                // concerne le fond derriere le texte, donc je veux un blanc,
+                // un marron comme maintenant, et le noir ».
+                //
+                // Les trois pastilles reprennent maintenant EXACTEMENT les
+                // trois `backgroundColor` de `MushafScreen` (cf. sa ligne
+                // `backgroundColor:`) : cream / kindleBg / sombreBg. Un
+                // selecteur de theme doit montrer le theme.
                 _ThemeSwatch(
-                  color: AppColors.green700,
+                  // Le papier reel, cf. MushafScreen.backgroundColor.
+                  color: AppColors.mushafPapier,
                   selected: !kindleMode && !modeSombre,
                   onTap: () {
                     ref.read(kindleModeProvider.notifier).set(false);
@@ -340,7 +414,12 @@ class _ReadingSettingsSheet extends ConsumerWidget {
                 ),
                 const SizedBox(width: 14),
                 _ThemeSwatch(
-                  color: AppColors.kindleAccent,
+                  // `kindleBg` (le fond reel) et non `kindleAccent` (l'encre
+                  // marron) : meme raison que ci-dessus. L'utilisateur voulait
+                  // « un marron comme maintenant » -- kindleBg EST ce marron
+                  // clair qu'il voit a l'ecran, kindleAccent est plus fonce
+                  // que tout ce que la page affiche.
+                  color: AppColors.kindleBg,
                   selected: kindleMode && !modeSombre,
                   onTap: () {
                     ref.read(kindleModeProvider.notifier).set(true);

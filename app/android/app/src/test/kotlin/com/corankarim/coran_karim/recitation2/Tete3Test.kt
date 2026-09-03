@@ -34,6 +34,22 @@ class Tete3Test {
         return null
     }
 
+    /** Le fichier REELLEMENT DEPLOYE (2026-08-23) -- forme a 1036 entrees
+     *  (etat_encodeur_moyen_et_ecart_type[1024] + 12 scores), distincte de la
+     *  forme a 524 de [fichierReel] (etat moyen SEUL[512] + 12). Les deux
+     *  variantes coexistent dans le code (Tete3.tailleEntree s'adapte, cf.
+     *  ChaineRecitation) -- chercher un chemin different evite que ce test
+     *  et [logit_reproduit_le_python] ne se marchent dessus. */
+    private fun fichierDeploye1036(): File? {
+        var d: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
+        while (d != null) {
+            val f = File(d, "modele_2geles_2026-08-22/tete3.json")
+            if (f.exists()) return f
+            d = d.parentFile
+        }
+        return null
+    }
+
     /**
      * Vecteur d'entree deterministe. Formule ENTIERE volontairement : elle donne
      * exactement les memes flottants en Python et en Kotlin, ce qu'aucune
@@ -67,6 +83,70 @@ class Tete3Test {
         )
         assertTrue(t.verifierParite(vecteurReference(t.tailleEntree), obtenu))
         assertEquals(1.567111f.toDouble(), t.seuil2Pct.toDouble(), 1e-5)
+    }
+
+    /**
+     * MEME PRINCIPE que [logit_reproduit_le_python], sur le fichier REELLEMENT
+     * DEPLOYE aujourd'hui (2026-08-23) -- 1036 entrees, pas 524.
+     *
+     * Contexte : le graphe du projet portait un noeud [EN ATTENTE] bloquant
+     * ("la tete 3 ne tranche aucun verdict, et sa parite n'a jamais ete
+     * verifiee") faute de vecteur de reference pour cette forme -- l'ancien
+     * test ne couvrait que la forme a 524 du 21 aout, absente de cette
+     * machine. Valeur de reference calculee en Python/NumPy, poids et
+     * normalisation copies OCTET POUR OCTET depuis
+     * `modele_2geles_2026-08-22/tete3.json` (celui que l'app charge
+     * reellement, cf. `FastConformerVerifier._kModelSubdir`), meme vecteur
+     * deterministe que [vecteurReference] (memes flottants des deux cotes,
+     * cf. la doc de tete de fichier).
+     *
+     * README de livraison (2026-08-22, PC A) : le `tete3.json` de CE JOUR-LA
+     * etait mesure VALIDE sur ce modele -- `encoder_state`/`logprobs`/
+     * `warsh_logprobs` identiques bit a bit (ecart 0,00000) entre le paquet
+     * qui portait cette tete (12:25) et le paquet final deploye (17:00).
+     *
+     * ⚠️ RECALIBRE le 2026-08-23 (nouveau fichier recu de PC A,
+     * `tete3_2026-08-23.json`, poids DIFFERENTS -- MD5 different du fichier
+     * du 22 -- meme si la description embarquee n'a pas ete mise a jour cote
+     * Python). La valeur de reference ci-dessous a ete recalculee sur CES
+     * poids-la, pas sur ceux du 22 : ne pas la confondre avec l'ancienne
+     * (100.0752334595, poids du 22, desormais remplaces sur le device).
+     */
+    @Test
+    fun logit_reproduit_le_python_1036_entrees_modele_deploye() {
+        val f = fichierDeploye1036()
+        if (f == null) {
+            println("modele_2geles_2026-08-22/tete3.json absent : parite NON verifiee sur cette machine")
+            return
+        }
+        val t = Tete3.charger(f.readText())
+        assertNotNull("tete3.json deploye present mais illisible", t)
+        t!!
+        assertEquals(1036, t.tailleEntree)
+
+        // Valeur calculee en Python/NumPy (float32), meme algorithme que
+        // Tete3.logit() -- boucle fidele (accum float64) ET forme vectorisee
+        // (float32), les deux convergent a 2e-6 pres (2026-08-23, poids
+        // recalibres du meme jour).
+        val attendu = -70.07485961914062
+        val obtenu = t.logit(vecteurReference(t.tailleEntree))
+        assertEquals(
+            "PARITE ROMPUE avec le Python -- la tete deployee ne doit PAS trancher de verdict tant que ceci echoue",
+            attendu, obtenu.toDouble(), 0.02,
+        )
+        assertTrue(t.verifierParite(vecteurReference(t.tailleEntree), obtenu))
+
+        // ⚠️ ECART CONNU, PAS UN BUG DE CE TEST : le tete3.json livre le
+        // 2026-08-22 n'a AUCUNE cle `seuils_mesures` (verifie : ses 4 seules
+        // cles sont description/caracteristiques/normalisation/couches).
+        // `Tete3.charger` retombe donc sur son defaut documente (0f) --
+        // fidelement reproduit ici, PAS un seuil mesure a 2 %/10 % de
+        // collateral. Brancher cette tete sur un verdict avec ce seuil-la
+        // serait arbitraire : il manque encore la mesure de calibrage
+        // (audio reellement fautif contre ce modele), distincte de la
+        // parite de calcul que ce test couvre.
+        assertEquals(0.0, t.seuil2Pct.toDouble(), 1e-9)
+        assertEquals(0.0, t.seuil10Pct.toDouble(), 1e-9)
     }
 
     /** Poids connus a la main : verifie le ReLU et l'ordre des couches. */

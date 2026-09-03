@@ -271,7 +271,14 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     // cette phase mais AVANT que le premier visuel ne soit peint (contrairement
     // à `addPostFrameCallback`, qui attendrait ce premier rendu et laisserait
     // passer le flash que ce correctif visait justement à éviter).
-    Future.microtask(() => ref.read(recitationProvider.notifier).setup(''));
+    Future.microtask(() {
+      final n = ref.read(recitationProvider.notifier);
+      n.setup('');
+      // Dans le Coach, une regle attendue et non constatee compte comme
+      // faute meme sur une seule observation -- cf. la doc du drapeau. Sans
+      // lui, le controle tajwid ne s'executait jamais sur un palier court.
+      n.tajwidSansDoubleObservation = true;
+    });
     // `QuranApi.riwaya` ICI (pas `recitationProvider.riwaya`) : `setup()`
     // vient d'être planifié en microtask juste au-dessus et n'a pas encore
     // tourné -- l'état de session n'a donc pas encore figé sa riwaya. C'est
@@ -312,6 +319,9 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
 
   @override
   void dispose() {
+    // Le drapeau ne doit pas survivre a cet ecran : la recitation garde
+    // l'exigence de double observation.
+    ref.read(recitationProvider.notifier).tajwidSansDoubleObservation = false;
     _finAuto?.cancel();
     _pulse.dispose();
     _shake.dispose();
@@ -344,7 +354,17 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     // les mots en attente, aucun effet sur le micro/modèle -- `start()` s'en
     // charge séparément) : rien n'empêche de l'appeler avant l'audio.
     final windowText = _words.sublist(start, end + 1).join(' ');
-    ref.read(recitationProvider.notifier).setup(windowText);
+    // `setupDepuisVerset` et non `setup` (2026-09-02) : ce dernier ne recoit
+    // qu'un texte, donc AUCUNE regle attendue n'etait chargee et le mode
+    // tajwid ne verifiait rien ici -- defaut signale par l'utilisateur, cf.
+    // la doc de la methode. `start` est bien un index DANS LE VERSET
+    // (`_words` vient de `widget.verse`), ce que la methode attend.
+    ref.read(recitationProvider.notifier).setupDepuisVerset(
+          windowText,
+          surah: widget.verse.surahNumber,
+          ayah: widget.verse.ayahNumber,
+          premierMot: start,
+        );
 
     if (playAudio) {
       // ── TOUJOURS LE RÉCITATEUR AVANT L'UTILISATEUR (2026-08-18) ─────────
@@ -508,14 +528,33 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     //
     // La qualité GLOBALE reste vérifiée en plus : s'effondrer sur le début
     // déjà acquis doit continuer à faire échouer le tour.
+    // ── LE TAJWID ENTRE DANS LA DECISION (2026-09-02) ────────────────────
+    // Cf. l'en-tete de ce correctif : en mode tajwid, un mot dont une regle
+    // ATTENDUE n'a pas ete constatee ne compte pas comme reussi, meme si ses
+    // lettres sont bonnes. Hors mode tajwid, `unrealizedRulesFor` rend
+    // toujours vide (aucune regle active) : ce test est alors inerte et le
+    // comportement historique est conserve au caractere pres.
+    final notifierRecitation = ref.read(recitationProvider.notifier);
+    bool acceptable(int index, RecitedWord w) {
+      if (w.status != WordStatus.correct && w.status != WordStatus.unclear) {
+        return false;
+      }
+      return notifierRecitation
+          .unrealizedRulesFor(index, w.detectedRules)
+          .isEmpty;
+    }
+
     final juges = rst.words
         .where((w) =>
             w.status != WordStatus.pending && w.status != WordStatus.current)
         .toList();
-    final acceptables = juges
-        .where((w) =>
-            w.status == WordStatus.correct || w.status == WordStatus.unclear)
-        .length;
+    final acceptables = [
+      for (var i = 0; i < rst.words.length; i++)
+        if (rst.words[i].status != WordStatus.pending &&
+            rst.words[i].status != WordStatus.current &&
+            acceptable(i, rst.words[i]))
+          i
+    ].length;
     final (debutNeufs, finNeufs) = _unitWordRange(_unitsIntroduced - 1);
     final neufs = (debutNeufs < rst.words.length)
         ? rst.words.sublist(
@@ -528,10 +567,15 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
         .where((w) =>
             w.status != WordStatus.pending && w.status != WordStatus.current)
         .toList();
-    final acceptablesNeufs = jugesNeufs
-        .where((w) =>
-            w.status == WordStatus.correct || w.status == WordStatus.unclear)
-        .length;
+    final acceptablesNeufs = [
+      for (var i = debutNeufs;
+          i <= finNeufs && i < rst.words.length;
+          i++)
+        if (rst.words[i].status != WordStatus.pending &&
+            rst.words[i].status != WordStatus.current &&
+            acceptable(i, rst.words[i]))
+          i
+    ].length;
     // ── CUMULATIF, ET C'EST LA COUVERTURE QUI ÉTAIT FAUSSE (2026-08-18) ───
     //
     // Correction de la correction ci-dessus, sur reprise directe de

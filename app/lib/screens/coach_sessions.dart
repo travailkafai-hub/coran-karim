@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/objectif_coach.dart';
+import '../models/riwaya.dart' show Riwaya;
 import '../models/verse.dart';
 import '../providers/memorization_game_records_provider.dart';
 import '../providers/mind_map_provider.dart';
@@ -91,8 +92,16 @@ final derniersJoursProvider = FutureProvider<List<JourActif>>(
 final serieProvider = FutureProvider<int>(
     (ref) => SessionArchiveService.instance.serieEnCours());
 
+/// Clé de riwaya pour les requêtes d'archive -- Hafs et Warsh sont deux
+/// progressions distinctes depuis la migration v7->v8 (`portions.riwaya`).
+/// Lue sur le réglage global : le tableau de bord du Coach affiche toujours
+/// la progression de la riwaya AFFICHÉE en ce moment (même convention que le
+/// Mushaf, la recherche, etc. -- décision utilisateur 2026-08-12), jamais un
+/// mélange des deux.
+String _riwayaCle() => QuranApi.riwaya == Riwaya.warsh ? 'warsh' : 'hafs';
+
 final portionsProvider = FutureProvider<List<PortionResume>>(
-    (ref) => SessionArchiveService.instance.portions());
+    (ref) => SessionArchiveService.instance.portions(riwaya: _riwayaCle()));
 
 /// Quarts de Hizb déjà acquis sur tout le Coran (0 à 240), en fraction.
 ///
@@ -103,7 +112,8 @@ final portionsProvider = FutureProvider<List<PortionResume>>(
 /// sur TOUT ce qui a été acquis, sans limite ni doublon (cf.
 /// `SessionArchiveService.motsAcquisTousCoran`).
 final quartsAcquisProvider = FutureProvider<double>((ref) async {
-  final mots = await SessionArchiveService.instance.motsAcquisTousCoran();
+  final mots = await SessionArchiveService.instance
+      .motsAcquisTousCoran(riwaya: _riwayaCle());
   return (mots / ObjectifCoach.motsParQuart)
       .clamp(0.0, ObjectifCoach.quartsDuCoran.toDouble());
 });
@@ -130,7 +140,8 @@ final quartsAcquisProvider = FutureProvider<double>((ref) async {
 /// valaient douze quarts.
 final quartsAcquisDuMoisProvider = FutureProvider<double>((ref) async {
   final mots = await SessionArchiveService.instance.motsAcquisTousCoran(
-      depuis: DateTime.now().subtract(const Duration(days: 30)));
+      depuis: DateTime.now().subtract(const Duration(days: 30)),
+      riwaya: _riwayaCle());
   return (mots / ObjectifCoach.motsParQuart)
       .clamp(0.0, ObjectifCoach.quartsDuCoran.toDouble());
 });
@@ -146,7 +157,8 @@ final quartsAcquisDuMoisProvider = FutureProvider<double>((ref) async {
 /// zéro du jour au lendemain.
 final quartsAcquisDeLAnneeProvider = FutureProvider<double>((ref) async {
   final mots = await SessionArchiveService.instance.motsAcquisTousCoran(
-      depuis: DateTime.now().subtract(const Duration(days: 365)));
+      depuis: DateTime.now().subtract(const Duration(days: 365)),
+      riwaya: _riwayaCle());
   return (mots / ObjectifCoach.motsParQuart)
       .clamp(0.0, ObjectifCoach.quartsDuCoran.toDouble());
 });
@@ -227,6 +239,15 @@ class PortionsSection extends ConsumerWidget {
                   fontWeight: FontWeight.w800,
                   color: AppColors.green800,
                 )),
+            // Légende des paliers de badge (2026-08-29, demande utilisateur :
+            // « rajoute un endroit qui explique les niveaux »).
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Les paliers de récitation',
+              icon: const Icon(Icons.info_outline_rounded,
+                  size: 17, color: AppColors.green800),
+              onPressed: () => _ouvrirLegendePaliers(context),
+            ),
             const Spacer(),
             IconButton(
               visualDensity: VisualDensity.compact,
@@ -305,33 +326,10 @@ class PortionsSection extends ConsumerWidget {
 
 
 /// Une sourate et les portions qu'elle contient, avec ses totaux cumulés.
-
-/// Confirmation de la remise à zéro d'une portion. Volontairement distincte de
-/// celle d'une récitation : ce qui disparaît n'est pas la même chose, et un
-/// texte approximatif sur une action irréversible est un piège.
-Future<bool> _confirmerRemiseAZero(BuildContext context, String label) async {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Recommencer cette sourate ?'),
-      content: Text(
-          'Tout le suivi de « $label » sera effacé : les mots acquis, les mots '
-          'ratés et leur historique. La prochaine récitation repartira de zéro. '
-          'Tes récitations datées, elles, ne sont pas touchées.'),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler')),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Effacer le suivi',
-              style: TextStyle(color: Colors.redAccent)),
-        ),
-      ],
-    ),
-  );
-  return ok ?? false;
-}
+//
+// `_confirmerRemiseAZero` (confirmation de remise à zéro d'une portion)
+// SUPPRIMÉE le 2026-08-28 avec le bouton qui l'appelait (cf. le commentaire
+// dans `_CartePortion` : « n'a plus raison d'être, elle sert à rien »).
 
 class _GroupePortions {
   final int surahNumber;
@@ -490,10 +488,6 @@ class _CartePortion extends ConsumerWidget {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        leading: p.badge
-            ? const Icon(Icons.verified_rounded,
-                color: AppColors.brass, size: 26)
-            : null,
         title: Text(p.label,
             style: GoogleFonts.manrope(
                 fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink)),
@@ -526,16 +520,26 @@ class _CartePortion extends ConsumerWidget {
             if (gameRecord > 0)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
+                // `mainAxisSize.min` (retiré) faisait dessiner cette ligne à
+                // sa largeur NATURELLE, sans jamais consulter la largeur
+                // réellement disponible dans le sous-titre du `ListTile`
+                // (bornée par `leading`/`trailing`) -- un total à 3 chiffres
+                // (ex. "79/270") suffisait à dépasser le bord de la carte
+                // (constaté : "RIGHT OVERFLOWED BY 36 PIXELS", 2026-08-26).
+                // `Flexible` + ellipsis laisse le texte se réduire au lieu de
+                // déborder.
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.emoji_events_rounded,
                         size: 12, color: AppColors.brass),
                     const SizedBox(width: 3),
-                    Text(
-                      t.coachPortionGameRecord(gameRecord, p.wordsTotal),
-                      style: GoogleFonts.manrope(
-                          fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.brass),
+                    Flexible(
+                      child: Text(
+                        t.coachPortionGameRecord(gameRecord, p.wordsTotal),
+                        style: GoogleFonts.manrope(
+                            fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.brass),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -555,28 +559,56 @@ class _CartePortion extends ConsumerWidget {
                         color: couleur)),
               ],
             ),
-            // ── REMETTRE A ZERO POUR REFAIRE (2026-08-13) ──────────────────
-            // Demande utilisateur : « rajoute pour memorisation par sourate la
-            // possibilite de supprimer le statut pour refaire ». Le suivi
-            // d'une portion est CUMULE et permanent par conception -- un mot
-            // acquis le reste. Sans ce geste, impossible de reprendre une
-            // sourate de zero. Meme patron que la suppression d'une
-            // recitation, confirmation comprise : c'est irreversible.
+            // ── RACCOURCI POUR CONTINUER/REFAIRE (2026-08-23) ───────────────
+            // Demande utilisateur : une portion pas encore à 100 % n'avait
+            // AUCUN moyen direct de relancer une vraie récitation dessus --
+            // taper la carte ouvre une RELECTURE (verdicts déjà archivés,
+            // cf. `onTap` plus bas), pas une nouvelle tentative. Il fallait
+            // sortir vers le Mushaf et retrouver le passage à la main. Même
+            // patron que `_LigneSourateNeuve` (« Pas encore récitées ») :
+            // ouvre l'écran de récitation SANS `relecture`, donc une VRAIE
+            // session live, qui vient s'ajouter au CUMUL de cette portion
+            // (cf. la doc juste au-dessus sur `onTap`).
             IconButton(
-              icon: const Icon(Icons.restart_alt_rounded,
-                  size: 20, color: AppColors.inkLight),
-              tooltip: 'Remettre cette portion à zéro',
+              icon: const Icon(Icons.play_circle_outline_rounded,
+                  size: 22, color: AppColors.green700),
+              tooltip: 'Continuer/refaire cette portion',
               onPressed: () async {
-                final ok = await _confirmerRemiseAZero(context, p.label);
-                if (!ok || !context.mounted) return;
-                await SessionArchiveService.instance.supprimerPortion(p.id);
-                // TOUT le tableau de bord, pas seulement la liste : effacer une
-                // portion change les quarts acquis, donc l'objectif et le
-                // rythme. N'invalider que `portionsProvider` laissait la barre
-                // sur son ancienne valeur (cf. rafraichirTableauDeBordCoach).
-                if (context.mounted) rafraichirTableauDeBordCoach(ref.invalidate);
+                final versets = await QuranApi.fetchVerses(p.surahNumber);
+                if (!context.mounted) return;
+                final plage = versets
+                    .where((v) =>
+                        v.ayahNumber >= p.firstAyah && v.ayahNumber <= p.lastAyah)
+                    .toList();
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => KaraokeRecitationScreen(
+                      verses: plage.isEmpty ? versets : plage,
+                      autoDemarrer: true,
+                      // forcerModeNormal: true -- sans lui, `autoDemarrer`
+                      // seul force le mode RÉFÉRENCE (texte visible, pas de
+                      // correction), cf. mushaf_screen.dart._openKaraoke.
+                      forcerModeNormal: true),
+                ));
               },
             ),
+            // ── BADGE, DÉPLACÉ ICI (2026-08-28) ─────────────────────────────
+            // Remplace le bouton "remettre à zéro" (ajouté 2026-08-13 sur
+            // demande utilisateur -- retiré ce jour sur retour utilisateur
+            // direct : « n'a plus raison d'être, elle sert à rien »). Le
+            // geste disparaît complètement de cet écran : la méthode
+            // `SessionArchiveService.supprimerPortion` qu'il appelait reste
+            // définie (aucun autre appelant ne dépend de ce bouton), mais
+            // n'est plus atteignable nulle part dans l'app tant qu'un nouveau
+            // point d'entrée n'est pas explicitement redemandé. Le badge
+            // lui-même vivait avant en `leading` -- ici il reste visible même
+            // quand la carte est étroite (le `leading` d'un `ListTile` peut
+            // être tronqué par le titre sur un petit écran, la position
+            // `trailing` ne l'est jamais).
+            if (p.badge)
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: _BadgeRepetition(portion: p),
+              ),
           ],
         ),
         // Meme ecran, en CUMULE : `portion_words` porte le dernier verdict
@@ -595,6 +627,7 @@ class _CartePortion extends ConsumerWidget {
                       v.ayahNumber >= p.firstAyah && v.ayahNumber <= p.lastAyah)
                   .toList(),
               titreRelecture: p.label,
+              riwayaRelecture: p.riwaya == 'warsh' ? Riwaya.warsh : Riwaya.hafs,
               relecture: {
                 for (final m in mots)
                   (p.surahNumber, m.ayahNumber, m.wordInAyah): (
@@ -617,6 +650,240 @@ class _CartePortion extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Un palier de badge -- SOURCE UNIQUE (2026-08-29) pour le badge lui-même
+/// (`_BadgeRepetition`) et sa légende (`_LegendePaliers`) : les deux
+/// affichent la MÊME couleur pour le MÊME seuil parce qu'ils lisent cette
+/// même liste, jamais deux définitions dupliquées qui pourraient diverger.
+class _PalierGemme {
+  final int seuil;
+  final String nom;
+  final Color couleur;
+  const _PalierGemme(this.seuil, this.nom, this.couleur);
+}
+
+/// Quatre pierres précieuses (demande utilisateur 2026-08-29 : « des badges
+/// avec des pierres précieuses avec différentes couleurs ») -- ordre
+/// croissant. L'or (20) reprend `AppColors.brass`, déjà la couleur de
+/// l'ancienne coche unique avant l'existence de paliers : aucune régression
+/// visuelle pour qui s'arrêtait là.
+const _paliersGemmes = [
+  _PalierGemme(5, 'Améthyste', Color(0xFF9B6BC7)),
+  _PalierGemme(10, 'Saphir', Color(0xFF4A7FE0)),
+  _PalierGemme(20, 'Topaze', AppColors.brass),
+  _PalierGemme(30, 'Émeraude', AppColors.green700),
+];
+
+_PalierGemme? _trouverPalier(int seuil) {
+  for (final p in _paliersGemmes) {
+    if (p.seuil == seuil) return p;
+  }
+  return null;
+}
+
+/// Une pierre précieuse DESSINÉE -- pas `Icons.diamond_rounded` (retour
+/// utilisateur 2026-08-29 : « c'est pas du vrai visuel des pierres
+/// précieuses », l'icône Material est un losange plat uniforme). Une pierre
+/// réelle se reconnaît à trois choses qu'un glyphe plat n'a pas : une taille à
+/// facettes (table + épaulements + pointe, pas un simple losange), un dégradé
+/// clair->sombre qui simule la lumière qui la traverse, et un reflet net qui
+/// simule une facette qui accroche la lumière. `_GemmePainter` reproduit les
+/// trois avec la seule couleur du palier (`_paliersGemmes`), sans asset.
+class _GemmeIcon extends StatelessWidget {
+  final Color couleur;
+  final double taille;
+  const _GemmeIcon({required this.couleur, this.taille = 24});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: taille,
+      height: taille,
+      child: CustomPaint(painter: _GemmePainter(couleur)),
+    );
+  }
+}
+
+class _GemmePainter extends CustomPainter {
+  final Color couleur;
+  _GemmePainter(this.couleur);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    Offset p(double x, double y) => Offset(x * w, y * h);
+
+    // Taille "émeraude" simplifiée : table plate en haut, deux épaulements,
+    // pointe en bas -- silhouette d'une vraie pierre taillée, pas un losange.
+    final tableG = p(0.30, 0.10);
+    final tableD = p(0.70, 0.10);
+    final epauleD = p(0.97, 0.38);
+    final pointe = p(0.50, 0.96);
+    final epauleG = p(0.03, 0.38);
+
+    final contour = Path()
+      ..moveTo(tableG.dx, tableG.dy)
+      ..lineTo(tableD.dx, tableD.dy)
+      ..lineTo(epauleD.dx, epauleD.dy)
+      ..lineTo(pointe.dx, pointe.dy)
+      ..lineTo(epauleG.dx, epauleG.dy)
+      ..close();
+
+    final base = HSLColor.fromColor(couleur);
+    final clair =
+        base.withLightness((base.lightness + 0.30).clamp(0.0, 1.0)).toColor();
+    final fonce =
+        base.withLightness((base.lightness - 0.24).clamp(0.0, 1.0)).toColor();
+
+    // Dégradé clair -> sombre : simule la lumière qui traverse la pierre.
+    final fond = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [clair, couleur, fonce],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawPath(contour, fond);
+
+    // Facettes internes (girdle horizontal + arête centrale vers la pointe).
+    final trait = Paint()
+      ..color = fonce.withAlpha(150)
+      ..strokeWidth = w * 0.035
+      ..style = PaintingStyle.stroke
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawLine(p(0.5, 0.10), pointe, trait);
+    canvas.drawLine(epauleG, epauleD, trait);
+
+    // Reflet : la facette qui accroche la lumière, sous la table.
+    final reflet = Paint()..color = Colors.white.withAlpha(170);
+    final refletPath = Path()
+      ..moveTo(tableG.dx + (tableD.dx - tableG.dx) * 0.12, tableG.dy + 1)
+      ..lineTo(tableG.dx + (tableD.dx - tableG.dx) * 0.62, tableD.dy + 1)
+      ..lineTo(p(0.40, 0.30).dx, p(0.40, 0.30).dy)
+      ..close();
+    canvas.drawPath(refletPath, reflet);
+
+    // Contour net qui referme la taille.
+    final bord = Paint()
+      ..color = fonce.withAlpha(230)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.05;
+    canvas.drawPath(contour, bord);
+
+    // Étincelle ponctuelle (le "sparkle" d'une pierre réelle).
+    canvas.drawCircle(
+        p(0.64, 0.22), w * 0.05, Paint()..color = Colors.white.withAlpha(235));
+  }
+
+  @override
+  bool shouldRepaint(covariant _GemmePainter oldDelegate) =>
+      oldDelegate.couleur != couleur;
+}
+
+/// Badge de répétition (2026-08-29, demande utilisateur : « des badges selon
+/// le nombre de répétitions de la récitation, 5, 10, 20, 30 [...] des pierres
+/// précieuses avec différentes couleurs »).
+///
+/// Une simple coche (déjà maîtrisée, cf. `PortionResume.badge`) tant qu'aucun
+/// palier n'est atteint -- le premier passage à 100 % n'est pas encore une
+/// « répétition » au sens du badge, seulement une maîtrise. À partir de 5
+/// répétitions, la coche cède la place à une pierre précieuse dont la
+/// couleur monte avec le palier (cf. `_paliersGemmes`). Le chiffre exact
+/// reste lisible en petit à côté -- le nom de la pierre seul ne dit pas si
+/// c'est 5 ou 9 répétitions.
+class _BadgeRepetition extends StatelessWidget {
+  final PortionResume portion;
+  const _BadgeRepetition({required this.portion});
+
+  @override
+  Widget build(BuildContext context) {
+    final seuil = portion.palierRepetition;
+    if (seuil == null) {
+      // Maîtrisée, mais pas encore assez de fois pour un palier : coche
+      // simple, comportement identique à avant l'ajout des badges.
+      return const Icon(Icons.verified_rounded,
+          color: AppColors.brass, size: 24);
+    }
+    final palier = _trouverPalier(seuil)!;
+    return Tooltip(
+      message:
+          '${palier.nom} -- ${portion.repetitions} récitations complètes',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _GemmeIcon(couleur: palier.couleur, taille: 24),
+          Text('$seuil',
+              style: GoogleFonts.manrope(
+                  fontSize: 9, fontWeight: FontWeight.w800, color: palier.couleur)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Légende des paliers (2026-08-29, demande utilisateur : « rajoute un
+/// endroit qui explique les niveaux »). Ouverte depuis l'icône (i) à côté du
+/// titre « Mémorisation par sourate », cf. `PortionsSection`.
+void _ouvrirLegendePaliers(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: AppColors.cream,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Les paliers de récitation',
+                style: GoogleFonts.manrope(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.green900)),
+            const SizedBox(height: 6),
+            Text(
+              'Une portion mastérisée (100 % des mots acquis) gagne une '
+              'coche. La répéter en entier, plusieurs fois, débloque une '
+              'pierre précieuse -- sa couleur monte avec le nombre de '
+              'récitations complètes.',
+              style: GoogleFonts.manrope(
+                  fontSize: 12.5, color: AppColors.inkLight, height: 1.4),
+            ),
+            const SizedBox(height: 18),
+            for (final p in _paliersGemmes)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    _GemmeIcon(couleur: p.couleur, taille: 28),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(p.nom,
+                              style: GoogleFonts.manrope(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink)),
+                          Text('${p.seuil} récitations complètes',
+                              style: GoogleFonts.manrope(
+                                  fontSize: 11.5, color: AppColors.inkLight)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 /// Le détail d'une portion : chaque mot NON ENCORE VERT (le reste est déjà
@@ -770,6 +1037,16 @@ class _LignePortionMotState extends ConsumerState<_LignePortionMot> {
       _erreur = null;
     });
     try {
+      // ⚠️ RISQUE LATENT NON CORRIGÉ ICI (2026-08-23) : `fetchVerses` lit le
+      // texte de la riwaya GLOBALE vivante (`QuranApi.riwaya`), pas celle de
+      // CETTE portion (`portion.riwaya`) -- `QuranApi` ne garde qu'un seul
+      // jeu de versets en cache à la fois, indexé par le réglage courant, cf.
+      // sa doc. Si l'utilisateur relit un mot Warsh alors que le réglage
+      // affiché est repassé sur Hafs, le TEXTE montré ici peut diverger de
+      // celui réellement récité (`riwaya:` ci-dessous corrige au moins le
+      // récitateur/l'audio, cf. `showTajwidHelpSheet.riwaya`). Corriger le
+      // texte demanderait de faire porter une riwaya à `fetchVerses` sans
+      // perturber son cache global -- un chantier à part.
       final versets = await QuranApi.fetchVerses(portion.surahNumber);
       final Verse verset = versets.firstWhere((v) => v.ayahNumber == m.ayahNumber,
           orElse: () => versets.first);
@@ -785,6 +1062,7 @@ class _LignePortionMotState extends ConsumerState<_LignePortionMot> {
         archivedAudioPath: m.audioPath,
         extraitDebut: m.wordInAyah,
         extraitFin: m.wordInAyah + 1,
+        riwaya: portion.riwaya == 'warsh' ? Riwaya.warsh : Riwaya.hafs,
         // "Réessayer ce mot" réussi depuis une portion : le mot est marqué
         // correct dans SA portion (pas juste retiré d'un journal d'erreurs),
         // c'est ce qui fait avancer la couverture et, à terme, le badge.
@@ -800,6 +1078,9 @@ class _LignePortionMotState extends ConsumerState<_LignePortionMot> {
             wordInAyah: m.wordInAyah,
             expectedWord: m.expectedWord,
             status: 'correct',
+            // même portion, donc même riwaya -- jamais celle affichée
+            // maintenant si l'utilisateur a changé de réglage entre-temps.
+            riwaya: portion.riwaya,
           );
           ref.invalidate(portionsProvider);
           ref.invalidate(motsDePortionProvider(portion.id));
@@ -1197,6 +1478,7 @@ class _CarteSession extends ConsumerWidget {
                   .where((v) => v.ayahNumber >= a && v.ayahNumber <= b)
                   .toList(),
               titreRelecture: s.surahName ?? 'Sourate ${s.surahNumber}',
+              riwayaRelecture: s.riwaya == 'warsh' ? Riwaya.warsh : Riwaya.hafs,
               // Sans cette borne, seuls les mots FAUTIFS seraient colories :
               // `session_words` ne garde que les exceptions (cf. la doc du
               // parametre). Constate sur capture : un seul mot visible.
@@ -1303,7 +1585,7 @@ class SessionDetailScreen extends ConsumerWidget {
                   style: GoogleFonts.manrope(
                       fontSize: 13, color: AppColors.inkLight))
             else
-              for (final m in list) _LigneMot(m),
+              for (final m in list) _LigneMot(m, riwaya: session.riwaya),
           ],
         ),
       ),
@@ -1371,7 +1653,12 @@ class _Bilan extends StatelessWidget {
 // sur disque plutôt que d'extraire un flux v2 qui n'existe plus hors session.
 class _LigneMot extends ConsumerStatefulWidget {
   final MotArchive m;
-  const _LigneMot(this.m);
+
+  /// Riwaya DE LA SESSION qui a produit ce mot (cf. `SessionResume.riwaya`) --
+  /// jamais le réglage global vivant, cf. `showTajwidHelpSheet.riwaya`.
+  final String riwaya;
+
+  const _LigneMot(this.m, {required this.riwaya});
 
   @override
   ConsumerState<_LigneMot> createState() => _LigneMotState();
@@ -1392,6 +1679,9 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
       _erreur = null;
     });
     try {
+      // Cf. le même risque latent documenté dans `_ouvrir` de la portion
+      // ci-dessus (`fetchVerses` lit la riwaya globale, pas
+      // `widget.riwaya`) -- non corrigé ici pour la même raison.
       final versets = await QuranApi.fetchVerses(m.surahNumber!);
       final Verse verset = versets.firstWhere(
           (v) => v.ayahNumber == m.ayahNumber,
@@ -1408,6 +1698,7 @@ class _LigneMotState extends ConsumerState<_LigneMot> {
         archivedAudioPath: m.audioPath,
         extraitDebut: m.wordInAyah,
         extraitFin: m.wordInAyah == null ? null : m.wordInAyah! + 1,
+        riwaya: widget.riwaya == 'warsh' ? Riwaya.warsh : Riwaya.hafs,
         // "Réessayer ce mot" réussi depuis l'archive (2026-08-10, demande
         // utilisateur) : pas de session live à corriger, on retire plutôt
         // l'erreur du journal cumulé -- le récitateur vient de prouver qu'il
@@ -1675,8 +1966,13 @@ class _LigneSourateNeuve extends StatelessWidget {
                       .where((v) => v.pageNumber == premierePage)
                       .toList();
               Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) =>
-                    KaraokeRecitationScreen(verses: page.isEmpty ? versets : page),
+                builder: (_) => KaraokeRecitationScreen(
+                    verses: page.isEmpty ? versets : page,
+                    autoDemarrer: true,
+                    // forcerModeNormal: true -- sans lui, `autoDemarrer` seul
+                    // force le mode RÉFÉRENCE (texte visible, pas de
+                    // correction), cf. mushaf_screen.dart._openKaraoke.
+                    forcerModeNormal: true),
               ));
             },
           ),

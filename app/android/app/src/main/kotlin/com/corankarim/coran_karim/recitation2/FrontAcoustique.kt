@@ -79,6 +79,13 @@ interface FrontAcoustique {
     /** Noms des regles, index = ruleId. Vide si le modele n'a pas de tete
      *  tajwid (rien a nommer). */
     val nomsRegles: List<String> get() = emptyList()
+
+    /** Seuil de detection de cette regle, en PROBABILITE (2026-09-02).
+     *  0,5 par defaut : c'est la frontiere naturelle d'une sigmoide, et la
+     *  valeur qu'utilisait le decodage avant les seuils calibres par classe.
+     *  Sert uniquement au JOURNAL -- la decision, elle, est prise dans
+     *  `decodeTajwid` avec le seuil en log, jamais recalculee ici. */
+    fun seuilRegle(ruleId: Int): Float = 0.5f
 }
 
 /** Implementation reelle : mel calcule cote app + ONNX. */
@@ -86,6 +93,7 @@ class FrontOnnx(private val moteur: FastConformerCtc) : FrontAcoustique {
     override val pieces: List<String> get() = moteur.vocabPieces
     override val blank: Int get() = moteur.blank
     override val nomsRegles: List<String> get() = moteur.ruleNames
+    override fun seuilRegle(ruleId: Int): Float = moteur.seuilProba(ruleId)
     override fun logprobs(echantillons: FloatArray): Array<FloatArray> =
         moteur.computeLogProbs(echantillons)
 

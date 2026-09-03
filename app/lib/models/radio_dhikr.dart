@@ -50,9 +50,8 @@ const kRadiosDhikr = <RadioDhikr>[
     cleTitre: 'soir',
     url: 'https://backup.qurango.net/radio/athkar_masa',
   ),
-  RadioDhikr(
-    id: 114,
-    cleTitre: 'roqya',
-    url: 'https://backup.qurango.net/radio/roqiah',
-  ),
+  // Roqya retirée (2026-08-23, demande utilisateur) : ne garder que matin et
+  // soir. L'entrée 'roqya' (id 114, https://backup.qurango.net/radio/roqiah)
+  // reste documentée ici pour mémoire -- pas de piste éliminée sans trace,
+  // cf. règle projet -- mais n'est plus proposée dans l'IHM.
 ];

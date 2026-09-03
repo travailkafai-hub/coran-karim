@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show StreamSubscription, Timer, unawaited;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +16,7 @@ import '../providers/last_coach_verse_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart';
 import '../services/diagnostic_log.dart';
+import '../services/portion_word_archiver.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart';
 import '../services/voice_fingerprint_service.dart';
@@ -359,8 +360,8 @@ class _Header extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.auto_awesome, color: AppColors.brassLight),
             tooltip: t.coachVerificationModeTooltip,
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const TajwidRulesScreen())),
+            // Feuille courte (modes seuls), cf. afficherFeuilleModes.
+            onPressed: () => afficherFeuilleModes(context),
           ),
         ],
       ),
@@ -383,16 +384,15 @@ class _StepBar extends StatelessWidget {
     return Container(
       color: AppColors.green900,
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+      // ── LECTURE RETIRÉE DE LA BARRE (2026-08-24) ────────────────────────
+      //
+      // Demande utilisateur : « je veux enlever dans mémorisation par palier
+      // la première étape Lecture, on passe directement à Entraînement ».
+      // `CoachMode.lecture` et `_LectureMode` restent dans le code (cf.
+      // `CoachNotifier.setup`) -- seule cette barre ne propose plus d'y
+      // aller. Deux puces au lieu de trois, une seule ligne de liaison.
       child: Row(
         children: [
-          _StepChip(
-            label: t.coachStepLecture,
-            icon: Icons.auto_stories_outlined,
-            active: session.mode == CoachMode.lecture,
-            done: session.mode1Done,
-            onTap: () => onSelect(CoachMode.lecture),
-          ),
-          _StepLine(done: session.mode1Done),
           _StepChip(
             label: t.coachStepTrain,
             icon: Icons.headphones_outlined,
@@ -612,8 +612,12 @@ class _ApprentissageMode extends ConsumerWidget {
       key: ValueKey('incremental-${verses.first.key}'),
       verse: verses.first,
       isLastVerse: session.isLastVerse,
-      onAllVersesDone: () =>
-          ref.read(coachProvider.notifier).setMode(CoachMode.controle),
+      onAllVersesDone: () {
+        // Arme le demarrage automatique du micro : on arrive au Controle par
+        // la reussite des paliers, l'utilisateur est deja en train de reciter.
+        ref.read(coachProvider.notifier).demarrerControleAuto = true;
+        ref.read(coachProvider.notifier).setMode(CoachMode.controle);
+      },
     );
   }
 }
@@ -763,6 +767,46 @@ class _ControleModeState extends ConsumerState<_ControleMode>
   /// Un écran ne décide que sur SA session.
   bool _controleLance = false;
 
+  StreamSubscription<int>? _wordLockedSub;
+
+  /// ── ARRÊT AUTOMATIQUE DE L'ENREGISTREMENT (2026-08-27) ───────────────────
+  ///
+  /// Demande utilisateur : « au lieu que le user clique sur l'arrêt de
+  /// l'enregistrement, je propose de chercher toujours à passer au suivant
+  /// [...] si le modèle valide le dernier mot il faut arrêter l'enregistrement
+  /// auto, également dans le contrôle ». Le palier l'avait déjà
+  /// (`coach_incremental_repeat.dart`), le contrôle non : il fallait taper sur
+  /// le micro pour clore, alors que la récitation était finie.
+  ///
+  /// ⚠️ LE CRITÈRE N'EST PAS « LE DERNIER MOT EST VALIDÉ », et c'est
+  /// structurel : le dernier mot n'obtient son verdict qu'À LA FERMETURE de
+  /// session (il lui faut `k=2` observations de fenêtres distinctes, or aucune
+  /// fenêtre ne vient après lui). Attendre sa validation, c'est attendre
+  /// l'instant qu'on cherche justement à provoquer. Le piège est déjà mesuré :
+  /// « TOUS JUGÉS » avait été essayé le 2026-08-18 côté palier -- 0
+  /// déclenchement sur 4 tours.
+  ///
+  /// Le signal retenu est donc le même que celui qui marche là-bas : le
+  /// dernier mot a été ATTEINT (il quitte `pending` dès que l'ancre arrive
+  /// dessus, sans attendre de verdict) ET la voix est retombée depuis
+  /// [_delaiSilence].
+  Timer? _finAuto;
+  static const double _seuilSilence = 0.10;
+  static const Duration _delaiSilence = Duration(milliseconds: 800);
+
+  /// Survit au démontage de l'écran, contrairement à `ref` -- capturé au
+  /// premier build (cf. son usage) pour que `_archiverMotDansPortion` puisse
+  /// encore lire les providers si un mot se verrouille juste après la
+  /// navigation. Même pattern que `_container` dans
+  /// `karaoke_recitation_screen.dart` (introduit le 2026-08-14 pour la même
+  /// raison, généralisé ici le 2026-08-24).
+  ProviderContainer? _container;
+
+  T _lireProvider<T>(ProviderListenable<T> p) {
+    final c = _container;
+    return c != null ? c.read(p) : ref.read(p);
+  }
+
   String get _text => widget.verses.map((v) => v.textUthmani).join(' ');
   String get _passageKey => widget.verses.map((v) => v.key).join('-');
 
@@ -775,16 +819,137 @@ class _ControleModeState extends ConsumerState<_ControleMode>
     )..repeat(reverse: true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(recitationProvider.notifier).setup(_text);
+      final n = ref.read(recitationProvider.notifier);
+      n.setup(_text);
+      // ── MICRO OUVERT D'OFFICE APRES LES PALIERS (2026-09-02) ───────────
+      // `consommerDemarrageAuto` ne rend true que si l'on vient de valider le
+      // dernier palier, et une seule fois -- cf. sa doc. Meme sequence que le
+      // tap sur le micro (`resetControl` + `_controleLance` + `startControle`)
+      // pour qu'il n'y ait pas deux chemins de demarrage a maintenir.
+      if (ref.read(coachProvider.notifier).consommerDemarrageAuto()) {
+        ref.read(coachProvider.notifier).resetControl();
+        setState(() {
+          _fingerprintChecked = false;
+          _fingerprintScore = null;
+          _controleLance = true;
+        });
+        n.startControle();
+      }
     });
     _fingerprint.ensureLoaded();
+    // ── SUIVI PERMANENT PAR PORTION, COMME EN RÉCITATION LIVE (2026-08-24) ──
+    //
+    // Demande utilisateur : reprendre « celui qui existe dans la vraie
+    // récitation » (`karaoke_recitation_screen.dart::_archiverMotDansPortion`)
+    // -- ce mode Contrôle n'écrivait JAMAIS dans `portion_words`. Conséquence
+    // mesurée : le pouce vers le bas de la fiche tajwid (`onWordContested`)
+    // faisait un `UPDATE ... WHERE ...` sur une ligne qui n'avait jamais été
+    // créée -- l'écran affichait « merci » sans que rien ait changé nulle
+    // part, un faux succès silencieux. Sans cet abonnement, le bouton reste
+    // câblé mais inopérant : il lui faut une ligne à mettre à jour.
+    _wordLockedSub = ref
+        .read(recitationProvider.notifier)
+        .wordLocked
+        .listen(_archiverMotDansPortion);
   }
 
   @override
   void dispose() {
     _pulse.dispose();
     _fingerprint.dispose();
+    _wordLockedSub?.cancel();
+    _finAuto?.cancel();
     super.dispose();
+  }
+
+  /// Avance au verset suivant de la session, ou PROLONGE la session si elle
+  /// n'en contient pas d'autre -- extrait tel quel de l'enchaînement
+  /// automatique (2026-08-24) pour que le balayage manuel (ci-dessous) fasse
+  /// EXACTEMENT la même chose, pas une variante.
+  ///
+  /// DEFAUT MESURE (journal v164, 22:02 et 22:04) : controle sur `cible=4
+  /// mots` -- le seul verset 1:2 -- quatre mots `definitif:vert`, donc
+  /// controle PARFAIT, et pourtant aucun passage. Cause : la session ne
+  /// contenait QU'UN verset, donc `hasNextVerse` etait faux et l'ancienne
+  /// condition sortait sans rien faire ni rien dire. Constat utilisateur :
+  /// « j'ai reussi, pas de passage au prochain verset ».
+  ///
+  /// Entrer dans le Coach sur UN verset est pourtant le cas courant (carte
+  /// « Reprendre », revision d'une erreur ponctuelle) : sans ceci, la
+  /// bascule n'aurait jamais rien fait dans ce cas.
+  ///
+  /// On charge le verset qui SUIT celui en cours -- jamais le debut de la
+  /// sourate : la session commence ou l'utilisateur l'a demarree, et
+  /// s'etend vers l'aval.
+  Future<void> _avancerAuVersetSuivant(CoachSessionState session) async {
+    final notifier = ref.read(coachProvider.notifier);
+    if (session.hasNextVerse) {
+      notifier.advanceAfterPerfectControl();
+      return;
+    }
+    final courant =
+        session.verses.isEmpty ? widget.verses.last : session.currentVerse;
+    try {
+      final tous = await QuranApi.fetchVerses(courant.surahNumber);
+      if (!mounted) return;
+      final suivants =
+          tous.where((x) => x.ayahNumber == courant.ayahNumber + 1);
+      if (suivants.isEmpty) return; // fin de sourate : rien apres
+      notifier.prolongerAvec(courant, suivants.first);
+    } catch (e) {
+      DiagnosticLog.log(
+          'Coach', 'prolongation impossible apres ${courant.key} : $e');
+    }
+  }
+
+  /// Balayage horizontal (n'importe quel sens) pour FORCER le passage au
+  /// verset suivant -- demande utilisateur explicite (2026-08-24) : « c'est
+  /// pour forcer le passage », en réponse au constat que l'exigence des 100 %
+  /// (`controleParfait`, tous les mots verts) bloque parfois l'avancée à
+  /// tort quand le modèle juge trop sévèrement un mot en réalité correct.
+  ///
+  /// N'attend PAS `controleParfait` : c'est tout son intérêt, un contournement
+  /// manuel assumé de cette exigence, pas une bascule de plus dessus. Actif
+  /// seulement une fois le contrôle terminé (`finished`) -- balayer avant
+  /// n'a pas de sens, il n'y a encore rien à valider ni à contourner.
+  void _forcerPassageManuel() {
+    final session = ref.read(coachProvider);
+    unawaited(_avancerAuVersetSuivant(session));
+  }
+
+  /// Verset contenant [wordIndex] (indice global, concaténation de
+  /// `widget.verses`) et son indice LOCAL dans ce verset -- même calcul que
+  /// `_openWordHelp`.
+  (Verse, int)? _verseEtLocal(int wordIndex) {
+    var offset = 0;
+    for (final v in widget.verses) {
+      final count = ArabicNormalizer.splitExpectedWords(v.textUthmani).length;
+      if (wordIndex < offset + count) return (v, wordIndex - offset);
+      offset += count;
+    }
+    return null;
+  }
+
+  /// Délègue à `services/portion_word_archiver.dart` -- MÊME fonction que
+  /// l'écran karaoké (factorisé le 2026-08-24, cf. sa doc en tête de fichier :
+  /// « ça sera mieux de réutiliser » plutôt que deux copies qui dérivent).
+  /// `_lireProvider` (dispose-safe) plutôt que `ref.read` : ce mode tourne
+  /// via un abonnement (`_wordLockedSub`) qui peut encore livrer un mot après
+  /// le démontage de l'écran -- même raison que documentée sur
+  /// `_lireProvider` dans `karaoke_recitation_screen.dart`.
+  Future<void> _archiverMotDansPortion(int wordIndex) async {
+    final words = _lireProvider(recitationProvider).words;
+    if (wordIndex < 0 || wordIndex >= words.length) return;
+    final ve = _verseEtLocal(wordIndex);
+    if (ve == null) return;
+    final (verse, local) = ve;
+    await archiverMotDansPortion(
+      lire: _lireProvider,
+      verse: verse,
+      wordIndexLocal: local,
+      wordIndexGlobal: wordIndex,
+      mot: words[wordIndex],
+    );
   }
 
   /// Tap sur un mot orange/rouge du résultat : retrouve le verset contenant ce
@@ -795,15 +960,35 @@ class _ControleModeState extends ConsumerState<_ControleMode>
     for (final v in widget.verses) {
       final count = ArabicNormalizer.splitExpectedWords(v.textUthmani).length;
       if (wordIndex < offset + count) {
+        final local = wordIndex - offset;
+        // ── N'AFFICHER QUE LE MOT EN CAUSE, PAS TOUTE L'AYA (2026-08-24) ────
+        //
+        // Manquait ici alors que déjà corrigé dans l'écran karaoké le
+        // 2026-08-05 (constat utilisateur sur CET écran-ci : « il affiche
+        // tout le verset, j'avais corrigé ça »). Même fonction PARTAGÉE que
+        // l'écran karaoké désormais (`services/portion_word_archiver.dart`),
+        // pas une copie -- cf. la doc en tête de ce fichier.
+        final (debut, finExclusif) = etendreAuxMotsContigusEnErreur(
+          words: words,
+          wordIndexGlobal: wordIndex,
+          wordIndexLocal: local,
+          motsDuVerset: count,
+        );
         showTajwidHelpSheet(
           context,
           ref,
           verse: v,
           playlist: widget.verses,
           focusWord: words[wordIndex].display,
+          entendu: words[wordIndex].heard,
           wordIndex: wordIndex,
-          localWordIndex: wordIndex - offset,
+          localWordIndex: local,
+          extraitDebut: debut,
+          extraitFin: finExclusif,
           onWordContested: () => ref.invalidate(portionsProvider),
+          // riwaya de LA SESSION (déjà figée par setup()) -- cf.
+          // RecitationSessionState.riwaya.
+          riwaya: ref.read(recitationProvider).riwaya,
         );
         return;
       }
@@ -813,11 +998,45 @@ class _ControleModeState extends ConsumerState<_ControleMode>
 
   @override
   Widget build(BuildContext context) {
+    _container ??= ProviderScope.containerOf(context, listen: false);
     final t = AppLocalizations.of(context)!;
     final rst = ref.watch(recitationProvider);
     final session = ref.watch(coachProvider);
     final listening = rst.status == RecitationStatus.listening;
     final finished = rst.status == RecitationStatus.finished && rst.total > 0;
+
+    // Arrêt automatique de l'enregistrement (cf. la doc de `_finAuto`) --
+    // même mécanisme éprouvé que le palier, jamais « tous jugés » (piège
+    // mesuré, cf. cette même doc).
+    ref.listen<RecitationSessionState>(recitationProvider, (prev, next) {
+      if (!_controleLance || next.status != RecitationStatus.listening) {
+        _finAuto?.cancel();
+        _finAuto = null;
+        return;
+      }
+      final dernier = next.words.isEmpty ? null : next.words.last;
+      final finAtteinte = dernier != null && dernier.status != WordStatus.pending;
+      if (finAtteinte && next.soundLevel < _seuilSilence) {
+        // `??=` : ne pas ré-armer à chaque bloc PCM, sinon le minuteur repart
+        // de zéro en permanence et n'échoit jamais.
+        _finAuto ??= Timer(_delaiSilence, () {
+          _finAuto = null;
+          if (!mounted) return;
+          if (ref.read(recitationProvider).status != RecitationStatus.listening) {
+            return;
+          }
+          DiagnosticLog.log('Controle',
+              'arret auto : dernier mot atteint + silence '
+              '${_delaiSilence.inMilliseconds} ms');
+          ref.read(recitationProvider.notifier).stopContinuous();
+        });
+      } else {
+        // Il reparle, ou un mot vient de repasser en cours de jugement : on
+        // désarme, la fin n'est plus acquise.
+        _finAuto?.cancel();
+        _finAuto = null;
+      }
+    });
 
     if (finished && session.controlAccuracy == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -866,42 +1085,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
         await Future.delayed(const Duration(milliseconds: 2600));
         if (!mounted) return;
 
-        // ── S'IL N'Y A PAS DE SUIVANT, ON PROLONGE LA SESSION ───────────
-        //
-        // DEFAUT MESURE (journal v164, 22:02 et 22:04) : controle sur
-        // `cible=4 mots` -- le seul verset 1:2 -- quatre mots
-        // `definitif:vert`, donc controle PARFAIT, et pourtant aucun
-        // passage. Cause : la session ne contenait QU'UN verset, donc
-        // `hasNextVerse` etait faux et l'ancienne condition sortait sans
-        // rien faire ni rien dire. Constat utilisateur : « j'ai reussi, pas
-        // de passage au prochain verset ».
-        //
-        // Entrer dans le Coach sur UN verset est pourtant le cas courant
-        // (carte « Reprendre », revision d'une erreur ponctuelle) : sans
-        // ceci, la bascule n'aurait jamais rien fait dans ce cas.
-        //
-        // On charge le verset qui SUIT celui en cours -- jamais le debut de
-        // la sourate : la session commence ou l'utilisateur l'a demarree, et
-        // s'etend vers l'aval.
-        final notifier = ref.read(coachProvider.notifier);
-        if (session.hasNextVerse) {
-          notifier.advanceAfterPerfectControl();
-          return;
-        }
-        final courant = session.verses.isEmpty
-            ? widget.verses.last
-            : session.currentVerse;
-        try {
-          final tous = await QuranApi.fetchVerses(courant.surahNumber);
-          if (!mounted) return;
-          final suivants =
-              tous.where((x) => x.ayahNumber == courant.ayahNumber + 1);
-          if (suivants.isEmpty) return; // fin de sourate : rien apres
-          notifier.prolongerAvec(courant, suivants.first);
-        } catch (e) {
-          DiagnosticLog.log('Coach',
-              'prolongation impossible apres ${courant.key} : $e');
-        }
+        await _avancerAuVersetSuivant(session);
       });
     }
 
@@ -917,7 +1101,14 @@ class _ControleModeState extends ConsumerState<_ControleMode>
       }
     }
 
-    return SingleChildScrollView(
+    // Balayage horizontal pour FORCER le passage au verset suivant (cf. la
+    // doc de `_forcerPassageManuel`) -- seulement actif une fois le contrôle
+    // terminé, `null` sinon désactive proprement le geste plutôt que de le
+    // laisser capter des drags sans effet.
+    return GestureDetector(
+      onHorizontalDragEnd:
+          finished ? (_) => _forcerPassageManuel() : null,
+      child: SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       child: Column(
         children: [
@@ -930,6 +1121,16 @@ class _ControleModeState extends ConsumerState<_ControleMode>
           // Before finish: blurred card. After: colored words revealed.
           finished
               ? VerseDisplay(
+                  // Les mots dont la cause est le tajwid : `classifyError`,
+                  // meme source que la recitation et la fiche du mot.
+                  motsTajwidRates: {
+                    for (var i = 0; i < rst.words.length; i++)
+                      if (ref
+                              .read(recitationProvider.notifier)
+                              .classifyError(i) ==
+                          RecitationErrorKind.tajwid)
+                        i
+                  },
                   words: rst.words,
                   verses: widget.verses,
                   onProblemWordTap: (i) => _openWordHelp(rst.words, i),
@@ -1055,6 +1256,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
             ),
           ],
         ],
+      ),
       ),
     );
   }
@@ -1209,11 +1411,20 @@ class VerseDisplay extends StatelessWidget {
   /// tajwid + lecture réciteur en mode Contrôle. Null ailleurs (pas de tap).
   final void Function(int wordIndex)? onProblemWordTap;
 
+  /// Index des mots dont l'erreur est une REGLE DE TAJWID non realisee
+  /// (2026-09-02) -- peints en violet au lieu de l'orange des imprecisions.
+  ///
+  /// Fourni par l'appelant, qui a `ref` : ce widget est sans etat et ne peut
+  /// pas interroger `classifyError` lui-meme. Vide = aucun violet, donc le
+  /// rendu d'avant au pixel pres.
+  final Set<int> motsTajwidRates;
+
   const VerseDisplay({
     super.key,
     required this.words,
     required this.verses,
     this.onProblemWordTap,
+    this.motsTajwidRates = const {},
   });
 
   @override
@@ -1302,8 +1513,22 @@ class VerseDisplay extends StatelessWidget {
         borderTint = AppColors.green600;
         break;
       case WordStatus.unclear:
-        bgTint = AppColors.tajwidMadd.withOpacity(0.36);
-        borderTint = AppColors.tajwidMadd;
+        // ── VIOLET SI C'EST LE TAJWID (2026-09-02) ─────────────────────
+        // Un mot degrade par une REGLE non realisee et un mot simplement
+        // imprecis arrivaient tous deux en `unclear`, donc tous deux en
+        // orange. Ils n'appellent pourtant pas le meme geste : l'orange dit
+        // « redis-le mieux », le violet dit « les lettres etaient justes,
+        // c'est la regle qui manque ». La couleur existait depuis le
+        // 2026-08-01 mais n'etait posee que dans l'ecran de recitation.
+        //
+        // `classifyError` : meme source que la recitation et que la fiche du
+        // mot -- une seule definition de « erreur de tajwid » dans l'app.
+        final tajwid = motsTajwidRates.contains(index);
+        bgTint = tajwid
+            ? AppColors.recitationTajwidError.withOpacity(0.34)
+            : AppColors.tajwidMadd.withOpacity(0.36);
+        borderTint =
+            tajwid ? AppColors.recitationTajwidError : AppColors.tajwidMadd;
         break;
       case WordStatus.error:
         // Rouge SEULEMENT si verrouillé (demande utilisateur 2026-07-09,
@@ -1520,23 +1745,20 @@ class MicSection extends StatelessWidget {
           children: [
             _AnimatedMicButton(
                 listening: listening, pulse: pulse, onTap: onTap),
-            if (finished) ...[
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: onReset,
-                child: Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.cream300,
-                    border: Border.all(color: AppColors.cream300),
-                  ),
-                  child: const Icon(Icons.replay_rounded,
-                      color: AppColors.inkLight, size: 22),
-                ),
-              ),
-            ],
+            // ── BOUTON « REFAIRE » RETIRE (2026-09-02) ────────────────────
+            // Constat utilisateur : « le micro et le signe pour refaire,
+            // c'est la meme chose -- enleve la fleche a cote du micro ».
+            //
+            // Il avait raison : une fois la recitation terminee, appuyer sur
+            // le micro RELANCE deja un tour (cf. le `onTap` du micro, qui
+            // appelle `setup` + `resetControl` + `startControle` quand on
+            // n'ecoute pas). Les deux boutons faisaient donc la meme chose,
+            // cote a cote, avec deux icones differentes -- de quoi croire
+            // qu'ils different.
+            //
+            // `onReset` reste EN PLACE et cable (il sert au « retour
+            // entrainement » et pourra resservir) : seul ce bouton en double
+            // disparait de l'ecran.
           ],
         ),
         const SizedBox(height: 8),

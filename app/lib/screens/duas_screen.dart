@@ -653,10 +653,14 @@ class _RadiosDhikrState extends State<_RadiosDhikr> {
     super.dispose();
   }
 
+  // Roqya retirée (2026-08-23) : ne reste que matin/soir, cf. radio_dhikr.dart.
+  // Repli défensif sur `cle` brute (jamais atteint tant que `kRadiosDhikr` ne
+  // porte que ces deux entrées) plutôt qu'une clé de traduction qui n'existe
+  // plus.
   String _titre(AppLocalizations t, String cle) => switch (cle) {
         'matin' => t.duasRadioMatin,
         'soir' => t.duasRadioSoir,
-        _ => t.duasRadioRoqya,
+        _ => cle,
       };
 
   Future<void> _basculer(RadioDhikr r) async {

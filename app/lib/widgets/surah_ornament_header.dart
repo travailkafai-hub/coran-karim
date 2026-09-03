@@ -23,13 +23,38 @@ import '../models/verse.dart';
 
 class SurahOrnamentHeader extends StatelessWidget {
   final Surah surah;
-  const SurahOrnamentHeader({super.key, required this.surah});
+
+  /// Variante COMPACTE, pour la vue Page (2026-09-03).
+  ///
+  /// Meme dessin, meme medaillon, meme filets -- seules les tailles changent.
+  /// Demande utilisateur : « le signe que tu as cree ici c'est plutot joli,
+  /// mieux que ce que tu me proposais tout a l'heure », en parlant de ce
+  /// bandeau vu dans l'ecran de lecture continue.
+  ///
+  /// Ce n'est pas un second bandeau : c'est le meme, remis a l'echelle. Ecrire
+  /// une copie aurait fait diverger les deux ecrans au premier retouche.
+  final bool compact;
+
+  /// Hauteur EXACTE de la variante compacte, bornee par le `SizedBox` +
+  /// `FittedBox` ci-dessous.
+  ///
+  /// Elle est publique parce que la vue Page en a besoin AVANT de construire
+  /// quoi que ce soit : sa recherche binaire de taille de police soustrait la
+  /// place des bandeaux de la hauteur disponible (cf. `_blocAjuste`). Une
+  /// hauteur devinee ferait deborder la page des qu'une sourate en croise une
+  /// autre -- et le `ClipRect` masquerait le debordement au lieu de le
+  /// signaler.
+  static const double hauteurCompacte = 72;
+
+  const SurahOrnamentHeader(
+      {super.key, required this.surah, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final isMeccan = surah.revelationPlace.toLowerCase().startsWith('makk');
     final place = isMeccan ? t.surahMeccan : t.surahMedinan;
+    if (compact) return _compact(context, place, t);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
       child: Column(
@@ -99,6 +124,89 @@ class SurahOrnamentHeader extends StatelessWidget {
       ),
     );
   }
+  /// Un des DEUX medaillons qui encadrent le titre en variante compacte.
+  ///
+  /// Ecrit une fois et pose deux fois : deux copies auraient diverge des la
+  /// premiere retouche de taille ou de police.
+  Widget _medaillon() => SizedBox(
+        width: 38,
+        height: 38,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            SvgPicture.asset('assets/illumination/medallion.svg',
+                width: 38, height: 38),
+            Text(
+              '${surah.number}',
+              style: GoogleFonts.amiri(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.cream,
+              ),
+            ),
+          ],
+        ),
+      );
+
+  /// La meme chose, a l'echelle de la vue Page.
+  ///
+  /// `SizedBox` + `FittedBox` : la hauteur est GARANTIE egale a
+  /// `hauteurCompacte`, quoi que fassent les metriques de police. C'est ce qui
+  /// permet a la vue Page de la reserver sans risque de debordement.
+  Widget _compact(BuildContext context, String place, AppLocalizations t) =>
+      SizedBox(
+        height: hauteurCompacte,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── TOUT SUR UNE LIGNE (2026-09-03) ──────────────────────
+              // « le signe puis sourate en dessous, ca occupe beaucoup
+              // d'espace ; mets sourate entre ces deux signes ». Le
+              // medaillon etait au-dessus du titre ; il est desormais DANS
+              // sa ligne, entre les deux filets. 40 px rendus au texte.
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const _OrnamentLine(),
+                  const SizedBox(width: 6),
+                  _medaillon(),
+                  const SizedBox(width: 10),
+                  Text(
+                    'سُورَةُ ${surah.nameArabic}',
+                    textDirection: TextDirection.rtl,
+                    style: GoogleFonts.scheherazadeNew(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.green900,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _medaillon(),
+                  const SizedBox(width: 6),
+                  const _OrnamentLine(),
+                ],
+              ),
+              const SizedBox(height: 1),
+              Text(
+                t.surahOrnamentMeta(place, surah.versesCount),
+                textAlign: TextAlign.center,
+                textDirection:
+                    Localizations.localeOf(context).languageCode == 'ar'
+                        ? TextDirection.rtl
+                        : TextDirection.ltr,
+                style: GoogleFonts.amiri(
+                  fontSize: 11,
+                  color: AppColors.inkLight,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 }
 
 /// Trait + losange, même formule que `_TitleRule` (surah_list_screen.dart)

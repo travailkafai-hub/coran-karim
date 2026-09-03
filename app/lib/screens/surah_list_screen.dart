@@ -13,9 +13,7 @@ import '../widgets/quran_pattern_background.dart';
 import 'mushaf_screen.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/prayer_settings_provider.dart';
-// Import conservé volontairement, en commentaire : le bouton « Suivre une
-// prière » est retiré de la v1 (cf. plus bas), l'écran lui existe toujours.
-// import 'prayer_follow_screen.dart';
+import 'prayer_follow_screen.dart';
 
 class SurahListScreen extends ConsumerStatefulWidget {
   const SurahListScreen({super.key});
@@ -117,17 +115,24 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
               // de la chaîne v2 (`sautLibre`), l'identification de sourate et
               // tout le cycle takbir/Fatiha/cible restent en place et
               // fonctionnels -- c'est un gros chantier mesuré, pas un
-              // brouillon. Seul CE bouton disparaît, donc le seul chemin qui
-              // y menait depuis l'IHM. Le rebrancher = rétablir ces six
-              // lignes, rien d'autre.
+              // brouillon. Seul CE bouton disparaissait de la barre par
+              // défaut.
               //
-              // Ancien code, gardé en trace (convention projet) :
-              //   IconButton(
-              //     icon: const Icon(Icons.mosque_rounded, color: AppColors.cream),
-              //     tooltip: t.homeFollowPrayerTooltip,
-              //     onPressed: () => Navigator.push(context,
-              //         MaterialPageRoute(builder: (_) => const PrayerFollowScreen())),
-              //   ),
+              // ── ACCÈS CACHÉ RÉTABLI (2026-08-26, demande utilisateur) ─────
+              // « je veux un accès caché de suivre la prière si on tape 5
+              // fois coach dans la page accueil ». Le bouton ne réapparaît
+              // que si `suivrePriereAccesCacheProvider` est vrai (cf. sa doc,
+              // `app_settings_provider.dart`, et le compteur de taps dans
+              // `main.dart::_HomeScreenState._openCoachTab`) -- la décision du
+              // 2026-08-09 tient toujours pour tout le monde, ceci n'est
+              // qu'une porte de secours qu'il faut connaître pour trouver.
+              if (ref.watch(suivrePriereAccesCacheProvider))
+                IconButton(
+                  icon: const Icon(Icons.mosque_rounded, color: AppColors.cream),
+                  tooltip: t.homeFollowPrayerTooltip,
+                  onPressed: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const PrayerFollowScreen())),
+                ),
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(

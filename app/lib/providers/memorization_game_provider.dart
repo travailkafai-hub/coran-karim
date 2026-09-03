@@ -9,6 +9,7 @@ import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import 'app_settings_provider.dart' show portionGranularityProvider;
 import 'memorization_game_records_provider.dart';
+import 'memorization_word_difficulty_provider.dart';
 
 /// Un verset découpé en mots pour le jeu.
 class GameVerse {
@@ -130,6 +131,31 @@ class MemorizationGameState {
   final String? currentPortionLabel;
   final int? currentPortionWordsTotal;
 
+  /// Le mot qui vient d'être validé avait été RATÉ auparavant (2026-08-26,
+  /// demande utilisateur : « un mot raté puis réussi, qu'il y ait un effet
+  /// pour dire super/bravo »). L'écran s'en sert pour un feedback distinct de
+  /// la validation ordinaire -- une réussite sur un mot qui résistait vaut
+  /// plus qu'une réussite de routine, et le dire entretient la motivation.
+  ///
+  /// Se CONSOMME comme `wrongFlash`/`justBeatRecord` (`?? false` dans
+  /// `copyWith`) : c'est un événement d'un instant, pas un état.
+  final bool justRedeemed;
+
+  /// Derniers mots du verset PRÉCÉDENT, à montrer juste avant de demander le
+  /// premier mot du verset courant (2026-08-26, demande utilisateur :
+  /// « le début des mots des versets sont souvent assujettis à l'oubli,
+  /// cherche une méthodologie pour aider à mémoriser le début de verset »).
+  ///
+  /// ── LE PONT DE TRANSITION ────────────────────────────────────────────────
+  /// La rupture de mémoire est à la JONCTION, pas dans le mot lui-même : on
+  /// sait réciter la fin du verset N, on sait réciter le verset N+1 une fois
+  /// lancé, mais l'enchaînement des deux ne s'est jamais construit. Montrer
+  /// la fin du verset précédent AU MOMENT de demander le premier mot du
+  /// suivant fait travailler exactement ce lien-là.
+  ///
+  /// `null` hors de ce cas (mot non initial, ou aucun verset avant).
+  final String? pontVersetPrecedent;
+
   const MemorizationGameState({
     required this.verses,
     required this.currentVerseIndex,
@@ -146,6 +172,8 @@ class MemorizationGameState {
     this.currentPortionUnitKey,
     this.currentPortionLabel,
     this.currentPortionWordsTotal,
+    this.justRedeemed = false,
+    this.pontVersetPrecedent,
   });
 
   /// Index global cumulé (sur tous les versets déjà chargés, dans l'ordre) du
@@ -190,6 +218,8 @@ class MemorizationGameState {
     String? currentPortionUnitKey,
     String? currentPortionLabel,
     int? currentPortionWordsTotal,
+    bool? justRedeemed,
+    String? pontVersetPrecedent,
   }) =>
       MemorizationGameState(
         verses: verses,
@@ -197,6 +227,12 @@ class MemorizationGameState {
         currentWordIndex: currentWordIndex ?? this.currentWordIndex,
         choices: choices ?? this.choices,
         wrongFlash: wrongFlash ?? false,
+        // `?? false` : un événement d'un instant, comme `wrongFlash`.
+        justRedeemed: justRedeemed ?? false,
+        // `?? null` et non `?? this.` : le pont ne vaut que pour LE mot qu'il
+        // introduit -- le garder ferait réapparaître la fin du verset
+        // précédent au milieu du verset suivant.
+        pontVersetPrecedent: pontVersetPrecedent,
         isGameComplete: isGameComplete ?? this.isGameComplete,
         isLoadingNextPage: isLoadingNextPage ?? this.isLoadingNextPage,
         totalWordsCompleted: totalWordsCompleted ?? this.totalWordsCompleted,
@@ -234,6 +270,8 @@ class MemorizationGameState {
         currentPortionUnitKey: currentPortionUnitKey,
         currentPortionLabel: currentPortionLabel,
         currentPortionWordsTotal: currentPortionWordsTotal,
+        justRedeemed: justRedeemed,
+        pontVersetPrecedent: pontVersetPrecedent,
       );
 
   /// Relance LE VERSET COURANT depuis son premier mot -- même geste que le
@@ -289,6 +327,26 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
   /// `afterVerseRestart` sur des mots déjà comptés une première fois.
   final Map<String, int> _portionRunCounts = {};
 
+  /// Mots ratés DANS CETTE PARTIE (clé normalisée, cf.
+  /// `MemorizationWordDifficulty.cle`). Sert à deux choses, toutes deux
+  /// demandées le 2026-08-26 :
+  ///  - le « bravo » quand un de ces mots finit par être réussi
+  ///    (`justRedeemed`) ;
+  ///  - la RÉPÉTITION RENFORCÉE : tant qu'un mot est là-dedans, il n'est pas
+  ///    considéré comme acquis, et le verset qui le contient est reproposé
+  ///    (cf. `_versetsARepasser`).
+  final Set<String> _motsRatesCettePartie = {};
+
+  /// Versets (index) contenant au moins un mot raté et pas encore repassés
+  /// sans faute -- la répétition renforcée du 2026-08-26. Un verset n'en sort
+  /// que lorsqu'il est traversé ENTIÈREMENT sans erreur.
+  final Set<int> _versetsARepasser = {};
+
+  /// Vrai tant que le verset courant est traversé sans aucune erreur -- remis
+  /// à `true` au début de chaque verset, mis à `false` à la première faute.
+  /// C'est lui qui décide si le verset sort de `_versetsARepasser`.
+  bool _versetCourantSansFaute = true;
+
   MemorizationGameNotifier(List<Verse> verses, this._ref, {Random? random})
       : _random = random ?? Random(),
         super(_initialState([
@@ -330,6 +388,9 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
   /// l'affichage seul : rien ne le précède, il n'y a rien à tester avant lui.
   void _prepareChoicesIfNeeded() {
     unawaited(_refreshCurrentPortionInfo());
+    // Nouveau verset : la traversée sans faute recommence à zéro (cf.
+    // `_versetsARepasser`).
+    if (state.currentWordIndex == 0) _versetCourantSansFaute = true;
     // `repriseApresErreur` : meme traitement que le tout premier mot de la
     // partie -- on MONTRE le mot au lieu de le faire deviner. Le drapeau est
     // repropage ici, sinon le `?? false` de `copyWith` l'eteindrait avant meme
@@ -338,11 +399,33 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
       state = state.copyWith(
           choices: const [],
           justBeatRecord: state.justBeatRecord,
+          justRedeemed: state.justRedeemed,
           repriseApresErreur: state.repriseApresErreur);
       return;
     }
     final correct = state.currentWord;
-    final pool = <String>[];
+    // Choix du tour PRÉCÉDENT (correct + leurres) -- `state.choices` n'est
+    // écrasé qu'à la toute fin de cette méthode, donc il porte encore
+    // l'ancien jeu ici. Demande utilisateur (2026-08-26) : « faut s'assurer
+    // qu'il n'y a pas de mot qui vient d'être utilisé » -- sans cette
+    // exclusion, un mot pouvait réapparaître comme leurre juste après avoir
+    // été le mot correct (ou un leurre) du tour d'avant, reconnaissable par
+    // simple récence plutôt que par sa place réelle dans le texte.
+    final motsDuTourPrecedent = state.choices.toSet();
+    // ── QUATRE CHOIX, QUATRE MOTS DIFFERENTS (2026-09-02) ──────────────────
+    // `Set` et non `List`. Signale par l'utilisateur : « il faut s'assurer que
+    // tu proposes 4 mots differents, parfois j'ai les memes mots ».
+    //
+    // La cause etait ici : le pool listait les mots a venir SANS dedoublonner,
+    // et le texte coranique repete enormement (مِن, فِى, ٱللَّهِ...). Un mot
+    // frequent pouvait donc y figurer dix fois, et `take(3)` apres melange en
+    // ramenait deux ou trois exemplaires -- l'ecran affichait alors deux
+    // boutons identiques, dont un seul comptait comme leurre. Le joueur voyait
+    // « le meme mot deux fois » sans savoir lequel taper.
+    //
+    // Un `Set` de Dart preserve l'ordre d'INSERTION (LinkedHashSet), donc le
+    // `shuffle` plus bas garde tout son sens : on melange des mots distincts.
+    final pool = <String>{};
     // Leurres pris parmi les mots de la sourate NON ENCORE atteints dans la
     // progression -- cohérent avec ce qui est en cours de mémorisation,
     // jamais du texte déjà vu (qui donnerait un indice trop facile) ni d'un
@@ -352,13 +435,39 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
       final startWord = vi == state.currentVerseIndex ? state.currentWordIndex + 1 : 0;
       for (var wi = startWord; wi < words.length; wi++) {
         final w = words[wi];
-        if (w != correct) pool.add(w);
+        if (w != correct && !motsDuTourPrecedent.contains(w)) pool.add(w);
       }
     }
-    pool.shuffle(_random);
-    final distractors = pool.take(_distractorCount).toList();
+    // `toList()` avant `shuffle` : un Set ne se melange pas en place.
+    final poolMelange = pool.toList()..shuffle(_random);
+    final distractors = poolMelange.take(_distractorCount).toList();
     final choices = [correct, ...distractors]..shuffle(_random);
-    state = state.copyWith(choices: choices, justBeatRecord: state.justBeatRecord);
+    state = state.copyWith(
+      choices: choices,
+      justBeatRecord: state.justBeatRecord,
+      justRedeemed: state.justRedeemed,
+      // PONT DE TRANSITION : la fin du verset précédent, uniquement quand on
+      // demande le PREMIER mot d'un verset (cf. `pontVersetPrecedent`).
+      pontVersetPrecedent: _pontVersLeVersetCourant(),
+    );
+  }
+
+  /// Nombre de mots de fin de verset montrés dans le pont de transition.
+  /// Trois : assez pour reconnaître la cadence de la fin du verset, pas assez
+  /// pour redonner le verset entier (ce qui n'entraînerait plus rien).
+  static const int _motsDuPont = 3;
+
+  /// Les derniers mots du verset PRÉCÉDENT, quand le mot en jeu est le
+  /// premier d'un verset -- `null` partout ailleurs. Cf. la doc de
+  /// `MemorizationGameState.pontVersetPrecedent` pour le pourquoi.
+  String? _pontVersLeVersetCourant() {
+    if (state.currentWordIndex != 0) return null;
+    final precedent = state.currentVerseIndex - 1;
+    if (precedent < 0) return null;
+    final mots = state.verses[precedent].words;
+    if (mots.isEmpty) return null;
+    final debut = mots.length > _motsDuPont ? mots.length - _motsDuPont : 0;
+    return mots.sublist(debut).join(' ');
   }
 
   /// Résout à quelle portion (Coach) appartient le verset EN COURS, et met
@@ -446,6 +555,16 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
     }
     if (tapped != state.currentWord) {
       final correct = state.currentWord;
+      // ── LE MOT RATÉ EST RETENU (2026-08-26) ───────────────────────────────
+      // Trois mécanismes s'appuient dessus, tous demandés le même jour :
+      // la couleur de difficulté (persistée, cf.
+      // `memorization_word_difficulty_provider.dart`), l'effet de réussite
+      // quand ce mot finit par passer (`justRedeemed`), et la répétition
+      // renforcée du verset qui le contient (`_versetsARepasser`).
+      _motsRatesCettePartie.add(MemorizationWordDifficulty.cle(correct));
+      _versetsARepasser.add(state.currentVerseIndex);
+      _versetCourantSansFaute = false;
+      _ref.read(memorizationWordDifficultyProvider.notifier).signalerEchec(correct);
       state = state.copyWith(
         wrongFlash: true,
         revealedAnswer: correct,
@@ -454,6 +573,16 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
       );
       unawaited(_restartVerseAfterReveal());
       return;
+    }
+
+    // Ce mot avait-il été raté ? (avant de le retirer de la liste juste
+    // en dessous -- l'écran a besoin de le savoir pour son effet de réussite)
+    final cleMot = MemorizationWordDifficulty.cle(state.currentWord);
+    final rachete = _motsRatesCettePartie.remove(cleMot);
+    if (rachete) {
+      _ref
+          .read(memorizationWordDifficultyProvider.notifier)
+          .signalerReussiteApresEchec(state.currentWord);
     }
 
     // ── LE SCORE NE COMPTE QUE LA PROGRESSION AU-DELÀ DU POINT LE PLUS LOIN
@@ -493,16 +622,25 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
         currentWordIndex: state.currentWordIndex + 1,
         totalWordsCompleted: total,
         furthestGlobalWordIndex: furthest,
+        justRedeemed: rachete,
       );
       _prepareChoicesIfNeeded();
       return;
     }
-    if (!state.isLastVerse) {
+    // Fin du verset : s'il a été traversé SANS faute, il est acquis et sort
+    // de la répétition renforcée. Sinon il y reste et sera reproposé (cf.
+    // `_prochainVerset`).
+    if (_versetCourantSansFaute) {
+      _versetsARepasser.remove(state.currentVerseIndex);
+    }
+    final suivant = _prochainVerset();
+    if (suivant != null) {
       state = state.copyWith(
-        currentVerseIndex: state.currentVerseIndex + 1,
+        currentVerseIndex: suivant,
         currentWordIndex: 0,
         totalWordsCompleted: total,
         furthestGlobalWordIndex: furthest,
+        justRedeemed: rachete,
       );
       _prepareChoicesIfNeeded();
       return;
@@ -512,6 +650,31 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
     state = state.copyWith(
         totalWordsCompleted: total, furthestGlobalWordIndex: furthest);
     unawaited(_loadNextPage());
+  }
+
+  /// Quel verset proposer après celui qui vient d'être terminé.
+  ///
+  /// ── RÉPÉTITION RENFORCÉE (2026-08-26, demande utilisateur) ───────────────
+  /// Un verset où une faute est tombée revient AVANT de continuer d'avancer,
+  /// tant qu'il n'a pas été traversé une fois entièrement sans erreur -- « si
+  /// un premier mot est raté, le palier concerné revient plus souvent que les
+  /// autres avant d'être considéré acquis ».
+  ///
+  /// On reprend le PLUS ANCIEN verset en attente (le plus loin derrière) :
+  /// c'est celui qui risque le plus d'être oublié, et le reprendre en premier
+  /// évite d'accumuler une dette de versets fragiles derrière soi.
+  ///
+  /// `null` = plus rien en attente ET plus de verset chargé après celui-ci :
+  /// l'appelant va alors chercher la page suivante (`_loadNextPage`).
+  int? _prochainVerset() {
+    if (_versetsARepasser.isNotEmpty) {
+      final aRepasser = _versetsARepasser.reduce((a, b) => a < b ? a : b);
+      // Jamais le verset qu'on vient tout juste de finir : le refaire
+      // immédiatement deux fois de suite n'apprend rien de plus et donne
+      // l'impression d'être bloqué. Il reviendra au tour d'après.
+      if (aRepasser != state.currentVerseIndex) return aRepasser;
+    }
+    return state.isLastVerse ? null : state.currentVerseIndex + 1;
   }
 
   /// Étend la partie avec la page suivante du Mushaf, appelé quand le
@@ -568,7 +731,10 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
   /// rate il revient à ce palier » -- un palier = un verset : le précédent
   /// est acquis dès qu'on l'a quitté, seul le verset EN COURS se répète).
   Future<void> _restartVerseAfterReveal() async {
-    await Future.delayed(const Duration(milliseconds: 1400));
+    // 1400 ms -> 2500 ms (2026-08-26, demande utilisateur : « c'est rapide
+    // actuellement », le joueur n'a pas le temps de lire le mot révélé avant
+    // que le verset ne reparte).
+    await Future.delayed(const Duration(milliseconds: 2500));
     if (!mounted) return;
     state = state.afterVerseRestart();
     _prepareChoicesIfNeeded();
