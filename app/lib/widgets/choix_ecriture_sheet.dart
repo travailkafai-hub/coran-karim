@@ -180,7 +180,7 @@ const kEcrituresMushaf = <EcritureMushaf>[
   ),
   (
     famille: 'Bouazzi Maghribi',
-    libelle: 'Maghribi (marocaine)',
+    libelle: 'Maghribi',
     note: "Maghribi — ecriture du Maroc",
     signes: 4,
     locale: true,

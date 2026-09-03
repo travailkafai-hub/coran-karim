@@ -79,6 +79,11 @@ interface FrontAcoustique {
         facteurSeuil: Float = 1f,
     ): List<com.corankarim.coran_karim.fastconformer.DetectedRule> = emptyList()
 
+    /** Probabilite MAXIMALE de chaque classe sur l'extrait, seuil franchi ou
+     *  NON. Vide par defaut (bancs JVM, modele sans tete tajwid). Sert a dire
+     *  POURQUOI une regle attendue manque : sous son seuil, ou trop breve. */
+    fun probMaxParClasse(tajwid: Array<FloatArray>?): FloatArray = FloatArray(0)
+
     /** Noms des regles, index = ruleId. Vide si le modele n'a pas de tete
      *  tajwid (rien a nommer). */
     val nomsRegles: List<String> get() = emptyList()
@@ -127,6 +132,9 @@ class FrontOnnx(private val moteur: FastConformerCtc) : FrontAcoustique {
         )
         return SortiesFront(o.letters, o.tajwid, o.etatEncodeur)
     }
+
+    override fun probMaxParClasse(tajwid: Array<FloatArray>?) =
+        moteur.probMaxParClasse(tajwid)
 
     override fun decodeTajwid(tajwid: Array<FloatArray>?, facteurSeuil: Float) =
         moteur.decodeTajwid(tajwid, facteurSeuil)

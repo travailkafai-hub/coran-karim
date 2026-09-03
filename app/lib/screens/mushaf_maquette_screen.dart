@@ -364,9 +364,22 @@ class _PageMushaf extends StatelessWidget {
     //
     // ⚠️ Couper la couleur ne change RIEN aux caracteres : ils viennent
     // toujours de `text_uthmani`, l'annotation ne fournit que la teinte.
-    final spansParSegment = tajwid
-        ? [for (final s in segments) _spansCanoniques(s.versets)]
-        : null;
+    // ⚠️ LES SPANS SONT CONSTRUITS DANS LES DEUX CAS (2026-09-03).
+    //
+    // Premiere version : `null` quand la couleur etait eteinte, donc `_bloc`
+    // peignait le texte d'un seul bloc avec la police de la page. Defaut
+    // constate a l'ecran : les medaillons de fin de verset sortaient en CARRES
+    // NOIRS avec le chiffre rejete a cote -- « si j'enleve couleur tajwid les
+    // chiffres sortent du signe du verset ». Cause : le correctif qui force le
+    // medaillon en Amiri vit dans `_spansCanoniques`, et n'etait donc applique
+    // qu'avec la couleur. Or les ecritures sans U+06DD (Maghribi, Aref Ruqaa,
+    // Reem Kufi, Markazi Text) ne savent pas le dessiner.
+    //
+    // On construit donc toujours les spans ; `couleur` ne commande QUE la
+    // teinte des regles, jamais la structure du texte.
+    final spansParSegment = [
+      for (final s in segments) _spansCanoniques(s.versets, couleur: tajwid),
+    ];
     final sourates = versets.map((v) => v.surahNumber).toSet().toList()..sort();
     // Le juz et le hizb VIENNENT DES DONNEES (2026-09-02) : ils etaient
     // estimes a partir du numero de page, ce qui se trompe des qu'une page
@@ -632,13 +645,18 @@ class _PageMushaf extends StatelessWidget {
   /// la couleur (cf. `tajweedSpansPerWord` et le commentaire de
   /// `_pageMushaf`). Le medaillon de fin de verset est ajoute ici, une seule
   /// fois -- l'annotation en portait deja un en clair, d'ou le doublon.
-  List<TextSpan> _spansCanoniques(List<Verse> versets) {
+  /// @param couleur applique la coloration tajwid. A `false`, les memes spans
+  /// sont produits dans l'encre de base -- c'est ce qui garde le medaillon de
+  /// fin de verset en Amiri quelle que soit l'ecriture choisie.
+  List<TextSpan> _spansCanoniques(List<Verse> versets, {bool couleur = true}) {
     final base = _policePage(famille: ecriture);
     final out = <TextSpan>[];
     for (final v in versets) {
       final mots = tajweedSpansPerWord(
         v.textUthmani,
-        v.textUthmaniTajweed,
+        // `null` = aucune couleur empruntee a l'annotation : les mots sortent
+        // dans l'encre de base, mais toujours decoupes de la meme facon.
+        couleur ? v.textUthmaniTajweed : null,
         base,
         sombre: sombre,
       );

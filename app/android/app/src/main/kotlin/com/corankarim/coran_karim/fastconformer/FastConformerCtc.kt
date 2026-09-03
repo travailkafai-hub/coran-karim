@@ -330,6 +330,40 @@ class FastConformerCtc(
             Math.exp(tajwidSeuilsLog[ruleId].toDouble()).toFloat()
         else 0.5f
 
+    /** Probabilite MAXIMALE atteinte par chaque classe sur cet extrait, que
+     *  le seuil ait ete franchi ou NON.
+     *
+     *  ── LE TROU QUE CELA COMBLE (2026-09-03) ─────────────────────────────
+     *
+     *  `decodeTajwid` ne rend que les DETECTIONS : une classe qui culmine sous
+     *  son seuil ne produit aucun span, donc aucune ligne de journal, donc
+     *  aucune probabilite. On savait donc dire pourquoi une regle etait
+     *  rejetee PAR SA DUREE (c'est journalise), jamais pourquoi elle l'etait
+     *  par son SEUIL -- et impossible de repondre a la question « c'est le
+     *  seuil ou la duree qui filtre ? ».
+     *
+     *  Pire, cela rendait toute statistique sur les probabilites trompeuse :
+     *  ne lire que les lignes existantes revient a ne compter que les
+     *  rescapes. J'ai moi-meme conclu a tort « 100 % des detections passent le
+     *  seuil » a partir de ce biais de selection.
+     *
+     *  La valeur etait deja calculee a chaque frame : elle etait simplement
+     *  jetee. Cette methode ne fait que la rendre.
+     *
+     *  @return tableau indexe par ruleId, en PROBABILITE (0..1). */
+    fun probMaxParClasse(tajwid: Array<FloatArray>?): FloatArray {
+        val n = tajwidNames.size
+        val out = FloatArray(n)
+        if (tajwid == null || !hasTajwidHead) return out
+        for (ligne in tajwid) {
+            for (c in 0 until minOf(n, ligne.size)) {
+                val p = Math.exp(ligne[c].toDouble()).toFloat()
+                if (p > out[c]) out[c] = p
+            }
+        }
+        return out
+    }
+
     /** Le modele charge expose-t-il une tete tajwid exploitable ? */
     val hasTajwid: Boolean get() = hasTajwidHead
 
