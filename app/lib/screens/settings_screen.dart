@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/reciter.dart';
 import '../models/riwaya.dart';
+import '../widgets/choix_ecriture_sheet.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart' show recitationVerifierProvider;
@@ -108,6 +109,27 @@ class SettingsScreen extends ConsumerWidget {
           // `PlayerNotifier.accorderALaRiwaya`). Un réglage transverse par
           // excellence -- il commande le texte du Mushaf, la récitation, la
           // recherche, le jeu et l'audio de correction.
+          // ── ECRITURE DU MUSHAF (2026-09-03) ──────────────────────────
+          // Demande utilisateur : « fais-moi toutes les ecritures en
+          // parametre, comme ca je change et je regarde ». Placee juste
+          // au-dessus de la riwaya : c'est le meme sujet -- comment le texte
+          // s'ecrit -- vu du cote de la forme et non du contenu.
+          //
+          // Ne touche QUE la vue Page (« mushaf iso papier »). L'ecran de
+          // lecture, le coach et le karaoke partagent `TajweedText` et leurs
+          // propres reglages de taille ; y propager ce choix demanderait de
+          // verifier chacun, ce qui n'a pas ete demande.
+          _SettingsTile(
+            icon: Icons.font_download_outlined,
+            title: 'Écriture du Mushaf',
+            subtitle: libelleEcriture(ref.watch(policeMushafPageProvider)),
+            color: AppColors.settingsAudio,
+            onTap: () => ouvrirChoixEcriture(
+              context,
+              ref,
+              sombre: ref.read(modeSombreProvider),
+            ),
+          ),
           _SettingsTile(
             icon: Icons.menu_book_rounded,
             title: t.settingsRiwayaTitle,

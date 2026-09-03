@@ -1174,3 +1174,43 @@ class CoachControleCumulatifNotifier extends StateNotifier<bool> {
     await prefs.setBool(_kPrefCoachControleCumulatif, value);
   }
 }
+
+const _kPrefPoliceMushafPage = 'police_mushaf_page';
+
+/// Ecriture du TEXTE CORANIQUE dans la vue Page du Mushaf (« mushaf iso
+/// papier »), et nulle part ailleurs.
+///
+/// Demande utilisateur 2026-09-03 : « fais-moi toutes les ecritures en
+/// parametre, comme ca je change et je regarde, sans toucher a celui qu'on
+/// affiche en premier ».
+///
+/// La valeur est le nom Google Fonts de la famille. Defaut `Amiri` : c'est
+/// l'ecriture deja en place, et la consigne etait de ne pas y toucher tant
+/// qu'un autre choix n'est pas fait.
+///
+/// Volontairement LOCAL a la vue Page. L'ecran de lecture, le coach et le
+/// karaoke partagent `TajweedText` et leurs propres reglages de taille ; y
+/// propager ce choix demanderait de verifier chacun, ce qui n'a pas ete
+/// demande.
+final policeMushafPageProvider =
+    StateNotifierProvider<PoliceMushafPageNotifier, String>((ref) {
+  return PoliceMushafPageNotifier();
+});
+
+class PoliceMushafPageNotifier extends StateNotifier<String> {
+  PoliceMushafPageNotifier() : super('Amiri') {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_kPrefPoliceMushafPage);
+    if (saved != null && saved.isNotEmpty && mounted) state = saved;
+  }
+
+  Future<void> definir(String famille) async {
+    state = famille;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefPoliceMushafPage, famille);
+  }
+}

@@ -10,6 +10,7 @@ import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
 import '../widgets/mushaf_page_chrome.dart';
+import '../widgets/choix_ecriture_sheet.dart';
 import '../widgets/tajweed_text.dart';
 
 /// Vue page « vrai mushaf », ouverte directement depuis l'icone de la lecture.
@@ -104,6 +105,15 @@ class _Charte {
 /// `amiri` (standard) : elle compose U+06DD correctement, contrairement a
 /// `scheherazadeNew`.
 ///
+/// ⚠️ CETTE PHRASE EST INEXACTE, mesuree telle le 2026-09-03 et conservee pour
+/// la trace : AUCUNE police ne « compose » U+06DD. Le caractere est de
+/// categorie Unicode `Cf`, aucune des 14 polices essayees n'a de regle GSUB le
+/// liant aux chiffres, et toutes ont une avance d'environ un cadratin -- le
+/// signe se pose donc A COTE du numero. Ce qui differe, c'est le dessin et le
+/// calage du glyphe. Le medaillon est desormais rendu en Amiri quelle que soit
+/// l'ecriture de la page (cf. `_spansCanoniques`), ce qui rend le point sans
+/// objet pour le choix de police.
+///
 /// ⚠️ NE PAS remettre `amiriQuran` : essayee le 2026-09-03, elle rend les
 /// HARAKAT EN ROUGE -- c'est une police a glyphes colores (COLR/CPAL), pensee
 /// pour un mushaf ou les signes sont teintes. Sur une page qui porte deja la
@@ -118,15 +128,28 @@ class _Charte {
 /// RELEVE pour consommer le reliquat de sa dichotomie (cf. `_blocAjuste`).
 /// Toujours vers le haut -- le baisser rapprocherait les harakat de la ligne
 /// suivante, defaut mesure et rejete le 2026-09-03.
+///
+/// `famille` : nom Google Fonts de l'ecriture choisie (cf.
+/// `policeMushafPageProvider` et `kEcrituresMushaf`). Defaut `Amiri` -- le
+/// rendu d'origine, que la consigne du 2026-09-03 demandait de ne pas changer
+/// tant qu'aucun autre choix n'est fait.
+///
+/// `getFont` et non `GoogleFonts.amiri(...)` : le nom vient d'un reglage, il
+/// ne peut donc pas etre un appel de methode ecrit en dur. Une famille inconnue
+/// ferait lever `getFont`, d'ou la liste FERMEE de `kEcrituresMushaf` -- on n'y
+/// ajoute une police qu'apres avoir verifie sa couverture des caracteres
+/// coraniques.
 TextStyle _policePage({
   double? taille,
   Color? couleur,
   double interligne = _kInterligne,
-}) => GoogleFonts.amiri(
-  fontSize: taille,
-  height: interligne,
-  fontWeight: FontWeight.w600,
-  color: couleur,
+  String famille = 'Amiri',
+}) => styleEcriture(
+  ecriturePour(famille),
+  taille: taille,
+  interligne: interligne,
+  graisse: FontWeight.w600,
+  couleur: couleur,
 );
 
 class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
@@ -136,9 +159,24 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     initialPage: widget.pageInitiale.clamp(1, _kPages) - 1,
   );
 
+  /// Une police vient d'arriver : la page doit se remesurer.
+  ///
+  /// Sans cela, la taille reste celle calculee sur la police de SECOURS --
+  /// defaut constate le 2026-09-03 (« la taille ne s'ajuste pas au changement
+  /// d'ecriture ; apres balayage, elle s'ajuste »), et confirme par six
+  /// ecritures differentes qui rendaient la meme occupation au dixieme.
+  void _policeChargee() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
+    // `systemFonts` est notifie par Flutter des qu'une police devient
+    // disponible. On s'y abonne plutot que d'attendre un delai fixe : le temps
+    // de telechargement depend du reseau, un delai serait tantot trop court,
+    // tantot du retard gratuit a chaque ouverture.
+    PaintingBinding.instance.systemFonts.addListener(_policeChargee);
     // Plein écran : ni barre d'état ni boutons système. `immersiveSticky` les
     // ramène brièvement sur un balayage depuis le bord puis les re-masque --
     // le geste de feuilletage n'est donc jamais confisqué par le système.
@@ -154,6 +192,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
 
   @override
   void dispose() {
+    PaintingBinding.instance.systemFonts.removeListener(_policeChargee);
     // Sans cette restauration, TOUT le reste de l'app resterait sans barres
     // système après un passage par la maquette.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -174,6 +213,10 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     //
     final sombre = ref.watch(modeSombreProvider);
     final warsh = ref.watch(riwayaProvider) == Riwaya.warsh;
+    // ECRITURE DU TEXTE CORANIQUE (2026-09-03) : reglage local a cette vue,
+    // defaut `Amiri` -- le rendu d'origine, inchange tant qu'aucun autre choix
+    // n'est fait.
+    final ecriture = ref.watch(policeMushafPageProvider);
     return Scaffold(
       backgroundColor: sombre ? AppColors.sombreBg : const Color(0xFFF3EAD6),
       // CHGPT : la page reste toujours en plein ecran. Un toucher avance
@@ -186,10 +229,15 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
           page: i + 1,
           sombre: sombre,
           warsh: warsh,
+          ecriture: ecriture,
           onTap: () => _ctrl.nextPage(
             duration: const Duration(milliseconds: 260),
             curve: Curves.easeOutCubic,
           ),
+          // Raccourci : la meme feuille que dans les Reglages, pour
+          // comparer deux ecritures sans quitter la page.
+          onLongPress: () =>
+              ouvrirChoixEcriture(context, ref, sombre: sombre),
         ),
       ),
     );
@@ -203,18 +251,28 @@ class _PageMushaf extends StatelessWidget {
   final bool sombre;
   final bool warsh;
 
+  /// Nom Google Fonts de l'ecriture du TEXTE CORANIQUE (cf.
+  /// `policeMushafPageProvider`). L'en-tete et le pied gardent Amiri : ce sont
+  /// des reperes de navigation, les faire varier brouillerait la comparaison
+  /// entre deux ecritures.
+  final String ecriture;
+
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
   const _PageMushaf({
     required this.page,
     required this.sombre,
     required this.warsh,
+    required this.ecriture,
     required this.onTap,
+    required this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       behavior: HitTestBehavior.opaque,
       child: FutureBuilder<List<Verse>>(
         future: warsh
@@ -536,67 +594,24 @@ class _PageMushaf extends StatelessWidget {
     return resultat;
   }
 
-  static const _clesHurufMuqattaat = <String>{
-    '2:1',
-    '3:1',
-    '7:1',
-    '10:1',
-    '11:1',
-    '12:1',
-    '13:1',
-    '14:1',
-    '15:1',
-    '19:1',
-    '20:1',
-    '26:1',
-    '27:1',
-    '28:1',
-    '29:1',
-    '30:1',
-    '31:1',
-    '32:1',
-    '36:1',
-    '38:1',
-    '40:1',
-    '41:1',
-    '42:1',
-    '42:2',
-    '43:1',
-    '44:1',
-    '45:1',
-    '46:1',
-    '50:1',
-    '68:1',
-  };
-
-  bool _estHurufMuqattaatWarsh(Verse verset) =>
-      warsh &&
-      _clesHurufMuqattaat.contains(
-        '${verset.surahNumber}:${verset.ayahNumber}',
-      );
-
-  /// Separe les lettres inaugurales sans separer leurs harakat. Le NNBSP
-  /// empeche Amiri de ligaturer les lettres entre elles et interdit une coupure
-  /// de ligne au milieu du groupe.
-  String _espacerHurufMuqattaat(String texte) {
-    final finHuruf = texte.indexOf(' ');
-    final huruf = finHuruf == -1 ? texte : texte.substring(0, finHuruf);
-    final suite = finHuruf == -1 ? '' : texte.substring(finHuruf);
-    final groupes = <String>[];
-    var courant = StringBuffer();
-    for (final rune in huruf.runes) {
-      final lettreArabe =
-          (rune >= 0x0621 && rune <= 0x063A) ||
-          (rune >= 0x0641 && rune <= 0x064A);
-      if (lettreArabe && courant.isNotEmpty) {
-        groupes.add(courant.toString());
-        courant = StringBuffer();
-      }
-      courant.writeCharCode(rune);
-    }
-    if (courant.isNotEmpty) groupes.add(courant.toString());
-    return '${groupes.join('\u202F')}$suite';
-  }
+  // ── ESPACEMENT DES LETTRES INAUGURALES : RETIRE (2026-09-03) ──────────
+  //
+  // Un mecanisme `_espacerHurufMuqattaat` inserait un U+202F (NARROW NO-BREAK
+  // SPACE) entre chaque lettre des huruf muqatta'at en Warsh -- `أَلَٓمِّٓ`
+  // devenait `أَ⁠ لَّ⁠ مۡ` a l'ecran -- pour empecher Amiri de les ligaturer.
+  // Il portait aussi la liste des 29 versets concernes (2:1, 3:1, 7:1, 10:1...).
+  //
+  // REFUS UTILISATEUR, immediat et sans appel : « faut pas inventer et
+  // modifier le texte sacre ! », puis « il a rajoute des espaces, c'est pas
+  // tolere ». La regle du projet le disait deja pour la Bismillah : le texte
+  // coranique ne se compose jamais a la main. Inserer un caractere absent de
+  // la source -- meme invisible, meme typographique -- c'est ecrire dans le
+  // texte revele.
+  //
+  // ⚠️ NE PAS LE REINTRODUIRE sous une autre forme (ZWNJ U+200C, tatweel
+  // U+0640, letterSpacing applique a ces seuls versets) : le probleme de
+  // depart -- ces lettres paraissent trop serrees -- se traite dans la POLICE
+  // ou la taille, jamais dans la chaine de caracteres.
 
   /// Spans colores d'un segment, batis sur le TEXTE CANONIQUE.
   ///
@@ -605,16 +620,9 @@ class _PageMushaf extends StatelessWidget {
   /// `_pageMushaf`). Le medaillon de fin de verset est ajoute ici, une seule
   /// fois -- l'annotation en portait deja un en clair, d'ou le doublon.
   List<TextSpan> _spansCanoniques(List<Verse> versets) {
-    final base = _policePage();
+    final base = _policePage(famille: ecriture);
     final out = <TextSpan>[];
     for (final v in versets) {
-      if (_estHurufMuqattaatWarsh(v)) {
-        out.add(
-          TextSpan(text: _espacerHurufMuqattaat(v.textUthmani), style: base),
-        );
-        out.add(TextSpan(text: ' ${_medaillon(v.ayahNumber)} ', style: base));
-        continue;
-      }
       final mots = tajweedSpansPerWord(
         v.textUthmani,
         v.textUthmaniTajweed,
@@ -691,7 +699,28 @@ class _PageMushaf extends StatelessWidget {
         }
       }
       if (v.ayahNumber > 0) {
-        out.add(TextSpan(text: '${_medaillon(v.ayahNumber)} ', style: base));
+        // ── LE MEDAILLON GARDE TOUJOURS LE MEME DESSIN ──────────────────
+        //
+        // « si les chiffres des versets ne sont pas la ou il y a le signe,
+        // parfois c'est noir » (2026-09-03), a verifier sur TOUS les styles.
+        //
+        // Mesure fontTools sur les 14 polices : U+06DD est de categorie
+        // Unicode `Cf`, aucune police n'a de regle GSUB le liant aux chiffres,
+        // et toutes ont une avance d'environ un cadratin -- le signe se pose
+        // A COTE du numero. Quatre polices ne l'ont meme pas (Aref Ruqaa,
+        // Reem Kufi, Markazi Text, Bouazzi Maghribi) : chez elles le medaillon
+        // ne se dessine pas du tout.
+        //
+        // On rend donc CE fragment en Amiri quelle que soit l'ecriture du
+        // texte -- meme montage que le signe de sajda. Amiri est embarquee
+        // dans l'APK, ce repli tient donc hors ligne meme si l'ecriture
+        // choisie, elle, doit encore se telecharger.
+        out.add(
+          TextSpan(
+            text: '${_medaillon(v.ayahNumber)} ',
+            style: base.copyWith(fontFamily: GoogleFonts.amiri().fontFamily),
+          ),
+        );
       }
     }
     return out;
@@ -703,12 +732,14 @@ class _PageMushaf extends StatelessWidget {
     List<TextSpan>? spans, {
     double interligne = _kInterligne,
   }) {
-    final style = GoogleFonts.amiri(
-      fontSize: taille,
-      height: interligne,
+    final style = styleEcriture(
+      ecriturePour(ecriture),
+      taille: taille,
+      interligne: interligne,
+      graisse: FontWeight.w600,
       // Blanc pur sur fond sombre fatigue sur une page pleine de texte : on
       // reprend l'encre crème du reste de l'app plutôt que `sombreInk`.
-      color: sombre ? AppColors.cream : const Color(0xFF1A1208),
+      couleur: sombre ? AppColors.cream : const Color(0xFF1A1208),
     );
     // ── LA DERNIERE LIGNE N'EST PAS JUSTIFIEE, ET FLUTTER NE SAIT PAS ───
     //
@@ -759,13 +790,39 @@ class _PageMushaf extends StatelessWidget {
   /// La mesure porte sur la SOMME des segments et sur la hauteur des bandeaux
   /// (2026-09-03) : mesurer un seul bloc, comme avant, ferait deborder la page
   /// des qu'un bandeau s'intercale entre deux sourates.
+  /// Hauteur reelle de chaque segment, pour une taille et un interligne donnes.
+  ///
+  /// Extraite pour pouvoir etre RAPPELEE : la garde de debordement doit
+  /// remesurer apres chaque recul, sinon elle valide une hauteur qui n'est
+  /// plus celle qui sera peinte.
+  List<double> _hauteursSegments(
+    List<({int sourate, String texte, List<Verse> versets})> segments,
+    List<List<TextSpan>>? spansParSegment,
+    TextStyle style,
+    double taille,
+    double interligne,
+    double largeur,
+  ) {
+    final out = <double>[];
+    for (var s = 0; s < segments.length; s++) {
+      final st = style.copyWith(fontSize: taille, height: interligne);
+      final peintre = TextPainter(
+        text: _spanMesure(segments[s].texte, spansParSegment?[s], st, taille),
+        textDirection: TextDirection.rtl,
+        textAlign: TextAlign.justify,
+      )..layout(maxWidth: largeur);
+      out.add(peintre.height);
+    }
+    return out;
+  }
+
   Widget _blocAjuste(
     List<({int sourate, String texte, List<Verse> versets})> segments,
     List<List<TextSpan>>? spansParSegment,
   ) {
     return LayoutBuilder(
       builder: (context, contraintes) {
-        final style = _policePage();
+        final style = _policePage(famille: ecriture);
         // 58 et non 46 : en dessous, le libelle des medaillons
         // (`آياتها`, `ترتيبها`) devient illisible.
         // La hauteur vient du widget lui-meme (`hauteurCompacte`), elle
@@ -833,20 +890,37 @@ class _PageMushaf extends StatelessWidget {
                 2.45,
               );
 
-        // Hauteur REELLE de chaque segment, mesuree avec l'interligne
-        // definitif : c'est elle qui borne le `SizedBox` ci-dessous et coupe
-        // la ligne vide ajoutee par `_bloc` pour justifier la derniere ligne.
-        final hauteurs = <double>[];
-        for (var s = 0; s < segments.length; s++) {
-          final sp = spansParSegment?[s];
-          final st = style.copyWith(fontSize: basse, height: interligne);
-          final peintre = TextPainter(
-            text: _spanMesure(segments[s].texte, sp, st, basse),
-            textDirection: TextDirection.rtl,
-            textAlign: TextAlign.justify,
-          )..layout(maxWidth: contraintes.maxWidth);
-          hauteurs.add(peintre.height);
+        // ── LA SOMME EST MESUREE, PAS SUPPOSEE (2026-09-03) ───────────────
+        //
+        // Defaut constate a l'ecran, page 4 : « la derniere ligne n'est pas
+        // visible ». L'interligne definitif est DEDUIT d'une mesure faite a
+        // l'interligne de reference ; rien ne garantissait que la hauteur
+        // reelle, une fois l'interligne releve, tienne encore dans `dispo`.
+        // Quand elle debordait, le `ClipRect` de la page -- pose la pour
+        // empecher une diacritique de mordre le cadre -- coupait la derniere
+        // ligne SANS RIEN DIRE. Un `ClipRect` masque un debordement, il ne le
+        // corrige pas : c'est ce qui rendait le defaut invisible au calcul.
+        //
+        // On remesure donc apres chaque recul, et on recule tant que ca ne
+        // rentre pas : d'abord en rendant l'air ajoute, ensuite en descendant
+        // le corps. Certaines pages seront un peu moins pleines -- c'est le
+        // bon cote de l'erreur : mieux vaut du blanc qu'une ligne coupee.
+        var interligneRetenu = interligne;
+        var tailleRetenue = basse;
+        var hauteurs = _hauteursSegments(segments, spansParSegment, style,
+            tailleRetenue, interligneRetenu, contraintes.maxWidth);
+        for (var essai = 0; essai < 24; essai++) {
+          if (hauteurs.fold<double>(0, (a, b) => a + b) <= dispo) break;
+          if (interligneRetenu > _kInterligne) {
+            interligneRetenu = _kInterligne;
+          } else {
+            if (tailleRetenue <= 12) break;
+            tailleRetenue -= 1;
+          }
+          hauteurs = _hauteursSegments(segments, spansParSegment, style,
+              tailleRetenue, interligneRetenu, contraintes.maxWidth);
         }
+        basse = tailleRetenue;
 
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -860,7 +934,7 @@ class _PageMushaf extends StatelessWidget {
                     segments[s].texte,
                     basse,
                     spansParSegment?[s],
-                    interligne: interligne,
+                    interligne: interligneRetenu,
                   ),
                 ),
               ),

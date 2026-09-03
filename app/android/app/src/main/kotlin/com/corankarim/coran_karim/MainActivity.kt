@@ -123,6 +123,16 @@ class MainActivity : FlutterActivity() {
                     intent?.removeExtra("pas"); intent?.removeExtra("largeur")
                     val maxFusion = intent?.getStringExtra("maxfusion")?.toDoubleOrNull() ?: 18.0
                     intent?.removeExtra("maxbloc"); intent?.removeExtra("maxfusion")
+                    // `--es ecriture <famille>` (2026-09-03) : impose l'ecriture
+                    // de la vue Page, pour balayer les treize sans simuler de
+                    // taps dans la feuille de choix (cf. RecetteScreen.ecriture).
+                    // Le nom doit figurer dans kEcrituresMushaf cote Dart.
+                    //
+                    // ⚠️ Cette map est construite CLE PAR CLE : un extra absent
+                    // d'ici n'atteint jamais Dart, en silence. C'est ce qui a
+                    // fait rendre treize captures identiques au premier essai.
+                    val ecriture = intent?.getStringExtra("ecriture")
+                    intent?.removeExtra("ecriture")
                     result.success(
                         if (m == null) null
                         else mapOf("mode" to m, "sourate" to s, "versets" to n,
@@ -130,7 +140,8 @@ class MainActivity : FlutterActivity() {
                                    "fusion" to fusion,
                                    "preuves" to preuves,
                                    "pas" to pas, "largeur" to largeur,
-                                   "maxbloc" to maxBloc, "maxfusion" to maxFusion))
+                                   "maxbloc" to maxBloc, "maxfusion" to maxFusion,
+                                   "ecriture" to ecriture))
                 } else result.notImplemented()
             }
     }

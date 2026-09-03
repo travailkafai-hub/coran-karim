@@ -115,7 +115,50 @@ dependency_overrides:
 flutter:
   uses-material-design: true
   generate: true
+  # ── ECRITURE MAGHRIBI (2026-09-03) ────────────────────────────────────
+  #
+  # `Bouazzi Maghribi` -- revival de la main du Dr Ahmed Bouazzi par Alef Type
+  # Foundry, licence MIT annoncee dans le README du depot
+  # (github.com/aleftypefoundry/bouazzi-maghribi). 56 Ko.
+  #
+  # Declaree sous `fonts:` et NON dans `google_fonts/` : elle n'est pas au
+  # catalogue Google Fonts, donc `GoogleFonts.getFont` ne saurait pas la
+  # trouver. Elle se designe par `TextStyle(fontFamily: 'Bouazzi Maghribi')`
+  # -- cf. le champ `locale` de `kEcrituresMushaf`.
+  #
+  # ⚠️ 4 des 19 signes coraniques seulement (mesure fontTools) : ni medaillon
+  # de fin de verset, ni sajda, ni marques de waqf. Lettres et harakat de base
+  # completes. C'est une police pour VOIR le style marocain, pas pour lire un
+  # mushaf entier -- l'ecran l'annonce par son « 4/19 ».
+  fonts:
+    - family: Bouazzi Maghribi
+      fonts:
+        - asset: fonts/BouazziMaghribi-Regular.ttf
+
   assets:
+    # ── AMIRI EMBARQUEE (2026-09-03) ────────────────────────────────────
+    #
+    # Jusqu'ici AUCUNE police n'etait dans l'APK : `google_fonts` les
+    # telechargeait toutes au premier lancement. La police du CORAN dependait
+    # donc du reseau -- sur un telephone jamais connecte depuis l'installation,
+    # Flutter se rabattait sur la police systeme, qui ne dessine ni le
+    # medaillon de fin de verset ni les marques de waqf. Le TEXTE, lui, est
+    # local depuis le commit « Coran 100 % local » ; sa police ne l'etait pas.
+    #
+    # Amiri seule est embarquee (825 Ko : Regular 421 + Bold 404) : c'est
+    # l'ecriture par defaut. Les onze autres du selecteur restent en
+    # telechargement a la demande -- elles ne servent qu'a l'essai, et les
+    # embarquer couterait 3,8 Mo pour un usage ponctuel.
+    #
+    # ⚠️ NE PAS RENOMMER ces fichiers et NE PAS les declarer sous `fonts:` :
+    # `google_fonts` les reconnait par leur nom officiel (`Amiri-Regular.ttf`,
+    # `Amiri-Bold.ttf`) et donne alors la priorite au fichier local sur le
+    # reseau. Un nom modifie casse cette reconnaissance en silence -- la police
+    # repasserait par HTTP sans que rien ne le signale.
+    #
+    # `w600` (le poids du texte de la page) n'existe pas chez Amiri, qui n'a
+    # que 400 et 700 : c'est le Bold qui sert, d'ou les deux fichiers.
+    - google_fonts/
     - assets/icon/app_icon.png
     - assets/mindmaps/fr/
     - assets/mindmaps/en/

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/verse.dart';
 import '../providers/player_provider.dart';
 import '../services/diagnostic_log.dart';
+import '../providers/app_settings_provider.dart';
+import '../widgets/choix_ecriture_sheet.dart';
 import '../services/quran_api.dart';
 import '../providers/recitation_provider.dart';
 import '../services/fastconformer_verifier.dart';
@@ -56,7 +58,20 @@ class RecetteScreen extends ConsumerStatefulWidget {
       this.pas = 4.0,
       this.largeur = 4.0,
       this.maxBloc = 10.0,
-      this.maxFusion = 18.0});
+      this.maxFusion = 18.0,
+      this.ecriture});
+
+  /// Écriture imposée par le banc (`--es ecriture <famille>`), ou null.
+  ///
+  /// Sert à balayer les treize écritures sans simuler de taps dans la feuille
+  /// de choix : sa hauteur dépend du téléphone, il faut la faire défiler, et
+  /// une police qui se télécharge fait varier le temps de rendu — une capture
+  /// ratée se lirait alors comme un défaut d'affichage.
+  ///
+  /// Le banc écrit le MÊME réglage que la feuille (`policeMushafPageProvider`)
+  /// puis laisse tourner le code de production : aucune branche de test dans
+  /// le rendu. Le réglage étant persisté, il reste actif après le banc.
+  final String? ecriture;
 
   /// `ecoute` (l'app juge) ou `lecture` (l'app joue le récitateur).
   /// Null = l'utilisateur choisit sur place (accès manuel depuis l'accueil).
@@ -215,6 +230,21 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
         // valide, et l'affichage actuel n'est pas touche.
         //   adb shell am start -n <pkg>/.MainActivity \
         //       --es recette mushaf --ei sourate 2
+        // Écriture imposée : le nom doit figurer dans `kEcrituresMushaf`.
+        // Sinon on le journalise et on garde l'écriture courante, plutôt que
+        // de peindre la page dans la police système sans que rien ne le dise.
+        if (widget.ecriture != null && widget.ecriture!.isNotEmpty) {
+          if (kEcrituresMushaf.any((e) => e.famille == widget.ecriture)) {
+            await ref
+                .read(policeMushafPageProvider.notifier)
+                .definir(widget.ecriture!);
+            DiagnosticLog.log(
+                'RECETTE-MUSHAF', 'ecriture imposee : ${widget.ecriture}');
+          } else {
+            DiagnosticLog.log('RECETTE-MUSHAF',
+                'ecriture INCONNUE ignoree : ${widget.ecriture}');
+          }
+        }
         DiagnosticLog.log('RECETTE-MUSHAF',
             'maquette ouverte -- page de depart ${v.isNotEmpty ? v.first.pageNumber : 1}');
         if (!mounted) return;
