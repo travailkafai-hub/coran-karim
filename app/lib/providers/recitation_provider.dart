@@ -604,6 +604,48 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     TajwidRule.maddaPermissible,
   };
 
+  /// ── CE QUE LE MODÈLE NE SAIT PAS DISTINGUER (2026-09-03) ────────────────
+  ///
+  /// L'app expose 17 règles ; la taxonomie d'ENTRAÎNEMENT n'en compte que 10.
+  /// Deux groupes y ont été fusionnés, et le modèle n'a jamais appris à les
+  /// séparer (`classes_10.json`, livré avec le paquet, champ `source`) :
+  ///
+  ///   ikhfa_idgham_noun (5677) = ikhafa 3088 + idgham_ghunnah 2275 + iqlab 314
+  ///   shafawi            (794) = idgham_shafawi 506 + ikhafa_shafawi 288
+  ///
+  /// PREUVE DIRECTE sur l'audio de l'utilisateur, `مِّن جُوعٍ وَءَامَنَهُم`
+  /// (Quraysh 106:4), trois essais : en strict la tête rend `ikhafa` SEULE et
+  /// le palier échoue sur `idgham_ghunnah` attendue ; en tolérant, `ikhafa`,
+  /// `idgham_ghunnah` ET `iqlab` apparaissent ENSEMBLE, d'un coup, et le
+  /// palier passe. Trois noms, un seul signal : quand le seuil descend, les
+  /// trois franchissent en même temps parce que c'est la même valeur. Idem
+  /// pour `ikhafa_shafawi`/`idgham_shafawi`, qui sortent toujours par paire.
+  ///
+  /// L'app croyait donc distinguer ce que le modèle a fusionné, et reprochait
+  /// un `idgham_ghunnah` manquant à un récitateur qui l'avait fait -- la tête
+  /// le nommait simplement `ikhafa`, faute de savoir le nommer autrement.
+  ///
+  /// CE N'EST PAS DE LA TOLÉRANCE AJOUTÉE : c'est cesser de sur-interpréter la
+  /// sortie du modèle. Le prix est réel et il est nommé dans
+  /// DECOUVERTES_2026-08-31.md §3 : « l'app validera un iqlab attendu même si
+  /// le récitant fait une ikhafa -- le modèle ne sait pas les distinguer.
+  /// Arbitrage ouvert. » Le seul moyen de retrouver la finesse est de
+  /// réentraîner la tête sur les classes séparées, pas de régler un seuil.
+  static const _groupesFusionnes = <Set<TajwidRule>>[
+    {TajwidRule.ikhafa, TajwidRule.idghamGhunnah, TajwidRule.iqlab},
+    {TajwidRule.ikhafaShafawi, TajwidRule.idghamShafawi},
+  ];
+
+  /// Vrai si [r] est satisfaite par [emitted], directement ou via une règle
+  /// que le modèle ne sait pas distinguer d'elle.
+  static bool _satisfaiteParGroupe(TajwidRule r, Set<TajwidRule> emitted) {
+    if (emitted.contains(r)) return true;
+    for (final g in _groupesFusionnes) {
+      if (g.contains(r) && g.any(emitted.contains)) return true;
+    }
+    return false;
+  }
+
   List<TajwidRule> unrealizedRulesFor(int wordIndex, Set<TajwidRule> emitted,
       {Set<TajwidRule>? neighborEmitted}) {
     if (_activeRules.isEmpty) return const [];
@@ -631,11 +673,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
             // l'effacer ferait perdre la trace de la correspondance
             // statut -> durée, qui elle reste vraie.
             !_madSatisfaitParDuree(r, emitted) &&
-            !emitted.contains(r) &&
+            // `_satisfaiteParGroupe` et non `emitted.contains` : les trois
+            // règles du noun et les deux shafawi sont UNE classe pour le
+            // modèle (cf. `_groupesFusionnes`).
+            !_satisfaiteParGroupe(r, emitted) &&
             // Règle de jonction : tolère la détection sur le voisin de
             // frontière (cf. _junctionRules). Les règles intra-mot (madda,
             // ghunnah, qalaqah, slnt, laam_shamsiyah) restent strictes.
-            !(_junctionRules.contains(r) && neigh.contains(r)))
+            !(_junctionRules.contains(r) && _satisfaiteParGroupe(r, neigh)))
           r,
     ];
   }
