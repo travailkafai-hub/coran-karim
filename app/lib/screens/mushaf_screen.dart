@@ -119,14 +119,15 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   Timer? _headerHideTimer;
   /// Delai avant que le menu du Mushaf se replie tout seul.
   ///
-  /// 4 s a l'origine, porte a 10 s le 2026-09-02 sur demande utilisateur :
-  /// « reviens au menu, avec cette fois 10 s -- ca veut dire qu'il a commence
-  /// a lire ». C'est le meme raisonnement que la tentative de tap-pour-masquer
+  /// 4 s a l'origine, porte a 10 s le 2026-09-02 (« reviens au menu, avec
+  /// cette fois 10 s -- ca veut dire qu'il a commence a lire »), puis ramene a
+  /// 6 s le 2026-09-03 apres usage : 10 s laissaient le menu trop longtemps
+  /// sur la page. C'est le meme raisonnement que la tentative de tap-pour-masquer
   /// (cf. son commentaire dans `build`) : le menu doit s'effacer quand
   /// l'utilisateur LIT, pas quand une temporisation arbitraire expire. Faute
   /// de pouvoir capter le geste, 10 s est le proxy retenu -- assez long pour
   /// chercher son verset, assez court pour rendre le plein ecran a qui lit.
-  static const _kHeaderAutoHideDelay = Duration(seconds: 10);
+  static const _kHeaderAutoHideDelay = Duration(seconds: 6);
   // Doit correspondre à MushafHeader.preferredSize (widgets/mushaf_header.dart)
   // -- dupliqué en constante locale ici pour éviter d'instancier un widget
   // juste pour lire sa taille.
