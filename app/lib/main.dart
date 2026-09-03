@@ -150,6 +150,7 @@ class _PointDEntreeState extends State<_PointDEntree> {
             depart: (extras['depart'] as num?)?.toInt() ?? 1,
             wav: extras['wav'] as String?,
             ecriture: extras['ecriture'] as String?,
+            riwaya: extras['riwaya'] as String?,
             normal: extras['normal'] as bool? ?? false,
             fusion: extras['fusion'] as bool? ?? true,
             preuves: (extras['preuves'] as num?)?.toInt() ?? 2,

@@ -121,8 +121,23 @@ object RoutageMicro {
         }
     }
 
-    /** Rend le micro du telephone et restaure le mode audio d'avant. */
+    /** Rend le micro du telephone et restaure le mode audio d'avant.
+     *
+     *  ⚠️ SORTIE IMMEDIATE SI RIEN N'A ETE BASCULE (2026-09-03). L'appelant
+     *  invoque cette methode a CHAQUE fermeture de capture, sans savoir si le
+     *  reglage Bluetooth etait actif -- c'est voulu, pour qu'aucun chemin
+     *  d'erreur ne laisse le mode audio sur IN_COMMUNICATION. Mais sans ce
+     *  garde, `clearCommunicationDevice()` s'executait sur TOUTES les
+     *  recitations, y compris celles qui n'ont jamais touche au Bluetooth :
+     *  une intervention sur le routage audio du systeme a chaque session,
+     *  pour rien, et invisible dans le journal.
+     *
+     *  Trouve en repondant a la question « est-ce que le travail sur les
+     *  styles d'ecriture a cause une regression ? » -- il ne l'avait pas
+     *  causee, mais la question a fait relire ce qui, lui, touchait vraiment
+     *  la chaine de capture. */
     fun desactiver(context: Context) {
+        if (!actif && modeAvant == null) return
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

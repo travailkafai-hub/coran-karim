@@ -5,6 +5,7 @@ import '../models/verse.dart';
 import '../providers/player_provider.dart';
 import '../services/diagnostic_log.dart';
 import '../providers/app_settings_provider.dart';
+import '../models/riwaya.dart';
 import '../widgets/choix_ecriture_sheet.dart';
 import '../services/quran_api.dart';
 import '../providers/recitation_provider.dart';
@@ -59,7 +60,22 @@ class RecetteScreen extends ConsumerStatefulWidget {
       this.largeur = 4.0,
       this.maxBloc = 10.0,
       this.maxFusion = 18.0,
-      this.ecriture});
+      this.ecriture,
+      this.riwaya});
+
+  /// Riwāya imposée par le banc (`--es riwaya hafs|warsh`), ou null.
+  ///
+  /// Sans elle, une mesure de récitation héritait du réglage de l'utilisateur.
+  /// Un audio Hafs jugé contre un texte Warsh rend TOUT rouge — constaté le
+  /// 2026-09-03 sur un banc d'inférence : le journal se remplissait de
+  /// « caractère hors vocab ignoré : 'ٱ' », l'alef wasla du texte Hafs que le
+  /// vocabulaire Warsh ne connaît pas. La mesure du CPU restait bonne, le
+  /// jugement des mots ne valait rien.
+  ///
+  /// Le réglage de l'utilisateur n'est PAS restauré ensuite : le banc est un
+  /// outil de mesure, pas un mode d'emploi. C'est à l'opérateur de savoir dans
+  /// quelle riwāya il vient de mesurer — d'où la ligne de journal.
+  final String? riwaya;
 
   /// Écriture imposée par le banc (`--es ecriture <famille>`), ou null.
   ///
@@ -177,6 +193,16 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
           'depart=v${widget.depart} '
           'mode=${widget.mode ?? "manuel"}');
       // Mode imposé par l'intent : on enchaîne sans attendre un tap.
+      // RIWAYA IMPOSEE : appliquee avant toute lecture de texte, c'est elle
+      // qui decide quel asset QuranApi charge. Un audio Hafs juge contre un
+      // texte Warsh rend TOUT rouge -- constate le 2026-09-03.
+      if (widget.riwaya != null) {
+        final voulue =
+            widget.riwaya == 'warsh' ? Riwaya.warsh : Riwaya.hafs;
+        await ref.read(riwayaProvider.notifier).set(voulue);
+        ref.read(playerProvider.notifier).accorderALaRiwaya();
+        DiagnosticLog.log('RECETTE', 'riwaya imposee : ${widget.riwaya}');
+      }
       if (widget.mode == 'ecoute') {
         // AVANT tout démarrage : la chaîne v2 est recréée au prochain bloc
         // audio, donc le drapeau doit être posé avant que la capture s'ouvre.

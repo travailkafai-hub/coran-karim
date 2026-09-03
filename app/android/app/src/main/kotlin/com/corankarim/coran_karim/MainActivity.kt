@@ -151,6 +151,13 @@ class MainActivity : AudioServiceActivity() {
                     // fait rendre treize captures identiques au premier essai.
                     val ecriture = intent?.getStringExtra("ecriture")
                     intent?.removeExtra("ecriture")
+                    // `--es riwaya hafs|warsh` (2026-09-03) : impose la riwaya
+                    // pour la duree du banc. Sans ce parametre, une mesure de
+                    // recitation heritait du reglage de l'utilisateur -- un
+                    // audio Hafs juge contre un texte Warsh rend TOUT rouge, et
+                    // la mesure ne veut plus rien dire. Constate le jour meme.
+                    val riwaya = intent?.getStringExtra("riwaya")
+                    intent?.removeExtra("riwaya")
                     result.success(
                         if (m == null) null
                         else mapOf("mode" to m, "sourate" to s, "versets" to n,
@@ -159,7 +166,8 @@ class MainActivity : AudioServiceActivity() {
                                    "preuves" to preuves,
                                    "pas" to pas, "largeur" to largeur,
                                    "maxbloc" to maxBloc, "maxfusion" to maxFusion,
-                                   "ecriture" to ecriture))
+                                   "ecriture" to ecriture,
+                                   "riwaya" to riwaya))
                 } else result.notImplemented()
             }
     }

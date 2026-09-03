@@ -1,6 +1,7 @@
 package com.corankarim.coran_karim.recitation2
 
 import com.corankarim.coran_karim.fastconformer.FastConformerCtc
+import com.corankarim.coran_karim.fastconformer.DiagnosticLog
 
 /**
  * COUCHE C — FRONT ACOUSTIQUE.
@@ -97,9 +98,31 @@ class FrontOnnx(private val moteur: FastConformerCtc) : FrontAcoustique {
     override fun logprobs(echantillons: FloatArray): Array<FloatArray> =
         moteur.computeLogProbs(echantillons)
 
-    /** Un seul passage du modele, trois sorties recuperees. */
+    /** Un seul passage du modele, trois sorties recuperees.
+     *
+     *  ── POURQUOI LA DUREE EST JOURNALISEE (2026-09-03) ──────────────────
+     *
+     *  La chaine v2 ne mesurait NULLE PART le temps de calcul du modele. Les
+     *  traces `infDebut`/`infFin` existent bien, mais dans `BufferedTranscriber`
+     *  -- la chaine v1, qui ne tourne plus : un premier banc les a cherchees en
+     *  vain sur une session pourtant complete.
+     *
+     *  Sans cette mesure on ne peut pas arbitrer le reglage du parallelisme :
+     *  borner les threads d'ONNX ferait baisser le CPU, mais si la duree
+     *  d'inference explose le temps reel tombe, et on aurait echange un gain
+     *  contre une perte -- invisible en ne regardant que le CPU.
+     *
+     *  Une ligne par fenetre, soit ~80 par session : negligeable devant le
+     *  volume du journal, et cette ligne est le seul point de comparaison
+     *  avant/apres dont on dispose. */
     override fun sorties(echantillons: FloatArray): SortiesFront {
+        val t0 = System.nanoTime()
         val o = moteur.computeAll(echantillons)
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        DiagnosticLog.log(
+            "Inference",
+            "computeAll ech=${echantillons.size} duree=${ms}ms",
+        )
         return SortiesFront(o.letters, o.tajwid, o.etatEncodeur)
     }
 

@@ -93,7 +93,47 @@ class FastConformerCtc(
 ) {
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
-    private val session: OrtSession = env.createSession(modelPath, OrtSession.SessionOptions())
+
+    // ── PARALLELISME BORNE (2026-09-03) ──────────────────────────────────────
+    //
+    // Constat utilisateur : « je sens le tel devenir chaud ». Mesure : 226 % de
+    // CPU en moyenne pendant une recitation, pointes a 333 % -- deux a trois
+    // coeurs satures. Puis sa question, la bonne : « c'est un seul ASR qui fait
+    // tourner 3 coeurs ? »
+    //
+    // Releve des threads du processus : CINQ threads `DefaultDispatch` actifs
+    // simultanement. Ce sont ceux du pool de coroutines Kotlin, dimensionne au
+    // nombre de coeurs (8 ici) -- donc PLUSIEURS inferences en vol, et aucun
+    // mutex ne les serialise. Par-dessus, `SessionOptions()` par defaut laisse
+    // ONNX Runtime paralleliser CHAQUE inference sur autant de threads qu'il
+    // voit de coeurs. Deux parallelismes empiles : plus de threads que de
+    // coeurs, donc de la sur-souscription -- le processeur arbitre entre des
+    // inferences qui se disputent les memes unites, ce qui chauffe sans
+    // accelerer.
+    //
+    // On borne le parallelisme INTERNE d'ONNX, qui est le moins risque des deux
+    // leviers : aucune logique ne change, seulement le nombre de threads par
+    // inference. Serialiser les inferences elles-memes toucherait la latence et
+    // le temps reel -- a ne tenter qu'apres, et avec la recette complete.
+    //
+    // ⚠️ CE REGLAGE DOIT ETRE MESURE, PAS SUPPOSE. Baisser le CPU en faisant
+    // exploser la duree d'inference ne serait pas un gain mais un echange
+    // perdant, et invisible si l'on ne regardait que le CPU. Le banc
+    // `banc_inference.py` rejoue un WAV identique et sort les deux colonnes :
+    // duree mediane/p90 des inferences, et CPU moyen/max.
+    private val session: OrtSession = env.createSession(
+        modelPath,
+        OrtSession.SessionOptions().apply {
+            // 2 et non 1 : le modele reste assez large pour tirer parti d'un
+            // second thread, et passer a 1 rallongerait chaque inference sans
+            // supprimer la concurrence entre fenetres, qui vient de l'etage
+            // au-dessus.
+            setIntraOpNumThreads(2)
+            // 1 : il n'y a qu'un graphe a executer par appel, paralleliser
+            // ENTRE operateurs n'apporte rien ici et ajoute des threads.
+            setInterOpNumThreads(1)
+        },
+    )
 
     // ── DEUX TETES DE LETTRES, UN SEUL ENCODEUR (2026-08-21) ─────────────────
     //
