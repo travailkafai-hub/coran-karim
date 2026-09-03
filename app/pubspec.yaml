@@ -126,6 +126,10 @@ flutter:
     # récitation) -- cf. benchmark/build_warsh_search_index.py.
     - assets/data/quran_search_index_warsh.json
     - assets/data/quran_chapters.json
+    # Motif du bandeau de sourate, extrait d un mushaf scanne et
+    # repete en fond (cf. mushaf_maquette_screen._bandeauSourate).
+    # 4,6 Ko : c est le MOTIF seul, pas le bandeau entier.
+    - assets/images/motif_bandeau.webp
     - assets/data/quran_verses.json
     # Texte Warsh (riwaya Warsh 'an Nafi', source KFGQPC) -- meme forme et
     # memes cles de verset que l'asset ci-dessus, cf.

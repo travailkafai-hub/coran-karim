@@ -115,7 +115,12 @@ class MushafMaquetteScreen extends ConsumerStatefulWidget {
 /// Le plafond de la recherche binaire passe de 46 a 72 dans la foulee : a
 /// 46 il devenait atteignable sur les pages courtes, et bridait alors la
 /// taille au lieu de laisser le remplissage decider.
-const double _kInterligne = 1.52;
+/// 1,72 : les harakat arabes montent et descendent HORS du corps de la lettre.
+/// A 1,42 (essai du 2026-09-03), avec une police plus grande, celles d'une
+/// ligne touchaient celles de la suivante -- « tout est melange », « regression
+/// sur le texte ». L'interligne d'un texte a diacritiques ne se regle pas comme
+/// celui d'un texte latin : il lui faut l'air que les signes occupent.
+const double _kInterligne = 1.72;
 
 /// Charte du mushaf de reference, RELEVEE sur sa capture (2026-09-02) et non
 /// choisie a l'oeil : extraction des couleurs par saturation, mesure des
@@ -141,8 +146,29 @@ class _Charte {
 /// `scheherazadeNew` est plus pleine qu'Amiri a taille egale, et w600 epaissit
 /// encore le trait. C'est la meme famille que le reste de l'app pour l'arabe
 /// (cf. `main.dart`), donc aucune police supplementaire a embarquer.
+/// ⚠️ `amiriQuran` ET NON `scheherazadeNew` (2026-09-03).
+///
+/// Defaut signale : « les chiffres ne sont plus dans le dessin ». Le medaillon
+/// de fin de verset est le caractere U+06DD, qui doit ENGLOBER les chiffres
+/// qui le suivent -- c'est une propriete de la POLICE, pas du texte. Avec
+/// scheherazadeNew, le medaillon se dessinait vide et le numero s'imprimait a
+/// cote : « ۝ ١٠٥ » au lieu du numero encercle.
+///
+/// `amiri` (standard) : elle compose U+06DD correctement, contrairement a
+/// `scheherazadeNew`.
+///
+/// ⚠️ NE PAS remettre `amiriQuran` : essayee le 2026-09-03, elle rend les
+/// HARAKAT EN ROUGE -- c'est une police a glyphes colores (COLR/CPAL), pensee
+/// pour un mushaf ou les signes sont teintes. Sur une page qui porte deja la
+/// coloration TAJWID, deux systemes de couleur se superposent et plus rien
+/// n'est lisible : le rouge d'une fatha devient indistinguable du rouge d'un
+/// madd obligatoire.
+///
+/// L'Amiri standard etait deja la au depart, avec 5,0 % d'encre seulement --
+/// mais la cause etait l'INTERLIGNE (2,0) et le poids (normal), pas la
+/// famille. A 1,42 et w600 elle rend bien plus dense, medaillons compris.
 TextStyle _policePage({double? taille, Color? couleur}) =>
-    GoogleFonts.scheherazadeNew(
+    GoogleFonts.amiri(
       fontSize: taille,
       height: _kInterligne,
       fontWeight: FontWeight.w600,
@@ -472,35 +498,35 @@ class _PageMushaf extends StatelessWidget {
   }
 
   Widget _pageMushaf(BuildContext context, List<Verse> versets) {
-    final texte = versets
-        .map((v) => '${v.textUthmani} ${_medaillon(v.ayahNumber)}')
-        .join(' ');
+    // ── UN SEGMENT PAR SOURATE (2026-09-03) ────────────────────────────
+    // La page etait un seul flux de texte : deux sourates s'y suivaient sans
+    // rien entre elles. On regroupe donc les versets par sourate, pour
+    // pouvoir intercaler un bandeau de titre a chaque changement.
+    final segments = <({int sourate, String texte, String annote})>[];
+    for (final v in versets) {
+      final mot = '${v.textUthmani} ${_medaillon(v.ayahNumber)}';
+      final annote =
+          '${v.textUthmaniTajweed ?? v.textUthmani} ${_medaillon(v.ayahNumber)}';
+      if (segments.isNotEmpty && segments.last.sourate == v.surahNumber) {
+        final d = segments.removeLast();
+        segments.add((
+          sourate: d.sourate,
+          texte: '${d.texte} $mot',
+          annote: '${d.annote} $annote',
+        ));
+      } else {
+        segments.add((sourate: v.surahNumber, texte: mot, annote: annote));
+      }
+    }
 
-    // COLORATION TAJWID (2026-09-01). Les données sont déjà en local : le
-    // champ `text_uthmani_tajweed` est renseigné sur 6236/6236 versets en
-    // Hafs. En Warsh il ne l'est que sur 1 verset (la Bismillah) -- d'où le
-    // repli sur le texte nu, verset par verset, qui donne du texte noir
-    // correct plutôt qu'une page à moitié colorée.
-    //
-    // Le style de base est VOLONTAIREMENT sans `fontSize` ni `color` : ces
-    // deux propriétés sont portées par le TextSpan racine dans `_bloc`, et
-    // les spans colorés n'y surchargent que la couleur. C'est ce qui permet
-    // à l'auto-ajustement de faire varier la taille SANS re-parser le HTML à
-    // chaque itération -- 9 analyses de page par rendu, ce serait ruineux.
-    final spans = tajwid
-        ? parseTajweedHtml(
-            versets
-                .map((v) =>
-                    '${v.textUthmaniTajweed ?? v.textUthmani} ${_medaillon(v.ayahNumber)}')
-                .join(' '),
-            _policePage(),
-            // `tajweed_text.dart` porte une seconde palette, calculée pour un
-            // fond noir (`_pourFondNoir`). Réutiliser la palette claire sur
-            // fond sombre donnerait des rouges et des bleus qui vibrent et
-            // deviennent illisibles -- le travail est déjà fait, il suffit de
-            // le demander.
-            sombre: sombre,
-          )
+    // COLORATION TAJWID : un jeu de spans PAR SEGMENT, meme raison que
+    // ci-dessus (cf. 2026-09-01 pour le pourquoi de l'analyse unique et du
+    // style de base sans taille ni couleur).
+    final spansParSegment = tajwid
+        ? [
+            for (final s in segments)
+              parseTajweedHtml(s.annote, _policePage(), sombre: sombre)
+          ]
         : null;
     final sourates = versets.map((v) => v.surahNumber).toSet().toList()..sort();
     // Le juz et le hizb VIENNENT DES DONNEES (2026-09-02) : ils etaient
@@ -571,30 +597,32 @@ class _PageMushaf extends StatelessWidget {
               // 4 % au lieu de 21,5 % : la bande fine ne mange plus la
               // page, donc la quasi-totalite de l'ecran revient au texte --
               // « tu occupes l'ecran pour que le texte soit visible ».
-              final rx = cts.maxWidth * 0.04;
-              final ryHaut = cts.maxHeight * 0.015;
-              final ryBas = cts.maxHeight * 0.015;
+              // Au plus juste : la bande fine encadre deja, inutile d'y
+              // ajouter du vide. Tout ce qui n'est pas cadre est du texte.
+              final rx = cts.maxWidth * 0.028;
+              final ryHaut = cts.maxHeight * 0.008;
+              final ryBas = cts.maxHeight * 0.008;
               return Padding(
                 padding: EdgeInsets.fromLTRB(rx, ryHaut, rx, ryBas),
                 child: Column(
               children: [
-                _bandeauOrne(epais: true),
+                // ── TOUT POUR LA LECTURE (2026-09-03) ────────────────
+                // Un seul bandeau en haut, un seul en bas, l'en-tete sur une
+                // ligne, le pied reduit au numero de page. La legende tajwid
+                // est retiree : elle prenait 5 lignes, soit ~12 % de la
+                // hauteur, pour une information que la fiche d'un mot donne
+                // en mieux (nom ET explication).
                 _enTete(sourates, juz, hizb),
                 _bandeauOrne(),
-                const SizedBox(height: 6),
-                // `ClipRect` : meme avec la marge de securite ci-dessus,
-                // une diacritique haute de la derniere ligne pouvait deborder
-                // sous la legende (medaillon du dernier verset coupe, vu a
-                // l'ecran). On garantit ici que rien ne sort de la fenetre du
-                // cadre.
+                const SizedBox(height: 2),
+                // `ClipRect` : une diacritique haute de la derniere ligne
+                // pouvait deborder du cadre (medaillon coupe, vu a l'ecran).
                 Expanded(
-                  child: ClipRect(child: _blocAjuste(texte, spans)),
+                  child: ClipRect(
+                      child: _blocAjuste(segments, spansParSegment)),
                 ),
-                if (tajwid) _legendeTajwid(context),
-                const SizedBox(height: 4),
                 _bandeauOrne(),
                 _pied(sourates, juz),
-                _bandeauOrne(epais: true),
               ],
                 ),
               );
@@ -626,7 +654,7 @@ class _PageMushaf extends StatelessWidget {
         ? AppColors.brass.withValues(alpha: 0.6)
         : _Charte.cadreMedian;
     return SizedBox(
-      height: epais ? 14 : 10,
+      height: epais ? 12 : 7,
       child: LayoutBuilder(builder: (context, cts) {
         final n = (cts.maxWidth / 16).floor().clamp(3, 60);
         return Row(
@@ -712,27 +740,22 @@ class _PageMushaf extends StatelessWidget {
     );
   }
 
-  /// Pied de page : sourate a droite, numero au centre, juz a gauche --
-  /// disposition d'un mushaf imprime.
-  Widget _pied(List<int> sourates, Set<int> juz) {
-    final style = GoogleFonts.amiri(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: sombre ? AppColors.brass : _Charte.filet);
-    return Padding(
-      padding: const EdgeInsets.only(top: 3),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(juz.isEmpty ? '' : 'جزء ${_chiffresArabes(juz.first)}',
-              style: style),
-          Text(_chiffresArabes(page), style: style),
-          Text(_nomSourate(sourates.isEmpty ? 1 : sourates.first),
-              style: style),
-        ],
-      ),
-    );
-  }
+  /// Pied de page : le NUMERO DE PAGE, seul et centre.
+  ///
+  /// La sourate et le juz etaient repetes ici alors qu'ils figurent deja en
+  /// en-tete -- « le nom de la sourate en haut et en bas, c'est perte
+  /// d'espace ». Un mushaf imprime ne les repete pas non plus : l'en-tete
+  /// situe, le pied numerote.
+  Widget _pied(List<int> sourates, Set<int> juz) => Padding(
+        padding: const EdgeInsets.only(top: 1),
+        child: Text(
+          _chiffresArabes(page),
+          style: GoogleFonts.amiri(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: sombre ? AppColors.brass : _Charte.filet),
+        ),
+      );
 
   /// Nom arabe de la sourate, depuis le catalogue deja charge par `QuranApi`.
   /// Repli sur le numero si le catalogue n'est pas encore la : mieux vaut
@@ -801,51 +824,174 @@ class _PageMushaf extends StatelessWidget {
   /// cadre d'un bord à l'autre, et une page dense (Al-Baqara) comme une page
   /// aérée occupent toutes deux la page complète -- au lieu d'un bloc qui
   /// flotte. Dichotomie : 9 mesures suffisent entre 12 et 46 pt.
-  Widget _blocAjuste(String texte, List<TextSpan>? spans) {
+  /// Ajuste la taille pour que TOUS les segments plus les bandeaux de
+  /// separation tiennent dans la hauteur disponible.
+  ///
+  /// La mesure porte sur la SOMME des segments et sur la hauteur des bandeaux
+  /// (2026-09-03) : mesurer un seul bloc, comme avant, ferait deborder la page
+  /// des qu'un bandeau s'intercale entre deux sourates.
+  Widget _blocAjuste(
+      List<({int sourate, String texte, String annote})> segments,
+      List<List<TextSpan>>? spansParSegment) {
     return LayoutBuilder(
       builder: (context, contraintes) {
         final style = _policePage();
-        // ── PLAFOND DE TAILLE (2026-09-02) ────────────────────────────
-        // Mesure contre la reference : elle tient 15 lignes fines par page,
-        // nous en affichions 9 enormes. Un mushaf imprime garde une taille
-        // de police CONSTANTE -- c'est le NOMBRE DE LIGNES qui varie d'une
-        // page a l'autre, pas le corps des lettres. Sans plafond, une page
-        // courte (debut de sourate) produisait des lettres geantes qui ne
-        // ressemblaient a aucun mushaf.
-        //
-        // 38 : cale sur la reference, ou le corps mesure ~34-38 px pour une
-        // largeur d'ecran de 1080. Le remplissage reste actif SOUS ce
-        // plafond : une page dense reduit encore, une page courte laisse du
-        // blanc en bas -- exactement ce que fait un mushaf a la derniere page
-        // d'une sourate.
-        double basse = 12, haute = 38;
+        // 58 et non 46 : en dessous, le libelle des medaillons
+        // (`آياتها`, `ترتيبها`) devient illisible.
+        const hauteurBandeau = 58.0;
+        final nBandeaux = segments.length - 1;
+        final dispo =
+            contraintes.maxHeight - nBandeaux * hauteurBandeau;
+        double basse = 12, haute = 52;
         for (var i = 0; i < 9; i++) {
           final milieu = (basse + haute) / 2;
-          // La MESURE doit porter sur ce qui sera réellement peint : mesurer
-          // le texte nu puis afficher les spans donnerait une taille fausse
-          // dès que la coloration change le découpage des lignes.
-          final peintre = TextPainter(
-            text: spans == null
-                ? TextSpan(text: texte, style: style.copyWith(fontSize: milieu))
-                : TextSpan(
-                    style: style.copyWith(fontSize: milieu), children: spans),
-            textDirection: TextDirection.rtl,
-            textAlign: TextAlign.justify,
-          )..layout(maxWidth: contraintes.maxWidth);
-          // Marge de securite de 2 % : sans elle, la derniere ligne
-          // depassait de quelques pixels sous le cadre (constate a l ecran,
-          // le medaillon du dernier verset coupe). La recherche binaire
-          // s arrete a la taille juste inferieure, ce qui ne se voit pas.
-          if (peintre.height <= contraintes.maxHeight * 0.93) {
+          var total = 0.0;
+          for (var s = 0; s < segments.length; s++) {
+            final sp = spansParSegment?[s];
+            final peintre = TextPainter(
+              text: sp == null
+                  ? TextSpan(
+                      text: segments[s].texte,
+                      style: style.copyWith(fontSize: milieu))
+                  : TextSpan(
+                      style: style.copyWith(fontSize: milieu), children: sp),
+              textDirection: TextDirection.rtl,
+              textAlign: TextAlign.justify,
+            )..layout(maxWidth: contraintes.maxWidth);
+            total += peintre.height;
+          }
+          // Marge de securite : une diacritique haute de la derniere ligne
+          // depasse ce que TextPainter annonce.
+          if (total <= dispo * 0.93) {
             basse = milieu;
           } else {
             haute = milieu;
           }
         }
-        return _bloc(texte, basse, spans);
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var s = 0; s < segments.length; s++) ...[
+              if (s > 0) _bandeauSourate(segments[s].sourate, hauteurBandeau),
+              _bloc(segments[s].texte, basse, spansParSegment?[s]),
+            ],
+          ],
+        );
       },
     );
   }
+
+  /// Bandeau de titre de sourate, entre deux sourates d'une meme page.
+  ///
+  /// Le fond est le MOTIF REEL du mushaf scanne (90x115 px, 4,6 Ko), repete
+  /// horizontalement ; le cartouche et les medaillons sont dessines par-dessus
+  /// pour porter les donnees de CHAQUE sourate. Copier le bandeau entier
+  /// n'aurait servi qu'a une sourate : son nom y est peint.
+  ///
+  /// Les deux medaillons reprennent ceux du mushaf : `آياتها` (nombre de
+  /// versets) et `ترتيبها` (rang de la sourate).
+  Widget _bandeauSourate(int numero, double hauteur) {
+    const vert = Color(0xFF1A7A3C);
+    final s = QuranApi.chapitresCharges
+        ?.where((c) => c.number == numero)
+        .firstOrNull;
+    return Container(
+      height: hauteur,
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black87, width: 1.6),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Fond : le motif du scan, repete. `repeat` et non `fill` -- un
+          // etirement deformerait les entrelacs, qui sont faits pour se
+          // repeter.
+          Image.asset('assets/images/motif_bandeau.webp',
+              repeat: ImageRepeat.repeatX,
+              alignment: Alignment.centerLeft,
+              fit: BoxFit.fitHeight),
+          Row(
+            children: [
+              _medaillonSourate('آياتها', s?.versesCount ?? 0, vert),
+              // Cartouche central : bords coupes comme sur le scan, pas un
+              // rectangle arrondi.
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: Colors.black87, width: 1.4),
+                    borderRadius: BorderRadius.circular(hauteur * 0.28),
+                  ),
+                  alignment: Alignment.center,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Text('سورة ${_nomSourate(numero)}',
+                          style: GoogleFonts.amiri(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black)),
+                    ),
+                  ),
+                ),
+              ),
+              _medaillonSourate('ترتيبها', numero, vert),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Un des deux medaillons ronds du bandeau : le libelle au-dessus, le
+  /// chiffre dedans -- disposition du mushaf.
+  /// ⚠️ `LayoutBuilder` et non `AspectRatio` : dans une `Row` de hauteur
+  /// contrainte, `AspectRatio` reclame une largeur egale a la hauteur SANS
+  /// tenir compte du padding vertical -- d'ou un « BOTTOM OVERFLOWED » visible
+  /// a l'ecran (2026-09-03). On calcule donc le diametre depuis la hauteur
+  /// reellement disponible.
+  Widget _medaillonSourate(String libelle, int valeur, Color vert) =>
+      LayoutBuilder(builder: (context, cts) {
+        final d = cts.maxHeight - 6;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+          child: SizedBox(
+            width: d,
+            height: d,
+            child: Container(
+            decoration: BoxDecoration(
+              color: vert,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(libelle,
+                      style: GoogleFonts.amiri(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white)),
+                ),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('$valeur',
+                      style: GoogleFonts.manrope(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white)),
+                ),
+              ],
+            ),
+            ),
+          ),
+        );
+      });
 
   /// Fin de verset : le signe ۝ suivi du numéro en chiffres arabes orientaux.
   String _medaillon(int ayah) => '۝${_chiffresArabes(ayah)}';
