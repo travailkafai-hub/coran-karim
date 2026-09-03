@@ -544,6 +544,66 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// seul point où un faux verdict est possible.
   static final _textCarriedRules = TajwidRule.porteesParLeTexte.toSet();
 
+  /// Règles dont le SIGNAL ACOUSTIQUE est mesuré non fiable : observées et
+  /// journalisées, jamais transformées en verdict.
+  ///
+  /// ── POURQUOI `qalaqah` Y EST (2026-09-03) ─────────────────────────────
+  ///
+  /// Exigence posée par l'utilisateur : « pour celui qui fait bien le tajwid,
+  /// il faut faire passer les violets [...] c'est pas normal qu'un récitateur
+  /// tajwid, il signale erreur ». C'est le bon critère d'acceptation.
+  ///
+  /// Deux prises de la même personne sur la même sourate, l'une en appliquant
+  /// le tajwid, l'autre non — un jeu étiqueté. Sur les 16 et 17 occurrences de
+  /// `qalaqah`, sa probabilité médiane vaut **0,859 quand elle EST appliquée**
+  /// contre **0,958 quand elle ne l'est PAS**. Le signal est ANTI-CORRÉLÉ, et
+  /// la durée va dans le même sens (40 ms contre 80). La recherche de seuil ne
+  /// trouve pas mieux que 81 % de rappel pour 35 % de spécificité — un J de
+  /// Youden de 0,17, à peine mieux que le hasard.
+  ///
+  /// C'est aussi la règle la plus coûteuse : **10 des 14 mots violets** d'une
+  /// récitation pourtant correcte. Et quatre de ces dix avaient une
+  /// probabilité de 0,12 à 0,49 : aucun seuil ne les rattrape sans tout
+  /// laisser passer.
+  ///
+  /// ⚠️ CE N'EST PAS UN SEUIL DÉPLACÉ POUR FAIRE DISPARAÎTRE UN SYMPTÔME. La
+  /// règle projet interdit cela, et à juste titre. Ici la mesure dit que la
+  /// PREUVE est mauvaise, pas que le critère est trop dur : juger sur elle
+  /// reviendrait à condamner au hasard. La qalqala continue d'être détectée et
+  /// journalisée — le jour où sa tête sera corrigée, il suffira de la retirer
+  /// de cette liste.
+  /// Règles dont le SIGNAL DE LA TÊTE n'est pas exploitable : observées et
+  /// journalisées, mais elles ne dégradent plus un mot en violet.
+  ///
+  /// ── LES DEUX MADD, MESURÉS SUR L'AUDIO DE L'UTILISATEUR (2026-09-03) ────
+  ///
+  /// Banc direct, hors app : le WAV de la session An-Nas 114:1 passé au modèle
+  /// déployé (`quatre-tetes-warsh-v5`), mel revalidé par la transcription CTC
+  /// qui sort exacte (`قُلْ أَعُوذُ بِرَبِّ ٱلنَّاسِ`) -- donc les sorties tajwid
+  /// sont fiables, ce n'est pas un artefact de préprocessing.
+  ///
+  ///   ghunnah            0,633   <- la tête VOIT, le seuil rejetait
+  ///   qalaqah            0,661   <- idem
+  ///   madda_obligatory   0,033   <- la tête ne voit RIEN
+  ///   madda_permissible  0,001   <- la tête ne voit RIEN
+  ///
+  /// Les deux madd sont ATTENDUS et RÉALISÉS sur ce mot. Les faire passer
+  /// demanderait un facteur de 0,04, soit un seuil de 0,037 : à ce niveau
+  /// n'importe quel bruit déclenche la règle, et l'app validerait tout.
+  /// Aucun réglage de seuil ne les rattrape -- c'est la tête, pas le seuil.
+  ///
+  /// ⚠️ Ce n'est PAS un abandon : le madd est la règle la plus audible et la
+  /// plus importante pédagogiquement. C'est un retrait du JUGEMENT en
+  /// attendant que la tête sache les produire (cf. `classes_10.json` : la
+  /// taxonomie d'entraînement compte 10 classes, pas 17, et les madd y sont
+  /// nommés par leur DURÉE et non par leur statut juridique). À rouvrir dès
+  /// que la correspondance des classes est instruite.
+  static const _signalNonFiable = {
+    TajwidRule.qalaqah,
+    TajwidRule.maddaObligatory,
+    TajwidRule.maddaPermissible,
+  };
+
   List<TajwidRule> unrealizedRulesFor(int wordIndex, Set<TajwidRule> emitted,
       {Set<TajwidRule>? neighborEmitted}) {
     if (_activeRules.isEmpty) return const [];
@@ -558,6 +618,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
             // Portée par le texte : aucune preuve acoustique possible, donc
             // aucun verdict (cf. _textCarriedRules).
             !_textCarriedRules.contains(r) &&
+            // Signal acoustique mesuré non fiable : observée, jamais jugée
+            // (cf. _signalNonFiable -- `qalaqah` y est depuis le 2026-09-03,
+            // son signal étant anti-corrélé à la réalisation de la règle).
+            !_signalNonFiable.contains(r) &&
             // ⚠️ `_madSatisfaitParDuree` est devenu INERTE avec le paquet
             // `warsh-v5` (2026-09-01) : ce modèle nomme les madd par leur
             // STATUT (madda_necessary/obligatory/permissible), plus par leur
@@ -3192,6 +3256,29 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// compromis ne vaut que sur des paliers courts et repetables.
   bool tajwidSansDoubleObservation = false;
 
+  /// Index des mots dégradés en `unclear` PARCE QU'UNE RÈGLE DE TAJWID MANQUE.
+  ///
+  /// ── POURQUOI UN REGISTRE PLUTÔT QU'UNE DÉDUCTION (2026-09-03) ──────────
+  ///
+  /// La cause est CERTAINE à l'instant où le mot est dégradé : on vient de
+  /// constater qu'une règle attendue n'a pas été détectée. Elle était pourtant
+  /// jetée aussitôt, et les écrans la redemandaient ensuite à `classifyError`,
+  /// qui la redevine en recomparant les chaînes.
+  ///
+  /// Cette déduction échoue : `classifyError` teste les harakat AVANT le
+  /// tajwid — à juste titre, le tajwid ne se juge que si le reste est bon —
+  /// et il suffit d'une diacritique différente dans la transcription pour
+  /// qu'il sorte sur `harakat`. Le mot se peignait alors en ORANGE au lieu de
+  /// VIOLET. Constaté par l'utilisateur sur l'entraînement par palier : « je
+  /// ne vois aucun violet alors que je fais exprès de ne pas faire de règle »,
+  /// alors que le journal portait bien 7 lignes `[V2tajwid]`.
+  ///
+  /// Un seul endroit SAIT, au lieu de trois qui devinent.
+  final Set<int> _motsDegradesTajwid = {};
+
+  /// Les mots dont la dégradation vient du tajwid — pour les peindre en violet.
+  Set<int> get motsDegradesTajwid => Set.unmodifiable(_motsDegradesTajwid);
+
   void setup(String arabicText) {
     final words = _wordsFromText(arabicText);
     _lastTextDiffLine.clear();
@@ -3199,6 +3286,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _previewNegativeStreak.clear();
     _previewNegativeSeq.clear();
     _failureSignalled.clear();
+    // Le registre des dégradations de tajwid appartient à UNE session : le
+    // garder ferait peindre en violet, au tour suivant, des mots dont la règle
+    // manquait au tour précédent. `setup` est le point d'entrée commun des
+    // trois écrans, y compris via `setupDepuisVerset` qui l'appelle.
+    _motsDegradesTajwid.clear();
     // Riwaya figée ICI, pour toute la durée de la session -- cf. la doc du
     // champ sur `RecitationSessionState.riwaya`.
     state = RecitationSessionState(words: words, riwaya: QuranApi.riwaya);
@@ -4989,6 +5081,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         final manquantes = unrealizedRulesFor(c.index, c.detectedRules);
         if (manquantes.isNotEmpty) {
           statutFinal = WordStatus.unclear;
+          // La cause est certaine ICI : on vient de constater la règle
+          // manquante. On l'enregistre plutôt que de la faire redeviner.
+          _motsDegradesTajwid.add(c.index);
           DiagnosticLog.log('V2tajwid',
               'mot=${c.index} règle(s) ATTENDUE(S) et NON DÉTECTÉE(S) : '
               '${manquantes.map((r) => r.key).join(",")} '

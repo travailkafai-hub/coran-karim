@@ -122,15 +122,86 @@ object SeuilsDureeTajwid {
     // ⚠️ Les neuf autres regles n'ont PAS de duree mesuree chez les cinq
     // (`duree_moyenne_s: null`) : elles restent hors de cette table, et
     // `minMs` rend 0 pour elles -- aucune exigence de duree, comme avant.
+    // ── MESURES SUR UNE RECITATION REELLE (2026-09-03) ───────────────────
+    //
+    // Methode posee par l'utilisateur : « tu as une recitation de quelqu'un qui
+    // applique surement le tajwid et une qui n'a pas voulu appliquer, cherche
+    // entre les deux pour definir deux niveaux ». Deux prises de la meme
+    // personne sur la meme sourate, intentions opposees : un jeu ETIQUETE.
+    //
+    // REFERENCE = mediane de TOUTES les regles attendues dans la prise « avec »
+    // -- detectees, refusees par le seuil, ET refusees par la duree. Ne prendre
+    // que les detectees serait un biais de selection : on ne compterait que les
+    // rescapes. Erreur commise deux fois dans la journee avant d'etre vue.
+    //
+    // strict = 90 % de la reference, tolerant = 70 % -- le meme principe que
+    // pour les seuils de probabilite, applique cette fois a la recitation
+    // reelle et non a la moyenne de cinq professionnels.
+    //
+    //   regle                reference   strict   tolerant   n
+    //   ghunnah                 480 ms   432 ms    336 ms    1
+    //   idgham_ghunnah          800 ms   720 ms    560 ms    3
+    //   idgham_wo_ghunnah       160 ms   144 ms    112 ms    3
+    //   ikhafa                  480 ms   432 ms    336 ms    6
+    //   iqlab                   720 ms   648 ms    504 ms    1
+    //   madda_obligatory         80 ms    72 ms     56 ms    2
+    //   madda_permissible       280 ms   252 ms    196 ms    2
+    //   qalaqah                 160 ms   144 ms    112 ms    8
+    //
+    // ⚠️ EFFECTIFS FAIBLES, ET IL FAUT LE SAVOIR : une seule occurrence pour
+    // `ghunnah` et `iqlab`, deux pour les madd. Ces valeurs decrivent UNE prise
+    // de vingt versets. Elles remplacent des seuils cales sur cinq
+    // professionnels dont on a mesure qu'ils refusaient des regles bel et bien
+    // faites -- c'est un progres, pas une verite. A refaire sur une sourate
+    // entiere.
+    //
+    // ⚠️ `qalaqah` reste le point noir : son signal est ANTI-CORRELE entre les
+    // deux prises (p mediane 0,859 quand elle est appliquee contre 0,958 quand
+    // elle ne l'est pas, sur 16 et 17 exemples). Ses seuils sont poses comme
+    // les autres, mais elle ne devrait pas produire de verdict tant que ce
+    // point n'est pas instruit -- elle faisait 10 des 14 mots violets.
+    // ── CALES SUR LE MINIMUM REELLEMENT REALISE (2026-09-03) ─────────────
+    //
+    // Exigence de l'utilisateur, et c'est le bon critere : pour celui qui fait
+    // bien le tajwid, les violets doivent passer -- un recitateur qui applique
+    // les regles ne doit pas etre signale en erreur.
+    //
+    // La mediane ne suffisait pas : elle refusait la moitie des realisations.
+    // On cale donc sur le MINIMUM observe sur deux prises ou les regles sont
+    // appliquees, moins 10 % (strict) et 30 % (tolerant). Rien de ce qui a ete
+    // reellement realise ne doit etre refuse.
+    //
+    //   regle                min observe   strict   tolerant   n
+    //   ghunnah                    80 ms    72 ms     56 ms    2
+    //   idgham_ghunnah            720 ms   648 ms    504 ms    3
+    //   idgham_wo_ghunnah          80 ms    72 ms     56 ms    6
+    //   ikhafa                     80 ms    72 ms     56 ms    8
+    //   iqlab                     560 ms   504 ms    392 ms    2
+    //   madda_obligatory           80 ms    72 ms     56 ms    3
+    //   madda_permissible          80 ms    72 ms     56 ms    5
+    //
+    // CE QUE CELA COUTE, ET IL FAUT LE SAVOIR : la duree d'une detection tombe
+    // par pas de 80 ms (une frame). Un minimum de 80 ms signifie donc "une
+    // seule frame", et tout seuil au-dessus refuse cette realisation. Poser le
+    // strict a 72 ms revient a NEUTRALISER le critere de duree pour six regles
+    // sur sept -- seules idgham_ghunnah et iqlab, dont les realisations sont
+    // longues, gardent un seuil qui filtre.
+    //
+    // Ce n'est PAS un critere deplace pour faire disparaitre un symptome : la
+    // mesure dit que ces durees SONT celles d'une recitation correcte. C'est la
+    // GRANULARITE de 80 ms qui rend le critere grossier -- un vrai filtre de
+    // duree demanderait une resolution plus fine, pas un seuil plus haut.
+    //
+    // qalaqah n'y figure plus : elle n'est plus jugee du tout (cf.
+    // _signalNonFiable cote Dart, son signal etant anti-correle).
     private val SEUILS_MS = mapOf(
-        "ghunnah" to Pair(125, 161),
-        "idgham_ghunnah" to Pair(173, 222),
-        "idgham_wo_ghunnah" to Pair(58, 75),
-        "ikhafa" to Pair(173, 222),
-        "iqlab" to Pair(173, 222),
-        "madda_obligatory" to Pair(79, 102),
-        "madda_permissible" to Pair(116, 149),
-        "qalaqah" to Pair(85, 109),
+        "ghunnah" to Pair(56, 72),
+        "idgham_ghunnah" to Pair(504, 648),
+        "idgham_wo_ghunnah" to Pair(56, 72),
+        "ikhafa" to Pair(56, 72),
+        "iqlab" to Pair(392, 504),
+        "madda_obligatory" to Pair(56, 72),
+        "madda_permissible" to Pair(56, 72),
     )
 
     /** @param nom nom de la regle tel que `rules.json` le donne.
@@ -1377,13 +1448,51 @@ class ChaineRecitation(
                 // mesuree en strict, 0,70 en tolerant (2026-09-03).
                 val detections = front.decodeTajwid(
                     sorties.tajwid.copyOfRange(debut, fin),
-                    if (tajwidStrict) 0.90f else 0.70f)
+                    if (tajwidStrict) 0.70f else 0.50f)
                 // DUREE JOURNALISEE, JAMAIS JUGEE (2026-08-04). Le type d'un
                 // madd (`wajib` / `tabi'i`) est une categorie GRAMMATICALE que
                 // le texte connait deja ; l'acoustique ne peut repondre qu'a
                 // « combien de temps a dure l'allongement ». On expose donc
                 // cette duree pour pouvoir la MESURER sur du vrai audio avant
                 // de decider si elle peut servir de critere -- pas l'inverse.
+                // ── CE QUI N'A PAS ETE DETECTE, ET DE COMBIEN (2026-09-03)
+                //
+                // Question de l'utilisateur : « c'est le seuil ou la duree qui
+                // filtre ? » -- impossible d'y repondre jusqu'ici. `decodeTajwid`
+                // ne rend que les DETECTIONS : une classe qui culmine sous son
+                // seuil ne produit aucun span, donc aucune ligne, donc aucune
+                // probabilite. Les rejets par DUREE etaient journalises, ceux
+                // par SEUIL ne l'etaient pas du tout.
+                //
+                // Pire, cela rendait toute statistique trompeuse : ne lire que
+                // les lignes existantes revient a ne compter que les rescapes.
+                // J'ai moi-meme conclu a tort « 100 % des detections passent le
+                // seuil » a partir de ce biais de selection.
+                //
+                // On journalise donc les classes NON detectees dont la
+                // probabilite maximale depasse 0,10 -- les « presque
+                // detectees ». En dessous, la tete n'a rien vu du tout et la
+                // ligne n'apprendrait rien : ce plancher evite d'ecrire dix-sept
+                // classes par mot pour du bruit.
+                run {
+                    val vues = detections.map { it.ruleId }.toSet()
+                    val maxima = front.probMaxParClasse(
+                        sorties.tajwid.copyOfRange(debut, fin))
+                    val fact = if (tajwidStrict) 0.70f else 0.50f
+                    val sous = maxima.indices
+                        .filter { it !in vues && maxima[it] > 0.10f }
+                        .sortedByDescending { maxima[it] }
+                        .joinToString(" ") { c ->
+                            val nom = front.nomsRegles.getOrNull(c) ?: "?$c"
+                            val seuil = front.seuilRegle(c) * fact
+                            "$nom=${"%.3f".format(maxima[c])}/" +
+                                "${"%.3f".format(seuil)}"
+                        }
+                    if (sous.isNotEmpty()) {
+                        journal?.invoke(
+                            "[tajwidSousSeuil] mot=${m.index} $sous")
+                    }
+                }
                 if (detections.isNotEmpty()) {
                     journal?.invoke("[tajwidDuree] mot=${m.index} " +
                         detections.joinToString(" ") { d ->
@@ -1405,7 +1514,7 @@ class ChaineRecitation(
                             // signale une fois (« tu ne m'as pas montre mes
                             // valeurs »).
                             val seuil = front.seuilRegle(d.ruleId) *
-                                (if (tajwidStrict) 0.90f else 0.70f)
+                                (if (tajwidStrict) 0.70f else 0.50f)
                             "$nom=${d.frames}f(${d.frames * 80}ms) " +
                                 "p=${"%.3f".format(d.prob)}/${"%.3f".format(seuil)}"
                         })
