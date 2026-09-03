@@ -24,6 +24,12 @@
     <!-- Lecture reelle de l'adhan complet (AdhanPlaybackService, 2026-08-09) :
          le son de canal de notification ne peut pas jouer un fichier de
          2 min 11 de facon fiable, cf. commentaire du service. -->
+    <!-- Routage du micro vers un casque Bluetooth (2026-09-03), reglage
+         eteint par defaut. MODIFY_AUDIO_SETTINGS pour basculer le mode audio ;
+         BLUETOOTH_CONNECT pour ENUMERER les peripheriques a partir d'Android 12
+         (sans elle, la liste revient vide et la bascule echoue en silence). -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />

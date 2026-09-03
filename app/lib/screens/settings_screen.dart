@@ -247,6 +247,9 @@ class SettingsScreen extends ConsumerWidget {
           // contenu que du vide.
           const SizedBox(height: 12),
           _SectionHeader(t.settingsSectionVoicePersonalization),
+          // Le micro qui CAPTE la récitation : c'est le début de la chaîne de
+          // reconnaissance, donc sa place est en tête de cette section.
+          const _MicroBluetoothTile(),
           const _DisputedVerdictsTile(),
 
           const SizedBox(height: 12),
@@ -455,6 +458,47 @@ class _DiagnosticTile extends ConsumerWidget {
 // mesure disait déjà -- le banc du 2026-07-23 donnait 22,8 % de WER sans
 // suppression contre 70,2 % avec. Conservé intact.
 // ignore: unused_element
+/// Micro du casque Bluetooth pour la récitation.
+///
+/// ── CE QUI MARCHAIT DÉJÀ, ET CE QUI NE MARCHAIT PAS (vérifié 2026-09-03) ───
+/// Écouter, en Bluetooth ou en filaire : oui, sans rien faire. Réciter avec un
+/// casque FILAIRE : oui, Android route seul. Réciter avec un casque
+/// BLUETOOTH : non — l'app n'avait aucun code de routage, donc Android gardait
+/// le micro du téléphone.
+///
+/// ── POURQUOI ÉTEINT PAR DÉFAUT ────────────────────────────────────────────
+/// Le micro d'un casque Bluetooth passe par le profil HFP/SCO, qui compresse la
+/// voix en bande étroite alors que le modèle est entraîné sur du 16 kHz propre.
+/// Basculer dès qu'un casque est connecté aurait dégradé le jugement de la
+/// récitation sans que personne ne le sache. Le sous-titre le dit à l'écran :
+/// on ne cache pas un compromis derrière un interrupteur.
+///
+/// ⚠️ Contrairement à `_NoiseSuppressTile` (retirée de l'IHM parce que la
+/// mesure la donnait perdante : 70,2 % de WER activée contre 22,8 % éteinte),
+/// celle-ci n'est PAS un réglage perdant — c'est le seul moyen d'utiliser un
+/// casque Bluetooth. Sa dégradation reste à chiffrer sur ce projet.
+class _MicroBluetoothTile extends ConsumerWidget {
+  const _MicroBluetoothTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(microBluetoothProvider);
+    return _SettingsTile(
+      icon: Icons.headset_mic_outlined,
+      title: 'Micro du casque Bluetooth',
+      subtitle: on
+          ? 'Activé — qualité réduite : le Bluetooth compresse la voix'
+          : 'Éteint (recommandé) — le micro du téléphone capte mieux',
+      color: AppColors.settingsVoice,
+      trailing: Switch.adaptive(
+        value: on,
+        activeColor: AppColors.green700,
+        onChanged: (v) => ref.read(microBluetoothProvider.notifier).set(v),
+      ),
+    );
+  }
+}
+
 class _NoiseSuppressTile extends ConsumerWidget {
   const _NoiseSuppressTile();
 

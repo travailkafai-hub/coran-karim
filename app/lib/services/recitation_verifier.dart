@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'diagnostic_log.dart';
+import 'routage_micro.dart';
 import 'fastconformer_verifier.dart';
 import 'streaming_wav_capture.dart';
 import '../models/judgement_options.dart' show TajwidRule;
@@ -596,6 +597,11 @@ abstract class RecitationVerifier {
   /// [start] : la valeur est lue au moment d'ouvrir le flux, la changer en
   /// cours de session n'a aucun effet.
   set noiseSuppress(bool value);
+
+  /// Capter la recitation avec le micro d un casque Bluetooth (2026-09-03).
+  /// Eteint par defaut : le profil HFP/SCO compresse la voix en bande etroite
+  /// alors que le modele est entraine sur du 16 kHz propre.
+  set microBluetooth(bool value);
   Future<void> stop();
 
   /// Numero de la session actuellement demarree (0 = aucune) -- capturer
@@ -928,6 +934,15 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   bool _appPaused = false;
 
   bool _noiseSuppress = false;
+
+  /// Router la capture vers le micro d'un casque Bluetooth (2026-09-03).
+  ///
+  /// Éteint par défaut, et c'est délibéré : le profil HFP/SCO compresse la voix
+  /// en bande étroite, alors que le modèle est entraîné sur du 16 kHz propre.
+  /// Basculer dès qu'un casque est connecté aurait dégradé le jugement de la
+  /// récitation sans que personne ne le sache. Cf. `routage_micro.dart`.
+  bool _microBluetooth = false;
+  set microBluetooth(bool v) => _microBluetooth = v;
   @override
   set noiseSuppress(bool value) => _noiseSuppress = value;
 
@@ -1072,6 +1087,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         // `noiseSuppress` : desactive par defaut (cf. noiseSuppressProvider pour
         // les trois raisons mesurees). Expose pour pouvoir trancher par une
         // comparaison A/B, pas pour etre allume a l'aveugle.
+        // Le routage doit precéder `startStream` : une fois le flux ouvert,
+        // la source est fixée et basculer n'a plus d'effet sur lui.
+        if (_microBluetooth) await RoutageMicro.activer();
         stream = await _recorder.startStream(
           RecordConfig(
               encoder: AudioEncoder.pcm16bits,
@@ -1160,6 +1178,11 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     }
     _pcmSub = null;
     await stale.cancel();
+    // Rendu du micro du téléphone. Appelé MÊME si la bascule avait échoué : le
+    // mode audio a pu changer avant l'échec, et le laisser sur
+    // `IN_COMMUNICATION` rendrait toute l'app muette sur le haut-parleur bien
+    // après la fin de la récitation.
+    await RoutageMicro.desactiver();
     try {
       await _recorder.stop();
     } catch (e) {
@@ -1816,6 +1839,10 @@ class MockRecitationVerifier implements RecitationVerifier {
   set wavRejoue(String? v) {}
   @override
   set noiseSuppress(bool value) {}
+
+  /// Sans objet pour le simulateur : il ne capte aucun micro.
+  @override
+  set microBluetooth(bool value) {}
   @override
   Future<AlignPayload?> alignFile(String wavPath) async => null;
   @override

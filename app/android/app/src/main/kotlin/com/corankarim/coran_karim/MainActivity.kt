@@ -1,6 +1,7 @@
 package com.corankarim.coran_karim
 
 import com.corankarim.coran_karim.adhan.AdhanSchedulerPlugin
+import com.corankarim.coran_karim.audio.RoutageMicro
 import com.corankarim.coran_karim.fastconformer.FastConformerCtcPlugin
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.android.FlutterActivity
@@ -46,6 +47,13 @@ class MainActivity : AudioServiceActivity() {
         // arriere-plan ou se ferme, meme sur un crash. Un wakelock, lui, se
         // relache a la main -- et un chemin d'erreur qui oublie de le faire
         // vide la batterie en silence.
+        // Routage du MICRO vers un casque Bluetooth (2026-09-03). Reglage
+        // eteint par defaut : le profil HFP/SCO compresse la voix en bande
+        // etroite, ce qui degrade l'ASR -- cf. la doc de RoutageMicro.
+        RoutageMicro.brancher(
+            applicationContext,
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL_MICRO),
+        )
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL_ECRAN)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -159,5 +167,6 @@ class MainActivity : AudioServiceActivity() {
     companion object {
         private const val CANAL = "coran_karim/recette"
         private const val CANAL_ECRAN = "coran_karim/ecran"
+        private const val CANAL_MICRO = "coran_karim/routage_micro"
     }
 }

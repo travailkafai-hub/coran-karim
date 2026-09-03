@@ -1214,3 +1214,45 @@ class PoliceMushafPageNotifier extends StateNotifier<String> {
     await prefs.setString(_kPrefPoliceMushafPage, famille);
   }
 }
+
+const _kPrefMicroBluetooth = 'micro_bluetooth_enabled';
+
+/// Capter la récitation avec le micro d'un casque Bluetooth.
+///
+/// ── CE QUI MARCHAIT DÉJÀ (vérifié 2026-09-03) ─────────────────────────────
+/// Écouter en Bluetooth ou en filaire : oui, sans rien faire. Réciter avec un
+/// casque FILAIRE : oui, Android route seul. Réciter avec un casque
+/// BLUETOOTH : non — l'app n'avait aucun code de routage, donc Android gardait
+/// le micro du téléphone.
+///
+/// ── POURQUOI ÉTEINT PAR DÉFAUT ────────────────────────────────────────────
+/// Le micro d'un casque Bluetooth passe par le profil HFP/SCO, qui compresse
+/// la voix en bande étroite et bascule toute la sortie en mono téléphonie. Le
+/// modèle ASR est entraîné sur du 16 kHz propre : la reconnaissance s'en trouve
+/// dégradée, dans une mesure qui n'a pas encore été chiffrée sur ce projet.
+///
+/// Basculer automatiquement dès qu'un casque est connecté aurait donc dégradé
+/// le jugement sans que personne ne le sache. Le réglage rend le choix visible ;
+/// la mesure du WER en SCO reste à faire avant d'en recommander l'usage.
+final microBluetoothProvider =
+    StateNotifierProvider<MicroBluetoothNotifier, bool>((ref) {
+  return MicroBluetoothNotifier();
+});
+
+class MicroBluetoothNotifier extends StateNotifier<bool> {
+  MicroBluetoothNotifier() : super(false) {
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefMicroBluetooth);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefMicroBluetooth, value);
+  }
+}
