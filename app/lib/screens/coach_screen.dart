@@ -813,6 +813,25 @@ class _ControleModeState extends ConsumerState<_ControleMode>
   @override
   void initState() {
     super.initState();
+    // ── LE CONTROLE EXIGE TOUTES LES REGLES, SANS EXCEPTION (2026-09-03) ──
+    //
+    // Demande utilisateur : « il faut absolument que toutes les règles
+    // attendues soient détectées pour passer le palier OU le contrôle à la
+    // fin ».
+    //
+    // LE TROU QUE ÇA FERME. Le contrôle exigeait déjà que TOUS les mots
+    // soient verts (`every(status == correct)`), donc un violet le faisait
+    // échouer. Mais le jugement tajwid, lui, ne s'exécutait que sur les mots
+    // ayant reçu DEUX observations (`tajwidFiable`) : mesuré sur les 17
+    // journaux disponibles, 14 à 15 % des mots d'une récitation continue n'en
+    // reçoivent qu'une. Ces mots-là passaient verts SANS que leurs règles
+    // aient jamais été vérifiées -- un mot sur sept, silencieusement.
+    //
+    // LE PRIX, connu et assumé (mesuré le 2026-07-23) : sur une seule
+    // observation, une règle coupée au bord d'une fenêtre disparaît, donc une
+    // part de faux violets. Le contrôle se rejoue (bouton Réessayer déjà en
+    // place), et l'utilisateur a tranché en faveur de l'exigence.
+    ref.read(recitationProvider.notifier).tajwidSansDoubleObservation = true;
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -855,6 +874,9 @@ class _ControleModeState extends ConsumerState<_ControleMode>
 
   @override
   void dispose() {
+    // Le drapeau ne survit pas a cet ecran : la recitation libre garde
+    // l'exigence de double observation, ou le verdict est definitif.
+    ref.read(recitationProvider.notifier).tajwidSansDoubleObservation = false;
     _pulse.dispose();
     _fingerprint.dispose();
     _wordLockedSub?.cancel();

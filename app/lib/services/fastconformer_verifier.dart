@@ -872,7 +872,7 @@ class FastConformerVerifier {
   /// types doivent donc coïncider.
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
-                   Set<TajwidRule> detectedRules, bool tajwidFiable})> v2,
+                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})> v2,
            bool v2Decrochage, int v2DecrochageMot,
            // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
            // `v2Libre` : decodage libre de la derniere fenetre, base de
@@ -893,7 +893,7 @@ class FastConformerVerifier {
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
         v2: const <({int index, String statut, String trace, String heard,
-                     Set<TajwidRule> detectedRules, bool tajwidFiable})>[],
+                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})>[],
         v2Decrochage: false, // la v2 ne tourne pas sur ce chemin
         v2DecrochageMot: -1,
         v2Libre: '',
@@ -930,7 +930,7 @@ class FastConformerVerifier {
   /// statuts par mot -- cf. le commentaire côté Kotlin.
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
-                   Set<TajwidRule> detectedRules, bool tajwidFiable})> v2,
+                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})> v2,
            bool v2Decrochage, int v2DecrochageMot,
            // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
            // `v2Libre` : decodage libre de la derniere fenetre, base de
@@ -956,7 +956,7 @@ class FastConformerVerifier {
           .invokeMapMethod<String, dynamic>('feedBufferedAudio', {'pcm16': pcm16});
       if (raw == null) return null;
       final v2 = <({int index, String statut, String trace, String heard,
-                     Set<TajwidRule> detectedRules, bool tajwidFiable})>[];
+                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})>[];
       for (final m in ((raw['v2'] as List?) ?? const []).cast<Map>()) {
         // La trace porte les TROIS scores. Un `gop` effondré avec un `free`
         // proche de 0 veut dire mauvaise POSITION, pas mauvaise prononciation :
@@ -1014,6 +1014,10 @@ class FastConformerVerifier {
           // plutot que de conclure a une regle absente (cf. le commentaire du
           // payload cote plugin). Defaut prudent : false.
           tajwidFiable: (m['tajwidFiable'] as bool?) ?? false,
+          // « ce mot a-t-il ete observe AU MOINS une fois ? » -- distinct de
+          // `tajwidFiable` (deux fois). Defaut prudent : false, donc pas de
+          // verdict tajwid tant que le natif ne l'affirme pas.
+          tajwidObserve: (m['tajwidObserve'] as bool?) ?? false,
         ));
       }
       return (
@@ -1180,15 +1184,31 @@ class FastConformerVerifier {
   /// @return les mots finalisés par cette dernière passe : `(index, statut)`.
   /// L'appelant DOIT les réinjecter dans le flux de statuts -- ils ne
   /// remontent pas par le chemin habituel, qui est la réponse de `feed()`.
-  Future<List<({int index, String statut})>> v2Terminer() async {
+  /// La passe de fermeture porte DESORMAIS les regles tajwid (2026-09-03).
+  ///
+  /// Elle ne rendait que l'index et le statut : Dart recevait `detectedRules`
+  /// vide pour tout mot finalise ici, or le DERNIER MOT de chaque palier passe
+  /// toujours par ce chemin. Il sortait donc violet a tous les coups, alors
+  /// que le banc direct montrait la regle parfaitement realisee (ghunna a
+  /// 0,993 sur `ٱلْخَنَّاسِ`). Le natif lit maintenant le registre de preuves
+  /// que `terminer()` vient de remplir.
+  Future<List<({int index, String statut, Set<TajwidRule> detectedRules,
+                bool tajwidObserve})>> v2Terminer() async {
     if (!_loaded) return const [];
     try {
       final r = await _channel.invokeMethod<List<dynamic>>('v2Terminer');
       if (r == null) return const [];
+      final noms = _ruleNames;
       return r
           .map((e) => (
                 index: (e['i'] as num).toInt(),
                 statut: e['statut'] as String,
+                detectedRules: <TajwidRule>{
+                  for (final id in ((e['rules'] as List?) ?? const []))
+                    if ((id as int) >= 0 && id < noms.length)
+                      if (TajwidRule.fromKey(noms[id]) case final r?) r,
+                },
+                tajwidObserve: (e['tajwidObserve'] as bool?) ?? false,
               ))
           .toList();
     } catch (_) {

@@ -387,7 +387,7 @@ class ArabicNormalizer {
 /// type record était écrit en toutes lettres à chaque usage, et une signature
 /// de plus l'aurait rendu illisible. Les records étant STRUCTURELS, ce nom
 /// coexiste sans friction avec les usages qui l'épellent encore.
-typedef V2StatutFinal = ({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable});
+typedef V2StatutFinal = ({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve});
 
 abstract class RecitationVerifier {
   Stream<RecognizedToken> get tokens;
@@ -451,7 +451,7 @@ abstract class RecitationVerifier {
   /// déjà décidés, pas des scores — la couche de décision vit côté natif.
   /// Vide par défaut : une implémentation qui ne porte pas la v2 n'a rien à
   /// faire de plus.
-  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable})>> get v2Statuses =>
+  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})>> get v2Statuses =>
       const Stream.empty();
 
   /// Active la v2 sur [mots]. No-op par défaut.
@@ -759,7 +759,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// Flux SÉPARÉ de la v2 : aucune couche du chemin v1 ne le lit.
   final _decrochageCtrl = StreamController<int>.broadcast();
   final _v2Ctrl =
-      StreamController<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable})>>.broadcast();
+      StreamController<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})>>.broadcast();
   final AudioRecorder _recorder;
   Timer? _levelTimer;
 
@@ -1348,7 +1348,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// Changements de statut de la chaîne v2 (branchée en parallèle de la v1).
   /// Mesure de référence sur le même flux brut : v1 10,10 % de mots non verts,
   /// v2 2,03 %.
-  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable})>> get v2Statuses => _v2Ctrl.stream;
+  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})>> get v2Statuses => _v2Ctrl.stream;
 
   /// Le récitateur s'est écarté du texte (chaîne v2). Flux SÉPARÉ de
   /// [v2Statuses] : celui-ci parle de la récitation, pas d'un mot.
@@ -1408,10 +1408,37 @@ class WhisperOnnxVerifier implements RecitationVerifier {
               statut: e.statut,
               trace: 'fermeture de session',
               heard: '',
-              detectedRules: <TajwidRule>{},
+              // Les regles remontent DESORMAIS par ce chemin (2026-09-03) :
+              // le natif les lit dans le registre de preuves, que
+              // `terminer()` vient de remplir via `traiter(fenetre)`.
+              detectedRules: e.detectedRules,
               // false : pas de contrôle tajwid sur cette passe -- il exige
               // deux observations pleines, que la fermeture ne fournit pas.
               tajwidFiable: false,
+              // ── LE FAUX VIOLET DU DERNIER MOT (2026-09-03) ──────────────
+              //
+              // `detectedRules` est vide EN DUR sur ce chemin : la passe de
+              // fermeture ne calcule aucune règle (`Changement` ne porte que
+              // `motIndex` et `statut`). Tant que Dart ne pouvait pas
+              // distinguer « aucune règle constatée » de « rien n'a été
+              // regardé », il lisait ce vide comme « règle non réalisée ».
+              //
+              // Conséquence mesurée : le DERNIER MOT de chaque palier est
+              // toujours finalisé par ce chemin (la fenêtre ne va jamais
+              // assez loin au-delà de lui). `ٱلْخَنَّاسِ` sortait donc violet
+              // cinq essais de suite, en strict comme en tolérant, alors que
+              // le banc direct sur le même audio donne sa ghunna à 0,993
+              // pendant 0,8 s -- parfaitement réalisée.
+              //
+              // `tajwidObserve: false` dit la vérité : ce mot n'a PAS été
+              // observé sur le tajwid. Dart se tait au lieu d'accuser.
+              //
+              // ⚠️ CE N'EST PAS LA SOLUTION COMPLÈTE, et il ne faut pas le
+              // laisser croire : le mot est bien présent dans l'audio et
+              // MÉRITE d'être jugé. Le faire suppose que `terminer()` calcule
+              // les règles de la dernière fenêtre et que `Changement` les
+              // porte jusqu'ici -- chantier sur la chaîne native, non engagé.
+              tajwidObserve: e.tajwidObserve,
             ))
         .toList());
   }
@@ -1785,7 +1812,7 @@ class MockRecitationVerifier implements RecitationVerifier {
   Stream<AlignPayload> get alignedWords => const Stream.empty();
 
   @override
-  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable})>> get v2Statuses =>
+  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})>> get v2Statuses =>
       const Stream.empty();
 
   @override

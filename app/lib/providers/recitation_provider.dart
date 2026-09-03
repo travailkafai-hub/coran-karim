@@ -206,7 +206,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // Motif volontairement identique à `useGopScoring` : les deux moteurs
   // calculent, un seul peint l'écran. La v1 ne peut donc pas régresser du fait
   // du branchement, et une session compare les deux sur le MÊME audio.
-  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable})>>? _v2Sub;
+  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})>>? _v2Sub;
   StreamSubscription<int>? _decrochageSub;
 
   /// La v2 pilote-t-elle l'affichage ? Quand c'est faux, elle tourne quand même
@@ -4822,7 +4822,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// `omis` n'est PAS une couleur : c'est « le récitateur est passé outre, et
   /// on peut le prouver ». Il est rendu comme `skipped`, jamais comme `error` —
   /// condamner un mot non prononcé serait un verdict sans preuve.
-  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable})> changements) {
+  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})> changements) {
     var dernierJuge = -1;
     for (final c in changements) {
       DiagnosticLog.log('V2',
@@ -5061,6 +5061,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         DiagnosticLog.log('V2tajwidDetail',
             'mot=${c.index} "${c.index < words.length ? words[c.index].display : "?"}" '
             'statut=${statutBase.name} tajwidFiable=${c.tajwidFiable} '
+            'tajwidObserve=${c.tajwidObserve} '
             'attendues=${attendues.map((r) => r.key).join(",")} '
             'detectees=${c.detectedRules.map((r) => r.key).join(",")}');
       }
@@ -5077,6 +5078,28 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // recitation, ou le verdict est definitif.
       if (!estBasmala &&
           statutBase == WordStatus.correct &&
+          // ── LA PREUVE D'ABORD, LA RIGUEUR ENSUITE (2026-09-03) ──────
+          //
+          // `tajwidObserve` dit « ce mot a ete vu AU MOINS une fois » ;
+          // `tajwidFiable` dit « deux fois ». Le drapeau du Coach lève la
+          // seconde exigence -- il ne doit JAMAIS lever la première.
+          //
+          // CE QUE ÇA CORRIGE, mesuré : `ٱلْخَنَّاسِ`, dernier mot du palier,
+          // sortait violet CINQ essais de suite. Il est verrouillé à la
+          // fermeture de session avec `frames=0`, sans aucune ligne de
+          // preuve -- la fenêtre ne va jamais assez loin au-delà du dernier
+          // mot pour le couvrir. Or la chaîne native n'appelle
+          // `decodeTajwid` que `if (m.frames > 0)` : la tête n'était même pas
+          // interrogée, `detectees` sortait vide, et on en concluait « règle
+          // non réalisée ». Le banc direct sur le même audio donne la ghunna
+          // à 0,993 pendant 0,8 s : elle était parfaitement faite.
+          //
+          // Le violet était donc GARANTI sur le dernier mot de tout palier
+          // portant une règle, quoi que fasse le récitateur et quel que soit
+          // le seuil -- « même en rabaissant la tolérance », comme constaté.
+          // Ce n'est pas de la tolérance ajoutée en aval : c'est le refus de
+          // juger sans preuve acoustique, règle première du projet.
+          c.tajwidObserve &&
           (c.tajwidFiable || tajwidSansDoubleObservation)) {
         final manquantes = unrealizedRulesFor(c.index, c.detectedRules);
         if (manquantes.isNotEmpty) {

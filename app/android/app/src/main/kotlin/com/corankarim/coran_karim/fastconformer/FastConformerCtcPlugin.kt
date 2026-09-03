@@ -1279,8 +1279,36 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     val changements = chaine.terminer()
                     DiagnosticLog.log(TAG, "[v2] session fermee : " +
                         "${changements.size} mot(s) finalise(s)")
+                    // ── LE DERNIER MOT MERITE D'ETRE JUGE (2026-09-03) ───
+                    //
+                    // Cette passe ne renvoyait que `i` et `statut`. Dart
+                    // recevait donc `detectedRules` VIDE pour tout mot
+                    // finalise ici -- et comme le DERNIER MOT de chaque
+                    // palier passe toujours par ce chemin (la fenetre ne va
+                    // jamais assez loin au-dela de lui), il sortait VIOLET a
+                    // tous les coups : « regle attendue, aucune detectee ».
+                    //
+                    // MESURE qui l'a etabli : `ٱلْخَنَّاسِ` violet cinq essais
+                    // de suite, en strict comme en tolerant, alors que le
+                    // banc direct sur le meme audio donne sa ghunna a 0,993
+                    // pendant 0,8 s. Le recitateur etait accuse pour un mot
+                    // qu'il prononcait parfaitement.
+                    //
+                    // Les regles EXISTENT pourtant : `terminer()` appelle
+                    // `traiter(fenetre)` sur les dernieres fenetres, qui
+                    // remplit le registre de preuves. Elles n'etaient
+                    // simplement jamais remontees. On les lit ici comme le
+                    // fait le chemin normal (`reglesVotantes`), et on dit
+                    // aussi si le mot a ete OBSERVE -- sans quoi Dart ne peut
+                    // pas distinguer « regle non faite » de « rien vu ».
                     result.success(changements.map { c ->
-                        mapOf("i" to c.motIndex, "statut" to nomStatut(c.statut))
+                        val obsv = chaine.preuves.observations(c.motIndex)
+                        mapOf(
+                            "i" to c.motIndex,
+                            "statut" to nomStatut(c.statut),
+                            "rules" to obsv.flatMap { it.reglesTajwid }.distinct(),
+                            "tajwidObserve" to obsv.isNotEmpty(),
+                        )
                     })
                 }
             }
@@ -1772,6 +1800,28 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // jamais pour ce mot, mieux vaut la fournir que se taire
                     // pour toujours.
                     "tajwidFiable" to (votantes.size >= 2 || estDefinitif),
+                    // ── AUCUN VERDICT SANS PREUVE (2026-09-03) ────────────
+                    //
+                    // `tajwidFiable` repond a « ce mot a-t-il ete vu DEUX
+                    // fois ? ». Il ne repond pas a « a-t-il ete vu TOUT
+                    // COURT ? », et les deux ne se confondent pas.
+                    //
+                    // Cas mesure, cinq essais de suite sur `ٱلْخَنَّاسِ`
+                    // (dernier mot du palier) : verrouille a la fermeture de
+                    // session, `frames=0`, aucune ligne de preuve. La chaine
+                    // n'appelle `decodeTajwid` que `if (m.frames > 0)` -- la
+                    // tete n'est donc JAMAIS interrogee, `detectees` sort
+                    // vide, et Dart conclut « regle non realisee ». Or le
+                    // banc direct sur le meme audio donne la ghunna a 0,993
+                    // pendant 0,8 s : elle etait parfaitement realisee.
+                    //
+                    // Le violet etait donc GARANTI sur le dernier mot de tout
+                    // palier portant une regle, quoi que fasse le recitateur
+                    // et quel que soit le seuil -- ce n'est pas un rejet par
+                    // seuil, c'est une absence d'appel. Dart a besoin de
+                    // distinguer « regle attendue et non faite » de « mot
+                    // jamais observe », faute de quoi il condamne sur du vide.
+                    "tajwidObserve" to votantes.isNotEmpty(),
                 )
             }
         } catch (e: Exception) {
