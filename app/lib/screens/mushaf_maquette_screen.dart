@@ -518,7 +518,10 @@ class _PageMushaf extends StatelessWidget {
         // AU-DESSUS de la page ; sans cette réserve elles recouvraient
         // l'en-tête (sourate/hizb/juz) et le pied, qui existaient donc sans
         // jamais se voir.
-        padding: EdgeInsets.fromLTRB(2, controlesVisibles ? 70 : 2, 2, controlesVisibles ? 58 : 2),
+        // Bande de 2,3 % de la largeur : sur 1080 px cela fait 25 px, la
+        // mesure exacte de la reference.
+        padding: EdgeInsets.fromLTRB(
+            0, controlesVisibles ? 68 : 0, 0, controlesVisibles ? 56 : 0),
         child: Container(
           // ── CADRE ORNEMENTAL, EXTRAIT D'UN MUSHAF SCANNE (2026-09-03) ──
           //
@@ -535,8 +538,11 @@ class _PageMushaf extends StatelessWidget {
           // quelle que soit la proportion de l'ecran. La deformation reste
           // faible (le cadre est en 1080x1543, la page en ~1080x1900) et
           // porte sur des motifs repetitifs, ou elle ne se voit pas.
+          // BANDE DELIMITEUR FINE, calee sur la reference : 2,3 % de la
+          // largeur pour la bande coloree, puis un filet. Tout le reste est
+          // rendu au texte.
           decoration: BoxDecoration(
-            color: sombre ? AppColors.sombreBgDeep : _Charte.papier,
+            color: sombre ? AppColors.sombreBgDeep : _Charte.cadreMedian,
           ),
           padding: const EdgeInsets.all(2),
           child: Stack(
@@ -548,7 +554,7 @@ class _PageMushaf extends StatelessWidget {
                   color: sombre
                       ? AppColors.brass.withValues(alpha: 0.55)
                       : _Charte.filet,
-                  width: 1.4),
+                  width: 1.2),
             ),
             // ── RESERVE PROPORTIONNELLE AU CADRE (2026-09-03) ───────────
             // MESURE sur le scan d'origine : la fenetre interieure du cadre
@@ -562,9 +568,12 @@ class _PageMushaf extends StatelessWidget {
             // s'elargissait -- constate a l'ecran, moitie des lignes coupees.
             padding: EdgeInsets.zero,
             child: LayoutBuilder(builder: (context, cts) {
-              final rx = cts.maxWidth * 0.215;
-              final ryHaut = cts.maxHeight * 0.215;
-              final ryBas = cts.maxHeight * 0.09;
+              // 4 % au lieu de 21,5 % : la bande fine ne mange plus la
+              // page, donc la quasi-totalite de l'ecran revient au texte --
+              // « tu occupes l'ecran pour que le texte soit visible ».
+              final rx = cts.maxWidth * 0.04;
+              final ryHaut = cts.maxHeight * 0.015;
+              final ryBas = cts.maxHeight * 0.015;
               return Padding(
                 padding: EdgeInsets.fromLTRB(rx, ryHaut, rx, ryBas),
                 child: Column(
@@ -591,23 +600,17 @@ class _PageMushaf extends StatelessWidget {
               );
             }),
           ),
-              // Le cadre est pose EN DERNIER : dans un Stack, le dernier
-              // enfant est au-dessus. Place avant, il etait recouvert par le
-              // fond opaque du papier -- il ne s'affichait pas du tout.
-              // `IgnorePointer` : purement decoratif, il ne doit intercepter
-              // ni le tap qui masque les controles ni le balayage de page.
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Opacity(
-                    // Legerement attenue en mode sombre : les motifs sont
-                    // tres satures, en plein sur fond noir ils ecrasent le
-                    // texte au lieu de l'encadrer.
-                    opacity: sombre ? 0.55 : 1,
-                    child: Image.asset('assets/images/cadre_mushaf.webp',
-                        fit: BoxFit.fill, filterQuality: FilterQuality.medium),
-                  ),
-                ),
-              ),
+              // ── CADRE ORNEMENTAL RETIRE (2026-09-03) ────────────────
+              // Il occupait 21,5 % de chaque cote, la ou la bande du mushaf
+              // de reference en mesure 2,3 % (25 px sur 1080). Il ne
+              // delimitait pas la page, il la mangeait -- « tu n'as que
+              // superpose la photo avec ton texte ».
+              // L'ASSET A ETE SUPPRIME AVEC LUI (207 Ko) : « pas de photo,
+              // sinon ca va alourdir la taille de l'app pour rien ». Un asset
+              // qu'aucun code ne charge pese quand meme dans l'APK. La
+              // methode d'extraction reste consignee au graphe
+              // (`mesure_cadre_se_decoupe_pas_se_redessine`) si le besoin
+              // revient pour une page de titre de sourate.
             ],
           ),
         ),
