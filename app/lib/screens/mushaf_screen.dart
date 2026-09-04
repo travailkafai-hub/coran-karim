@@ -438,11 +438,59 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   /// varie du simple au décuple. À reprendre le jour où l'écran expose un
   /// verset visible ; d'ici là, mieux vaut une page juste et un peu en amont
   /// qu'une page fausse.
-  void _ouvrirVuePage() {
+  /// ── LE LIEN VA MAINTENANT DANS LES DEUX SENS (2026-09-04) ───────────────
+  ///
+  /// Demande utilisateur : « il faut garder le lien entre le mushaf papier et
+  /// le mushaf, comme on peut faire du marquage de page ; il n'y a qu'un seul
+  /// sens actuellement ».
+  ///
+  /// La page partait bien vers le papier (`pageInitiale`) mais rien ne
+  /// revenait : on pouvait y feuilleter vingt pages, le retour rendait cette
+  /// liste exactement où on l'avait laissée. Deux vues du MÊME texte qui
+  /// divergent dès qu'on se sert de l'une -- et la page lue au papier, qui est
+  /// justement l'endroit qu'on voulait marquer, était perdue à chaque sortie.
+  ///
+  /// Le papier rend désormais sa page (cf. son `PopScope`). Deux cas au
+  /// retour, et ils n'appellent pas le même geste :
+  ///   - la page est DANS la sourate déjà affichée -> on scrolle, la liste est
+  ///     déjà chargée, rien à recharger ;
+  ///   - la page est dans une AUTRE sourate -> on remplace l'écran par le
+  ///     Mushaf de cette sourate, ouvert sur le bon verset. `pushReplacement`
+  ///     et non `push` : empiler deux Mushaf ferait revenir sur l'ancienne
+  ///     sourate au retour suivant, ce qui est exactement le décalage qu'on
+  ///     cherche à supprimer.
+  ///
+  /// `fetchVersesByPage` est servi depuis l'index déjà en mémoire
+  /// (`_versesByPage`, cf. QuranApi) : aucun accès réseau sur ce chemin.
+  Future<void> _ouvrirVuePage() async {
     final page = _verses.isEmpty ? 1 : (_verses.first.pageNumber ?? 1);
-    Navigator.of(context).push(
+    final lue = await Navigator.of(context).push<int>(
       MaterialPageRoute(
         builder: (_) => MushafMaquetteScreen(pageInitiale: page),
+      ),
+    );
+    if (!mounted || lue == null || lue == page) return;
+
+    final versets = await QuranApi.fetchVersesByPage(lue);
+    if (!mounted || versets.isEmpty) return;
+    final cible = versets.first;
+
+    if (cible.surahNumber == widget.surah.number) {
+      _scrollToVerseKey(cible.key, 1.0);
+      return;
+    }
+    _allSurahsCache ??= await QuranApi.fetchSurahs();
+    if (!mounted) return;
+    final sourate = _allSurahsCache!
+        .where((s) => s.number == cible.surahNumber)
+        .firstOrNull;
+    if (sourate == null) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => MushafScreen(
+          surah: sourate,
+          initialAyahNumber: cible.ayahNumber,
+        ),
       ),
     );
   }
@@ -551,6 +599,34 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
       final key = next.currentVerse?.key;
       if (key != null && key != prev?.currentVerse?.key) {
         _scrollToVerseKey(key, next.speed);
+      }
+      // ── LE GARDE NE VALAIT QU'À L'ARMEMENT (2026-09-04) ─────────────────
+      //
+      // Constat utilisateur : « le menu ne doit pas se rétracter quand un
+      // audio est lancé ; la raison du repli, c'est que le récitateur est en
+      // train de LIRE, pas les autres situations -- il écoute, il fait autre
+      // chose ».
+      //
+      // Le refus de replier pendant l'écoute existe depuis le 2026-08-13,
+      // mais il est testé UNE SEULE FOIS, au moment où `_scheduleHeaderHide`
+      // arme le minuteur. Ouvrir le menu puis lancer l'audio dans les 6 s qui
+      // suivent laissait donc un minuteur déjà parti, que rien n'annulait : le
+      // menu se repliait en pleine écoute, exactement le cas signalé.
+      //
+      // On traite donc la TRANSITION vers la lecture, pas seulement l'état à
+      // l'armement. Symétriquement, quand la lecture s'arrête, on reprogramme
+      // le repli : le plein écran revient de lui-même à qui se remet à lire.
+      final joue = next.isPlaying;
+      if (joue != (prev?.isPlaying ?? false)) {
+        if (joue) {
+          // On ANNULE le repli, on ne fait pas REAPPARAITRE le menu : la
+          // demande est « ne doit pas se rétracter ». Le faire surgir sur un
+          // écran déjà en plein texte, parce qu'on a lancé l'audio depuis la
+          // barre du bas, serait un geste que personne n'a demandé.
+          _headerHideTimer?.cancel();
+        } else {
+          _scheduleHeaderHide();
+        }
       }
     });
 

@@ -159,6 +159,22 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     initialPage: widget.pageInitiale.clamp(1, _kPages) - 1,
   );
 
+  /// ── LE LIEN ENTRE LES DEUX MUSHAF N'ALLAIT QUE DANS UN SENS (2026-09-04) ─
+  ///
+  /// Demande utilisateur : « il faut garder le lien entre le mushaf papier et
+  /// le mushaf, comme on peut faire du marquage de page ; il n'y a qu'un seul
+  /// sens actuellement ».
+  ///
+  /// L'écran de lecture passait bien sa page au papier (`pageInitiale`), mais
+  /// rien ne revenait : on pouvait tourner vingt pages ici, le retour rendait
+  /// la liste exactement où on l'avait laissée. Les deux vues du MÊME texte
+  /// divergeaient dès qu'on en utilisait une.
+  ///
+  /// On mémorise donc la page réellement lue, et on la rend au `pop`. La page
+  /// de départ compte : quelqu'un qui entre puis ressort sans feuilleter doit
+  /// retrouver sa place, pas être renvoyé ailleurs.
+  late int _pageLue = widget.pageInitiale.clamp(1, _kPages);
+
   /// Une police vient d'arriver : la page doit se remesurer.
   ///
   /// Sans cela, la taille reste celle calculee sur la police de SECOURS --
@@ -218,7 +234,17 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     // n'est fait.
     final ecriture = ref.watch(policeMushafPageProvider);
     final tajwid = ref.watch(tajwidMushafPageProvider);
-    return Scaffold(
+    return PopScope(
+      // Le retour rend la page LUE, pas celle d'entrée : c'est ce qui rend le
+      // lien bidirectionnel (cf. la doc de `_pageLue`). `PopScope` plutôt
+      // qu'un bouton dédié -- le geste de retour d'Android et la flèche de la
+      // barre passent tous les deux par ici, donc aucun chemin de sortie
+      // n'oublie de rapporter la position.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && mounted) Navigator.of(context).pop(_pageLue);
+      },
+      child: Scaffold(
       backgroundColor: sombre ? AppColors.sombreBg : const Color(0xFFF3EAD6),
       // CHGPT : la page reste toujours en plein ecran. Un toucher avance
       // directement, sans faire apparaitre de barre qui decale le Mushaf.
@@ -226,6 +252,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
         controller: _ctrl,
         reverse: true,
         itemCount: _kPages,
+        onPageChanged: (i) => _pageLue = i + 1,
         itemBuilder: (context, i) => _PageMushaf(
           page: i + 1,
           sombre: sombre,
@@ -241,6 +268,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
           onLongPress: () =>
               ouvrirChoixEcriture(context, ref, sombre: sombre),
         ),
+      ),
       ),
     );
   }
