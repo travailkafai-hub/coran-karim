@@ -329,6 +329,14 @@ Widget _toggleIcon({
 /// utilisateur : « tu appliques bêtement » sur la première version, qui
 /// dupliquait noms/icônes déjà visibles juste au-dessus pour une seule icône
 /// en plus).
+///
+/// ⚠️ CE PARAGRAPHE DÉCRIT L'ÉTAT D'AVANT LE 2026-09-04 : la bascule globale
+/// et le dépliant « Avancé » ont été RETIRÉS ce jour-là (« plus besoin de
+/// garder le toggle vibreur et avancé »). Ils étaient devenus redondants dès
+/// que le vibreur est passé en 2ᵉ icône de chaque ligne, toujours visible
+/// (2026-09-03) : trois façons de régler la même chose, dont un dépliant qui
+/// ne révélait plus rien. Le réglage vit désormais à un seul endroit, la ligne
+/// de la prière. Conservé pour garder trace de ce qui a existé et pourquoi.
 class _NotificationsTable extends StatefulWidget {
   final PrayerSettings settings;
   final PrayerSettingsNotifier notifier;
@@ -339,8 +347,6 @@ class _NotificationsTable extends StatefulWidget {
 }
 
 class _NotificationsTableState extends State<_NotificationsTable> {
-  bool _avanceOuvert = false;
-
   @override
   Widget build(BuildContext context) {
     final settings = widget.settings;
@@ -356,78 +362,44 @@ class _NotificationsTableState extends State<_NotificationsTable> {
               const SizedBox(width: 3),
               Text('adhan',
                   style: GoogleFonts.manrope(fontSize: 9, color: AppColors.inkLight)),
+              // ── L'EN-TETE ANNONCAIT DEUX COLONNES SUR TROIS (2026-09-04) ─
+              // Le vibreur est passe en 2ᵉ icone de chaque ligne le
+              // 2026-09-03, toujours visible -- mais son en-tete etait reste
+              // conditionne au mode avance, donc absent. Trois icones, deux
+              // libelles : la colonne du milieu n'avait pas de nom.
+              const SizedBox(width: 14),
+              Icon(Icons.vibration_rounded, size: 12, color: AppColors.inkLight),
+              const SizedBox(width: 3),
+              Text('vibreur',
+                  style: GoogleFonts.manrope(fontSize: 9, color: AppColors.inkLight)),
               const SizedBox(width: 14),
               Icon(Icons.alarm_rounded, size: 12, color: AppColors.inkLight),
               const SizedBox(width: 3),
               Text('rappel',
                   style: GoogleFonts.manrope(fontSize: 9, color: AppColors.inkLight)),
-              // 3ᵉ en-tête, seulement quand la ligne existe sur les lignes en
-              // dessous -- sinon une colonne sans rien dedans.
-              if (_avanceOuvert) ...[
-                const SizedBox(width: 14),
-                Icon(Icons.vibration_rounded, size: 12, color: AppColors.inkLight),
-                const SizedBox(width: 3),
-                Text('vibreur',
-                    style: GoogleFonts.manrope(fontSize: 9, color: AppColors.inkLight)),
-              ],
             ],
           ),
         ),
+        // ── PLUS DE BASCULE GLOBALE NI DE SECTION « AVANCE » (2026-09-04)
+        //
+        // Demande utilisateur, capture a l'appui : « plus besoin de garder le
+        // toggle vibreur et avance ».
+        //
+        // Les deux etaient devenus redondants le 2026-09-03, quand le vibreur
+        // est passe en 2ᵉ icone de CHAQUE ligne, toujours visible. Restaient
+        // donc trois facons de regler la meme chose : l'icone de la ligne, une
+        // bascule globale qui les ecrasait toutes les cinq, et un depliant
+        // « Avance » qui ne revelait plus rien (son unique role, ajouter la
+        // colonne vibreur, n'avait plus d'objet). Un reglage a un seul endroit.
         ...PrayerName.values
-            .map((p) => _prayerNotificationRow(p, settings, notifier, _avanceOuvert)),
-        Divider(height: 1, color: AppColors.cream300),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          child: Row(
-            children: [
-              const Icon(Icons.vibration_rounded, color: AppColors.green700, size: 18),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text('Vibreur (en plus du son de l\'adhan)',
-                    style: GoogleFonts.manrope(fontSize: 12, color: AppColors.ink)),
-              ),
-              Switch.adaptive(
-                // Bascule simple = les 5 prières d'un coup. `true` seulement
-                // si TOUTES le sont déjà -- sinon un état mixte issu de la
-                // section avancée afficherait "activé" à tort.
-                value: settings.vibrateEnabled.values.every((v) => v),
-                onChanged: notifier.setVibrateEnabled,
-                activeThumbColor: AppColors.green700,
-              ),
-            ],
-          ),
-        ),
-        Divider(height: 1, color: AppColors.cream300),
-        InkWell(
-          onTap: () => setState(() => _avanceOuvert = !_avanceOuvert),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Row(
-              children: [
-                Icon(
-                    _avanceOuvert
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 18,
-                    color: AppColors.inkLight),
-                const SizedBox(width: 4),
-                Text('Avancé — vibreur par prière',
-                    style: GoogleFonts.manrope(
-                        fontSize: 11,
-                        letterSpacing: 0.6,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.inkLight)),
-              ],
-            ),
-          ),
-        ),
+            .map((p) => _prayerNotificationRow(p, settings, notifier)),
       ],
     );
   }
 }
 
-Widget _prayerNotificationRow(PrayerName p, PrayerSettings settings,
-    PrayerSettingsNotifier notifier, bool avanceOuvert) {
+Widget _prayerNotificationRow(
+    PrayerName p, PrayerSettings settings, PrayerSettingsNotifier notifier) {
   final adhanOn = settings.adhanEnabled[p] ?? true;
   final reminderOn = settings.reminderEnabled[p] ?? false;
   final minutes = settings.reminderMinutesBefore[p] ?? 15;

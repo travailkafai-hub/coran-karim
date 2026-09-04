@@ -56,22 +56,27 @@ class MushafMaquetteScreen extends ConsumerStatefulWidget {
 /// Constat utilisateur : « je scrolle pour le balayage mais il faut vraiment
 /// que je fasse un long scroll ».
 ///
-/// `PageView` tranche entre deux gestes. Un LANCER (« fling ») tourne la page
-/// quelle que soit la distance parcourue -- mais seulement si la vitesse
-/// dépasse `tolerance.velocity`. En dessous, le geste est lu comme un
-/// GLISSEMENT, et la page ne bascule que si le doigt a franchi la MOITIÉ de
-/// l'écran. C'est ce second cas qui obligeait au long balayage : un geste
-/// posé, comme on tourne une page de papier, restait sous le seuil de vitesse
-/// et devait donc traverser tout l'écran.
+/// `PageView` tranche entre deux gestes. Un LANCER tourne la page quelle que
+/// soit la distance parcourue -- mais seulement si la vitesse dépasse
+/// `tolerance.velocity`. En dessous, le geste est lu comme un GLISSEMENT, et
+/// la page ne bascule que si le doigt a franchi la MOITIÉ de l'écran.
 ///
-/// On abaisse les deux seuils d'un facteur 3. Un geste court et calme suffit
-/// désormais à tourner la page.
+/// PREMIÈRE TENTATIVE, INSUFFISANTE : diviser les deux seuils de VITESSE par
+/// 3. Retour utilisateur : « le scroll ne marche pas aussi bien, il résiste
+/// encore pour basculer ». Normal -- ça ne touchait que la porte d'entrée du
+/// lancer, jamais le seuil de DISTANCE, qui est le vrai verrou. Un geste posé
+/// restait sous la vitesse ET sous la demi-page : rien ne basculait.
 ///
-/// POURQUOI PAS PLUS BAS. Ces seuils protègent aussi du faux positif : trop
-/// permissifs, un simple appui légèrement traînant tournerait la page tout
-/// seul -- et cet écran tourne DÉJÀ la page au simple tap (cf. `onTap`). Un
-/// doigt qui hésite ferait alors sauter deux pages. Facteur 3 : le geste posé
-/// passe, le tremblement non.
+/// CE QUI EST FAIT MAINTENANT : `createBallisticSimulation` est réécrit, avec
+/// les trois cas explicites au lieu de l'arrondi unique de Flutter :
+///   geste franc  -> la DIRECTION décide, la distance ne pèse plus ;
+///   geste lent   -> bascule dès 28 % de la page franchie (au lieu de 50 %) ;
+///   geste infime -> page la plus proche, comme avant.
+///
+/// POURQUOI 28 % ET PAS MOINS. Le faux positif est le risque symétrique, et
+/// cet écran tourne DÉJÀ la page au simple tap : trop bas, un doigt qui hésite
+/// ferait sauter deux pages. 28 % laisse passer le geste posé et rejette le
+/// tremblement.
 class _BalayagePage extends PageScrollPhysics {
   const _BalayagePage({super.parent});
 
@@ -81,18 +86,57 @@ class _BalayagePage extends PageScrollPhysics {
 
   /// Seuil du LANCER (défaut `kMinFlingVelocity` = 50 px/s).
   @override
-  double get minFlingVelocity => 50.0 / 3;
+  double get minFlingVelocity => 5.0;
 
-  /// Le seuil réellement consulté pour décider vers quelle page aller
-  /// (`PageScrollPhysics._getTargetPixels` compare la vitesse à celui-ci).
   @override
   Tolerance toleranceFor(ScrollMetrics metrics) {
     final t = super.toleranceFor(metrics);
     return Tolerance(
       distance: t.distance,
       time: t.time,
-      velocity: t.velocity / 3,
+      velocity: t.velocity / 10,
     );
+  }
+
+  /// Fraction de page à franchir pour que la bascule se fasse, quand le geste
+  /// est trop lent pour compter comme un lancer. Flutter exige 0,5 -- la
+  /// MOITIÉ de l'écran.
+  static const double _fractionBascule = 0.28;
+
+  @override
+  Simulation? createBallisticSimulation(
+      ScrollMetrics position, double velocity) {
+    // Bords de liste : on laisse le parent gérer le rebond.
+    if ((velocity <= 0.0 && position.pixels <= position.minScrollExtent) ||
+        (velocity >= 0.0 && position.pixels >= position.maxScrollExtent)) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+
+    final tol = toleranceFor(position);
+    final largeur = position.viewportDimension;
+    if (largeur <= 0) return super.createBallisticSimulation(position, velocity);
+
+    final page = position.pixels / largeur;
+    final depart = page.floorToDouble();
+    final avance = page - depart; // 0 -> page de départ, 1 -> page suivante
+
+    double cible;
+    if (velocity.abs() > tol.velocity) {
+      // Geste franc : la DIRECTION décide, la distance n'a plus à peser.
+      cible = velocity > 0 ? depart + 1 : depart;
+    } else if (avance >= _fractionBascule && avance <= 1 - _fractionBascule) {
+      // Geste lent mais net : on suit le sens dans lequel le doigt a poussé.
+      cible = avance >= 0.5 ? depart + 1 : depart;
+    } else {
+      // Trop peu : on revient à la page la plus proche (comportement d'avant).
+      cible = page.roundToDouble();
+    }
+
+    final pixels = (cible * largeur)
+        .clamp(position.minScrollExtent, position.maxScrollExtent);
+    if (pixels == position.pixels) return null;
+    return ScrollSpringSimulation(spring, position.pixels, pixels, velocity,
+        tolerance: tol);
   }
 }
 

@@ -71,7 +71,7 @@
 
          NB : pas de « double tiret » dans ce commentaire, XML l'interdit. -->
     <application
-        android:label="Coran Karim"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher">

@@ -462,8 +462,43 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   ///
   /// `fetchVersesByPage` est servi depuis l'index déjà en mémoire
   /// (`_versesByPage`, cf. QuranApi) : aucun accès réseau sur ce chemin.
+  /// Le premier verset RÉELLEMENT visible à l'écran, ou `null`.
+  ///
+  /// ── L'ALLER PARTAIT TOUJOURS DU DÉBUT DE LA SOURATE (2026-09-04) ────────
+  ///
+  /// Constat utilisateur : « la recherche ne se fait pas bien, même le premier
+  /// sens, surtout si on scrolle puis qu'on veut passer au mushaf papier ».
+  ///
+  /// `_ouvrirVuePage` prenait `_verses.first.pageNumber` -- la page où COMMENCE
+  /// la sourate affichée, jamais celle qu'on regarde. Sur Al-Baqara, ouvrir le
+  /// papier depuis le verset 200 renvoyait page 2. Le défaut était connu et
+  /// écrit ici même (« à reprendre le jour où l'écran expose un verset
+  /// visible ») : c'est ce jour-là.
+  ///
+  /// COMMENT : `_verseKeys` porte une `GlobalKey` par verset, déjà utilisée par
+  /// le défilement. Un `ListView.builder` ne construit que les éléments proches
+  /// de l'écran -- donc ceux qui ont un `currentContext` sont précisément les
+  /// candidats, et il suffit de garder le premier dont le bas dépasse le haut
+  /// de la fenêtre. Aucune estimation d'offset : la hauteur d'un verset varie
+  /// du simple au décuple, un calcul à partir du scroll serait une fausse
+  /// précision (c'est ce que disait déjà la note d'origine).
+  Verse? _versetVisible() {
+    final hautFenetre = MediaQuery.of(context).padding.top;
+    for (var i = 0; i < _verseKeys.length && i < _verses.length; i++) {
+      final ctx = _verseKeys[i].currentContext;
+      if (ctx == null) continue; // hors de la fenêtre de construction
+      final boite = ctx.findRenderObject();
+      if (boite is! RenderBox || !boite.hasSize) continue;
+      final bas = boite.localToGlobal(Offset(0, boite.size.height)).dy;
+      if (bas > hautFenetre) return _verses[i];
+    }
+    return null;
+  }
+
   Future<void> _ouvrirVuePage() async {
-    final page = _verses.isEmpty ? 1 : (_verses.first.pageNumber ?? 1);
+    final visible = _versetVisible();
+    final page = visible?.pageNumber ??
+        (_verses.isEmpty ? 1 : (_verses.first.pageNumber ?? 1));
     final lue = await Navigator.of(context).push<int>(
       MaterialPageRoute(
         builder: (_) => MushafMaquetteScreen(pageInitiale: page),
@@ -473,6 +508,19 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
 
     final versets = await QuranApi.fetchVersesByPage(lue);
     if (!mounted || versets.isEmpty) return;
+    // ── LE PREMIER VERSET DE LA PAGE (2026-09-04) ──────────────────────────
+    //
+    // ARBITRÉ EN DEUX TEMPS, et la trace compte parce que les deux choix se
+    // défendent. D'abord la FIN de page (« il doit prendre la situation de fin
+    // de verset qui existe dans la page ») : celui qui a lu la page entière
+    // est rendu là où il en est. Puis l'utilisateur est revenu dessus --
+    // « attends, je pense que c'est mieux début de page, c'est plus logique ».
+    //
+    // Et c'est le choix le plus sûr : viser la fin suppose que la page a été
+    // lue jusqu'au bout, ce que RIEN ne garantit -- on peut l'avoir ouverte,
+    // parcourue à moitié, ou juste traversée en feuilletant. Se tromper vers
+    // le début fait relire quelques versets ; se tromper vers la fin en fait
+    // SAUTER. Sur un texte qu'on mémorise, les deux erreurs ne se valent pas.
     final cible = versets.first;
 
     if (cible.surahNumber == widget.surah.number) {

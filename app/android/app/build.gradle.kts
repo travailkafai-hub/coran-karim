@@ -74,6 +74,14 @@ android {
         }
     }
 
+    // `resValue` est refuse tant que cette option est fermee (« Build Type
+    // debug contains custom resource values, but the feature is disabled ») --
+    // elle l'est par defaut depuis AGP 8. On l'ouvre pour que chaque variante
+    // porte son propre nom d'application (cf. `debug` plus bas).
+    buildFeatures {
+        resValues = true
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
@@ -106,6 +114,40 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Le manifeste porte `@string/app_name` (2026-09-04) pour que la
+            // variante DEV puisse s'appeler autrement. La ressource doit donc
+            // exister dans CHAQUE variante, celle-ci comprise.
+            resValue("string", "app_name", "Coran Karim")
+        }
+
+        // ── LA VERSION DE DEV COEXISTE AVEC CELLE DU PLAY STORE (2026-09-04)
+        //
+        // Demande utilisateur : « quand tu veux installer, installe en version
+        // DEV, comme ca je peux telecharger l'app du Play Store ».
+        //
+        // DEUX PROBLEMES D'UN COUP. (1) Un APK debug et un APK release signes
+        // par des cles differentes ne peuvent pas s'installer l'un sur l'autre
+        // -- adb rend INSTALL_FAILED_UPDATE_INCOMPATIBLE, et la seule issue
+        // etait de DESINSTALLER, donc de perdre les preferences, le journal et
+        // les captures WAV de la session en cours. (2) Meme signature, la
+        // version testee ECRASAIT celle du Store : impossible d'avoir les deux.
+        //
+        // Un applicationId distinct fait deux applications aux yeux d'Android :
+        // icones separees, donnees separees, aucune ne remplace l'autre.
+        //
+        // ⚠️ CONSEQUENCE POUR LE DIAGNOSTIC : les chemins de donnees changent.
+        // Le journal et les captures de la version DEV vivent sous
+        //   /sdcard/Android/data/com.corankarim.coran_karim.dev/files/
+        // et non plus sous `com.corankarim.coran_karim`. Toute commande adb
+        // (pull du journal, RECUPWAV, run-as) doit viser le bon paquet, sans
+        // quoi elle lira le journal de l'AUTRE application -- et une analyse
+        // faite sur le mauvais journal ne se voit pas.
+        debug {
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            // Nom sous l'icone : sans ca, deux « Coran Karim » identiques sur
+            // l'ecran d'accueil, et on ne sait plus laquelle on lance.
+            resValue("string", "app_name", "Coran Karim DEV")
         }
     }
 
