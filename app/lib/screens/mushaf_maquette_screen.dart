@@ -51,6 +51,51 @@ class MushafMaquetteScreen extends ConsumerStatefulWidget {
       _MushafMaquetteScreenState();
 }
 
+/// ── LE BALAYAGE DEMANDAIT UN GESTE TROP LONG (2026-09-04) ─────────────────
+///
+/// Constat utilisateur : « je scrolle pour le balayage mais il faut vraiment
+/// que je fasse un long scroll ».
+///
+/// `PageView` tranche entre deux gestes. Un LANCER (« fling ») tourne la page
+/// quelle que soit la distance parcourue -- mais seulement si la vitesse
+/// dépasse `tolerance.velocity`. En dessous, le geste est lu comme un
+/// GLISSEMENT, et la page ne bascule que si le doigt a franchi la MOITIÉ de
+/// l'écran. C'est ce second cas qui obligeait au long balayage : un geste
+/// posé, comme on tourne une page de papier, restait sous le seuil de vitesse
+/// et devait donc traverser tout l'écran.
+///
+/// On abaisse les deux seuils d'un facteur 3. Un geste court et calme suffit
+/// désormais à tourner la page.
+///
+/// POURQUOI PAS PLUS BAS. Ces seuils protègent aussi du faux positif : trop
+/// permissifs, un simple appui légèrement traînant tournerait la page tout
+/// seul -- et cet écran tourne DÉJÀ la page au simple tap (cf. `onTap`). Un
+/// doigt qui hésite ferait alors sauter deux pages. Facteur 3 : le geste posé
+/// passe, le tremblement non.
+class _BalayagePage extends PageScrollPhysics {
+  const _BalayagePage({super.parent});
+
+  @override
+  _BalayagePage applyTo(ScrollPhysics? ancestor) =>
+      _BalayagePage(parent: buildParent(ancestor));
+
+  /// Seuil du LANCER (défaut `kMinFlingVelocity` = 50 px/s).
+  @override
+  double get minFlingVelocity => 50.0 / 3;
+
+  /// Le seuil réellement consulté pour décider vers quelle page aller
+  /// (`PageScrollPhysics._getTargetPixels` compare la vitesse à celui-ci).
+  @override
+  Tolerance toleranceFor(ScrollMetrics metrics) {
+    final t = super.toleranceFor(metrics);
+    return Tolerance(
+      distance: t.distance,
+      time: t.time,
+      velocity: t.velocity / 3,
+    );
+  }
+}
+
 /// Interligne du texte de la page (2026-09-02).
 ///
 /// 2,0 auparavant. Retour utilisateur, capture d'un mushaf de reference a
@@ -251,9 +296,41 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
       body: PageView.builder(
         controller: _ctrl,
         reverse: true,
+        physics: const _BalayagePage(),
         itemCount: _kPages,
         onPageChanged: (i) => _pageLue = i + 1,
-        itemBuilder: (context, i) => _PageMushaf(
+        // ── LE ZOOM SYSTEME CASSAIT LE CALCUL DE PAGE (2026-09-04) ───────
+        //
+        // Question de l'utilisateur : « l'affichage du mushaf papier tient-il
+        // de la dimension du téléphone ? ». De l'écran, oui -- la taille de
+        // police est MESUREE par dichotomie pour remplir exactement la hauteur
+        // disponible (`_tailleQuiTient`). Du réglage système « taille de
+        // police », non, et les deux divergeaient :
+        //
+        //   la MESURE passe par `TextPainter`, qui n'applique aucun zoom ;
+        //   le RENDU passe par `Text`, qui applique celui du `MediaQuery`.
+        //
+        // Une page calculée pour 100 % et peinte à 130 % déborde -- la
+        // dernière ligne sort du cadre. Le public d'un mushaf comprend
+        // beaucoup de lecteurs qui augmentent cette taille : le défaut n'a
+        // rien d'exotique. Il explique peut-être aussi la « dernière ligne pas
+        // visible » signalée le 2026-09-03, attribuée alors à la seule hauteur
+        // d'écran -- non vérifié, l'appareil de test est peut-être à 100 %.
+        //
+        // L'ENVELOPPE PLUTÔT QUE CINQ `textScaler` : le corps n'est pas seul en
+        // cause. L'en-tête, le pied, les médaillons et surtout le bandeau de
+        // sourate -- dont la hauteur `compactHeight` est une CONSTANTE entrant
+        // dans le calcul de la place disponible -- grossiraient aussi, et la
+        // réservation deviendrait fausse. Un seul point couvre la page entière,
+        // y compris ce qu'on y ajoutera demain.
+        //
+        // CE N'EST PAS UN DÉNI D'ACCESSIBILITÉ : la page remplit déjà l'écran
+        // par construction, la police est prise AU MAXIMUM de ce qui tient. Le
+        // zoom système ne peut rien y ajouter, seulement casser le calcul. Qui
+        // veut un texte plus grand a le sélecteur d'écriture (appui long) et le
+        // format lui-même, qui répond en tournant moins de lignes par page.
+        itemBuilder: (context, i) => MediaQuery.withNoTextScaling(
+          child: _PageMushaf(
           page: i + 1,
           sombre: sombre,
           warsh: warsh,
@@ -267,6 +344,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
           // comparer deux ecritures sans quitter la page.
           onLongPress: () =>
               ouvrirChoixEcriture(context, ref, sombre: sombre),
+        ),
         ),
       ),
       ),
