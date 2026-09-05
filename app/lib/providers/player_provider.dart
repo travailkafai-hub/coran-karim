@@ -64,8 +64,11 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
     s.auPlay = resume;
     s.auPause = pause;
     s.auStop = stop;
-    s.auSuivant = next;
-    s.auPrecedent = prev;
+    // Sourate, PAS verset -- cf. la doc de `sourateSuivante`. Les fleches du
+    // mini-lecteur restent sur `next`/`prev` (verset) : ce sont deux contextes
+    // differents, l'un a l'aveugle et l'autre sous les yeux.
+    s.auSuivant = sourateSuivante;
+    s.auPrecedent = souratePrecedente;
     s.auSeek = seek;
   }
 
@@ -184,6 +187,84 @@ class PlayerNotifier extends StateNotifier<PlayerStateModel> {
       final prev = state.prevVerse;
       if (prev != null) await play(prev, state.playlist);
     }
+  }
+
+  // ── LA NOTIFICATION SAUTE DE SOURATE, PAS DE VERSET (2026-09-05) ────────
+  //
+  // Demande utilisateur, capture de la notification a l'appui : « il y a play,
+  // arret, et les deux autres doivent passer a la sourate suivante, pas par
+  // verset ».
+  //
+  // C'est le bon decoupage POUR CET ENDROIT-LA. La notification se pilote a
+  // l'aveugle, telephone en poche ou ecran eteint : avancer d'un verset y
+  // demande autant d'appuis qu'il y a de versets, et An-Nisa en compte 176.
+  // Les fleches du mini-lecteur, elles, gardent le verset -- on les voit, on
+  // sait ou on va, et c'est la que le reglage fin a un sens. Deux gestes
+  // differents pour deux contextes differents, pas une incoherence.
+  //
+  // La playlist chargee ne contient souvent qu'UNE sourate : on cherche donc
+  // d'abord un verset de la sourate voisine DANS la playlist (cas d'un passage
+  // a cheval, ou d'une page du Mushaf), et a defaut on charge la sourate
+  // voisine. Sans ce second chemin, le bouton serait inerte neuf fois sur dix.
+
+  /// Premier verset de la sourate suivante -- de la playlist si elle en porte
+  /// un, sinon charge depuis le corpus. Sans effet apres An-Nas.
+  Future<void> sourateSuivante() async {
+    final v = state.currentVerse;
+    if (v == null) return;
+    final dansListe =
+        state.playlist.where((x) => x.surahNumber > v.surahNumber).toList();
+    if (dansListe.isNotEmpty) {
+      final cible = dansListe.reduce((a, b) =>
+          (a.surahNumber < b.surahNumber ||
+                  (a.surahNumber == b.surahNumber && a.ayahNumber <= b.ayahNumber))
+              ? a
+              : b);
+      await play(cible, state.playlist);
+      return;
+    }
+    if (v.surahNumber >= 114) return;
+    final versets = await QuranApi.fetchVerses(v.surahNumber + 1);
+    if (versets.isEmpty) return;
+    await play(versets.first, versets);
+  }
+
+  /// Debut de la sourate COURANTE si on est deja engage dedans, sinon debut de
+  /// la sourate precedente. Meme convention que tous les lecteurs audio : le
+  /// premier appui ramene au debut de la piste, le second recule vraiment.
+  Future<void> souratePrecedente() async {
+    final v = state.currentVerse;
+    if (v == null) return;
+    final debutCourante = state.playlist
+        .where((x) => x.surahNumber == v.surahNumber)
+        .fold<Verse?>(null, (a, b) => a == null || b.ayahNumber < a.ayahNumber ? b : a);
+    if (debutCourante != null && debutCourante.ayahNumber < v.ayahNumber) {
+      await play(debutCourante, state.playlist);
+      return;
+    }
+    if (v.surahNumber <= 1) {
+      await _svc.seek(Duration.zero);
+      return;
+    }
+    final dansListe = state.playlist
+        .where((x) => x.surahNumber < v.surahNumber)
+        .fold<Verse?>(
+            null,
+            (a, b) => a == null ||
+                    b.surahNumber > a.surahNumber ||
+                    (b.surahNumber == a.surahNumber && b.ayahNumber < a.ayahNumber)
+                ? b
+                : a);
+    if (dansListe != null) {
+      final debut = state.playlist
+          .where((x) => x.surahNumber == dansListe.surahNumber)
+          .fold<Verse?>(null, (a, b) => a == null || b.ayahNumber < a.ayahNumber ? b : a);
+      await play(debut ?? dansListe, state.playlist);
+      return;
+    }
+    final versets = await QuranApi.fetchVerses(v.surahNumber - 1);
+    if (versets.isEmpty) return;
+    await play(versets.first, versets);
   }
 
   Future<void> seek(Duration pos) => _svc.seek(pos);

@@ -4902,14 +4902,37 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // n'est masque (contrairement a la recitation de memoire).
     if (widget.modeTajwid) opacity = 1.0;
 
-    // `!modeTajwid` : la page de lecture ne porte que deux couleurs (cf. le
-    // bloc ci-dessus). Ce gris-ci passerait APRES elles et les recouvrirait --
-    // c'est exactement ce que l'utilisateur a vu et signale (« le gris ici,
-    // c'est le rouge ? »), et il n'a de toute facon aucun sens en lecture :
-    // il dit « ce mot t'a ete souffle », or on ne recite pas de memoire.
-    if (estOubli && !widget.modeTajwid) {
-      bgTint = const Color(0xFF9e9e9e).withValues(alpha: 0.30);
-      borderTint = const Color(0xFF9e9e9e);
+    // ── LE GRIS NE SE PEINT PLUS (2026-09-05) ────────────────────────────
+    //
+    // Demande utilisateur : « enleve le gris dans reciter » -- apres avoir
+    // constate lui-meme qu'il recouvrait ses rouges (« le gris ici, c'est le
+    // rouge ? »). Mesure qui le lui a montre, session du 2026-09-05 :
+    //     mot 11 `نَّفْسٍ`      verdict definitif:orange  -> peint GRIS
+    //     mot 21 `وَٱتَّقُوا۟`   verdict definitif:rouge   -> peint GRIS
+    //     mot 25 `بِهِۦ`        verdict definitif:rouge   -> peint GRIS
+    //
+    // POURQUOI IL LES RECOUVRAIT, ET CE N'ETAIT PAS SON ROLE. `_motsOublies`
+    // se remplit dans `_onWordFailed`, a l'instant ou le souffleur est
+    // SOLLICITE. Or depuis le retrait de la correction sur erreur isolee
+    // (2026-08-07), cette fonction est encore appelee sur une erreur isolee
+    // mais ne souffle plus RIEN (« aucune interruption »). Le marquage est
+    // reste en amont de ce test : tout mot en erreur isolee etait donc marque
+    // « oubli » alors que personne ne l'avait souffle, et repeint par-dessus
+    // son verdict. Un mois durant, le rouge et l'orange ne s'affichaient plus.
+    //
+    // CE QUE LE GRIS DISAIT, ET QUI RESTE VRAI SI ON LE REBRANCHE UN JOUR
+    // (demande utilisateur d'origine, conservee ici pour ne pas la perdre) :
+    // « un mot souffle puis redit juste redevient `correct` : le vert effacait
+    // toute trace du trou de memoire. On le peint en GRIS -- ni vert (ce n'est
+    // pas acquis) ni rouge (ce n'est pas une faute de prononciation). »
+    //
+    // CE QUI N'EST PAS PERDU : `_motsOublies` continue d'etre rempli, le
+    // journal d'erreurs continue d'enregistrer l'oubli (`kind = oubli`), et le
+    // score cote base exclut toujours `deja_rate` de `words_green` -- une
+    // session avec oubli ne peut donc toujours pas afficher 100 %. Seule la
+    // PEINTURE est retiree. La rebrancher tient a restaurer les deux lignes
+    // ci-dessous, en les placant cette fois du bon cote du test `surSilence`.
+    if (estOubli) {
       opacity = 1.0;
       underline = false;
     }
