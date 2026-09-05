@@ -1332,7 +1332,7 @@ class CtcTokenizer(vocab: List<String>, wordLookupBrut: Map<String, IntArray>? =
                 if (p == null) { valide = false; break }
                 recompose.append(p)
             }
-            if (valide && recompose.toString().replace("▁", "") == mot) {
+            if (valide && memeTexte(recompose.toString().replace("▁", ""), mot)) {
                 propre[mot] = ids
             } else {
                 ecartes++
@@ -1342,6 +1342,36 @@ class CtcTokenizer(vocab: List<String>, wordLookupBrut: Map<String, IntArray>? =
                 "($ecartes ecarte(s) : leur decomposition ne redonnait pas le mot -- " +
                 "repli greedy, cf. la doc de wordLookup)")
         propre
+    }
+
+    /** Deux ecritures du MEME texte ?
+     *
+     *  ── REGRESSION QUE CE TEST CORRIGE (2026-09-05, le soir meme) ─────────
+     *
+     *  Le filtre du dictionnaire comparait les chaines caractere par
+     *  caractere. Or le texte du Coran ecrit le madd en DECOMPOSE -- `0627
+     *  0653`, alef + maddah -- tandis que le vocabulaire du modele n'a AUCUNE
+     *  piece portant cette sequence (0 sur 1024) et 22 portant la forme
+     *  PRECOMPOSEE `0622`. Le dictionnaire donne donc, pour `مَآ`, l'unique
+     *  piece `▁مَآ` qui se recompose en `0645 064E 0622` : parfaite pour le
+     *  modele, mais differente octet a octet de la cle `0645 064E 0627 0653`.
+     *
+     *  MESURE : sur les 2 806 entrees que le filtre ecartait, 818 (29,2 %)
+     *  etaient dans ce cas -- equivalentes en Unicode, donc jetees a tort. Le
+     *  repli glouton leur fabriquait alors une cible en pieces SEPAREES
+     *  (`م + َ + ا + ٓ`) que le modele ne produit jamais, et le chemin
+     *  contraint s'effondrait sur des mots parfaitement recites. C'est
+     *  exactement le defaut signale sur `مَآ` et `يَدَآ` : ni vert ni violet,
+     *  parce que rouges pour une raison qui n'existait pas.
+     *
+     *  `Normalizer.Form.NFC` compose les paires equivalentes (alef + maddah ->
+     *  alef madda) sans rien changer d'autre : deux ecritures qui donnent le
+     *  meme NFC sont le meme texte, par definition d'Unicode. Restent 1 988
+     *  entrees reellement amputees, que le filtre continue d'ecarter. */
+    private fun memeTexte(a: String, b: String): Boolean {
+        if (a == b) return true
+        return java.text.Normalizer.normalize(a, java.text.Normalizer.Form.NFC) ==
+            java.text.Normalizer.normalize(b, java.text.Normalizer.Form.NFC)
     }
 
     fun tokenizeWord(word: String): IntArray {

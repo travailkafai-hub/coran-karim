@@ -914,6 +914,23 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // ne bloque pas le frame ; _ready garde déjà l'écran non-interactif tant
       // que ce callback n'a pas tourné (même garantie qu'avant avec setup()).
       unawaited(notifier.setupVerses(chunk.segments));
+      // ── EN LECTURE, LA FENETRE N'A QU'UN TOUR (2026-09-05) ─────────────
+      //
+      // Defaut signale : « مَآ n'est ni vert ni violet ». Le journal le
+      // confirme -- `tajwidFiable=false`, `frames=1` : un mot de trois lettres
+      // n'a ete vu qu'UNE fois, et le controle tajwid exige DEUX observations
+      // avant de conclure. Ni preuve qu'il manque, ni preuve qu'il est fait :
+      // le mot restait sans couleur, et rien a l'ecran ne disait pourquoi.
+      //
+      // MEME ARGUMENT QUE LE COACH, qui leve deja cette exigence sur ses
+      // paliers : on ne repasse pas, la fenetre n'a qu'un tour. Le prix est
+      // connu et mesure (2026-07-23) -- une regle coupee au bord d'une fenetre
+      // disparait, donc une part de faux signalements. La note qui l'accompagne
+      // disait « acceptable la ou ca se rejoue, jamais en recitation ou le
+      // verdict est definitif » : la lecture tajwid est du premier cote, elle
+      // ne compte dans AUCUNE statistique depuis v353 et on relit sa page
+      // autant qu'on veut.
+      notifier.tajwidSansDoubleObservation = widget.modeTajwid;
       // Sensibilité déjà réglée par l'utilisateur (persistée) -- ref.listen
       // (build()) ne rattrape que les CHANGEMENTS suivants, pas l'état
       // initial (même raison que le préchauffage de correction ci-dessous).

@@ -3492,17 +3492,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _previewNegative.clear();
     _previewNegativeStreak.clear();
     _previewNegativeSeq.clear();
-    _failureSignalled.clear();
-    // Le registre des dégradations de tajwid appartient à UNE session : le
-    // garder ferait peindre en violet, au tour suivant, des mots dont la règle
-    // manquait au tour précédent. `setup` est le point d'entrée commun des
-    // trois écrans, y compris via `setupDepuisVerset` qui l'appelle.
-    _motsDegradesTajwid.clear();
-    _motsTajwidReussi.clear();
-    _motsComptes.clear();
-    _scoresRegles.clear();
-    _reglesAttendues = 0;
-    _reglesReussies = 0;
+    _reinitialiserSession();
     // Riwaya figée ICI, pour toute la durée de la session -- cf. la doc du
     // champ sur `RecitationSessionState.riwaya`.
     state = RecitationSessionState(words: words, riwaya: QuranApi.riwaya);
@@ -3659,15 +3649,50 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     await RuleAnnotationService.instance.ensureLoaded();
     await WordTimingService.instance.ensureLoaded();
     await WordDurationStore.instance.ensureLoaded();
+    _reinitialiserSession();
+    // Riwaya figée ICI, pour toute la durée de la session -- cf. la doc du
+    // champ sur `RecitationSessionState.riwaya`.
+    state = RecitationSessionState(
+        words: _wordsFromSegments(segments), riwaya: QuranApi.riwaya);
+  }
+
+  /// ── UNE SEULE REMISE A ZERO, POUR LES DEUX POINTS D'ENTREE ────────────
+  /// (2026-09-05)
+  ///
+  /// Defaut signale : « en mode tajwid, quand je refais une boucle il garde le
+  /// texte colore ; d'ailleurs en basculant de recite a tajwid il garde les
+  /// couleurs -- il faut une initialisation ».
+  ///
+  /// CAUSE : il y a DEUX points d'entree de session, et un seul purgeait.
+  /// `setup` remettait bien a zero les registres de tajwid, les compteurs
+  /// d'etoiles et les scores ; `setupVerses` -- celui qu'utilise l'ecran de
+  /// recitation, donc le mode tajwid -- ne vidait que les etats de
+  /// segmentation. Les violets et les verts d'un tour survivaient au suivant,
+  /// et les etoiles cumulaient deux passages.
+  ///
+  /// La doc de `setup` affirmait meme etre « le point d'entree commun des
+  /// trois ecrans » : c'etait vrai pour `setupDepuisVerset`, faux pour
+  /// `setupVerses`. Les deux appellent desormais la meme methode -- une seule
+  /// liste a tenir a jour, donc plus de divergence possible.
+  ///
+  /// TOUT CE QUI APPARTIENT A UNE SESSION ET A UNE SEULE se vide ici. Ce qui
+  /// n'y est pas : la riwaya (figee par le setup lui-meme) et les options de
+  /// jugement (poussees par le provider, elles survivent volontairement).
+  void _reinitialiserSession() {
     _lastTextDiffLine.clear();
     _previewNegative.clear();
     _previewNegativeStreak.clear();
     _previewNegativeSeq.clear();
     _failureSignalled.clear();
-    // Riwaya figée ICI, pour toute la durée de la session -- cf. la doc du
-    // champ sur `RecitationSessionState.riwaya`.
-    state = RecitationSessionState(
-        words: _wordsFromSegments(segments), riwaya: QuranApi.riwaya);
+    // Le registre des dégradations de tajwid appartient à UNE session : le
+    // garder ferait peindre en violet, au tour suivant, des mots dont la règle
+    // manquait au tour précédent.
+    _motsDegradesTajwid.clear();
+    _motsTajwidReussi.clear();
+    _motsComptes.clear();
+    _scoresRegles.clear();
+    _reglesAttendues = 0;
+    _reglesReussies = 0;
   }
 
   /// Mots annotés d'une liste de [Verse] (chacun sait sa surah/ayah) — raccourci
@@ -5389,11 +5414,65 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         // Le pendant vert du violet : la regle attendue a ete CONSTATEE.
         // `attendues.isNotEmpty` est deja garanti par le `if` englobant --
         // un mot sans regle ne passe pas ici et reste donc sans couleur.
+        // ── LA REGLE DE JONCTION COLORE LES DEUX MOTS (2026-09-05) ───
+        //
+        // Defaut signale : « ذَاتَ aussi, mais je pense que c'est en lien avec
+        // نَارًا -- il faut colorier ». Exact : l'ikhafa de `نَارًا ذَاتَ` se
+        // joue sur la FIN du premier mot et le DEBUT du second. Le texte
+        // annote ne la porte que sur le premier ; le second restait donc sans
+        // regle attendue, donc sans couleur, alors qu'il est la moitie du
+        // phenomene qu'on vient de juger.
+        //
+        // `isBoundaryWord` sait deja repondre -- il sert depuis le 2026-07-22
+        // a montrer la PAIRE de mots dans la fiche d'erreur. On l'utilise ici
+        // pour la couleur : la meme verite, au meme endroit, dite deux fois.
+        //
+        // Le mot suivant HERITE, il n'est pas juge : il ne porte ni preuve ni
+        // verdict propre. C'est pour cela qu'il n'entre pas dans le compte des
+        // etoiles -- une regle vaut une fois, meme si elle se voit sur deux
+        // mots.
+        void colorierAussiLeVoisin(Set<int> registre) {
+          final v = verseAndLocalIndexFor(c.index);
+          if (v == null) return;
+          if (!RuleAnnotationService.instance
+              .isBoundaryWord(v.$1.surahNumber, v.$1.ayahNumber, v.$2)) {
+            return;
+          }
+          final suivant = c.index + 1;
+          if (suivant < words.length && !words[suivant].isBasmala) {
+            registre.add(suivant);
+          }
+        }
+
+        // ── UN VERT DE CE MODE EXIGE UNE REGLE REELLEMENT JUGEE ──────
+        // (2026-09-05)
+        //
+        // Defaut signale : « il y a des mots en vert alors qu'ils ne portent
+        // pas de regle de tajwid ; les vraies regles ne comptent pas,
+        // laam_shamsiyah... les 4 ignorees ».
+        //
+        // Il avait raison, et ce sont bien QUATRE : `porteesParLeTexte` =
+        // madda_normal, laam_shamsiyah, ham_wasl, slnt. Elles sont ATTENDUES
+        // et ACTIVES dans le preset, mais `unrealizedRulesFor` les ecarte --
+        // aucune preuve acoustique n'est possible, elles se lisent dans le
+        // texte. Un mot dont la seule regle attendue est l'une des quatre
+        // sortait donc avec `manquantes` vide, et passait vert : le vert
+        // disait « regle reussie » alors qu'aucune regle n'avait ete jugee.
+        //
+        // On exige desormais qu'au moins une regle JUGEABLE ait ete attendue.
+        // Meme filtre que `unrealizedRulesFor`, a la ligne pres : ce qui n'est
+        // pas jugeable ne peut ni faire un violet, ni faire un vert.
+        //
         // `statutBase == correct` : un mot entre ici par requalification
         // (madd raccourci) n'est PAS un mot reussi, meme si ses regles sont
         // finalement toutes constatees -- il reste fautif par ailleurs.
-        if (manquantes.isEmpty && statutBase == WordStatus.correct) {
+        final jugeables = attendues.where((r) =>
+            !_textCarriedRules.contains(r) && !_signalNonFiable.contains(r));
+        if (manquantes.isEmpty &&
+            jugeables.isNotEmpty &&
+            statutBase == WordStatus.correct) {
           _motsTajwidReussi.add(c.index);
+          colorierAussiLeVoisin(_motsTajwidReussi);
         } else {
           _motsTajwidReussi.remove(c.index);
         }
@@ -5416,6 +5495,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           // La cause est certaine ICI : on vient de constater la règle
           // manquante. On l'enregistre plutôt que de la faire redeviner.
           _motsDegradesTajwid.add(c.index);
+          colorierAussiLeVoisin(_motsDegradesTajwid);
           DiagnosticLog.log('V2tajwid',
               'mot=${c.index} règle(s) ATTENDUE(S) et NON DÉTECTÉE(S) : '
               '${manquantes.map((r) => r.key).join(",")} '

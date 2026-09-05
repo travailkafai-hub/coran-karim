@@ -82,8 +82,36 @@ enum TajwidRule {
   ///
   /// ⚠️ À RETIRER de cette liste dès qu'un modèle apprend ces classes : elles
   /// redeviennent alors des règles comme les autres.
+  /// ── `madda_normal` EN EST SORTIE (2026-09-05) ─────────────────────────
+  ///
+  /// Demande utilisateur, apres avoir vu `وَٱمْرَأَتُهُۥ` sans couleur : « madd
+  /// normal, tu peux le compter » -- puis, le mot revenant : « مراتهو, il y a
+  /// un madd ». Il a raison, et la situation avait change sans qu'on en tire
+  /// la consequence.
+  ///
+  /// POURQUOI ELLE Y ETAIT : le modele n'a pas de canal `madda_normal` propre
+  /// -- il nomme les madd par leur DUREE (madd_long / madd_court), pas par
+  /// leur statut juridique. Attendre un nom qu'il ne produit jamais, c'est
+  /// garantir un violet ; d'ou son classement parmi les regles « portees par
+  /// le texte », observees mais jamais jugees.
+  ///
+  /// POURQUOI ELLE N'Y EST PLUS : les quatre `madda_*` sont desormais
+  /// INTERCHANGEABLES (cf. `_groupesFusionnes`). N'importe quel madd detecte
+  /// satisfait donc `madda_normal`, et le cas qui l'a montre est exactement
+  /// celui-la -- `وَٱمْرَأَتُهُۥ` : attendu `madda_normal`, detecte
+  /// `madda_obligatory`. L'allongement AVAIT ete entendu ; seule la table des
+  /// noms l'empechait de compter.
+  ///
+  /// AMPLEUR, mesuree sur le texte annote : 8 567 occurrences, dont 4 423 mots
+  /// ou c'est la SEULE regle (9,7 % des mots porteurs de regle). Ces mots-la
+  /// passent donc de « jamais colores » a « juges » -- c'est le changement le
+  /// plus large de la journee, et le premier a surveiller si des violets
+  /// apparaissent sur une recitation correcte.
+  ///
+  /// Les trois autres restent : `laam_shamsiyah`, `ham_wasl` et `slnt` n'ont
+  /// aucun equivalent acoustique dans ce que la tete emet.
   static const List<TajwidRule> porteesParLeTexte = [
-    maddaNormal, laamShamsiyah, hamWasl, slnt,
+    laamShamsiyah, hamWasl, slnt,
   ];
 
   /// Les règles qu'un utilisateur peut voir et activer.
@@ -91,7 +119,7 @@ enum TajwidRule {
   /// = ce que le texte annoté attend, MOINS [porteesParLeTexte] (2026-09-02).
   /// Restent les 13 canaux que la tête alimente réellement.
   static const List<TajwidRule> selectionnables = [
-    maddaNecessary, maddaObligatory, maddaPermissible,
+    maddaNecessary, maddaObligatory, maddaPermissible, maddaNormal,
     ghunnah, ikhafa, ikhafaShafawi, idghamGhunnah, idghamShafawi, iqlab,
     idghamWoGhunnah, idghamMutajanisayn, idghamMutaqaribayn,
     qalaqah,
