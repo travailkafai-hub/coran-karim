@@ -177,6 +177,14 @@ flutter:
     # a decommenter la ligne ci-dessous.
     # - assets/images/motif_bandeau.webp
     - assets/data/quran_verses.json
+    # ── DECOUPAGE EN LIGNES DU MUSHAF (2026-09-04) ──────────────────────
+    # 604 pages x 15 lignes, mots de debut et de fin de CHAQUE ligne. Sans
+    # lui, la vue Page laissait Flutter couper ou il voulait : le decoupage
+    # dependait de la police et de la largeur, alors qu'un mushaf a des
+    # lignes FIXES (« chaque ligne commence et finit avec les memes mots,
+    # quel que soit le type d'ecriture »). Frontieres seules, 337 Ko -- le
+    # texte reste celui de quran_verses.json.
+    - assets/data/mushaf_lignes.json
     # Texte Warsh (riwaya Warsh 'an Nafi', source KFGQPC) -- meme forme et
     # memes cles de verset que l'asset ci-dessus, cf.
     # benchmark/build_warsh_verses_asset.py pour le pourquoi de ce choix.
