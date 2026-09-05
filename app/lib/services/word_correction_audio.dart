@@ -369,6 +369,29 @@ class WordCorrectionAudio {
     required int wordsBefore,
     required int wordsAfter,
   }) async {
+    // ── CES SEGMENTS SONT CEUX D'AL-AFASY, ET DE LUI SEUL (2026-09-05) ───
+    //
+    // `word_segments_mp3quran_afasy.json` a ete calcule par alignement force
+    // SUR SON ENREGISTREMENT. Depuis que MP3Quran sert six recitations de
+    // plus, ce chemin serait traverse par des voix pour lesquelles ces
+    // minutages ne veulent rien dire : l'app jouerait un extrait pris au
+    // mauvais endroit, sans que rien ne le signale.
+    //
+    // On abandonne donc -- l'utilisateur n'entend pas de correction mot a mot
+    // sur ces recitateurs, ce qui est honnete, plutot que d'entendre le
+    // mauvais mot, ce qui ne l'est pas. Socle n°1 : mieux vaut pas de verdict
+    // qu'un verdict faux, et c'est vrai aussi de l'audio.
+    //
+    // POUR LEVER CETTE LIMITE : refaire tourner l'aligneur force sur leur
+    // audio et livrer un asset par recitateur -- exactement ce qui a ete fait
+    // pour Afasy en aout (6 236 versets, 77 433 mots).
+    if (reciter.id != 7) {
+      DiagnosticLog.log('Correction-Audio',
+          'ABANDON verset=${verse.key} : segments mot-a-mot disponibles pour '
+          'Al-Afasy seulement, recitateur=${reciter.id} (${reciter.nameFr}) '
+          '-> pas de correction audible, plutot qu un extrait faux');
+      return false;
+    }
     await Mp3QuranWordSegments.instance.ensureLoaded();
     final segments = Mp3QuranWordSegments.instance
         .segmentsForVerse(verse.surahNumber, verse.ayahNumber);
@@ -392,7 +415,7 @@ class WordCorrectionAudio {
     final List<AyahTiming> timing;
     final String path;
     try {
-      timing = await Mp3QuranApi.ayatTiming(verse.surahNumber);
+      timing = await Mp3QuranApi.ayatTiming(verse.surahNumber, read: Mp3QuranApi.readPour(reciter.id) ?? 123);
       path = await Mp3QuranApi.fichierLocalSourate(
           reciter.id, verse.surahNumber);
     } catch (e) {

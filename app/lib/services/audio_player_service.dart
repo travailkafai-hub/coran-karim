@@ -163,7 +163,12 @@ class AudioPlayerService {
     debugPrint('[Mp3Quran] _jouerViaMp3Quran verset=${verse.key}');
     final List<AyahTiming> timing;
     try {
-      timing = await Mp3QuranApi.ayatTiming(verse.surahNumber);
+      // `read` du RECITATEUR, pas la valeur par defaut : depuis que
+      // plusieurs recitations sont servies (2026-09-05), prendre le minutage
+      // d'Afasy pour un autre audio placerait les bornes de verset n'importe
+      // ou -- exactement le defaut corrige le 2026-08-28 sur le flux.
+      timing = await Mp3QuranApi.ayatTiming(verse.surahNumber,
+          read: Mp3QuranApi.readPour(reciter.id) ?? 123);
     } catch (e) {
       debugPrint('[Mp3Quran] abandon (minutage) : $e');
       return false;

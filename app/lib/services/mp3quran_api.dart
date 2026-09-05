@@ -78,16 +78,65 @@ class Mp3QuranApi {
   /// requêtes indépendantes (moshaf name="حفص عن عاصم - مرتل", type=11).
   static const _kAfasyServer = 'https://server8.mp3quran.net/afs/';
 
+  /// ── SEPT RECITATIONS DE PLUS, DONT CINQ MUJAWWAD (2026-09-05) ──────────
+  ///
+  /// Constat utilisateur : « il n'y a pas assez de mujawwad », puis « je
+  /// trouve que way2quran dispose de beaucoup de ressources, je veux en tester
+  /// quelques-uns qui ne sont pas proposes par mp3quran ».
+  ///
+  /// WAY2QURAN A ETE EXPLORE, ET ECARTE -- pas par principe, par mesure. Son
+  /// CDN est parfaitement exploitable
+  /// (`media.way2quran.com/<slug>/hafs-an-asim/<SSS>.mp3`, verifie 8/8 sur
+  /// trois recitateurs absents de mp3quran : ahmed-kaseb, haitham-al-dukhin,
+  /// youssef-al-aidarous). Mais il ne publie AUCUN minutage par verset. Or
+  /// tout ce que l'app fait d'un fichier de sourate -- jouer un verset,
+  /// suivre, corriger un mot -- repose sur ces minutages. Chaque recitateur
+  /// way2quran demanderait donc de les produire hors app par alignement force,
+  /// 114 sourates a la fois. A rouvrir le jour ou ce chantier se justifie.
+  ///
+  /// MESURE QUI A DECIDE : sur les 288 moshafs de mp3quran, `ayat_timing`
+  /// repond pour 115 -- dont 113 au Coran COMPLET. S'y trouvent 5 mujawwad,
+  /// 5 warsh, 3 qalon et 1 ad-duri. Autrement dit, ce qui manquait etait deja
+  /// accessible, avec les minutages, chez la source deja branchee.
+  ///
+  /// ⚠️ PROTOCOLE DE VERIFICATION RESPECTE (cf. le piege Qatami/Qahtani).
+  /// Chaque entree ci-dessous a ete confirmee par DEUX requetes independantes,
+  /// le 2026-09-05 : `ayat_timing?surah=114&read=<id>` rend bien 6 versets, ET
+  /// `<server>114.mp3` repond 206. Ne rien ajouter ici sans refaire les deux.
+  ///
+  /// QALON ET AD-DURI NON AJOUTES, volontairement : l'app cloisonne Hafs et
+  /// Warsh jusque dans le texte affiche (`Riwaya`), et n'a pas de texte pour
+  /// ces lectures. Les proposer ferait entendre autre chose que ce qui est
+  /// ecrit -- exactement ce que le cloisonnement existe pour empecher.
+  /// Ils sont chez mp3quran, avec minutages, le jour ou le texte suivra :
+  /// read=270 (Qalon, Al-Hussary) et read=269 (Ad-Duri, Al-Hussary).
+  static const _servis = <int, ({String serveur, int read})>{
+    // Afasy -- l'historique, seul jusqu'ici.
+    7: (serveur: _kAfasyServer, read: 123),
+    -8: (serveur: 'https://server12.mp3quran.net/maher/Almusshaf-Al-Mojawwad/', read: 133),
+    -9: (serveur: 'https://server13.mp3quran.net/husr/Almusshaf-Al-Mojawwad/', read: 119),
+    -10: (serveur: 'https://server8.mp3quran.net/bna/Almusshaf-Al-Mojawwad/', read: 122),
+    -11: (serveur: 'https://server8.mp3quran.net/mustafa/Almusshaf-Al-Mojawwad/', read: 288),
+    -12: (serveur: 'https://server7.mp3quran.net/basit/Almusshaf-Al-Mojawwad/', read: 51),
+    -13: (serveur: 'https://server13.mp3quran.net/husr/Rewayat-Warsh-A-n-Nafi/', read: 120),
+  };
+
+  /// L'identifiant `read` de mp3quran pour ce recitateur -- c'est lui qui
+  /// choisit le MINUTAGE. Le passer, et non le supposer, est ce qui separe
+  /// « le bon minutage » de « celui d'Afasy applique a un autre audio ».
+  static int? readPour(int appReciterId) => _servis[appReciterId]?.read;
+
   /// Vrai si ce récitateur (identifiant INTERNE à l'app, cf. `Reciter.id`
   /// dans `models/reciter.dart`) est servi par MP3Quran plutôt que par
   /// quran.com. Point d'extension : ajouter une entrée ici seulement après
   /// avoir vérifié la correspondance par DEUX requêtes API cohérentes, pas
   /// une seule (cf. le piège Qatami/Qahtani ci-dessus).
-  static bool sertCeReciter(int appReciterId) => appReciterId == 7;
+  static bool sertCeReciter(int appReciterId) => _servis.containsKey(appReciterId);
 
   static String urlSourate(int appReciterId, int surahNumber) {
     assert(sertCeReciter(appReciterId));
-    return '$_kAfasyServer${surahNumber.toString().padLeft(3, '0')}.mp3';
+    final s = _servis[appReciterId]!.serveur;
+    return '$s${surahNumber.toString().padLeft(3, '0')}.mp3';
   }
 
   static final _fichierLocalEnCours = <String, Future<String>>{};
@@ -242,15 +291,26 @@ class Mp3QuranApi {
   /// streaming réseau. `read: 123` = le `reciter_id` MP3Quran d'Al-Afasy,
   /// le même que celui utilisé pour construire l'URL audio -- c'est cette
   /// cohérence entre la SOURCE et le MINUTAGE qui doit toujours être vraie.
-  static Future<List<AyahTiming>> ayatTiming(int surahNumber) async {
-    final cached = _timingCache[surahNumber];
+  /// [read] : identifiant mp3quran de la RECITATION. Defaut 123 (Afasy) pour
+  /// que les appelants historiques ne changent pas de comportement.
+  ///
+  /// ⚠️ LE CACHE EST CLE PAR (read, sourate) DEPUIS 2026-09-05. Avant, il ne
+  /// l'etait que par sourate -- ce qui etait juste tant qu'un seul recitateur
+  /// etait servi, et deviendrait faux a la seconde ou un deuxieme arrive :
+  /// le minutage du premier serait rejoue sur l'audio du second, avec des
+  /// bornes qui ne lui appartiennent pas. Meme famille de defaut que celui
+  /// corrige le 2026-08-28 (`_sourateEnCoursMp3Quran` non reinitialisee).
+  static Future<List<AyahTiming>> ayatTiming(int surahNumber,
+      {int read = 123}) async {
+    final cle = read * 1000 + surahNumber;
+    final cached = _timingCache[cle];
     if (cached != null) return cached;
     debugPrint('[Mp3Quran] minutage demande : sourate $surahNumber');
     final chrono = Stopwatch()..start();
     try {
       final r = await _dio.get('/ayat_timing', queryParameters: {
         'surah': surahNumber,
-        'read': 123,
+        'read': read,
         'mp3quran': 1,
       });
       final list = (r.data as List)
@@ -262,7 +322,7 @@ class Mp3QuranApi {
           .toList();
       debugPrint('[Mp3Quran] minutage recu : ${list.length} versets en '
           '${chrono.elapsedMilliseconds} ms');
-      return _timingCache[surahNumber] = list;
+      return _timingCache[cle] = list;
     } catch (e) {
       debugPrint('[Mp3Quran] minutage ECHOUE apres '
           '${chrono.elapsedMilliseconds} ms : $e');

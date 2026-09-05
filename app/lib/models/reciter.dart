@@ -188,6 +188,48 @@ const kReciters = [
   // correction mot a mot, l'extrait est estime et non mesure, comme en Warsh.
   Reciter(id: -3, nameAr: 'أيمن سويد',           nameFr: 'Ayman Suwaid',           style: "Mu'allim", everyayahDir: 'Ayman_Sowaid_64kbps'),
 
+  // ── TROIS MUJAWWAD DE PLUS (2026-09-05) ────────────────────────────────
+  //
+  // Constat utilisateur : « pour les recitateurs, il n'y a pas assez de
+  // mujawwad ». C'est vrai, et c'etait une limite de la SOURCE : sur les douze
+  // recitations que publie quran.com, deux seulement sont en mujawwad
+  // (AbdulBaset et Minshawi). Rien a corriger de ce cote.
+  //
+  // Le chemin ouvert pour Ayman Suwaid leve la contrainte : un recitateur sans
+  // identifiant quran.com est desormais servi par everyayah, avec une decoupe
+  // mot-a-mot ESTIMEE au lieu de mesuree (meme regime que le Warsh depuis
+  // aout). C'est le prix, et il ne se paie que sur la correction d'un mot --
+  // l'ecoute, elle, est identique.
+  //
+  // Couverture verifiee au meme protocole (dernier verset des sourates 1, 2,
+  // 3, 18, 36, 55, 78, 110, 114) : 9/9 pour les trois. Deux candidats ont ete
+  // ECARTES par ce meme test, a 0/9 : `Mostafa_Ismaeel_128kbps` et
+  // `Mohammad_Ayyoub_128kbps` -- les dossiers n'existent pas sous ces noms.
+  Reciter(id: -4, nameAr: 'محمود خليل الحصري',   nameFr: 'Mahmoud Khalil Al-Husary', style: 'Mujawwad', everyayahDir: 'Husary_Mujawwad_64kbps'),
+  Reciter(id: -5, nameAr: 'محمود علي البنا',     nameFr: 'Mahmoud Ali Al-Banna',   style: 'Mujawwad', everyayahDir: 'Mahmoud_Ali_Al_Banna_32kbps'),
+  Reciter(id: -6, nameAr: 'علي حجاج السويسي',    nameFr: 'Ali Hajjaj Al-Suesy',    style: 'Mujawwad', everyayahDir: 'Ali_Hajjaj_AlSuesy_128kbps'),
+  // Murattal, mais absent de quran.com -- il elargit la liste sans doublon.
+  Reciter(id: -7, nameAr: 'عبد الله المطرود',    nameFr: 'Abdullah Al-Matroud',    style: 'Murattal', everyayahDir: 'Abdullah_Matroud_128kbps'),
+
+  // ── CINQ MUJAWWAD SERVIS PAR MP3QURAN (2026-09-05) ─────────────────────
+  //
+  // Ceux-la ne passent NI par quran.com NI par everyayah : ils sont servis par
+  // MP3Quran, sourate entiere plus minutage par verset -- le chemin d'Afasy,
+  // deja eprouve depuis aout. Voir `Mp3QuranApi._servis` pour la table, le
+  // protocole de verification en deux requetes, et pourquoi way2quran a ete
+  // explore puis ecarte (aucun minutage publie).
+  //
+  // `everyayahDir` reste rempli : il ne sert pas pour ceux-ci (aucun de ces
+  // dossiers n'existe chez everyayah) mais le champ est requis, et le laisser
+  // vide ferait construire des URL `everyayah.com/data//001001.mp3` si un
+  // futur chemin oubliait de tester la source. Un dossier nomme mais inutilise
+  // est moins dangereux qu'une URL a moitie formee.
+  Reciter(id: -8,  nameAr: 'ماهر المعيقلي',      nameFr: 'Maher Al-Muaiqly',       style: 'Mujawwad', everyayahDir: 'mp3quran/maher-mojawwad'),
+  Reciter(id: -9,  nameAr: 'محمود خليل الحصري',  nameFr: 'Mahmoud Khalil Al-Husary', style: 'Mujawwad', everyayahDir: 'mp3quran/husr-mojawwad'),
+  Reciter(id: -10, nameAr: 'محمود علي البنا',    nameFr: 'Mahmoud Ali Al-Banna',   style: 'Mujawwad', everyayahDir: 'mp3quran/bna-mojawwad'),
+  Reciter(id: -11, nameAr: 'مصطفى إسماعيل',      nameFr: 'Mustafa Ismail',         style: 'Mujawwad', everyayahDir: 'mp3quran/mustafa-mojawwad'),
+  Reciter(id: -12, nameAr: 'عبد الباسط عبد الصمد', nameFr: 'Abdul Basit Abdus-Samad', style: 'Mujawwad', everyayahDir: 'mp3quran/basit-mojawwad'),
+
   // ── Warsh 'an Nafi' (2026-08-12) ──
   // Les deux seuls récitateurs Warsh dont everyayah a le Coran COMPLET :
   // couverture vérifiée sur le dernier verset des sourates 1, 2, 3, 18, 36,
@@ -196,6 +238,9 @@ const kReciters = [
   // qu'un mot manquant sur une correction reste possible.
   Reciter(id: -1, nameAr: 'إبراهيم الدوسري',    nameFr: 'Ibrahim Al-Dosary',      style: 'Murattal', everyayahDir: 'warsh/warsh_ibrahim_aldosary_128kbps', riwaya: Riwaya.warsh),
   Reciter(id: -2, nameAr: 'ياسين الجزائري',     nameFr: 'Yassin Al-Jazaery',      style: 'Murattal', everyayahDir: 'warsh/warsh_yassin_al_jazaery_64kbps',  riwaya: Riwaya.warsh),
+  // Warsh servi par MP3Quran, avec minutage -- le premier Warsh a en avoir un
+  // (les deux ci-dessus passent par everyayah et une decoupe ESTIMEE).
+  Reciter(id: -13, nameAr: 'محمود خليل الحصري',  nameFr: 'Mahmoud Khalil Al-Husary', style: 'Murattal', everyayahDir: 'mp3quran/husr-warsh', riwaya: Riwaya.warsh),
 ];
 
 const kDefaultReciter = Reciter(
