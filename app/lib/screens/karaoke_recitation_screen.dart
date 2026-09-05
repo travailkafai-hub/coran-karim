@@ -4857,38 +4857,57 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         opacity = _isReferenceSession ? 1.0 : 0.0;
         break;
     }
-    // ── MODE TAJWID : TOUTES LES COULEURS, SAUF LE VERT (2026-09-05) ─────
+    // ── MODE TAJWID : LE TAJWID, ET RIEN QUE LE TAJWID (2026-09-05) ──────
     //
-    // Correction de la version precedente, qui n'en peignait qu'UNE (le
-    // violet). Consigne utilisateur apres l'avoir vue tourner : « on va garder
-    // les couleurs sauf le vert ».
+    // Decision utilisateur, apres avoir vu tourner les deux versions
+    // precedentes (« seulement le violet », puis « toutes les couleurs sauf le
+    // vert ») : « on garde que le violet pour les regles de tajwid, et plutot
+    // vert pour les mots avec regle de tajwid reussie ».
     //
-    // Le raisonnement se tient et corrige le mien : ce mode est une LECTURE.
-    // Le vert n'y apprend rien -- on lit sa page, le texte est sous les yeux,
-    // « c'est juste » est le cas ordinaire, et une page entiere de vert noie
-    // le seul signal qu'on est venu chercher. Tout ce qui n'est PAS ordinaire,
-    // en revanche, reste dit : le rouge, l'orange, le gris de l'oubli (plus
-    // bas, `estOubli`) et le violet du tajwid. J'avais tout eteint sauf le
-    // violet -- c'etait retirer des informations que rien n'obligeait a
-    // retirer, et le gris que l'utilisateur a vu venait justement de la seule
-    // couleur que ma condition laissait passer par une autre porte.
+    // La page ne porte donc plus que DEUX couleurs, et elles repondent a une
+    // seule question -- la regle attendue a-t-elle ete faite ?
+    //   VIOLET : une regle attendue n'a pas ete constatee ;
+    //   VERT   : toutes les regles attendues ont ete constatees ;
+    //   rien   : le mot ne porte aucune regle, ou la fenetre ne l'a pas
+    //            observe. Dans les deux cas il n'y a rien de vrai a en dire.
     //
-    // Le violet n'a pas besoin d'etre pose ici : le `switch` ci-dessus le
-    // produit deja dans les cas `unclear` et `error` via `estErreurTajwid()`.
-    // `!estErreurTajwid()` : un mot degrade par le tajwid arrive normalement
-    // en `unclear` (le provider le degrade), mais rien ne le garantit pour
-    // toujours -- eteindre un violet ici serait le pire des effets de bord.
-    if (widget.modeTajwid &&
-        effectiveStatus == WordStatus.correct &&
-        !estErreurTajwid()) {
-      bgTint = null;
-      borderTint = null;
+    // Ce que ce mode CESSE de peindre, et c'est voulu : les fautes de lettres
+    // et de harakat. Elles ne disparaissent pas -- elles restent au journal, a
+    // la fiche du mot et aux etoiles -- mais on lit sa page, le texte est sous
+    // les yeux, et melanger deux exigences sur le meme ecran fait perdre celle
+    // qu'on travaille. Le mode recite reste la pour l'autre.
+    //
+    // AUCUN VERDICT SANS PREUVE, des deux cotes : `motsTajwidReussi` n'est
+    // rempli que sur un mot OBSERVE dont toutes les regles ont ete constatees
+    // (cf. sa doc dans le provider), exactement comme `motsDegradesTajwid`
+    // pour le violet. Un vert de ce mode dit « je t'ai entendu faire la
+    // regle », jamais « je n'ai rien vu a redire ».
+    if (widget.modeTajwid) {
+      if (estErreurTajwid()) {
+        bgTint = const Color(0xFF7E57C2).withValues(alpha: 0.28);
+        borderTint = const Color(0xFF7E57C2);
+      } else if (!widget.estRelecture &&
+          ref
+              .read(recitationProvider.notifier)
+              .motsTajwidReussi
+              .contains(index)) {
+        bgTint = const Color(0xFF6fe3a8).withOpacity(0.38);
+        borderTint = const Color(0xFF6fe3a8);
+      } else {
+        bgTint = null;
+        borderTint = null;
+      }
     }
     // En mode tajwid le texte reste toujours VISIBLE : on lit sa page, rien
     // n'est masque (contrairement a la recitation de memoire).
     if (widget.modeTajwid) opacity = 1.0;
 
-    if (estOubli) {
+    // `!modeTajwid` : la page de lecture ne porte que deux couleurs (cf. le
+    // bloc ci-dessus). Ce gris-ci passerait APRES elles et les recouvrirait --
+    // c'est exactement ce que l'utilisateur a vu et signale (« le gris ici,
+    // c'est le rouge ? »), et il n'a de toute facon aucun sens en lecture :
+    // il dit « ce mot t'a ete souffle », or on ne recite pas de memoire.
+    if (estOubli && !widget.modeTajwid) {
       bgTint = const Color(0xFF9e9e9e).withValues(alpha: 0.30);
       borderTint = const Color(0xFF9e9e9e);
       opacity = 1.0;

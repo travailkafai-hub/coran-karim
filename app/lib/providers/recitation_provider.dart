@@ -3431,6 +3431,28 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           int wordIndex) =>
       _scoresRegles[wordIndex] ?? const {};
 
+  /// ── LES MOTS DONT LA REGLE A ETE CONSTATEE (2026-09-05) ───────────────
+  ///
+  /// Decision utilisateur pour le mode lecture tajwid : « on garde que le
+  /// violet pour les regles de tajwid, et plutot vert pour les mots avec
+  /// regle de tajwid reussie ».
+  ///
+  /// Symetrique exact de [_motsDegradesTajwid], et pose au MEME endroit, sous
+  /// les MEMES conditions de preuve : le mot porte au moins une regle
+  /// attendue, il a ete observe (`tajwidObserve`), et aucune regle ne manque.
+  /// Un mot que la fenetre n'a pas vu n'entre ni dans l'un ni dans l'autre --
+  /// il reste sans couleur, ce qui est la seule chose vraie qu'on puisse en
+  /// dire (« aucun verdict sans preuve acoustique »).
+  ///
+  /// ⚠️ NE SERT QU'A L'AFFICHAGE DU MODE LECTURE TAJWID. Le jugement de
+  /// prononciation ne le lit pas, et la note en etoiles se calcule sur
+  /// `_reglesAttendues`/`_reglesReussies`, pas sur ce registre -- deux mots
+  /// portant une regle chacun ne pesent pas comme un mot en portant deux.
+  final Set<int> _motsTajwidReussi = <int>{};
+
+  /// Cf. [_motsTajwidReussi].
+  Set<int> get motsTajwidReussi => Set.unmodifiable(_motsTajwidReussi);
+
   /// Les mots dont la dégradation vient du tajwid — pour les peindre en violet.
   Set<int> get motsDegradesTajwid => Set.unmodifiable(_motsDegradesTajwid);
 
@@ -3446,6 +3468,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // manquait au tour précédent. `setup` est le point d'entrée commun des
     // trois écrans, y compris via `setupDepuisVerset` qui l'appelle.
     _motsDegradesTajwid.clear();
+    _motsTajwidReussi.clear();
     _motsComptes.clear();
     _scoresRegles.clear();
     _reglesAttendues = 0;
@@ -5283,6 +5306,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           _reglesAttendues += attendues.length;
           _reglesReussies +=
               attendues.length - manquantes.length;
+        }
+        // Le pendant vert du violet : la regle attendue a ete CONSTATEE.
+        // `attendues.isNotEmpty` est deja garanti par le `if` englobant --
+        // un mot sans regle ne passe pas ici et reste donc sans couleur.
+        if (manquantes.isEmpty) {
+          _motsTajwidReussi.add(c.index);
+        } else {
+          _motsTajwidReussi.remove(c.index);
         }
         if (manquantes.isEmpty && _motsDegradesTajwid.contains(c.index)) {
           _motsDegradesTajwid.remove(c.index);
