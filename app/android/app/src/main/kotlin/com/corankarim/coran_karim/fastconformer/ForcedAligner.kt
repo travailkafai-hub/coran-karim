@@ -1263,7 +1263,7 @@ class ForcedAligner(
  * (ArabicNormalizer.normalizeTraining cote Dart -- PAS normalizeStrict, qui
  * fusionne des lettres que le modele distingue, cf. FONCTIONNALITES_FUTURES.md §5.3).
  */
-class CtcTokenizer(vocab: List<String>, private val wordLookup: Map<String, IntArray>? = null) {
+class CtcTokenizer(vocab: List<String>, wordLookupBrut: Map<String, IntArray>? = null) {
     companion object {
         private const val TAG = "CtcTokenizer"
     }
@@ -1280,9 +1280,68 @@ class CtcTokenizer(vocab: List<String>, private val wordLookup: Map<String, IntA
             if (piece.length > maxLen) maxLen = piece.length
         }
         maxPieceLen = maxLen
-        if (wordLookup != null) {
-            DiagnosticLog.log(TAG, "dictionnaire mot->tokens charge : ${wordLookup.size} mots")
+    }
+
+    /** ── LA CIBLE D'ALIGNEMENT PERDAIT DES CARACTERES (2026-09-05) ────────
+     *
+     *  Defaut trouve en remontant deux faux rouges signales par l'utilisateur,
+     *  sur des mots dont le TRANSCRIT etait parfait -- `بِهِۦ` (un seul ecart :
+     *  une maddah que le modele ajoute) et `وَٱتَّقُوا۟` (zero ecart, onze codes
+     *  Unicode identiques). Objection de l'utilisateur, et elle etait juste :
+     *  « il n'y avait pas de confusion dans le transcrit affiche ».
+     *
+     *  C'est que l'alignement force ne compare pas des TEXTES, il suit une
+     *  DECOMPOSITION. Deux decoupages du meme mot rendent le meme texte et des
+     *  scores opposes -- chiffre deja note dans `AligneurForce` : meme mot,
+     *  meme texte, gop 0,00 avec la bonne decomposition, -11,99 avec l'autre.
+     *
+     *  Or le dictionnaire livre avec le modele donne pour `بِهِۦ` la cible
+     *  `▁بِ + هِ` : la petite waw a DISPARU. Le chemin force doit alors produire
+     *  un mot ampute la ou le modele ecrit le signe d'allongement, et `forced`
+     *  s'effondre (-8,54) pendant que le decodage libre est parfait (-0,10).
+     *
+     *  AMPLEUR, mesuree sur le `word_tokens.json` du pack v7 : 2 806 mots sur
+     *  18 993 (14,8 %) ont une decomposition qui ne redonne pas le mot. Les
+     *  caracteres perdus sont exactement ceux des deux cas signales --
+     *  U+06DF (le zero suscrit du `slnt`) sur 1 259 mots, U+0627 sur 948,
+     *  U+0653 (maddah) sur 855, les petites waw/ya sur 557. Un mot sur sept.
+     *
+     *  CE QU'ON FAIT : on ECARTE ces entrees, et le repli glouton reprend la
+     *  main. Verifie hors app sur les 2 806 mots : le greedy leur trouve une
+     *  decomposition EXACTE dans 100 % des cas (aucun n'est bloque par un
+     *  vocabulaire insuffisant), et le total du dictionnaire passe de 77 161 a
+     *  77 049 pieces -- soit -0,1 %, donc aucun surcout de treillis.
+     *
+     *  ⚠️ CE N'EST PAS LA PISTE REFUSEE LE 2026-08-06 (passer le TEXTE a
+     *  l'aligneur pour lui ouvrir TOUTES les ecritures, mesuree 0,68 % ->
+     *  7,46 % de mots non verts). La-bas on liberait la DP, qui deplacait les
+     *  frontieres de tous les mots ; ici on remplace UNE decomposition fausse
+     *  par UNE decomposition exacte. La contrainte qui protege les frontieres
+     *  reste entiere.
+     *
+     *  Le jour ou `word_tokens.json` sera regenere sans cette perte, ce filtre
+     *  n'ecartera plus rien et ne coutera qu'une passe au chargement. */
+    private val wordLookup: Map<String, IntArray>? = wordLookupBrut?.let { brut ->
+        val propre = HashMap<String, IntArray>(brut.size * 2)
+        var ecartes = 0
+        for ((mot, ids) in brut) {
+            val recompose = StringBuilder(mot.length + 1)
+            var valide = true
+            for (id in ids) {
+                val p = vocab.getOrNull(id)
+                if (p == null) { valide = false; break }
+                recompose.append(p)
+            }
+            if (valide && recompose.toString().replace("▁", "") == mot) {
+                propre[mot] = ids
+            } else {
+                ecartes++
+            }
         }
+        DiagnosticLog.log(TAG, "dictionnaire mot->tokens charge : ${propre.size} mots " +
+                "($ecartes ecarte(s) : leur decomposition ne redonnait pas le mot -- " +
+                "repli greedy, cf. la doc de wordLookup)")
+        propre
     }
 
     fun tokenizeWord(word: String): IntArray {
