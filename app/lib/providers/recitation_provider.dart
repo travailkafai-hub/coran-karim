@@ -206,7 +206,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // Motif volontairement identique à `useGopScoring` : les deux moteurs
   // calculent, un seul peint l'écran. La v1 ne peut donc pas régresser du fait
   // du branchement, et une session compare les deux sur le MÊME audio.
-  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>>? _v2Sub;
+  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>>? _v2Sub;
   StreamSubscription<int>? _decrochageSub;
 
   /// La v2 pilote-t-elle l'affichage ? Quand c'est faux, elle tourne quand même
@@ -692,12 +692,42 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // par la MESURE. En attendant qu'il arrive, on obtient le meme resultat
     // ici : le madd est JUGE -- un allongement omis reste une faute -- mais son
     // type n'a pas a etre devine.
+    //
+    // ── `madda_normal` LES REJOINT (2026-09-05) ────────────────────────────
+    //
+    // Elle en avait ete laissee dehors : le madd naturel fait 2 harakat, les
+    // trois autres 4 a 6, et la distinction paraissait donc audible. Cas qui
+    // le refute, releve par l'utilisateur sur Al-Masad mot 12 `مَالُهُۥ` :
+    //     attendues=madda_normal  detectees=madda_permissible,madda_obligatory
+    // L'allongement A ETE FAIT -- deux detections franches -- et le mot
+    // ressortait quand meme en faute, « alors que c'est un madd ».
+    //
+    // La distinction n'est pas audible, et pour une raison ecrite ailleurs
+    // dans ce projet : `madda_permissible` se lit « 2 OU 4 OU 6 harakat, au
+    // choix du recitant ». Elle RECOUVRE donc entierement la duree du madd
+    // naturel. Exiger que la tete separe `normal` de `permissible`, c'est lui
+    // demander de deviner une categorie grammaticale, pas d'entendre une
+    // duree -- exactement l'argument qui avait fait grouper les trois autres.
+    //
+    // Ce que le groupe NE fait pas : blanchir un allongement OMIS. Si aucune
+    // regle de madd n'est detectee, la regle reste manquante et le mot est
+    // signale -- c'est le cas des mots 5 et 9 de la meme session.
     {
       TajwidRule.maddaNecessary,
       TajwidRule.maddaObligatory,
       TajwidRule.maddaPermissible,
+      TajwidRule.maddaNormal,
     },
   ];
+
+  /// Les regles d'ALLONGEMENT, tous statuts juridiques confondus. Sert a la
+  /// requalification d'un madd raccourci en faute de tajwid (cf. `_onV2`).
+  static const _reglesMadd = <TajwidRule>{
+    TajwidRule.maddaNecessary,
+    TajwidRule.maddaObligatory,
+    TajwidRule.maddaPermissible,
+    TajwidRule.maddaNormal,
+  };
 
   /// Vrai si [r] est satisfaite par [emitted], directement ou via une règle
   /// que le modèle ne sait pas distinguer d'elle.
@@ -5004,7 +5034,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// `omis` n'est PAS une couleur : c'est « le récitateur est passé outre, et
   /// on peut le prouver ». Il est rendu comme `skipped`, jamais comme `error` —
   /// condamner un mot non prononcé serait un verdict sans preuve.
-  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> changements) {
+  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> changements) {
     var dernierJuge = -1;
     for (final c in changements) {
       DiagnosticLog.log('V2',
@@ -5261,8 +5291,57 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // une regle coupee au bord d'une fenetre disparait, donc une part de
       // faux signalements. Acceptable ici -- le palier se rejoue -- jamais en
       // recitation, ou le verdict est definitif.
+      // ── UN MADD RACCOURCI EST UNE FAUTE DE TAJWID, PAS DE LETTRES ──────
+      // (2026-09-05)
+      //
+      // Demande utilisateur, sur deux mots d'Al-Masad qu'il avait DELIBEREMENT
+      // mal recites : « pour يَدَآ et مَآ je n'ai pas applique le madd en vrai,
+      // du coup le signe n'est pas detecte, donc c'est une regle de tajwid --
+      // je veux que tu bascules la detection de ce madd dans regle de tajwid,
+      // ce qui va renforcer la regle de tajwid ».
+      //
+      // CE QUE DISAIT LE JOURNAL, et il lui donne raison :
+      //     mot=5 "يَدَآ" definitif:rouge gop=-2,92 margeL=+2,57 entendu="يَدَآ"
+      //     mot=9 "مَآ"   definitif:rouge gop=-2,84 margeL=+9,97 entendu="مَآ"
+      // Transcrit PARFAIT, et l'audio prefere massivement ce mot-ci a toutes
+      // ses confusions. Le gop bas ne peut donc pas venir des lettres : il
+      // vient de ce que le chemin contraint doit etaler une cible qui porte
+      // l'allongement sur un audio qui ne le tient pas. Le gop capte le madd
+      // raccourci -- il l'etiquetait simplement « faute de prononciation ».
+      //
+      // POURQUOI LE CONTROLE TAJWID NE LES VOYAIT PAS : il n'entre que si
+      // `statutBase == correct` (une regle ne se juge qu'une fois les lettres
+      // et les voyelles bonnes -- principe juste, et conserve). Un mot deja
+      // rouge n'y passait jamais, donc sa regle manquante n'etait jamais
+      // attribuee au tajwid.
+      //
+      // CE N'EST PAS UNE TOLERANCE : le mot reste non-vert, il change
+      // d'ETIQUETTE et de couleur. Violet dit « ton allongement n'a pas ete
+      // tenu », ce qui est vrai et actionnable ; rouge disait « ce mot est
+      // faux », ce qui ne l'etait pas.
+      //
+      // TROIS CONDITIONS, toutes necessaires -- si l'une saute, le rouge reste :
+      //   1. le transcrit du mot est identique au mot attendu (aucune faute de
+      //      lettre ni de haraka) ;
+      //   2. `margeLettres >= 0` : l'audio prefere ce mot a chacune de ses
+      //      confusions. Sans elle on requalifierait aussi les mots ou le
+      //      modele ECRIT le canonique par biais de langage alors qu'autre
+      //      chose a ete dit -- le defaut meme que la marge existe pour
+      //      attraper (cf. la doc du Decideur) ;
+      //   3. le mot attend au moins une regle de MADD. La requalification ne
+      //      vaut que pour l'allongement, seule regle dont le raccourcissement
+      //      degrade mecaniquement le chemin contraint.
+      final transcritParfait = c.index >= 0 &&
+          c.index < words.length &&
+          c.heard.isNotEmpty &&
+          c.heard == words[c.index].display;
+      final audioPrefereCeMot = (c.margeLettres ?? -1) >= 0;
+      final requalifiableEnTajwid = statutBase != WordStatus.correct &&
+          transcritParfait &&
+          audioPrefereCeMot &&
+          attendues.any(_reglesMadd.contains);
       if (!estBasmala &&
-          statutBase == WordStatus.correct &&
+          (statutBase == WordStatus.correct || requalifiableEnTajwid) &&
           // ── LA PREUVE D'ABORD, LA RIGUEUR ENSUITE (2026-09-03) ──────
           //
           // `tajwidObserve` dit « ce mot a ete vu AU MOINS une fois » ;
@@ -5310,7 +5389,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         // Le pendant vert du violet : la regle attendue a ete CONSTATEE.
         // `attendues.isNotEmpty` est deja garanti par le `if` englobant --
         // un mot sans regle ne passe pas ici et reste donc sans couleur.
-        if (manquantes.isEmpty) {
+        // `statutBase == correct` : un mot entre ici par requalification
+        // (madd raccourci) n'est PAS un mot reussi, meme si ses regles sont
+        // finalement toutes constatees -- il reste fautif par ailleurs.
+        if (manquantes.isEmpty && statutBase == WordStatus.correct) {
           _motsTajwidReussi.add(c.index);
         } else {
           _motsTajwidReussi.remove(c.index);
@@ -5322,6 +5404,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
               'verdict -- violet retire');
         }
         if (manquantes.isNotEmpty) {
+          if (requalifiableEnTajwid) {
+            DiagnosticLog.log('V2tajwidRequalifie',
+                'mot=${c.index} "${c.index < words.length ? words[c.index].display : "?"}" '
+                '${statutBase.name} -> tajwid : transcrit identique, '
+                'margeL=${c.margeLettres?.toStringAsFixed(2)}, '
+                'madd attendu non constate '
+                '(${manquantes.map((r) => r.key).join(",")})');
+          }
           statutFinal = WordStatus.unclear;
           // La cause est certaine ICI : on vient de constater la règle
           // manquante. On l'enregistre plutôt que de la faire redeviner.
@@ -5332,6 +5422,62 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
               '| détectées=${c.detectedRules.map((r) => r.key).join(",")}');
         }
       }
+      // ── EN MODE ADULTE, UN MADD RACCOURCI N'EST PLUS UNE FAUTE ─────────
+      // (2026-09-05)
+      //
+      // Deduction de l'utilisateur, et elle est juste : « ca veut dire que si
+      // je suis en mode adulte et que le madd est absent, ca devrait etre
+      // vert ». En adulte `_activeRules` est vide, donc la requalification
+      // ci-dessus ne se declenche pas -- et le mot restait ROUGE. Le meme
+      // audio donnait violet en tajwid et rouge en adulte : le recitateur
+      // etait puni, dans le mode le plus permissif, pour une regle que ce mode
+      // ne juge pas.
+      //
+      // CE QUE CA CONTREDISAIT, mot pour mot : la decision du 2026-08-16 --
+      // « le jugement de PRONONCIATION (lettres/harakat, statutBase) doit etre
+      // identique entre les presets ; le tajwid n'intervient qu'APRES ». Ici
+      // `statutBase` etait contamine par le tajwid, et rien ne le disait.
+      //
+      // ⚠️ C'EST UNE PROMOTION AU VERT -- le changement le plus risque de tous,
+      // et la raison des CINQ conditions ci-dessous. Ce n'est PAS la
+      // « promotion sur transcrit parfait » que le graphe porte en attente :
+      // celle-la validait 22 mots `deplace` mesures, dont le transcrit etait
+      // bon parce que la DP les avait poses sur l'audio du voisin. Les
+      // conditions 4 et 5 sont exactement ce qui l'en separe.
+      //
+      //   1. le transcrit est identique au mot attendu ;
+      //   2. `margeLettres >= 0` -- l'audio prefere ce mot a chacune de ses
+      //      confusions, donc le modele ne l'a pas ecrit par biais de langage ;
+      //   3. le mot porte un madd DANS LE TEXTE (`expectedRules`, sans filtre
+      //      de preset : c'est une propriete du Coran, pas d'un reglage) ;
+      //   4. AUCUN de ces madd n'est juge par le preset courant -- c'est ce qui
+      //      borne la promotion au mode adulte/enfant. En tajwid rien ne
+      //      change : la requalification en violet, plus haut, s'applique ;
+      //   5. le statut n'est ni `omis` ni `deplace` : un mot pose sur l'audio
+      //      d'un voisin ne doit jamais devenir vert, quelle que soit la
+      //      qualite de son transcrit.
+      //
+      // Journalisee systematiquement : une promotion muette rendrait invisible
+      // le defaut d'alignement qui l'a rendue necessaire.
+      final maddDuTexte = (c.index >= 0 && c.index < words.length)
+          ? words[c.index].expectedRules.where(_reglesMadd.contains).toSet()
+          : const <TajwidRule>{};
+      if (statutBase != WordStatus.correct &&
+          transcritParfait &&
+          audioPrefereCeMot &&
+          maddDuTexte.isNotEmpty &&
+          !maddDuTexte.any(_activeRules.contains) &&
+          c.statut != 'omis' &&
+          c.statut != 'deplace') {
+        DiagnosticLog.log('V2maddHorsPreset',
+            'mot=${c.index} "${words[c.index].display}" '
+            '${statutBase.name} -> correct : transcrit identique, '
+            'margeL=${c.margeLettres?.toStringAsFixed(2)}, '
+            'madd du texte (${maddDuTexte.map((r) => r.key).join(",")}) '
+            'NON juge par le preset ${_preset.name}');
+        statutFinal = WordStatus.correct;
+      }
+
       // ── LE TAJWID NE COMPTE JAMAIS COMME UN ÉCHEC (2026-08-16, demande
       // utilisateur) ────────────────────────────────────────────────────────
       //

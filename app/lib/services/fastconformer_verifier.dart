@@ -899,7 +899,7 @@ class FastConformerVerifier {
   /// types doivent donc coïncider.
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
-                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> v2,
+                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> v2,
            bool v2Decrochage, int v2DecrochageMot,
            // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
            // `v2Libre` : decodage libre de la derniere fenetre, base de
@@ -920,7 +920,7 @@ class FastConformerVerifier {
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
         v2: const <({int index, String statut, String trace, String heard,
-                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>[],
+                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>[],
         v2Decrochage: false, // la v2 ne tourne pas sur ce chemin
         v2DecrochageMot: -1,
         v2Libre: '',
@@ -957,7 +957,7 @@ class FastConformerVerifier {
   /// statuts par mot -- cf. le commentaire côté Kotlin.
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
-                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> v2,
+                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> v2,
            bool v2Decrochage, int v2DecrochageMot,
            // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
            // `v2Libre` : decodage libre de la derniere fenetre, base de
@@ -983,7 +983,7 @@ class FastConformerVerifier {
           .invokeMapMethod<String, dynamic>('feedBufferedAudio', {'pcm16': pcm16});
       if (raw == null) return null;
       final v2 = <({int index, String statut, String trace, String heard,
-                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>[];
+                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>[];
       for (final m in ((raw['v2'] as List?) ?? const []).cast<Map>()) {
         // La trace porte les TROIS scores. Un `gop` effondré avec un `free`
         // proche de 0 veut dire mauvaise POSITION, pas mauvaise prononciation :
@@ -1045,6 +1045,18 @@ class FastConformerVerifier {
           // `tajwidFiable` (deux fois). Defaut prudent : false, donc pas de
           // verdict tajwid tant que le natif ne l'affirme pas.
           tajwidObserve: (m['tajwidObserve'] as bool?) ?? false,
+          // ── LA MARGE MONTE JUSQU'A DART (2026-09-05) ────────────────────
+          //
+          // Elle etait deja calculee et deja envoyee, mais seulement dans la
+          // chaine `trace`, donc illisible autrement qu'a l'oeil dans un
+          // journal. Dart en a besoin comme VALEUR pour distinguer deux causes
+          // que le gop confond : « l'audio prefere une confusion » (marge
+          // negative, vraie faute de lettre) et « l'audio prefere bien ce
+          // mot-ci, mais le chemin contraint marque mal » (marge positive --
+          // typiquement un madd raccourci). Cf. la requalification dans
+          // `_onV2`. `null` quand le mot n'a aucune observation exploitable :
+          // on ne requalifie alors rien.
+          margeLettres: (m['margeL'] as num?)?.toDouble(),
           // ── LE SCORE DE CHAQUE REGLE, POUR L'ECRAN (2026-09-05) ──────────
           //
           // « Rajouter, pour les mots, une barre de progression pour que le
@@ -1243,7 +1255,7 @@ class FastConformerVerifier {
   /// 0,993 sur `ٱلْخَنَّاسِ`). Le natif lit maintenant le registre de preuves
   /// que `terminer()` vient de remplir.
   Future<List<({int index, String statut, Set<TajwidRule> detectedRules,
-                bool tajwidObserve})>> v2Terminer() async {
+                bool tajwidObserve, double? margeLettres})>> v2Terminer() async {
     if (!_loaded) return const [];
     try {
       final r = await _channel.invokeMethod<List<dynamic>>('v2Terminer');
@@ -1259,6 +1271,7 @@ class FastConformerVerifier {
                       if (TajwidRule.fromKey(noms[id]) case final r?) r,
                 },
                 tajwidObserve: (e['tajwidObserve'] as bool?) ?? false,
+                margeLettres: (e['margeL'] as num?)?.toDouble(),
               ))
           .toList();
     } catch (_) {
