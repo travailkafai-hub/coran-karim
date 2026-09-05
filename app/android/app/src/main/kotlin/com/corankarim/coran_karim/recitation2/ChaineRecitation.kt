@@ -194,15 +194,38 @@ object SeuilsDureeTajwid {
     //
     // qalaqah n'y figure plus : elle n'est plus jugee du tout (cf.
     // _signalNonFiable cote Dart, son signal etant anti-correle).
-    private val SEUILS_MS = mapOf(
-        "ghunnah" to Pair(56, 72),
-        "idgham_ghunnah" to Pair(504, 648),
-        "idgham_wo_ghunnah" to Pair(56, 72),
-        "ikhafa" to Pair(56, 72),
-        "iqlab" to Pair(392, 504),
-        "madda_obligatory" to Pair(56, 72),
-        "madda_permissible" to Pair(56, 72),
-    )
+    // ── SEUILS DE DUREE NEUTRALISES (2026-09-05) ──────────────────────────
+    //
+    // Ils rejetaient des detections PARFAITES. Mesure sur la session du
+    // 2026-09-05, tete v7, 86 rejets :
+    //
+    //   mot=12 «وَوَالِدٍ»  idgham_ghunnah p=1,000  REJETEE 560ms < 648ms
+    //   mot=22 «لَّن»       idgham_ghunnah p=1,000  REJETEE 480ms < 648ms
+    //   mot=39 «وَلِسَانًا» idgham_ghunnah p=1,000  REJETEE 480ms < 648ms
+    //   mot=9  «حِلٌّۢ»      iqlab          p=0,769  REJETEE 400ms < 504ms
+    //
+    // La tete voyait la regle a 1,000 et le filtre la jetait : d'ou
+    // `idgham_ghunnah` a 13 % de detection et `iqlab` a 0 %, et 11 des 24
+    // violets de la session -- sur une recitation ou la regle etait FAITE.
+    //
+    // POURQUOI CES SEUILS ETAIENT FAUX DES LE DEPART. Ils ont ete calibres le
+    // 2026-09-03 sur la duree rendue par `decodeTajwid` -- le nombre de frames
+    // CONSECUTIVES au-dessus du seuil. Or l'utilisateur avait lui-meme montre
+    // le jour meme que cette grandeur ne mesure PAS le phenomene : « impossible
+    // un madd obligatoire en 80 ms !! c'est sur 4 a 6 temps ! il y a un truc
+    // qui cloche dans tes calculs ». On avait alors etabli que `frames` capte
+    // le PIC de detection, pas la tenue de la regle -- et j'ai quand meme
+    // calibre des seuils dessus, puis mesure trois fois de suite dessus.
+    //
+    // A 0, le filtre est inerte : c'est la PROBABILITE qui decide, seule
+    // grandeur dont on ait verifie qu'elle mesure ce qu'elle pretend. La duree
+    // reste JOURNALISEE (`[tajwidDuree]`) -- observation, jamais verdict, comme
+    // elle aurait toujours du l'etre.
+    //
+    // Ne pas les remettre sans avoir d'abord etabli, sur du vrai audio, ce que
+    // `frames` mesure exactement.
+    private val SEUILS_MS = mapOf<String, Pair<Int, Int>>()
+
 
     /** @param nom nom de la regle tel que `rules.json` le donne.
      *  @param strict rigueur choisie dans l'ecran Reciter.
@@ -455,6 +478,70 @@ class ChaineRecitation(
      *  recitation posee), pas assez pour que la DP ait a placer des mots
      *  lointains -- c'est cet entassement qui corrompait la bande. */
     private val motsEnAvanceApercu = 6
+
+    /** Probabilite et seuil de CHAQUE regle, par index de mot.
+     *
+     *  Lu par le plugin pour les transmettre a l'ecran : la fiche d'un mot rate
+     *  montre alors une barre par regle, avec le seuil marque dessus -- « rate
+     *  de justesse » (0,48 contre 0,50) se distingue enfin de « pas faite du
+     *  tout » (0,10). Idee de l'utilisateur le 2026-09-05, nee du defaut trouve
+     *  le meme jour : cette difference n'etait visible QUE dans le journal, en
+     *  croisant trois types de lignes.
+     *
+     *  Ecrase a chaque nouvelle observation du mot : la derniere fait foi,
+     *  comme pour le verdict. */
+    val probasParMot = HashMap<Int, Map<String, Pair<Float, Float>>>()
+
+    /** Regles vues AU MOINS UNE FOIS sur ce mot, toutes observations
+     *  confondues -- cf. `probasParMot` pour le pourquoi. Le plugin les ajoute
+     *  aux regles votantes : une detection franche ne doit pas se perdre parce
+     *  qu'elle est tombee dans une fenetre qui n'a pas vote. */
+    val reglesVuesParMot = HashMap<Int, MutableSet<Int>>()
+
+    /** Duree maximale observee pour chaque regle, par mot, en millisecondes.
+     *
+     *  ── LE MAX DE CHAQUE GRANDEUR, SEPAREMENT (2026-09-05) ────────────────
+     *
+     *  Precision de l'utilisateur, apres la regle du maximum : « si 0,3 avec
+     *  100 ms puis 0,7 avec 60 ms -> 0,7 et 100 ms, et on donne le verdict ».
+     *
+     *  On ne retient donc PAS le couple de la meilleure observation, mais le
+     *  meilleur de chaque grandeur. C'est le bon choix : ce sont deux mesures
+     *  independantes d'une meme realite, chacune degradee par un aspect
+     *  different du fenetrage. Une fenetre qui coupe la fin du mot rend une
+     *  duree trop courte sans abimer la probabilite ; une fenetre qui n'attrape
+     *  que le bord rend l'inverse. Prendre le meilleur des deux, c'est
+     *  reconstituer ce que le recitateur a reellement fait a partir de vues
+     *  partielles -- aucune ne le montre en entier.
+     *
+     *  La duree n'est plus un critere de verdict depuis v329 (elle rejetait des
+     *  detections a p=1,000). Elle est conservee pour le journal, l'affichage,
+     *  et le jour ou l'on saura mesurer la tenue d'une regle. */
+    val dureesParMot = HashMap<Int, MutableMap<Int, Int>>()
+
+    /** Mots dont les regles vues se sont ENRICHIES depuis le dernier envoi.
+     *
+     *  ── UN VERDICT TAJWID PEUT ETRE CORRIGE (2026-09-05) ──────────────────
+     *
+     *  Mesure qui l'a impose, mot 39 `وَلِسَانًا` :
+     *      17:01:23.168  verdict rendu -> VIOLET « idgham_ghunnah manquante »
+     *      17:01:27.769  idgham_ghunnah p=1,000 sur 400 ms
+     *      17:01:28.458  idgham_ghunnah p=1,000 sur 480 ms
+     *
+     *  La regle est detectee 4,6 s APRES le verdict, et trois fois de suite a
+     *  1,000. Prendre le maximum des observations ne suffisait donc pas : au
+     *  moment de trancher, la detection n'existait pas encore. La chaine
+     *  verrouille le mot des que la fenetre avance, alors que la tete tajwid
+     *  continue de l'observer dans les fenetres suivantes.
+     *
+     *  Decision utilisateur : « il faut juste rajouter que si on trouve que
+     *  c'est ok, on peut corriger le verdict ». C'est le sens AUTORISE de la
+     *  regle du projet -- « jamais un vert ne passe rouge » : on n'aggrave
+     *  jamais un verdict rendu, on ne fait que reparer une accusation injuste.
+     *
+     *  Le mot est donc re-emis vers Dart, avec les regles enrichies ; c'est
+     *  Dart qui sait lesquelles etaient ATTENDUES et qui retirera le violet. */
+    val motsAReemettre = HashSet<Int>()
 
     data class Changement(val motIndex: Int, val statut: Statut)
 
@@ -852,6 +939,18 @@ class ChaineRecitation(
             if (statutsCourants[i] != s) changements.add(Changement(i, s))
             if (s is Statut.Definitif && i > dernierDefinitif) dernierDefinitif = i
         }
+        // ── LES MOTS DONT LE TAJWID S'EST ENRICHI (2026-09-05) ────────────
+        //
+        // Leur STATUT n'a pas change -- il reste `correct` cote natif, c'est
+        // Dart qui pose le violet -- donc la boucle ci-dessus ne les emet pas.
+        // On les ajoute explicitement : sans cela, une regle detectee apres le
+        // verdict reste invisible, et le violet injuste demeure a l'ecran.
+        for (i in motsAReemettre) {
+            if (changements.none { it.motIndex == i }) {
+                nouveaux[i]?.let { changements.add(Changement(i, it)) }
+            }
+        }
+        motsAReemettre.clear()
         statutsCourants = nouveaux
         return changements
     }
@@ -1448,7 +1547,7 @@ class ChaineRecitation(
                 // mesuree en strict, 0,70 en tolerant (2026-09-03).
                 val detections = front.decodeTajwid(
                     sorties.tajwid.copyOfRange(debut, fin),
-                    if (tajwidStrict) 0.70f else 0.50f)
+                    if (tajwidStrict) 1.00f else 0.80f)
                 // DUREE JOURNALISEE, JAMAIS JUGEE (2026-08-04). Le type d'un
                 // madd (`wajib` / `tabi'i`) est une categorie GRAMMATICALE que
                 // le texte connait deja ; l'acoustique ne peut repondre qu'a
@@ -1478,7 +1577,47 @@ class ChaineRecitation(
                     val vues = detections.map { it.ruleId }.toSet()
                     val maxima = front.probMaxParClasse(
                         sorties.tajwid.copyOfRange(debut, fin))
-                    val fact = if (tajwidStrict) 0.70f else 0.50f
+                    val fact = if (tajwidStrict) 1.00f else 0.80f
+                    // ── LA PROBABILITE REMONTE JUSQU'A L'ECRAN (2026-09-05) ─
+                    //
+                    // Idee de l'utilisateur, nee du defaut qu'on venait de
+                    // trouver : « rajouter sous la regle, pour les mots, un
+                    // style barre de progression pour que le user sache ce
+                    // qu'il a fait -- est-ce qu'il a rate de justesse ».
+                    //
+                    // La difference entre « pas faite » (p=0,10) et « ratee de
+                    // peu » (p=0,48) etait INVISIBLE : il fallait extraire le
+                    // journal et croiser trois types de lignes pour la voir. Un
+                    // recitateur ne peut pas faire ca, et c'est pourtant la
+                    // seule information qui lui dise s'il progresse.
+                    //
+                    // On retient donc, pour CHAQUE classe, sa probabilite et le
+                    // seuil qu'elle devait franchir -- y compris les detectees,
+                    // pour que la fiche puisse aussi montrer une reussite juste.
+                    // ── LE MAXIMUM, PAS LA DERNIERE OBSERVATION ──────────
+                    //
+                    // Regle posee par l'utilisateur (2026-09-05), dans le
+                    // prolongement d'un principe deja ecrit du projet -- « un
+                    // vert ne passe jamais rouge » : « on garde le max de prob
+                    // et max de duree -> verdict ».
+                    //
+                    // CE QUE CA CORRIGE, mesure sur Al-Balad : un mot est
+                    // examine par PLUSIEURS fenetres qui se chevauchent. Sur
+                    // `وَوَالِدٍ`, l'une voyait l'idgham a 1,00 pendant 560 ms
+                    // et une autre ne le voyait pas -- et c'est celle qui ne
+                    // voyait rien qui faisait le verdict. Quatre des dix
+                    // violets de la session venaient de la : `حِلٌّۢ` (iqlab
+                    // detecte a 0,99), `لَّن` et `وَلِسَانًا` (idgham a 1,00).
+                    //
+                    // Une regle VUE a ete faite : aucune observation ulterieure
+                    // ne peut la « de-voir ». On accumule donc le maximum.
+                    val avant = probasParMot[m.index]
+                    probasParMot[m.index] = maxima.indices.associate { c ->
+                        val nom = front.nomsRegles.getOrNull(c) ?: "?$c"
+                        val p = maxima[c]
+                        val ancien = avant?.get(nom)?.first ?: 0f
+                        nom to Pair(maxOf(p, ancien), front.seuilRegle(c) * fact)
+                    }
                     val sous = maxima.indices
                         .filter { it !in vues && maxima[it] > 0.10f }
                         .sortedByDescending { maxima[it] }
@@ -1491,6 +1630,23 @@ class ChaineRecitation(
                     if (sous.isNotEmpty()) {
                         journal?.invoke(
                             "[tajwidSousSeuil] mot=${m.index} $sous")
+                    }
+                }
+                if (detections.isNotEmpty()) {
+                    val avantVues = reglesVuesParMot[m.index]?.toSet()
+                    reglesVuesParMot.getOrPut(m.index) { HashSet() }
+                        .addAll(detections.map { it.ruleId })
+                    val d = dureesParMot.getOrPut(m.index) { HashMap() }
+                    for (det in detections) {
+                        val ms = det.frames * Horloge.MS_PAR_FRAME
+                        d[det.ruleId] = maxOf(d[det.ruleId] ?: 0, ms)
+                    }
+                    // Le mot avait deja un verdict et on vient de voir une
+                    // regle de plus : il doit repartir vers Dart pour que le
+                    // violet puisse etre retire (cf. `motsAReemettre`).
+                    if (avantVues != null &&
+                        !avantVues.containsAll(detections.map { it.ruleId })) {
+                        motsAReemettre.add(m.index)
                     }
                 }
                 if (detections.isNotEmpty()) {
@@ -1514,7 +1670,7 @@ class ChaineRecitation(
                             // signale une fois (« tu ne m'as pas montre mes
                             // valeurs »).
                             val seuil = front.seuilRegle(d.ruleId) *
-                                (if (tajwidStrict) 0.70f else 0.50f)
+                                (if (tajwidStrict) 1.00f else 0.80f)
                             "$nom=${d.frames}f(${d.frames * 80}ms) " +
                                 "p=${"%.3f".format(d.prob)}/${"%.3f".format(seuil)}"
                         })

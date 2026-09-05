@@ -581,10 +581,33 @@ class FastConformerCtc(
                     // Meme recuperation PAR NOM que la tete tajwid : robuste a
                     // un reordonnancement des sorties, et absente sans erreur
                     // sur les modeles a une seule sortie.
+                    // ── `encoder_state` PEUT ARRIVER TRANSPOSE (2026-09-05)
+                    //
+                    // La tete 3 attend `etat[frame][512]`. Le paquet v7 sort
+                    // `(batch, 512, time)` -- son tenseur s'appelle d'ailleurs
+                    // `Transposeencoder_state_dim_2`, l'export l'annonce. Lu
+                    // tel quel, `etat[f0].size` vaut alors le NOMBRE DE FRAMES
+                    // au lieu de 512, et la moyenne de `Tete3Traits.etatMoyen`
+                    // porte sur les mauvaises valeurs -- silencieusement, car
+                    // rien ne plante : on moyenne des nombres, juste pas les
+                    // bons.
+                    //
+                    // On compare donc au nombre de frames CONNU (`letters`) et
+                    // on retablit l'ordre si besoin. Marche avec les deux
+                    // formes, sans rien supposer de l'export.
                     val etat: Array<FloatArray>? = if (hasEncoderState) {
                         @Suppress("UNCHECKED_CAST")
-                        (results.get(ENCODER_STATE_OUTPUT).get().value
+                        val brut = (results.get(ENCODER_STATE_OUTPUT).get().value
                             as Array<Array<FloatArray>>)[0]
+                        val nFrames = letters.size
+                        if (brut.isNotEmpty() && brut.size != nFrames &&
+                            brut[0].size == nFrames) {
+                            Array(nFrames) { f ->
+                                FloatArray(brut.size) { d -> brut[d][f] }
+                            }
+                        } else {
+                            brut
+                        }
                     } else null
                     // .value materialise deja des copies JVM -> survit au close().
                     return CtcOutputs(letters, tajwid, etat)

@@ -1753,7 +1753,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 } else {
                     chaine.preuves.observations(c.motIndex).flatMap { it.reglesTajwid }.distinct()
                 }
-                mapOf(
+                mapOf<String, Any?>(
                     "i" to c.motIndex,
                     "statut" to nomStatut(c.statut),
                     "gop" to obs?.gop?.toDouble(),
@@ -1787,7 +1787,12 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // ou face -- et accuser le recitateur sur ce tirage.
                     // L'union ne retient qu'une chose : la regle a-t-elle ete
                     // vue AU MOINS UNE FOIS dans de bonnes conditions.
-                    "rules" to reglesVotantes,
+                    // Les votantes UNION tout ce qui a ete vu sur ce mot :
+                    // une detection franche ne se perd plus parce que la
+                    // fenetre qui l'a vue n'a pas vote (2026-09-05).
+                    "rules" to (reglesVotantes +
+                        (chaine.reglesVuesParMot[c.motIndex] ?: emptySet()))
+                        .distinct(),
                     // La regle du projet est « aucun verdict sans preuve ».
                     // Pour AFFIRMER qu'une regle est ABSENTE il faut donc
                     // avoir REGARDE plusieurs fois : deux observations
@@ -1822,6 +1827,15 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // distinguer « regle attendue et non faite » de « mot
                     // jamais observe », faute de quoi il condamne sur du vide.
                     "tajwidObserve" to votantes.isNotEmpty(),
+                    // Probabilite et seuil de chaque regle sur CE mot, pour la
+                    // barre de progression de la fiche (2026-09-05). Deux
+                    // listes paralleles plutot qu'une map de paires : le canal
+                    // Flutter ne transporte pas les `Pair`, et une map de maps
+                    // se serialise mal cote Dart.
+                    "probRegles" to (chaine.probasParMot[c.motIndex]
+                        ?.mapValues { it.value.first.toDouble() } ?: emptyMap()),
+                    "seuilRegles" to (chaine.probasParMot[c.motIndex]
+                        ?.mapValues { it.value.second.toDouble() } ?: emptyMap()),
                 )
             }
         } catch (e: Exception) {

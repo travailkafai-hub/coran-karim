@@ -280,7 +280,34 @@ class FastConformerVerifier {
   // les 512 dimensions que `tete3.json` attend en moyenne+écart-type) : il a
   // été exposé par un nœud `Identity`, sans réentraînement ni ré-export NeMo.
   // Renommer le tenseur aurait cassé ses trois consommateurs.
-  static const _kModelSubdir = 'models/quatre-tetes-warsh-v5-2026-08-31';
+  // ── PAQUET v7 : LES CLASSES TAJWID SONT ENFIN SEPAREES (2026-09-05) ─────
+  //
+  // Transfert `transfert_2026-09-05_tajwid_v7`. Seule la tete TAJWID change,
+  // plus l'ajout d'`encoder_state` : Hafs, Warsh et l'encodeur sont ceux du
+  // paquet precedent (verifie par hash cote emetteur, 692 tenseurs
+  // identiques). Le nom du dossier change quand meme -- regle du projet : un
+  // contenu nouveau sous un nom deja employe fait deux modeles sous une seule
+  // etiquette, et toute mesure relue ensuite est ambigue.
+  //
+  // CE QUE CA CORRIGE, et qu'on avait mesure le 2026-09-03 : la taxonomie
+  // d'entrainement fusionnait 5 regles en 2 classes (`ikhfa_idgham_noun` =
+  // ikhafa + idgham_ghunnah + iqlab ; `shafawi` = les deux shafawi). Sur
+  // `مِّن جُوعٍ`, l'app reprochait un `idgham_ghunnah` manquant a un recitateur
+  // qui l'avait fait -- la tete le nommait `ikhafa`, faute de savoir le nommer
+  // autrement. v7 separe : 13 classes reelles, 17 canaux mappes par NOM.
+  // `_groupesFusionnes` est donc vide desormais, cf. recitation_provider.
+  //
+  // SEUILS : 0,5 sur les 13 vraies classes, 1,1 (jamais) sur les 4 portees par
+  // le texte. Le document de transfert ecarte explicitement le seuil calibre a
+  // 95 % de rappel : il produit 84,6 % de fausses detections sur les fenetres
+  // sans regle. A 0,5 : rappel macro 74,6 %, invention 3,1 %.
+  //
+  // ⚠️ LES MADD NE SONT PAS RESOLUS. Un second entrainement (madd-union v2)
+  // est EN COURS et annonce comme pas pret : il fusionnera les trois madd en
+  // une detection acoustique et retrouvera la duree (2, 4 ou 6 harakat) par la
+  // MESURE plutot que par une classe. `_signalNonFiable` les garde donc en
+  // observation seule, comme depuis le 2026-09-03.
+  static const _kModelSubdir = 'models/quatre-tetes-v7-2026-09-05';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // TETE 3 (ecart canonique), OPTIONNELLE -- cf. Tete3.kt : en observation
@@ -872,7 +899,7 @@ class FastConformerVerifier {
   /// types doivent donc coïncider.
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
-                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})> v2,
+                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> v2,
            bool v2Decrochage, int v2DecrochageMot,
            // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
            // `v2Libre` : decodage libre de la derniere fenetre, base de
@@ -893,7 +920,7 @@ class FastConformerVerifier {
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
         v2: const <({int index, String statut, String trace, String heard,
-                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})>[],
+                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>[],
         v2Decrochage: false, // la v2 ne tourne pas sur ce chemin
         v2DecrochageMot: -1,
         v2Libre: '',
@@ -930,7 +957,7 @@ class FastConformerVerifier {
   /// statuts par mot -- cf. le commentaire côté Kotlin.
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
-                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})> v2,
+                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> v2,
            bool v2Decrochage, int v2DecrochageMot,
            // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
            // `v2Libre` : decodage libre de la derniere fenetre, base de
@@ -956,7 +983,7 @@ class FastConformerVerifier {
           .invokeMapMethod<String, dynamic>('feedBufferedAudio', {'pcm16': pcm16});
       if (raw == null) return null;
       final v2 = <({int index, String statut, String trace, String heard,
-                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})>[];
+                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>[];
       for (final m in ((raw['v2'] as List?) ?? const []).cast<Map>()) {
         // La trace porte les TROIS scores. Un `gop` effondré avec un `free`
         // proche de 0 veut dire mauvaise POSITION, pas mauvaise prononciation :
@@ -1018,6 +1045,29 @@ class FastConformerVerifier {
           // `tajwidFiable` (deux fois). Defaut prudent : false, donc pas de
           // verdict tajwid tant que le natif ne l'affirme pas.
           tajwidObserve: (m['tajwidObserve'] as bool?) ?? false,
+          // ── LE SCORE DE CHAQUE REGLE, POUR L'ECRAN (2026-09-05) ──────────
+          //
+          // « Rajouter, pour les mots, une barre de progression pour que le
+          // user sache ce qu'il a fait -- est-ce qu'il a raté de justesse. »
+          //
+          // Le natif calculait déjà ces probabilités (il les journalisait dans
+          // `[tajwidSousSeuil]`) mais ne les transmettait pas : la différence
+          // entre « pas faite » (0,10) et « ratée de peu » (0,48) n'existait
+          // que dans le journal, illisible pour un récitateur.
+          scoresRegles: () {
+            final p = (m['probRegles'] as Map?) ?? const {};
+            final s = (m['seuilRegles'] as Map?) ?? const {};
+            final out = <TajwidRule, ({double prob, double seuil})>{};
+            for (final e in p.entries) {
+              final r = TajwidRule.fromKey(e.key as String);
+              if (r == null) continue;
+              out[r] = (
+                prob: (e.value as num).toDouble(),
+                seuil: ((s[e.key] as num?) ?? 0.5).toDouble(),
+              );
+            }
+            return out;
+          }(),
         ));
       }
       return (
