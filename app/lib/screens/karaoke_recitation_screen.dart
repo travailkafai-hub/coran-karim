@@ -89,6 +89,25 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// appel existant du banc garde exactement le comportement d'avant.
   final bool forcerModeNormal;
 
+  /// ── MODE TAJWID : UNE LECTURE, PAS UN CONTROLE (2026-09-05) ────────────
+  ///
+  /// Demande utilisateur : une entree de menu « tajwid » qui ecoute pendant
+  /// qu'on LIT sa page, et ne signale que les regles -- en violet.
+  ///
+  /// POURQUOI ICI ET PAS DANS LE MUSHAF. Une premiere version ecoutait
+  /// directement depuis la page du mushaf. L'utilisateur l'a arretee sur le
+  /// bon argument : « il faut que le curseur suive les versets, sinon risque de
+  /// regression -- on utilise le mode recite ». Cet ecran a deja le curseur qui
+  /// suit, le defilement, le decrochage, la reprise ; les refaire ailleurs,
+  /// c'est reecrire ce qui marche et perdre ce qu'on a mesure.
+  ///
+  /// CE QUE LE MODE CHANGE, ET RIEN D'AUTRE :
+  ///   le texte reste VISIBLE (on lit, on ne recite pas de memoire) ;
+  ///   seules les regles de tajwid sont signalees, en violet ;
+  ///   les fautes de lettres et de harakat ne sont pas peintes -- ce mode
+  ///     travaille une seule chose a la fois.
+  final bool modeTajwid;
+
   /// RELECTURE (Coach, 2026-08-13) — verdicts figés à réafficher.
   ///
   /// Demande utilisateur, répétée trois fois avant que je l'entende : « je
@@ -165,6 +184,7 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
     this.autoDemarrer = false,
     this.sansBasmala = false,
     this.forcerModeNormal = false,
+    this.modeTajwid = false,
     this.relecture,
     this.titreRelecture,
     this.motsAtteintsRelecture,
@@ -199,6 +219,34 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // quelque chose de stable on ne propose plus"). null = vérification en cours.
   bool? _globalStable;
   bool _isReferenceSession = false;
+
+  /// ── LA LECTURE TAJWID NE COMPTE PAS DANS LES POURCENTAGES (2026-09-05) ──
+  ///
+  /// Consigne utilisateur : « attention, la lecture et verification de tajwid
+  /// n'impacte pas les pourcentages, car ce n'est pas de la recitation, c'est
+  /// de la lecture ».
+  ///
+  /// Elle est juste, et le defaut etait reel : le mode tajwid ouvre cet ecran
+  /// avec `forcerModeNormal: true`, donc `_isReferenceSession` valait `false`
+  /// et TOUTES les ecritures d'une vraie recitation partaient. Ce que la
+  /// lecture faisait sans qu'on le voie :
+  ///   - `RecitationErrorLogService.clearSurah` -- une lecture EFFACAIT les
+  ///     stats d'erreur de la sourate, celles de la derniere vraie recitation ;
+  ///   - une session archivee de plus dans le Coach, avec son taux de verts ;
+  ///   - les portions suivies mises a jour, donc leur pourcentage d'acquis ;
+  ///   - l'activite du jour, la serie, l'objectif, les mots acquis.
+  ///
+  /// Le texte est SOUS LES YEUX : un « vert » n'y prouve rien qu'une lecture a
+  /// voix haute, et un non-vert n'accuse personne. Compter l'un ou l'autre
+  /// fausse les deux sens -- gonfler l'acquis, ou noircir une sourate qu'on
+  /// venait seulement de relire.
+  ///
+  /// MEME GARDE QUE LA SESSION DE REFERENCE, et pour la meme raison : « ce
+  /// n'est pas une vraie recitation notee ». On reutilise donc son chemin,
+  /// deja eprouve, au lieu d'en inventer un second -- mais sans toucher a ce
+  /// que `_isReferenceSession` fait par ailleurs (seuil de gel, correction,
+  /// texte visible), qui n'a rien a voir avec les statistiques.
+  bool get _sansStatistiques => _isReferenceSession || widget.modeTajwid;
   bool _profileSaved = false;
   String? _sessionNotice; // confirmation/échec affiché après la session
   StreamSubscription<int>? _wordFailedSub;
@@ -557,6 +605,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   @override
   void initState() {
     super.initState();
+    // Trace du MODE a l ouverture : sans elle, impossible de dire si un ecran
+    // vert est « le mode tajwid dont les couleurs n ont pas pris » ou « un mode
+    // tajwid jamais demande ». Les deux hypotheses etaient egalement plausibles
+    // a l ecran le 2026-09-05.
+    DiagnosticLog.log('KaraokeOuverture',
+        'modeTajwid=${widget.modeTajwid} relecture=${widget.estRelecture} '
+        'versets=${widget.verses.length}');
     _verses = List.of(widget.verses);
     _initialPassageKey = widget.verses.map((v) => v.key).join('-');
     _breath = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
@@ -1426,7 +1481,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// La fenêtre est `mot-1 .. mot` (le mot précédent porte la liaison et le
   /// madd de fin, un mot seul s'écoute mal) — même choix que la fiche d'aide.
   Future<void> _archiverMotNonVert(int wordIndex) async {
-    if (_isReferenceSession) return;
+    if (_sansStatistiques) return;
     if (SessionArchiveService.instance.sessionCourante == null) return;
     final words = ref.read(recitationProvider).words;
     if (wordIndex < 0 || wordIndex >= words.length) return;
@@ -1525,7 +1580,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// la chaîne, pour qu'il ne soit jamais rentable de rejouer en boucle un
   /// même quart facile.
   Future<void> _comptabiliserPourCoach(int wordsGreen) async {
-    if (_isReferenceSession || _verses.isEmpty) return;
+    if (_sansStatistiques || _verses.isEmpty) return;
     try {
       final PortionGranularity granularite =
           _derniereGranulariteConnue ?? ref.read(portionGranularityProvider);
@@ -1617,7 +1672,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// consommer l'anneau natif (300 s, urgent) pour un mot déjà correct dont
   /// personne n'aura besoin de réentendre la preuve.
   Future<void> _archiverMotDansPortion(int wordIndex) async {
-    if (_isReferenceSession) return;
+    if (_sansStatistiques) return;
     final words = _lireProvider(recitationProvider).words;
     if (wordIndex < 0 || wordIndex >= words.length) return;
     final verse = _verseContaining(wordIndex);
@@ -1661,7 +1716,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   final Set<int> _motsNonJugesArchives = {};
 
   Future<void> _archiverMotsNonJugesDansPortions() async {
-    if (_isReferenceSession) return;
+    if (_sansStatistiques) return;
     final etat = _dernierEtatConnu;
     if (etat == null) return;
     final words = etat.words;
@@ -1799,7 +1854,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   int? _dernierMotArchiveOubli;
 
   Future<void> _archiverOubli(int wordIndex, {bool avecAudio = false}) async {
-    if (_isReferenceSession) return;
+    if (_sansStatistiques) return;
     if (_dernierMotArchiveOubli == wordIndex) return;
     _dernierMotArchiveOubli = wordIndex;
     final words = _lireProvider(recitationProvider).words;
@@ -2544,11 +2599,49 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// sourate + début de la suivante sur la même page du Mushaf).
   /// [prevSurahBefore] = sourate du dernier verset AVANT [verses] dans
   /// `_verses` (null au tout premier appel de la session).
+  /// ── L'ENCRE DU MODE TAJWID EST CELLE DU MUSHAF (2026-09-05) ────────────
+  ///
+  /// Demande utilisateur : « fais-moi le meme theme que dans le Mushaf
+  /// normal ». Ce sont EXACTEMENT les trois cas de `_bloc` dans
+  /// `mushaf_maquette_screen.dart` -- fond sombre, papier Kindle, papier
+  /// blanc -- et la meme encre creme en sombre (blanc pur sur une page pleine
+  /// de texte fatigue, cf. la note qui accompagne cette couleur la-bas).
+  ///
+  /// POURQUOI CE N'ETAIT PAS SUFFISANT DE CHANGER LE FOND. Le fond avait ete
+  /// bascule sur le parchemin, mais le texte etait reste `cream` : parfaitement
+  /// lisible sur le vert de la recitation, invisible sur du blanc. Sur la
+  /// capture, seules ressortaient les lettres PORTANT une regle -- celles qui
+  /// tiennent leur couleur de `tajweedSpansPerWord`. Tout le reste du verset
+  /// etait du creme sur du blanc.
+  /// Encre attenuee des textes secondaires (reference du passage, nom de
+  /// sourate, phrases d'etat). Meme raison que [_encreTajwid] : sur la capture
+  /// du 2026-09-05, « 2:1 -> 2:16 », « 2 · Al-Baqarah · 286 versets » et
+  /// « Les couleurs arrivent apres les premiers mots » etaient du creme a 55 %
+  /// sur du blanc -- litteralement invisibles.
+  Color _encreDouce(double alpha) => widget.modeTajwid
+      ? _encreTajwid.withValues(alpha: alpha * 0.75)
+      : AppColors.cream.withValues(alpha: alpha);
+
+  Color get _encreTajwid => ref.watch(modeSombreProvider)
+      ? AppColors.cream
+      : (ref.watch(kindleModeProvider)
+          ? AppColors.kindleInk
+          : const Color(0xFF1A1208));
+
   ({String text, List<List<TextSpan>> spans, List<RecitationSegment> segments})
       _buildChunk(
           List<Verse> verses, int? prevSurahBefore, Verse bismillahVerse) {
+    // Les lettres SANS regle prennent cette couleur de base ; celles qui en
+    // portent une gardent la leur (`tajweedSpansPerWord`). En recitation
+    // normale le fond est vert sombre -> creme, inchange.
     final style = GoogleFonts.scheherazadeNew(
-        fontSize: 30, height: 2.1, color: AppColors.cream);
+        fontSize: 30,
+        height: 2.1,
+        color: widget.modeTajwid ? _encreTajwid : AppColors.cream);
+    // `sombre:` fait choisir a la palette tajwid ses variantes claires. En mode
+    // tajwid le fond est celui du Mushaf : on lui passe le vrai theme, sinon
+    // les couleurs de regles seraient calculees pour un fond qui n'est plus la.
+    final sombreTajwid = widget.modeTajwid && ref.read(modeSombreProvider);
     final parts = <String>[];
     final spans = <List<TextSpan>>[];
     // Segments verset-clés pour l'annotation des règles tajwid (cf.
@@ -2559,12 +2652,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     for (final v in verses) {
       if (!widget.sansBasmala && _bismillahBefore(v, prevSurah)) {
         parts.add(bismillahVerse.textUthmani);
-        spans.addAll(tajweedSpansPerWord(
-            bismillahVerse.textUthmani, bismillahVerse.textUthmaniTajweed, style));
+        spans.addAll(tajweedSpansPerWord(bismillahVerse.textUthmani,
+            bismillahVerse.textUthmaniTajweed, style,
+            sombre: sombreTajwid));
         segments.add((surah: 1, ayah: 1, text: bismillahVerse.textUthmani));
       }
       parts.add(v.textUthmani);
-      spans.addAll(tajweedSpansPerWord(v.textUthmani, v.textUthmaniTajweed, style));
+      spans.addAll(tajweedSpansPerWord(
+          v.textUthmani, v.textUthmaniTajweed, style,
+          sombre: sombreTajwid));
       segments.add(
           (surah: v.surahNumber, ayah: v.ayahNumber, text: v.textUthmani));
       prevSurah = v.surahNumber;
@@ -3001,7 +3097,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // pas touchées. Jamais pendant une session de RÉFÉRENCE : elle ne
       // journalise aucune erreur (cf. _onWordFailed), donc effacer serait une
       // perte sèche des stats de la dernière vraie récitation.
-      if (!_isReferenceSession) {
+      // `_sansStatistiques` et non `_isReferenceSession` : la lecture tajwid
+      // n'ouvre AUCUNE session d'archive et n'efface AUCUN compteur (cf. la
+      // doc du getter). Sans session ouverte, `_cloturerArchive` et les
+      // `archiverMot` se taisent d'eux-memes -- ils commencent tous par tester
+      // `sessionCourante == null`. Ce garde-ci ferme la porte a l'entree.
+      if (!_sansStatistiques) {
         // ── ARCHIVE DE SESSION (2026-08-06) ──────────────────────────────
         // Ouverte AVANT le premier mot : sans elle, `archiverMot` n'a pas de
         // session ou se rattacher et l'archivage est silencieusement perdu.
@@ -3759,8 +3860,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // alors sur l'ancien affichage, il ne se vide pas.
     final nomSourate = _surahMeta[numSourate]?.nameSimple;
 
+    // ── EN MODE TAJWID, LE VISUEL DU MUSHAF (2026-09-05) ─────────────────
+    //
+    // Constat utilisateur : « avec le fond vert ce n'est pas visible ; est-ce
+    // que je peux avoir le même visuel que le mushaf en lecture, qui suit le
+    // thème ». Exact : les couleurs des règles sont pensées pour de l'encre
+    // sombre sur parchemin clair. Sur le vert profond de la récitation, le
+    // rouge d'un madd et le vert d'une ghunna se noient.
+    //
+    // Ce mode EST une lecture : il prend donc le fond du Mushaf, et il suit le
+    // thème comme lui (sombre, Kindle, ou parchemin).
+    final fondTajwid = ref.watch(modeSombreProvider)
+        ? AppColors.sombreBg
+        : (ref.watch(kindleModeProvider)
+            ? AppColors.kindleBg
+            : AppColors.mushafPapier);
     return Scaffold(
-      backgroundColor: AppColors.green900,
+      backgroundColor:
+          widget.modeTajwid ? fondTajwid : AppColors.green900,
       body: GestureDetector(
         // Un tap n'importe où ne DÉMARRE l'écoute que si elle est arrêtée —
         // l'arrêter, une fois en cours, exige un tap précis sur le halo
@@ -3908,7 +4025,32 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   // ── Fond ambiant : dégradé + trame géométrique discrète ──────────────────
+  //
+  // ⚠️ C'EST LUI QUI PEINT LE FOND, PAS LE `Scaffold` (constat 2026-09-05).
+  // Le `backgroundColor` du Scaffold est integralement recouvert par ce
+  // Container plein ecran : changer l'un sans l'autre ne se voit pas -- j'ai
+  // mis le fond du mode tajwid sur le Scaffold, et l'ecran est reste vert. La
+  // trace `[KaraokeOuverture] modeTajwid=true` a montre que le mode etait bien
+  // actif, ce que la couleur dementait.
+  //
+  // EN MODE TAJWID : le visuel du Mushaf en lecture, thème compris. Les
+  // couleurs des regles sont pensees pour de l'encre sombre sur parchemin ;
+  // sur ce vert profond, le rouge d'un madd et le vert d'une ghunna se noient
+  // -- « avec le fond vert ce n'est pas visible ».
   Widget _ambientBackground() {
+    if (widget.modeTajwid) {
+      final sombre = ref.watch(modeSombreProvider);
+      return ColoredBox(
+        color: sombre
+            ? AppColors.sombreBg
+            : (ref.watch(kindleModeProvider)
+                ? AppColors.kindleBg
+                : AppColors.mushafPapier),
+        // Pas de trame geometrique : le mushaf de lecture n'en a pas, et elle
+        // ajouterait un troisieme motif sous un texte deja colore.
+        child: const SizedBox.expand(),
+      );
+    }
     return Container(
       decoration: const BoxDecoration(
         gradient: RadialGradient(
@@ -4064,7 +4206,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                         style: GoogleFonts.manrope(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.cream.withValues(alpha: 0.6),
+                          color: _encreDouce(0.6),
                           letterSpacing: 0.3,
                         ),
                       ),
@@ -4168,6 +4310,52 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     String? title;
     String? body;
     final t = AppLocalizations.of(context)!;
+    // ── LA NOTE EN CINQ ETOILES, EN FIN DE RECITATION (2026-09-05) ────────
+    //
+    // Demande utilisateur : « je veux a la fin sur cinq etoiles, par rapport au
+    // nombre de regles attendues et reussies, sans donner le detail -- donner
+    // juste le nombre d'etoiles ».
+    //
+    // SANS DETAIL, et c'est le point : le detail existe deja (les barres de la
+    // fiche du mot, le journal). Ici on ne dit que « ou tu en es », d'un coup
+    // d'oeil, sans chiffre a interpreter. Les regles non observees sont exclues
+    // du calcul -- une fenetre qui manque un mot ne doit pas couter une etoile.
+    //
+    // `null` si aucune regle n'a pu etre jugee : un passage sans regle
+    // observable ne merite pas zero etoile, il ne merite pas de note du tout.
+    // ── ET A LA PAUSE AUSSI (2026-09-05) ─────────────────────────────────
+    //
+    // Demande utilisateur : « quand je fais pause, j'ai besoin de la notation,
+    // combien d'etoiles selon ma recitation ». La note n'apparaissait qu'une
+    // fois la session terminee -- or on s'arrete precisement pour se situer,
+    // et reprendre ensuite. Le calcul est cumulatif (`_reglesAttendues` /
+    // `_reglesReussies` s'accumulent depuis le debut de la session) : la note
+    // affichee a la pause est donc celle de tout ce qui a ete recite jusque-la,
+    // et elle continue d'evoluer a la reprise -- ce n'est pas un verdict fige.
+    final etoiles = (!listening || _manuallyPaused)
+        ? ref.read(recitationProvider.notifier).etoilesTajwid
+        : null;
+    if (etoiles != null && _sessionNotice == null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(28, 10, 28, 0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < 5; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Icon(
+                  i < etoiles ? Icons.star_rounded : Icons.star_outline_rounded,
+                  size: 26,
+                  color: i < etoiles
+                      ? const Color(0xFFFFC107)
+                      : AppColors.inkLight.withValues(alpha: .35),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
     if (_sessionNotice != null && !listening) {
       title = null;
       body = _sessionNotice;
@@ -4388,7 +4576,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         itemBuilder: (_, i) {
           final r = ranges[i];
           final b = r.banner;
-          if (b != null) return _SurahTransitionBanner(_surahMeta[b]!);
+          if (b != null) {
+            return _SurahTransitionBanner(_surahMeta[b]!, encre: _encreDouce(0.55));
+          }
           return _wordWrapBlock(st, r.start, r.end);
         },
       ),
@@ -4544,6 +4734,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           .motsDegradesTajwid
           .contains(index);
     }
+    // ── MODE TAJWID : SEUL LE VIOLET EST PEINT (2026-09-05) ──────────────
+    //
+    // On LIT sa page et l'app ecoute les regles : signaler en plus les lettres
+    // ou les harakat noierait ce qu'on est venu travailler. Les autres verdicts
+    // ne disparaissent pas -- ils restent dans le journal, la fiche du mot et
+    // les etoiles -- ils ne sont simplement pas COLORES ici.
+    //
+    // Le reste de l'ecran est inchange : curseur qui suit, defilement,
+    // decrochage, reprise. C'est tout l'interet d'etre passe par cet ecran
+    // plutot que d'ecouter depuis le mushaf.
     switch (effectiveStatus) {
       case WordStatus.correct:
         bgTint = const Color(0xFF6fe3a8).withOpacity(0.38);
@@ -4657,6 +4857,36 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         opacity = _isReferenceSession ? 1.0 : 0.0;
         break;
     }
+    // ── MODE TAJWID : TOUTES LES COULEURS, SAUF LE VERT (2026-09-05) ─────
+    //
+    // Correction de la version precedente, qui n'en peignait qu'UNE (le
+    // violet). Consigne utilisateur apres l'avoir vue tourner : « on va garder
+    // les couleurs sauf le vert ».
+    //
+    // Le raisonnement se tient et corrige le mien : ce mode est une LECTURE.
+    // Le vert n'y apprend rien -- on lit sa page, le texte est sous les yeux,
+    // « c'est juste » est le cas ordinaire, et une page entiere de vert noie
+    // le seul signal qu'on est venu chercher. Tout ce qui n'est PAS ordinaire,
+    // en revanche, reste dit : le rouge, l'orange, le gris de l'oubli (plus
+    // bas, `estOubli`) et le violet du tajwid. J'avais tout eteint sauf le
+    // violet -- c'etait retirer des informations que rien n'obligeait a
+    // retirer, et le gris que l'utilisateur a vu venait justement de la seule
+    // couleur que ma condition laissait passer par une autre porte.
+    //
+    // Le violet n'a pas besoin d'etre pose ici : le `switch` ci-dessus le
+    // produit deja dans les cas `unclear` et `error` via `estErreurTajwid()`.
+    // `!estErreurTajwid()` : un mot degrade par le tajwid arrive normalement
+    // en `unclear` (le provider le degrade), mais rien ne le garantit pour
+    // toujours -- eteindre un violet ici serait le pire des effets de bord.
+    if (widget.modeTajwid &&
+        effectiveStatus == WordStatus.correct &&
+        !estErreurTajwid()) {
+      bgTint = null;
+      borderTint = null;
+    }
+    // En mode tajwid le texte reste toujours VISIBLE : on lit sa page, rien
+    // n'est masque (contrairement a la recitation de memoire).
+    if (widget.modeTajwid) opacity = 1.0;
 
     if (estOubli) {
       bgTint = const Color(0xFF9e9e9e).withValues(alpha: 0.30);
@@ -4685,21 +4915,40 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // ⚠️ ON NE TOUCHE PAS AUX SPANS D'ORIGINE. `_tajwidSpans` est construit une
     // fois par passage et relu a chaque rendu : le muter ici perdrait les
     // couleurs pour de bon, y compris apres la recitation. On recopie.
-    final tajwidNeutre = tajwidWord
-        ?.map((sp) => TextSpan(
-              text: sp.text,
-              children: sp.children,
-              style: (sp.style ?? const TextStyle())
-                  .copyWith(color: AppColors.cream),
-            ))
-        .toList();
+    // ── EN MODE TAJWID, LES REGLES GARDENT LEURS COULEURS (2026-09-05) ──
+    //
+    // Demande utilisateur : « il faut heriter le coloriage des regles ».
+    //
+    // La neutralisation ci-dessus a un sens en recitation normale : la couleur
+    // y designe le VERDICT, et deux systemes de couleur superposes ne se lisent
+    // plus. Mais ce mode existe pour travailler le tajwid : masquer les regles
+    // pendant qu'on les travaille reviendrait a eteindre la lumiere.
+    //
+    // Les deux informations restent distinctes et ne se marchent pas dessus :
+    // la COULEUR DU TEXTE dit la regle, le FOND violet dit qu'elle a manque.
+    // Et ce mode ne peint aucun autre fond -- ni vert, ni orange, ni rouge.
+    // L'encre du mode tajwid suit le fond : sombre sur parchemin, claire en
+    // mode sombre -- sinon le texte disparaitrait dans son propre fond.
+    final encreTajwid = _encreTajwid;
+    final tajwidNeutre = widget.modeTajwid
+        ? tajwidWord
+        : tajwidWord
+            ?.map((sp) => TextSpan(
+                  text: sp.text,
+                  children: sp.children,
+                  style: (sp.style ?? const TextStyle())
+                      .copyWith(color: AppColors.cream),
+                ))
+            .toList();
 
     final textWidget = (tajwidNeutre != null && tajwidNeutre.isNotEmpty)
         ? RichText(text: TextSpan(children: tajwidNeutre))
         : Text(
             w.display,
             style: GoogleFonts.scheherazadeNew(
-                fontSize: 30, height: 2.1, color: AppColors.cream),
+                fontSize: 30,
+                height: 2.1,
+                color: widget.modeTajwid ? encreTajwid : AppColors.cream),
           );
 
     // ── FIL DE LUMIERE (demande utilisateur 2026-08-06) ──────────────────
@@ -4888,6 +5137,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           ? ref.read(recitationProvider.notifier).unrealizedRulesFor(
               wordIndex, st.words[wordIndex].detectedRules)
           : const <TajwidRule>[],
+      // Les scores du mot, pour la barre qui dit de COMBIEN la regle a ete
+      // ratee (2026-09-05). Vides si le mot n a pas ete observe : la fiche
+      // n affiche alors aucune barre plutot qu une barre a zero, qui se
+      // lirait comme « rien fait » alors qu on n a rien mesure.
+      scoresRegles:
+          ref.read(recitationProvider.notifier).scoresReglesPour(wordIndex),
       // Ce que le mode courant EXIGE sur ce mot : `shownRulesFor` rend les
       // regles attendues ET actives, deja purgees de celles que le modele ne
       // peut pas constater (portees par le texte). Vide hors mode tajwid.
@@ -4954,7 +5209,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                         style: GoogleFonts.amiri(
                           fontSize: 15,
                           fontStyle: FontStyle.italic,
-                          color: AppColors.cream.withOpacity(0.65),
+                          color: _encreDouce(0.65),
                         ),
                       ),
                     ),
@@ -5025,7 +5280,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           st.words.every((w) =>
               w.status == WordStatus.pending || w.status == WordStatus.current);
       if (!rienEncoreJuge) return const SizedBox.shrink();
-      return _EcouteVivante(niveau: st.soundLevel);
+      return _EcouteVivante(niveau: st.soundLevel, encre: _encreDouce(0.55));
     }
     String label;
     if (finalizing) {
@@ -5056,7 +5311,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           label,
           style: GoogleFonts.manrope(
             fontSize: 12,
-            color: AppColors.cream.withOpacity(0.5),
+            color: _encreDouce(0.5),
           ),
         ),
       ],
@@ -5072,7 +5327,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
 /// petit motif, nom arabe en grand, repère FR/numéro en dessous.
 class _SurahTransitionBanner extends StatelessWidget {
   final Surah surah;
-  const _SurahTransitionBanner(this.surah);
+  /// Encre du sous-titre : creme sur le vert de la recitation, encre du
+  /// Mushaf en mode tajwid (2026-09-05).
+  final Color encre;
+  const _SurahTransitionBanner(this.surah, {required this.encre});
 
   Widget _rule() => Expanded(
         child: Container(height: 1, color: AppColors.brassLight.withOpacity(0.25)),
@@ -5115,7 +5373,7 @@ class _SurahTransitionBanner extends StatelessWidget {
               fontSize: 11,
               letterSpacing: 0.6,
               fontWeight: FontWeight.w600,
-              color: AppColors.cream.withOpacity(0.55),
+              color: encre,
             ),
           ),
           const SizedBox(height: 16),
@@ -5455,7 +5713,9 @@ class _BandeauEtoiles extends StatelessWidget {
 /// l'app est morte ; celle-ci ne bouge que si la voix arrive vraiment.
 class _EcouteVivante extends StatelessWidget {
   final double niveau;
-  const _EcouteVivante({required this.niveau});
+  /// Cf. `_SurahTransitionBanner.encre`.
+  final Color encre;
+  const _EcouteVivante({required this.niveau, required this.encre});
 
   @override
   Widget build(BuildContext context) {
@@ -5494,7 +5754,7 @@ class _EcouteVivante extends StatelessWidget {
         Text(t.karaokeEcouteBientot,
             style: GoogleFonts.manrope(
                 fontSize: 11,
-                color: AppColors.cream.withValues(alpha: 0.55))),
+                color: encre)),
       ],
     );
   }

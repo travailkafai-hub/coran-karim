@@ -18,11 +18,21 @@ import '../theme/app_theme.dart';
 /// `_MushafScreenState._showTranslation` (pas un réglage persistant comme les
 /// autres de cette feuille) ; `onToggleTranslation` null masque simplement la
 /// section, pour un futur appelant qui n'aurait pas ce concept.
+/// [cleVersetActif]/[onToggleSignet]/[onOuvrirSignets] (2026-09-05) : le
+/// SIGNET descend de la barre du bas du Mushaf, dont le tajwid a pris la place
+/// (demande utilisateur : « acces rapide depuis le menu avec une icone propre ;
+/// par exemple le signet, range-le a un autre endroit »). Il y gagne ce que
+/// l'icone ne pouvait pas donner : sa liste s'ouvrait par un appui LONG que
+/// rien n'annoncait, elle devient une ligne ecrite. `null` sur les trois =
+/// section masquee, pour un appelant qui n'a pas de verset courant.
 void showReadingSettingsSheet(
   BuildContext context,
   WidgetRef ref, {
   bool showTranslation = false,
   VoidCallback? onToggleTranslation,
+  String? cleVersetActif,
+  VoidCallback? onToggleSignet,
+  VoidCallback? onOuvrirSignets,
 }) {
   showModalBottomSheet(
     context: context,
@@ -39,6 +49,9 @@ void showReadingSettingsSheet(
     builder: (ctx) => _ReadingSettingsSheet(
       showTranslation: showTranslation,
       onToggleTranslation: onToggleTranslation,
+      cleVersetActif: cleVersetActif,
+      onToggleSignet: onToggleSignet,
+      onOuvrirSignets: onOuvrirSignets,
     ),
   );
 }
@@ -62,9 +75,16 @@ void showReadingSettingsSheet(
 class _ReadingSettingsSheet extends ConsumerStatefulWidget {
   final bool showTranslation;
   final VoidCallback? onToggleTranslation;
+  /// Cf. la doc de [showReadingSettingsSheet].
+  final String? cleVersetActif;
+  final VoidCallback? onToggleSignet;
+  final VoidCallback? onOuvrirSignets;
   const _ReadingSettingsSheet({
     required this.showTranslation,
     required this.onToggleTranslation,
+    this.cleVersetActif,
+    this.onToggleSignet,
+    this.onOuvrirSignets,
   });
 
   @override
@@ -162,6 +182,53 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
                 ),
               ],
             ),
+            // ── SIGNET (2026-09-05) ───────────────────────────────────
+            //
+            // Deux lignes la ou il y avait un bouton a deux gestes : poser le
+            // signet, et ouvrir la liste. Le second geste etait un appui long
+            // invisible -- c'est le defaut meme que l'utilisateur venait de
+            // reprocher a l'acces du mode tajwid.
+            //
+            // L'etat se LIT ici (`marquePagesProvider`), il n'est pas recu :
+            // la ligne change donc de libelle et d'icone au moment du tap,
+            // feuille ouverte.
+            if (widget.onToggleSignet != null &&
+                widget.cleVersetActif != null) ...[
+              Builder(builder: (_) {
+                final marque = ref
+                    .watch(marquePagesProvider)
+                    .contains(widget.cleVersetActif!);
+                return Column(mainAxisSize: MainAxisSize.min, children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                        marque
+                            ? Icons.bookmark_rounded
+                            : Icons.bookmark_border_rounded,
+                        color: marque ? AppColors.brass : AppColors.green800,
+                        size: 20),
+                    title: Text(t.mushafFavorites,
+                        style: GoogleFonts.manrope(
+                            fontSize: 13.5, color: AppColors.ink)),
+                    onTap: widget.onToggleSignet,
+                  ),
+                  if (widget.onOuvrirSignets != null)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.bookmarks_rounded,
+                          color: AppColors.green800, size: 20),
+                      title: Text(t.mushafBookmarksTitle,
+                          style: GoogleFonts.manrope(
+                              fontSize: 13.5, color: AppColors.ink)),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        widget.onOuvrirSignets!();
+                      },
+                    ),
+                ]);
+              }),
+              const Divider(height: 20),
+            ],
             Center(
               child: Text(
                 'بِسْمِ ٱللَّهِ',

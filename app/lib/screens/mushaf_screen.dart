@@ -11,11 +11,12 @@ import '../providers/mushaf_annotation_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
-import '../services/recitation_verifier.dart' show ArabicNormalizer;
+import '../services/recitation_verifier.dart' show ArabicNormalizer, recitationVerifierProvider;
 import '../theme/app_theme.dart';
 import 'mushaf_maquette_screen.dart';
 import '../widgets/verse_tile.dart';
 import '../widgets/mushaf_header.dart';
+import '../providers/recitation_provider.dart';
 import '../widgets/reading_settings_sheet.dart';
 import '../widgets/coach_explanation_sheet.dart';
 import '../widgets/surah_ornament_header.dart';
@@ -402,6 +403,10 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         _loadedSurahs = chargees;
         _nextPage = page < 604 ? page + 1 : null;
       });
+      // La page suivante vient d'arriver : si l'ecoute tajwid tourne, la chaine
+      // doit le savoir, sinon tout mot au-dela de la cible initiale reste hors
+      // de portee et plus rien n'est juge -- en silence.
+      _etendreEcouteTajwid();
       // Le scroll a atteint cette page : elle devient la nouvelle position de
       // lecture retenue (cf. la doc du provider, même raison qu'à
       // l'ouverture dans `initState`).
@@ -544,12 +549,24 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   }
 
   void _openReadingSettings() {
+    // Le signet descend ici depuis la barre du bas (2026-09-05, cf. le bouton
+    // Tajwid). On passe la CLE du verset actif et non un booleen « marque » :
+    // la feuille lit `marquePagesProvider` elle-meme et se rafraichit donc au
+    // moment du tap. Un booleen capture a l'ouverture aurait rejoue exactement
+    // le defaut documente en tete de `_ReadingSettingsSheet` -- l'interrupteur
+    // de traduction qui mentait parce que sa valeur etait figee.
+    final v = _verses.isEmpty ? null : _verses[_activeVerse];
     showReadingSettingsSheet(
       context,
       ref,
       showTranslation: _showTranslation,
       onToggleTranslation: () =>
           setState(() => _showTranslation = !_showTranslation),
+      cleVersetActif: v == null
+          ? null
+          : MarquePagesNotifier.cle(v.surahNumber, v.ayahNumber),
+      onToggleSignet: v == null ? null : _basculerMarquePage,
+      onOuvrirSignets: _ouvrirListeSignets,
     );
   }
 
@@ -643,6 +660,13 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
     // Ne PAS filtrer sur isPlaying/isPaused ici : au moment exact où
     // currentVerse change (play()), le statut vaut encore "loading" — un
     // filtre sur le statut ratait donc systématiquement le déclenchement.
+    // Le mode tajwid repeint la page a chaque verdict : les violets viennent
+    // de `motsDegradesTajwid`, qui change au fil de la recitation.
+    if (ref.watch(mushafEcouteTajwidProvider)) {
+      ref.listen(recitationProvider, (_, __) {
+        if (mounted) setState(() {});
+      });
+    }
     ref.listen<PlayerStateModel>(playerProvider, (prev, next) {
       final key = next.currentVerse?.key;
       if (key != null && key != prev?.currentVerse?.key) {
@@ -684,6 +708,43 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
           // `mushafPapier` (blanc franc) et non `cream` : cf. sa doc dans
           // app_theme.dart -- « le blanc n'est pas vraiment un vrai blanc ».
           : (kindleMode ? AppColors.kindleBg : AppColors.mushafPapier),
+      // ── BANDEAU D'ECOUTE TAJWID (2026-09-05) ─────────────────────────────
+      //
+      // Sans lui, rien ne dirait que le micro tourne : la page est identique a
+      // la lecture normale, et c'est justement ce qu'on voulait. Il faut donc
+      // un signe -- et surtout un moyen d'ARRETER, sinon l'ecoute continue en
+      // silence, ce que le projet interdit (le micro ne tourne jamais sans que
+      // l'utilisateur le sache).
+      bottomNavigationBar: ref.watch(mushafEcouteTajwidProvider)
+          ? SafeArea(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 10, 10, 10),
+                color: const Color(0xFF7E57C2).withValues(alpha: .12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.spellcheck_rounded,
+                        size: 18, color: Color(0xFF7E57C2)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Écoute du tajwid — les règles manquées passent en violet',
+                        style: GoogleFonts.manrope(
+                            fontSize: 12, color: AppColors.ink),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _arreterEcouteTajwid,
+                      child: Text('Arrêter',
+                          style: GoogleFonts.manrope(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF7E57C2))),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.green800))
           : _error != null
@@ -914,6 +975,8 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                             onBookmarkTap:
                                 _verses.isEmpty ? null : _basculerMarquePage,
                             onBookmarkLongPress: _ouvrirListeSignets,
+                            onTajwidTap:
+                                _verses.isEmpty ? null : _openKaraokeTajwid,
                             estMarque: _verses.isEmpty
                                 ? false
                                 : ref.watch(marquePagesProvider).contains(
@@ -1307,6 +1370,27 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
       Verse verse, Map<String, int> marques, String riwaya) {
     final n = ArabicNormalizer.splitExpectedWords(verse.textUthmani).length;
     Map<int, Color>? resultat;
+    // ── LE VIOLET DU TAJWID, SUR LA PAGE (2026-09-05) ────────────────────
+    //
+    // On reutilise le mecanisme d'ANNOTATION du mushaf (des couleurs par mot)
+    // plutot que d'en inventer un second : le texte sait deja peindre un mot,
+    // et le mode ne fait que fournir d'autres couleurs. Rien d'autre ne change
+    // dans le rendu de la page.
+    //
+    // SEULEMENT du violet : ce mode ne signale pas les fautes de lettres ni de
+    // harakat -- il travaille une seule chose a la fois.
+    if (ref.read(mushafEcouteTajwidProvider)) {
+      final notifier = ref.read(recitationProvider.notifier);
+      for (final i in notifier.motsDegradesTajwid) {
+        final pos = notifier.verseAndLocalIndexFor(i);
+        if (pos == null) continue;
+        if (pos.$1.surahNumber != verse.surahNumber ||
+            pos.$1.ayahNumber != verse.ayahNumber) {
+          continue;
+        }
+        (resultat ??= {})[pos.$2] = const Color(0xFF7E57C2);
+      }
+    }
     for (var i = 0; i < n; i++) {
       final couleur = marques[MushafHighlightsNotifier.cle(
           verse.surahNumber, verse.ayahNumber, i, riwaya)];
@@ -1751,6 +1835,15 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                   libelle: t.mushafRecite,
                   onTap: () { Navigator.pop(ctx); _openKaraoke(); },
                 ),
+                // ── ECOUTE TAJWID, SANS QUITTER LA PAGE (2026-09-05) ──────
+                // Cf. `mushafEcouteTajwidProvider` pour le pourquoi. Placee
+                // juste sous « Reciter » : c'est la meme action -- parler --
+                // avec une exigence differente.
+                _ActionVerset(
+                  icone: Icons.spellcheck_rounded,
+                  libelle: 'Tajwid sur la page',
+                  onTap: () { Navigator.pop(ctx); _openKaraokeTajwid(); },
+                ),
                 _ActionVerset(
                   // Icône dédiée (2026-08-28, demande utilisateur) --
                   // `Icons.school_rounded` était aussi celle du hub Coach
@@ -1845,6 +1938,94 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                 verses: _fragmentFromActive(),
                 autoDemarrer: true,
                 forcerModeNormal: true)));
+  }
+
+  /// Ouvre l'ecran de recitation en MODE TAJWID -- texte visible, seules les
+  /// regles signalees.
+  ///
+  /// ⚠️ Passe par l'ecran de recitation et NON par l'ecoute maison ci-dessous
+  /// (`_demarrerEcouteTajwid`, conservee mais plus appelee) : celle-ci n'avait
+  /// ni curseur qui suit, ni gestion du decrochage, ni reprise -- « il faut que
+  /// le curseur suive les versets, sinon risque de regression ». Tout cela
+  /// existe deja ici, mesure et corrige depuis des mois.
+  void _openKaraokeTajwid() {
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => KaraokeRecitationScreen(
+            verses: _fragmentFromActive(),
+            autoDemarrer: true,
+            forcerModeNormal: true,
+            modeTajwid: true)));
+  }
+
+  /// Ecoute le tajwid SUR CETTE PAGE, sans ouvrir d'autre ecran.
+  ///
+  /// ⚠️ PLUS APPELEE depuis le 2026-09-05 : le menu passe par
+  /// `_openKaraokeTajwid`. Conservee telle quelle (regle du projet : on
+  /// n'efface pas un mecanisme, on laisse la trace de pourquoi il ne tourne
+  /// pas) -- elle redeviendrait utile le jour ou l'on voudrait vraiment ecouter
+  /// sans quitter la page, mais il faudrait alors lui donner le curseur et la
+  /// gestion du decrochage que l'ecran de recitation possede deja.
+  ///
+  /// Meme chaine que la recitation normale (`startControle`), mais : la cible
+  /// est le fragment visible, rien n'est masque, et seule la coloration change
+  /// -- cf. `_wordHighlightsFor`, qui n'ajoute que du violet dans ce mode.
+  Future<void> _demarrerEcouteTajwid() async {
+    final notifier = ref.read(recitationProvider.notifier);
+    // ── EN CONTINU SUR LA PAGE, PAS UN FRAGMENT (2026-09-05) ────────────
+    //
+    // Premiere version : `_fragmentFromActive()`, du verset actif a la fin de
+    // SA page -- la cible de la recitation normale, qui vise un passage borne.
+    // Precision de l'utilisateur : « non, sur la page du mushaf en continu ».
+    //
+    // Ce mode n'est pas un exercice sur un passage : on lit sa page, et l'app
+    // ecoute. La cible est donc TOUT ce que l'ecran porte, et elle s'etend avec
+    // lui -- le Mushaf charge la suite au defilement (cf. `_loadMore`), et
+    // `v2CibleEtendue` en avertit la chaine, sans quoi tout mot au-dela serait
+    // structurellement hors de portee (defaut deja paye le 2026-08-05).
+    final fragment = _verses;
+    if (fragment.isEmpty) return;
+    ref.read(mushafEcouteTajwidProvider.notifier).state = true;
+    // Le tajwid d'un mot ne demande pas deux observations : sur une page on ne
+    // repasse pas, la fenetre n'a qu'un tour. Meme raison que dans le Coach.
+    notifier.tajwidSansDoubleObservation = true;
+    await notifier.setupDepuisVerset(
+      fragment.map((v) => v.textUthmani).join(' '),
+      surah: fragment.first.surahNumber,
+      ayah: fragment.first.ayahNumber,
+      premierMot: 0,
+    );
+    _dernierNbVersetsEcoute = fragment.length;
+    ref.read(recitationVerifierProvider).microBluetooth =
+        ref.read(microBluetoothProvider);
+    await notifier.startControle();
+    if (mounted) setState(() {});
+  }
+
+  /// Nombre de versets deja donnes a la chaine, pour n'etendre que le surplus.
+  int _dernierNbVersetsEcoute = 0;
+
+  /// Etend la cible quand le Mushaf a charge la suite.
+  ///
+  /// Sans cela, l'ecoute resterait bornee aux versets presents au demarrage :
+  /// on lirait la page suivante et plus rien ne serait juge, en silence. C'est
+  /// le defaut mesure le 2026-08-05 sur l'enchainement de pages -- l'ecran
+  /// avancait, la cible de la chaine non.
+  void _etendreEcouteTajwid() {
+    if (!ref.read(mushafEcouteTajwidProvider)) return;
+    if (_verses.length <= _dernierNbVersetsEcoute) return;
+    final nouveaux = _verses.sublist(_dernierNbVersetsEcoute);
+    _dernierNbVersetsEcoute = _verses.length;
+    unawaited(ref.read(recitationProvider.notifier).extendWords(
+        nouveaux.map((v) => v.textUthmani).join(' ')));
+  }
+
+  /// Arrete l'ecoute tajwid et rend la page a son etat de lecture.
+  Future<void> _arreterEcouteTajwid() async {
+    final notifier = ref.read(recitationProvider.notifier);
+    notifier.tajwidSansDoubleObservation = false;
+    await notifier.stopContinuous();
+    ref.read(mushafEcouteTajwidProvider.notifier).state = false;
+    if (mounted) setState(() {});
   }
 
   /// Versets du verset actif jusqu'à la fin de SA page (repli : toute la fin de
@@ -2629,11 +2810,21 @@ class _BottomBar extends StatelessWidget {
   /// jugé hors de l'univers du Coran) -- même raison que [onReciteTap].
   final VoidCallback? onChainTap;
   final VoidCallback? onMoreTap;
+  /// Signet : ces deux-la ne sont plus cablés a un bouton de la barre depuis
+  /// le 2026-09-05 (le signet a demenage dans le tiroir « Plus », cf. le
+  /// commentaire du bouton Tajwid). Champs CONSERVES : l'ecran les fournit
+  /// toujours, et les rebrancher tient a une ligne le jour ou la barre
+  /// retrouve de la place.
   final VoidCallback? onBookmarkTap;
   final VoidCallback? onBookmarkLongPress;
+  /// Mode « Tajwid » : lecture sur la page, seules les regles sont signalees.
+  final VoidCallback? onTajwidTap;
   /// Lecture sur fond noir : le vert du theme s'y confond avec la page.
   final bool modeSombre;
-  /// Le verset actif est-il marque ? Pilote l'icone du signet.
+  /// Le verset actif est-il marque ? Pilotait l'icone du signet dans cette
+  /// barre jusqu'au 2026-09-05 ; depuis, le signet vit dans le tiroir « Plus »
+  /// et y lit `marquePagesProvider` directement. Champ conserve avec ses deux
+  /// callbacks jumelles (cf. [onBookmarkTap]) : plus rien ne le lit ici.
   final bool estMarque;
   final bool isPlaying;
 
@@ -2642,6 +2833,7 @@ class _BottomBar extends StatelessWidget {
     this.onReciteTap, this.onChainTap,
     this.onMoreTap,
     this.onBookmarkTap, this.onBookmarkLongPress, this.estMarque = false,
+    this.onTajwidTap,
     this.isPlaying = false,
     this.modeSombre = false,
   });
@@ -2685,24 +2877,39 @@ class _BottomBar extends StatelessWidget {
                   color: AppColors.brass,
                   onTap: onPlayTap ?? () {},
                 ),
-                // SIGNET -- remplace l'etoile « Favoris » (2026-08-05).
-                // Celle-ci portait un `onTap: () {}` vide depuis sa creation :
-                // rien n'etait casse, la fonction n'avait jamais existe.
-                // L'icone REFLETE l'etat du verset actif : un signet qui a la
-                // meme apparence marque ou non ne dit rien de ce qu'il a fait.
+                // ── LE TAJWID PREND LA PLACE DU SIGNET (2026-09-05) ───────
+                //
+                // Demande utilisateur : « l'acces avec l'appui fort ne me
+                // convient pas, je veux un acces rapide depuis le menu avec
+                // une icone propre ; par exemple le signet, range-le a un
+                // autre endroit ».
+                //
+                // Le mode tajwid n'etait atteignable que par appui LONG sur un
+                // verset (bulle `_menuVerset`) -- un geste que rien n'annonce.
+                // C'est le meme reproche, mot pour mot, que celui qui avait
+                // fait remonter « Reciter » et « Enchainement » dans cette
+                // barre le 2026-08-09 : une fonction qui n'a pas d'icone
+                // n'existe pas pour celui qui ne connait pas le geste.
+                //
+                // La barre etait pleine (six boutons). Le SIGNET part dans le
+                // tiroir « Plus », ou il gagne au passage ce qui lui manquait :
+                // ses deux gestes deviennent deux lignes ECRITES -- « Signet »
+                // et « Mes signets » -- alors que la liste ne s'ouvrait que
+                // par un appui long tout aussi invisible (defaut deja signale
+                // le 2026-08-06 : « il n'y a pas d'acces direct pour y aller
+                // apres »). L'entree de la bulle `_menuVerset` reste, elle :
+                // elle agit « a partir de CE verset », ce que la barre ne sait
+                // pas faire.
+                //
+                // ICONE : `record_voice_over` -- la voix qu'on ECOUTE, a
+                // distinguer du micro plein de « Reciter » qui, lui, controle
+                // la memorisation. Libelle non traduit, comme « Tajwid sur la
+                // page » dans la bulle : le mot est le meme en francais et en
+                // anglais, et l'arabe le reconnait (تجويد).
                 _BarButton(
-                  icon: estMarque
-                      ? Icons.bookmark_rounded
-                      : Icons.bookmark_border_rounded,
-                  label: t.mushafFavorites,
-                  color: estMarque ? AppColors.brass : null,
-                  onTap: onBookmarkTap ?? () {},
-                  // APPUI LONG = la liste des signets (2026-08-06, demande
-                  // utilisateur : « il n'y a pas d'accès direct pour y aller
-                  // après »). Poser un signet sans pouvoir y revenir ne sert
-                  // a rien. Le tap garde son role -- marquer/demarquer le
-                  // verset courant -- et l'appui long ouvre la liste.
-                  onLongPress: onBookmarkLongPress,
+                  icon: Icons.record_voice_over_rounded,
+                  label: 'Tajwid',
+                  onTap: onTajwidTap ?? () {},
                 ),
                 // GROS MICRO DE RÉCITATION RETIRÉ le 2026-07-20 (demande
                 // utilisateur : « le micro de récitation mémorisation doit

@@ -1152,6 +1152,22 @@ const _kPrefCoachControleCumulatif = 'coach_controle_cumulatif';
 ///
 /// Désactivé : comportement d'avant, le contrôle ne porte que sur le verset
 /// courant.
+/// ── ECOUTE TAJWID SUR LA PAGE DU MUSHAF (2026-09-05) ──────────────────────
+///
+/// Demande utilisateur : « rajouter une autre option dans le menu avant de
+/// reciter, une icone tajwid ; au clic on reste sur la page du mushaf, du coup
+/// le modele va detecter que les regles de tajwid sur l'ecran, qui se mettent
+/// seulement en violet ».
+///
+/// Ce que ce mode change, et c'est tout : on ECOUTE sans quitter la page, et
+/// on ne signale QUE le tajwid. Les fautes de lettres ou de harakat ne sont
+/// pas peintes -- pas parce qu'elles n'existent pas, mais parce que ce mode
+/// travaille une seule chose a la fois. Le mushaf reste un mushaf : pas de
+/// texte masque, pas de curseur, pas de correction -- seulement des mots qui
+/// virent au violet quand une regle attendue n'a pas ete constatee.
+final mushafEcouteTajwidProvider =
+    StateProvider<bool>((ref) => false);
+
 final coachControleCumulatifProvider =
     StateNotifierProvider<CoachControleCumulatifNotifier, bool>((ref) {
   return CoachControleCumulatifNotifier();
