@@ -28,6 +28,8 @@ import 'services/session_media.dart';
 import 'services/reciter_download_service.dart';
 import 'theme/app_theme.dart';
 
+import 'services/fastconformer_verifier.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -59,6 +61,15 @@ void main() async {
   // natives pesaient ~90 Mo par architecture dans l'APK, soit plus de la
   // moitié de la charge utile arm64. Détail et mesures dans
   // `coach_explanation_sheet._loadGemmaFallback`.
+  // La rigueur du tajwid est un reglage PERSISTE (2026-09-05, demande
+  // utilisateur : « que ca reste tolere apres redemarrage »). Le provider la
+  // restaure depuis les preferences, mais c'est le NATIF qui juge : sans ce
+  // rappel, l'ecran afficherait « tolerant » pendant que le plugin garde son
+  // defaut `v2TajwidStrict = true`. Branche AVANT `runApp`, donc avant la
+  // premiere lecture du provider -- l'inverse laisserait passer la
+  // restauration sans la pousser.
+  TajwidStrictSettingNotifier.pousseurNatif =
+      FastConformerVerifier.pousserTajwidStrict;
   runApp(const ProviderScope(child: CoranKarimApp()));
 }
 

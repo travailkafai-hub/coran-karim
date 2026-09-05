@@ -3443,7 +3443,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           // « trou d'alignement » suit le même réglage (cf. `_freeConfident`
           // dans recitation_provider.dart), donc un seul curseur gouverne
           // toute la sévérité du jugement.
-          final strictSensitivity = sensitivity >= 0.5;
+          // ── L'ETAT AFFICHE VIENT DU REGLAGE PERSISTE (2026-09-05) ─────
+          //
+          // `sensitivity` est remis a 0,5 au demarrage de CHAQUE recitation
+          // (decision 2026-07-12) : lu ici, le bouton serait revenu a « strict »
+          // a chaque passage, et surtout a chaque redemarrage de l'app --
+          // exactement ce que l'utilisateur signale (« que ca reste tolere
+          // apres redemarrage »). La rigueur du tajwid a maintenant son propre
+          // reglage, durable ; cf. `tajwidStrictProvider`.
+          final strictSensitivity = ref.watch(tajwidStrictProvider);
           final label = strictSensitivity
               ? t.prayerFollowSensitivityStrict
               : t.prayerFollowSensitivityTolerant;
@@ -3548,7 +3556,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                           // natif : un reglage qui n'arrive qu'a la
                           // prochaine session se lit a tort comme « ca ne
                           // change rien ».
-                          FastConformerVerifier.pousserTajwidStrict(s.first);
+                          // Ecrit dans le reglage PERSISTE, qui pousse
+                          // lui-meme au natif et survivra au redemarrage
+                          // (2026-09-05). `correctionSensitivityProvider`
+                          // ci-dessus reste, lui, remis a neuf a chaque
+                          // recitation -- cf. la doc de `tajwidStrictProvider`
+                          // pour pourquoi les deux ne peuvent pas partager un
+                          // seul reglage.
+                          ref.read(tajwidStrictProvider.notifier).set(s.first);
                         },
                         style: ButtonStyle(
                           foregroundColor: WidgetStateProperty.resolveWith(

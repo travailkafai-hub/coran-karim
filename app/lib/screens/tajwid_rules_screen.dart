@@ -11,8 +11,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/judgement_options.dart';
 import '../providers/app_settings_provider.dart';
-import '../providers/app_settings_provider.dart';
-import '../services/fastconformer_verifier.dart';
 import '../providers/judgement_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/tajwid_help_sheet.dart' show kTajwidRuleInfo;
@@ -176,7 +174,9 @@ void afficherFeuilleModes(BuildContext context) {
                       // fait la feuille de recitation -- sinon le meme
                       // reglage n'aurait pas le meme effet selon l'endroit
                       // ou on le touche.
-                      FastConformerVerifier.pousserTajwidStrict(s.first);
+                      // Cf. le commentaire jumeau dans l'ecran de
+                      // recitation : le reglage persiste pousse lui-meme.
+                      ref.read(tajwidStrictProvider.notifier).set(s.first);
                     },
                   );
                 }),

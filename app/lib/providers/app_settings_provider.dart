@@ -491,6 +491,63 @@ final prayerSensitivityProvider = StateProvider<double>((ref) => 0.5);
 /// forcée, cf. RecitationNotifier._confidentMode).
 final prayerSouffleurEnabledProvider = StateProvider<bool>((ref) => true);
 
+/// ── LA RIGUEUR DU TAJWID SURVIT AU REDEMARRAGE (2026-09-05) ───────────────
+///
+/// Demande utilisateur : « je veux aussi que le statut reste, si je mets
+/// tolere que ca reste tolere apres redemarrage de l'app ».
+///
+/// POURQUOI UN REGLAGE SEPARE DE [correctionSensitivityProvider], alors que le
+/// meme bouton pilotait les deux. Ce provider-la est volontairement REMIS A
+/// 0,5 au demarrage de chaque recitation -- decision utilisateur du
+/// 2026-07-12, « chaque recitation est independante, jamais la sensibilite
+/// laissee par une recitation precedente ». Les deux demandes sont justes et
+/// ne portent pas sur la meme chose : la severite de la CORRECTION se remet a
+/// neuf a chaque passage, la rigueur du TAJWID est un choix durable, comme le
+/// preset ou la riwaya. Les garder sur le meme provider obligeait a trahir
+/// l'une des deux.
+///
+/// DEUXIEME DEFAUT QUE CETTE SEPARATION CORRIGE : la remise a 0,5 ne poussait
+/// RIEN au natif. Dart croyait « tolerant », le plugin gardait son
+/// `v2TajwidStrict` precedent (`= true` par defaut) -- les deux cotes
+/// pouvaient diverger sans qu'aucune trace ne le dise.
+const _kPrefTajwidStrict = 'tajwid_strict';
+
+/// Rigueur du tajwid : STRICT (defaut) ou TOLERANT. Persistee, et poussee au
+/// natif par [FastConformerVerifier.pousserTajwidStrict] a chaque changement
+/// ET au demarrage de l'app -- sans ce second envoi, un reglage restaure a
+/// l'ecran ne serait pas celui qui juge.
+final tajwidStrictProvider =
+    StateNotifierProvider<TajwidStrictSettingNotifier, bool>((ref) {
+  return TajwidStrictSettingNotifier();
+});
+
+class TajwidStrictSettingNotifier extends StateNotifier<bool> {
+  TajwidStrictSettingNotifier() : super(true) {
+    _restore();
+  }
+
+  /// Rappel a brancher par l'app pour repousser la valeur au natif une fois
+  /// restauree. `null` tant que le moteur n'est pas pret : la valeur repartira
+  /// de toute facon au prochain `set`.
+  static Future<void> Function(bool)? pousseurNatif;
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_kPrefTajwidStrict);
+    if (saved != null && mounted) state = saved;
+    // Toujours pousser, meme sans valeur enregistree : le natif doit partir
+    // d'accord avec l'ecran, pas de son propre defaut.
+    await pousseurNatif?.call(state);
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefTajwidStrict, value);
+    await pousseurNatif?.call(value);
+  }
+}
+
 const _kPrefStrictCorrection = 'strict_correction_enabled';
 
 /// Rigueur de la correction automatique (demande utilisateur 2026-07-06) :
