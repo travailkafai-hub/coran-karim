@@ -55,6 +55,10 @@ import '../providers/app_settings_provider.dart'
 import '../services/coupes_palier_service.dart';
 import '../services/mp3quran_api.dart' show Mp3QuranWordSegments;
 import '../services/diagnostic_log.dart';
+import '../services/portion_word_archiver.dart'
+    show etendreAuxMotsContigusEnErreur;
+import '../widgets/tajwid_help_sheet.dart' show showTajwidHelpSheet;
+import 'coach_sessions.dart' show portionsProvider;
 import '../services/word_correction_audio.dart';
 import '../theme/app_theme.dart';
 import 'coach_screen.dart' show InfoBanner, MicSection, VerseDisplay;
@@ -465,6 +469,60 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
   /// fenêtre s'est allongée : les mots déjà tentés gardent leur couleur, les
   /// mots neufs restent neutres -- ce qui distingue visuellement, et sans un
   /// mot d'explication, ce qu'il connaît de ce qu'il découvre.
+  /// Fiche du mot : ce que le modele a entendu, et surtout QUELLE regle de
+  /// tajwid a manque (2026-09-05).
+  ///
+  /// Meme feuille que le Coach et le karaoke -- pas une copie. Deux
+  /// differences avec l'appel du Coach, et ce sont elles que l'utilisateur
+  /// demandait :
+  ///
+  ///   [reglesManquantes] : ce que le mot n'a PAS realise. Vient de
+  ///     `unrealizedRulesFor`, la meme source que le journal et le violet de
+  ///     l'ecran -- la fiche ne peut donc pas reprocher autre chose que ce qui
+  ///     a ete reproche. Le garde `motsDegradesTajwid.contains` evite de
+  ///     lister des regles sur un mot rate pour une lettre ou une haraka : la
+  ///     regle ne se juge qu'une fois les lettres bonnes.
+  ///
+  ///   [scoresRegles] : de COMBIEN la regle a ete ratee -- la barre de
+  ///     progression posee le meme jour. Vide si le mot n'a pas ete observe :
+  ///     aucune barre vaut mieux qu'une barre a zero, qui se lirait « rien
+  ///     fait » alors qu'on n'a rien mesure.
+  ///
+  /// Un seul verset dans le palier : l'index global du mot EST son index
+  /// local, contrairement au Coach qui concatene une portion entiere.
+  void _ouvrirDetailMot(List<RecitedWord> mots, int i) {
+    if (i < 0 || i >= mots.length) return;
+    final n = ref.read(recitationProvider.notifier);
+    // Meme extrait « Ma voix » qu'ailleurs : le mot en cause et ses voisins
+    // en erreur, jamais l'aya entiere (defaut corrige le 2026-08-24 sur les
+    // deux autres ecrans -- ne pas le reintroduire ici).
+    final (debut, finExclusif) = etendreAuxMotsContigusEnErreur(
+      words: mots,
+      wordIndexGlobal: i,
+      wordIndexLocal: i,
+      motsDuVerset: _words.length,
+    );
+    showTajwidHelpSheet(
+      context,
+      ref,
+      verse: widget.verse,
+      playlist: [widget.verse],
+      focusWord: mots[i].display,
+      entendu: mots[i].heard,
+      reglesManquantes: n.motsDegradesTajwid.contains(i)
+          ? n.unrealizedRulesFor(i, mots[i].detectedRules)
+          : const [],
+      scoresRegles: n.scoresReglesPour(i),
+      reglesAVerifier: n.shownRulesFor(i),
+      wordIndex: i,
+      localWordIndex: i,
+      extraitDebut: debut,
+      extraitFin: finExclusif,
+      riwaya: ref.read(recitationProvider).riwaya,
+      onWordContested: () => ref.invalidate(portionsProvider),
+    );
+  }
+
   List<RecitedWord> _motsAvecEssaiPrecedent(List<RecitedWord> courants) {
     if (_dernierEssai.isEmpty) return courants;
     return [
@@ -925,6 +983,22 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
                 words: _phase == _RoundPhase.playingAudio
                     ? _motsAvecEssaiPrecedent(rst.words)
                     : rst.words,
+                // ── LE DETAIL DE LA FAUTE, AU CLIC (2026-09-05) ───────────
+                //
+                // Demande utilisateur : « dans l'entrainement par palier, la
+                // possibilite de cliquer sur le mot pour avoir le detail de ce
+                // qu'on rate -- inclus les regles de tajwid ». Constat qui
+                // l'accompagne, et qui etait exact : « actuellement on ne peut
+                // pas savoir le detail des fautes dans l'entrainement par
+                // palier ».
+                //
+                // Le palier montrait la COULEUR d'un verdict sans jamais
+                // pouvoir dire ce qu'elle reproche. C'est le seul des trois
+                // ecrans de recitation ou le mot n'etait pas cliquable :
+                // `VerseDisplay` porte `onProblemWordTap` depuis longtemps, le
+                // Coach le branche -- le palier, non. Rien a construire donc,
+                // seulement a relier.
+                onProblemWordTap: (i) => _ouvrirDetailMot(rst.words, i),
                 verses: [widget.verse])
           else
             _TexteMasque(hint: t.coachIncrementalListening),

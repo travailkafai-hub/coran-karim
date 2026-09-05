@@ -1003,6 +1003,25 @@ class _ControleModeState extends ConsumerState<_ControleMode>
           playlist: widget.verses,
           focusWord: words[wordIndex].display,
           entendu: words[wordIndex].heard,
+          // ── LE CONTROLE DISAIT LA COULEUR, PAS LA REGLE (2026-09-05) ────
+          //
+          // Meme manque que celui signale sur le palier le meme jour, et au
+          // meme endroit fonctionnel : la fiche s'ouvrait sans jamais nommer
+          // la regle qui a manque ni de combien. Le palier et le controle sont
+          // les deux moities d'une meme seance -- corriger l'un sans l'autre
+          // aurait fait dependre le detail de l'ecran par lequel on arrive.
+          // Sources identiques a celles du karaoke, cf. `_ouvrirDetailMot`
+          // dans `coach_incremental_repeat.dart`.
+          reglesManquantes:
+              ref.read(recitationProvider.notifier).motsDegradesTajwid
+                      .contains(wordIndex)
+                  ? ref.read(recitationProvider.notifier).unrealizedRulesFor(
+                      wordIndex, words[wordIndex].detectedRules)
+                  : const [],
+          scoresRegles:
+              ref.read(recitationProvider.notifier).scoresReglesPour(wordIndex),
+          reglesAVerifier:
+              ref.read(recitationProvider.notifier).shownRulesFor(wordIndex),
           wordIndex: wordIndex,
           localWordIndex: local,
           extraitDebut: debut,
