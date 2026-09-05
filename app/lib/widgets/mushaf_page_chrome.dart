@@ -31,18 +31,47 @@ class MushafPageChrome extends StatelessWidget {
         final horizontal = opening
             ? (constraints.maxWidth * 0.075).clamp(24.0, 42.0)
             : (constraints.maxWidth * 0.032).clamp(10.0, 16.0);
+        // ── LE CADRE REND DE LA HAUTEUR AU TEXTE (2026-09-04) ────────────
+        //
+        // Demande utilisateur : « revois le haut de la page, retravaille le
+        // cadre de la page pour chercher de la hauteur ».
+        //
+        // Une page courante réservait jusqu'à 19 px en haut ET en bas -- 38 px
+        // de bande vide, presque une ligne de texte, pour écarter le contenu
+        // d'un simple filet ornemental. Le plafond descend à 13 px : le filet
+        // respire encore, et la dichotomie récupère de quoi grandir la police
+        // ou loger une ligne de plus.
+        //
+        // La page d'OUVERTURE garde ses proportions : son bandeau de titre est
+        // un ornement, il a besoin d'air autour de lui pour ne pas paraître
+        // collé au cadre.
         final vertical = opening
             ? (constraints.maxHeight * 0.045).clamp(28.0, 48.0)
-            : (constraints.maxHeight * 0.018).clamp(11.0, 19.0);
+            : (constraints.maxHeight * 0.013).clamp(8.0, 13.0);
 
         return ColoredBox(
           color: dark ? const Color(0xFF111B19) : const Color(0xFFFFFEF6),
           child: CustomPaint(
             painter: _MushafFramePainter(style: style, dark: dark),
             child: Padding(
+              // ── UN PEU D'ESPACE REPRIS EN HAUT (2026-09-04) ──────────────
+              //
+              // Demande utilisateur, après le constat de la dernière ligne
+              // coupée : « sinon gagne un peu d'espace en haut ».
+              //
+              // La marge haute d'une page courante valait 19 px (le plafond de
+              // `maxHeight * 0.018`) alors qu'elle ne sépare le texte QUE du
+              // filet ornemental -- rien ne s'y écrit. Le bas, lui, porte le
+              // numéro de page : le serrer rapprocherait deux choses lisibles.
+              // On reprend donc un tiers en haut seulement, ~6 px rendus au
+              // texte, et la page d'ouverture garde ses proportions (son
+              // bandeau de titre a besoin d'air).
               padding: EdgeInsets.fromLTRB(
                 horizontal,
-                vertical,
+                // 0,40 et non 0,66 (2026-09-04) : « remonte le texte ».
+                // Cette marge ne separe le texte que du filet ornemental --
+                // rien ne s'y ecrit, et chaque pixel rendu est du texte.
+                opening ? vertical : vertical * 0.40,
                 horizontal,
                 opening ? vertical * 0.86 : vertical,
               ),
@@ -58,7 +87,24 @@ class MushafPageChrome extends StatelessWidget {
 /// Cartouche de debut/separation de sourate inspire des deux pages d'ouverture.
 class MushafSurahBanner extends StatelessWidget {
   static const double openingHeight = 76;
-  static const double compactHeight = 62;
+
+  /// ── LE SÉPARATEUR RENDU PLUS DISCRET (2026-09-04) ────────────────────────
+  ///
+  /// Demande utilisateur : « diminue peut-être le dessin de séparation de
+  /// sourate ». 62 px pour un cartouche intercalé DANS la page, c'était une
+  /// ligne de texte entière consommée à chaque changement de sourate -- et une
+  /// page peut en porter deux.
+  ///
+  /// Le gain est direct et non pas cosmétique : cette constante entre dans le
+  /// calcul de la place disponible (`dispo = maxHeight - nBandeaux ×
+  /// compactHeight`). Chaque pixel repris ici est rendu à la dichotomie, donc
+  /// au texte.
+  ///
+  /// 48 et pas moins : le cartouche porte deux médaillons (nombre de versets,
+  /// ordre de révélation) dont la taille suit cette hauteur. En dessous, leurs
+  /// libellés `آياتها` et `ترتيبها` deviennent illisibles -- limite déjà
+  /// constatée le 2026-09-03 sur le bandeau d'ouverture.
+  static const double compactHeight = 48;
 
   final Surah surah;
   final bool compact;
@@ -81,7 +127,9 @@ class MushafSurahBanner extends StatelessWidget {
       width: double.infinity,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final sealSize = compact ? 34.0 : 42.0;
+          // Les médaillons suivent la hauteur du cartouche : 28 pour 48 px
+          // garde la même proportion qu'avant (34 pour 62).
+          final sealSize = compact ? 28.0 : 42.0;
           final sideInset = (constraints.maxWidth * 0.105).clamp(25.0, 52.0);
           return Stack(
             alignment: Alignment.center,

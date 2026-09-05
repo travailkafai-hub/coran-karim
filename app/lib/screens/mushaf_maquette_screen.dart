@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/riwaya.dart';
 import '../models/verse.dart';
 import '../providers/app_settings_provider.dart';
+import '../services/mushaf_lignes_service.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
@@ -132,10 +133,23 @@ class _BalayagePage extends PageScrollPhysics {
       cible = page.roundToDouble();
     }
 
+    // ── UN GESTE NE TOURNE JAMAIS PLUS D'UNE PAGE (2026-09-04) ──────────
+    //
+    // DEFAUT QUE CE CORRECTIF A LUI-MEME INTRODUIT, vu au banc : deux
+    // balayages faisaient passer de la page 79 a la page 89 -- CINQ pages par
+    // geste. La cible calculee etait pourtant bonne ; c'est la simulation qui
+    // emportait, lancee avec la vitesse brute du doigt.
+    //
+    // On borne donc la cible aux deux pages qui encadrent la position, et la
+    // vitesse a une largeur d'ecran par seconde. Un balayage franc tourne une
+    // page, un balayage tres franc tourne une page aussi -- c'est ce que fait
+    // un mushaf de papier, et c'est ce qu'on attend d'une page qu'on lit.
+    cible = cible.clamp(page.floorToDouble(), page.ceilToDouble());
     final pixels = (cible * largeur)
         .clamp(position.minScrollExtent, position.maxScrollExtent);
     if (pixels == position.pixels) return null;
-    return ScrollSpringSimulation(spring, position.pixels, pixels, velocity,
+    final vBornee = velocity.clamp(-largeur, largeur);
+    return ScrollSpringSimulation(spring, position.pixels, pixels, vBornee,
         tolerance: tol);
   }
 }
@@ -162,7 +176,98 @@ class _BalayagePage extends PageScrollPhysics {
 /// ligne touchaient celles de la suivante -- « tout est melange », « regression
 /// sur le texte ». L'interligne d'un texte a diacritiques ne se regle pas comme
 /// celui d'un texte latin : il lui faut l'air que les signes occupent.
+/// Trace en ROUGE le contour de chaque zone de la page (en-tete, bloc de
+/// texte, bandeau de sourate, pied). Outil de diagnostic d'affichage, jamais
+/// destine a l'utilisateur final -- a remettre a `false` apres usage.
+///
+/// Pose le 2026-09-04 sur demande : « j'ai l'impression que tu superposes des
+/// zones ; entoure les zones ou tu mets le texte avec du rouge ». Une capture
+/// montre alors ce qu'aucune lecture de code ne montre : ou chaque bloc
+/// commence, ou il finit, et ce qui deborde du sien.
+const bool kZonesDebug = false;
+
 const double _kInterligne = 1.72;
+
+/// Entoure [enfant] d'un filet rouge quand [kZonesDebug] est actif.
+Widget _zone(Widget enfant, Color couleur) => kZonesDebug
+    ? DecoratedBox(
+        decoration: BoxDecoration(border: Border.all(color: couleur, width: 1)),
+        child: enfant,
+      )
+    : enfant;
+
+/// Hauteur de la ligne de basmala, en multiples de la taille de police.
+///
+/// 1,30 : la place d'un glyphe et de ses diacritiques, pas davantage. Elle ne
+/// suit PAS `_kInterligne` -- et surtout pas l'interligne élargi des pages peu
+/// remplies, qui montait jusqu'à 2,45 et repoussait la basmala au milieu d'un
+/// vide de 110 px (« le début commence trop bas », 2026-09-04). C'est une
+/// ligne isolée, elle n'a pas à respirer comme un paragraphe.
+const double _kBoiteBasmala = 1.30;
+
+/// Réserve sous la dernière ligne, en fraction de la taille de police.
+///
+/// ── MESURÉE, PLUS DEVINÉE (2026-09-04) ───────────────────────────────────
+///
+/// `height: 1.72` est imposé à toutes les écritures : `TextPainter` mesure donc
+/// 1,72 × taille par ligne pour chacune. Mais les glyphes sont peints selon les
+/// métriques de LEUR police, et une police dont l'ascender+descender dépasse
+/// 1,72 em déborde de la ligne qu'on lui alloue. Amiri, mesurée dans son
+/// fichier : 1,76 em (hhea), jusqu'à 2,76 (OS/2) -- aucune marge. Bouazzi
+/// Maghribi : 1,40 / 1,52 -- de la marge à revendre.
+///
+/// PREMIÈRE VERSION, ET SA CRITIQUE : une table écrite à la main, `Amiri` à
+/// 1,05 et 0,5 pour le reste. L'utilisateur l'a refusée à raison -- « ton
+/// programme est censé fonctionner sur différents modèles, j'ai un doute
+/// là ». Les 22 autres écritures viennent de Google Fonts, ne sont pas sur le
+/// disque, et n'ont jamais été mesurées : la table les couvrait par un chiffre
+/// choisi pour d'autres. La première d'entre elles qui a des métriques
+/// généreuses aurait coupé sa dernière ligne, sans que rien ne l'annonce.
+///
+/// CE QU'ON FAIT MAINTENANT : on demande à Flutter, pour l'écriture RÉELLEMENT
+/// affichée, quelle hauteur une ligne prend SANS contrainte d'interligne
+/// (`height: null`, donc les métriques propres de la police). L'écart avec la
+/// ligne imposée est exactement ce qui déborde. Aucune police n'est nommée, et
+/// une écriture ajoutée demain est couverte sans qu'on touche à ce code.
+///
+/// Le résultat est borné à [0,4 ; 1,6] : en dessous on n'absorbe plus rien, et
+/// une valeur aberrante (police de secours pas encore chargée, métriques
+/// exotiques) ne doit pas réduire la page à une ligne.
+final _cacheReserve = <String, double>{};
+
+double _reserveBasMesuree(String ecriture) {
+  final connu = _cacheReserve[ecriture];
+  if (connu != null) return connu;
+  const taille = 40.0;
+  // Un échantillon qui empile ce qui monte et ce qui descend : madd, shadda,
+  // hamza portée, kasra, et le médaillon de fin de verset.
+  const echantillon = 'لَّآ أُو۟لَـٰٓئِكَ ﴿١﴾ بِسْمِ';
+  final base = ecriturePour(ecriture);
+  double hauteur(double? interligne) {
+    final p = TextPainter(
+      text: TextSpan(
+        text: echantillon,
+        style: styleEcriture(base,
+            taille: taille, interligne: interligne, graisse: FontWeight.w600),
+      ),
+      textDirection: TextDirection.rtl,
+      maxLines: 1,
+    )..layout();
+    return p.height;
+  }
+
+  // `height: null` -> la police décide ; l'écart avec la ligne imposée est ce
+  // qui dépasse du cadre alloué.
+  final naturelle = hauteur(null) / taille;
+  // 0,65 et non 0,35 (2026-09-04) : à 0,35 la page 562 (Al-Mulk) rognait
+  // encore le bas des jambages de sa dernière ligne -- vérifié à l'écran, pas
+  // déduit. La hauteur naturelle rendue par `TextPainter` couvre l'ascender et
+  // le descender DÉCLARÉS ; les diacritiques coraniques empilées descendent
+  // au-delà, et cette marge-là ne se lit dans aucune métrique.
+  final reserve = (naturelle - _kInterligne + 0.65).clamp(0.4, 1.6);
+  _cacheReserve[ecriture] = reserve;
+  return reserve;
+}
 
 /// Charte du mushaf de reference, RELEVEE sur sa capture (2026-09-02) et non
 /// choisie a l'oeil : extraction des couleurs par saturation, mesure des
@@ -264,6 +369,26 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
   /// retrouver sa place, pas être renvoyé ailleurs.
   late int _pageLue = widget.pageInitiale.clamp(1, _kPages);
 
+  /// ── LE DECALAGE A L'OUVERTURE (2026-09-05) ────────────────────────────
+  ///
+  /// Constat utilisateur : « a l'ouverture, avant le plein ecran, il y a un
+  /// probleme d'affichage, il y a un overlay de pixels ». Capture prise en
+  /// rafale pendant la transition : la page apparait DECALEE vers la droite,
+  /// le cadre deporte et le texte debordant a gauche.
+  ///
+  /// CAUSE. `SystemChrome.setEnabledSystemUIMode(immersiveSticky)` est demande
+  /// des `initState`, mais le systeme met quelques images a retirer ses barres.
+  /// Le premier rendu se fait donc a l'ANCIENNE taille : la dichotomie calcule
+  /// une police et des hauteurs pour un ecran plus petit, puis l'ecran
+  /// s'agrandit et tout se recale sous les yeux.
+  ///
+  /// On laisse passer deux images avant de peindre. `addPostFrameCallback`
+  /// imbrique plutot qu'un delai fixe : le nombre d'images est ce qui compte,
+  /// et il ne depend pas de la vitesse de l'appareil comme le ferait un
+  /// `Future.delayed(80ms)` -- trop court sur un telephone lent, du retard
+  /// gratuit sur un rapide.
+  bool _tailleStable = false;
+
   /// Une police vient d'arriver : la page doit se remesurer.
   ///
   /// Sans cela, la taille reste celle calculee sur la police de SECOURS --
@@ -286,6 +411,13 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     // ramène brièvement sur un balayage depuis le bord puis les re-masque --
     // le geste de feuilletage n'est donc jamais confisqué par le système.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    // Deux images : la premiere porte encore l'ancienne taille, la seconde la
+    // nouvelle. On peint a partir de la.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _tailleStable = true);
+      });
+    });
     // La page de mushaf reste rotative sans changer le verrou global de l'app.
     SystemChrome.setPreferredOrientations(const [
       DeviceOrientation.portraitUp,
@@ -333,6 +465,10 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && mounted) Navigator.of(context).pop(_pageLue);
       },
+      child: Opacity(
+      // Le fond du Scaffold reste peint : on ne voit pas un ecran noir, mais la
+      // couleur du parchemin, puis la page dessus.
+      opacity: _tailleStable ? 1 : 0,
       child: Scaffold(
       backgroundColor: sombre ? AppColors.sombreBg : const Color(0xFFF3EAD6),
       // CHGPT : la page reste toujours en plein ecran. Un toucher avance
@@ -392,6 +528,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
         ),
       ),
       ),
+      ),
     );
   }
 }
@@ -431,10 +568,35 @@ class _PageMushaf extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       behavior: HitTestBehavior.opaque,
-      child: FutureBuilder<List<Verse>>(
-        future: warsh
-            ? QuranApi.fetchWarshMushafVersesByPage(page)
-            : QuranApi.fetchVersesByPage(page),
+      // ── LA BISMILLAH MANQUAIT EN TETE DE SOURATE (2026-09-04) ──────────
+      //
+      // Constat utilisateur : « dans mushaf papier, absence de bismillah dans
+      // les sourates -- attention sourate Tawba sans bismillah ».
+      //
+      // La page est construite a partir des VERSETS, et la Bismillah n'en est
+      // un que dans Al-Fatiha (1:1). Partout ailleurs elle precede le verset 1
+      // sans etre numerotee : aucune API qui rend « les versets de la page »
+      // ne la contient, elle etait donc simplement absente.
+      //
+      // ⚠️ SON TEXTE N'EST PAS ECRIT ICI. Regle du projet -- « faut pas
+      // inventer et modifier le texte sacre » : on le LIT a la source, dans la
+      // riwaya courante (le premier verset d'Al-Fatiha), au lieu de le saisir
+      // a la main. Les deux lectures n'ecrivent pas la basmala identiquement.
+      child: FutureBuilder<List<List<Verse>>>(
+        future: Future.wait([
+          warsh
+              ? QuranApi.fetchWarshMushafVersesByPage(page)
+              : QuranApi.fetchVersesByPage(page),
+          warsh
+              ? QuranApi.fetchWarshMushafVersesByPage(1)
+              : QuranApi.fetchVersesByPage(1),
+          // Le découpage en lignes du mushaf imprimé. Chargé ici plutôt qu'au
+          // démarrage de l'app : il ne sert qu'à cette vue, et `ensureLoaded`
+          // ne relit l'asset qu'une fois.
+          MushafLignesService.instance
+              .ensureLoaded()
+              .then((_) => <Verse>[]),
+        ]),
         builder: (context, snap) {
           if (snap.hasError) {
             return Center(
@@ -444,7 +606,10 @@ class _PageMushaf extends StatelessWidget {
               ),
             );
           }
-          final versets = snap.data;
+          final versets = snap.data?.first;
+          final bismillah = snap.data == null || snap.data!.length < 2
+              ? null
+              : (snap.data![1].isEmpty ? null : snap.data![1].first.textUthmani);
           if (versets == null) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.brassLight),
@@ -458,18 +623,233 @@ class _PageMushaf extends StatelessWidget {
               ),
             );
           }
-          return _pageMushaf(context, versets);
+          return _pageMushaf(context, versets, bismillah);
         },
       ),
     );
   }
 
-  Widget _pageMushaf(BuildContext context, List<Verse> versets) {
+  /// Les deux sourates qui n'ouvrent PAS sur une basmala rapportee.
+  ///
+  /// Al-Fatiha (1) : la basmala y EST le verset 1, elle est donc deja dans le
+  /// flux -- l'ajouter la ferait apparaitre deux fois.
+  /// At-Tawba (9) : elle n'en a pas, et c'est l'utilisateur qui l'a rappele en
+  /// signalant le defaut (« attention sourate Tawba sans bismillah »). En
+  /// ajouter une serait ajouter au texte, pas le corriger.
+  static const _sansBasmala = {1, 9};
+
+  /// ── LA PAGE EST FAITE DE LIGNES FIXES, PAS D'UN TEXTE QUI COULE ────────
+  ///
+  /// Constat utilisateur (2026-09-04) : « tu ne respectes pas le Coran papier.
+  /// Ce n'est pas juste un nombre de pages : chaque page a un nombre précis de
+  /// lignes, chaque ligne commence et finit avec les mêmes mots, quel que soit
+  /// le type d'écriture. »
+  ///
+  /// C'était un défaut d'architecture, et il explique toute la série de
+  /// correctifs qui a précédé -- réserve sous la dernière ligne, tolérance du
+  /// clip, interligne élargi, marges du cadre : autant de rustines sur une mise
+  /// en page qui n'était pas celle d'un mushaf. L'ancienne version versait le
+  /// texte d'une page dans UN paragraphe justifié et laissait Flutter décider
+  /// où couper ; le découpage suivait donc la police et la largeur d'écran.
+  ///
+  /// Ici chaque ligne est rendue POUR ELLE-MÊME, avec les mots que le mushaf
+  /// imprimé y met (`MushafLignesService`). Changer d'écriture ne déplace plus
+  /// un seul mot : seule la taille des glyphes change.
+  ///
+  /// ⚠️ RIEN NE SUPPOSE UN NOMBRE DE LIGNES. Ce sont les BORNES de chaque ligne
+  /// qui font foi -- l'utilisateur a dû le rappeler (« j'ai pas dit 15 lignes
+  /// fixes, c'est toi qui l'as dit ; respecte à la lettre le début et la fin de
+  /// chaque ligne »). Quatre pages n'en ont pas 15, et une mise en page bâtie
+  /// sur ce nombre y serait fausse. On parcourt la liste reçue, point.
+  ///
+  /// JUSTIFICATION PAR `Row` ET NON `TextAlign.justify` : Flutter ne justifie
+  /// jamais la DERNIÈRE ligne d'un paragraphe, et ici chaque ligne est un
+  /// paragraphe à elle seule -- elles se seraient toutes collées à droite. Un
+  /// `Row` en `spaceBetween` répartit l'espace entre les mots, ce que fait le
+  /// mushaf imprimé (qui, lui, étire aussi les lettres).
+  ///
+  /// TAILLE DE POLICE : la plus grande qui satisfait DEUX contraintes -- les
+  /// lignes tiennent en hauteur, et la plus longue tient en largeur. La seconde
+  /// est nouvelle : avec un découpage libre une ligne trop longue se coupait
+  /// toute seule ; avec un découpage imposé, elle déborderait.
+  Widget _pageLignes(
+    BuildContext context,
+    List<Verse> versets,
+    List<LigneMushaf> lignes,
+    String? bismillah,
+  ) {
+    final parCle = <String, Verse>{
+      for (final v in versets) '${v.surahNumber}:${v.ayahNumber}': v,
+    };
+
+    /// Les mots d'une ligne, chacun avec ses spans de coloration.
+    List<List<InlineSpan>> motsDe(LigneMushaf l, TextStyle style) {
+      final out = <List<InlineSpan>>[];
+      final d = l.debut!;
+      final f = l.fin!;
+      for (var a = d.verset; a <= f.verset; a++) {
+        final v = parCle['${d.sourate}:$a'];
+        if (v == null) continue;
+        final bruts = v.textUthmani.split(RegExp(r'\s+'))
+          ..removeWhere((m) => m.isEmpty);
+        // ⚠️ `tajweedSpansPerWord` FILTRE les marques décoratives isolées (rub
+        // el hizb « ۞ »), alors que le layout QPC les compte comme des mots.
+        // Les deux index divergent donc dès qu'un verset en porte une : on
+        // n'avance dans les spans que sur les mots que ce filtre garde, sinon
+        // toute la coloration se décale d'un cran jusqu'à la fin du passage.
+        final spans = tajwid
+            ? tajweedSpansPerWord(v.textUthmani, v.textUthmaniTajweed, style,
+                sombre: sombre)
+            : null;
+        var iSpan = 0;
+        final premier = (a == d.verset) ? d.mot : 1;
+        final dernier = (a == f.verset) ? f.mot : bruts.length;
+        for (var i = 1; i <= bruts.length; i++) {
+          final mot = bruts[i - 1];
+          final compte = ArabicNormalizer.normalize(mot).isNotEmpty;
+          final sp = (spans != null && compte && iSpan < spans.length)
+              ? spans[iSpan]
+              : null;
+          if (compte) iSpan++;
+          if (i < premier || i > dernier) continue;
+          // ── LE MEDAILLON ET LA SAJDA EMPRUNTENT LEUR GLYPHE (2026-09-04) ─
+          //
+          // Constat utilisateur sur le rendu ligne par ligne : « les numéros
+          // des versets ne sont pas dans leur zone ». C'est un correctif qui
+          // EXISTAIT dans l'ancien rendu (`_spansCanoniques`) et que celui-ci
+          // avait perdu -- il peignait tout avec la police de la page.
+          //
+          // Mesure fontTools des 14 écritures (2026-09-03) : U+06DD est de
+          // catégorie Unicode `Cf`, AUCUNE police ne le lie aux chiffres par
+          // une règle GSUB, et quatre ne le dessinent pas du tout (Aref Ruqaa,
+          // Reem Kufi, Markazi Text, Bouazzi Maghribi). Amiri est celle dont le
+          // glyphe et le calage rendent le numéro encerclé ; elle est embarquée
+          // dans l'APK, donc ce repli tient hors ligne même si l'écriture
+          // choisie doit encore se télécharger. Même montage pour `۩`, dont
+          // Amiri dessine une forme « en porte » -- scheherazadeNew fait la
+          // bonne (« le signe de sajda ressemble plutôt à une porte »).
+          if (!compte) {
+            out.add(<InlineSpan>[
+              TextSpan(
+                text: mot,
+                style: mot == '\u06E9'
+                    ? style.copyWith(
+                        fontFamily: GoogleFonts.scheherazadeNew().fontFamily)
+                    : style,
+              ),
+            ]);
+            continue;
+          }
+          out.add(sp ?? <InlineSpan>[TextSpan(text: mot, style: style)]);
+        }
+        // Le médaillon de fin de verset suit le dernier mot de CE verset.
+        if (a < f.verset || f.mot >= bruts.length) {
+          out.add(<InlineSpan>[
+            TextSpan(
+              text: _medaillon(v.ayahNumber),
+              style: style.copyWith(fontFamily: GoogleFonts.amiri().fontFamily),
+            ),
+          ]);
+        }
+      }
+      return out;
+    }
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final n = lignes.length;
+        if (n == 0) return const SizedBox.shrink();
+
+        // Hauteur d'une ligne : l'espace disponible réparti à parts égales,
+        // comme les lignes régulières d'un mushaf imprimé.
+        final hLigne = c.maxHeight / n;
+
+        // La plus grande taille qui tient EN LARGEUR sur toutes les lignes --
+        // la hauteur, elle, est déjà imposée par `hLigne`.
+        double basse = 8, haute = hLigne / 1.05;
+        for (var essai = 0; essai < 10; essai++) {
+          final m = (basse + haute) / 2;
+          final st =
+              _policePage(taille: m, famille: ecriture, interligne: 1.0);
+          var tient = true;
+          for (final l in lignes) {
+            if (l.type != LigneType.texte) continue;
+            final mots = motsDe(l, st);
+            var largeur = 0.0;
+            for (final mot in mots) {
+              final p = TextPainter(
+                text: TextSpan(style: st, children: mot),
+                textDirection: TextDirection.rtl,
+              )..layout();
+              largeur += p.width;
+            }
+            // Un blanc minimal entre les mots : sans lui la ligne « tient » au
+            // calcul et se touche à l'écran.
+            largeur += (mots.length - 1) * m * 0.12;
+            if (largeur > c.maxWidth) {
+              tient = false;
+              break;
+            }
+          }
+          if (tient) {
+            basse = m;
+          } else {
+            haute = m;
+          }
+        }
+        final taille = basse;
+        final style =
+            _policePage(taille: taille, famille: ecriture, interligne: 1.0);
+
+        return Column(
+          children: [
+            for (final l in lignes)
+              SizedBox(
+                height: hLigne,
+                width: double.infinity,
+                child: switch (l.type) {
+                  LigneType.titreSourate =>
+                    Center(child: _bandeauSourate(l.sourate!, hLigne)),
+                  LigneType.basmala => bismillah == null
+                      ? const SizedBox.shrink()
+                      : Center(
+                          child: Text(
+                            bismillah,
+                            style: style,
+                            textAlign: TextAlign.center,
+                            textHeightBehavior: const TextHeightBehavior(
+                                applyHeightToFirstAscent: false),
+                          ),
+                        ),
+                  LigneType.texte => Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          for (final mot in motsDe(l, style))
+                            Text.rich(
+                              TextSpan(style: style, children: mot),
+                              textHeightBehavior: const TextHeightBehavior(
+                                  applyHeightToFirstAscent: false),
+                            ),
+                        ],
+                      ),
+                    ),
+                },
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _pageMushaf(
+      BuildContext context, List<Verse> versets, String? bismillah) {
     // ── UN SEGMENT PAR SOURATE (2026-09-03) ────────────────────────────
     // La page etait un seul flux de texte : deux sourates s'y suivaient sans
     // rien entre elles. On regroupe donc les versets par sourate, pour
     // pouvoir intercaler un bandeau de titre a chaque changement.
-    final segments = <({int sourate, String texte, List<Verse> versets})>[];
+    final segments =
+        <({int sourate, String texte, List<Verse> versets, String? basmala})>[];
     for (final v in versets) {
       // Meme rattachement que pour la version coloree (cf. _spansCanoniques) :
       // une marque de waqf isolee, sans lettre porteuse, flotte vers la ligne
@@ -483,9 +863,21 @@ class _PageMushaf extends StatelessWidget {
           sourate: d.sourate,
           texte: '${d.texte} $mot',
           versets: [...d.versets, v],
+          basmala: d.basmala,
         ));
       } else {
-        segments.add((sourate: v.surahNumber, texte: mot, versets: [v]));
+        // Un segment qui commence au verset 1 OUVRE la sourate : c'est la, et
+        // seulement la, que la basmala se pose. Une sourate qui se poursuit
+        // d'une page sur l'autre n'en reprend pas.
+        final ouvre = v.ayahNumber == 1 &&
+            !_sansBasmala.contains(v.surahNumber) &&
+            bismillah != null;
+        segments.add((
+          sourate: v.surahNumber,
+          texte: ouvre ? '$bismillah\n$mot' : mot,
+          versets: [v],
+          basmala: ouvre ? bismillah : null,
+        ));
       }
     }
 
@@ -580,12 +972,53 @@ class _PageMushaf extends StatelessWidget {
                   compact: false,
                 )
               else
-                _enTete(sourates, juz, hizb),
-              const SizedBox(height: 3),
+                _zone(_enTete(sourates, juz, hizb), Colors.red),
+              // 1 et non 3 : l'en-tete et le texte se touchent presque, et
+              // chaque pixel rendu ici est du texte en plus (cf. la marge du
+              // cadre, reduite le meme jour).
+              const SizedBox(height: 1),
+              // ── LE DÉCOUPAGE DU MUSHAF IMPRIMÉ D'ABORD (2026-09-04) ──
+              //
+              // `_pageLignes` respecte les bornes de chaque ligne du mushaf.
+              // L'ancien `_blocAjuste` (texte coulé dans un paragraphe
+              // justifié, découpe laissée à Flutter) reste en repli si l'asset
+              // manque : un asset absent doit afficher le Coran, pas une page
+              // blanche. Conservé aussi parce que la règle du projet l'exige --
+              // on n'efface pas un mécanisme remplacé.
+              //
+              // ⚠️ ICI ET PAS À LA PLACE DE `_pageMushaf` : le premier essai
+              // remplaçait la page ENTIÈRE, et emportait avec elle le cadre,
+              // l'en-tête (sourate/hizb/juz) et le numéro de page -- vus
+              // disparaître à l'écran. Le chrome appartient à cette méthode ;
+              // seul le contenu change.
+              // ── RENDU LIGNE PAR LIGNE DEBRANCHE (2026-09-04) ─────────
+              //
+              // `_pageLignes` respectait bien les bornes du mushaf imprime
+              // (asset `mushaf_lignes.json`, 17 640 bornes verifiees sans
+              // ecart), mais son RENDU n'a pas convenu : « c'est quoi cette
+              // connerie, reviens a la situation avant ma demande de faire
+              // comme le papier, t'as vraiment rate ».
+              //
+              // Ce qui n'allait pas, et qui reste a resoudre avant tout
+              // nouvel essai : la justification par repartition entre les mots
+              // (`Row` en `spaceBetween`) ne ressemble pas a un mushaf. Un
+              // mushaf imprime ETIRE les lettres (kashida) pour remplir la
+              // ligne ; a defaut, la ligne la plus dense d'une page fixe la
+              // taille de police pour toutes les autres, qui se retrouvent
+              // trouees de grands blancs. Le probleme n'est donc PAS la donnee
+              // -- elle est juste -- mais le fait que Flutter ne sache pas
+              // etirer les glyphes.
+              //
+              // Le code et l'asset sont CONSERVES (regle du projet : on
+              // n'efface pas un mecanisme, on laisse la trace de pourquoi il
+              // ne tourne pas). Le rebrancher tient a cette seule condition.
               Expanded(
-                child: ClipRect(child: _blocAjuste(segments, spansParSegment)),
+                child: _zone(
+                  ClipRect(child: _blocAjuste(segments, spansParSegment)),
+                  Colors.blue,
+                ),
               ),
-              _pied(sourates, juz),
+              _zone(_pied(sourates, juz), Colors.green),
             ],
           ),
         ),
@@ -638,7 +1071,10 @@ class _PageMushaf extends StatelessWidget {
     ].join(' · ');
     Widget onglet(String texte) => Expanded(
       child: Container(
-        height: 30,
+        // 26 et non 30 (2026-09-04, « cherche de la hauteur ») : le libelle
+        // fait 13 px, l'onglet en reservait plus du double. Quatre pixels
+        // rendus au texte sur chacune des 604 pages.
+        height: 26,
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
@@ -907,11 +1343,21 @@ class _PageMushaf extends StatelessWidget {
     return out;
   }
 
+  /// [basmala] : posée en tête, sur sa propre ligne, quand le segment ouvre
+  /// une sourate.
+  ///
+  /// ⚠️ ELLE DOIT ETRE ICI ET PAS SEULEMENT DANS `_spanMesure` : celle-là ne
+  /// sert qu'à MESURER la hauteur. C'est `_bloc` qui PEINT. Premier essai du
+  /// 2026-09-04 : la basmala n'avait été ajoutée qu'à la mesure, et elle
+  /// n'apparaissait donc nulle part -- la page réservait la place d'une ligne
+  /// qu'elle ne dessinait pas. Constat utilisateur : « je ne vois pas les
+  /// bismillah dans le mushaf papier », vérifié page 77 (début d'An-Nisa).
   Widget _bloc(
     String texte,
     double taille,
     List<TextSpan>? spans, {
     double interligne = _kInterligne,
+    String? basmala,
   }) {
     final style = styleEcriture(
       ecriturePour(ecriture),
@@ -945,17 +1391,120 @@ class _PageMushaf extends StatelessWidget {
     // coloration tajwid au meme offset.
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Text.rich(
-        TextSpan(
-          style: style,
-          children: _waqfSurLaLigne(
-            spans ?? [TextSpan(text: texte, style: style)],
-            style,
-            taille,
+      child: _avecBasmala(
+        // `spans == null` : la basmala est déjà dans `texte`, la sortir ici la
+        // doublerait. Sinon elle n'est PAS dans le flux et se peint à part.
+        basmala: spans == null ? null : basmala,
+        style: style,
+        taille: taille,
+        interligne: interligne,
+        corps: Text.rich(
+          TextSpan(
+            style: style,
+            children: _waqfSurLaLigne(
+              spans ?? [TextSpan(text: texte, style: style)],
+              style,
+              taille,
+            ),
+          ),
+          textAlign: TextAlign.justify,
+          // ── `applyHeightToFirstAscent: false` RETIRE (2026-09-04) ────────
+          //
+          // Il avait ete pose le meme jour pour remonter le texte (« apres le
+          // trait du haut, laisse juste un peu d'espace et commence
+          // l'ecriture ») : l'interligne, qui monte jusqu'a 2,45 sur une page
+          // peu remplie, gonfle aussi l'ascender de la PREMIERE ligne et la
+          // faisait descendre d'une demi-ligne.
+          //
+          // Il marchait, mais au prix d'un defaut pire : sans cet ascender, les
+          // diacritiques hautes de la premiere ligne sortent de la boite, et le
+          // `ClipRect` de la page les COUPE. Constate a l'ecran page 2 -- la
+          // basmala d'Al-Baqara rognee sur toute sa hauteur superieure.
+          //
+          // On le retire donc. Le texte redescend un peu ; c'est le bon cote de
+          // l'erreur -- mieux vaut du blanc en haut qu'une ligne tronquee.
+          // Pour gagner de la hauteur sans ce risque, ce sont les marges du
+          // cadre et l'en-tete qu'il faut reprendre (deja fait le meme jour :
+          // 19 -> 5 px en haut, en-tete 30 -> 26 px, separateur 62 -> 48 px).
+        ),
+      ),
+    );
+  }
+
+  /// La basmala CENTRÉE sur sa propre ligne, au-dessus du corps du segment.
+  ///
+  /// ── POURQUOI UN WIDGET SÉPARÉ ET PAS UN `TextSpan` (2026-09-04) ─────────
+  ///
+  /// Demande utilisateur : « mets la bismillah au milieu, centrée ». Dans le
+  /// flux c'était impossible : le corps de page est en `TextAlign.justify`, et
+  /// un paragraphe justifié n'aligne pas une de ses lignes autrement que les
+  /// autres -- la basmala se collait au bord droit comme n'importe quelle ligne
+  /// de texte. Il faut qu'elle sorte du paragraphe pour avoir son propre
+  /// alignement, ce qui est aussi sa place typographique dans un mushaf.
+  ///
+  /// La hauteur ne bouge pas : la ligne est déjà comptée par la mesure
+  /// (`_spanMesure`), elle est simplement peinte ailleurs.
+  Widget _avecBasmala({
+    required String? basmala,
+    required TextStyle style,
+    required Widget corps,
+    required double taille,
+    required double interligne,
+  }) {
+    if (basmala == null) return corps;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // HAUTEUR IMPOSÉE, et c'est tout l'enjeu : la mesure compte la basmala
+        // comme UNE ligne du paragraphe. Un `Text` libre en prendrait un peu
+        // plus (métriques de bloc), et ce surplus était volé au corps, dont la
+        // dernière ligne se faisait couper. En l'enfermant dans exactement
+        // `interligne × taille`, ce que la mesure prévoit est ce que le rendu
+        // consomme -- il n'y a plus d'écart à rattraper ailleurs.
+        // ── LA BASMALA COMMENÇAIT TROP BAS (2026-09-04) ──────────────────
+        //
+        // Constat utilisateur : « le début du Bismillah commence trop bas, il y
+        // a de l'espace qu'on peut utiliser en haut ».
+        //
+        // DEUX CAUSES EMPILÉES, et `Align(topCenter)` n'en réglait aucune :
+        //
+        // 1. La boîte faisait `interligne × taille`, or l'interligne monte
+        //    jusqu'à 2,45 quand la page est peu remplie (le reliquat devient de
+        //    l'air, cf. « LE RELIQUAT DEVIENT DE L'INTERLIGNE »). À 45 pt, cela
+        //    réservait 110 px pour une ligne qui en demande 55.
+        // 2. Le style porte `height: interligne` : le glyphe est alors CENTRÉ
+        //    dans sa propre boîte de ligne. Caler la boîte en haut ne servait à
+        //    rien -- le texte, lui, restait au milieu de sa ligne.
+        //
+        // On lui donne donc sa hauteur propre (`_kBoiteBasmala`, serré autour
+        // du glyphe) et un `height` de ligne resserré. La page démarre où elle
+        // doit, et ce qui n'est plus réservé ici revient au corps du texte.
+        // ── LA BASMALA DOIT TENIR DANS SA ZONE (2026-09-04) ──────────────
+        //
+        // Version precedente : boite serree (`_kBoiteBasmala`), texte cale en
+        // haut (`Align.topCenter`) et `applyHeightToFirstAscent: false`. Le but
+        // etait de remonter la page (« le debut commence trop bas »), et il
+        // etait atteint -- mais la moitie SUPERIEURE du glyphe sortait alors de
+        // la zone, et le `ClipRect` du segment la coupait net.
+        //
+        // Vu a l'ecran une fois les zones tracees en couleur (demande
+        // utilisateur : « entoure les zones ou tu mets le texte avec du rouge,
+        // comme ca je vois comment tu disposes la page ») : la basmala d'Al-
+        // Baqara chevauchait le bord haut de son cadre. Aucune lecture de code
+        // ne montrait ca ; le trace, si.
+        //
+        // On lui rend donc une ligne pleine et un centrage vertical. Elle
+        // redescend de quelques pixels -- c'est le bon cote de l'erreur : mieux
+        // vaut du blanc au-dessus qu'un texte tronque.
+        SizedBox(
+          height: _kInterligne * taille,
+          child: Center(
+            child: Text(basmala, style: style, textAlign: TextAlign.center),
           ),
         ),
-        textAlign: TextAlign.justify,
-      ),
+        Flexible(child: corps),
+      ],
     );
   }
 
@@ -977,7 +1526,8 @@ class _PageMushaf extends StatelessWidget {
   /// remesurer apres chaque recul, sinon elle valide une hauteur qui n'est
   /// plus celle qui sera peinte.
   List<double> _hauteursSegments(
-    List<({int sourate, String texte, List<Verse> versets})> segments,
+    List<({int sourate, String texte, List<Verse> versets, String? basmala})>
+        segments,
     List<List<TextSpan>>? spansParSegment,
     TextStyle style,
     double taille,
@@ -992,13 +1542,23 @@ class _PageMushaf extends StatelessWidget {
         textDirection: TextDirection.rtl,
         textAlign: TextAlign.justify,
       )..layout(maxWidth: largeur);
-      out.add(peintre.height);
+      // ── LA BASMALA COMPTE COMME UNE LIGNE, A PART (2026-09-04) ────────
+      //
+      // Elle n'est plus dans le paragraphe mesure : le rendu la peint dans une
+      // `SizedBox` a lui (elle doit etre CENTREE, ce qu'un paragraphe justifie
+      // ne permet pas). Tant qu'elle etait comptee ici ET peinte la-bas, les
+      // deux hauteurs ne coincidaient pas exactement et le corps perdait la
+      // difference -- le `ClipRect` tranchait alors sa derniere ligne. On
+      // ajoute donc EXACTEMENT ce que la boite consomme, ni plus ni moins.
+      out.add(peintre.height +
+          (segments[s].basmala != null ? _kInterligne * taille : 0.0));
     }
     return out;
   }
 
   Widget _blocAjuste(
-    List<({int sourate, String texte, List<Verse> versets})> segments,
+    List<({int sourate, String texte, List<Verse> versets, String? basmala})>
+        segments,
     List<List<TextSpan>>? spansParSegment,
   ) {
     return LayoutBuilder(
@@ -1011,6 +1571,23 @@ class _PageMushaf extends StatelessWidget {
         // un `SizedBox`, donc la reservation ne peut pas etre fausse.
         const hauteurBandeau = MushafSurahBanner.compactHeight;
         final nBandeaux = segments.length - 1;
+        // ── LA BASMALA COÛTE EXACTEMENT UNE LIGNE (2026-09-04) ───────────
+        //
+        // Elle est MESURÉE dans le paragraphe (`_spanMesure` la compte avec son
+        // saut de ligne) mais PEINTE hors de lui, dans une `Column` -- ce
+        // qu'exigeait le centrage. Un `Text` isolé porte ses propres métriques
+        // de bloc, plus hautes qu'une ligne partageant l'interligne de ses
+        // voisines : le corps recevait donc moins que ce qu'il avait demandé et
+        // `Flexible` le comprimait. Dernière ligne tranchée, vu page 562.
+        //
+        // PREMIÈRE TENTATIVE, FAUSSE : réserver « un tiers de ligne » dans
+        // `dispo`. Elle utilisait une taille de police SUPPOSÉE (40) alors que
+        // la vraie n'est connue qu'à la fin de la dichotomie -- la réserve ne
+        // correspondait donc à rien, et la ligne coupait toujours.
+        //
+        // CE QU'ON FAIT : la basmala est enfermée dans une hauteur EXACTE d'une
+        // ligne (cf. `_avecBasmala`). Mesure et rendu coïncident alors par
+        // construction, et il n'y a plus rien à compenser ici.
         final dispo = contraintes.maxHeight - nBandeaux * hauteurBandeau;
         double basse = 12, haute = 52;
         for (var i = 0; i < 9; i++) {
@@ -1023,6 +1600,8 @@ class _PageMushaf extends StatelessWidget {
               text: _spanMesure(segments[s].texte, sp, st, milieu),
               textDirection: TextDirection.rtl,
               textAlign: TextAlign.justify,
+              textHeightBehavior:
+                  const TextHeightBehavior(applyHeightToFirstAscent: false),
             )..layout(maxWidth: contraintes.maxWidth);
             total += peintre.height;
           }
@@ -1033,7 +1612,7 @@ class _PageMushaf extends StatelessWidget {
           // pourcentage (0,93 avant le 2026-09-03) il reservait ~125 px sur
           // une page de 1800 pour un besoin d'une quinzaine, et c'est ce vide
           // que l'utilisateur voyait en haut et en bas.
-          if (total <= dispo - milieu * 0.5) {
+          if (total <= dispo - milieu * _reserveBasMesuree(ecriture)) {
             basse = milieu;
           } else {
             haute = milieu;
@@ -1055,6 +1634,8 @@ class _PageMushaf extends StatelessWidget {
             text: _spanMesure(segments[s].texte, sp, st, basse),
             textDirection: TextDirection.rtl,
             textAlign: TextAlign.justify,
+            textHeightBehavior:
+                const TextHeightBehavior(applyHeightToFirstAscent: false),
           )..layout(maxWidth: contraintes.maxWidth);
           hauteurTexte += peintre.height;
           lignes += peintre.computeLineMetrics().length;
@@ -1103,22 +1684,55 @@ class _PageMushaf extends StatelessWidget {
         }
         basse = tailleRetenue;
 
+        // ── LE TEXTE COMMENCE EN HAUT DE SON BLOC (2026-09-04) ───────────
+        //
+        // C'etait `MainAxisAlignment.center` : le reliquat de la dichotomie se
+        // repartissait moitie au-dessus du texte, moitie en dessous. Sur une
+        // page pleine ca ne se voyait pas ; sur les autres, une bande vide
+        // s'installait entre l'en-tete et la premiere ligne.
+        //
+        // Vu par l'utilisateur une fois les zones tracees en couleur, et
+        // formule exactement : « le bloc bleu doit commencer juste apres le
+        // rouge, et le segment orange c'est le debut du texte -- pourquoi
+        // doit-il commencer depuis la ligne bleue ? ». Mesure sur la capture
+        // page 78 : environ 80 px de vide en haut, autant en bas.
+        //
+        // `start` : le texte demarre sous l'en-tete, et ce qui reste tombe en
+        // bas, au-dessus du numero de page -- la ou un mushaf imprime le met.
         return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
             for (var s = 0; s < segments.length; s++) ...[
               if (s > 0) _bandeauSourate(segments[s].sourate, hauteurBandeau),
-              ClipRect(
+              // ── LE CLIPRECT EST « LE TRUC QUI CACHE » (2026-09-04) ────
+              //
+              // Intuition de l'utilisateur, exacte : « il y a des coupures, je
+              // pense que c'est un calque ou un truc qui cache ». C'en est un :
+              // ce `ClipRect` découpe net tout ce qui dépasse de `hauteurs[s]`.
+              // La ligne n'est pas mal dessinée, elle est TRANCHÉE -- d'où
+              // cette moitié de lettres, qu'aucune taille de police n'explique.
+              //
+              // Il protège le pied de page d'un texte qui déborderait, donc on
+              // le garde. Mais `TextPainter` rend une hauteur en flottant, et
+              // le rendu réel peut demander une fraction de pixel de plus :
+              // arrondi vers le bas, c'est la dernière ligne qui paie. Deux
+              // pixels de tolérance absorbent l'arrondi sans rien laisser
+              // déborder de visible.
+              _zone(ClipRect(
                 child: SizedBox(
-                  height: hauteurs[s],
+                  // Tolérance PROPORTIONNELLE et non 2 px fixes : ce qui
+                  // déborde, ce sont des jambages et des kasra, dont la taille
+                  // suit la police. Deux pixels suffisaient à 20 pt, pas à 45.
+                  height: hauteurs[s] + basse * 0.18,
                   child: _bloc(
                     segments[s].texte,
                     basse,
                     spansParSegment?[s],
                     interligne: interligneRetenu,
+                    basmala: segments[s].basmala,
                   ),
                 ),
-              ),
+              ), Colors.orange),
             ],
           ],
         );
@@ -1126,18 +1740,30 @@ class _PageMushaf extends StatelessWidget {
     );
   }
 
+  /// [basmala] : posée en tête, sur sa propre ligne, quand le segment ouvre
+  /// une sourate.
+  ///
+  /// ⚠️ ELLE DOIT ÊTRE AJOUTÉE ICI ET PAS SEULEMENT DANS `texte` : dès que la
+  /// coloration tajwid est active, `spans` est fourni et le paramètre `texte`
+  /// n'est plus lu du tout (`spans ?? [...]`). La basmala aurait donc disparu
+  /// exactement dans le mode où l'on regarde le plus la page.
   TextSpan _spanMesure(
     String texte,
     List<TextSpan>? spans,
     TextStyle style,
-    double taille,
-  ) => TextSpan(
+    double taille, {
+    String? basmala,
+  }) => TextSpan(
     style: style,
-    children: _waqfSurLaLigne(
-      spans ?? [TextSpan(text: texte, style: style)],
-      style,
-      taille,
-    ),
+    children: [
+      if (basmala != null && spans != null)
+        TextSpan(text: '$basmala\n', style: style),
+      ..._waqfSurLaLigne(
+        spans ?? [TextSpan(text: texte, style: style)],
+        style,
+        taille,
+      ),
+    ],
   );
 
   /// Separateur de sourate : L'ORNEMENT DE L'ECRAN DE LECTURE, en compact.
