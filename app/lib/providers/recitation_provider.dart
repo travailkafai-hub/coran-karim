@@ -206,7 +206,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // Motif volontairement identique à `useGopScoring` : les deux moteurs
   // calculent, un seul peint l'écran. La v1 ne peut donc pas régresser du fait
   // du branchement, et une session compare les deux sur le MÊME audio.
-  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})>>? _v2Sub;
+  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>>? _v2Sub;
   StreamSubscription<int>? _decrochageSub;
 
   /// La v2 pilote-t-elle l'affichage ? Quand c'est faux, elle tourne quand même
@@ -598,11 +598,38 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// taxonomie d'entraînement compte 10 classes, pas 17, et les madd y sont
   /// nommés par leur DURÉE et non par leur statut juridique). À rouvrir dès
   /// que la correspondance des classes est instruite.
-  static const _signalNonFiable = {
-    TajwidRule.qalaqah,
-    TajwidRule.maddaObligatory,
-    TajwidRule.maddaPermissible,
-  };
+  /// ⚠️ LES DEUX MADD EN SONT SORTIS (2026-09-05). Ils y avaient ete mis le
+  /// 2026-09-03 sur la foi d'un banc ou ils rendaient 0,001 et 0,033 -- mesure
+  /// faite sur UN SEUL WAV de 3,12 s, et contredite quelques minutes plus tard
+  /// par une autre prise a 0,943. L'echantillon ne permettait pas de condamner
+  /// deux regles.
+  ///
+  /// Surtout, la decision etait mauvaise sur le fond, et l'utilisateur l'a
+  /// tranchee : « non, pas observation -- mais juste, si un autre type de madd
+  /// est detecte a la place de l'autre, c'est pas grave ». Le madd DOIT etre
+  /// juge : c'est la regle la plus audible du tajwid, et un allongement omis
+  /// est une vraie faute. Ce qui ne se distingue pas a l'oreille, c'est son
+  /// STATUT juridique -- cf. `_groupesFusionnes`.
+  /// ⚠️ VIDE DEPUIS LE PAQUET v7 (2026-09-05) : toutes les regles acoustiques
+  /// sont jugees.
+  ///
+  /// `qalaqah` en est sortie sur decision de l'utilisateur (« rajoute-la
+  /// maintenant »). Elle y avait ete mise le 2026-09-03 parce que son signal
+  /// sortait ANTI-CORRELE -- haut quand la qalqala n'etait PAS faite. Deux
+  /// choses ont change : v7 lui donne un canal propre (13 classes separees au
+  /// lieu de 10 fusionnees, la tete n'apprend plus sur une taxonomie melangee),
+  /// et le seuil passe de 0,931 a 0,5.
+  ///
+  /// ⚠️ CE N'EST PAS UNE MESURE : rien dans le rapport de validation v7 ne dit
+  /// que l'anti-correlation est corrigee. Si les qalqala ressortent en violet
+  /// sur une recitation correcte, c'est ICI qu'il faut la remettre -- et cette
+  /// fois avec le chiffre.
+  ///
+  /// A NOTER, car ca explique peut-etre le defaut d'origine : la qalqala n'est
+  /// pas une regle qui se realise ou non comme une ghunna. C'est une propriete
+  /// des cinq lettres `ق ط ب ج د` des qu'elles portent un sukun -- presque
+  /// toujours vraie, donc difficile a apprendre comme une classe.
+  static const _signalNonFiable = <TajwidRule>{};
 
   /// ── CE QUE LE MODÈLE NE SAIT PAS DISTINGUER (2026-09-03) ────────────────
   ///
@@ -631,9 +658,45 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// le récitant fait une ikhafa -- le modèle ne sait pas les distinguer.
   /// Arbitrage ouvert. » Le seul moyen de retrouver la finesse est de
   /// réentraîner la tête sur les classes séparées, pas de régler un seuil.
+  /// ⚠️ VIDE DEPUIS LE PAQUET v7 (2026-09-05) -- ET C'EST LE BUT.
+  ///
+  /// La tete v7 SEPARE enfin les cinq regles qui etaient fusionnees : la
+  /// taxonomie d'entrainement passe de 10 classes a 13, et `ikhafa`,
+  /// `idgham_ghunnah`, `iqlab`, `ikhafa_shafawi`, `idgham_shafawi` ont chacune
+  /// leur canal. Le document de transfert le dit et l'export le confirme (17
+  /// canaux mappes 1-pour-1 par nom).
+  ///
+  /// Garder les groupes serait desormais NUISIBLE : ils validaient un `iqlab`
+  /// attendu quand le modele voyait une `ikhafa` -- compromis assume tant que
+  /// le modele ne savait pas les distinguer, mensonge maintenant qu'il le sait.
+  ///
+  /// La liste est laissee VIDE plutot que supprimee : si un paquet futur
+  /// refusionne des classes (le madd-union v2 annonce le fera pour les trois
+  /// madd), c'est ici qu'il faudra le declarer, avec le mecanisme deja ecrit.
   static const _groupesFusionnes = <Set<TajwidRule>>[
-    {TajwidRule.ikhafa, TajwidRule.idghamGhunnah, TajwidRule.iqlab},
-    {TajwidRule.ikhafaShafawi, TajwidRule.idghamShafawi},
+    // ── LES TROIS MADD SONT INTERCHANGEABLES (2026-09-05) ──────────────────
+    //
+    // Demande utilisateur : « si un autre type de madd est detecte a la place
+    // de l'autre, c'est pas grave ».
+    //
+    // C'est acoustiquement fonde. Ce que la tete entend, c'est un ALLONGEMENT ;
+    // ce qui separe `madda_necessary` (6 harakat), `madda_obligatory` (4 a 6)
+    // et `madda_permissible` (2 a 6), c'est une categorie GRAMMATICALE que le
+    // texte connait deja -- la nature de ce qui suit la voyelle longue, hamza
+    // ou sukun, dans le meme mot ou le suivant. Exiger que le modele retrouve
+    // cette distinction par le son, c'est lui demander de lire le texte.
+    //
+    // C'est d'ailleurs la voie que prend l'entrainement : le `madd-union v2`
+    // annonce dans le transfert du 2026-09-05 fusionne les trois en UNE
+    // detection acoustique, et retrouve ensuite la duree (2, 4 ou 6 harakat)
+    // par la MESURE. En attendant qu'il arrive, on obtient le meme resultat
+    // ici : le madd est JUGE -- un allongement omis reste une faute -- mais son
+    // type n'a pas a etre devine.
+    {
+      TajwidRule.maddaNecessary,
+      TajwidRule.maddaObligatory,
+      TajwidRule.maddaPermissible,
+    },
   ];
 
   /// Vrai si [r] est satisfaite par [emitted], directement ou via une règle
@@ -3321,6 +3384,53 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// Un seul endroit SAIT, au lieu de trois qui devinent.
   final Set<int> _motsDegradesTajwid = {};
 
+  /// Mots deja pris en compte dans la note : un mot re-emis (regles enrichies)
+  /// ne doit pas etre compte deux fois.
+  final Set<int> _motsComptes = {};
+
+  /// Probabilité et seuil de chaque règle, par mot -- pour la barre de la fiche.
+  ///
+  /// ── MONTRER SI LA RÈGLE A ÉTÉ RATÉE DE PEU (2026-09-05) ─────────────────
+  ///
+  /// Demande utilisateur : « rajouter, pour les mots, une barre de progression
+  /// pour que le user sache ce qu'il a fait -- est-ce qu'il a raté de
+  /// justesse ». L'idée est venue du défaut trouvé le même jour : la différence
+  /// entre « pas faite » (p=0,10) et « ratée de peu » (p=0,48) n'existait que
+  /// dans le journal, et il fallait croiser trois types de lignes pour la voir.
+  /// Un violet disait « c'est raté » sans jamais dire de combien.
+  final Map<int, Map<TajwidRule, ({double prob, double seuil})>> _scoresRegles =
+      {};
+
+  /// ── LA NOTE EN CINQ ÉTOILES DU PASSAGE (2026-09-05) ────────────────────
+  ///
+  /// Demande utilisateur : « je veux à la fin sur cinq étoiles, par rapport au
+  /// nombre de règles attendues et réussies, sans donner le détail -- donner
+  /// juste le nombre d'étoiles ».
+  ///
+  /// PÉRIMÈTRE : le passage récité, une note à la fin. Pas de note par mot :
+  /// la fiche du mot a déjà ses barres, et une note sur une ou deux règles
+  /// n'aurait aucune valeur statistique.
+  ///
+  /// LES RÈGLES NON OBSERVÉES SONT EXCLUES (choix de l'utilisateur) : quand la
+  /// fenêtre audio manque un mot, la tête ne reçoit rien et aucune règle ne
+  /// peut être constatée. Les compter comme ratées ferait baisser la note pour
+  /// un défaut de découpage qui n'appartient pas au récitateur -- mesuré sur la
+  /// session du 2026-09-05 : 1 mot sur 40 dans ce cas.
+  int _reglesAttendues = 0;
+  int _reglesReussies = 0;
+
+  /// Nombre d'étoiles (0 à 5), ou `null` si aucune règle n'a pu être jugée --
+  /// un passage sans règle observable ne mérite pas une note de zéro.
+  int? get etoilesTajwid {
+    if (_reglesAttendues == 0) return null;
+    return (5 * _reglesReussies / _reglesAttendues).round().clamp(0, 5);
+  }
+
+  /// Les scores de [wordIndex], vides si le mot n'a pas été observé.
+  Map<TajwidRule, ({double prob, double seuil})> scoresReglesPour(
+          int wordIndex) =>
+      _scoresRegles[wordIndex] ?? const {};
+
   /// Les mots dont la dégradation vient du tajwid — pour les peindre en violet.
   Set<int> get motsDegradesTajwid => Set.unmodifiable(_motsDegradesTajwid);
 
@@ -3336,6 +3446,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // manquait au tour précédent. `setup` est le point d'entrée commun des
     // trois écrans, y compris via `setupDepuisVerset` qui l'appelle.
     _motsDegradesTajwid.clear();
+    _motsComptes.clear();
+    _scoresRegles.clear();
+    _reglesAttendues = 0;
+    _reglesReussies = 0;
     // Riwaya figée ICI, pour toute la durée de la session -- cf. la doc du
     // champ sur `RecitationSessionState.riwaya`.
     state = RecitationSessionState(words: words, riwaya: QuranApi.riwaya);
@@ -4867,7 +4981,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// `omis` n'est PAS une couleur : c'est « le récitateur est passé outre, et
   /// on peut le prouver ». Il est rendu comme `skipped`, jamais comme `error` —
   /// condamner un mot non prononcé serait un verdict sans preuve.
-  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve})> changements) {
+  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> changements) {
     var dernierJuge = -1;
     for (final c in changements) {
       DiagnosticLog.log('V2',
@@ -5102,6 +5216,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
               .where(_activeRules.contains)
               .toList()
           : const <TajwidRule>[];
+      if (c.scoresRegles.isNotEmpty) {
+        _scoresRegles[c.index] = c.scoresRegles;
+      }
       if (attendues.isNotEmpty) {
         DiagnosticLog.log('V2tajwidDetail',
             'mot=${c.index} "${c.index < words.length ? words[c.index].display : "?"}" '
@@ -5147,6 +5264,32 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           c.tajwidObserve &&
           (c.tajwidFiable || tajwidSansDoubleObservation)) {
         final manquantes = unrealizedRulesFor(c.index, c.detectedRules);
+        // ── LE VIOLET SE RETIRE SI LA REGLE ARRIVE APRES (2026-09-05) ──
+        //
+        // Mesure, mot 39 `وَلِسَانًا` : verdict violet a 17:01:23, puis
+        // `idgham_ghunnah` detectee a 1,000 a 17:01:27, 17:01:28 et 17:01:34.
+        // La chaine verrouille le mot des que la fenetre avance, alors que la
+        // tete continue de l'observer -- le verdict tombait donc AVANT la
+        // preuve.
+        //
+        // Decision utilisateur : « si on trouve que c'est ok, on peut corriger
+        // le verdict ». C'est le sens autorise de la regle du projet (« jamais
+        // un vert ne passe rouge ») : on n'aggrave jamais, on repare.
+        // Comptage pour la note en etoiles : uniquement sur les mots
+        // reellement observes, et une seule fois par mot (le mot peut etre
+        // re-emis quand ses regles s'enrichissent).
+        if (!_motsComptes.contains(c.index)) {
+          _motsComptes.add(c.index);
+          _reglesAttendues += attendues.length;
+          _reglesReussies +=
+              attendues.length - manquantes.length;
+        }
+        if (manquantes.isEmpty && _motsDegradesTajwid.contains(c.index)) {
+          _motsDegradesTajwid.remove(c.index);
+          DiagnosticLog.log('V2tajwidCorrige',
+              'mot=${c.index} regle(s) finalement CONSTATEE(S) apres le '
+              'verdict -- violet retire');
+        }
         if (manquantes.isNotEmpty) {
           statutFinal = WordStatus.unclear;
           // La cause est certaine ICI : on vient de constater la règle

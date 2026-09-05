@@ -208,6 +208,10 @@ void showTajwidHelpSheet(
   /// Vide = le mot est en erreur pour une autre raison (lettre, harakat) ou
   /// n'est pas en erreur du tout : on n'affiche alors rien de plus.
   List<TajwidRule> reglesManquantes = const [],
+  /// Probabilite et seuil de chaque regle sur ce mot -- pour la barre qui dit
+  /// si la regle a ete ratee de peu ou pas faite du tout (2026-09-05).
+  /// Vide = mot non observe, ou fiche ouverte hors session : aucune barre.
+  Map<TajwidRule, ({double prob, double seuil})> scoresRegles = const {},
   /// Regles ATTENDUES sur ce mot et actives dans le preset (2026-09-02).
   ///
   /// Distincte de [reglesManquantes] : celle-ci dit ce qu'il FAUT constater
@@ -447,7 +451,11 @@ void showTajwidHelpSheet(
                                           .withValues(alpha: .30)),
                                 )
                               : null,
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                          Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
@@ -478,6 +486,29 @@ void showTajwidHelpSheet(
                                   ),
                                 ),
                               ),
+                            ],
+                          ),
+                          // ── LA BARRE, SOUS LE NOM DE LA REGLE (2026-09-05)
+                          //
+                          // « Je veux la barre imbriquee sur la regle mise en
+                          // rouge », puis « sous ca ». Elle etait d'abord dans
+                          // un bloc separe en bas de fiche : on lisait la regle
+                          // a un endroit et son score a un autre, sans que rien
+                          // ne les relie. Ici, chaque regle ratee porte SA
+                          // barre, dans son propre cadre.
+                          // ⚠️ La cle, PAS `r` : `r` est un TajwidRuleInfo
+                          // (objet d affichage), alors que `scoresRegles` est
+                          // indexe par TajwidRule. Premiere version : la barre
+                          // n apparaissait jamais, l index etant toujours nul.
+                          if (clesManquantes.contains(cle) &&
+                              TajwidRule.fromKey(cle) != null &&
+                              scoresRegles[TajwidRule.fromKey(cle)!] != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: _BarreRegle(
+                                score: scoresRegles[TajwidRule.fromKey(cle)!]!,
+                              ),
+                            ),
                             ],
                           ),
                         ),
@@ -1606,6 +1637,100 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
           ],
         ],
       ),
+    );
+  }
+}
+
+
+/// ── « EST-CE QUE J'AI RATE DE JUSTESSE ? » (2026-09-05) ────────────────────
+///
+/// Demande utilisateur : « rajouter, pour les mots, une barre de progression
+/// pour que le user sache ce qu'il a fait -- est-ce qu'il a rate de justesse »,
+/// puis, sur la premiere version : « je veux la barre imbriquee sur la regle
+/// mise en rouge », « sous ca ». La barre appartient a la regle : la mettre
+/// ailleurs obligeait a relier soi-meme un nom et un score.
+///
+/// Un violet disait « c'est rate », jamais DE COMBIEN. Or l'ecart change tout
+/// pour qui apprend : une ghunna a 0,48 pour un seuil de 0,50 est presque
+/// tenue -- il suffit de la prolonger un peu ; la meme a 0,10 n'a pas ete
+/// faite. L'information existait, enfouie dans le journal, ou il fallait
+/// croiser trois types de lignes pour la lire.
+///
+/// Le trait vertical marque le SEUIL a franchir : il n'est pas fixe, il suit la
+/// regle et le mode (strict / tolere).
+class _BarreRegle extends StatelessWidget {
+  final ({double prob, double seuil}) score;
+
+  const _BarreRegle({required this.score});
+
+  @override
+  Widget build(BuildContext context) {
+    final atteinte = score.prob >= score.seuil;
+    // « Ratee de peu » : moins d'un dixieme sous le seuil. Au-dela, le dire
+    // serait un encouragement trompeur -- la regle n'a pas ete faite.
+    final dePeu = !atteinte && (score.seuil - score.prob) <= 0.10;
+    // ── JAUNE SOLEIL (2026-09-05, demande utilisateur) ──────────────────
+    //
+    // `0xFFD9A400` etait un or sombre, proche du brun sur le fond rose de la
+    // regle ratee : la barre s'y fondait au lieu de sauter aux yeux. Le jaune
+    // soleil s'en detache, et il porte le bon message -- ni le vert d'une regle
+    // acquise, ni le rouge d'une faute, mais l'effort en cours.
+    const jauneSoleil = Color(0xFFFFC107);
+    final couleur = atteinte
+        ? AppColors.green700
+        : dePeu
+            ? jauneSoleil
+            : const Color(0xFFB0A99F);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LayoutBuilder(
+          builder: (context, c) => SizedBox(
+            // 13 et non 9 : la maquette de l'utilisateur (2026-09-05) montre
+            // une barre franche, lisible d'un coup d'oeil sous le texte de la
+            // regle -- pas un filet.
+            height: 13,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.cream300,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+                // ── LE SEUIL EST LA FIN DE LA BARRE (2026-09-05) ───────
+                //
+                // Demande utilisateur : « tu enleves le seuil, tu normalises
+                // le seuil, c'est la fin du curseur, pour eviter l'info du
+                // seuil ».
+                //
+                // Avant : la barre montrait la probabilite brute et un trait
+                // marquait le seuil. Il fallait donc comprendre ce qu'est un
+                // seuil pour lire la barre -- une notion du modele, pas du
+                // tajwid. Desormais la barre vaut `prob / seuil` : pleine =
+                // regle tenue, et rien a expliquer. Le seuil peut changer
+                // (mode strict ou tolere, ou un futur paquet) sans que la
+                // lecture change.
+                FractionallySizedBox(
+                  widthFactor: (score.seuil > 0
+                          ? score.prob / score.seuil
+                          : score.prob)
+                      .clamp(0.0, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: couleur,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                ),
+
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
