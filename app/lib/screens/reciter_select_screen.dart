@@ -135,9 +135,15 @@ class _ReciterSelectScreenState extends State<ReciterSelectScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
+                        // Riwaya AFFICHEE (2026-09-05, demande utilisateur :
+                        // « en proposant si c'est du Warsh ou Hafs »). La
+                        // liste etait deja filtree par riwaya, mais sans
+                        // jamais la nommer : rien ne disait ce qu'on allait
+                        // entendre. Le style suit -- Murattal (tartil),
+                        // Mujawwad, Mu'allim (enseignement du tajwid).
                         isArabic
-                            ? (r.style == 'Mujawwad' ? t.settingsStyleMujawwad : t.settingsStyleMurattal)
-                            : '${r.nameFr}  •  ${r.style}',
+                            ? '${r.libelleRiwaya}  •  ${r.style == 'Mujawwad' ? t.settingsStyleMujawwad : t.settingsStyleMurattal}'
+                            : '${r.nameFr}  •  ${r.libelleRiwaya}  •  ${r.style}',
                         style: GoogleFonts.manrope(
                             fontSize: 11, color: AppColors.inkLight),
                       ),

@@ -4,7 +4,6 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/reciter.dart';
-import '../models/riwaya.dart';
 import '../models/verse.dart';
 import 'audio_player_service.dart';
 import 'diagnostic_log.dart';
@@ -202,7 +201,17 @@ class WordCorrectionAudio {
       // verset que l'app : aucun appel réseau de métadonnées, donc aucun des
       // 4,5 à 9,2 s d'attente que le préchauffage existe pour éviter côté
       // Hafs. Le chemin Hafs ci-dessous n'est pas touché.
-      if (reciter.riwaya == Riwaya.warsh) {
+      // ⚠️ ETAIT `!reciter.aSegmentsQuranCom` JUSQU'AU 2026-09-05.
+      // Deux choses confondues parce qu'elles coincidaient : la riwaya, et
+      // « ce recitateur a-t-il des URL et des segments chez quran.com ? ».
+      // Vrai tant que les seuls recitateurs hors quran.com etaient les deux
+      // Warsh ; faux des qu'Ayman Suwaid arrive -- Hafs, absent de quran.com.
+      // Teste sur la riwaya, il serait alle demander une URL pour un
+      // identifiant inconnu et n'aurait produit aucun son. Cf.
+      // `Reciter.aSegmentsQuranCom`. Le comportement des Warsh est INCHANGE :
+      // ils ont tous un id negatif, donc le meme cote du test qu'avant.
+      // (Le meme remplacement s'applique aux deux autres sites de ce fichier.)
+      if (!reciter.aSegmentsQuranCom) {
         url = reciter.urlVerset(verse.surahNumber, verse.ayahNumber);
       } else {
       _urlCache[verse.surahNumber] ??=
@@ -230,7 +239,7 @@ class WordCorrectionAudio {
     // estimation nommée est un point de départ mesurable.
     // À remplacer par de vrais timings dès qu'on fera passer l'aligneur forcé
     // du modèle sur l'audio Warsh -- c'est l'outil exact pour les produire.
-    final segments = _segmentsCache[segKey] ??= reciter.riwaya == Riwaya.warsh
+    final segments = _segmentsCache[segKey] ??= !reciter.aSegmentsQuranCom
         ? await _segmentsEstimes(verse, telecharge, url)
         : await QuranApi.fetchAyahSegments(reciter.id, verse.key);
     // Pas de timing dispo pour ce récitateur/verset -> on abandonne plutôt
@@ -594,7 +603,7 @@ class WordCorrectionAudio {
       // rapporterait rien et coûterait les mêmes secondes de réseau. Il reste
       // utile de PRÉ-TÉLÉCHARGER le MP3, qui est tout le gain du préchauffage.
       final String? url;
-      if (reciter.riwaya == Riwaya.warsh) {
+      if (!reciter.aSegmentsQuranCom) {
         url = reciter.urlVerset(verse.surahNumber, verse.ayahNumber);
       } else {
       _urlCache[verse.surahNumber] ??=

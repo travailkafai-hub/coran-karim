@@ -22,6 +22,27 @@ class Reciter {
   /// source audio des deux riwāyāt.
   final String everyayahDir;
 
+  /// Ce recitateur a-t-il une recitation chez quran.com ?
+  ///
+  /// ── POURQUOI CE N'EST PLUS « EST-IL WARSH ? » (2026-09-05) ──────────────
+  ///
+  /// Deux choses avaient ete confondues parce qu'elles coincidaient : la
+  /// riwaya, et le fait d'avoir des URL et des segments mot-a-mot chez
+  /// quran.com. C'etait vrai tant que les SEULS recitateurs hors quran.com
+  /// etaient les deux Warsh. Ayman Suwaid (Hafs, mais absent de quran.com)
+  /// casse cette coincidence : teste sur la riwaya, il serait parti chercher
+  /// des segments pour un identifiant que quran.com ne connait pas, et
+  /// n'aurait produit aucun son du tout.
+  ///
+  /// `id` porte l'information depuis toujours : positif = identifiant de
+  /// recitation quran.com, negatif = source everyayah seule.
+  bool get aSegmentsQuranCom => id > 0;
+
+  /// « Hafs » / « Warsh », pour l'afficher a cote du nom -- demande
+  /// utilisateur 2026-09-05 : savoir de quelle riwaya on ecoute AVANT de
+  /// choisir. Jusqu'ici la liste etait filtree par riwaya sans jamais le dire.
+  String get libelleRiwaya => riwaya == Riwaya.warsh ? 'Warsh' : 'Hafs';
+
   const Reciter({
     required this.id,
     required this.nameAr,
@@ -110,8 +131,62 @@ class Reciter {
 // changerait la voix entendue par les utilisateurs actuels. Cf.
 // ANALYSE_WARSH.md §6.
 const kReciters = [
-  // ── Hafs 'an 'Asim ── (un seul, cf. le bloc mono-recitateur ci-dessus)
+  // ── Hafs 'an 'Asim ──
+  //
+  // ── LA LISTE S'ROUVRE (2026-09-05) ────────────────────────────────────
+  //
+  // Demande utilisateur : « rajoute d'autres recitateurs, en proposant si
+  // c'est du Warsh ou du Hafs, et si on a l'info tajwid ou tartil ».
+  //
+  // Elle avait ete reduite a un seul recitateur (cf. le bloc mono-recitateur
+  // plus haut, dont l'argument reste valable : ne pas multiplier les sources).
+  // Ce qui change n'est pas l'argument mais le perimetre : ces onze-la ne sont
+  // PAS une source de plus. Ils sont les recitations que quran.com sert deja,
+  // celles dont l'app sait deja tirer les URL ET les segments mot-a-mot --
+  // exactement le chemin d'Al-Afasy, avec un identifiant different.
+  //
+  // Identifiants releves le 2026-09-05 sur
+  // `api.quran.com/api/v4/resources/recitations` (12 recitations, toutes
+  // Hafs) -- pas recopies de memoire.
+  //
+  // COUVERTURE VERIFIEE, meme protocole qu'en aout pour le Warsh : dernier
+  // verset des sourates 1, 2, 3, 18, 36, 55, 78, 110 et 114 chez everyayah,
+  // 9/9 present pour chacun des dossiers ci-dessous. C'est ce test qui avait
+  // ecarte `warsh_Abdul_Basit_128kbps` (5/9) -- il est toujours a 5/9,
+  // toujours ecarte.
+  //
+  // LE STYLE EST UNE INFORMATION, PAS UNE ETIQUETTE. `Murattal` est le tartil
+  // -- la recitation mesuree, celle qu'on suit pour apprendre ; `Mujawwad` est
+  // la recitation ornee, plus lente et plus melodique ; `Mu'allim` est
+  // l'enseignement : le recitateur detache et repete pour faire entendre les
+  // regles. Les trois ne servent pas au meme travail, d'ou l'affichage.
   Reciter(id: 7,  nameAr: 'مشاري العفاسي',      nameFr: 'Mishary Al-Afasy',       style: 'Murattal', everyayahDir: 'Alafasy_128kbps'),
+  Reciter(id: 2,  nameAr: 'عبد الباسط عبد الصمد', nameFr: 'Abdul Basit Abdus-Samad', style: 'Murattal', everyayahDir: 'Abdul_Basit_Murattal_64kbps'),
+  Reciter(id: 1,  nameAr: 'عبد الباسط عبد الصمد', nameFr: 'Abdul Basit Abdus-Samad', style: 'Mujawwad', everyayahDir: 'Abdul_Basit_Mujawwad_128kbps'),
+  Reciter(id: 3,  nameAr: 'عبد الرحمن السديس',  nameFr: 'Abdur-Rahman As-Sudais', style: 'Murattal', everyayahDir: 'Abdurrahmaan_As-Sudais_192kbps'),
+  Reciter(id: 4,  nameAr: 'أبو بكر الشاطري',     nameFr: 'Abu Bakr Ash-Shatri',    style: 'Murattal', everyayahDir: 'Abu_Bakr_Ash-Shaatree_128kbps'),
+  Reciter(id: 5,  nameAr: 'هاني الرفاعي',        nameFr: 'Hani Ar-Rifai',          style: 'Murattal', everyayahDir: 'Hani_Rifai_192kbps'),
+  Reciter(id: 6,  nameAr: 'محمود خليل الحصري',   nameFr: 'Mahmoud Khalil Al-Husary', style: 'Murattal', everyayahDir: 'Husary_128kbps'),
+  // Le « Mu'allim » du Husary est la recitation d'enseignement : phrase par
+  // phrase, articulee pour etre repetee apres lui.
+  Reciter(id: 12, nameAr: 'محمود خليل الحصري',   nameFr: 'Mahmoud Khalil Al-Husary', style: "Mu'allim", everyayahDir: 'Husary_Muallim_128kbps'),
+  Reciter(id: 9,  nameAr: 'محمد صديق المنشاوي',  nameFr: 'Mohamed Siddiq Al-Minshawi', style: 'Murattal', everyayahDir: 'Minshawy_Murattal_128kbps'),
+  Reciter(id: 8,  nameAr: 'محمد صديق المنشاوي',  nameFr: 'Mohamed Siddiq Al-Minshawi', style: 'Mujawwad', everyayahDir: 'Minshawy_Mujawwad_192kbps'),
+  Reciter(id: 10, nameAr: 'سعود الشريم',         nameFr: 'Saoud Ash-Shuraim',      style: 'Murattal', everyayahDir: 'Saood_ash-Shuraym_128kbps'),
+  Reciter(id: 11, nameAr: 'محمد الطبلاوي',       nameFr: 'Mohamed Al-Tablawi',     style: 'Murattal', everyayahDir: 'Mohammad_al_Tablaway_128kbps'),
+
+  // ── Hafs, mais HORS quran.com ──
+  //
+  // Ayman Suwaid est LA recitation d'enseignement du tajwid : il detache les
+  // regles pour les faire entendre. C'est precisement ce que l'utilisateur
+  // demandait (« si on a l'info tajwid ou tartil »), et aucune des douze
+  // recitations quran.com ne l'offre.
+  //
+  // Identifiant NEGATIF : quran.com ne le sert pas. L'app prend donc pour lui
+  // le chemin everyayah -- URL deduite, decoupe mot-a-mot ESTIMEE -- celui
+  // ouvert pour le Warsh en aout. Consequence a connaitre : sur une
+  // correction mot a mot, l'extrait est estime et non mesure, comme en Warsh.
+  Reciter(id: -3, nameAr: 'أيمن سويد',           nameFr: 'Ayman Suwaid',           style: "Mu'allim", everyayahDir: 'Ayman_Sowaid_64kbps'),
 
   // ── Warsh 'an Nafi' (2026-08-12) ──
   // Les deux seuls récitateurs Warsh dont everyayah a le Coran COMPLET :
