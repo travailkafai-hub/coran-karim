@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/reciter.dart';
-import '../models/riwaya.dart';
 import '../models/verse.dart';
 import 'mp3quran_api.dart';
 import 'quran_api.dart';
@@ -322,9 +321,24 @@ class ReciterDownloadService {
     var total = 0;
     try {
       final verses = await QuranApi.fetchVerses(surah);
-      // Warsh : les URLs se construisent, elles ne se demandent pas (cf. la
-      // doc de `Reciter.urlVerset`). Le Hafs garde son appel d'origine.
-      final urls = reciter.riwaya == Riwaya.warsh
+      // ── LA SOURCE, PAS LA RIWAYA (2026-09-06) ────────────────────────
+      //
+      // ⚠️ ETAIT `reciter.riwaya == Riwaya.warsh`, et c'etait la CAUSE des
+      // echecs de telechargement signales le jour meme. Le test disait
+      // « Warsh ? alors everyayah ; sinon quran.com » -- vrai tant que les
+      // seuls recitateurs hors quran.com etaient les deux Warsh.
+      //
+      // Les recitateurs ajoutes la veille (Ayman Suwaid, Al-Husary Mujawwad,
+      // Al-Banna, Al-Suesy, Al-Matroud) sont HAFS et servis par everyayah,
+      // avec un identifiant NEGATIF. Ils partaient donc demander leurs URL a
+      // quran.com, qui ne connait pas ces identifiants : echec systematique,
+      // et l'utilisateur ne pouvait plus telecharger ces voix-la.
+      //
+      // MEME CONFUSION, MEME CORRECTIF QUE DANS `word_correction_audio` la
+      // veille : ce qui decide n'est pas la riwaya, c'est « ce recitateur
+      // a-t-il des URL chez quran.com ? ». Les Warsh restent du meme cote du
+      // test qu'avant -- ils ont tous un id negatif.
+      final urls = !reciter.aSegmentsQuranCom
           ? {
               for (final v in verses)
                 v.key: reciter.urlVerset(v.surahNumber, v.ayahNumber)

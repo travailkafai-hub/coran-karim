@@ -198,6 +198,10 @@ flutter:
     - assets/data/word_timings_ms.json
     - assets/data/word_segments_mp3quran_afasy.json
     - assets/data/coupes_palier_afasy.json
+    # Coupes de palier PRECALCULEES sur tout le Coran (2026-09-06) --
+    # waqf Hafs union Warsh, liaisons, groupes figes. Cf.
+    # benchmark/build_coupes_paliers.py pour la methode et les mesures.
+    - assets/data/coupes_paliers.json
     - assets/illumination/medallion.svg
     - assets/illumination/quran_pattern_tile.svg
     - assets/audio/adhan_makkah.mp3

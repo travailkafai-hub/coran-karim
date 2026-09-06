@@ -280,7 +280,15 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
         .where((i) => i >= 0 && i < dernier)
         .toList()
       ..sort();
-    return [...coupes, dernier];
+    // Un palier trop long se refend sur une preposition -- cf.
+    // `CoupesTexteService.refendreLongs`. En dernier, sur l'union : c'est la
+    // LONGUEUR FINALE qui decide, pas celle d'une source prise a part.
+    final ajustees = CoupesTexteService.instance
+        .refendreLongs(coupes, widget.verse.surahNumber,
+            widget.verse.ayahNumber, _words.length)
+        .where((i) => i >= 0 && i < dernier)
+        .toList();
+    return [...ajustees, dernier];
   }
 
   int get _totalUnits => math.max(1, _finsUnite.length);
@@ -669,7 +677,21 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
   Future<void> _mesurerCoupes() async {
     try {
       final r = ref.read(playerProvider).reciter;
-      if (!Mp3QuranApi.sertCeReciter(r.id)) return;
+      if (!Mp3QuranApi.sertCeReciter(r.id)) {
+        // ── UN REPLI SILENCIEUX EST UN TROU DE DIAGNOSTIC (2026-09-06) ────
+        //
+        // Cette sortie etait MUETTE. Sur une session Warsh -- ou le
+        // recitateur passe par everyayah, donc hors MP3Quran -- rien
+        // n'apparaissait au journal : ni « la mesure a echoue », ni « la
+        // mesure ne s'applique pas ici ». Impossible de distinguer les deux
+        // en relisant le log, et c'est exactement la question qu'on se pose
+        // devant un palier qui coupe mal.
+        DiagnosticLog.log('Decoupe',
+            'palier ${widget.verse.key} : recitateur ${r.nameFr} (id=${r.id}) '
+            'non servi par MP3Quran -> pas de decoupe mesuree, '
+            'repli sur les waqf du texte et les coupes de reference');
+        return;
+      }
       final s = widget.verse.surahNumber;
       final a = widget.verse.ayahNumber;
       final timing = await Mp3QuranApi.ayatTiming(s,
