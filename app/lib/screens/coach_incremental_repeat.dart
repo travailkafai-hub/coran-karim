@@ -53,7 +53,9 @@ import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../providers/app_settings_provider.dart'
     show coachControleCumulatifProvider;
 import '../services/coupes_palier_service.dart';
-import '../services/mp3quran_api.dart' show Mp3QuranWordSegments;
+import '../services/decoupe_audio_service.dart';
+import '../models/reciter.dart';
+import '../services/mp3quran_api.dart' show Mp3QuranWordSegments, Mp3QuranApi, AyahTiming;
 import '../services/diagnostic_log.dart';
 import '../services/portion_word_archiver.dart'
     show etendreAuxMotsContigusEnErreur;
@@ -184,6 +186,52 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
   /// Repli si l'asset manque ou ne couvre pas ce verset : le verset entier
   /// forme une seule unité. Dégradé, jamais cassé -- et jamais un découpage
   /// arbitraire qui recréerait le défaut qu'on vient de supprimer.
+  /// ── LES COUPES MESUREES SUR LA VOIX QUI JOUE (2026-09-06) ──────────────
+  ///
+  /// Defaut entendu par l'utilisateur : « le texte ne correspond pas a l'audio,
+  /// l'audio dit un peu plus ; je suis plus pour l'audio car il s'arrete au bon
+  /// moment des waqf ou silence, alors que le texte non ».
+  ///
+  /// Il avait raison, et le journal le disait : le TEXTE se coupait sur
+  /// `coupes_palier_afasy.json` -- des coupes mesurees sur l'enregistrement
+  /// d'AL-AFASY -- tandis que l'AUDIO, en Warsh, se coupait sur des minutages
+  /// « ESTIMES -- decoupe ponderee, non mesuree ». Deux mecaniques
+  /// independantes, aucune ne regardant l'audio qui joue.
+  ///
+  /// Sa proposition, retenue : « en premier l'audio qui pilote, on decoupe
+  /// l'audio puis on affiche le texte ». `DecoupeAudioService` fait passer
+  /// l'audio du recitateur dans l'aligneur du modele : les frontieres de mots
+  /// en sortent, et les silences s'en deduisent.
+  ///
+  /// `null` tant que le calcul n'a pas abouti -- et il peut ne jamais aboutir
+  /// (recitateur sans fichier local, audio illisible). Le repli est alors le
+  /// comportement d'avant, inchange : les coupes d'Afasy. Degrade, jamais
+  /// casse -- meme discipline que le reste de ce fichier.
+  List<int>? _coupesMesurees;
+
+  /// La decoupe complete -- les bornes en MILLISECONDES de chaque mot.
+  ///
+  /// ── POURQUOI ON GARDE LES MILLISECONDES (2026-09-06) ───────────────────
+  ///
+  /// `_coupesMesurees` ne porte que des INDEX, et un index ne suffit pas :
+  /// pour jouer l'audio, il faudrait alors ressortir chercher « ou finit le
+  /// mot 6 » dans une autre source -- les segments d'Al-Afasy, ou l'estimation
+  /// ponderee. C'est exactement la ou naissait l'ecart signale depuis le
+  /// 2026-08-27 (« il y a toujours un ecart entre l'audio qui recite et le
+  /// texte »), et que le commentaire de `_jouerAudioUnite` disait ne pas
+  /// pouvoir trancher depuis le code seul.
+  ///
+  /// Diagnostic de l'utilisateur : « ta methode genere des ecarts entre texte
+  /// et audio, oublie les 6 mots ». En gardant les millisecondes issues du
+  /// MEME alignement que les coupes, l'ecart devient structurellement
+  /// impossible : le texte s'arrete apres le mot 6 et l'audio s'arrete a la
+  /// fin du mot 6, la meme valeur, jamais recalculee.
+  DecoupeVerset? _decoupe;
+
+  /// Chemin local du fichier de sourate, retenu avec la decoupe : les bornes
+  /// en ms ne valent que pour CE fichier.
+  String? _cheminAudio;
+
   List<int> get _finsUnite {
     final preset = ref.read(judgementOptionsProvider).preset;
     final dernier = _words.length - 1;
@@ -198,10 +246,11 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
       if (fins.isEmpty || fins.last != dernier) fins.add(dernier);
       return fins;
     }
-    final coupes = CoupesPalierService.instance
-        .coupes(widget.verse.surahNumber, widget.verse.ayahNumber)
-        .where((i) => i >= 0 && i < dernier)
-        .toList();
+    // La mesure d'ABORD, l'asset ensuite. Cf. `_coupesMesurees`.
+    final source = _coupesMesurees ??
+        CoupesPalierService.instance
+            .coupes(widget.verse.surahNumber, widget.verse.ayahNumber);
+    final coupes = source.where((i) => i >= 0 && i < dernier).toList();
     return [...coupes, dernier];
   }
 
@@ -316,6 +365,7 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     // On attend donc les coupes AVANT de calculer la première fenêtre. Le
     // `setState` n'a plus lieu d'être : les coupes sont là avant le premier
     // `_startRound`, il n'y a plus rien à rafraîchir après coup.
+    unawaited(_mesurerCoupes());
     CoupesPalierService.instance.ensureLoaded().then((_) {
       if (mounted) _startRound(playAudio: true);
     });
@@ -403,8 +453,28 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
       if (!joue) {
         await Mp3QuranWordSegments.instance.ensureLoaded();
         if (!mounted) return;
-        joue = await WordCorrectionAudio.playWordWindow(widget.verse, reciter,
-            startWordIdx: start, endWordIdx: end);
+        // ── LES MEMES BORNES QUE LE TEXTE (2026-09-06) ─────────────────
+        //
+        // Quand la decoupe mesuree existe, on joue les millisecondes qu'elle a
+        // produites -- pas un index que `playWordWindow` irait retraduire en
+        // temps depuis une AUTRE source. Cf. `_decoupe` pour l'ecart que cela
+        // supprime, et `WordCorrectionAudio.playRangeMs` qui ne consulte aucun
+        // minutage.
+        //
+        // Repli inchange si la mesure manque : `playWordWindow`, comme avant.
+        final d = _decoupe;
+        final chemin = _cheminAudio;
+        final bd = (d != null && start < d.mots.length) ? d.mots[start] : null;
+        final bf = (d != null && end < d.mots.length) ? d.mots[end] : null;
+        if (chemin != null && bd != null && bf != null &&
+            bd.localise && bf.localise) {
+          joue = await WordCorrectionAudio.playRangeMs(
+              chemin, bd.debutMs, bf.finMs,
+              etiquette: '${widget.verse.key} palier mots $start..$end');
+        } else {
+          joue = await WordCorrectionAudio.playWordWindow(widget.verse, reciter,
+              startWordIdx: start, endWordIdx: end);
+        }
         if (!mounted) return;
       }
       // ── TEXTE ET AUDIO DANS LA MÊME LIGNE (2026-08-27) ──────────────────
@@ -521,6 +591,63 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
       riwaya: ref.read(recitationProvider).riwaya,
       onWordContested: () => ref.invalidate(portionsProvider),
     );
+  }
+
+  /// Demande la decoupe mesuree de ce verset et l'installe si elle aboutit.
+  ///
+  /// BORNEE AUX RECITATEURS SERVIS PAR MP3QURAN, et c'est voulu : eux seuls ont
+  /// a la fois un fichier de sourate local et des bornes de verset MESUREES
+  /// (`ayatTiming`). Pour les autres -- everyayah, un fichier par verset -- il
+  /// faudrait un autre chemin d'acces a l'audio ; tant qu'il n'existe pas, ils
+  /// gardent le comportement d'avant plutot qu'une demi-mesure.
+  ///
+  /// Best-effort de bout en bout : tout echec laisse `_coupesMesurees` a `null`,
+  /// donc le palier retombe sur les coupes d'Afasy. Rien ne doit empecher un
+  /// palier de demarrer.
+  Future<void> _mesurerCoupes() async {
+    try {
+      final r = ref.read(playerProvider).reciter;
+      if (!Mp3QuranApi.sertCeReciter(r.id)) return;
+      final s = widget.verse.surahNumber;
+      final a = widget.verse.ayahNumber;
+      final timing = await Mp3QuranApi.ayatTiming(s,
+          read: Mp3QuranApi.readPour(r.id) ?? 123);
+      AyahTiming? t;
+      for (final e in timing) {
+        if (e.ayah == a) { t = e; break; }
+      }
+      if (t == null) return;
+      final chemin = await Mp3QuranApi.fichierLocalSourate(r.id, s);
+      final d = await DecoupeAudioService.instance.pour(
+        reciterId: r.id, surah: s, ayah: a,
+        chemin: chemin, debutMs: t.startMs, finMs: t.endMs,
+        mots: _words,
+      );
+      if (d == null || !mounted) return;
+      // ── UN SEUL MOT NON LOCALISE INVALIDE LA DECOUPE ────────────────────
+      //
+      // Les coupes sont des INDEX DE MOTS : si un mot n'a pas ete place, tous
+      // ceux qui suivent peuvent l'etre de travers, et un palier coupe au
+      // mauvais endroit est pire que l'approximation qu'on remplace. On exige
+      // donc que TOUS les mots soient localises -- sinon on ne prend rien.
+      if (d.localises != _words.length) {
+        DiagnosticLog.log('Decoupe',
+            'palier $s:$a : ${d.localises}/${_words.length} mot(s) localise(s) '
+            '-> decoupe mesuree ECARTEE, repli sur les coupes de reference');
+        return;
+      }
+      final fins = d.coupes.map((c) => c.apres).toList()..sort();
+      setState(() {
+        _coupesMesurees = fins;
+        _decoupe = d;
+        _cheminAudio = chemin;
+      });
+      DiagnosticLog.log('Decoupe',
+          'palier $s:$a : ${fins.length} coupe(s) MESUREE(S) sur la voix de '
+          '${r.nameFr} -> fins=$fins');
+    } catch (e) {
+      DiagnosticLog.log('Decoupe', 'mesure des coupes ignoree : $e');
+    }
   }
 
   List<RecitedWord> _motsAvecEssaiPrecedent(List<RecitedWord> courants) {

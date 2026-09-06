@@ -1380,6 +1380,145 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // Ne touche a rien du chemin v1 : aucun etat partage, aucune
             // instance commune. Les deux chaines peuvent coexister le temps de
             // la comparaison a WAV identique.
+            // ── L'AUDIO PILOTE, LE TEXTE SUIT (2026-09-06) ────────────────
+            //
+            // Proposition de l'utilisateur, apres avoir entendu le decalage :
+            // « le texte ne correspond pas a l'audio, l'audio dit un peu plus ;
+            // je suis plus pour l'audio car il s'arrete au bon moment des waqf
+            // ou silence, alors que le texte non ». Puis : « il faut juste
+            // partir d'un pour deduire l'autre au lieu d'avoir deux chemins --
+            // en premier l'audio qui pilote, on decoupe l'audio puis on affiche
+            // le texte ».
+            //
+            // CE QUE CA REMPLACE. Trois mecaniques independantes coexistaient :
+            // `coupes_palier_afasy.json` (coupes d'energie mesurees sur
+            // l'enregistrement d'AL-AFASY, donc justes pour lui seul), les
+            // timings « ESTIMES (Warsh) -- decoupe ponderee, non mesuree », et
+            // depuis hier une mise a l'echelle par le rapport des durees. Aucune
+            // ne regardait l'audio qui joue reellement.
+            //
+            // CE QUI EXISTAIT DEJA, ET QUE PERSONNE N'AVAIT CROISE : l'aligneur
+            // enregistre `debutAbs`/`finAbs` pour chaque mot -- des positions en
+            // echantillons absolus, prevues pour « reextraire l'audio d'un
+            // verdict apres coup ». Les frontieres etaient donc calculees a
+            // chaque passage, jamais remontees.
+            //
+            // LES COUPES SE DEDUISENT DES MEMES DONNEES, sans second mecanisme :
+            // un trou entre la fin d'un mot et le debut du suivant EST un
+            // silence de ce recitateur-la. C'est litteralement « partir d'un
+            // pour deduire l'autre ».
+            //
+            // AUCUN VERDICT ICI. Cette methode ne juge rien et ne touche pas la
+            // session en cours : elle construit une chaine LOCALE, comme
+            // `v2AnalyserWav`, et ne rend que des positions. Un mot sans preuve
+            // rend `debutMs = -1` -- l'appelant doit alors s'en tenir au
+            // decoupage precedent plutot que de couper au hasard.
+            "v2DecouperVerset" -> scope.launch {
+                try {
+                    val moteur = engine
+                    if (moteur == null) {
+                        withContext(Dispatchers.Main) {
+                            result.error("NOT_LOADED", "loadModel() n'a pas ete appele", null)
+                        }
+                        return@launch
+                    }
+                    val chemin = call.argument<String>("chemin")!!
+                    val debutMs = (call.argument<Number>("debutMs") ?: 0).toLong()
+                    val finMs = (call.argument<Number>("finMs") ?: 0).toLong()
+                    val mots = call.argument<List<String>>("mots")!!
+                    // Silence minimal pour qu'un trou compte comme une coupe.
+                    // 350 ms par defaut : en dessous, on decouperait sur la
+                    // respiration ordinaire entre deux mots, pas sur un waqf.
+                    val silenceMinMs = (call.argument<Number>("silenceMinMs") ?: 350).toInt()
+
+                    val pcm = DecodeurAudio.decoderPlage(chemin, debutMs, finMs)
+                    if (pcm == null || pcm.isEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            result.error("AUDIO", "decodage impossible : " + chemin, null)
+                        }
+                        return@launch
+                    }
+
+                    val tk = CtcTokenizer(moteur.vocabPieces, wordTokenLookupPourRiwaya(moteur))
+                    val chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
+                        front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
+                        tokeniser = { mot -> tk.tokenizeWord(mot) },
+                        variantesOrthographe = variantesOrthographePourRiwaya(moteur),
+                        tokeniserConfusion = { mot -> tk.tokenizeVariantQuiet(mot) },
+                        confusionsLettres = { mot -> ConfusableVariants.lettresOf(mot) },
+                        confusionsHarakat = { mot -> ConfusableVariants.harakatOf(mot) },
+                        constructeur = com.corankarim.coran_karim.recitation2
+                            .ConstructeurDeFenetres(),
+                        localisateur = com.corankarim.coran_karim.recitation2
+                            .Localisateur(moteur.vocabPieces, moteur.blank),
+                        aligneur = com.corankarim.coran_karim.recitation2
+                            .AligneurForce(moteur.vocabPieces, moteur.blank),
+                    )
+                    chaine.definirTexte(mots)
+                    val bloc = com.corankarim.coran_karim.recitation2.Horloge.ECH_PAR_FRAME
+                    val chrono = System.currentTimeMillis()
+                    var i = 0
+                    while (i < pcm.size) {
+                        val fin = minOf(i + bloc, pcm.size)
+                        chaine.alimenter(pcm.copyOfRange(i, fin))
+                        i = fin
+                    }
+                    chaine.terminer()
+
+                    // La MEILLEURE preuve de chaque mot : une observation
+                    // interieure d'abord (le mot etait entierement dans sa
+                    // fenetre), a defaut la derniere qui ait un creneau propre.
+                    // Jamais une observation `sansCreneau` : elle est posee sur
+                    // l'audio d'un voisin, ses bornes ne veulent rien dire.
+                    val taux = com.corankarim.coran_karim.recitation2.Horloge.TAUX
+                    val bornes = mots.indices.map { idx ->
+                        val obs = chaine.preuves.observations(idx)
+                        val o = obs.lastOrNull { it.interieur && !it.sansCreneau }
+                            ?: obs.lastOrNull { !it.sansCreneau && it.debutAbs >= 0 }
+                        if (o == null || o.debutAbs < 0) {
+                            mapOf("i" to idx, "mot" to mots[idx],
+                                  "debutMs" to -1L, "finMs" to -1L)
+                        } else {
+                            mapOf("i" to idx, "mot" to mots[idx],
+                                  "debutMs" to debutMs + (o.debutAbs * 1000L) / taux,
+                                  "finMs" to debutMs + (o.finAbs * 1000L) / taux)
+                        }
+                    }
+
+                    // Les coupes : un trou assez long entre deux mots consecutifs
+                    // dont les DEUX bornes sont connues. `apres` est l'index du
+                    // dernier mot AVANT le silence -- c'est ce que le palier
+                    // attend pour savoir ou s'arreter.
+                    val coupes = ArrayList<Map<String, Any>>()
+                    for (k in 0 until bornes.size - 1) {
+                        val f = bornes[k]["finMs"] as Long
+                        val d = bornes[k + 1]["debutMs"] as Long
+                        if (f < 0 || d < 0) continue
+                        val trou = d - f
+                        if (trou >= silenceMinMs) {
+                            coupes.add(mapOf("apres" to k, "silenceMs" to trou,
+                                             "aMs" to f, "bMs" to d))
+                        }
+                    }
+
+                    val localises = bornes.count { (it["debutMs"] as Long) >= 0 }
+                    DiagnosticLog.log(TAG,
+                        "[decoupe] " + chemin + " " + debutMs + ".." + finMs +
+                        "ms mots=" + mots.size + " localises=" + localises +
+                        " coupes=" + coupes.size +
+                        " en " + (System.currentTimeMillis() - chrono) + "ms")
+
+                    withContext(Dispatchers.Main) {
+                        result.success(mapOf("mots" to bornes, "coupes" to coupes))
+                    }
+                } catch (e: Exception) {
+                    DiagnosticLog.log(TAG, "[decoupe] ECHEC : " + e.message)
+                    withContext(Dispatchers.Main) {
+                        result.error("DECOUPE", e.message, null)
+                    }
+                }
+            }
+
             "v2AnalyserWav" -> scope.launch {
                 try {
                     val moteur = engine

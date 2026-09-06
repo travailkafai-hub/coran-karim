@@ -633,6 +633,87 @@ class WordCorrectionAudio {
   /// wrapper de lisibilité au-dessus de [playWordRange] pour le moteur de
   /// répétition incrémentale (fenêtre de mots à apprendre), qui n'a pas de
   /// notion de "mot fautif" mais veut une plage explicite.
+  /// ── JOUER UNE PLAGE, PAS UN INDEX DE MOT (2026-09-06) ──────────────────
+  ///
+  /// L'ECART QUE CECI SUPPRIME est signale depuis le 2026-08-27, et le
+  /// commentaire de `coach_incremental_repeat` le disait sans pouvoir
+  /// conclure : « il y a toujours un ecart dans la memorisation par palier
+  /// entre l'audio qui recite et le texte [...] la cause restante n'est donc
+  /// pas decidable depuis le code seul ».
+  ///
+  /// Elle l'est. `playWordWindow` prend des INDEX de mots, puis va rechercher
+  /// les millisecondes AILLEURS -- dans les segments d'Al-Afasy, ou dans
+  /// l'estimation ponderee en Warsh. Le texte etait donc coupe d'apres une
+  /// source et l'audio d'apres une autre. Deux nombres qui ne parlaient pas de
+  /// la meme chose.
+  ///
+  /// Diagnostic de l'utilisateur, mot pour mot : « ta methode genere des ecarts
+  /// entre texte et audio, oublie les 6 mots ». Repasser par l'index, c'est
+  /// ressortir chercher le temps ailleurs -- il faut garder les millisecondes
+  /// que l'alignement vient de produire.
+  ///
+  /// Cette methode joue donc une plage BRUTE d'un fichier local. Elle ne
+  /// consulte aucun minutage, aucune estimation, aucun segment : les bornes
+  /// qu'on lui donne sont les bornes qu'elle joue. C'est a l'appelant de les
+  /// tenir de la meme mesure que le texte qu'il affiche -- et c'est exactement
+  /// ce que `DecoupeAudioService` lui fournit.
+  static Future<bool> playRangeMs(
+    String path,
+    int startMs,
+    int endMs, {
+    String etiquette = '',
+  }) async {
+    if (endMs <= startMs) return false;
+    DiagnosticLog.log('Correction-Audio',
+        'plage MESUREE $etiquette : startMs=$startMs endMs=$endMs '
+        '(duree=${endMs - startMs} ms) source=$path');
+
+    final completer = Completer<void>();
+    late final StreamSubscription posSub;
+    late final StreamSubscription doneSub;
+    void finish() {
+      posSub.cancel();
+      doneSub.cancel();
+      if (!completer.isCompleted) completer.complete();
+    }
+    // `amorce` : meme garde qu'ailleurs dans ce fichier -- `audioplayers`
+    // continue d'emettre la DERNIERE position connue tant que le
+    // repositionnement n'a pas pris effet, et le test de fin serait vrai
+    // immediatement. Cf. le defaut du 2026-08-18, qui ne faisait plus rien
+    // entendre du tout.
+    var amorce = false;
+    posSub = _player.onPositionChanged.listen((pos) {
+      if (!amorce) {
+        if (pos.inMilliseconds < endMs) amorce = true;
+        return;
+      }
+      if (pos.inMilliseconds >= endMs) {
+        _player.pause();
+        finish();
+      }
+    });
+    doneSub = _player.onPlayerComplete.listen((_) => finish());
+
+    await _faireTaireLeMushaf();
+    final depart = DateTime.now();
+    await _player.stop();
+    await _player.play(DeviceFileSource(path),
+        position: Duration(milliseconds: startMs));
+    await completer.future.timeout(_plafondLecture(endMs - startMs),
+        onTimeout: () {
+      posSub.cancel();
+      doneSub.cancel();
+      _player.pause();
+      DiagnosticLog.log('Correction-Audio',
+          'plage MESUREE $etiquette : TRONQUEE au plafond '
+          '(demande=${endMs - startMs} ms)');
+    });
+    final reel = DateTime.now().difference(depart).inMilliseconds;
+    DiagnosticLog.log('Correction-Audio',
+        'plage MESUREE $etiquette : demande=${endMs - startMs} ms reel=$reel ms');
+    return true;
+  }
+
   static Future<bool> playWordWindow(
     Verse verse,
     Reciter reciter, {
