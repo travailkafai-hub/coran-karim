@@ -501,8 +501,37 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
         final bf = (d != null && end < d.mots.length) ? d.mots[end] : null;
         if (chemin != null && bd != null && bf != null &&
             bd.localise && bf.localise) {
+          // ── LE DERNIER MOT GARDE SA QUEUE (2026-09-06) ───────────────
+          //
+          // Constat utilisateur : « la coupe audio est plutot bien, c'est la
+          // coupe texte qui ne suit pas bien -- parfois en palier c'est un mot
+          // de plus ». Le texte a un mot de plus que ce qu'on ENTEND.
+          //
+          // L'alignement pose la fin d'un mot sur sa derniere frame
+          // ACOUSTIQUE -- 80 ms de resolution -- pas sur la fin de sa
+          // resonance : la queue d'un madd final, le souffle d'un ha. Couper
+          // pile la tronque le dernier mot, qui s'entend alors a moitie et
+          // semble absent.
+          //
+          // On va donc jusqu'au MILIEU du silence qui suit, quand le mot
+          // suivant est connu. C'est exactement la regle que
+          // `ConstructeurDeFenetres` applique deja a ses blocs : « un bloc va
+          // d'un milieu de silence au milieu du silence suivant ; ses deux
+          // bords sont dans du silence, jamais en plein mot ». Bornee a 400 ms
+          // pour ne pas mordre sur le mot d'apres quand le silence est long.
+          final apres = (d != null && end + 1 < d.mots.length)
+              ? d.mots[end + 1]
+              : null;
+          var finMs = bf.finMs;
+          if (apres != null && apres.localise && apres.debutMs > bf.finMs) {
+            final moitie = (apres.debutMs - bf.finMs) ~/ 2;
+            finMs = bf.finMs + (moitie > 400 ? 400 : moitie);
+          } else {
+            // Fin de verset : rien apres, on ajoute une marge fixe modeste.
+            finMs = bf.finMs + 250;
+          }
           joue = await WordCorrectionAudio.playRangeMs(
-              chemin, bd.debutMs, bf.finMs,
+              chemin, bd.debutMs, finMs,
               etiquette: '${widget.verse.key} palier mots $start..$end');
         } else {
           joue = await WordCorrectionAudio.playWordWindow(widget.verse, reciter,

@@ -54,19 +54,32 @@ class CoupesTexteService {
   /// coupe : il en SUPPRIME.
   static const _waqfMamnu = 0x06D9;
 
-  /// ── LES PARTICULES QUI OUVRENT TOUJOURS UNE PROPOSITION ─────────────────
+  /// ── LES MOTS QUI OUVRENT UNE PROPOSITION (2026-09-06) ───────────────────
   ///
   /// Seconde moitié de la demande : couper avant une liaison, même sans
-  /// silence. La règle générale exigerait de savoir si le mot est un verbe --
-  /// sur 6:1, `وَجَعَلَ` (و + VERBE) ouvre une proposition tandis que
-  /// `وَٱلنُّورَ` (و + NOM) prolonge la précédente. Couper avant chaque `و`
-  /// donnerait des coupes après les mots 4, 5 et 7 au lieu des 5 et 8
-  /// attendus : la sur-découpe est pire que l'absence de découpe.
+  /// silence. La difficulté était de distinguer les deux emplois de `و` --
+  /// sur 6:1, `وَجَعَلَ` (و + verbe) ouvre une proposition tandis que
+  /// `وَٱلنُّورَ` (و + nom) prolonge la précédente. Couper avant chaque `و`
+  /// donnait des coupes après les mots 4, 5 et 7 au lieu des 5 et 8 attendus.
   ///
-  /// On s'en tient donc à une LISTE FERMÉE de mots qui ouvrent une proposition
-  /// quoi qu'il suive, et le `و` seul n'en fait volontairement pas partie.
-  /// C'est le sous-ensemble sûr de la règle, en attendant une source
-  /// morphologique qui permettrait de la rendre exacte.
+  /// LA RÈGLE N'EST PAS GRAMMATICALE, ELLE EST ORTHOGRAPHIQUE : `و`/`ف` suivi
+  /// de l'ARTICLE DÉFINI `ال` coordonne un NOM, donc prolonge la phrase. Sans
+  /// article, la liaison ouvre. Deux caractères suffisent à trancher, aucune
+  /// morphologie n'est nécessaire.
+  ///
+  ///     وَٱلْأَرْضَ   → و + ال   → coordination      → pas de coupe avant
+  ///     وَجَعَلَ      → و + verbe → nouvelle prop.   → coupe avant
+  ///     وَٱلنُّورَ    → و + ال   → coordination      → pas de coupe avant
+  ///     ثُمَّ         → particule                    → coupe avant
+  ///
+  /// Vérifié sur 6:1 : la règle rend exactement `[5, 8]`, les arrêts que
+  /// l'utilisateur fait à voix haute. Ampleur : 15 080 mots du Coran
+  /// commencent par `و` ou `ف`, dont 13 636 (90 %) sans article défini.
+  ///
+  /// ⚠️ CE N'EST PAS EXACT, C'EST SUFFISANT. Un `و` + nom SANS article
+  /// (`وَرَبُّكَ`) sera pris pour une ouverture ; c'est le prix de ne pas
+  /// dépendre d'un asset morphologique. La règle de distance ci-dessous
+  /// rattrape l'essentiel de ces cas.
   ///
   /// Comparés sur la forme NORMALISÉE (sans harakat) : le même mot s'écrit
   /// avec des diacritiques différentes selon le contexte et la riwaya.
@@ -112,6 +125,57 @@ class CoupesTexteService {
     };
   }
 
+  /// Alefs sous toutes leurs formes -- l'article défini s'écrit `ال`, `أل`,
+  /// `ٱل`… selon la vocalisation et la riwaya.
+  static const _alefs = 'اأإآٱ';
+
+  /// Le mot [n] (déjà normalisé) ouvre-t-il une proposition ?
+  ///
+  /// Cf. la doc de [_particules] pour la règle de l'article défini, qui est
+  /// tout l'intérêt de cette fonction.
+  static bool _ouvreUneProposition(String n) {
+    if (_particules.contains(n)) return true;
+    if (n.isEmpty) return false;
+    final c = n[0];
+    if (c != 'و' && c != 'ف') return false;
+    final reste = n.substring(1);
+    // Une liaison seule (`و` isolé) n'ouvre rien : il faut un mot derrière.
+    if (reste.length < 2) return false;
+    // و/ف + ARTICLE DÉFINI : coordination d'un nom, la phrase continue.
+    if (_alefs.contains(reste[0]) && reste[1] == 'ل') return false;
+    return true;
+  }
+
+  /// ── DISTANCE MINIMALE ENTRE DEUX COUPES (2026-09-06) ────────────────────
+  ///
+  /// Règle de l'utilisateur : « on coupe, puis si une autre de cette liste est
+  /// à moins de 4 mots, on ne coupe pas ». Elle protège de la fragmentation --
+  /// une liaison peut en suivre une autre de très près, et un palier de deux
+  /// mots ne fait travailler personne.
+  ///
+  /// On garde la PREMIÈRE de chaque groupe rapproché, telle que la règle est
+  /// formulée : on coupe, PUIS on ignore ce qui suit de trop près.
+  ///
+  /// ── TROIS, ET C'EST SON PROPRE EXEMPLE QUI LE FIXE (2026-09-06) ─────────
+  ///
+  /// La règle a été énoncée avec 4. Mesuré sur les deux versets qu'il a
+  /// donnés, 4 est trop grand : ses arrêts de 6:1 sont les mots **5 et 8**,
+  /// soit exactement 3 mots d'écart -- un seuil de 4 supprimerait le second.
+  ///
+  ///     seuil | 6:1              | 13:2
+  ///       2   | [5, 8]  ✓        | laisse un palier de 2 mots
+  ///       3   | [5, 8]  ✓        | paliers de 6, 5, 3, 4, 8 mots
+  ///       4   | [5]     ✗        | 6, 5, 7, 8
+  ///
+  /// ── ET ELLE S'APPLIQUE À TOUTES LES COUPES, PAS QU'AUX LIAISONS ─────────
+  ///
+  /// Première version : les waqf en étaient exemptés, au motif qu'« un waqf du
+  /// texte est une autorité ». 13:2 l'a réfuté -- le Warsh y marque après le
+  /// mot 5 et le Hafs après le 6, à UN mot d'écart, ce qui produisait un
+  /// palier d'un seul mot (`تَرَوْنَهَا`). Deux autorités qui se suivent de
+  /// trop près ne font pas deux arrêts : elles en font un.
+  static const _distanceMin = 3;
+
   /// Index des mots APRÈS lesquels le texte autorise un arrêt.
   ///
   /// [motsAttendus] : le nombre de mots tel que l'app le découpe. Sert de
@@ -133,10 +197,10 @@ class CoupesTexteService {
       out.addAll(_positions(w, _waqfTous));
     }
 
-    // Une particule ouvre une proposition : la coupe se pose AVANT elle, donc
+    // Une liaison ouvre une proposition : la coupe se pose AVANT elle, donc
     // après le mot qui la précède.
     for (var i = 1; i < motsHafs.length; i++) {
-      if (_particules.contains(ArabicNormalizer.normalize(motsHafs[i]))) {
+      if (_ouvreUneProposition(ArabicNormalizer.normalize(motsHafs[i]))) {
         out.add(i - 1);
       }
     }
@@ -144,7 +208,17 @@ class CoupesTexteService {
     // `mamnu` retire, toujours en dernier : quelle que soit la source qui l'a
     // proposée, une position où le tajwid interdit l'arrêt n'en est pas une.
     out.removeAll(interdites);
-    final r = out.where((i) => i >= 0 && i < motsAttendus - 1).toList()..sort();
+    // La distance minimale s'applique EN DERNIER, sur l'ensemble : waqf et
+    // liaisons confondus (cf. `_distanceMin`).
+    final tries = out.where((i) => i >= 0 && i < motsAttendus - 1).toList()
+      ..sort();
+    final r = <int>[];
+    var derniere = -_distanceMin;
+    for (final i in tries) {
+      if (i - derniere < _distanceMin) continue;
+      r.add(i);
+      derniere = i;
+    }
     return r;
   }
 
