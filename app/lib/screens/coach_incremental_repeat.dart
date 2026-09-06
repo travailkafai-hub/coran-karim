@@ -54,6 +54,7 @@ import '../providers/app_settings_provider.dart'
     show coachControleCumulatifProvider;
 import '../services/coupes_palier_service.dart';
 import '../services/decoupe_audio_service.dart';
+import '../services/coupes_texte_service.dart';
 import '../models/reciter.dart';
 import '../services/mp3quran_api.dart' show Mp3QuranWordSegments, Mp3QuranApi, AyahTiming;
 import '../services/diagnostic_log.dart';
@@ -246,11 +247,39 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
       if (fins.isEmpty || fins.last != dernier) fins.add(dernier);
       return fins;
     }
-    // La mesure d'ABORD, l'asset ensuite. Cf. `_coupesMesurees`.
-    final source = _coupesMesurees ??
-        CoupesPalierService.instance
-            .coupes(widget.verse.surahNumber, widget.verse.ayahNumber);
-    final coupes = source.where((i) => i >= 0 && i < dernier).toList();
+    // ── TROIS SOURCES, UNE UNION (2026-09-06) ─────────────────────────
+    //
+    // Aucune ne suffit seule, et 6:1 le montre : l'utilisateur s'y arrete
+    // apres `وَٱلْأَرْضَ` (5), `وَٱلنُّورَ` (8) et `يَعْدِلُونَ` (13). Or le
+    // silence mesure chez Al-Afasy ne donne que le 8 -- il ne s'arrete pas
+    // apres `وَٱلْأَرْضَ` -- le waqf Hafs donne le 8, le waqf Warsh le 13.
+    //
+    //   1. LA VOIX (`_coupesMesurees`) : ou CE recitateur se tait vraiment.
+    //      La plus fidele quand elle existe, mais muette sur les arrets que
+    //      le recitateur ne marque pas.
+    //   2. LE TEXTE (`CoupesTexteService`) : waqf Hafs UNION Warsh, moins les
+    //      `mamnu`, plus les particules qui ouvrent une proposition. Couvre
+    //      5 202 versets contre 2 637 pour le Hafs seul.
+    //   3. LES COUPES DE REFERENCE (`CoupesPalierService`) : l'asset mesure
+    //      sur Al-Afasy. Conserve en dernier ressort -- il a l'avantage
+    //      d'exister partout, y compris quand les deux autres se taisent.
+    //
+    // ON UNIT PLUTOT QU'ON CHOISIT. Une coupe de trop fait un palier plus
+    // court : c'est un desagrement. Une coupe manquante fait reciter au-dela
+    // de ce qui est affiche : c'est le defaut qu'on corrige. Les deux
+    // n'ont pas le meme poids.
+    final t1 = _coupesMesurees ?? const <int>[];
+    final t2 = CoupesTexteService.instance
+        .coupes(widget.verse.surahNumber, widget.verse.ayahNumber,
+                _words.length);
+    final t3 = (t1.isEmpty && t2.isEmpty)
+        ? CoupesPalierService.instance
+            .coupes(widget.verse.surahNumber, widget.verse.ayahNumber)
+        : const <int>[];
+    final coupes = {...t1, ...t2, ...t3}
+        .where((i) => i >= 0 && i < dernier)
+        .toList()
+      ..sort();
     return [...coupes, dernier];
   }
 
@@ -366,6 +395,10 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     // `setState` n'a plus lieu d'être : les coupes sont là avant le premier
     // `_startRound`, il n'y a plus rien à rafraîchir après coup.
     unawaited(_mesurerCoupes());
+    // Les waqf du texte : sans reseau, sans modele, disponibles aussitot.
+    CoupesTexteService.instance.ensureLoaded().then((_) {
+      if (mounted) setState(() {});
+    });
     CoupesPalierService.instance.ensureLoaded().then((_) {
       if (mounted) _startRound(playAudio: true);
     });
