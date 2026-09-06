@@ -385,13 +385,26 @@ class WordCorrectionAudio {
     // POUR LEVER CETTE LIMITE : refaire tourner l'aligneur force sur leur
     // audio et livrer un asset par recitateur -- exactement ce qui a ete fait
     // pour Afasy en aout (6 236 versets, 77 433 mots).
-    if (reciter.id != 7) {
-      DiagnosticLog.log('Correction-Audio',
-          'ABANDON verset=${verse.key} : segments mot-a-mot disponibles pour '
-          'Al-Afasy seulement, recitateur=${reciter.id} (${reciter.nameFr}) '
-          '-> pas de correction audible, plutot qu un extrait faux');
-      return false;
-    }
+    // ── GARDE RETIRE LE 2026-09-06, SUR UN ARGUMENT DE L'UTILISATEUR ─────
+    //
+    // J'avais pose ici un abandon pur : « segments d'Afasy, donc pas de
+    // correction sur les autres voix ». L'utilisateur l'a leve, et son
+    // raisonnement corrige le mien : « le mot a mot n'est pas vraiment mot a
+    // mot, on rajoute un peu, du coup ca retombe sur le mot ».
+    //
+    // C'est exact, et pour deux raisons qui se cumulent. D'abord l'extrait
+    // n'est jamais un mot isole : `wordsBefore`/`wordsAfter` et
+    // `etendreAuxMotsContigusEnErreur` l'elargissent deja aux voisins, donc
+    // une bordure approximative reste dans la plage jouee. Ensuite l'erreur
+    // est BORNEE AU VERSET : les segments sont RELATIFS au verset et se
+    // combinent au debut ABSOLU donne par `ayatTiming`, qui est desormais
+    // celui du bon recitateur -- rien ne se cumule d'un verset au suivant.
+    //
+    // CE QUI RESTE VRAI, et qu'il faut savoir : la position du mot DANS le
+    // verset vient d'Al-Afasy. Sur un mujawwad, beaucoup plus lent, l'extrait
+    // peut tomber a cote sur un verset long. Si ca gene, la correction tient
+    // en une mise a l'echelle des segments par le rapport des durees de
+    // verset -- les deux valeurs sont deja disponibles ici.
     await Mp3QuranWordSegments.instance.ensureLoaded();
     final segments = Mp3QuranWordSegments.instance
         .segmentsForVerse(verse.surahNumber, verse.ayahNumber);
@@ -436,9 +449,51 @@ class WordCorrectionAudio {
       return false;
     }
 
+    // ── LES SEGMENTS D'AFASY, MIS A L'ECHELLE DU RECITATEUR ──────────────
+    // (2026-09-06, idee de l'utilisateur : « en prenant comme reference le
+    // timing de l'autre recitateur »)
+    //
+    // Les segments viennent d'Al-Afasy et sont RELATIFS au verset. Sur un
+    // mujawwad, beaucoup plus lent, le mot 12 d'un verset ne tombe pas au meme
+    // instant : plus le verset est long, plus l'ecart grandit. Le rapport des
+    // DUREES DE VERSET donne exactement le facteur qui les recale -- les deux
+    // valeurs viennent de la meme API, chacune pour sa voix.
+    //
+    // POURQUOI CA SUFFIT LA PLUPART DU TEMPS : l'erreur qui reste est celle du
+    // RYTHME INTERNE (une pause plus longue ici, une lettre tenue la), pas
+    // celle du debit global -- et l'extrait joue est deja elargi aux voisins,
+    // donc elle retombe sur le mot. C'est le geste le moins cher qui traite
+    // l'essentiel ; l'alignement force sur l'audio reel (`v2AnalyserWav`
+    // existe deja) reste la voie exacte, mais il demande de decoder le MP3 en
+    // PCM 16 kHz sur l'appareil, ce que rien ne sait faire ici aujourd'hui.
+    //
+    // Facteur borne a [0,5 ; 2,5] : au-dela, c'est que l'un des deux minutages
+    // est faux, et mieux vaut un extrait non recale qu'un extrait projete
+    // n'importe ou. Le facteur est journalise pour qu'on puisse le lire.
+    var echelle = 1.0;
+    if (reciter.id != 7) {
+      try {
+        final refAfasy = await Mp3QuranApi.ayatTiming(verse.surahNumber, read: 123);
+        for (final e in refAfasy) {
+          if (e.ayah != verse.ayahNumber) continue;
+          final dRef = e.endMs - e.startMs;
+          final dIci = t.endMs - t.startMs;
+          if (dRef > 500 && dIci > 500) {
+            echelle = (dIci / dRef).clamp(0.5, 2.5);
+          }
+          break;
+        }
+      } catch (e) {
+        DiagnosticLog.log('Correction-Audio',
+            'echelle NON APPLIQUEE verset=${verse.key} : $e '
+            '-> segments d Afasy tels quels');
+      }
+    }
+
     final debutAbsoluVerset = t.startMs;
-    final startMs = debutAbsoluVerset + segments[fromIdx][0].round();
-    var endMs = debutAbsoluVerset + segments[toIdx][1].round();
+    final startMs =
+        debutAbsoluVerset + (segments[fromIdx][0] * echelle).round();
+    var endMs = debutAbsoluVerset + (segments[toIdx][1] * echelle).round();
     if (facteurDuree < 1.0 && endMs > startMs) {
       final pleine = endMs - startMs;
       final reduite = (pleine * facteurDuree).round();
@@ -447,7 +502,8 @@ class WordCorrectionAudio {
 
     DiagnosticLog.log('Correction-Audio', 'verset=${verse.key} (MP3Quran) '
         'errorWordIndex=$errorWordIndex fromIdx=$fromIdx toIdx=$toIdx '
-        'startMs=$startMs endMs=$endMs source=$path');
+        'startMs=$startMs endMs=$endMs echelle=${echelle.toStringAsFixed(2)} '
+        'source=$path');
 
     final completer = Completer<void>();
     late final StreamSubscription posSub;
