@@ -1701,12 +1701,66 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
      *  ConfusableVariants, ForcedAligner.WordResult.rescoreMargin). Tokenisation
      *  SILENCIEUSE (tokenizeVariantQuiet) : les variantes sont volontairement
      *  hors-Coran, presque aucune n'est dans le dictionnaire precalcule. */
-    private fun buildVariants(words: List<String>): List<List<Pair<String, IntArray>>> {
-        val tok = tokenizer ?: return words.map { emptyList() }
-        return words.map { w ->
-            ConfusableVariants.variantsOf(w).map { v -> v to tok.tokenizeVariantQuiet(v) }
+    /**
+     * Variantes de confusion de chaque mot de la cible, calculees A LA DEMANDE.
+     *
+     * ── CE QUE CETTE PARESSE CORRIGE (2026-09-07) ─────────────────────────
+     *
+     * Defaut signale par l'utilisateur : « suivre priere, l'app a bugue ». Le
+     * journal s'arrete NET sur `cible d'alignement : 3747 mots, ancre=0`, sans
+     * une ligne apres -- alors que la veille la meme session continuait.
+     *
+     * CE QUI SE PASSAIT : apres avoir reconnu la sourate, le mode priere pose
+     * comme cible la sourate ENTIERE. Al-Fatiha fait 29 mots, An-Nisa 3 747.
+     * `buildVariants` construisait alors, d'un coup et sur le thread appelant,
+     * les variantes confusables de CHAQUE mot puis les tokenisait :
+     *
+     *     Al-Fatiha :     856 tokenisations  -> instantane
+     *     An-Nisa   :  97 077 tokenisations  -> gel
+     *
+     * Un facteur 113. Et la quasi-totalite de ces variantes sont des mots
+     * volontairement hors-Coran, donc absentes du dictionnaire precalcule :
+     * chacune part en repli glouton, qui parcourt le mot caractere par
+     * caractere en cherchant la plus longue piece a chaque position.
+     *
+     * ── CE QUI EST FAIT, ET CE QUI NE CHANGE PAS ──────────────────────────
+     *
+     * Le contenu est IDENTIQUE : meme mot, memes variantes, memes jetons. Seul
+     * le MOMENT du calcul change -- il a lieu quand l'aligneur lit l'entree, et
+     * `ForcedAligner` ne lit que la tranche qu'il aligne (`maxAlignWords`, 80
+     * mots). Sur une sourate entiere, on calcule donc quelques dizaines
+     * d'entrees au lieu de 3 747.
+     *
+     * Le resultat est memorise : un mot deja lu ne se recalcule pas, et le
+     * Coran repete beaucoup. Aucune signature ne bouge -- c'est toujours une
+     * `List<List<Pair<String, IntArray>>>`, l'aligneur ne voit aucune
+     * difference.
+     *
+     * ⚠️ CE N'EST PAS UNE OPTIMISATION DE CONFORT : sans elle, le mode priere
+     * gele des que la sourate reconnue est longue. Les 97 077 tokenisations
+     * n'etaient pas seulement lentes, elles etaient INUTILES a 98 % -- on
+     * n'aligne jamais plus de 80 mots a la fois.
+     */
+    private class VariantesParesseuses(
+        private val mots: List<String>,
+        private val tok: CtcTokenizer?,
+    ) : AbstractList<List<Pair<String, IntArray>>>() {
+        private val cache = HashMap<Int, List<Pair<String, IntArray>>>()
+        override val size: Int get() = mots.size
+        override fun get(index: Int): List<Pair<String, IntArray>> {
+            cache[index]?.let { return it }
+            val t = tok ?: return emptyList()
+            val v = ConfusableVariants.variantsOf(mots[index])
+                .map { x -> x to t.tokenizeVariantQuiet(x) }
+            // Synchronise : l'aligneur tourne sur le thread audio, et la pose
+            // de cible peut venir du thread principal.
+            synchronized(cache) { cache[index] = v }
+            return v
         }
     }
+
+    private fun buildVariants(words: List<String>): List<List<Pair<String, IntArray>>> =
+        VariantesParesseuses(words, tokenizer)
 
     /**
      * Alimente la chaine v2 et rend les mots dont le STATUT A CHANGE.
