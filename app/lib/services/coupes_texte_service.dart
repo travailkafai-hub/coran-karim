@@ -256,7 +256,36 @@ class CoupesTexteService {
   /// [motsAttendus] : le nombre de mots tel que l'app le découpe. Sert de
   /// garde-fou -- une position au-delà est le signe d'un désaccord de
   /// découpage, on la jette plutôt que de couper au mauvais endroit.
-  List<int> coupes(int surah, int ayah, int motsAttendus) {
+  /// ── L'ASSET EST CALCULE SUR LE HAFS (2026-09-06) ────────────────────────
+  ///
+  /// Signale par l'audit (QUAL-02) : `coupes()` ne recevait pas la riwaya, donc
+  /// des index calcules sur le texte Hafs pouvaient servir en Warsh.
+  ///
+  /// MESURE, avant de decider quoi que ce soit. Les deux textes decoupent le
+  /// meme nombre de mots sur 6 230 versets sur 6 236. Sur les six autres,
+  /// QUATRE sont dans l'asset, et sur ces quatre, DEUX coupes seulement
+  /// tombent sur un mot different :
+  ///
+  ///     15:7   coupe apres le mot 3 : Hafs `بِٱلْمَلَـٰٓئِكَةِ` / Warsh `إِن`
+  ///     41:51  coupe apres le mot 9 : Hafs `ٱلشَّرُّ`         / Warsh `فَذُو`
+  ///
+  /// Deux coupes fausses sur 4 497 versets. Le constat est donc JUSTE dans son
+  /// principe -- rien ne garantissait la correspondance -- et tres petit dans
+  /// son ampleur. On le ferme quand meme : deux coupes fausses restent deux
+  /// endroits ou le texte affiche ne correspond pas a ce qu'on demande de
+  /// reciter, et c'est exactement le defaut qu'on vient de passer la journee a
+  /// supprimer.
+  ///
+  /// COMMENT : l'appelant passe sa riwaya. En Warsh, l'asset n'est utilise que
+  /// si les deux textes s'accordent sur le nombre de mots -- sinon on rend une
+  /// liste vide et le palier retombe sur ses autres sources. Un asset Warsh
+  /// dedie serait plus juste ; il demanderait de refaire l'analyse globale sur
+  /// ce texte, ce qui n'est pas justifie par deux coupes.
+  ///
+  /// [estWarsh] : `false` par defaut, pour que les appelants historiques ne
+  /// changent pas de comportement.
+  List<int> coupes(int surah, int ayah, int motsAttendus,
+      {bool estWarsh = false}) {
     // ── L'ASSET D'ABORD (2026-09-06) ────────────────────────────────────
     //
     // Il porte le résultat de l'analyse GLOBALE -- groupes figés compris, ce
@@ -265,6 +294,18 @@ class CoupesTexteService {
     // qu'il ne couvre pas.
     final precalcule = _asset?['$surah:$ayah'];
     if (precalcule != null) {
+      // En Warsh, l'asset (calcule sur le Hafs) n'est applicable que si les
+      // deux textes decoupent le meme nombre de mots -- cf. la doc ci-dessus.
+      if (estWarsh) {
+        final h = _hafs?['$surah:$ayah'];
+        final w = _warsh?['$surah:$ayah'];
+        if (h == null ||
+            w == null ||
+            ArabicNormalizer.splitExpectedWords(h).length !=
+                ArabicNormalizer.splitExpectedWords(w).length) {
+          return const [];
+        }
+      }
       // Garde-fou identique au calcul local : une position hors bornes est le
       // signe d'un désaccord de découpage, on la jette.
       return precalcule

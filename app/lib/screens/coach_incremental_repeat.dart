@@ -56,6 +56,7 @@ import '../services/coupes_palier_service.dart';
 import '../services/decoupe_audio_service.dart';
 import '../services/coupes_texte_service.dart';
 import '../models/reciter.dart';
+import '../models/riwaya.dart';
 import '../services/mp3quran_api.dart' show Mp3QuranWordSegments, Mp3QuranApi, AyahTiming;
 import '../services/diagnostic_log.dart';
 import '../services/portion_word_archiver.dart'
@@ -269,9 +270,12 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     // de ce qui est affiche : c'est le defaut qu'on corrige. Les deux
     // n'ont pas le meme poids.
     final t1 = _coupesMesurees ?? const <int>[];
-    final t2 = CoupesTexteService.instance
-        .coupes(widget.verse.surahNumber, widget.verse.ayahNumber,
-                _words.length);
+    // La riwaya de la SESSION, pas le reglage global : l'asset est calcule sur
+    // le Hafs et ne s'applique en Warsh que si les deux textes s'accordent
+    // (cf. `CoupesTexteService.coupes`).
+    final t2 = CoupesTexteService.instance.coupes(
+        widget.verse.surahNumber, widget.verse.ayahNumber, _words.length,
+        estWarsh: ref.read(recitationProvider).riwaya == Riwaya.warsh);
     final t3 = (t1.isEmpty && t2.isEmpty)
         ? CoupesPalierService.instance
             .coupes(widget.verse.surahNumber, widget.verse.ayahNumber)

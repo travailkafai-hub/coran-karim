@@ -232,9 +232,20 @@ def main():
     for cle, texte in H.items():
         c = coupes_du_verset(cle, texte, W.get(cle), interdits.get(cle, set()))
         n = len(mots(texte))
-        if c:
-            out[cle] = c
-        else:
+        # ── ON ECRIT AUSSI LES LISTES VIDES (2026-09-06) ──────────────────
+        #
+        # Signale par l'audit (QUAL-03) et verifie : n'ecrire que les cles non
+        # vides rendait l'ABSENCE ambigue -- elle disait a la fois « analyse,
+        # aucune coupe retenue » et « pas de precalcul ». Dart lisait la
+        # seconde et recalculait, ce qui retablissait des coupes que l'analyse
+        # globale avait ecartees (les groupes figes, notamment, que le calcul
+        # local ne connait pas).
+        #
+        # Mesure : 319 versets absents de l'asset se voyaient rendre des coupes
+        # par le repli. Une liste vide EXPLICITE est une decision ; une cle
+        # manquante n'en est pas une.
+        out[cle] = c
+        if not c:
             sans_coupe += 1
         debut = 0
         for x in c + [n - 1]:

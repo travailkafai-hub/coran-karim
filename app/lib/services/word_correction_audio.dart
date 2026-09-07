@@ -28,7 +28,25 @@ import 'reciter_download_service.dart';
 /// mécanisme ailleurs.
 class WordCorrectionAudio {
   static final _player = AudioPlayer();
+  /// ── LA CLE PORTE LE RECITATEUR, PAS SEULEMENT LA SOURATE (2026-09-06) ──
+  ///
+  /// Signale par l'audit (QUAL-04) et VERIFIE : ce cache etait indexe par le
+  /// seul numero de sourate, alors qu'il est rempli par
+  /// `QuranApi.fetchSurahAudioUrls(reciter.id, ...)`. Apres une correction avec
+  /// le recitateur A, choisir B sur la meme sourate rejouait donc l'URL de A --
+  /// la mauvaise voix, avec les minutages de B.
+  ///
+  /// ⚠️ CE DEFAUT ETAIT DORMANT, ET C'EST MOI QUI L'AI REVEILLE. Tant qu'un
+  /// SEUL recitateur Hafs passait par quran.com (Al-Afasy), le cache ne pouvait
+  /// rien melanger -- une seule voix, une seule URL par sourate. Les onze
+  /// recitations quran.com ajoutees la veille l'ont rendu atteignable.
+  ///
+  /// La cle est donc `reciterId * 1000 + surah`. Les chemins everyayah et
+  /// MP3Quran ne sont pas concernes : ils CONSTRUISENT leurs URL au lieu de les
+  /// demander, donc rien n'y est mis en cache.
   static final _urlCache = <int, Map<String, String>>{};
+
+  static int _cleUrl(int reciterId, int surah) => reciterId * 1000 + surah;
   static final _segmentsCache = <String, List<List<int>>>{};
   // Fichier MP3 local déjà téléchargé pour segKey ('${reciter.id}:${verse.key}')
   // -- le format (MP3, servi tel quel par verses.quran.com) n'est PAS le
@@ -214,9 +232,9 @@ class WordCorrectionAudio {
       if (!reciter.aSegmentsQuranCom) {
         url = reciter.urlVerset(verse.surahNumber, verse.ayahNumber);
       } else {
-      _urlCache[verse.surahNumber] ??=
+      _urlCache[_cleUrl(reciter.id, verse.surahNumber)] ??=
           await QuranApi.fetchSurahAudioUrls(reciter.id, verse.surahNumber);
-      url = _urlCache[verse.surahNumber]?[verse.key];
+      url = _urlCache[_cleUrl(reciter.id, verse.surahNumber)]?[verse.key];
       }
       if (url == null) {
         // Journalisé : cet abandon était MUET, ce qui rendait la panne
@@ -766,9 +784,9 @@ class WordCorrectionAudio {
       if (!reciter.aSegmentsQuranCom) {
         url = reciter.urlVerset(verse.surahNumber, verse.ayahNumber);
       } else {
-      _urlCache[verse.surahNumber] ??=
+      _urlCache[_cleUrl(reciter.id, verse.surahNumber)] ??=
           await QuranApi.fetchSurahAudioUrls(reciter.id, verse.surahNumber);
-      url = _urlCache[verse.surahNumber]?[verse.key];
+      url = _urlCache[_cleUrl(reciter.id, verse.surahNumber)]?[verse.key];
       _segmentsCache[segKey] ??=
           await QuranApi.fetchAyahSegments(reciter.id, verse.key);
       }
