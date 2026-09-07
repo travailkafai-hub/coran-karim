@@ -1668,6 +1668,28 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // (buffer limité, évincé par le bruit UI/graphique en quelques secondes,
     // constat réel 2026-07-19 -- plusieurs diagnostics ont échoué faute de
     // cette trace encore disponible au moment de tirer le log).
+    //
+    // ── LA SUITE NON POSEE N'APPARTIENT QU'A LA RAK'AH QUI S'ACHEVE ──────
+    // (2026-09-07)
+    //
+    // REGRESSION QUE JE VENAIS D'INTRODUIRE, signalee par l'utilisateur :
+    // « je vois qu'il y a une sourate collee a Al-Fatiha ». Le journal le
+    // montrait sans ambiguite :
+    //
+    //     [Priere] cible v2 = Al-Fatiha (29 mots)
+    //     [BufferedTranscriber] cible etendue : +401 mots, total=430
+    //     [Priere] cible etendue : +17 verset(s) -> 430 mots (ancre=1)
+    //
+    // CE QUI SE PASSAIT : `_prayerVersetsRestants` gardait les 144 versets
+    // d'An-Nisa de la rak'ah precedente. A la rak'ah suivante, Al-Fatiha est
+    // reposee (29 mots) avec l'ancre au debut -- il restait donc moins de
+    // `_prayerMargeExtension` mots devant, et l'extension se declenchait : elle
+    // collait An-Nisa derriere Al-Fatiha, cible a 430 mots.
+    //
+    // La suite en attente appartient a la sourate qu'on suivait ; elle n'a
+    // aucun sens derriere une Fatiha qui recommence. On la vide ici, au seul
+    // endroit ou la rak'ah se termine vraiment.
+    _prayerVersetsRestants.clear();
     DiagnosticLog.log('Prière', 'standby -- en attente du début d\'Al-Fatiha '
         '(sourate suivie mémorisée : ${_originalTargetWords?.length ?? 0} mots)');
     state = state.copyWith(prayerPhase: PrayerPhase.standby);
@@ -3354,6 +3376,14 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// prochaine avancee. Rien ne doit interrompre un suivi de priere en cours.
   Future<void> _etendreCiblePriereSiBesoin(int ancre) async {
     if (_prayerVersetsRestants.isEmpty || _prayerExtensionEnCours) return;
+    // ── ET SEULEMENT PENDANT LE SUIVI DE LA SOURATE (2026-09-07) ────────
+    //
+    // Seconde garde, volontairement redondante avec la purge au standby : si
+    // la phase n'est pas `target`, la cible courante est Al-Fatiha ou rien --
+    // y ajouter la suite collerait une sourate derriere elle. Une seule des
+    // deux gardes suffirait ; les deux ensemble font que ni un ordre d'appel
+    // inattendu ni un futur chemin de reprise ne peut refaire ce defaut.
+    if (state.prayerPhase != PrayerPhase.target) return;
     if (state.words.length - ancre > _prayerMargeExtension) return;
     _prayerExtensionEnCours = true;
     try {
