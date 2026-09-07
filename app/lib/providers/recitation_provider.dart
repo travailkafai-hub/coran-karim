@@ -1884,6 +1884,41 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// que l'extension soit prete avant qu'il en ait besoin.
   static const _prayerMargeExtension = 240;
 
+  /// ── RIEN NE SE CORRIGE AVANT QUE L'ANCRE AIT RETROUVE SA PLACE ─────────
+  /// (2026-09-07)
+  ///
+  /// Defaut signale par l'utilisateur, juste apres la correction du gel :
+  /// « une fois la sourate trouvee il faut d'abord reussir l'alignement, la
+  /// relocalisation ; une fois que c'est OK on peut commencer a corriger, sans
+  /// forcer la repetition -- l'ancre doit toujours chercher a se positionner.
+  /// La il m'a corrige sur يَـٰٓأَيُّهَا ٱلنَّاسُ : c'est vrai que c'est le
+  /// debut de la sourate, mais ce n'etait plus le debut, j'avais avance. »
+  ///
+  /// CE QUI SE PASSAIT : la cible est posee avec l'ancre au debut du verset
+  /// reconnu, et le souffleur part sur une simple hesitation de 4 s -- sans
+  /// savoir si le localisateur a deja retrouve la position reelle. Il souffle
+  /// donc le premier mot de la cible, qui vient d'etre recite.
+  ///
+  /// C'EST LA MEME CAUSE STRUCTURELLE QUE CELLE DEJA DOCUMENTEE dans
+  /// `_beginIdentifiedTargetPhase` : on identifie un verset PARCE QU'IL VIENT
+  /// D'ETRE DIT ; le temps de le reconnaitre, le recitant est deja plus loin.
+  /// Le correctif d'aout avait traite la POSITION de l'ancre ; il restait le
+  /// souffleur, et le commentaire de l'epoque le disait deja -- « ce qui posait
+  /// probleme n'etait pas la position mais le SOUFFLEUR ».
+  ///
+  /// LA GARDE : faux a chaque pose de cible, vrai des que la chaine juge un
+  /// premier mot dessus. Tant qu'il est faux, aucune correction ne part.
+  /// L'ancre, elle, continue de chercher -- le localisateur n'est pas touche,
+  /// et le saut lui reste libre en mode priere.
+  ///
+  /// ⚠️ SI LA LOCALISATION N'ABOUTIT JAMAIS, le souffleur reste muet. C'est
+  /// voulu : souffler au mauvais endroit est pire que ne rien souffler -- c'est
+  /// precisement ce que l'utilisateur vient de constater.
+  bool _prayerLocalisee = false;
+
+  /// Cf. [_prayerLocalisee] : l'ecran s'en sert pour retenir le souffleur.
+  bool get prayerLocalisee => _prayerLocalisee;
+
   /// Versets de la sourate suivie pas encore poses en cible.
   final List<Verse> _prayerVersetsRestants = [];
   bool _prayerExtensionEnCours = false;
@@ -2060,6 +2095,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // Cf. `_prayerMotsParFragment` pour la mesure qui l'impose. On coupe sur
     // une frontiere de VERSET, jamais au milieu : la suite doit pouvoir etre
     // etendue telle quelle.
+    // Nouvelle cible : l'ancre n'a encore rien retrouve dessus (cf.
+    // `_prayerLocalisee`). Le souffleur attend.
+    _prayerLocalisee = false;
     _prayerVersetsRestants.clear();
     final gardes = <Verse>[];
     var motsPoses = 0;
@@ -4651,11 +4689,22 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // Point d'accroche : c'est ici que la position du recitant remonte, et
     // nulle part ailleurs. `unawaited` -- l'extension ne doit jamais retarder
     // l'affichage d'un verdict, et elle est idempotente (cf. sa doc).
-    if (_prayerVersetsRestants.isNotEmpty && changements.isNotEmpty) {
+    if (changements.isNotEmpty) {
       final ancre = changements
           .map((c) => c.index)
           .reduce((a, b) => a > b ? a : b);
-      unawaited(_etendreCiblePriereSiBesoin(ancre));
+      // La chaine vient de juger un mot sur la cible courante : l'ancre s'y est
+      // donc positionnee. Cf. `_prayerLocalisee` -- c'est ce qui autorise le
+      // souffleur a parler.
+      if (!_prayerLocalisee) {
+        _prayerLocalisee = true;
+        DiagnosticLog.log('Priere',
+            'ancre relocalisee sur la nouvelle cible (mot $ancre) -- '
+            'la correction est desormais autorisee');
+      }
+      if (_prayerVersetsRestants.isNotEmpty) {
+        unawaited(_etendreCiblePriereSiBesoin(ancre));
+      }
     }
     var dernierJuge = -1;
     for (final c in changements) {

@@ -71,25 +71,8 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
   // juste en dessous. Le délai reste un confort, pas un correctif.
   static const _kSilenceHintDelay = Duration(seconds: 4);
 
-  /// Un mot au moins a-t-il été jugé depuis le dernier changement de cible ?
-  ///
-  /// ── LE MINUTEUR MESURAIT LA LATENCE DE L'APP (corrigé 2026-08-07) ──────
-  ///
-  /// L'utilisateur : « je n'ai pas mémoire d'avoir fait 3 s de silence ».
-  /// Il avait raison, et le journal le montre :
-  ///     09:44:29.79  retranscription "وَأَلَنَّا لَهُ ٱلْحَدِيدَ…"  (34:10)
-  ///     09:44:31.92  cible v2 posée, 883 mots, pointeur -> 177
-  ///     09:44:34.66  [Souffleur] hésitation longue (3s)
-  ///     09:44:37.34  v2 entend "مَلُوغُونَ بَصِيرٌ"           (34:11)
-  /// Il récitait avant, il récitait après. Le minuteur est réarmé à chaque
-  /// déplacement du pointeur ; le passage de la phase `detectingTarget` à
-  /// `target` a fait sauter le pointeur à 177 et l'a donc armé -- alors que
-  /// l'application n'avait encore RIEN pu juger sur cette cible toute neuve.
-  ///
-  /// Allonger le délai ne corrige pas cela, il le retarde. La condition qui
-  /// manque est celle-ci : ne pas parler d'hésitation tant qu'on n'a pas
-  /// prouvé qu'on sait juger cette cible. Un seul mot jugé suffit.
-  bool _jugementDepuisCible = false;
+  // ChGPT (2026-09-07): a confirmed target can be prompted before any word
+  // is judged. Each passage is offered once; it is not an accusation.
 
   /// Contexte joue AUTOUR du passage saute (cf. `_soufflerPassage`).
   /// Un peu avant pour situer, un peu plus apres pour relancer.
@@ -138,59 +121,61 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
   /// suivre l'imam la ou il en est reellement -- « on ne force pas a suivre »
   /// (utilisateur, 2026-08-07).
   Future<void> _soufflerPassage(({int de, int a}) bornes) async {
-    if (!mounted || _promptingWord) return;
+    if (!mounted || _promptingWord ||
+        !ref.read(prayerSouffleurEnabledProvider)) {
+      return;
+    }
     final notifier = ref.read(recitationProvider.notifier);
-    final debut = notifier.verseAndLocalIndexFor(bornes.de);
-    if (debut == null) return;
-    final (verse, local) = debut;
     final st = ref.read(recitationProvider);
-    setState(() => _promptingWord = true);
+    if (st.status != RecitationStatus.listening ||
+        st.prayerPhase != PrayerPhase.target) {
+      return;
+    }
+    final revision = notifier.prayerTargetRevision;
+    if (_souffleRevision != revision) {
+      _souffleRevision = revision;
+      _passagesSouffles.clear();
+    }
+    if (_passagesSouffles.contains(bornes.de)) return;
+    final target = notifier.verseAndLocalIndexFor(bornes.de);
+    if (target == null) return;
+    final (verse, local) = target;
     final verifier = ref.read(recitationVerifierProvider);
-    final wasListening = st.status == RecitationStatus.listening;
+    final generation = verifier.sessionGeneration;
+    final reciter = ref.read(playerProvider.notifier).reciterPour(st.riwaya);
+    bool active() => mounted &&
+        verifier.sessionGeneration == generation &&
+        notifier.prayerTargetRevision == revision &&
+        ref.read(recitationProvider).status == RecitationStatus.listening &&
+        ref.read(recitationProvider).prayerPhase == PrayerPhase.target;
+    _silenceTimer?.cancel();
+    _passagesSouffles.add(bornes.de);
+    setState(() => _promptingWord = true);
     try {
-      if (wasListening) await verifier.pauseCapture();
-      try {
-        // ── DU CONTEXTE AUTOUR DU PASSAGE (demande utilisateur 2026-08-07)
-        //
-        // « Rajoute le souffleur, il dit un peu avant et un peu plus apres,
-        // style 5 mots. »
-        //
-        // Souffler le trou NU ne suffit pas a raccrocher : l'imam a besoin
-        // d'entendre ou ca s'attache. Un peu avant pour reconnaitre l'endroit,
-        // un peu PLUS apres pour repartir avec de l'elan -- c'est la meme
-        // raison qui avait fait passer la correction de recitation a
-        // « le mot plus le suivant » (2026-08-05).
-        //
-        // BORNES DU VERSET : `playWordRange` travaille a l'interieur d'UN
-        // verset. Si le contexte deborde, ses propres garde-fous ramenent au
-        // premier/dernier segment disponible -- on souffle alors un peu moins,
-        // jamais le mauvais passage.
-        // riwaya de LA SESSION (pas du réglage global vivant) -- cf.
-        // `RecitationSessionState.riwaya` et `PlayerNotifier.reciterPour`.
+      // The loudspeaker must not become acoustic evidence of the imam's voice.
+      // Keep the native target and history: no reset, rewind or retry request.
+      await notifier.soufflerPriere(() async {
+        if (!active()) return;
         await WordCorrectionAudio.playWordRange(
-          verse,
-          ref
-              .read(playerProvider.notifier)
-              .reciterPour(ref.read(recitationProvider).riwaya),
+          verse, reciter,
           errorWordIndex: local,
           wordsBefore: _kMotsAvantSouffle,
-          wordsAfter: (bornes.a - bornes.de) + _kMotsApresSouffle,
+          wordsAfter: _kMotsApresSouffle,
+          facteurDuree: _kFacteurDureeSouffle,
         );
-      } catch (e) {
-        DiagnosticLog.log('Priere', 'souffle du passage impossible : $e');
-      }
-      // Le tampon est vide APRES la lecture : sans ca, l'audio du recitateur
-      // capte par le micro se retrouverait dans la fenetre suivante et serait
-      // pris pour la voix de l'imam.
-      if (wasListening) await verifier.resetBuffer();
+      });
+    } catch (error) {
+      DiagnosticLog.log('Priere', 'souffle indisponible : $error');
     } finally {
-      if (wasListening) await verifier.resumeCapture();
       if (mounted) setState(() => _promptingWord = false);
     }
   }
 
+  int _souffleRevision = -1;
+  final _passagesSouffles = <int>{};
   @override
   void dispose() {
+    if (_promptingWord) unawaited(WordCorrectionAudio.stop());
     _sautSub?.cancel();
     _silenceTimer?.cancel();
     _scrollController.dispose();
@@ -217,7 +202,24 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
     _silenceTimer = Timer(_kSilenceHintDelay, () {
       final st = ref.read(recitationProvider);
       if (!mounted || st.status != RecitationStatus.listening) return;
+      if (st.prayerPhase != PrayerPhase.target ||
+          !ref.read(prayerSouffleurEnabledProvider)) {
+        return;
+      }
       if (_promptingWord) return;
+      // ── PAS DE CORRECTION AVANT LA RELOCALISATION (2026-09-07) ────────
+      //
+      // Cf. `RecitationNotifier._prayerLocalisee`. Une hesitation juste apres
+      // la pose de cible ne veut pas dire que le recitant hesite : elle veut
+      // dire que l'ancre n'a pas encore retrouve ou il en est. Souffler la,
+      // c'est lui rejouer le debut de la sourate qu'il vient de reciter --
+      // exactement ce qui a ete constate sur `يَـٰٓأَيُّهَا ٱلنَّاسُ`.
+      if (!ref.read(recitationProvider.notifier).prayerLocalisee) {
+        DiagnosticLog.log('Souffleur',
+            'hesitation ignoree : l ancre ne s est pas encore positionnee sur '
+            'la sourate identifiee -- on laisse le localisateur chercher');
+        return;
+      }
       DiagnosticLog.log('Souffleur',
           'hésitation longue (${_kSilenceHintDelay.inSeconds}s) -- souffleur automatique (Suivre une prière)');
       _promptCurrentWord();
@@ -230,41 +232,10 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
   /// sourate identifiée par Shazam (ce mode n'a pas de liste de versets
   /// pré-chargée côté écran comme le karaoké classique).
   Future<void> _promptCurrentWord() async {
-    if (_promptingWord) return;
-    final notifier = ref.read(recitationProvider.notifier);
-    final st = ref.read(recitationProvider);
-    final target = notifier.verseAndLocalIndexFor(st.pointer);
-    if (target == null) return;
-    final (verse, local) = target;
-
-    setState(() => _promptingWord = true);
-    final verifier = ref.read(recitationVerifierProvider);
-    final wasListening = st.status == RecitationStatus.listening;
-    try {
-      if (wasListening) await verifier.pauseCapture();
-      // riwaya de LA SESSION (pas du réglage global vivant) -- cf.
-      // `RecitationSessionState.riwaya` et `PlayerNotifier.reciterPour`.
-      final reciter = ref
-          .read(playerProvider.notifier)
-          .reciterPour(ref.read(recitationProvider).riwaya);
-      try {
-        await WordCorrectionAudio.playWordRange(verse, reciter,
-            errorWordIndex: local,
-            wordsBefore: 0,
-            wordsAfter: 0,
-            facteurDuree: _kFacteurDureeSouffle);
-      } catch (e) {
-        DiagnosticLog.log('Souffleur', 'échec lecture (Suivre une prière) : $e');
-      }
-      await Future.delayed(const Duration(milliseconds: 400));
-      if (wasListening) await verifier.resetBuffer();
-      if (!mounted) return;
-    } finally {
-      if (wasListening) await verifier.resumeCapture();
-      if (mounted) setState(() => _promptingWord = false);
-    }
+    if (!mounted) return;
+    final pointer = ref.read(recitationProvider).pointer;
+    await _soufflerPassage((de: pointer, a: pointer));
   }
-
   void _openSettingsSheet() {
     showModalBottomSheet(
       context: context,
@@ -388,55 +359,26 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
     ref.listen(prayerSensitivityProvider, (prev, next) {
       notifier.setSensitivity(next);
     });
-    // Souffleur automatique : toute avancée réelle du pointeur (ou entrée en
-    // écoute) relance le délai de silence ; la sortie de l'écoute, le
-    // standby (pas de "mot courant" légitime pendant rukū'/sujūd) ou Al-Fatiha
-    // l'annule. Bug corrigé 2026-07-19 (retour utilisateur : "j'ai toujours
-    // le mode correction qui se lance... la Fatiha est exclue de la
-    // correction") -- Al-Fatiha était ABSENTE de cette liste d'exclusion,
-    // alors que §3.17 (SUIVI_PRIERE.md) avait déjà établi la règle "aucune
-    // correction pendant Al-Fatiha" côté coloration (gop forcé à `correct`) :
-    // le souffleur, mécanisme de correction à part entière (joue l'audio du
-    // mot attendu), n'avait jamais reçu la même exclusion et continuait de se
-    // déclencher sur silence même pendant Al-Fatiha. Intention confirmée :
-    // Al-Fatiha se contente d'ATTENDRE la fin de la récitation avant de
-    // lancer détection puis correction -- aucune aide/correction avant ça.
-    ref.listen(recitationProvider, (prev, next) {
-      // Cible neuve (la sourate vient d'être identifiée, ou un takbir a tout
-      // remis à zéro) : on repart sans preuve de jugement.
-      if (next.words.length != prev?.words.length) _jugementDepuisCible = false;
-      // ── `skipped` N'EST PAS UN JUGEMENT (corrige 2026-08-07) ───────────
-      //
-      // Ce garde-fou a ete mis en echec par mon propre code. Quand la sourate
-      // est identifiee, `_beginIdentifiedTargetPhase` marque tous les mots
-      // AVANT le point d'entree en `skipped` -- une facon de dire « on n'a pas
-      // commence la ». Le test « un statut autre que pending/current » les
-      // comptait comme des jugements, donc le souffleur s'armait AUSSITOT.
-      //
-      // MESURE (session 17:58) : cible posee a 17:58:15,5 sur 893 mots avec
-      // 407 mots marques passes ; souffleur declenche a 17:58:19,3, soit 3,8 s
-      // plus tard, sans qu'un seul mot ait ete reellement juge.
-      //
-      // On ne compte donc QUE les verdicts reels : vert, orange, rouge. Un mot
-      // « passe » ou « en attente » ne prouve rien sur la capacite de la
-      // chaine a juger cette cible.
-      if (!_jugementDepuisCible &&
-          next.words.any((w) =>
-              w.status == WordStatus.correct ||
-              w.status == WordStatus.unclear ||
-              w.status == WordStatus.error)) {
-        _jugementDepuisCible = true;
+    // ChGPT: identification is enough to offer help, even if ASR missed the
+    // opening. A prompt never waits for a "correct" word or forces repetition.
+    ref.listen(prayerSouffleurEnabledProvider, (prev, enabled) {
+      if (!enabled) {
+        _silenceTimer?.cancel();
+        if (_promptingWord) unawaited(WordCorrectionAudio.stop());
+      } else if (ref.read(recitationProvider).prayerPhase == PrayerPhase.target) {
+        _resetSilenceTimer();
       }
-      final eligible = _jugementDepuisCible &&
-          next.status == RecitationStatus.listening &&
-          next.prayerPhase != PrayerPhase.standby &&
-          next.prayerPhase != PrayerPhase.detectingTarget &&
-          next.prayerPhase != PrayerPhase.fatiha;
-      if (eligible &&
-          (next.pointer != prev?.pointer || prev?.status != RecitationStatus.listening)) {
+    });
+    ref.listen(recitationProvider, (prev, next) {
+      final eligible = next.status == RecitationStatus.listening &&
+          next.prayerPhase == PrayerPhase.target && next.words.isNotEmpty;
+      if (eligible && (next.pointer != prev?.pointer ||
+          next.prayerPhase != prev?.prayerPhase ||
+          prev?.status != RecitationStatus.listening)) {
         _resetSilenceTimer();
       } else if (!eligible) {
         _silenceTimer?.cancel();
+        if (_promptingWord) unawaited(WordCorrectionAudio.stop());
       }
       // Défilement automatique : la liste de mots change de longueur à
       // chaque bascule de phase (Al-Fatiha <-> sourate identifiée) -- les
