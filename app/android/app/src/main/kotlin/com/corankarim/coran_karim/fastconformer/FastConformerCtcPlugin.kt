@@ -1271,6 +1271,11 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     "apercu pas=${v2Pas}s largeur=${v2Largeur}s maxBloc=${v2MaxBloc}s maxFusion=${v2MaxFusion}s")
                 result.success(null)
             }
+            "v2RepartirApresSouffle" -> {
+                val mot = call.argument<Int>("mot") ?: 0
+                v2Chaine?.repartirApresSouffle(mot)
+                result.success(null)
+            }
             "v2Terminer" -> {
                 val chaine = v2Chaine
                 if (chaine == null) {
@@ -2029,6 +2034,39 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         ?.mapValues { it.value.first.toDouble() } ?: emptyMap()),
                     "seuilRegles" to (chaine.probasParMot[c.motIndex]
                         ?.mapValues { it.value.second.toDouble() } ?: emptyMap()),
+                    // ── LA DUREE PART AVEC LA PROBABILITE (2026-09-07) ────
+                    //
+                    // Demande utilisateur, dans le cadre de la tete FAMILLE a
+                    // 11 classes ou les trois madd sont refusionnes en un seul
+                    // `madd` : « il faut que l'application permette d'envoyer
+                    // la duree egalement avec la probe. Pour distinguer entre
+                    // normal et le mode, ce sera avec la duree -- si deux
+                    // harakat ou quatre harakat. »
+                    //
+                    // C'EST LE MEME RAISONNEMENT QUE CELUI DEJA ECRIT ICI le
+                    // 2026-08-04 (cf. `DetectedRule.frames`) : le type d'un
+                    // madd est une categorie GRAMMATICALE, pas acoustique --
+                    // l'acoustique ne repond qu'a « combien de temps
+                    // l'allongement a-t-il dure ». La fusion des trois classes
+                    // rend cette mesure NECESSAIRE et non plus seulement
+                    // interessante : sans elle, un modele a 11 classes ne peut
+                    // plus distinguer 2, 4 et 6 harakat du tout.
+                    //
+                    // La grandeur existait deja de bout en bout cote Kotlin
+                    // (`dureesParMot`, en ms, maximum sur les observations --
+                    // cf. sa doc pour la regle « meilleur de chaque grandeur »)
+                    // et etait journalisee dans `[tajwidDuree]`. Elle
+                    // s'arretait au pont : Dart recevait la probabilite et le
+                    // seuil, jamais la duree.
+                    //
+                    // Meme forme que `probRegles`/`seuilRegles` : une map plate
+                    // nom -> valeur, le canal Flutter ne transportant pas les
+                    // `Pair` (cf. le commentaire juste au-dessus).
+                    "dureeRegles" to (chaine.dureesParMot[c.motIndex]
+                        ?.entries
+                        ?.mapNotNull { (id, ms) ->
+                            engine?.ruleNames?.getOrNull(id)?.let { it to ms }
+                        }?.toMap() ?: emptyMap()),
                 )
             }
         } catch (e: Exception) {

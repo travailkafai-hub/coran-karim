@@ -44,6 +44,11 @@ data class SortiesFront(
     val logprobs: Array<FloatArray>,
     val tajwid: Array<FloatArray>?,
     val etat: Array<FloatArray>?,
+    /** 5e sortie : tete tajwid FINE, 76 classes eclatees par paire de lettres.
+     *  `null` sur tout modele a 4 sorties ou moins -- rien ne change alors.
+     *  Cf. `FastConformerCtc.TAJWID_FINE_OUTPUT` pour la mesure qui la motive
+     *  et pour la raison de son statut d'OBSERVATION SEULE. */
+    val tajwidFine: Array<FloatArray>? = null,
 )
 
 interface FrontAcoustique {
@@ -64,6 +69,13 @@ interface FrontAcoustique {
 
     /** Pieces BPE du vocabulaire, index = id de token. */
     val pieces: List<String>
+
+    /** Noms des 76 classes de la tete FINE, index = position dans la sortie.
+     *  Vide sur un pack a 4 sorties. Cf. `SortiesFront.tajwidFine`. */
+    val nomsReglesFines: List<String> get() = emptyList()
+
+    /** Famille d'une classe fine (prefixe avant `__`), ou null. */
+    fun familleDeRegleFine(i: Int): String? = null
 
     /** Index du blank CTC. */
     val blank: Int
@@ -100,6 +112,8 @@ interface FrontAcoustique {
 class FrontOnnx(private val moteur: FastConformerCtc) : FrontAcoustique {
     override val pieces: List<String> get() = moteur.vocabPieces
     override val blank: Int get() = moteur.blank
+    override val nomsReglesFines: List<String> get() = moteur.ruleFineNames
+    override fun familleDeRegleFine(i: Int): String? = moteur.familleDeRegleFine(i)
     override val nomsRegles: List<String> get() = moteur.ruleNames
     override fun seuilRegle(ruleId: Int): Float = moteur.seuilProba(ruleId)
     override fun logprobs(echantillons: FloatArray): Array<FloatArray> =
@@ -130,7 +144,7 @@ class FrontOnnx(private val moteur: FastConformerCtc) : FrontAcoustique {
             "Inference",
             "computeAll ech=${echantillons.size} duree=${ms}ms",
         )
-        return SortiesFront(o.letters, o.tajwid, o.etatEncodeur)
+        return SortiesFront(o.letters, o.tajwid, o.etatEncodeur, o.tajwidFine)
     }
 
     override fun probMaxParClasse(tajwid: Array<FloatArray>?) =

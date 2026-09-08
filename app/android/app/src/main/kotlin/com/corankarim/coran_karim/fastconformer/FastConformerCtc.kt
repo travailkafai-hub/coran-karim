@@ -62,6 +62,9 @@ data class DetectedRule(
 class CtcOutputs(
     val letters: Array<FloatArray>,
     val tajwid: Array<FloatArray>?,
+    /** Tete tajwid FINE, 76 classes. Null sur un pack a 4 sorties.
+     *  Cf. [FastConformerCtc.TAJWID_FINE_OUTPUT]. */
+    val tajwidFine: Array<FloatArray>? = null,
     /**
      * Etat interne de l'encodeur, (frames, 512). Null si le modele charge ne
      * l'expose pas -- l'export deploye historiquement n'a qu'une sortie.
@@ -83,6 +86,11 @@ class CtcOutputs(
      */
     val etatEncodeur: Array<FloatArray>? = null,
 )
+
+// NOTE : l'ordre des parametres de [CtcOutputs] est (letters, tajwid,
+// tajwidFine, etatEncodeur). `tajwidFine` a ete insere AVANT `etatEncodeur`
+// pour rester a cote de la tete dont il est le pendant ; le seul appel
+// positionnel du fichier a ete mis a jour en consequence.
 
 class FastConformerCtc(
     modelPath: String,
@@ -207,6 +215,27 @@ class FastConformerCtc(
     private val tajwidNames: List<String> = rulesPath?.let { loadVocab(it) } ?: emptyList()
     private val hasTajwidHead: Boolean =
         tajwidNames.isNotEmpty() && session.outputNames.contains(TAJWID_OUTPUT)
+
+    // ── TETE FINE, cf. [TAJWID_FINE_OUTPUT] ─────────────────────────────────
+    // `rules_fine.json` est cherche A COTE de `rules.json` : aucun parametre
+    // de plus a faire traverser le pont, et un pack a 4 sorties (sans ce
+    // fichier) reste charge exactement comme avant.
+    private val tajwidFineNames: List<String> = rulesPath?.let { rp ->
+        val f = java.io.File(java.io.File(rp).parentFile, "rules_fine.json")
+        if (f.exists()) loadVocab(f.absolutePath) else null
+    } ?: emptyList()
+    private val hasTajwidFineHead: Boolean =
+        tajwidFineNames.isNotEmpty() && session.outputNames.contains(TAJWID_FINE_OUTPUT)
+
+    /** Noms des classes fines, index = position dans la sortie. Vide si absente. */
+    val ruleFineNames: List<String> get() = tajwidFineNames
+
+    /** Famille d'une classe fine : le prefixe avant `__`. C'est ainsi que les
+     *  76 classes remontent aux 11 familles -- l'export les nomme pour que ce
+     *  regroupement soit un simple decoupage, sans table de correspondance a
+     *  tenir a jour. */
+    fun familleDeRegleFine(i: Int): String? =
+        tajwidFineNames.getOrNull(i)?.substringBefore("__")
 
     /** Seuil de detection PAR CLASSE, en LOG-PROBABILITE (comparable directement
      *  a `tajwid[t][c]`, deja en log-sigmoide). Charge depuis seuils_tajwid.json
@@ -578,6 +607,13 @@ class FastConformerCtc(
                         (results.get(TAJWID_OUTPUT).get().value
                             as Array<Array<FloatArray>>)[0]
                     } else null
+                    // Recuperation PAR NOM, comme la tete 2 : un pack sans
+                    // cette sortie rend `null` sans erreur (cf. hasTajwidFineHead).
+                    val tajwidFine: Array<FloatArray>? = if (hasTajwidFineHead) {
+                        @Suppress("UNCHECKED_CAST")
+                        (results.get(TAJWID_FINE_OUTPUT).get().value
+                            as Array<Array<FloatArray>>)[0]
+                    } else null
                     // Meme recuperation PAR NOM que la tete tajwid : robuste a
                     // un reordonnancement des sorties, et absente sans erreur
                     // sur les modeles a une seule sortie.
@@ -610,7 +646,7 @@ class FastConformerCtc(
                         }
                     } else null
                     // .value materialise deja des copies JVM -> survit au close().
-                    return CtcOutputs(letters, tajwid, etat)
+                    return CtcOutputs(letters, tajwid, tajwidFine, etat)
                 }
             }
         }
@@ -662,6 +698,41 @@ class FastConformerCtc(
          *  garde son nom historique "logprobs" -> un modele a deux tetes reste
          *  lisible par du code qui n'en attend qu'une. */
         const val TAJWID_OUTPUT = "tajwid_logprobs"
+
+        /**
+         * 5e sortie : tete tajwid FINE, 76 classes -- chaque famille eclatee
+         * par paire de lettres exacte (`idgham_ghunnah__l>w`, `qalaqah__q`...),
+         * plus un `__other` par famille pour les paires rares.
+         *
+         * ── POURQUOI EN PLUS, ET NON A LA PLACE (2026-09-07) ──────────────
+         *
+         * Elle ne remplace pas la tete famille : les deux sont CONFRONTEES.
+         * Mesure du PC A, 400 fenetres reelles, 4 voix d'evaluation disjointes,
+         * les DEUX tetes lues sur le MEME modele et les MEMES fenetres :
+         *
+         *     famille          rappel union  rappel inter  inv. union  inv. inter
+         *     madd                93,5 %        81,2 %       11,8 %      1,9 %
+         *     qalaqah             96,2 %        80,8 %        4,9 %      0,9 %
+         *     idgham_ghunnah      88,1 %        81,4 %        2,3 %      0,3 %
+         *
+         * L'INTERSECTION divise l'invention par 6 a 8, pour ~12 points de
+         * rappel. C'est le bon echange ici, et pas un arbitrage de gout : une
+         * regle INVENTEE accuse le recitateur d'une faute qu'il n'a pas faite,
+         * une regle manquee le laisse seulement sans retour. La hierarchie du
+         * projet est « dire vrai » avant « bien juger ».
+         *
+         * Prise SEULE, la fine est moins bonne que la famille sur 8 familles
+         * sur 11 (rappel macro 79,9 % contre 86,4 %) -- eclater 1 264 fenetres
+         * `idgham_ghunnah` sur 25 classes coute cher. Son seul avantage propre
+         * est l'invention, deux fois moindre (8,9 % contre 14,9 %). C'est ce
+         * qui en fait une bonne CONFIRMATION et une mauvaise remplacante.
+         *
+         * ⚠️ AUCUN VERDICT NE LA LIT (2026-09-07). Elle est seulement
+         * journalisee (`[tajwidFine]`), comme la tete 3 avant elle. Le cablage
+         * au jugement attend que la recette ait montre l'accord sur du vrai
+         * usage -- 400 fenetres de corpus ne suffisent pas a l'engager.
+         */
+        const val TAJWID_FINE_OUTPUT = "tajwid_fine_logprobs"
         const val ENCODER_STATE_OUTPUT = "encoder_state"
         const val WARSH_OUTPUT = "warsh_logprobs"
     }

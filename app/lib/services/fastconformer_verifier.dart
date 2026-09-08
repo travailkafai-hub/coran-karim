@@ -307,7 +307,7 @@ class FastConformerVerifier {
   // une detection acoustique et retrouvera la duree (2, 4 ou 6 harakat) par la
   // MESURE plutot que par une classe. `_signalNonFiable` les garde donc en
   // observation seule, comme depuis le 2026-09-03.
-  static const _kModelSubdir = 'models/quatre-tetes-v7-2026-09-05';
+  static const _kModelSubdir = 'models/cinq-tetes-2026-09-07';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // TETE 3 (ecart canonique), OPTIONNELLE -- cf. Tete3.kt : en observation
@@ -899,7 +899,7 @@ class FastConformerVerifier {
   /// types doivent donc coïncider.
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
-                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> v2,
+                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles})> v2,
            bool v2Decrochage, int v2DecrochageMot,
            // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
            // `v2Libre` : decodage libre de la derniere fenetre, base de
@@ -920,7 +920,7 @@ class FastConformerVerifier {
         preview: raw['preview'] as String? ?? '',
         align: AlignPayload.fromMap(raw['align']),
         v2: const <({int index, String statut, String trace, String heard,
-                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>[],
+                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles})>[],
         v2Decrochage: false, // la v2 ne tourne pas sur ce chemin
         v2DecrochageMot: -1,
         v2Libre: '',
@@ -957,7 +957,7 @@ class FastConformerVerifier {
   /// statuts par mot -- cf. le commentaire côté Kotlin.
   Future<({String committed, String preview, AlignPayload? align,
            List<({int index, String statut, String trace, String heard,
-                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> v2,
+                   Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles})> v2,
            bool v2Decrochage, int v2DecrochageMot,
            // MODE PRIERE (2026-08-07) -- cf. ChaineRecitation.sautLibre.
            // `v2Libre` : decodage libre de la derniere fenetre, base de
@@ -983,7 +983,7 @@ class FastConformerVerifier {
           .invokeMapMethod<String, dynamic>('feedBufferedAudio', {'pcm16': pcm16});
       if (raw == null) return null;
       final v2 = <({int index, String statut, String trace, String heard,
-                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>[];
+                     Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles})>[];
       for (final m in ((raw['v2'] as List?) ?? const []).cast<Map>()) {
         // La trace porte les TROIS scores. Un `gop` effondré avec un `free`
         // proche de 0 veut dire mauvaise POSITION, pas mauvaise prononciation :
@@ -1066,16 +1066,32 @@ class FastConformerVerifier {
           // `[tajwidSousSeuil]`) mais ne les transmettait pas : la différence
           // entre « pas faite » (0,10) et « ratée de peu » (0,48) n'existait
           // que dans le journal, illisible pour un récitateur.
+          // ── LA DUREE ARRIVE AVEC LA PROBABILITE (2026-09-07) ────────────
+          //
+          // Demande utilisateur, pour la tete FAMILLE a 11 classes ou les
+          // trois madd sont refusionnes en un seul `madd` : « il faut que
+          // l'application permette d'envoyer la duree egalement avec la probe
+          // [...] pour distinguer entre normal et le mode, ce sera avec la
+          // duree -- si deux harakat ou quatre harakat ».
+          //
+          // `dureeMs` vaut 0 quand la regle n'a pas ete DETECTEE : le natif ne
+          // remplit `dureesParMot` que sur les detections, alors que
+          // `probRegles` porte AUSSI les classes sous le seuil (c'est tout
+          // l'interet de `[tajwidSousSeuil]` -- distinguer « pas faite » de
+          // « ratee de peu »). Un 0 ici veut donc dire « aucune tenue
+          // mesuree », jamais « tenue nulle mesuree ».
           scoresRegles: () {
             final p = (m['probRegles'] as Map?) ?? const {};
             final s = (m['seuilRegles'] as Map?) ?? const {};
-            final out = <TajwidRule, ({double prob, double seuil})>{};
+            final d = (m['dureeRegles'] as Map?) ?? const {};
+            final out = <TajwidRule, ({double prob, double seuil, int dureeMs})>{};
             for (final e in p.entries) {
               final r = TajwidRule.fromKey(e.key as String);
               if (r == null) continue;
               out[r] = (
                 prob: (e.value as num).toDouble(),
                 seuil: ((s[e.key] as num?) ?? 0.5).toDouble(),
+                dureeMs: ((d[e.key] as num?) ?? 0).toInt(),
               );
             }
             return out;
@@ -1320,6 +1336,17 @@ class FastConformerVerifier {
     if (!_loaded) return;
     try {
       await _channel.invokeMethod('v2SetMode', {'mode': mode});
+    } catch (_) {}
+  }
+
+  /// Le souffleur a fini : la chaine v2 oublie l'audio qui a servi a reperer
+  /// le decrochage. Cf. `ChaineRecitation.repartirApresSouffle` pour la mesure.
+  Future<void> v2RepartirApresSouffle(int mot) async {
+    if (!_loaded) return;
+    try {
+      // `mot` OBLIGATOIRE : cote Kotlin l'absence d'argument vaut 0, ce qui
+      // ferait reculer l'ancre au tout debut de la sourate a chaque souffle.
+      await _channel.invokeMethod('v2RepartirApresSouffle', {'mot': mot});
     } catch (_) {}
   }
 

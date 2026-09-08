@@ -428,6 +428,61 @@ class ConstructeurDeFenetres(
 
     val positionTravail: Long get() = travailBase + travailTaille
 
+    /**
+     * Oublie l'audio en attente de traitement et repart d'une page blanche,
+     * SANS toucher au flux brut (cf. [FluxBrut], qui reste la memoire complete
+     * de la seance) ni a quoi que ce soit du texte.
+     *
+     * ── POURQUOI CELA EXISTE (2026-09-07) ─────────────────────────────────
+     *
+     * Defaut decrit par l'utilisateur, apres avoir saute du verset 5 au verset
+     * 20 : « une fois le decrochage et le souffleur faits, ce que j'avais
+     * recite et qui a permis de cibler le decrochage, il faut l'oublier, et
+     * relancer un nouvel alignement de ce que je vais dire APRES l'audio du
+     * souffleur. Parce que la, j'ai redit ce que je devais dire, mais le
+     * souffleur du deuxieme coup a verifie par rapport a l'alignement d'avant,
+     * qui etait faux. »
+     *
+     * MESURE QUI LE CONFIRME (session 17:43, build v376) :
+     *
+     *     17:43:13.778  souffle du passage 353..401       <- capture en pause
+     *          (16,4 s sans une seule fenetre : le souffleur joue 49 mots)
+     *     17:43:30.225  f=17 duree=7,92s  bande=407..433  <- l'audio accumule
+     *     17:43:30.598  f=18 duree=8,88s  bande=403..433     est digere D'UN BLOC
+     *     17:43:31.164  f=20 duree=10,64s bande=407..433
+     *     17:43:32.499  passage non entendu : mots 403..427   <- « saut » de 25
+     *     17:43:33.881  passage non entendu : mots 434..511   <- « saut » de 78
+     *
+     * Le recitant n'a pas saute ces 25 puis 78 mots : des fenetres de 8 a 10 s,
+     * construites sur l'audio empile pendant le souffle, les ont ENJAMBES. Le
+     * souffleur fabriquait ainsi les decrochages suivants -- un emballement,
+     * trois souffles en vingt secondes, le troisieme refuse parce que le
+     * deuxieme jouait encore.
+     *
+     * Ce que cette purge NE touche pas, volontairement : la cible, les statuts
+     * deja rendus, l'ancre, le flux brut. Seul l'audio non encore traite s'en
+     * va, avec la grille de fenetres et l'estimation de niveau qu'il portait.
+     */
+    fun repartirDeZero(positionCourante: Long) {
+        enAttente.clear()
+        travailTaille = 0
+        travailBase = positionCourante
+        derniereCoupe = positionCourante
+        avantDerniereCoupe = -1L
+        runSilence = 0
+        debutSilence = -1L
+        vuDeLaParole = false
+        coupeEnAttente = -1L
+        prochainDebutEnAttente = -1L
+        minRmsDepuisCoupe = Float.MAX_VALUE
+        posMinRms = -1L
+        finDernierMotSur = -1L
+        // Le niveau de parole se reapprend : le seuil adaptatif avait ete
+        // estime sur l'audio qu'on vient de jeter, souffleur compris.
+        niveauxRemplis = 0
+        niveauxPos = 0
+    }
+
     fun alimenter(echantillons: FloatArray): List<Fenetre> {
         val sorties = ArrayList<Fenetre>()
         for (v in echantillons) {

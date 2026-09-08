@@ -1,5 +1,14 @@
 # Passation de contexte entre agents/machines (Windows ↔ Ubuntu)
 
+## Actualisation ChGPT, 2026-09-07
+
+Correction du suivi de priere, sur la reference commitee `6eb88b7` : capture
+continue pour identifier la sourate, confirmation distincte du jugement,
+souffleur sans recul/reset et conservation de la riwaya. Detail et limites :
+[CORRECTION_SUIVI_PRIERE_CHGPT_2026-09-07.md](CORRECTION_SUIVI_PRIERE_CHGPT_2026-09-07.md).
+143 tests cibles passent ; aucune recette sur telephone, aucun gain x2 mesure.
+Les sections historiques ci-dessous ne decrivent pas toutes le code courant.
+
 But de ce fichier : contrairement à `HANDOFF_UBUNTU.md`/`HANDOFF_UBUNTU_TRAINING.md`
 (instantanés ponctuels d'une migration training passée, maintenant datés/obsolètes),
 celui-ci se veut le point d'entrée COURANT à relire à chaque changement de machine

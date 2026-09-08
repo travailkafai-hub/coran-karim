@@ -138,8 +138,34 @@ class Decideur(
      * perte de TOUS les verdicts de la session, inacceptable en cours de
      * recitation).
      */
-    fun oublierDepuis(depuis: Int) {
+    /**
+     * @param effacerProvisoires efface AUSSI `meilleurProvisoire` et `omis`.
+     *
+     * ── PARAMETRE, ET NON CHANGEMENT DE COMPORTEMENT (2026-09-07) ──────────
+     *
+     * J'avais d'abord modifie le corps de cette methode pour effacer aussi les
+     * provisoires. C'ETAIT UNE REGRESSION EN PUISSANCE SUR LA RECITATION
+     * NORMALE : `oublierDepuis` est appelee par [ChaineRecitation.reculerAncre],
+     * qui sert a la CORRECTION AUTOMATIQUE DU KARAOKE
+     * (`karaoke_recitation_screen.dart`, `v2ReculerAncre`) -- un chemin qui n'a
+     * rien demande et que rien ne mesurait. Repere par l'utilisateur avant
+     * qu'il ne parte sur l'appareil.
+     *
+     * Le defaut vu reste vrai : un provisoire ne se degrade jamais (cf. le bloc
+     * « SENS UNIQUE » plus bas), donc un mot rejuge apres un oubli peut
+     * repartir avec la couleur qu'on voulait justement effacer. Mais c'est un
+     * constat sur le SUIVI DE PRIERE, mesure la-bas, et il n'a aucune mesure
+     * sur le karaoke.
+     *
+     * DEFAUT A `false` : le karaoke garde son comportement au caractere pres.
+     * Seul [ChaineRecitation.repartirApresSouffle] passe `true`.
+     */
+    fun oublierDepuis(depuis: Int, effacerProvisoires: Boolean = false) {
         definitifs.keys.filter { it >= depuis }.forEach { definitifs.remove(it) }
+        if (!effacerProvisoires) return
+        meilleurProvisoire.keys.filter { it >= depuis }
+            .forEach { meilleurProvisoire.remove(it) }
+        omis.filter { it >= depuis }.forEach { omis.remove(it) }
     }
     private val omis = HashSet<Int>()
 

@@ -9,6 +9,7 @@ import 'diagnostic_log.dart';
 import 'routage_micro.dart';
 import 'fastconformer_verifier.dart';
 import 'streaming_wav_capture.dart';
+import 'prayer_identification_audio.dart';
 import '../models/judgement_options.dart' show TajwidRule;
 
 // ── Public types ─────────────────────────────────────────────────────────────
@@ -387,7 +388,7 @@ class ArabicNormalizer {
 /// type record était écrit en toutes lettres à chaque usage, et une signature
 /// de plus l'aurait rendu illisible. Les records étant STRUCTURELS, ce nom
 /// coexiste sans friction avec les usages qui l'épellent encore.
-typedef V2StatutFinal = ({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles});
+typedef V2StatutFinal = ({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles});
 
 abstract class RecitationVerifier {
   Stream<RecognizedToken> get tokens;
@@ -451,7 +452,7 @@ abstract class RecitationVerifier {
   /// déjà décidés, pas des scores — la couche de décision vit côté natif.
   /// Vide par défaut : une implémentation qui ne porte pas la v2 n'a rien à
   /// faire de plus.
-  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>> get v2Statuses =>
+  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles})>> get v2Statuses =>
       const Stream.empty();
 
   /// Active la v2 sur [mots]. No-op par défaut.
@@ -604,6 +605,11 @@ abstract class RecitationVerifier {
   set microBluetooth(bool value);
   Future<void> stop();
 
+  /// Prayer-only identification on continuous PCM, without stop/start cycles.
+  Future<void> commencerIdentificationPriere(
+      Future<void> Function(String text) onText);
+  void terminerIdentificationPriere();
+
   /// Numero de la session actuellement demarree (0 = aucune) -- capturer
   /// juste apres start(), repasser a [stopIfCurrentSession] au dispose.
   int get sessionGeneration;
@@ -704,6 +710,18 @@ abstract class RecitationVerifier {
   /// semble "déjà rejugé" avant même que le réciteur ait fini de répéter.
   Future<void> resetBuffer();
 
+  /// Pendant de [resetBuffer] pour la chaîne **v2**, celle qui juge
+  /// réellement : après un souffle, elle oublie l'audio qui a servi à repérer
+  /// le décrochage et repart sur ce que le récitant va dire.
+  ///
+  /// [resetBuffer] ne suffisait pas : il ne touche que `streaming` et
+  /// `causalAlignment` (la v1 et son alignement causal), jamais `v2Chaine`.
+  /// Cf. `ChaineRecitation.repartirApresSouffle` pour la mesure device qui
+  /// l'impose -- des fenêtres de 8 à 10 s bâties sur l'audio empilé pendant le
+  /// souffle, enjambant 25 puis 78 mots, donc deux faux sauts et deux souffles
+  /// de plus.
+  Future<void> repartirApresSouffle(int motDeReprise);
+
   void dispose();
 
   /// S'assure que le modèle ASR est chargé, SANS démarrer de session
@@ -759,7 +777,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// Flux SÉPARÉ de la v2 : aucune couche du chemin v1 ne le lit.
   final _decrochageCtrl = StreamController<int>.broadcast();
   final _v2Ctrl =
-      StreamController<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>>.broadcast();
+      StreamController<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles})>>.broadcast();
   final AudioRecorder _recorder;
   Timer? _levelTimer;
 
@@ -773,6 +791,63 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   Future<void> _continuousFeedTail = Future.value();
   String? _clipCaptureDir;
   StreamingWavCapture? _streamingWavCapture;
+  PrayerIdentificationAudio? _prayerIdentification;
+  Future<void>? _prayerInferenceInFlight;
+
+  @override
+  Future<void> commencerIdentificationPriere(
+      Future<void> Function(String text) onText) async {
+    terminerIdentificationPriere();
+    if (!_continuous || !captureEnCours) {
+      throw StateError('Prayer identification requires continuous capture');
+    }
+    final generation = _generation;
+    _prayerIdentification = PrayerIdentificationAudio(
+      transcribe: (pcm) async {
+        // Finish the previous native pass; never run two ASR jobs for a probe.
+        final previous = _prayerInferenceInFlight;
+        final feed = _continuousFeedTail;
+        final completion = Completer<void>();
+        _prayerInferenceInFlight = completion.future;
+        File? file;
+        try {
+          if (previous != null) await previous;
+          await feed;
+          if (_generation != generation || _sessionEnding) return null;
+          final tmp = await getTemporaryDirectory();
+          file = File('${tmp.path}/prayer_${generation}_'
+              '${DateTime.now().microsecondsSinceEpoch}.wav');
+          final wav = await StreamingWavCapture.open(file.path);
+          wav.add(pcm);
+          await wav.close();
+          if (_generation != generation || _sessionEnding) return null;
+          return await _fastConformer.transcribe(file.path);
+        } finally {
+          try {
+            if (file != null && await file.exists()) await file.delete();
+          } finally {
+            completion.complete();
+            if (identical(_prayerInferenceInFlight, completion.future)) {
+              _prayerInferenceInFlight = null;
+            }
+          }
+        }
+      },
+      onText: (text) async {
+        if (_generation == generation && !_sessionEnding) await onText(text);
+      },
+      onError: (error) => DiagnosticLog.log(
+          'Priere', 'identification audio continue impossible : $error'),
+    );
+    _pendingPcm.clear();
+    await _continuousFeedTail;
+  }
+
+  @override
+  void terminerIdentificationPriere() {
+    _prayerIdentification?.close();
+    _prayerIdentification = null;
+  }
 
   // ── Verrou de session (bug corrige 2026-07-16, revue de code, Finding #1) ──
   // recitationVerifierProvider N'EST PAS autoDispose : CETTE instance survit
@@ -955,6 +1030,9 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   Future<void> _startLocked(List<String> expectedWords,
       {bool continuous = false, List<int?>? refMinFrames}) async {
+    terminerIdentificationPriere();
+    final prayerInference = _prayerInferenceInFlight;
+    if (prayerInference != null) await prayerInference;
     _generation++;
     final hasPerm = await _recorder.hasPermission();
     debugPrint(
@@ -1121,6 +1199,13 @@ class WhisperOnnxVerifier implements RecitationVerifier {
             DiagnosticLog.log('ASR', 'bloc PCM #$_chunkCount (${bytes.length} octets)');
           }
           _levelCtrl.add(_estimatePcmLevel(bytes));
+          final identification = _prayerIdentification;
+          if (identification != null) {
+            // The raw WAV above still records everything, including inference
+            // time. Only the obsolete Fatiha alignment is bypassed here.
+            identification.add(bytes);
+            return;
+          }
           // TRACE (2026-07-27) : `enFile` = blocs recus mais pas encore passes
           // au natif. C'est LA grandeur qui manquait pour savoir si le retard
           // vient de la chaine d'alimentation ou d'ailleurs -- `bloc PCM #N`
@@ -1258,6 +1343,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// Transmet tout l'audio en attente en UN appel, si la chaine est libre.
   /// Se rappelle a la fin de l'appel pour absorber ce qui est arrive pendant.
   void _pumpFeed() {
+    if (_prayerIdentification != null) return;
     if (_feedInFlight || _pendingPcm.isEmpty) return;
     final batch = _pendingPcm.takeBytes();
     final n = _chunkCount;
@@ -1274,6 +1360,8 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   Future<void> _processContinuousChunk(
       Uint8List bytes, int chunkNumber) async {
+    final prayerInference = _prayerInferenceInFlight;
+    if (prayerInference != null) await prayerInference;
     DiagnosticLog.trace('feedEntree', 'n=$chunkNumber enFile=$_pcmQueued');
     final sw = Stopwatch()..start();
     final parts = _usingCausalStreaming
@@ -1348,7 +1436,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   /// Changements de statut de la chaîne v2 (branchée en parallèle de la v1).
   /// Mesure de référence sur le même flux brut : v1 10,10 % de mots non verts,
   /// v2 2,03 %.
-  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>> get v2Statuses => _v2Ctrl.stream;
+  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles})>> get v2Statuses => _v2Ctrl.stream;
 
   /// Le récitateur s'est écarté du texte (chaîne v2). Flux SÉPARÉ de
   /// [v2Statuses] : celui-ci parle de la récitation, pas d'un mot.
@@ -1443,7 +1531,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
               // La passe de fermeture relit le registre de preuves, pas la
               // tete : aucune probabilite a fournir. La fiche n affiche donc
               // pas de barre pour un mot finalise par ce chemin.
-              scoresRegles: const <TajwidRule, ({double prob, double seuil})>{},
+              scoresRegles: const <TajwidRule, ({double prob, double seuil, int dureeMs})>{},
             ))
         .toList());
   }
@@ -1571,6 +1659,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   @override
   Future<void> stop() async {
+    terminerIdentificationPriere();
     // ── TRACE DE FIN DE MICRO (2026-08-14, demande utilisateur) ────────────
     // « rajoute l'activation et la fin d'activation du micro [...] pour
     // s'assurer après que la gestion du micro se fait bien ».
@@ -1757,6 +1846,15 @@ class WhisperOnnxVerifier implements RecitationVerifier {
   }
 
   @override
+  Future<void> repartirApresSouffle(int motDeReprise) async {
+    // Même attente que `resetBuffer` : un bloc PCM encore en vol arriverait
+    // APRÈS la purge et remettrait dans la chaîne l'audio qu'on vient de lui
+    // faire oublier.
+    await _continuousFeedTail;
+    await _fastConformer.v2RepartirApresSouffle(motDeReprise);
+  }
+
+  @override
   Future<bool> ensureModelLoaded() => _fastConformer.ensureLoaded();
 
   @override
@@ -1770,6 +1868,7 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 
   @override
   void dispose() {
+    terminerIdentificationPriere();
     _levelTimer?.cancel();
     _pcmSub?.cancel();
     unawaited(_closeStreamingWavCapture());
@@ -1787,6 +1886,13 @@ class WhisperOnnxVerifier implements RecitationVerifier {
 // ── Simulateur (tests UI sans modèle) ────────────────────────────────────────
 
 class MockRecitationVerifier implements RecitationVerifier {
+  @override
+  Future<void> commencerIdentificationPriere(
+      Future<void> Function(String text) onText) async {}
+
+  @override
+  void terminerIdentificationPriere() {}
+
   final _tokenCtrl = StreamController<RecognizedToken>.broadcast();
   final _levelCtrl = StreamController<double>.broadcast();
   Timer? _timer;
@@ -1817,7 +1923,7 @@ class MockRecitationVerifier implements RecitationVerifier {
   Stream<AlignPayload> get alignedWords => const Stream.empty();
 
   @override
-  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>> get v2Statuses =>
+  Stream<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles})>> get v2Statuses =>
       const Stream.empty();
 
   @override
@@ -1936,6 +2042,8 @@ class MockRecitationVerifier implements RecitationVerifier {
   Future<void> resumeCapture() async {}
   @override
   Future<void> resetBuffer() async {}
+  @override
+  Future<void> repartirApresSouffle(int motDeReprise) async {}
 
   @override
   Future<bool> ensureModelLoaded() async => true;

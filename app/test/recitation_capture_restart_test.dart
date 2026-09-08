@@ -11,6 +11,7 @@ class _FakeRecorder implements AudioRecorder {
   int stopCalls = 0;
   int pauseCalls = 0;
   StreamController<Uint8List>? _stream;
+  void emit(Uint8List pcm) => _stream!.add(pcm);
 
   @override
   Future<bool> hasPermission() async => true;
@@ -71,6 +72,28 @@ class _FakeFastConformer extends FastConformerVerifier {
 }
 
 void main() {
+  test('prayer identification keeps the same microphone and session', () async {
+    final recorder = _FakeRecorder();
+    final verifier = WhisperOnnxVerifier(
+      recorder: recorder, fastConformer: _FakeFastConformer(),
+    );
+    addTearDown(verifier.dispose);
+    await verifier.start(const [], continuous: true);
+    final generation = verifier.sessionGeneration;
+    await verifier.commencerIdentificationPriere((_) async {});
+    recorder.emit(Uint8List(3200));
+    await Future<void>.delayed(Duration.zero);
+    expect(verifier.captureEnCours, isTrue);
+    expect(recorder.startStreamCalls, 1);
+    expect(recorder.stopCalls, 0);
+    expect(recorder.pauseCalls, 0);
+    verifier.terminerIdentificationPriere();
+    expect(verifier.sessionGeneration, generation);
+    expect(verifier.captureEnCours, isTrue);
+    await verifier.stop();
+    expect(recorder.stopCalls, 1);
+  });
+
   test('un nouveau start ferme le flux micro précédent resté en pause',
       () async {
     final recorder = _FakeRecorder();

@@ -120,15 +120,42 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
   /// pas de replacement du curseur. Apres la lecture, la chaine continue de
   /// suivre l'imam la ou il en est reellement -- « on ne force pas a suivre »
   /// (utilisateur, 2026-08-07).
+  /// ── CETTE FONCTION SE TAISAIT SANS JAMAIS DIRE POURQUOI (2026-09-07) ────
+  ///
+  /// Defaut signale : « j'ai recu aucun souffleur alors que j'ai saute le
+  /// texte ». Elle avait QUATRE sorties anticipees et pas une seule trace :
+  /// sur deux sessions completes, ZERO ligne au journal. Impossible de
+  /// distinguer « jamais appelee » de « appelee et sortie tout de suite » --
+  /// on ne pouvait donc que supposer, et c'est ce qui a fait tourner ce
+  /// diagnostic en rond.
+  ///
+  /// Chaque sortie s'ecrit desormais. Le cout est nul (quelques lignes par
+  /// session), le gain est de ne plus jamais avoir a deviner.
   Future<void> _soufflerPassage(({int de, int a}) bornes) async {
-    if (!mounted || _promptingWord ||
-        !ref.read(prayerSouffleurEnabledProvider)) {
+    if (!mounted) return;
+    if (_promptingWord) {
+      DiagnosticLog.log('Souffleur',
+          'passage ${bornes.de}..${bornes.a} ignore : un souffle est deja en '
+          'cours');
+      return;
+    }
+    if (!ref.read(prayerSouffleurEnabledProvider)) {
+      DiagnosticLog.log('Souffleur',
+          'passage ${bornes.de}..${bornes.a} ignore : le souffleur est '
+          'DESACTIVE dans les reglages');
       return;
     }
     final notifier = ref.read(recitationProvider.notifier);
     final st = ref.read(recitationProvider);
     if (st.status != RecitationStatus.listening ||
         st.prayerPhase != PrayerPhase.target) {
+      // Cas normal et VOULU pendant Al-Fatiha : specification utilisateur --
+      // « la il n'y a pas de souffleur parce que forcement c'est Al-Fatiha,
+      // donc on va pas corriger ». On le trace quand meme : c'est ainsi qu'on
+      // a compris que deux SAUT CONFIRME natifs mouraient ici.
+      DiagnosticLog.log('Souffleur',
+          'passage ${bornes.de}..${bornes.a} ignore : phase=${st.prayerPhase}, '
+          'statut=${st.status} (le souffleur ne parle qu\'en phase target)');
       return;
     }
     final revision = notifier.prayerTargetRevision;
@@ -136,10 +163,25 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
       _souffleRevision = revision;
       _passagesSouffles.clear();
     }
-    if (_passagesSouffles.contains(bornes.de)) return;
+    if (_passagesSouffles.contains(bornes.de)) {
+      DiagnosticLog.log('Souffleur',
+          'passage ${bornes.de}..${bornes.a} ignore : deja souffle sur cette '
+          'cible (on ne repete pas le meme passage)');
+      return;
+    }
     final target = notifier.verseAndLocalIndexFor(bornes.de);
-    if (target == null) return;
+    if (target == null) {
+      DiagnosticLog.log('Souffleur',
+          'passage ${bornes.de}..${bornes.a} IMPOSSIBLE : aucun verset ne '
+          'contient le mot ${bornes.de} (cible de ${st.words.length} mots) -- '
+          'rien a jouer');
+      return;
+    }
     final (verse, local) = target;
+    DiagnosticLog.log('Souffleur',
+        'souffle du passage ${bornes.de}..${bornes.a} : verset '
+        '${verse.surahNumber}:${verse.ayahNumber}, mot local $local '
+        '($_kMotsAvantSouffle avant, $_kMotsApresSouffle apres)');
     final verifier = ref.read(recitationVerifierProvider);
     final generation = verifier.sessionGeneration;
     final reciter = ref.read(playerProvider.notifier).reciterPour(st.riwaya);
@@ -154,7 +196,7 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
     try {
       // The loudspeaker must not become acoustic evidence of the imam's voice.
       // Keep the native target and history: no reset, rewind or retry request.
-      await notifier.soufflerPriere(() async {
+      await notifier.soufflerPriere(bornes.de, () async {
         if (!active()) return;
         await WordCorrectionAudio.playWordRange(
           verse, reciter,

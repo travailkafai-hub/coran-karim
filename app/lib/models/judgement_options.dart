@@ -110,16 +110,69 @@ enum TajwidRule {
   ///
   /// Les trois autres restent : `laam_shamsiyah`, `ham_wasl` et `slnt` n'ont
   /// aucun equivalent acoustique dans ce que la tete emet.
+  ///
+  /// ── `madda_normal` Y REVIENT (2026-09-07) ─────────────────────────────
+  ///
+  /// Decision utilisateur : « ok, enleve madd normal ». Elle REVOQUE celle du
+  /// 2026-09-05 juste au-dessus -- qui reste ecrite, avec son raisonnement :
+  /// il etait juste, c'est la MESURE qui a manque a l'epoque.
+  ///
+  /// CE QUI A CHANGE : ce n'est pas un avis, c'est un comptage. Sur les
+  /// journaux device de toutes les sessions, en appliquant la logique EXACTE
+  /// de `unrealizedRulesFor` (regles portees par le texte ecartees, groupe des
+  /// quatre madd applique) :
+  ///
+  ///     madda_normal        163   <- 41 % de TOUS les violets
+  ///     madda_obligatory     78
+  ///     qalaqah              50
+  ///     ghunnah              32
+  ///     ...
+  ///     TOTAL               399
+  ///
+  /// Le filet pose le 2026-09-05 fonctionne : les quatre madd etant
+  /// interchangeables, tout madd detecte satisfait `madda_normal`, ce qui fait
+  /// tomber le compte de 271 a 163. Restent les mots ou la tete n'a detecte
+  /// AUCUN madd -- et c'est la que le verdict n'est pas fondable.
+  ///
+  /// POURQUOI CE RESTE N'EST PAS JUGEABLE, sur les deux tetes :
+  ///
+  ///  - tete FAMILLE : `madda_normal` a un seuil de 1,1 dans
+  ///    `seuils_tajwid.json` -- une probabilite superieure a 1, donc
+  ///    infranchissable par construction -- et son canal ONNX est une
+  ///    CONSTANTE (0 sur le paquet v7, -20 sur le paquet 5 tetes). Elle ne
+  ///    peut pas etre detectee. Jamais.
+  ///  - tete FINE : ses classes madd sont eclatees par LETTRE (`madd__ا`,
+  ///    `madd__ل`, `madd__ه`, `madd__و`, `madd__ي`, `madd__other`), pas par
+  ///    statut juridique. Elle dit « il y a un madd sur cette lettre », jamais
+  ///    « c'est un madd normal ». Elle ne peut donc pas trancher non plus.
+  ///
+  /// Aucune des deux tetes ne peut fonder ce verdict, et un violet est une
+  /// ACCUSATION : le recitant lit qu'il a rate une regle. La regle du projet
+  /// est « aucun verdict sans preuve acoustique » ; ici la preuve n'est pas
+  /// seulement absente, elle est impossible.
+  ///
+  /// ⚠️ CE QUE CELA COUTE, et il faut le savoir : un madd normal REELLEMENT
+  /// raccourci ne sera plus signale. C'est le prix de ne plus accuser a tort
+  /// les 163 autres. A rouvrir le jour ou une tete apprend cette classe, ou ou
+  /// une grandeur de DUREE fiable existe -- les deux candidates ont ete
+  /// mesurees et refutees le 2026-09-07 (duree du pic et tenue de voyelle :
+  /// ordre INVERSE entre les types de madd dans les deux cas).
   static const List<TajwidRule> porteesParLeTexte = [
-    laamShamsiyah, hamWasl, slnt,
+    laamShamsiyah, hamWasl, slnt, maddaNormal,
   ];
 
   /// Les règles qu'un utilisateur peut voir et activer.
   ///
   /// = ce que le texte annoté attend, MOINS [porteesParLeTexte] (2026-09-02).
   /// Restent les 13 canaux que la tête alimente réellement.
+  ///
+  /// `maddaNormal` en est retiree le 2026-09-07, en meme temps qu'elle revient
+  /// dans [porteesParLeTexte] : la doc ci-dessus dit « ce que le texte attend
+  /// MOINS porteesParLeTexte », les deux listes doivent rester coherentes.
+  /// Laisser une regle selectionnable alors qu'aucun verdict ne peut en sortir
+  /// serait annoncer un controle qu'on ne fait pas.
   static const List<TajwidRule> selectionnables = [
-    maddaNecessary, maddaObligatory, maddaPermissible, maddaNormal,
+    maddaNecessary, maddaObligatory, maddaPermissible,
     ghunnah, ikhafa, ikhafaShafawi, idghamGhunnah, idghamShafawi, iqlab,
     idghamWoGhunnah, idghamMutajanisayn, idghamMutaqaribayn,
     qalaqah,

@@ -529,6 +529,17 @@ secondes), pas une position absolue depuis Al-Fatiha.
 réussi) et installé sur device (2026-07-19). Pas encore retesté en
 conditions réelles après ce fix précis.**
 
+## Complement ChGPT du 2026-09-07
+
+Le parcours a ete corrige apres comparaison avec l'oreille : les prises de
+trois secondes interrompues sont remplacees par des instantanes du flux continu.
+Le decrochage dans une sourate confirmee peut proposer une aide sans attendre
+un premier mot juge, sans recul ni obligation de repetition. Le detail des
+causes, des changements, des 143 tests et des limites acoustiques est dans
+[CORRECTION_SUIVI_PRIERE_CHGPT_2026-09-07.md](CORRECTION_SUIVI_PRIERE_CHGPT_2026-09-07.md).
+Les constats historiques ci-dessous ne valent pas validation du nouveau parcours
+sur telephone : cette recette reste a faire.
+
 ## 4. Questions ouvertes / non résolu
 
 1. **Cause exacte du sous-jugement GOP (§3.4)** — non investiguée en

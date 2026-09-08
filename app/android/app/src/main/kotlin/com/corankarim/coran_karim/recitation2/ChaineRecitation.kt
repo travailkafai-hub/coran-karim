@@ -805,6 +805,13 @@ class ChaineRecitation(
      * jamais, il n'y a pas d'attente pour repeter » -- l'imam n'a aucune
      * obligation de reprendre, l'application le suit.
      */
+    /**
+     * ⚠️ EXCEPTION AJOUTEE LE 2026-09-07 : le refus ci-dessous vaut toujours
+     * pour les appels ORDINAIRES, mais [repartirApresSouffle] fait desormais
+     * reculer l'ancre en mode priere -- uniquement apres qu'un souffle a ete
+     * joue. Voir la note de cette methode pour la demande utilisateur qui
+     * revoque, sur ce seul chemin, la specification du 2026-08-07.
+     */
     fun reculerAncre(mot: Int) {
         if (sautLibre) {
             journal?.invoke("[v2] recul d'ancre IGNORE (mode priere) : " +
@@ -961,9 +968,117 @@ class ChaineRecitation(
      * grille de fenetres cesse d'avancer des que le recitateur se tait
      * (defaut trouve par le banc 2, cf. [ConstructeurDeFenetres.terminer]).
      */
+    /**
+     * A appeler quand le souffleur a fini de parler : la chaine oublie l'audio
+     * qui a servi a detecter le decrochage, et repart sur ce que le recitant
+     * va dire maintenant.
+     *
+     * Cf. [ConstructeurDeFenetres.repartirDeZero] pour la mesure qui l'impose.
+     * Ici on ajoute l'oubli des etats de SAUT : sans cela, le trou mis en
+     * attente juste avant le souffle ressortirait a la premiere fenetre
+     * suivante et declencherait un second souffleur sur un passage que le
+     * recitant est justement en train de reprendre.
+     *
+     * Ce qui NE bouge pas : `motsAttendus`, `statutsCourants`, `registre`,
+     * `dernierDefinitif`, `dernierAttesteVu`. Le recitant reprend ou il en
+     * etait ; c'est l'oreille qu'on rince, pas la memoire.
+     */
+    fun repartirApresSouffle(motDeReprise: Int) {
+        constructeur.repartirDeZero(constructeur.positionTravail)
+        trouEnAttenteDe = -1
+        trouEnAttenteA = -1
+        idFenetreTrou = -1L
+        sautPresumeDe = -1
+        sautPresumeA = -1
+        dernierEntenduLibre = ""
+        dernierEntenduLibrePosition = -1L
+        // ── ET L'ANCRE RECULE, VERDICTS COMPRIS (2026-09-07) ───────────────
+        //
+        // PREMIERE VERSION, CORRIGEE LE JOUR MEME : je ne purgeais que l'audio
+        // et j'ecrivais « la cible et les verdicts restent ». C'etait le
+        // contraire de ce qu'il fallait. L'utilisateur, mot pour mot :
+        //
+        //   « L'ancre arrive au mot 40. Puis moi je parle, du coup l'aligneur
+        //   va l'aligner au mot 60. Donc j'ai dit 60, 61, 63, 65 : ils se sont
+        //   COLORIES dans mon ecran, alors qu'il y a un gap. Le souffleur dit
+        //   OK mot 40, 41, 42. Mais a ce stade-la, L'ANCRE DOIT RECULER, et il
+        //   faut remettre a zero ce qui a ete dit -- c'est comme si rien
+        //   n'etait dit, les validations deja validees, il faut les jeter et
+        //   reecouter pour se repositionner. Parce que la, comme il reste
+        //   colorie, l'ancre est toujours avec eux, et le souffleur commence
+        //   par me dire le mot 66, 67, 68. Non. »
+        //
+        // CE QUE CELA REVOQUE, ET C'EST DELIBERE : la specification du
+        // 2026-08-07 disait « aucun recul d'ancre, aucune attente qu'il
+        // repete » (cf. [reculerAncre], qui refuse encore le recul quand
+        // `sautLibre`). Elle reste vraie POUR LES AUTRES CHEMINS -- rien ne
+        // fait reculer l'ancre a cause d'un simple trou, et rien n'attend que
+        // le recitant repete. Ce chemin-ci est le seul ou le recul est demande,
+        // parce qu'un souffle vient d'etre joue : la position d'ou l'on soufflait
+        // est, par construction, celle ou le recitant en etait vraiment.
+        //
+        // Le recul n'est PAS une attente : l'ancre repart de la, et le
+        // localisateur la replace librement des la premiere fenetre suivante,
+        // ou que le recitant en soit. « Reecouter pour se repositionner ».
+        val cible = motDeReprise.coerceIn(0, maxOf(0, motsAttendus.size - 1))
+        // `true` ICI SEULEMENT : cf. la doc de `Decideur.oublierDepuis`. La
+        // correction du karaoke appelle la meme methode par `reculerAncre` et
+        // ne doit rien voir changer.
+        decideur.oublierDepuis(cible, effacerProvisoires = true)
+        dernierDefinitif = cible - 1
+        dernierAttesteVu = minOf(dernierAttesteVu, cible - 1)
+        fenetresHorsTexte = 0
+        decrochageDejaSignale = false
+        statutsCourants = statutsCourants.filterKeys { it < cible }
+        journal?.invoke("[v2] REPART APRES SOUFFLE : ancre reculee au mot " +
+            "$cible, verdicts et preuves posterieurs JETES, et l'audio qui a " +
+            "servi a reperer le decrochage est oublie -- on reecoute pour se " +
+            "repositionner")
+    }
+
+    /**
+     * Nom de famille correspondant a une regle de l'ordre APP (`rules.json`).
+     *
+     * Les deux nomenclatures coincident partout SAUF sur les madd : la tete
+     * fine ne connait qu'une famille `madd`, la la ou `rules.json` porte
+     * `madda_necessary` / `madda_obligatory` / `madda_permissible` /
+     * `madda_normal`. On ramene donc les quatre a `madd` pour pouvoir
+     * comparer -- c'est exactement ce que le PC A a du corriger de son cote
+     * en construisant sa mesure d'accord.
+     */
+    private fun familleDeNomApp(nom: String): String =
+        if (nom.startsWith("madda_")) "madd" else nom
+
     fun terminer(): List<Changement> {
         val changements = ArrayList<Changement>()
         for (fenetre in constructeur.terminer()) traiter(fenetre)
+        // ── UN TROU EN ATTENTE MEURT AVEC LA SESSION, ET IL FAUT LE DIRE ────
+        // (2026-09-07)
+        //
+        // Le mecanisme d'attente (cf. `trouEnAttenteDe` dans [traiter]) laisse
+        // une fenetre de plus pour combler le trou avant de souffler. A la
+        // fermeture, cette fenetre n'existera jamais : le trou reste en
+        // attente pour toujours, `sautPresumeDe` n'est jamais pose, et AUCUNE
+        // trace ne dit pourquoi le souffleur s'est tu.
+        //
+        // MESURE QUI L'IMPOSE (session 11:52, build v373) :
+        //     11:52:43.619  RELACHE effective -- micro detenu=false
+        //     11:52:43.895  f=50 trou de 66 mot(s) apres le mot 101 MIS EN ATTENTE
+        //     11:52:43.899  session fermee : 8 mot(s) finalise(s)
+        // Le vrai saut de l'utilisateur, detecte 276 ms apres le relachement
+        // du micro et enterre 4 ms plus tard. Une soiree a chercher pourquoi.
+        //
+        // ON NE SOUFFLE PAS ICI, VOLONTAIREMENT : la session est finie, le
+        // micro est relache, l'ecran se referme. Souffler apres coup n'aide
+        // personne. On ecrit seulement ce qui s'est passe.
+        if (trouEnAttenteDe >= 0) {
+            journal?.invoke("[v2] trou en attente apres le mot $trouEnAttenteDe " +
+                "(jusqu'au mot $trouEnAttenteA) ABANDONNE : la session se ferme " +
+                "avant la fenetre qui devait le confirmer -- aucun souffleur, " +
+                "et ce n'est pas un defaut du detecteur")
+            trouEnAttenteDe = -1
+            trouEnAttenteA = -1
+        }
         val nouveaux = decideur.statuts(registre, motsAttendus.size)
         for ((i, s) in nouveaux) {
             if (statutsCourants[i] != s) changements.add(Changement(i, s))
@@ -1243,11 +1358,35 @@ class ChaineRecitation(
         // attente qu'il repete, et surtout AUCUN replacement d'autorite sur
         // les mots souffles : apres le souffleur, c'est le localisateur qui
         // decide, librement.
-        if (sautLibre && premiereLocalisation && trou > sautMaxMots) {
+        // ── CE GARDE ATTENDAIT EN EMBUSCADE (corrige 2026-09-07) ───────────
+        //
+        // Sa doc dit « une seule [fenetre] -- ensuite, un trou redevient un
+        // vrai trou ». L'implementation ne le faisait pas : `premiereLocalisation`
+        // n'etait remis a faux QUE dans la branche ci-dessous, celle qui
+        // rencontre un trou. Quand la premiere localisation se passait bien --
+        // aucun trou, le cas NORMAL -- le drapeau restait arme toute la session
+        // et avalait le PREMIER VRAI SAUT, quel qu'il soit.
+        //
+        // MESURE (session 11:52, build v373) :
+        //     11:51:26  cible posee (sourate 4)        -> drapeau arme
+        //     11:51:35  ancre relocalisee au mot 16    -> pas de trou, arme
+        //     11:52:01  mot 43 juge definitif:vert     -> toujours arme
+        //     11:52:04  f=23 trou de 28 mot(s) IGNORE : premiere localisation
+        //               apres pose de cible
+        // Un saut delibere, 38 secondes apres la pose de cible et bien apres
+        // que l'ancre se soit localisee, classe « decalage d'entree ». Aucun
+        // souffleur -- c'est le defaut signale : « j'ai recu aucun souffleur
+        // alors que j'ai saute le texte ».
+        //
+        // On le consomme donc a la PREMIERE LOCALISATION, trou ou pas. Une
+        // bande existe (`dejaLocaliseUneFois` vient d'etre pose juste au
+        // dessus) : le decalage d'entree, s'il y en avait un, est derriere.
+        val entreeDeCible = premiereLocalisation
+        premiereLocalisation = false
+        if (sautLibre && entreeDeCible && trou > sautMaxMots) {
             journal?.invoke("[v2] f=${fenetre.id} trou de $trou mot(s) IGNORE : " +
                 "premiere localisation apres pose de cible -- c'est le " +
                 "decalage d'entree, pas un oubli du recitant")
-            premiereLocalisation = false
         } else if (sautLibre && dernierDefinitif >= 0 && trou > sautMaxMots) {
             // ── ON ATTEND LA FENETRE SUIVANTE AVANT DE SOUFFLER ────────────
             //
@@ -1648,6 +1787,81 @@ class ChaineRecitation(
                         !avantVues.containsAll(detections.map { it.ruleId })) {
                         motsAReemettre.add(m.index)
                     }
+                }
+                // ── LES DEUX TETES, CONFRONTEES (2026-09-07) ──────────
+                //
+                // Demande utilisateur : « adapte, en premier lieu ce sera en
+                // log ». La tete FINE (76 classes) est lue et remontee a ses
+                // 11 familles, puis comparee a ce que la tete FAMILLE a
+                // detecte sur LE MEME MOT et LES MEMES frames.
+                //
+                // Ce que la ligne donne, et que rien d'autre ne peut donner :
+                // l'ACCORD des deux tetes sur du vrai usage. La mesure du PC A
+                // (400 fenetres de corpus, 4 voix) dit que l'intersection
+                // divise l'invention par 6 a 8 ; elle ne dit pas si cela tient
+                // sur une recitation reelle, avec un micro de telephone et un
+                // recitant qui hesite. C'est ce que la recette dira.
+                //
+                // ⚠️ OBSERVATION SEULE. `reglesTajwid` -- ce qui part vers
+                // Dart et peint l'ecran -- ne vient QUE de la tete famille,
+                // exactement comme avant ce jour. Rien n'est confronte pour
+                // juger, seulement pour etre lu.
+                //
+                // Trois etats par famille, et c'est le troisieme qui interesse :
+                //   accord      les deux la voient  -> ce que l'intersection garde
+                //   familleSeule  elle seule        -> ce que l'intersection perdrait
+                //   fineSeule     elle seule        -> ce que la famille ne voit pas
+                val fine = sorties.tajwidFine
+                if (fine != null && m.frames > 0 && front.nomsReglesFines.isNotEmpty()) {
+                    val bornes = etendue[m.index]
+                    val d0 = (bornes?.first ?: m.premiereFrame).coerceIn(0, fine.size)
+                    val d1 = (bornes?.second ?: (m.derniereFrame + 1)).coerceIn(d0, fine.size)
+                    if (d1 > d0) {
+                        // Meme seuil que la tete famille (ln 0,5), faute de
+                        // calibration propre a la tete fine : les seuils livres
+                        // pour elle sont ceux du regime « 97 % » que son propre
+                        // rapport declare inutilisable (91,5 % d'invention).
+                        val seuilLog = Math.log(0.5).toFloat()
+                        val vues = HashSet<String>()
+                        for (f in d0 until d1) {
+                            val ligne = fine[f]
+                            for (c in ligne.indices) {
+                                if (ligne[c] > seuilLog) {
+                                    front.familleDeRegleFine(c)?.let { vues.add(it) }
+                                }
+                            }
+                        }
+                        val famille = detections.mapNotNull {
+                            front.nomsRegles.getOrNull(it.ruleId)
+                        }.map { familleDeNomApp(it) }.toHashSet()
+                        val accord = famille.intersect(vues)
+                        val familleSeule = famille - vues
+                        val fineSeule = vues - famille
+                        journal?.invoke("[tajwidFine] mot=${m.index} " +
+                            "accord=${if (accord.isEmpty()) "-" else accord.sorted().joinToString(",")} " +
+                            "familleSeule=${if (familleSeule.isEmpty()) "-" else familleSeule.sorted().joinToString(",")} " +
+                            "fineSeule=${if (fineSeule.isEmpty()) "-" else fineSeule.sorted().joinToString(",")}")
+                    }
+                }
+                // ── LA TENUE, A COTE DU PIC (2026-09-07) ──────────────
+                //
+                // Cf. `Decodage.tenueMax` pour la mesure qui l'impose : la
+                // duree rendue par la tete est celle de son PIC, pas celle du
+                // son. Les deux sont journalisees cote a cote pour qu'on
+                // puisse enfin les comparer sur le meme mot -- c'est ce qui
+                // dira si la tenue separe un madd de 2 harakat d'un madd de 6,
+                // la ou le pic ne le fait pas.
+                //
+                // Observation seule : aucun verdict ne lit cette valeur.
+                if (detections.isNotEmpty() && m.frames > 0) {
+                    val tenue = Decodage.tenueMax(
+                        logprobs, front.blank, m.premiereFrame, m.derniereFrame)
+                    journal?.invoke("[tajwidTenue] mot=${m.index} " +
+                        "tenue=${tenue}f(${tenue * Horloge.MS_PAR_FRAME}ms) " +
+                        "surMot=${m.frames}f(${m.frames * Horloge.MS_PAR_FRAME}ms) " +
+                        "regles=" + detections.joinToString(",") { d ->
+                            front.nomsRegles.getOrNull(d.ruleId) ?: "?${d.ruleId}"
+                        })
                 }
                 if (detections.isNotEmpty()) {
                     journal?.invoke("[tajwidDuree] mot=${m.index} " +

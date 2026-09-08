@@ -207,7 +207,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // Motif volontairement identique à `useGopScoring` : les deux moteurs
   // calculent, un seul peint l'écran. La v1 ne peut donc pas régresser du fait
   // du branchement, et une session compare les deux sur le MÊME audio.
-  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})>>? _v2Sub;
+  StreamSubscription<List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles})>>? _v2Sub;
   StreamSubscription<int>? _decrochageSub;
 
   /// La v2 pilote-t-elle l'affichage ? Quand c'est faux, elle tourne quand même
@@ -295,6 +295,38 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       final first = (dernierDefinitif + 1).clamp(0, state.words.length - 1);
       // ChGPT: in prayer this is a suggestion, not a failure or rewind.
       _sautPresumeCtrl.add((de: first, a: first));
+      // ── LE DEUXIEME CANDIDAT EST RESTE A COTE (2026-09-07) ──────────────
+      //
+      // PREMIERE VERSION, RETIREE LE JOUR MEME : je rouvrais ici une
+      // identification complete (faisceau Shazam) apres deux decrochages.
+      // L'utilisateur l'a refusee, et il a raison sur le fond -- EN PRIERE
+      // L'IMAM NE SAUTE PAS. J'avais bati un mecanisme sur un cas que la
+      // salat ne produit pas. Sa correction, mot pour mot :
+      //
+      //   « Je veux meme pas dire refaire la recherche. Imaginons, on a fait
+      //   la recherche, il y a deux sourates qui repondent aux criteres, et
+      //   toi t'as choisi la premiere. Il faut pas oublier la deuxieme, il
+      //   faut la garder juste a cote. Il se peut que tu continues de reciter
+      //   et du coup on n'arrive pas a placer. A ce moment-la, pas besoin de
+      //   faire une deuxieme recherche, on a une deuxieme. Donc on verifie
+      //   dans le deuxieme. »
+      //
+      // ET POURQUOI LE SAUT EST AUTORISE, ce que j'avais mal compris : « c'est
+      // un micro, il se peut qu'il detecte pas la voix, et du coup c'est pour
+      // ca que j'autorise les sauts. Mais c'est des sauts VIRTUELS. Il n'a pas
+      // saute. » Le saut libre couvre un trou de CAPTURE, pas un imam qui
+      // change de passage. Un decrochage persistant ne veut donc pas dire
+      // « il est ailleurs dans le Coran » mais, bien plus probablement, « la
+      // sourate retenue n'etait pas la bonne » -- et le bon candidat etait
+      // deja dans la liste, ecarte par `confirmedPrayerTarget`.
+      //
+      // On essaie donc le SUIVANT (cf. `_candidatsPriereRestants`), sans
+      // relancer aucune recherche.
+      _decrochagesConsecutifsCible++;
+      if (_decrochagesConsecutifsCible >= _kDecrochagesAvantCandidatSuivant) {
+        _decrochagesConsecutifsCible = 0;
+        unawaited(_essayerCandidatSuivant(dernierDefinitif));
+      }
       return;
     }
     // ── EN PHASE FATIHA, UN DECROCHAGE VEUT DIRE « IL EST PASSE A LA SUITE »
@@ -1165,8 +1197,137 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // Valeur de depart, PAS ENCORE MESUREE sur device (meme reserve que
   // `_kMinIdentifyConfidence` avant sa recalibration du 2026-08-07) -- a
   // ajuster sur de vrais logs si elle se revele trop courte/trop longue.
+  //
+  // ── SA SOURCE S'ETEIGNAIT AU MOMENT MEME OU IL DEVENAIT UTILE (2026-09-07)
+  //
+  // Defaut signale : « je ne comprends pas, pendant la recitation de la
+  // sourate il me reaffiche Al-Fatiha ». Le journal (build v373) le montre
+  // sans le moindre doute :
+  //
+  //     11:33:45.703  sourate identifiee : 2:2 (confiance 1.00)
+  //     11:33:46.346  bloc PCM #520                    <- l'audio arrive
+  //     11:33:50.711  mot=12 "الصلوة"  -> definitif:vert   <- il RECITE
+  //     11:33:50.713  mot=14 "رزقنـهم" -> definitif:vert
+  //     11:33:52.310  bloc PCM #600
+  //     11:33:53.789  silence de 8s pendant le suivi de la sourate
+  //     11:33:53.878  cible v2 = Al-Fatiha (29 mots)   <- le symptome
+  //
+  // Trois mots verts TROIS SECONDES avant le pretendu silence, et les blocs
+  // PCM qui n'ont jamais cesse d'arriver. Le compte tombe juste : cible posee
+  // a 45,70, minuteur expire a 53,79 -- 8,09 s apres. Il avait ete arme UNE
+  // FOIS a la pose de cible, et plus jamais rearme.
+  //
+  // CAUSE : son unique point de rearmement etait `_onDecodageLibrePriere`,
+  // donc le DECODAGE LIBRE. Or la pose de cible fait precisement basculer la
+  // chaine du decodage libre vers l'ALIGNEMENT FORCE -- le journal l'ecrit
+  // lui-meme, « alignement force au lieu du decodage libre ». La source du
+  // minuteur s'eteint donc a l'instant exact ou la phase `target` commence.
+  //
+  // Ce n'etait pas un cas limite : en phase `target` ce retour en standby
+  // etait INEVITABLE, et tombait toujours au meme endroit, 8 s apres chaque
+  // pose de cible. Degat collateral visible dans le meme journal : les mots 1
+  // a 11 finalises `omis` avec `entendu=""` et `obs=0` -- des verdicts « il
+  // n'a pas dit ce mot » produits par une fermeture qui n'aurait pas du
+  // partir.
+  //
+  // CORRECTIF : rearmer sur ce qui prouve reellement que l'imam parle ET qui
+  // existe en phase `target` -- l'AVANCEE DE L'ANCRE (cf. le point d'accroche
+  // pres de `_prayerLocalisee`). Un mot juge, c'est de la parole.
+  //
+  // ⚠️ CE QU'ON N'A VOLONTAIREMENT PAS FAIT : rearmer aussi sur bloc PCM non
+  // silencieux. Ce serait couvrir le cas « il parle mais rien ne s'aligne » --
+  // or c'est exactement le cas que ce minuteur EXISTE pour traiter (« le suivi
+  // s'est verrouille sur la mauvaise sourate et plus rien ne s'aligne »,
+  // ci-dessus). Le nourrir au PCM le rendrait muet precisement quand le suivi
+  // est reellement perdu. Arbitre avec l'utilisateur le 2026-09-07.
+  //
+  // ── CE RAISONNEMENT ETAIT INCOMPLET, ET LA MESURE L'A TRANCHE (2026-09-07)
+  //
+  // Le rearmement sur verdict ci-dessus n'a pas suffi. Session suivante
+  // (build v374, 16:30) :
+  //
+  //     16:30:47.746  mot=317 "يفلح"      -> definitif:vert   <- dernier verdict
+  //     16:30:53.810  bloc PCM #880                           <- il recite
+  //     16:30:54.167  f=3 RECUL vers le mot 315 -- le recitateur repete
+  //     16:30:55.927  silence de 8s -- retour en attente      <- expiration
+  //     16:30:55.934  mot=318 "الظـلمون" -> definitif:vert   <- 6 ms TROP TARD
+  //
+  // Sur les 9,71 s qui precedent : 8,00 s d'audio recu, 1,71 s de silence
+  // cumule (18 %, les respirations). Il recitait.
+  //
+  // POURQUOI : un verdict n'arrive qu'une fois la fenetre remplie ET traitee.
+  // Mesure des trois signaux disponibles sur cette session :
+  //
+  //     signal              mediane   p90     pire cas   depasse 8 s ?
+  //     verdict [V2] mot=    2,47 s   8,19 s   29,5 s    OUI
+  //     fenetre localisee    0,37 s   4,17 s    7,8 s    frole
+  //     niveau micro         < 0,1 s      --       --    jamais
+  //
+  // Le p90 des verdicts EST le seuil. Huit secondes sans verdict est un
+  // evenement ordinaire d'une recitation continue, pas un silence : le
+  // minuteur etait cable sur un signal dont le pire cas normal vaut le seuil
+  // qu'il doit detecter.
+  //
+  // ── POURQUOI LE PCM EST MAINTENANT LE BON SIGNAL ────────────────────────
+  //
+  // La reserve ecrite plus haut confondait DEUX questions que ce minuteur
+  // traitait ensemble :
+  //   1. « l'imam s'est tu » (ruku', fin de rak'ah)  -> c'est sa vraie question
+  //   2. « il parle mais rien ne s'aligne »          -> celle du DECROCHAGE
+  //
+  // La (2) a desormais son propre traitement en phase `target` : cf.
+  // `_decrochagesConsecutifsCible`, qui rouvre l'identification. Le minuteur
+  // peut donc se consacrer a la (1), et s'y nourrir de la voix.
+  //
+  // ⚠️ EFFET DE BORD ASSUME, NOMME ICI : dans un lieu bruyant, un bruit de
+  // fond au-dessus de `_kSeuilVoixPourSilence` empeche ce minuteur d'expirer.
+  // C'est le decrochage qui ramene alors en attente, pas lui. Sans le
+  // correctif (2), ce serait un trou -- ne pas retirer l'un sans l'autre.
   Timer? _targetSilenceStandbyTimer;
   static const _kTargetSilenceStandbyDelay = Duration(seconds: 8);
+
+  /// Decrochages d'affilee sur la cible sans qu'un mot ait ete juge entre-deux.
+  /// Cf. `_onDecrochageV2` : au-dela de
+  /// [_kDecrochagesAvantCandidatSuivant], on passe au candidat suivant.
+  int _decrochagesConsecutifsCible = 0;
+  static const _kDecrochagesAvantCandidatSuivant = 2;
+
+  /// ── LES CANDIDATS ECARTES SE GARDENT (2026-09-07) ───────────────────────
+  ///
+  /// `locateTopMatches(query, k: 20)` ramene vingt candidats classes ;
+  /// `confirmedPrayerTarget` en retient UN et les dix-neuf autres etaient
+  /// jetes. Or l'ambiguite est reelle : la fonction refuse deja de trancher
+  /// tant qu'un concurrent d'une autre sourate est a moins de 30 % du meilleur
+  /// -- la preuve que le second candidat est parfois presque aussi bon.
+  ///
+  /// Demande utilisateur : « il faut pas oublier la deuxieme, il faut la
+  /// garder juste a cote [...] pas besoin de faire une deuxieme recherche, on
+  /// a une deuxieme, donc on verifie dans le deuxieme ».
+  ///
+  /// On garde donc ici les candidats d'AUTRES sourates que celle retenue, dans
+  /// l'ordre du classement. Vide des qu'on repasse en standby : ils
+  /// n'appartiennent qu'a la rak'ah en cours (meme raison que
+  /// `_prayerVersetsRestants`, cf. la regression « une sourate collee a
+  /// Al-Fatiha »).
+  final List<QuranMatch> _candidatsPriereRestants = [];
+
+  /// Au-dela de ce niveau (`_estimatePcmLevel`, echelle 0..1 sur `(dB+60)/60`),
+  /// on considere que quelqu'un parle. 0,15 vaut environ -51 dB : tres
+  /// permissif, il s'agit de distinguer la voix du silence, pas de mesurer une
+  /// intensite. Cf. la note de `_targetSilenceStandbyTimer`.
+  static const _kSeuilVoixPourSilence = 0.15;
+
+  /// Niveau micro : peint l'onde, et tient le minuteur de silence en phase
+  /// `target` (cf. `_targetSilenceStandbyTimer` -- c'est la voix qui prouve que
+  /// l'imam est toujours la, pas le verdict, qui arrive jusqu'a 8 s plus tard).
+  void _onNiveauMicro(double niveau) {
+    state = state.copyWith(soundLevel: niveau);
+    if (_dynamicTargetDiscovery &&
+        state.prayerPhase == PrayerPhase.target &&
+        niveau >= _kSeuilVoixPourSilence) {
+      _armTargetSilenceStandbyTimer();
+    }
+  }
 
   void _armTargetSilenceStandbyTimer() {
     _targetSilenceStandbyTimer?.cancel();
@@ -1663,6 +1824,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     }
     _detectingTargetFallbackTimer?.cancel();
     _targetSilenceStandbyTimer?.cancel();
+    // Les candidats gardes n'appartiennent qu'a la rak'ah qui s'acheve, comme
+    // `_prayerVersetsRestants` (cf. plus bas la regression « une sourate
+    // collee a Al-Fatiha » : ce qui survit a un retour en attente se recolle
+    // a la rak'ah suivante).
+    _candidatsPriereRestants.clear();
+    _decrochagesConsecutifsCible = 0;
     _standbyScanStart = _takbirScannedCommittedLen;
     // Persisté (pas juste debugPrint) : ce log survit à un logcat qui tourne
     // (buffer limité, évincé par le bruit UI/graphique en quelques secondes,
@@ -1988,6 +2155,26 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         DiagnosticLog.log('Priere',
             'identification continue : ${match == null ? "en attente de confirmation" : "${match.surahNumber}:${match.ayahNumber} confirme"}');
         if (match == null) return;
+        // Les concurrents d'une AUTRE sourate restent a cote (cf.
+        // `_candidatsPriereRestants`) : si l'alignement ne place plus rien sur
+        // la sourate retenue, c'est le premier d'entre eux qu'on essaie, sans
+        // relancer de recherche.
+        _candidatsPriereRestants
+          ..clear()
+          ..addAll(([...candidates]
+                ..sort((a, b) => b.confidence.compareTo(a.confidence)))
+              .where((c) => c.surahNumber != match.surahNumber &&
+                  c.surahNumber != 1));
+        if (_candidatsPriereRestants.isNotEmpty) {
+          final apercu = _candidatsPriereRestants
+              .take(3)
+              .map((c) => '${c.surahNumber}:${c.ayahNumber}'
+                  '@${c.confidence.toStringAsFixed(2)}')
+              .join(', ');
+          DiagnosticLog.log('Priere',
+              '${_candidatsPriereRestants.length} candidat(s) gardes de cote '
+              'au cas ou la sourate retenue ne placerait plus rien : $apercu');
+        }
         if (await _beginIdentifiedTargetPhase(match)) {
           if (mounted && revision == _prayerIdentificationRevision) {
             _verifier.terminerIdentificationPriere();
@@ -2465,7 +2652,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
 
   /// ChGPT: playback is an optional hint. Retain native alignment/history and
   /// resume only the capture this prayer still owns, never a newer session.
-  Future<void> soufflerPriere(Future<void> Function() jouer) async {
+  /// [motDeReprise] : le premier mot du passage souffle. C'est LA que l'ancre
+  /// revient une fois le souffle fini -- cf.
+  /// `ChaineRecitation.repartirApresSouffle` pour la demande utilisateur.
+  Future<void> soufflerPriere(
+      int motDeReprise, Future<void> Function() jouer) async {
     if (!_dynamicTargetDiscovery ||
         state.status != RecitationStatus.listening ||
         state.prayerPhase != PrayerPhase.target) {
@@ -2486,6 +2677,75 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       if (mounted && generation == _verifier.sessionGeneration &&
           state.status == RecitationStatus.listening &&
           _verifier.captureEnCours) {
+        // ── ON RINCE L'OREILLE AVANT DE RENDRE LA PAROLE (2026-09-07) ─────
+        //
+        // AVANT LA REPRISE, jamais après : un bloc PCM arrivé entre la purge
+        // et le `resume` remettrait dans la chaîne exactement ce qu'on vient
+        // de lui faire oublier.
+        //
+        // Demande utilisateur, après avoir sauté du verset 5 au verset 20 :
+        // « une fois le décrochage et le souffleur faits, ce que j'avais
+        // récité et qui a permis de cibler le décrochage, il faut l'oublier,
+        // et relancer un nouvel alignement de ce que je vais dire APRÈS
+        // l'audio du souffleur. J'ai redit ce que je devais dire, mais le
+        // souffleur du deuxième coup a vérifié par rapport à l'alignement
+        // d'avant, qui était faux. »
+        //
+        // Le journal lui donne raison (session 17:43, build v376) : 16,4 s
+        // sans une seule fenêtre pendant le souffle, puis l'audio empilé
+        // digéré d'un bloc en fenêtres de 7,9 / 8,9 / 10,6 s qui enjambent
+        // 25 puis 78 mots -- deux « passages non entendus » qui n'étaient pas
+        // des sauts du récitant, et deux souffles de plus. Le souffleur
+        // fabriquait les décrochages suivants.
+        //
+        // ⚠️ NE PAS remplacer par `resetBuffer()` : celui-ci ne touche que la
+        // v1 et l'alignement causal, jamais `v2Chaine` -- la chaîne qui juge.
+        // Cf. `repartirApresSouffle` dans `RecitationVerifier`.
+        await _verifier.repartirApresSouffle(motDeReprise);
+        // ── L'ECRAN AUSSI DOIT SE DECOLORIER ──────────────────────────────
+        //
+        // Le natif vient de jeter ses verdicts au-dela de `motDeReprise`, mais
+        // `state.words` garde les couleurs deja peintes -- et c'est
+        // precisement ce que l'utilisateur voit : « comme il reste colorie,
+        // l'ancre est toujours avec eux ». On remet donc ces mots a `pending`,
+        // exactement les memes que ceux que le natif a oublies.
+        final avant = state.words;
+        if (motDeReprise < avant.length) {
+          var effaces = 0;
+          final apres = <RecitedWord>[];
+          for (var i = 0; i < avant.length; i++) {
+            if (i >= motDeReprise && avant[i].status != WordStatus.pending) {
+              effaces++;
+              apres.add(avant[i].copyWith(
+                  status: i == motDeReprise
+                      ? WordStatus.current
+                      : WordStatus.pending));
+            } else {
+              apres.add(avant[i]);
+            }
+          }
+          // ── L'ANCRE RECULE MEME SANS COULEUR A EFFACER ──────────────────
+          //
+          // Premiere version : tout ce bloc etait garde par `effaces > 0`.
+          // C'etait une incoherence entre les deux cotes -- le natif recule
+          // `dernierDefinitif` a CHAQUE souffle (`repartirApresSouffle`),
+          // tandis que Dart ne bougeait le pointeur que si des mots etaient
+          // deja peints. Un souffle sur un passage encore vierge laissait
+          // donc l'ancre Dart en avant de l'ancre native.
+          //
+          // Trouve par `prayer_follow_flow_test.dart` (« apres un souffle,
+          // l ancre revient au mot souffle » : attendu 3, obtenu 0) -- le cas
+          // exact qu'un test hors device peut voir et qu'une session sur
+          // appareil aurait masque, les mots y etant presque toujours peints.
+          if (effaces > 0) {
+            DiagnosticLog.log('Priere',
+                'apres le souffle : $effaces mot(s) decolories a partir du mot '
+                '$motDeReprise -- ils avaient ete peints sur un alignement que '
+                'le decrochage a invalide, on reecoute pour se repositionner');
+          }
+          state = state.copyWith(words: apres, pointer: motDeReprise);
+          _anchorExp = motDeReprise;
+        }
         await _verifier.resumeCapture();
       }
     }
@@ -3030,7 +3290,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// entre « pas faite » (p=0,10) et « ratée de peu » (p=0,48) n'existait que
   /// dans le journal, et il fallait croiser trois types de lignes pour la voir.
   /// Un violet disait « c'est raté » sans jamais dire de combien.
-  final Map<int, Map<TajwidRule, ({double prob, double seuil})>> _scoresRegles =
+  final Map<int, Map<TajwidRule, ({double prob, double seuil, int dureeMs})>> _scoresRegles =
       {};
 
   /// ── LA NOTE EN CINQ ÉTOILES DU PASSAGE (2026-09-05) ────────────────────
@@ -3059,7 +3319,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   }
 
   /// Les scores de [wordIndex], vides si le mot n'a pas été observé.
-  Map<TajwidRule, ({double prob, double seuil})> scoresReglesPour(
+  Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresReglesPour(
           int wordIndex) =>
       _scoresRegles[wordIndex] ?? const {};
 
@@ -3366,6 +3626,41 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     return out;
   }
 
+  /// Le suivi ne place plus rien : on essaie le candidat suivant de la MEME
+  /// identification, sans en relancer une (cf. `_candidatsPriereRestants`).
+  ///
+  /// N'annule rien de ce qui a ete juge : `_beginIdentifiedTargetPhase` pose
+  /// une nouvelle cible, et c'est le localisateur qui retrouve l'imam dessus.
+  /// Si le candidat ne vaut rien non plus, deux decrochages de plus amenent le
+  /// suivant -- et quand la liste est vide, on ne fait plus rien : le minuteur
+  /// de silence garde le dernier mot (cf. `_targetSilenceStandbyTimer`).
+  Future<void> _essayerCandidatSuivant(int dernierDefinitif) async {
+    if (!_dynamicTargetDiscovery ||
+        state.prayerPhase != PrayerPhase.target) {
+      return;
+    }
+    if (_candidatsPriereRestants.isEmpty) {
+      DiagnosticLog.log('Priere',
+          'decrochages repetes sur la cible (dernierDefinitif='
+          '$dernierDefinitif) mais AUCUN candidat de rechange -- on reste sur '
+          'la sourate ${_currentTargetSurah ?? "?"}, le localisateur continue '
+          'de chercher');
+      return;
+    }
+    final suivant = _candidatsPriereRestants.removeAt(0);
+    DiagnosticLog.log('Priere',
+        'la sourate ${_currentTargetSurah ?? "?"} ne place plus rien '
+        '(dernierDefinitif=$dernierDefinitif) -- on essaie le candidat garde '
+        '${suivant.surahNumber}:${suivant.ayahNumber} '
+        '(confiance ${suivant.confidence.toStringAsFixed(2)}, '
+        '${_candidatsPriereRestants.length} encore en reserve). '
+        'AUCUNE nouvelle recherche.');
+    // La suite non posee appartenait a la cible qu'on quitte (cf. la
+    // regression « une sourate collee a Al-Fatiha », _enterPrayerStandby).
+    _prayerVersetsRestants.clear();
+    await _beginIdentifiedTargetPhase(suivant);
+  }
+
   /// Etend la cible du mode priere quand l'ancre approche de sa fin.
   ///
   /// Appelee a chaque avancee de l'ancre ; ne fait rien tant qu'il reste plus
@@ -3465,8 +3760,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       rawTranscript: '',
     );
     _tokenSub = _verifier.tokens.listen(_onToken);
-    _levelSub = _verifier.soundLevel
-        .listen((lvl) => state = state.copyWith(soundLevel: lvl));
+    _levelSub = _verifier.soundLevel.listen(_onNiveauMicro);
     _rawSub = _verifier.rawTranscript.listen(_onRawSegment);
     _v2Sub = _verifier.v2Statuses.listen(_onV2);
     // `cancel()` AVANT de réabonner : ce bloc existe sur DEUX chemins de
@@ -3623,8 +3917,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     // salât.
     if (_confidentMode) unawaited(_ensureFatihaWords());
     _tokenSub = _verifier.tokens.listen(_onToken);
-    _levelSub = _verifier.soundLevel
-        .listen((lvl) => state = state.copyWith(soundLevel: lvl));
+    _levelSub = _verifier.soundLevel.listen(_onNiveauMicro);
     _structSub = _verifier.structuredTranscript.listen(_onStructured);
     _pendingSub = _verifier.pendingSegments.listen(_onPendingChanged);
     _v2Sub = _verifier.v2Statuses.listen(_onV2);
@@ -3879,8 +4172,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       riwaya: state.riwaya,
     );
     _tokenSub = _verifier.tokens.listen(_onToken);
-    _levelSub = _verifier.soundLevel
-        .listen((lvl) => state = state.copyWith(soundLevel: lvl));
+    _levelSub = _verifier.soundLevel.listen(_onNiveauMicro);
     _structSub = _verifier.structuredTranscript.listen(_onStructured);
     _pendingSub = _verifier.pendingSegments.listen(_onPendingChanged);
     // Les verdicts de la v2 peignent l'écran, comme en récitation normale.
@@ -4713,7 +5005,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// `omis` n'est PAS une couleur : c'est « le récitateur est passé outre, et
   /// on peut le prouver ». Il est rendu comme `skipped`, jamais comme `error` —
   /// condamner un mot non prononcé serait un verdict sans preuve.
-  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil})> scoresRegles})> changements) {
+  void _onV2(List<({int index, String statut, String trace, String heard, Set<TajwidRule> detectedRules, bool tajwidFiable, bool tajwidObserve, double? margeLettres, Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles})> changements) {
     // ── L'EXTENSION SUIT L'ANCRE (2026-09-07) ──────────────────────────────
     //
     // Point d'accroche : c'est ici que la position du recitant remonte, et
@@ -4731,6 +5023,17 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         DiagnosticLog.log('Priere',
             'ancre relocalisee sur la nouvelle cible (mot $ancre) -- '
             'la correction est desormais autorisee');
+      }
+      // Le rearmement du minuteur de silence est passe d'ici au niveau micro
+      // (`_onNiveauMicro`) : mesure du 2026-09-07, un verdict met jusqu'a
+      // 8,19 s a tomber pendant une recitation continue, soit le seuil
+      // lui-meme. La note de `_targetSilenceStandbyTimer` porte les chiffres.
+      // Ce qui reste ici : le decrochage, lui, se compte sur les verdicts --
+      // un mot juge prouve que la chaine a retrouve l'imam.
+      if (_dynamicTargetDiscovery &&
+          state.prayerPhase == PrayerPhase.target &&
+          _decrochagesConsecutifsCible > 0) {
+        _decrochagesConsecutifsCible = 0;
       }
       if (_prayerVersetsRestants.isNotEmpty) {
         unawaited(_etendreCiblePriereSiBesoin(ancre));
@@ -4974,12 +5277,37 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         _scoresRegles[c.index] = c.scoresRegles;
       }
       if (attendues.isNotEmpty) {
+        // ── LE VERDICT DIT ENFIN SUR QUOI IL S'APPUIE (2026-09-07) ──────
+        //
+        // Cette ligne portait les NOMS des regles et rien d'autre : impossible
+        // de dire, journal en main, si une regle detectee l'avait ete de
+        // justesse ou franchement, ni combien de temps le recitant l'avait
+        // tenue. Les deux grandeurs existaient pourtant -- `p=…/…` dans
+        // `[tajwidDuree]`, cote natif, sur une AUTRE ligne et sans le statut.
+        // Les rapprocher demandait de croiser deux lignes a la main.
+        //
+        // Elles arrivent maintenant ensemble, sur la ligne du verdict :
+        //     detectees=ikhafa(p=0.998/0.500,247ms),madda_permissible(p=…)
+        //
+        // C'EST AUSSI CE QUI RENDRA MESURABLE LA FUSION DES MADD. La tete
+        // FAMILLE a 11 classes ne rend plus qu'un seul `madd` ; separer 2, 4
+        // et 6 harakat se fera sur la duree. Avant de choisir des paliers, il
+        // faut voir la distribution reelle des durees par type de madd sur du
+        // vrai audio -- ce journal est ce qui la fournira. Aucun seuil n'est
+        // pose ici : on regarde d'abord.
+        String _valeurs(TajwidRule r) {
+          final s = c.scoresRegles[r];
+          if (s == null) return '';
+          final d = s.dureeMs > 0 ? ',${s.dureeMs}ms' : '';
+          return '(p=${s.prob.toStringAsFixed(3)}'
+              '/${s.seuil.toStringAsFixed(3)}$d)';
+        }
         DiagnosticLog.log('V2tajwidDetail',
             'mot=${c.index} "${c.index < words.length ? words[c.index].display : "?"}" '
             'statut=${statutBase.name} tajwidFiable=${c.tajwidFiable} '
             'tajwidObserve=${c.tajwidObserve} '
-            'attendues=${attendues.map((r) => r.key).join(",")} '
-            'detectees=${c.detectedRules.map((r) => r.key).join(",")}');
+            'attendues=${attendues.map((r) => "${r.key}${_valeurs(r)}").join(",")} '
+            'detectees=${c.detectedRules.map((r) => "${r.key}${_valeurs(r)}").join(",")}');
       }
       // `tajwidFiable` exige DEUX observations completes du mot (cote natif :
       // `votantes.size >= 2 || estDefinitif`). Sur un palier court du Coach,
