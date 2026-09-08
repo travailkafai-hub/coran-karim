@@ -322,6 +322,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       //
       // On essaie donc le SUIVANT (cf. `_candidatsPriereRestants`), sans
       // relancer aucune recherche.
+      // Cf. `_sansAlignementTimer` : le decrochage EST le signal « on n'arrive
+      // pas a placer ». S'il ne se resout pas, l'imam n'est plus dans ce texte.
+      _armSansAlignementTimer();
       _decrochagesConsecutifsCible++;
       if (_decrochagesConsecutifsCible >= _kDecrochagesAvantCandidatSuivant) {
         _decrochagesConsecutifsCible = 0;
@@ -1284,7 +1287,74 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   // C'est le decrochage qui ramene alors en attente, pas lui. Sans le
   // correctif (2), ce serait un trou -- ne pas retirer l'un sans l'autre.
   Timer? _targetSilenceStandbyTimer;
-  static const _kTargetSilenceStandbyDelay = Duration(seconds: 8);
+
+  /// ── HUIT SECONDES -> TRENTE (2026-09-08) ────────────────────────────────
+  ///
+  /// Demande utilisateur : « il ne faut pas arreter l'alignement si on entend
+  /// Allahu Akbar, ou Al-Fatiha, ou un silence de 30 s ; quand il y a un petit
+  /// silence il faut lancer le souffleur ».
+  ///
+  /// CE QUI NE VA PAS AVEC 8 s : le souffleur d'hesitation part a 4 s
+  /// (`_kSilenceHintDelay`). Il ne restait donc que QUATRE SECONDES entre
+  /// « on lui propose de l'aide » et « on considere qu'il a fini ». Or un
+  /// souffle dure bien plus : mesure du 2026-09-07, un passage de 49 mots a
+  /// occupe 16,4 s. Le souffleur declenchait ainsi lui-meme le retour en
+  /// attente qu'il etait cense eviter.
+  ///
+  /// Les DEUX autres sorties restent, et elles sont plus sures que le
+  /// chronometre : le takbir (`_hasTakbir`, n'importe lequel) et le debut
+  /// d'Al-Fatiha (le faisceau, en standby). Elles reposent sur ce qui est
+  /// ENTENDU, pas sur une duree. Ce minuteur n'est que le dernier filet, pour
+  /// le cas ou ni l'un ni l'autre n'est capte -- il doit donc etre patient.
+  static const _kTargetSilenceStandbyDelay = Duration(seconds: 30);
+
+  /// ── SIX SECONDES SANS PLACER UN MOT : IL EST AILLEURS (2026-09-08) ──────
+  ///
+  /// Demande utilisateur : « rajoute un compteur de 6 s de ne pas pouvoir
+  /// aligner un mot ; s'il n'y a pas de repetition, ou bien des paroles quand
+  /// on n'arrive pas a placer, c'est que l'imam est en ruku' ou autre chose,
+  /// il faut attendre le redemarrage de la Fatiha, prochaine rak'ah ».
+  ///
+  /// C'est la sortie qui MANQUAIT. Les deux autres ne couvrent pas ce cas :
+  ///   - le takbir : il n'est pas toujours capte (micro loin, foule) ;
+  ///   - le silence de 30 s : il n'y a PAS de silence -- l'imam parle, il dit
+  ///     les invocations du ruku', du sujud, le tashahhud. Le micro entend,
+  ///     le niveau est haut, le minuteur de silence se rearme sans fin.
+  /// La chaine restait donc accrochee a une sourate que plus personne ne
+  /// recite, jusqu'a ce qu'un takbir passe.
+  ///
+  /// ⚠️ POURQUOI PAS « 6 s SANS VERDICT », QUI SERAIT LA LECTURE LITTERALE :
+  /// parce que six secondes sans verdict est ORDINAIRE en recitation normale.
+  /// Mesure du 2026-09-07 sur session reelle, intervalle entre deux verdicts :
+  /// mediane 2,47 s, p90 **8,19 s**. Un compteur pose la couperait en pleine
+  /// recitation juste -- exactement l'erreur qui avait fait cabler le minuteur
+  /// de silence sur les verdicts au lieu de la voix.
+  ///
+  /// On l'accroche donc au DECROCHAGE, qui est precisement « on n'arrive pas a
+  /// placer » : trois fenetres consecutives hors texte, constate par le natif
+  /// sur le decodage libre. Le compteur part de la, et s'annule des qu'un mot
+  /// est juge -- si l'imam etait simplement en avance, la chaine le retrouve
+  /// et rien ne se declenche.
+  Timer? _sansAlignementTimer;
+  static const _kSansAlignementDelay = Duration(seconds: 6);
+
+  void _armSansAlignementTimer() {
+    _sansAlignementTimer?.cancel();
+    _sansAlignementTimer = Timer(_kSansAlignementDelay, () {
+      if (!_dynamicTargetDiscovery ||
+          state.prayerPhase != PrayerPhase.target ||
+          state.status != RecitationStatus.listening) {
+        return;
+      }
+      DiagnosticLog.log('Priere',
+          '${_kSansAlignementDelay.inSeconds}s sans reussir a placer un seul '
+          'mot depuis le decrochage -- ce n\'est pas un silence, il parle : '
+          'ruku\', sujud ou autre. On rend la main et on attend la Fatiha de '
+          'la prochaine rak\'ah');
+      _enterPrayerStandby();
+      resetTrackingToStart();
+    });
+  }
 
   /// Decrochages d'affilee sur la cible sans qu'un mot ait ete juge entre-deux.
   /// Cf. `_onDecrochageV2` : au-dela de
@@ -1317,15 +1387,80 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// intensite. Cf. la note de `_targetSilenceStandbyTimer`.
   static const _kSeuilVoixPourSilence = 0.15;
 
+  /// ── TROIS SECONDES DE VRAI SILENCE = IL ATTEND L'AIDE (2026-09-08) ─────
+  ///
+  /// Idee utilisateur, apres le faux souffleur du 2026-09-08 : « si on sait
+  /// qu'il y a un silence -- comme il est detecte AVANT le placement -- on sait
+  /// deja que l'utilisateur attend le help, si ce silence dure 3 s ».
+  ///
+  /// C'EST LE BON SIGNAL, et pour une raison structurelle : le silence se
+  /// mesure sur le NIVEAU MICRO, en amont de toute localisation. Il ne peut
+  /// donc pas etre efface par un placement errone -- contrairement au
+  /// souffleur d'hesitation de l'ecran (`_kSilenceHintDelay`, 4 s), qui se
+  /// remet a zero a chaque avancee du pointeur.
+  ///
+  /// CE QUE CELA AURAIT EVITE, mesure sur la session de 21:03 :
+  ///
+  ///     21:03:53,85  mot 16 "ونساء" definitif:vert   <- dernier vrai mot
+  ///                  (le recitant se tait et attend d'etre souffle)
+  ///     21:03:54,92  trou de 4 mots MIS EN ATTENTE   <- 1,07 s plus tard
+  ///     21:03:58,82  SAUT CONFIRME
+  ///     21:03:59,60  souffleur : mots 17..20         <- 5,75 s plus tard
+  ///
+  /// La chaine avait place `bande=20..21 conf=0,50 interieurs=0/2` SUR DU
+  /// SILENCE -- les blocs PCM montrent le portier en train de jeter l'audio au
+  /// meme instant. Ce faux placement a fait avancer le pointeur, donc REARME
+  /// le souffleur d'hesitation, qui n'a jamais pu partir. Le mecanisme cense
+  /// secourir le recitant a ete desarme par le defaut lui-meme.
+  ///
+  /// Avec ce minuteur-ci, l'aide serait partie a **21:03:56,85** -- avant que
+  /// le faux trou ne soit confirme, et sur la bonne position.
+  ///
+  /// ⚠️ TROIS SECONDES EST COURT, ET C'EST VOULU : c'est une PROPOSITION, pas
+  /// un verdict. Rien ne recule, rien n'attend qu'il repete, et
+  /// `_passagesSouffles` empeche de souffler deux fois le meme endroit. Le
+  /// risque d'une aide de trop est assume ; celui de laisser quelqu'un bloque
+  /// en pleine priere ne l'est pas.
+  Timer? _silenceCourtTimer;
+  static const _kSilenceCourtDelay = Duration(seconds: 3);
+
+  void _armSilenceCourtTimer() {
+    if (_silenceCourtTimer != null) return;   // deja en cours de decompte
+    _silenceCourtTimer = Timer(_kSilenceCourtDelay, () {
+      _silenceCourtTimer = null;
+      if (!_dynamicTargetDiscovery ||
+          state.prayerPhase != PrayerPhase.target ||
+          state.status != RecitationStatus.listening ||
+          !_prayerLocalisee ||
+          state.words.isEmpty) {
+        return;
+      }
+      final ou = state.pointer.clamp(0, state.words.length - 1);
+      DiagnosticLog.log('Priere',
+          '${_kSilenceCourtDelay.inSeconds}s de silence reel (niveau micro, '
+          'mesure AVANT toute localisation) -- il attend d\'etre souffle, '
+          'aide proposee au mot $ou');
+      _sautPresumeCtrl.add((de: ou, a: ou));
+    });
+  }
+
   /// Niveau micro : peint l'onde, et tient le minuteur de silence en phase
   /// `target` (cf. `_targetSilenceStandbyTimer` -- c'est la voix qui prouve que
   /// l'imam est toujours la, pas le verdict, qui arrive jusqu'a 8 s plus tard).
   void _onNiveauMicro(double niveau) {
     state = state.copyWith(soundLevel: niveau);
     if (_dynamicTargetDiscovery &&
-        state.prayerPhase == PrayerPhase.target &&
-        niveau >= _kSeuilVoixPourSilence) {
-      _armTargetSilenceStandbyTimer();
+        state.prayerPhase == PrayerPhase.target) {
+      if (niveau >= _kSeuilVoixPourSilence) {
+        _armTargetSilenceStandbyTimer();
+        // Il parle : le decompte du silence court repart de zero.
+        _silenceCourtTimer?.cancel();
+        _silenceCourtTimer = null;
+      } else {
+        // Cf. `_silenceCourtTimer` : c'est ICI qu'on sait qu'il attend, et
+        // non au pointeur -- qu'un placement errone peut faire avancer.
+        _armSilenceCourtTimer();
+      }
     }
   }
 
@@ -1824,6 +1959,9 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     }
     _detectingTargetFallbackTimer?.cancel();
     _targetSilenceStandbyTimer?.cancel();
+    _sansAlignementTimer?.cancel();
+    _silenceCourtTimer?.cancel();
+    _silenceCourtTimer = null;
     // Les candidats gardes n'appartiennent qu'a la rak'ah qui s'acheve, comme
     // `_prayerVersetsRestants` (cf. plus bas la regression « une sourate
     // collee a Al-Fatiha » : ce qui survit a un retour en attente se recolle
@@ -2672,6 +2810,41 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
           state.prayerPhase != PrayerPhase.target) {
         return;
       }
+      // ── LE SOUFFLE NE COMPTE PAS COMME UN SILENCE (2026-09-08) ────────
+      //
+      // `pauseCapture()` vient de couper le micro : plus aucun bloc PCM, donc
+      // `_onNiveauMicro` ne rearme plus `_targetSilenceStandbyTimer` pendant
+      // toute la lecture. Un souffle long le faisait donc expirer -- le
+      // souffleur provoquait le retour en attente qu'il devait empecher.
+      //
+      // On le desarme le temps de parler. Il est rearme apres la reprise (cf.
+      // le `finally`), a partir de zero : le decompte du silence commence
+      // quand le recitant reprend la main, ce qui est le seul instant qui ait
+      // un sens.
+      _targetSilenceStandbyTimer?.cancel();
+      // Le micro est coupe : sans cela le niveau tombe a zero pendant la
+      // lecture, le silence court expire, et le souffleur se rappellerait
+      // lui-meme en boucle.
+      _silenceCourtTimer?.cancel();
+      _silenceCourtTimer = null;
+      // ── ET LE COMPTEUR « RIEN NE SE PLACE » AUSSI (2026-09-08) ────────
+      //
+      // Oubli de la premiere version, mesure sur la session de 21:21 :
+      //
+      //     21:21:46,47  DECROCHAGE -- reprise apres le mot 34
+      //     21:21:47,48  souffle du passage 35..35     <- micro coupe
+      //     21:21:53,48  6s sans reussir a placer un seul mot -> standby
+      //
+      // Pendant la lecture le micro est en pause : AUCUN mot ne PEUT etre
+      // place. Le compteur expirait donc mecaniquement, six secondes apres le
+      // decrochage qui l'avait arme -- et son message accusait le recitant
+      // d'etre passe au ruku' alors que c'est le souffleur qui parlait.
+      //
+      // C'est la troisieme fois que ce piege se referme (minuteur de silence
+      // 30 s, silence court 3 s, et celui-ci) : TOUT minuteur nourri par le
+      // micro doit etre suspendu pendant que le haut-parleur parle.
+      _sansAlignementTimer?.cancel();
+      _sansAlignementTimer = null;
       await jouer();
     } finally {
       if (mounted && generation == _verifier.sessionGeneration &&
@@ -2702,6 +2875,10 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
         // v1 et l'alignement causal, jamais `v2Chaine` -- la chaîne qui juge.
         // Cf. `repartirApresSouffle` dans `RecitationVerifier`.
         await _verifier.repartirApresSouffle(motDeReprise);
+        // Le silence se recompte a partir d'ici, pas depuis avant le souffle.
+        if (state.prayerPhase == PrayerPhase.target) {
+          _armTargetSilenceStandbyTimer();
+        }
         // ── L'ECRAN AUSSI DOIT SE DECOLORIER ──────────────────────────────
         //
         // Le natif vient de jeter ses verdicts au-dela de `motDeReprise`, mais
@@ -5031,8 +5208,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // Ce qui reste ici : le decrochage, lui, se compte sur les verdicts --
       // un mot juge prouve que la chaine a retrouve l'imam.
       if (_dynamicTargetDiscovery &&
-          state.prayerPhase == PrayerPhase.target &&
-          _decrochagesConsecutifsCible > 0) {
+          state.prayerPhase == PrayerPhase.target) {
+        // Un mot vient d'etre place : le decrochage s'est resolu tout seul.
+        // C'est la seule preuve qui compte -- pas le temps ecoule.
+        _sansAlignementTimer?.cancel();
+        _sansAlignementTimer = null;
         _decrochagesConsecutifsCible = 0;
       }
       if (_prayerVersetsRestants.isNotEmpty) {
@@ -6333,6 +6513,8 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _wordFailedCtrl.close();
     _nonVertCtrl.close();
     _wordLockedCtrl.close();
+    _sansAlignementTimer?.cancel();
+    _silenceCourtTimer?.cancel();
     _sautPresumeCtrl.close();
     _decrochageCtrl.close();
 

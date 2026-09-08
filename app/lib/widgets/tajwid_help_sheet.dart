@@ -211,7 +211,7 @@ void showTajwidHelpSheet(
   /// Probabilite et seuil de chaque regle sur ce mot -- pour la barre qui dit
   /// si la regle a ete ratee de peu ou pas faite du tout (2026-09-05).
   /// Vide = mot non observe, ou fiche ouverte hors session : aucune barre.
-  Map<TajwidRule, ({double prob, double seuil})> scoresRegles = const {},
+  Map<TajwidRule, ({double prob, double seuil, int dureeMs})> scoresRegles = const {},
   /// Regles ATTENDUES sur ce mot et actives dans le preset (2026-09-02).
   ///
   /// Distincte de [reglesManquantes] : celle-ci dit ce qu'il FAUT constater
@@ -1659,7 +1659,7 @@ class _CorrectionLoopState extends ConsumerState<_CorrectionLoop> {
 /// Le trait vertical marque le SEUIL a franchir : il n'est pas fixe, il suit la
 /// regle et le mode (strict / tolere).
 class _BarreRegle extends StatelessWidget {
-  final ({double prob, double seuil}) score;
+  final ({double prob, double seuil, int dureeMs}) score;
 
   const _BarreRegle({required this.score});
 

@@ -17,6 +17,7 @@ class PrayerVerifier extends MockRecitationVerifier {
   int resumes = 0;
   int resets = 0;
   bool? warsh;
+  final hintResumePositions = <int>[];
   final targets = <({String mode, int depart, List<int> nonJugeables})>[];
 
   @override
@@ -80,6 +81,11 @@ class PrayerVerifier extends MockRecitationVerifier {
   }
 
   @override
+  Future<void> repartirApresSouffle(int mot) async {
+    hintResumePositions.add(mot);
+  }
+
+  @override
   void dispose() {
     losses.close();
     super.dispose();
@@ -105,6 +111,46 @@ void main() {
   });
 
   for (final riwaya in Riwaya.values) {
+    test('prayer ${riwaya.name}: An-Nisa gap prompts verse 4, not verse 5', () async {
+      QuranApi.riwaya = riwaya;
+      final verifier = PrayerVerifier();
+      final notifier = PrayerNotifier(verifier);
+      await notifier.startPrayerFollow();
+      notifier.fatiha();
+      verifier.losses.add(0);
+      await eventTurn();
+      final verses = await QuranApi.fetchVerses(4);
+      await verifier.identify!(verses.take(2).map((v) => v.textUthmani).join(' '));
+      expect(notifier.state.prayerPhase, PrayerPhase.target);
+      final start = Iterable<int>.generate(notifier.state.words.length).firstWhere(
+        (i) => notifier.verseAndLocalIndexFor(i)?.$1.ayahNumber == 4,
+      );
+      if (riwaya == Riwaya.hafs) expect(start, 72);
+      final hints = <({int de, int a})>[];
+      final sub = notifier.sautASouffler.listen(hints.add);
+      // ChGPT: the native event means "resume AFTER this index", not
+      // "furthest word heard" when an earlier prayer gap remains unresolved.
+      verifier.losses.add(start - 1);
+      await eventTurn();
+      expect(hints, [(de: start, a: start)]);
+      final (verse, local) = notifier.verseAndLocalIndexFor(hints.single.de)!;
+      expect(verse.surahNumber, 4);
+      expect(verse.ayahNumber, 4);
+      expect(local, 0);
+      await notifier.soufflerPriere(hints.single.de, () async {});
+      expect(verifier.hintResumePositions, [start]);
+      expect(notifier.state.pointer, start);
+      expect(notifier.state.riwaya, riwaya);
+      expect(verifier.warsh, riwaya == Riwaya.warsh);
+      expect(verifier.resumes, 1);
+      expect(verifier.rewinds, 0);
+      await sub.cancel();
+      await notifier.stop();
+      notifier.dispose();
+      await eventTurn();
+      verifier.dispose();
+    });
+
     test(
       'prayer ${riwaya.name}: continuous identification, hint without rewind',
       () async {

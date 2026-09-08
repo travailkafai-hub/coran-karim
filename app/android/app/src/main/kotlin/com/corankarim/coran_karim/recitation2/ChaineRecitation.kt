@@ -658,6 +658,58 @@ class ChaineRecitation(
     private fun pointDeReprise(): Int = maxOf(dernierDefinitif, dernierAttesteVu)
 
     /**
+     * Ou proposer l'AIDE au moment d'un decrochage. Ce n'est pas toujours
+     * [pointDeReprise] : en priere, un trou encore non resolu prime.
+     *
+     * ── LE SOUFFLEUR SOUFFLAIT LE VERSET SUIVANT (2026-09-08) ─────────────
+     *
+     * Analyse ChGPT sur session device du 2026-09-08 (An-Nisa, build v379).
+     * Le recitant n'a pas dit 4:4 ; le souffleur lui a joue 4:5.
+     *
+     *     19:34:56.031  f=34 trou de 14 mot(s) apres le mot 71 MIS EN ATTENTE
+     *     19:34:56.044  bande 68..86        <- attestation AU-DELA du trou
+     *     19:34:58.568  DECROCHAGE : dernier definitif=70, dernier atteste vu=86,
+     *                                 reprise apres le mot 86
+     *     19:34:58.740  Souffleur : passage 87..87, verset 4:5
+     *
+     * CAUSE : `dernierAttesteVu` avance jusqu'a 86 sur la bande, alors que le
+     * trou 72..85 reste EN ATTENTE. `maxOf(70, 86)` rend donc 86, et le pont
+     * Dart ajoute 1 -> 87, premier mot de 4:5. Or une attestation au-dela d'un
+     * trou n'est pas une preuve que les mots precedents ont ete reconnus : les
+     * mots 72 et 73 etaient restes `provisoire:rouge`, et 74..85 n'ont recu
+     * aucun verdict.
+     *
+     * L'information manquante etait deja la, memorisee dans [trouEnAttenteDe].
+     * On la prefere donc, quand elle existe.
+     *
+     * ── CE QUI RESTE INCHANGE, ET POURQUOI C'EST DELIBERE ─────────────────
+     *
+     *  - [pointDeReprise] n'est PAS modifie. Remplacer globalement `maxOf` par
+     *    `dernierDefinitif` reintroduirait les retards d'aide de l'ete, quand
+     *    le jugement arrive apres la localisation (cf. sa propre doc : « aide
+     *    annoncee au mot 13 alors que la recitation etait allee plus loin »).
+     *  - Conditionne a `sautLibre`, donc au MODE PRIERE seul. La recitation
+     *    controlee et les sessions de reference gardent leur comportement au
+     *    caractere pres -- verifie par les tests `normal recitation still
+     *    refuses a gap` et `reference recitation still resumes after its
+     *    furthest attestation`.
+     *  - Le trou n'est PAS transforme en verdict d'omission : `sautPresumeDe`
+     *    reste a -1. On propose d'entendre le passage, on n'accuse pas de
+     *    l'avoir saute -- le recitant peut fort bien l'avoir dit sans que la
+     *    chaine l'entende.
+     *
+     * Specifie par les huit tests de `ChaineRecitationPriereTest`, ecrits par
+     * ChGPT avant ce correctif : ils rejouent la session du 2026-09-08 sans
+     * ONNX, en Hafs ET en Warsh.
+     */
+    private fun pointDAide(): Int {
+        if (!sautLibre || trouEnAttenteDe < 0) return pointDeReprise()
+        // Le pont Dart ajoute 1 : rendre le mot AVANT le trou fait donc
+        // commencer l'aide sur son premier mot manquant.
+        return trouEnAttenteDe
+    }
+
+    /**
      * [positionDepart] : ou le recitateur EST DEJA suppose se trouver dans ce
      * texte (mode priere). Par defaut -1 = « on ne sait pas », comportement
      * historique : la recherche part du mot 0.
@@ -1222,11 +1274,16 @@ class ChaineRecitation(
                     if (fenetresHorsTexte >= fenetresAvantDecrochage && !decrochageDejaSignale) {
                         decrochage = true
                         decrochageDejaSignale = true
-                        motDuDecrochage = pointDeReprise()
+                        motDuDecrochage = pointDAide()
                         journal?.invoke("[v2] f=${fenetre.id} DECROCHAGE : " +
                             "$fenetresHorsTexte fenetres hors texte, " +
                             "dernier definitif=$dernierDefinitif, " +
                             "dernier atteste vu=$dernierAttesteVu, " +
+                            (if (sautLibre && trouEnAttenteDe >= 0)
+                                "trou NON RESOLU apres le mot $trouEnAttenteDe " +
+                                "(jusqu'a $trouEnAttenteA) -- l'aide y revient " +
+                                "plutot qu'a l'attestation la plus lointaine, "
+                             else "") +
                             "reprise apres le mot $motDuDecrochage, " +
                             "dernier entendu=\"$entenduLibre\"")
                     }
@@ -1301,7 +1358,43 @@ class ChaineRecitation(
             // Le trou 97->103 est ENTIEREMENT derriere l'ancre (108) : ces
             // mots etaient tous deja valides. Deux fenetres comme celle-ci de
             // suite, et le decrochage coupait une recitation juste.
-            val pertinents = attestesTries.filter { it >= ancrePourTrou }
+            // ── UN TROU EST UNE ACCUSATION : IL SE FONDE SUR L'EXACT ────
+            // (2026-09-08)
+            //
+            // Le projet porte deja le principe, ecrit dans `Localisateur.Bande`
+            // apres un defaut trouve le 2026-07-30 : « Normaliser pour TROUVER,
+            // comparer exactement pour CONFIRMER ». `attestes` compare des mots
+            // SANS harakat -- assez pour se reperer, pas pour affirmer.
+            //
+            // Or un trou n'est pas un reperage : c'est ce qui declenche
+            // « vous n'avez pas dit ces mots » et fait parler le souffleur. Il
+            // releve donc du CONFIRMER.
+            //
+            // MESURE QUI L'IMPOSE (session du 2026-09-08, 21:03) --
+            // l'utilisateur s'etait TU et attendait d'etre souffle :
+            //
+            //     21:03:53,85  mot 16 "ونساء" definitif:vert   <- son dernier mot
+            //     21:03:54,92  f=4 bande=20..21 conf=0,50 interieurs=0/2
+            //                  -> trou de 4 mots apres le mot 16 MIS EN ATTENTE
+            //     21:03:59,60  souffleur : mots 17..20
+            //
+            // Les blocs PCM montrent le portier en train de jeter l'audio au
+            // meme instant : la bande 20..21 a ete posee SUR DU SILENCE, avec
+            // zero mot interieur sur deux. Le mot 48 a meme ete juge
+            // `definitif:vert` alors que rien n'etait prononce.
+            //
+            // On exige donc que le mot qui FONDE le trou -- celui d'apres, qui
+            // pretend prouver « il est deja la-bas » -- soit dans
+            // `attestesExacts`. Un appariement seulement normalise ne suffit
+            // plus a accuser.
+            //
+            // ⚠️ MODE PRIERE SEUL (`sautLibre`). Hors priere le trou sert a
+            // REFUSER une fenetre, pas a souffler : le durcir changerait le
+            // contrôle de saut de la recitation controlee, qui n'a rien
+            // demande. Verifie par `normal recitation still refuses a gap`.
+            val pertinents = attestesTries
+                .filter { it >= ancrePourTrou }
+                .filter { !sautLibre || it in bande.attestesExacts }
             // Nombre de mots JUGEABLES strictement entre [de] et [a] : c'est
             // la seule mesure honnete d'un saut (cf. [nonJugeables]).
             fun sautEntre(de: Int, a: Int): Int {
@@ -1416,7 +1509,16 @@ class ChaineRecitation(
                 idFenetreTrou = fenetre.id
                 journal?.invoke("[v2] f=${fenetre.id} trou de $trou mot(s) apres " +
                     "le mot $trouApres MIS EN ATTENTE -- on laisse la fenetre " +
-                    "suivante le combler avant de souffler")
+                    "suivante le combler avant de souffler " +
+                    // De quoi juger APRES COUP si ce trou etait solide : la
+                    // confiance de la bande et le nombre de mots confirmes
+                    // exactement. Sans ces deux valeurs, un faux trou ne se
+                    // distingue pas d'un vrai dans le journal (constat du
+                    // 2026-09-08 : il a fallu croiser les blocs PCM pour
+                    // etablir que la bande etait posee sur du silence).
+                    "(bande ${bande.i0}..${bande.i1} conf=" +
+                    "${"%.2f".format(bande.confiance)} " +
+                    "exacts=${bande.attestesExacts.size}/${bande.attestes.size})")
             }
         }
         // Le trou en attente a-t-il ete comble par CETTE fenetre ?

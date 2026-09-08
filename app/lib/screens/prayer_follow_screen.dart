@@ -163,11 +163,19 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
       _souffleRevision = revision;
       _passagesSouffles.clear();
     }
-    if (_passagesSouffles.contains(bornes.de)) {
+    final dejaSouffle = _passagesSouffles[bornes.de];
+    if (dejaSouffle != null) {
+      final depuis = DateTime.now().difference(dejaSouffle);
+      if (depuis < _kDelaiAvantDeRedire) {
+        DiagnosticLog.log('Souffleur',
+            'passage ${bornes.de}..${bornes.a} ignore : deja souffle il y a '
+            '${depuis.inSeconds}s (moins de ${_kDelaiAvantDeRedire.inSeconds}s, '
+            'cf. _kDelaiAvantDeRedire)');
+        return;
+      }
       DiagnosticLog.log('Souffleur',
-          'passage ${bornes.de}..${bornes.a} ignore : deja souffle sur cette '
-          'cible (on ne repete pas le meme passage)');
-      return;
+          'passage ${bornes.de}..${bornes.a} REDIT : deja souffle il y a '
+          '${depuis.inSeconds}s et le recitant est toujours arrete la');
     }
     final target = notifier.verseAndLocalIndexFor(bornes.de);
     if (target == null) {
@@ -191,7 +199,7 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
         ref.read(recitationProvider).status == RecitationStatus.listening &&
         ref.read(recitationProvider).prayerPhase == PrayerPhase.target;
     _silenceTimer?.cancel();
-    _passagesSouffles.add(bornes.de);
+    _passagesSouffles[bornes.de] = DateTime.now();
     setState(() => _promptingWord = true);
     try {
       // The loudspeaker must not become acoustic evidence of the imam's voice.
@@ -214,7 +222,30 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
   }
 
   int _souffleRevision = -1;
-  final _passagesSouffles = <int>{};
+
+  /// Quand chaque passage a ete souffle. Cf. [_kDelaiAvantDeRedire].
+  final _passagesSouffles = <int, DateTime>{};
+
+  /// ── UN PASSAGE PEUT ETRE REDIT (2026-09-08) ─────────────────────────────
+  ///
+  /// `_passagesSouffles` etait un ensemble : un passage souffle une fois ne
+  /// pouvait PLUS JAMAIS l'etre sur la meme cible. Mesure qui l'a montre,
+  /// session de 21:21 -- le recitant reste bloque, les DEUX mecanismes d'aide
+  /// le reperent correctement, et les deux sont refuses :
+  ///
+  ///     21:21:06,45  souffle du passage 20..22          <- premiere aide
+  ///     21:21:21,28  hesitation longue (4s)
+  ///     21:21:21,29  passage 20..20 ignore : deja souffle
+  ///     21:21:21,30  3s de silence reel -- aide proposee au mot 20
+  ///     21:21:21,31  passage 20..20 ignore : deja souffle
+  ///
+  /// Quinze secondes de silence APRES avoir ete souffle, c'est une demande de
+  /// reentendre, pas une repetition parasite. Le garde gardait contre la
+  /// boucle ; il gardait aussi contre l'utilisateur.
+  ///
+  /// Dix secondes : assez pour entendre le passage et reprendre (le souffle
+  /// lui-meme dure quelques secondes), trop pour boucler.
+  static const _kDelaiAvantDeRedire = Duration(seconds: 10);
   @override
   void dispose() {
     if (_promptingWord) unawaited(WordCorrectionAudio.stop());
