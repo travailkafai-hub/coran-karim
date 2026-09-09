@@ -1,5 +1,11 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show debugPrint;
+// `debugPrint` retire (2026-09-09, audit SEC-01) : il ecrivait ces
+// transcriptions SANS lire `DiagnosticLog.enabled` -- le seul chemin de ce
+// fichier qui echappait entierement a l'interrupteur de diagnostic. Le nom
+// `debugPrint` ne garantit rien en release non plus (verifie dans le SDK
+// Flutter local, print.dart:37) : ce n'etait pas seulement un oubli de
+// commutateur, c'etait une supposition fausse sur ce que ce nom protege.
+import 'diagnostic_log.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/riwaya.dart';
 import 'quran_api.dart';
@@ -311,13 +317,13 @@ class QuranVerseLocatorService {
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty)
         .toList();
-    debugPrint('[Shazam] entendu="$heardText" -> mots normalisés=$queryWords');
+    DiagnosticLog.log('Shazam', 'entendu="$heardText" -> mots normalisés=$queryWords');
     // Seuil abaissé de 4 à 2 (demande utilisateur 2026-07-18 : "même avec
     // deux mots c'était suffisant pour moi") -- la protection contre les faux
     // positifs vient maintenant du vote de décalage lui-même, pas d'un
     // nombre minimal arbitraire de mots.
     if (queryWords.length < 2) {
-      debugPrint('[Shazam] abandon -- moins de 2 mots utilisables');
+      DiagnosticLog.log('Shazam', 'abandon -- moins de 2 mots utilisables');
       return const [];
     }
 
@@ -342,10 +348,10 @@ class QuranVerseLocatorService {
         }
       }
     }
-    debugPrint('[Shazam] $pairsTried paire(s) testée(s), '
+    DiagnosticLog.log('Shazam', '$pairsTried paire(s) testée(s), '
         '${offsetVotes.length} décalage(s) distinct(s) trouvé(s)');
     if (offsetVotes.isEmpty) {
-      debugPrint('[Shazam] abandon -- aucune paire de la requête ne matche '
+      DiagnosticLog.log('Shazam', 'abandon -- aucune paire de la requête ne matche '
           'une paire du Coran (toutes absentes ou trop fréquentes)');
       return const [];
     }
@@ -421,13 +427,13 @@ class QuranVerseLocatorService {
     final ranked = await _rankCandidates(heardText, profil: profil);
     if (ranked.isEmpty) return null;
     final best = ranked.first;
-    debugPrint('[Shazam] meilleur candidat : '
+    DiagnosticLog.log('Shazam', 'meilleur candidat : '
         '${best.verse.surah}:${best.verse.ayah} '
         'score=${best.score.toStringAsFixed(3)} (seuil requis 0.45)');
     // En dessous, trop peu de recoupement pour être sûr -- mieux vaut dire
     // "non trouvé" que rediriger vers le mauvais verset (texte sacré).
     if (best.score < 0.45) {
-      debugPrint('[Shazam] abandon -- score sous le seuil');
+      DiagnosticLog.log('Shazam', 'abandon -- score sous le seuil');
       return null;
     }
     return QuranMatch(
@@ -462,7 +468,7 @@ class QuranVerseLocatorService {
       if (result.length >= k) break;
     }
     if (result.isNotEmpty) {
-      debugPrint('[Shazam] ${result.length} candidat(s) au-dessus du seuil '
+      DiagnosticLog.log('Shazam', '${result.length} candidat(s) au-dessus du seuil '
           '($minScore) : ${result.map((m) => "${m.surahNumber}:${m.ayahNumber}="
               "${m.confidence.toStringAsFixed(2)}").join(", ")}');
     }

@@ -291,7 +291,10 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // 2026-07-11), independamment de toute connexion adb continue.
             "setLogFile" -> {
                 val path = call.argument<String>("path")
-                if (path != null) DiagnosticLog.setFile(path)
+                // Optionnel : les appelants historiques (avant 2026-09-09) ne
+                // le passaient pas, `setFile` garde alors l'etat courant.
+                val enabledInitial = call.argument<Boolean>("enabled")
+                if (path != null) DiagnosticLog.setFile(path, enabledInitial)
                 result.success(null)
             }
             // ── CALIBRAGE ────────────────────────────────────────────────────

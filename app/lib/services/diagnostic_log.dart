@@ -99,9 +99,22 @@ class DiagnosticLog {
   // Tete 3 (ecart canonique) calculee et JOURNALISEE SEULEMENT (logit + seuil
   // dans les logs [t3]) -- n'influence AUCUN verdict tant que la parite des 12
   // scores n'est pas verifiee sur device (cf. Tete3.kt).
-  static const String _kBuildTag = 'v395-chgpt-mushaf-page-entiere';
+  static const String _kBuildTag = 'v398-sec02-03-04-11-fermes';
   static const String _kBuildTimestamp =
       String.fromEnvironment('BUILD_TS', defaultValue: '');
+
+  /// Taille au-delà de laquelle [init] fait tourner le fichier plutôt que de
+  /// continuer à l'annexer indéfiniment (2026-09-09, audit SEC-03 : « il n'y
+  /// a pas de quota global ni de rotation du fichier »).
+  ///
+  /// Valeur généreuse : couvre une session de recette de plusieurs heures
+  /// sans rotation (mesuré 2026-07-25 : ~25 écritures/s au plus chargé, donc
+  /// quelques Mo/heure de texte, très en-dessous de ce seuil). Le principe de
+  /// l'en-tête de cette classe -- « grandit en annexe, jamais tronqué » --
+  /// reste vrai PENDANT une session : la rotation n'agit qu'au démarrage
+  /// (cf. [init]), jamais en cours d'écriture, donc aucune session n'est
+  /// jamais coupée en plein milieu.
+  static const int _kTailleMaxOctets = 20 * 1024 * 1024;
 
   static Future<String?> init() async {
     if (_file != null) return _file!.path;
@@ -128,6 +141,26 @@ class DiagnosticLog {
       final dir = await getExternalStorageDirectory();
       if (dir == null) return null;
       _file = File('${dir.path}/recitation_diagnostic.log');
+      // ── SEC-03 (audit 2026-09-06, fermé le 2026-09-09) : rotation au
+      // démarrage, jamais en cours de session ──────────────────────────────
+      // Au-delà de [_kTailleMaxOctets], la génération précédente est
+      // déplacée en `.1` (écrasant la génération d'avant elle -- deux
+      // générations gardées, jamais plus) et une session neuve repart sur un
+      // fichier vide. `adb pull` sur les deux fichiers récupère toujours
+      // l'historique récent ; le total ne grandit plus sans borne.
+      try {
+        if (await _file!.exists() &&
+            await _file!.length() > _kTailleMaxOctets) {
+          final ancien = File('${dir.path}/recitation_diagnostic.log.1');
+          if (await ancien.exists()) await ancien.delete();
+          await _file!.rename(ancien.path);
+          _file = File('${dir.path}/recitation_diagnostic.log');
+        }
+      } catch (_) {
+        // Rotation best-effort : un échec ici ne doit jamais empêcher le
+        // démarrage du diagnostic -- au pire le fichier continue de grandir,
+        // exactement le comportement d'avant ce correctif.
+      }
       log('DiagnosticLog', '=== session démarrée ===');
       log('DiagnosticLog',
           '=== BUILD code=$_kBuildTag'
@@ -148,8 +181,12 @@ class DiagnosticLog {
       // symptome etait trompeur -- « le calibrage n'ecrit pas » alors que le
       // defaut etait « le natif n'a pas de fichier ».
       try {
+        // `enabled` part dans le MEME appel que le chemin (2026-09-09, audit
+        // SEC-01) : le natif demarre ferme (cf. DiagnosticLog.kt) et n'a donc
+        // plus de fenetre ou il journalise a tort avant qu'une session ne le
+        // resynchronise -- l'etat voulu est deja le sien des cet appel.
         await const MethodChannel('com.corankarim/fastconformer_ctc')
-            .invokeMethod('setLogFile', {'path': _file!.path});
+            .invokeMethod('setLogFile', {'path': _file!.path, 'enabled': enabled});
       } catch (_) {
         // Plugin pas encore attache : l'ASR le refera de son cote.
       }

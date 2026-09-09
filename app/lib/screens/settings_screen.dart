@@ -121,7 +121,7 @@ class SettingsScreen extends ConsumerWidget {
           // verifier chacun, ce qui n'a pas ete demande.
           _SettingsTile(
             icon: Icons.font_download_outlined,
-            title: 'Écriture du Mushaf',
+            title: AppLocalizations.of(context)!.settingsMushafScriptTitle,
             subtitle: libelleEcriture(ref.watch(policeMushafPageProvider)),
             color: AppColors.settingsAudio,
             onTap: () => ouvrirChoixEcriture(
@@ -184,13 +184,23 @@ class SettingsScreen extends ConsumerWidget {
               final prefs = await SharedPreferences.getInstance();
               await prefs.setBool('diagnostic_enabled', v);
               setLocal(() => DiagnosticLog.enabled = v);
+              // ── LE TROU QUE L'AUDIT A TROUVE (SEC-01, 2026-09-09) ────────
+              //
+              // Ce commutateur ecrivait la preference et le champ statique
+              // Dart, mais n'appelait JAMAIS `setLogEnabled` : le natif ne
+              // recevait le bon etat qu'au PROCHAIN demarrage de session
+              // (`RecitationNotifier._applyDiagnosticCapture`), donc apres
+              // coup, pas au moment du geste. `_DiagnosticTile` plus bas dans
+              // ce fichier le faisait deja correctement -- il a ete retire du
+              // parcours visible le 2026-08-09 sans que ce commutateur-ci
+              // reprenne cette ligne.
+              unawaited(ref.read(recitationVerifierProvider).setLogEnabled(v));
             },
-            title: Text('Journal de diagnostic',
+            title: Text(AppLocalizations.of(context)!.settingsDiagnosticTitle,
                 style: GoogleFonts.manrope(
                     fontSize: 14, fontWeight: FontWeight.w600)),
             subtitle: Text(
-                'Enregistre le detail de la recitation pour analyse. '
-                'A laisser eteint en usage normal.',
+                AppLocalizations.of(context)!.settingsDiagnosticSubtitle,
                 style: GoogleFonts.manrope(
                     fontSize: 11.5, color: AppColors.inkLight)),
           ),
@@ -208,7 +218,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           _SettingsTile(
             icon: Icons.access_time_rounded,
-            title: 'Horaires de prière',
+            title: AppLocalizations.of(context)!.settingsPrayerTimesTitle,
             subtitle: 'Adhan programmé, rappel avant Sobh',
             color: AppColors.settingsPrayer,
             onTap: () => Navigator.push(context,
@@ -485,10 +495,10 @@ class _MicroBluetoothTile extends ConsumerWidget {
     final on = ref.watch(microBluetoothProvider);
     return _SettingsTile(
       icon: Icons.headset_mic_outlined,
-      title: 'Micro du casque Bluetooth',
+      title: AppLocalizations.of(context)!.settingsBluetoothMicTitle,
       subtitle: on
-          ? 'Activé — qualité réduite : le Bluetooth compresse la voix'
-          : 'Éteint (recommandé) — le micro du téléphone capte mieux',
+          ? AppLocalizations.of(context)!.settingsBluetoothMicOn
+          : AppLocalizations.of(context)!.settingsBluetoothMicOff,
       color: AppColors.settingsVoice,
       trailing: Switch.adaptive(
         value: on,
@@ -507,7 +517,7 @@ class _NoiseSuppressTile extends ConsumerWidget {
     final on = ref.watch(noiseSuppressProvider);
     return _SettingsTile(
       icon: Icons.noise_control_off_outlined,
-      title: 'Suppression de bruit du micro',
+      title: AppLocalizations.of(context)!.settingsNoiseSuppressTitle,
       subtitle: on
           ? 'Activée — à comparer avec le réglage éteint avant de la garder'
           : 'Éteinte (recommandé) — le modèle est entraîné sur de l\'audio non filtré',

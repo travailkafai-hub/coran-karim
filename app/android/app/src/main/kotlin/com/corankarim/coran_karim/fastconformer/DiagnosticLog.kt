@@ -26,12 +26,27 @@ object DiagnosticLog {
     // depuis le thread d'inference. L'utilisateur doit pouvoir couper toute
     // l'instrumentation pour verifier que le retard de validation ne vient pas
     // de l'instrumentation elle-meme.
-    @Volatile var enabled = true
+    // ── FERME PAR DEFAUT (2026-09-09, audit SEC-01) ────────────────────
+    //
+    // Valait `true` : entre le lancement de l'app et le demarrage de la
+    // premiere session (le seul moment ou `_applyDiagnosticCapture` cote
+    // Dart synchronise cet etat), tout ce que le natif journalisait partait
+    // dans le fichier MEME quand l'utilisateur avait desactive le diagnostic
+    // -- une preference qui n'etait pas tenue avant qu'une recitation
+    // commence. `setLogFile` (cf. `setFile` ci-dessous) pousse desormais
+    // l'etat voulu dans le MEME appel que le chemin du fichier : ce champ ne
+    // reste a `false` que le temps de cet aller-retour initial.
+    @Volatile var enabled = false
 
     @Synchronized
-    fun setFile(path: String) {
+    fun setFile(path: String, enabledInitial: Boolean?) {
+        // L'etat est applique AVANT de lier le fichier : si une ligne de log
+        // natif se glissait entre les deux (peu probable mais non exclu, ce
+        // champ etant `@Volatile` et lu par plusieurs threads), elle
+        // respecterait deja le bon etat plutot que le defaut ferme.
+        if (enabledInitial != null) enabled = enabledInitial
         file = File(path)
-        log("DiagnosticLog", "=== fichier natif relie : $path ===")
+        log("DiagnosticLog", "=== fichier natif relie : $path (enabled=$enabled) ===")
     }
 
     // ── TRACE FINE (2026-07-27) : accumulee EN MEMOIRE, ecrite a la fin ─────
