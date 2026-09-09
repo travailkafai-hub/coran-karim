@@ -1070,25 +1070,83 @@ class SessionArchiveService {
         .toIso8601String();
     final vieilles = await db
         .query('sessions', columns: ['id'], where: 'started_at < ?', whereArgs: [limite]);
-    if (vieilles.isEmpty) return;
-    final ids = vieilles.map((r) => r['id'] as int).toList();
-    final marks = List.filled(ids.length, '?').join(',');
-    final fichiers = await db.rawQuery(
-        'SELECT audio_path FROM session_words WHERE session_id IN ($marks) AND audio_path IS NOT NULL',
-        ids);
-    for (final f in fichiers) {
-      try {
-        final file = File(f['audio_path'] as String);
-        if (await file.exists()) await file.delete();
-      } catch (_) {
-        // Fichier déjà parti ou stockage indisponible : sans conséquence.
+    // ── LE RETOUR PREMATURE SAUTAIT LES DEUX AUTRES PURGES (2026-09-09,
+    // audit SEC-02) ────────────────────────────────────────────────────────
+    //
+    // `if (vieilles.isEmpty) return;` sortait AVANT `_purgerAudioPortions()`
+    // (juste en dessous) : des `portion_words` dont `audio_expires_at` est
+    // depasse n'etaient donc jamais purgees tant qu'aucune ANCIENNE SESSION
+    // n'existait par ailleurs -- deux objets sans rapport, purges par la
+    // meme condition de sortie. `demarrer()` appelle cette methode a CHAQUE
+    // session : le cas "aucune vieille session, mais des portions expirees"
+    // n'est pas rare, c'est l'etat normal d'un usage regulier de l'app.
+    //
+    // Les deux purges tournent maintenant INDEPENDAMMENT.
+    if (vieilles.isNotEmpty) {
+      final ids = vieilles.map((r) => r['id'] as int).toList();
+      final marks = List.filled(ids.length, '?').join(',');
+      final fichiers = await db.rawQuery(
+          'SELECT audio_path FROM session_words WHERE session_id IN ($marks) AND audio_path IS NOT NULL',
+          ids);
+      for (final f in fichiers) {
+        try {
+          final file = File(f['audio_path'] as String);
+          if (await file.exists()) await file.delete();
+        } catch (_) {
+          // Fichier déjà parti ou stockage indisponible : sans conséquence.
+        }
       }
+      await db.delete('session_words', where: 'session_id IN ($marks)', whereArgs: ids);
+      await db.delete('sessions', where: 'id IN ($marks)', whereArgs: ids);
+      DiagnosticLog.log('Archive',
+          '${ids.length} session(s) de plus de $retentionJours jours purgee(s)');
     }
-    await db.delete('session_words', where: 'session_id IN ($marks)', whereArgs: ids);
-    await db.delete('sessions', where: 'id IN ($marks)', whereArgs: ids);
-    DiagnosticLog.log('Archive',
-        '${ids.length} session(s) de plus de $retentionJours jours purgee(s)');
     await _purgerAudioPortions();
+    await _reconcilierFichiersOrphelins();
+  }
+
+  /// Le "balayage du dossier" que le commentaire de [purgerAnciennes]
+  /// promettait pour recuperer un fichier orphelin apres un crash n'existait
+  /// PAS dans le code (audit SEC-02, 2026-09-09) : un echec de suppression
+  /// disque etait avale (`catch (_) {}`) SANS laisser de trace, et rien ne
+  /// revenait ensuite verifier que le fichier avait fini par disparaitre.
+  ///
+  /// Balaye `_audioDir`, retire tout fichier qu'AUCUNE ligne de
+  /// `session_words` ni `portion_words` ne reference plus -- qu'il s'agisse
+  /// d'un ancien echec de suppression ou d'une ligne supprimee par un autre
+  /// chemin (ex. [supprimerSession]). Best-effort : une erreur de lecture du
+  /// dossier ou de suppression d'un fichier ne fait jamais echouer la purge
+  /// qui l'a appele.
+  Future<void> _reconcilierFichiersOrphelins() async {
+    try {
+      final db = await _database;
+      final referencesA = await db.rawQuery(
+          'SELECT audio_path FROM session_words WHERE audio_path IS NOT NULL');
+      final referencesB = await db.rawQuery(
+          'SELECT audio_path FROM portion_words WHERE audio_path IS NOT NULL');
+      final references = <String>{
+        for (final r in referencesA) r['audio_path'] as String,
+        for (final r in referencesB) r['audio_path'] as String,
+      };
+      final dossier = await _audioDir;
+      var purges = 0;
+      await for (final entree in dossier.list()) {
+        if (entree is! File) continue;
+        if (references.contains(entree.path)) continue;
+        try {
+          await entree.delete();
+          purges++;
+        } catch (_) {
+          // Reessaiera au prochain passage -- pas de perte, juste un delai.
+        }
+      }
+      if (purges > 0) {
+        DiagnosticLog.log(
+            'Archive', '$purges fichier(s) audio orphelin(s) reconcilie(s)');
+      }
+    } catch (e) {
+      DiagnosticLog.log('Archive', 'reconciliation orphelins echouee : $e');
+    }
   }
 
   /// Purge de l'audio des `portion_words` (7 jours, comme l'audio des
