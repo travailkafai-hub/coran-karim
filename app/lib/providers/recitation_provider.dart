@@ -1339,6 +1339,31 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   int _decrochagesConsecutifsCible = 0;
   static const _kDecrochagesAvantCandidatSuivant = 2;
 
+  /// ── RESYNCHRONISATION ANTICIPEE SUR UNE SERIE DE "DEPLACE" (2026-09-09)
+  /// ────────────────────────────────────────────────────────────────────────
+  /// Cf. `_onV2` pour la detection. Indices `deplace` (statut natif : bien
+  /// prononce, mais hors de la zone attendue) accumules loin devant le
+  /// pointeur -- vides des qu'une resynchronisation part ou que le pointeur
+  /// les depasse naturellement.
+  final Set<int> _deplacesRecents = {};
+
+  /// Marge minimale entre le pointeur et un `deplace` pour le considerer
+  /// comme un signal de decrochage plutot qu'une simple inversion locale
+  /// (deja geree par ailleurs, cf. le commentaire "DIT, MAIS PAS A SA PLACE"
+  /// dans `_onV2`).
+  static const _kMargeDeplaceAvantResync = 10;
+
+  /// Nombre de `deplace` distincts, groupes (span borne par
+  /// [_kEtalementMaxDeplaces]), avant de resynchroniser sans attendre le
+  /// decrochage natif (3 fenetres hors texte, mesure trop lent : 57 s sur la
+  /// session qui a motive ce correctif).
+  static const _kSeriesDeplacesAvantResync = 3;
+
+  /// Etalement maximal (mot le plus loin - mot le plus proche) tolere dans
+  /// [_deplacesRecents] avant de considerer qu'il s'agit de deux signaux sans
+  /// rapport plutot que d'une seule serie coherente.
+  static const _kEtalementMaxDeplaces = 60;
+
   /// ── LES CANDIDATS ECARTES SE GARDENT (2026-09-07) ───────────────────────
   ///
   /// `locateTopMatches(query, k: 20)` ramene vingt candidats classes ;
@@ -5177,6 +5202,66 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       }
       if (_prayerVersetsRestants.isNotEmpty) {
         unawaited(_etendreCiblePriereSiBesoin(ancre));
+      }
+      // ── RESYNCHRONISATION ANTICIPEE SUR UNE SERIE DE "DEPLACE" ──────────
+      // (2026-09-09, diagnostic + correctif demandes par l'utilisateur)
+      //
+      // Mesure sur une vraie session (Al-Baqara, versets 1-3 puis saut de
+      // verset) : le decrochage NATIF (3 fenetres hors texte) a mis 57 s a se
+      // declencher, alors que la chaine jugeait DEJA correctement -- en
+      // `deplace` -- des mots loin devant le pointeur des la 12e seconde
+      // (mots 28..55, GOP quasi parfait). Pendant tout ce temps, le pointeur
+      // Dart restait fige sur l'ancienne position : le souffleur de silence
+      // (`_armSilenceCourtTimer`, qui LIT ce pointeur) a propose de l'aide au
+      // MAUVAIS endroit (mot 1 au lieu de ~55).
+      //
+      // `deplace` signifie deja « bien prononce, mais hors de la zone
+      // attendue » -- le natif (Decideur.OrdreTemporel) a deja ecarte les
+      // inversions/repetitions locales legitimes avant d'emettre ce statut
+      // (cf. le commentaire "DIT, MAIS PAS A SA PLACE" plus bas). Une SERIE
+      // de `deplace` qui s'accumule loin devant le pointeur n'est donc pas un
+      // mot isole mal place : c'est la preuve que le recitateur est
+      // reellement plus loin, sans qu'il faille attendre le seuil du
+      // decrochage natif.
+      //
+      // Demande utilisateur explicite : « il faut proposer l'audio [...] et
+      // apres oublier tout ce qui etait deja aligne et chercher a
+      // relocaliser ». On reutilise donc EXACTEMENT le canal du decrochage
+      // classique en phase target (`_sautPresumeCtrl`, deja cable a
+      // `soufflerPriere` cote ecran, memes garde-fous anti-repetition) --
+      // seul le POINT DE REPRISE change : au lieu de `dernierDefinitif + 1`
+      // (qui ne suit pas les `deplace`), c'est le PREMIER mot de la serie
+      // detectee ici.
+      if (_dynamicTargetDiscovery && state.prayerPhase == PrayerPhase.target) {
+        _deplacesRecents.removeWhere((i) => i <= state.pointer);
+        for (final c in changements) {
+          if (c.statut != 'deplace') continue;
+          if (c.index <= state.pointer + _kMargeDeplaceAvantResync) continue;
+          if (_deplacesRecents.isNotEmpty) {
+            final etaleAvec = [..._deplacesRecents, c.index];
+            final etalement =
+                etaleAvec.reduce((a, b) => a > b ? a : b) -
+                    etaleAvec.reduce((a, b) => a < b ? a : b);
+            if (etalement > _kEtalementMaxDeplaces) {
+              // Deux signaux sans rapport plutot qu'une serie coherente --
+              // on repart de zero sur celui-ci, le plus recent.
+              _deplacesRecents.clear();
+            }
+          }
+          _deplacesRecents.add(c.index);
+        }
+        if (_deplacesRecents.length >= _kSeriesDeplacesAvantResync) {
+          final motDeReprise =
+              _deplacesRecents.reduce((a, b) => a < b ? a : b);
+          final pointeurAvant = state.pointer;
+          _deplacesRecents.clear();
+          DiagnosticLog.log('Priere',
+              'serie de $_kSeriesDeplacesAvantResync+ mots "deplace" '
+              'coherents detectee au-dela du pointeur $pointeurAvant -- '
+              'resynchronisation anticipee au mot $motDeReprise, sans '
+              'attendre le decrochage natif');
+          _sautPresumeCtrl.add((de: motDeReprise, a: motDeReprise));
+        }
       }
     }
     var dernierJuge = -1;
