@@ -52,21 +52,68 @@ class VoiceLoraClipService {
   /// Dossier de capture d'UNE session de récitation, dans le stockage
   /// DURABLE (et non le cache temporaire comme l'ancien
   /// [newTempCaptureDir]). Kotlin y écrit un WAV par segment figé, et
-  /// **rien ne les supprime** : ni filtre de qualité, ni nettoyage de fin de
-  /// session, ni `dispose()` de l'écran.
+  /// **rien ne les supprime PENDANT la session** : ni filtre de qualité, ni
+  /// nettoyage de fin de session, ni `dispose()` de l'écran.
   ///
   /// POURQUOI DURABLE : l'ancien chemin passait par `getTemporaryDirectory()`
   /// et le `dispose()` de l'écran de récitation supprimait le dossier alors
   /// que le natif continuait d'y écrire -> `open failed: ENOENT` sur chaque
   /// segment, silencieusement avalé (bug constaté 2026-07-25, 30 échecs
-  /// d'affilée). Un dossier durable et non supprimé ferme cette classe de
-  /// bug par construction.
+  /// d'affilée). Un dossier durable et non supprimé PENDANT l'écriture ferme
+  /// cette classe de bug par construction.
+  ///
+  /// ── SEC-03 (audit 2026-09-06, fermé le 2026-09-09) : plafond ENTRE les
+  /// sessions ─────────────────────────────────────────────────────────────
+  /// « rien ne les supprime » restait vrai aussi ENTRE les sessions, sans
+  /// aucune borne (« accumulation de voix... saturation possible du
+  /// disque »). [_purgerSessionsExcedentaires] purge maintenant les sessions
+  /// les plus anciennes AVANT de créer la nouvelle -- jamais celle en cours
+  /// d'écriture, toujours la plus récente à cet instant. Ce n'est pas
+  /// l'affichage de quota / effacement par catégorie que l'audit suggère en
+  /// premier choix (ça reste à faire si le diagnostic doit un jour être
+  /// exposé à l'utilisateur, cf. `_VoiceLoraClipsTile`, retiré du parcours
+  /// visible le 2026-08-09 -- « sera pas utilisé pour la prod », décision non
+  /// remise en cause ici) : c'est le filet minimal qui ferme « aucune
+  /// borne », sans ajouter d'IHM.
   Future<String> newRecitationCaptureDir() async {
     final root = await _recitationDir();
+    await _purgerSessionsExcedentaires(root);
     final dir = Directory(
         '${root.path}/session_${DateTime.now().millisecondsSinceEpoch}');
     await dir.create(recursive: true);
     return dir.path;
+  }
+
+  /// Nombre maximal de sessions de capture conservées simultanément. Choisi
+  /// pour couvrir plusieurs jours de diagnostic actif (chaque session de
+  /// récitation en crée une) sans laisser le dossier grandir sans fin.
+  static const int _kMaxSessionsCapture = 30;
+
+  Future<void> _purgerSessionsExcedentaires(Directory root) async {
+    try {
+      final sessions = await root
+          .list()
+          .where((e) => e is Directory)
+          .cast<Directory>()
+          .toList();
+      if (sessions.length <= _kMaxSessionsCapture) return;
+      // Le nom encode l'horodatage de création (`session_<ts>`, ci-dessus) :
+      // trier dessus donne l'ordre chronologique sans lire les métadonnées
+      // du système de fichiers.
+      sessions.sort((a, b) => a.path.compareTo(b.path));
+      final aSupprimer = sessions.length - _kMaxSessionsCapture;
+      for (final dir in sessions.take(aSupprimer)) {
+        try {
+          await dir.delete(recursive: true);
+        } catch (_) {
+          // Best-effort -- une session illisible ne doit jamais empêcher le
+          // démarrage d'une nouvelle capture.
+        }
+      }
+    } catch (_) {
+      // Purge best-effort : un échec ici dégrade au pire vers le
+      // comportement d'avant ce correctif (pas de purge), jamais bloquant.
+    }
   }
 
   /// Nombre total de WAV de diagnostic conservés (toutes sessions).
