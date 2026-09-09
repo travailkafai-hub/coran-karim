@@ -59,21 +59,34 @@
          C'etait vrai du code (l'app n'envoie rien) mais faux du point de vue
          de l'utilisateur, puisque le systeme le faisait a sa place.
 
-         VOLONTAIREMENT `false` PLUTOT QUE DES REGLES D'EXCLUSION : on perd la
+         VOLONTAIREMENT `false` PLUTOT QUE DES REGLES SELECTIVES : on perd la
          restauration des signets et reglages sur un nouveau telephone, et c'est
-         assume. `dataExtractionRules` permettrait de garder ce confort en
-         excluant les seuls dossiers de voix, mais une regle mal ecrite
-         renverrait la voix en sauvegarde EN SILENCE. Sur une promesse de
-         confidentialite, une solution qui ne peut pas echouer vaut mieux
-         qu'une solution plus fine qui le peut. A revoir si la restauration
-         devient une vraie demande, en traitant alors les DEUX canaux
-         (sauvegarde cloud ET transfert d'appareil a appareil).
+         assume. Une regle SELECTIVE (qui choisirait quoi inclure) etait
+         rejetee ici : « une regle mal ecrite renverrait la voix en sauvegarde
+         EN SILENCE [...] une solution qui ne peut pas echouer vaut mieux
+         qu'une solution plus fine qui le peut ». Ce raisonnement reste
+         valable et n'est PAS revoque par ce qui suit.
 
-         NB : pas de « double tiret » dans ce commentaire, XML l'interdit. -->
+         SEC-04 (audit securite 2026-09-06, ferme le 2026-09-09) : sur
+         Android 12 et suivants, `allowBackup=false` bloque la sauvegarde
+         CLOUD mais PAS, a lui seul, le TRANSFERT D'APPAREIL A APPAREIL
+         (cable / Google Data Restore Tool), le second canal que ce
+         commentaire annoncait deja comme « a traiter ». `dataExtractionRules`
+         ci-dessous ferme ce canal SANS introduire de regle selective : il
+         exclut TOUT, sur les deux canaux, exactement la meme propriete de
+         securite que `allowBackup=false` (rien n'est inclus, donc rien ne
+         peut fuir par une regle mal ecrite), juste etendue au canal que cet
+         attribut seul ne couvre pas.
+
+         NB : pas de « double tiret » dans ce commentaire, XML l'interdit.
+         Piege reel, pas theorique : une premiere version de CE MEME
+         paragraphe en contenait deux malgre cette note, jamais reconstruit
+         par un build avant le 2026-09-09 pour le prouver. -->
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

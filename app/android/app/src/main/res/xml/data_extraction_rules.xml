@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SEC-04 (audit securite 2026-09-06, ferme le 2026-09-09).
+
+     Le commentaire d'AndroidManifest.xml explique deja pourquoi ce fichier
+     n'existait pas : « une regle mal ecrite renverrait la voix en sauvegarde
+     EN SILENCE [...] une solution qui ne peut pas echouer vaut mieux qu'une
+     solution plus fine qui le peut ». Cette decision reste vraie et n'est PAS
+     revoquee ici : ce fichier ne definit AUCUNE regle SELECTIVE (aucun
+     <include>, aucune inclusion partielle d'un dossier).
+
+     Ce qu'il ferme, precisement : `android:allowBackup="false"` bloque la
+     sauvegarde CLOUD, mais Android documente que sur Android 12 et suivants
+     il ne bloque PAS a lui seul le TRANSFERT D'APPAREIL A APPAREIL (Google
+     Data Restore Tool / cable). Sans ce fichier, les archives de recitation
+     pouvaient donc migrer par ce second canal alors que la politique de
+     confidentialite promet qu'elles ne quittent pas le telephone.
+
+     La regle ci-dessous EXCLUT TOUT, sur les DEUX canaux : meme propriete
+     de securite que `allowBackup=false` (rien n'est inclus, donc rien ne peut
+     fuir par une regle mal ecrite), etendue au canal que cet attribut seul ne
+     couvre pas. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+    </device-transfer>
+</data-extraction-rules>
