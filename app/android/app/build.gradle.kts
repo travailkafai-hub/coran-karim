@@ -96,8 +96,30 @@ android {
             // ⚠️ Ce repli est un piege s'il passe inapercu : un binaire signe en
             // debug est REFUSE par Play, y compris en test interne. D'ou le
             // message ci-dessous, qui s'affiche a chaque build concerne.
+            // ── SEC-11 (audit securite 2026-09-06, ferme le 2026-09-09) ─────
+            //
+            // Le repli reste le DEFAUT : rien ne change pour un build local
+            // (`flutter build apk --release` sur une machine sans keystore
+            // continue de marcher, cf. le commentaire d'origine ci-dessus).
+            //
+            // Ce que l'audit demandait -- « echouer explicitement pour toute
+            // commande de PUBLICATION sans configuration de signature valide,
+            // garder le confort de developpement dans une variante dediee » --
+            // est desormais possible sans toucher au chemin par defaut : la
+            // propriete Gradle `requireReleaseSigning` (absente/false par
+            // defaut) fait ECHOUER le build au lieu de replier sur debug.
+            // Un script de publication l'active explicitement :
+            //     ./gradlew bundleRelease -PrequireReleaseSigning=true
+            val publicationExigee =
+                project.hasProperty("requireReleaseSigning") &&
+                    project.property("requireReleaseSigning") == "true"
             signingConfig = if (fichierCles.exists()) {
                 signingConfigs.getByName("release")
+            } else if (publicationExigee) {
+                throw GradleException(
+                    "android/key.properties absent et requireReleaseSigning=true : " +
+                    "build refuse plutot que signe avec la cle de DEBUG (non " +
+                    "publiable sur Play).")
             } else {
                 logger.warn("ATTENTION : android/key.properties absent -> build " +
                     "release signe avec la cle de DEBUG. Non publiable sur Play.")
