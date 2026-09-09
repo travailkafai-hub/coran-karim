@@ -322,9 +322,6 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       //
       // On essaie donc le SUIVANT (cf. `_candidatsPriereRestants`), sans
       // relancer aucune recherche.
-      // Cf. `_sansAlignementTimer` : le decrochage EST le signal « on n'arrive
-      // pas a placer ». S'il ne se resout pas, l'imam n'est plus dans ce texte.
-      _armSansAlignementTimer();
       _decrochagesConsecutifsCible++;
       if (_decrochagesConsecutifsCible >= _kDecrochagesAvantCandidatSuivant) {
         _decrochagesConsecutifsCible = 0;
@@ -1308,53 +1305,33 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// le cas ou ni l'un ni l'autre n'est capte -- il doit donc etre patient.
   static const _kTargetSilenceStandbyDelay = Duration(seconds: 30);
 
-  /// ── SIX SECONDES SANS PLACER UN MOT : IL EST AILLEURS (2026-09-08) ──────
+  /// ── LE COMPTEUR DE 6 s A ETE RETIRE (2026-09-08, le jour meme) ─────────
   ///
-  /// Demande utilisateur : « rajoute un compteur de 6 s de ne pas pouvoir
-  /// aligner un mot ; s'il n'y a pas de repetition, ou bien des paroles quand
-  /// on n'arrive pas a placer, c'est que l'imam est en ruku' ou autre chose,
-  /// il faut attendre le redemarrage de la Fatiha, prochaine rak'ah ».
+  /// Il avait ete ajoute le matin sur demande utilisateur (« rajoute un
+  /// compteur de 6 s de ne pas pouvoir aligner un mot [...] c'est que l'imam
+  /// est en ruku' »), puis RETIRE le soir par la meme personne : « le minuteur
+  /// de 6 s, plus d'interet ».
   ///
-  /// C'est la sortie qui MANQUAIT. Les deux autres ne couvrent pas ce cas :
-  ///   - le takbir : il n'est pas toujours capte (micro loin, foule) ;
-  ///   - le silence de 30 s : il n'y a PAS de silence -- l'imam parle, il dit
-  ///     les invocations du ruku', du sujud, le tashahhud. Le micro entend,
-  ///     le niveau est haut, le minuteur de silence se rearme sans fin.
-  /// La chaine restait donc accrochee a une sourate que plus personne ne
-  /// recite, jusqu'a ce qu'un takbir passe.
+  /// CE QUE LA MESURE AVAIT DEJA MONTRE, et qui explique le retrait : sur la
+  /// session de 21:21, il s'est declenche a tort. 21:21:46,47 DECROCHAGE,
+  /// 21:21:47,48 souffle du passage 35..35, 21:21:53,48 « 6s sans reussir a
+  /// placer un seul mot -> ruku' ». Le micro etait coupe PAR LE SOUFFLEUR : le
+  /// compteur ne pouvait qu'expirer, et son message accusait le recitant d'etre
+  /// passe au ruku' alors que c'est l'application qui parlait.
   ///
-  /// ⚠️ POURQUOI PAS « 6 s SANS VERDICT », QUI SERAIT LA LECTURE LITTERALE :
-  /// parce que six secondes sans verdict est ORDINAIRE en recitation normale.
-  /// Mesure du 2026-09-07 sur session reelle, intervalle entre deux verdicts :
-  /// mediane 2,47 s, p90 **8,19 s**. Un compteur pose la couperait en pleine
-  /// recitation juste -- exactement l'erreur qui avait fait cabler le minuteur
-  /// de silence sur les verdicts au lieu de la voix.
+  /// Le desarmement pendant le souffle corrigeait ce cas precis, mais le
+  /// mecanisme restait fragile : six secondes sans placement sont ordinaires
+  /// des que la transcription se degrade, et le prix d'une sortie a tort est
+  /// eleve -- on rend la main en pleine sourate.
   ///
-  /// On l'accroche donc au DECROCHAGE, qui est precisement « on n'arrive pas a
-  /// placer » : trois fenetres consecutives hors texte, constate par le natif
-  /// sur le decodage libre. Le compteur part de la, et s'annule des qu'un mot
-  /// est juge -- si l'imam etait simplement en avance, la chaine le retrouve
-  /// et rien ne se declenche.
-  Timer? _sansAlignementTimer;
-  static const _kSansAlignementDelay = Duration(seconds: 6);
-
-  void _armSansAlignementTimer() {
-    _sansAlignementTimer?.cancel();
-    _sansAlignementTimer = Timer(_kSansAlignementDelay, () {
-      if (!_dynamicTargetDiscovery ||
-          state.prayerPhase != PrayerPhase.target ||
-          state.status != RecitationStatus.listening) {
-        return;
-      }
-      DiagnosticLog.log('Priere',
-          '${_kSansAlignementDelay.inSeconds}s sans reussir a placer un seul '
-          'mot depuis le decrochage -- ce n\'est pas un silence, il parle : '
-          'ruku\', sujud ou autre. On rend la main et on attend la Fatiha de '
-          'la prochaine rak\'ah');
-      _enterPrayerStandby();
-      resetTrackingToStart();
-    });
-  }
+  /// LES TROIS SORTIES QUI RESTENT SUFFISENT, et deux d'entre elles reposent
+  /// sur ce qui est ENTENDU plutot que sur un chronometre : le takbir
+  /// (`_hasTakbir`), le debut d'Al-Fatiha (le faisceau, en standby), et le
+  /// silence reel de 30 s (`_targetSilenceStandbyTimer`).
+  ///
+  /// A rouvrir si une session montre la chaine accrochee a une sourate pendant
+  /// tout un ruku' sans qu'aucune des trois ne la libere -- avec le journal a
+  /// l'appui, cette fois.
 
   /// Decrochages d'affilee sur la cible sans qu'un mot ait ete juge entre-deux.
   /// Cf. `_onDecrochageV2` : au-dela de
@@ -1959,7 +1936,6 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     }
     _detectingTargetFallbackTimer?.cancel();
     _targetSilenceStandbyTimer?.cancel();
-    _sansAlignementTimer?.cancel();
     _silenceCourtTimer?.cancel();
     _silenceCourtTimer = null;
     // Les candidats gardes n'appartiennent qu'a la rak'ah qui s'acheve, comme
@@ -2827,24 +2803,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // lui-meme en boucle.
       _silenceCourtTimer?.cancel();
       _silenceCourtTimer = null;
-      // ── ET LE COMPTEUR « RIEN NE SE PLACE » AUSSI (2026-09-08) ────────
-      //
-      // Oubli de la premiere version, mesure sur la session de 21:21 :
-      //
-      //     21:21:46,47  DECROCHAGE -- reprise apres le mot 34
-      //     21:21:47,48  souffle du passage 35..35     <- micro coupe
-      //     21:21:53,48  6s sans reussir a placer un seul mot -> standby
-      //
-      // Pendant la lecture le micro est en pause : AUCUN mot ne PEUT etre
-      // place. Le compteur expirait donc mecaniquement, six secondes apres le
-      // decrochage qui l'avait arme -- et son message accusait le recitant
-      // d'etre passe au ruku' alors que c'est le souffleur qui parlait.
-      //
-      // C'est la troisieme fois que ce piege se referme (minuteur de silence
-      // 30 s, silence court 3 s, et celui-ci) : TOUT minuteur nourri par le
-      // micro doit etre suspendu pendant que le haut-parleur parle.
-      _sansAlignementTimer?.cancel();
-      _sansAlignementTimer = null;
+      // ⚠️ LA REGLE APPRISE ICI RESTE VRAIE, meme si le compteur de 6 s qui
+      // l'a revelee a ete retire (cf. sa note plus haut) : TOUT minuteur
+      // nourri par le micro doit etre suspendu pendant que le haut-parleur
+      // parle. Le piege s'est referme TROIS fois en deux jours -- retour en
+      // attente 30 s, silence court 3 s, compteur 6 s.
       await jouer();
     } finally {
       if (mounted && generation == _verifier.sessionGeneration &&
@@ -5210,9 +5173,6 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       if (_dynamicTargetDiscovery &&
           state.prayerPhase == PrayerPhase.target) {
         // Un mot vient d'etre place : le decrochage s'est resolu tout seul.
-        // C'est la seule preuve qui compte -- pas le temps ecoule.
-        _sansAlignementTimer?.cancel();
-        _sansAlignementTimer = null;
         _decrochagesConsecutifsCible = 0;
       }
       if (_prayerVersetsRestants.isNotEmpty) {
@@ -6513,7 +6473,6 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     _wordFailedCtrl.close();
     _nonVertCtrl.close();
     _wordLockedCtrl.close();
-    _sansAlignementTimer?.cancel();
     _silenceCourtTimer?.cancel();
     _sautPresumeCtrl.close();
     _decrochageCtrl.close();
