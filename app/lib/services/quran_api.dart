@@ -57,6 +57,34 @@ class QuranApi {
   // qui pousse sa valeur ici. Ne jamais écrire ce champ ailleurs.
   static Riwaya _riwaya = Riwaya.hafs;
 
+  /// ── DEUX BUGS CONFIRMES PAR L'AUDIT DE SECURITE (QUAL-01, 2026-09-09) ────
+  ///
+  /// Rapport `AUDIT_SECURITE_CHGPT_2026-09-06.md`, reproduits par execution
+  /// (interception du canal d'assets, deux jeux de donnees factices) :
+  ///
+  ///     AUDIT concurrent fetch: Null check operator used on a null value
+  ///     AUDIT active=warsh, cached=HAFS_FIXTURE
+  ///
+  /// BUG 1 -- `_ensureLoaded()` prenait `_chapters != null` comme preuve de
+  /// chargement COMPLET, alors que `_chapters` etait affecte avant l'attente
+  /// de lecture des versets. Un second appel pendant cette attente retournait
+  /// donc trop tot, et `fetchVerses()` dereferencait `_versesBySurah!` encore
+  /// nul -- le crash `Null check operator`.
+  ///
+  /// BUG 2 -- changer `riwaya` remettait les caches a null mais n'invalidait
+  /// pas le chargement asynchrone deja en vol : un vieux chargement Hafs
+  /// pouvait terminer APRES la bascule vers Warsh et ecraser ses resultats
+  /// avec ceux de l'ancienne riwaya. Silencieux : aucune erreur, juste le
+  /// mauvais texte affiche et fourni a l'ASR sous l'etiquette Warsh.
+  ///
+  /// CORRECTIF, exactement celui que le rapport recommandait : « generations
+  /// de chargement verifiees avant publication ; publier atomiquement un
+  /// ensemble complet de donnees ». `_generation` est incremente a chaque
+  /// bascule de riwaya ; un chargement ne publie ses resultats QUE si la
+  /// generation n'a pas change pendant son attente reseau/disque -- sinon il
+  /// est jete en silence, la generation suivante le refera.
+  static int _generation = 0;
+
   static Riwaya get riwaya => _riwaya;
 
   static set riwaya(Riwaya value) {
@@ -71,6 +99,9 @@ class QuranApi {
     _versesByPage = null;
     _bismillahCache = null;
     _loading = null;
+    // Toute charge en vol visait l'ANCIENNE riwaya : elle ne doit plus rien
+    // publier a son retour. Cf. le commentaire de `_generation` ci-dessus.
+    _generation++;
   }
 
   /// Asset de texte correspondant à la riwaya courante. Les deux fichiers ont
@@ -104,19 +135,31 @@ class QuranApi {
   /// par tous les appels ci-dessous -- même contenu qu'un appel réseau
   /// aurait renvoyé, juste lu depuis l'APK au lieu de `api.quran.com`).
   static Future<void> _ensureLoaded() {
-    if (_chapters != null) return Future.value();
+    // BUG 1 corrige : les DEUX caches doivent etre prets, pas seulement
+    // `_chapters`. Tant que l'un des deux manque, on rejoint le chargement en
+    // cours via `_loading ??=` plus bas -- jamais un retour premature.
+    if (_chapters != null && _versesBySurah != null) return Future.value();
+    // Capture au moment de l'APPEL, pas a la publication : c'est CETTE
+    // tentative de chargement qu'on veut pouvoir invalider si la riwaya
+    // bascule pendant qu'elle est en vol.
+    final generationDemandee = _generation;
+    // Meme raison : figer QUELLE riwaya ce chargement sert, plutot que relire
+    // `_versesAsset` (donc `_riwaya`, mutable) une fois l'attente reseau/
+    // disque passee -- sans quoi une bascule pendant le chargement ferait lire
+    // le mauvais fichier pour la generation qu'on croit servir.
+    final versesAssetCible = _versesAsset;
     return _loading ??= () async {
       final chaptersRaw =
           json.decode(
                 await rootBundle.loadString('assets/data/quran_chapters.json'),
               )
               as List;
-      _chapters = chaptersRaw
+      final chapters = chaptersRaw
           .map((e) => Surah.fromJson(e as Map<String, dynamic>))
           .toList();
 
       final versesRaw =
-          json.decode(await rootBundle.loadString(_versesAsset)) as List;
+          json.decode(await rootBundle.loadString(versesAssetCible)) as List;
       final bySurah = <int, List<Verse>>{};
       final byPage = <int, List<Verse>>{};
       for (final v in versesRaw) {
@@ -126,6 +169,12 @@ class QuranApi {
           byPage.putIfAbsent(verse.pageNumber!, () => []).add(verse);
         }
       }
+      // BUG 2 corrige : publication ATOMIQUE, et seulement si rien n'a
+      // change pendant l'attente. Une riwaya basculee entre-temps a deja
+      // incremente `_generation` (cf. le setter) -- ce resultat, obtenu pour
+      // l'ancienne generation, est alors jete plutot que publie a tort.
+      if (generationDemandee != _generation) return;
+      _chapters = chapters;
       _versesBySurah = bySurah;
       _versesByPage = byPage;
     }();
@@ -148,14 +197,45 @@ class QuranApi {
     return _bismillahCache!;
   }
 
-  static Future<List<Surah>> fetchSurahs() async {
-    await _ensureLoaded();
-    return _chapters!;
+  // ── UNE TROISIEME COURSE, TROUVEE EN VERIFIANT LE CORRECTIF (2026-09-09)
+  //
+  // Le correctif ci-dessus (generation + publication atomique) supprime les
+  // deux bugs du rapport, MAIS un test qui le rejoue exactement plantait
+  // encore -- verifie par execution, pas suppose corrige sur relecture du
+  // code. Sa trace montrait le vrai coupable : entre le moment ou
+  // `_ensureLoaded()` rend un `Future.value()` (chemin rapide, cache deja
+  // rempli) et le moment ou l'appelant reprend la main pour LIRE ce cache,
+  // une bascule de riwaya SYNCHRONE peut s'intercaler et le nuller. Le
+  // `await` ne protege que contre la course sur le CHARGEMENT ; il ne protege
+  // pas la LECTURE qui le suit.
+  //
+  // `_versesCharges()`/`_chapitresCharges()` ferment cette fenetre en ne
+  // retournant JAMAIS une reference qui pourrait avoir ete nullee entre-temps
+  // -- elles relisent la variable locale immediatement apres l'attente, et
+  // rechargent si une bascule s'est glissee dans l'intervalle. Ce n'est pas
+  // une boucle sans fin : une bascule est un evenement synchrone rare
+  // (geste utilisateur), pas quelque chose qui se reproduit a chaque tour.
+  static Future<Map<int, List<Verse>>> _versesCharges() async {
+    while (true) {
+      await _ensureLoaded();
+      final v = _versesBySurah;
+      if (v != null) return v;
+    }
   }
 
+  static Future<List<Surah>> _chapitresCharges() async {
+    while (true) {
+      await _ensureLoaded();
+      final c = _chapters;
+      if (c != null) return c;
+    }
+  }
+
+  static Future<List<Surah>> fetchSurahs() => _chapitresCharges();
+
   static Future<List<Verse>> fetchVerses(int surahNumber) async {
-    await _ensureLoaded();
-    return _versesBySurah![surahNumber] ?? const [];
+    final bySurah = await _versesCharges();
+    return bySurah[surahNumber] ?? const [];
   }
 
   /// Concatène plusieurs plages de versets (potentiellement de sourates
@@ -165,10 +245,10 @@ class QuranApi {
   static Future<List<Verse>> fetchVerseRanges(
     List<(int surah, int ayahStart, int ayahEnd)> ranges,
   ) async {
-    await _ensureLoaded();
+    final bySurah = await _versesCharges();
     final result = <Verse>[];
     for (final (surah, start, end) in ranges) {
-      final verses = _versesBySurah![surah] ?? const [];
+      final verses = bySurah[surah] ?? const [];
       result.addAll(
         verses.where((v) => v.ayahNumber >= start && v.ayahNumber <= end),
       );
@@ -184,8 +264,11 @@ class QuranApi {
   /// 2026-07-11 : "il faut faire ça dynamiquement, une page avant et une page
   /// après").
   static Future<List<Verse>> fetchVersesByPage(int pageNumber) async {
-    await _ensureLoaded();
-    return _versesByPage![pageNumber] ?? const [];
+    while (true) {
+      await _ensureLoaded();
+      final byPage = _versesByPage;
+      if (byPage != null) return byPage[pageNumber] ?? const [];
+    }
   }
 
   static Map<int, List<Verse>>? _warshMushafByPage;
