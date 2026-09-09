@@ -129,10 +129,20 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   /// de pouvoir capter le geste, 10 s est le proxy retenu -- assez long pour
   /// chercher son verset, assez court pour rendre le plein ecran a qui lit.
   static const _kHeaderAutoHideDelay = Duration(seconds: 6);
-  // Doit correspondre à MushafHeader.preferredSize (widgets/mushaf_header.dart)
-  // -- dupliqué en constante locale ici pour éviter d'instancier un widget
-  // juste pour lire sa taille.
+  // ── CETTE CONSTANTE IGNORAIT L'ENCOCHE (2026-09-09) ────────────────────
+  //
+  // Elle valait 120, comme `MushafHeader.preferredSize`, et les deux
+  // ignoraient que le contenu de l'en-tete est dans un `SafeArea` : sur un
+  // telephone a encoche il deborde (`BOTTOM OVERFLOWED BY 40 PIXELS`, constate
+  // sur capture). La duplication en constante locale evitait d'instancier un
+  // widget pour lire sa taille -- elle empechait surtout de tenir compte du
+  // `MediaQuery`.
+  //
+  // On passe donc par `MushafHeader.hauteurPour(context)`, seule source. La
+  // constante reste pour les rares endroits sans contexte.
   static const _kMushafHeaderHeight = 120.0;
+  static double _hauteurHeader(BuildContext context) =>
+      MushafHeader.hauteurPour(context);
   // Même principe pour _BottomBar (icônes + libellés + marges + SafeArea) --
   // approximation, comme _kMushafHeaderHeight ci-dessus.
   static const _kBottomBarHeight = 92.0;
@@ -173,7 +183,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   /// L'encoche est comptée explicitement : le bouton est dans un `SafeArea`,
   /// la liste ne l'est pas.
   double _reserveHaut(BuildContext context) => _headerVisible
-      ? _kMushafHeaderHeight + 8
+      ? _hauteurHeader(context) + 8
       : MediaQuery.of(context).padding.top + _kBoutonRetourHauteur;
 
   /// Place à réserver EN BAS. La barre du bas, elle, glisse hors de l'écran
@@ -565,8 +575,13 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
       cleVersetActif: v == null
           ? null
           : MarquePagesNotifier.cle(v.surahNumber, v.ayahNumber),
-      onToggleSignet: v == null ? null : _basculerMarquePage,
-      onOuvrirSignets: _ouvrirListeSignets,
+      // `onToggleSignet` et `onOuvrirSignets` ne sont plus passes
+      // (2026-09-09) : poser le signet est devenu le bouton rond de l'ecran,
+      // et il n'y a plus de LISTE a ouvrir -- un seul signet existe desormais
+      // (cf. `marquePagesProvider`), et l'ecran d'accueil y mene deja.
+      // `onCarteMentale` n'est plus passe (2026-09-09) : la carte mentale est
+      // remontee dans la barre du bas, visible. Cf. le bloc « LA CARTE
+      // MENTALE EST ICI » dans `_BottomBar`.
     );
   }
 
@@ -727,14 +742,14 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Écoute du tajwid — les règles manquées passent en violet',
+                        AppLocalizations.of(context)!.mushafTajwidBanner,
                         style: GoogleFonts.manrope(
                             fontSize: 12, color: AppColors.ink),
                       ),
                     ),
                     TextButton(
                       onPressed: _arreterEcouteTajwid,
-                      child: Text('Arrêter',
+                      child: Text(AppLocalizations.of(context)!.commonStop,
                           style: GoogleFonts.manrope(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -900,12 +915,48 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                                   : AppColors.green900)
                               .withAlpha(110),
                           shape: const CircleBorder(),
-                          child: IconButton(
-                            tooltip: 'Vue page',
-                            icon: const Icon(Icons.auto_stories_rounded,
-                                color: AppColors.cream),
-                            onPressed: _ouvrirVuePage,
-                          ),
+                          // ── LE BOUTON ROND POSE LE SIGNET (2026-09-09) ─
+                          //
+                          // Il ouvrait le Mushaf papier ; celui-ci est remonte
+                          // dans l'en-tete (cf. `_SurahNavRow.onMushafPapier`).
+                          // Demande utilisateur : « a la place de l'icone
+                          // Mushaf papier, rajoute la possibilite de marquer
+                          // un signet la ou on est arrive ».
+                          //
+                          // C'est le bon endroit : poser un signet est le
+                          // geste qu'on fait EN LISANT, a l'endroit precis ou
+                          // l'on s'arrete. Il etait jusqu'ici enfoui dans le
+                          // panneau « ⋯ », d'ou il a ete retire le meme jour
+                          // (`reading_settings_sheet.dart`).
+                          //
+                          // L'icone suit l'etat du verset actif -- pleine s'il
+                          // est deja marque, contour sinon : sans cela, rien
+                          // ne distingue « poser » de « retirer » avant le tap.
+                          child: Builder(builder: (_) {
+                            final v = _verses.isEmpty
+                                ? null
+                                : _verses[_activeVerse];
+                            final marque = v != null &&
+                                ref.watch(marquePagesProvider) ==
+                                    MarquePagesNotifier.cle(
+                                        v.surahNumber, v.ayahNumber);
+                            return IconButton(
+                              tooltip: marque
+                                  ? AppLocalizations.of(context)!
+                                      .mushafBookmarkRemove
+                                  : AppLocalizations.of(context)!
+                                      .mushafBookmarkHere,
+                              icon: Icon(
+                                  marque
+                                      ? Icons.bookmark_rounded
+                                      : Icons.bookmark_border_rounded,
+                                  color: marque
+                                      ? AppColors.brass
+                                      : AppColors.cream),
+                              onPressed:
+                                  v == null ? null : _basculerMarquePage,
+                            );
+                          }),
                         ),
                       ),
                     ),
@@ -921,7 +972,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                       top: 0,
                       left: 0,
                       right: 0,
-                      height: _kMushafHeaderHeight,
+                      height: _hauteurHeader(context),
                       child: AnimatedSlide(
                         duration: const Duration(milliseconds: 200),
                         offset: _headerVisible ? Offset.zero : const Offset(0, -1),
@@ -929,11 +980,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                           modeSombre: modeSombre,
                           surah: widget.surah,
                           onBack: () => Navigator.of(context).maybePop(),
-                          onMindMap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => MindMapScreen(surah: widget.surah),
-                            ),
-                          ),
+                          onMushafPapier: _ouvrirVuePage,
                         ),
                       ),
                     ),
@@ -974,16 +1021,20 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                             onMoreTap: _openReadingSettings,
                             onBookmarkTap:
                                 _verses.isEmpty ? null : _basculerMarquePage,
-                            onBookmarkLongPress: _ouvrirListeSignets,
                             onTajwidTap:
                                 _verses.isEmpty ? null : _openKaraokeTajwid,
+                            onCarteMentaleTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    MindMapScreen(surah: widget.surah),
+                              ),
+                            ),
                             estMarque: _verses.isEmpty
                                 ? false
-                                : ref.watch(marquePagesProvider).contains(
-                                      MarquePagesNotifier.cle(
-                                        _verses[_activeVerse].surahNumber,
-                                        _verses[_activeVerse].ayahNumber,
-                                      ),
+                                : ref.watch(marquePagesProvider) ==
+                                    MarquePagesNotifier.cle(
+                                      _verses[_activeVerse].surahNumber,
+                                      _verses[_activeVerse].ayahNumber,
                                     ),
                             isPlaying: playerState.isPlaying,
                           ),
@@ -1685,90 +1736,21 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
   ///
   /// Le saut se fait par `initialAyahNumber`, le meme chemin que le « Shazam
   /// coranique » (2026-07-18) -- pas un second mecanisme de navigation.
-  Future<void> _ouvrirListeSignets() async {
-    final t = AppLocalizations.of(context)!;
-    final cles = ref.read(marquePagesProvider).toList()
-      ..sort((a, b) {
-        final pa = a.split(':').map(int.parse).toList();
-        final pb = b.split(':').map(int.parse).toList();
-        return pa[0] != pb[0] ? pa[0].compareTo(pb[0]) : pa[1].compareTo(pb[1]);
-      });
-    List<Surah> sourates = const [];
-    try {
-      sourates = await QuranApi.fetchSurahs();
-    } catch (_) {
-      // Best-effort : sans les metadonnees on affiche quand meme la reference
-      // numerique plutot que rien.
-    }
-    if (!mounted) return;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.cream,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(t.mushafBookmarksTitle,
-                  style: GoogleFonts.manrope(
-                      fontSize: 16, fontWeight: FontWeight.w800,
-                      color: AppColors.ink)),
-              const SizedBox(height: 10),
-              if (cles.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  child: Text(t.mushafNoBookmarks,
-                      style: GoogleFonts.manrope(
-                          fontSize: 13, color: AppColors.inkLight)),
-                )
-              else
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: cles.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (_, i) {
-                      final p = cles[i].split(':').map(int.parse).toList();
-                      final s = sourates.where((x) => x.number == p[0]);
-                      final nom = s.isEmpty ? 'Sourate ${p[0]}' : s.first.nameSimple;
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.bookmark_rounded,
-                            color: AppColors.brass),
-                        title: Text(nom,
-                            style: GoogleFonts.manrope(
-                                fontSize: 14, fontWeight: FontWeight.w700,
-                                color: AppColors.ink)),
-                        subtitle: Text('${p[0]}:${p[1]}',
-                            style: GoogleFonts.manrope(
-                                fontSize: 12, color: AppColors.inkLight)),
-                        trailing: const Icon(Icons.chevron_right_rounded,
-                            color: AppColors.inkLight),
-                        onTap: s.isEmpty
-                            ? null
-                            : () {
-                                Navigator.of(ctx).pop();
-                                Navigator.of(context).push(MaterialPageRoute(
-                                  builder: (_) => MushafScreen(
-                                      surah: s.first,
-                                      initialAyahNumber: p[1]),
-                                ));
-                              },
-                      );
-                    },
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  /// ── LA LISTE DES SIGNETS A ETE RETIREE (2026-09-09) ───────────────────
+  ///
+  /// `_ouvrirListeSignets` ouvrait une feuille listant tous les signets poses,
+  /// avec un `ListTile` par entree et un saut vers `MushafScreen`. Elle n'a
+  /// plus d'objet : il n'existe QU'UN signet depuis ce jour (cf.
+  /// `marquePagesProvider`, passe de `Set<String>` a `String?`), et l'ecran
+  /// d'accueil y mene deja par `_BoutonSignet`.
+  ///
+  /// Le code est retire plutot que laisse mort : il lisait
+  /// `marquePagesProvider` comme une collection (`.toList()`, tri, `cles[i]`),
+  /// donc il ne compilerait plus. Ce commentaire garde la trace de ce qui
+  /// existait, comme le veut la regle du projet -- le remettre demanderait de
+  /// redonner au provider un type collection, ce qui est precisement ce que la
+  /// decision utilisateur ecarte.
+
 
   /// Menu du verset (appui long) : une BULLE compacte a trois choix.
   ///
@@ -1841,7 +1823,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                 // avec une exigence differente.
                 _ActionVerset(
                   icone: Icons.spellcheck_rounded,
-                  libelle: 'Tajwid sur la page',
+                  libelle: AppLocalizations.of(context)!.mushafTajwidOnPage,
                   onTap: () { Navigator.pop(ctx); _openKaraokeTajwid(); },
                 ),
                 _ActionVerset(
@@ -2584,7 +2566,7 @@ class _AnnotationToolbar extends ConsumerWidget {
           // pourrait croire que seule celle-ci est concernee.
           IconButton(
             visualDensity: VisualDensity.compact,
-            tooltip: 'Tout effacer',
+            tooltip: AppLocalizations.of(context)!.mushafClearAllTooltip,
             icon: Icon(Icons.delete_sweep_rounded,
                 size: 20,
                 color: modeSombre
@@ -2596,19 +2578,16 @@ class _AnnotationToolbar extends ConsumerWidget {
                 builder: (d) => AlertDialog(
                   backgroundColor:
               modeSombre ? AppColors.sombreBgDeep : AppColors.cream,
-                  title: const Text('Tout effacer ?'),
-                  content: const Text(
-              'Toutes les annotations du Mushaf seront '
-              'supprimees : surlignages et traits, toutes les '
-              'sourates, quelle que soit leur date. Cette '
-              'action est irreversible.'),
+                  title: Text(AppLocalizations.of(context)!.mushafClearAllTitle),
+                  content: Text(
+                      AppLocalizations.of(context)!.mushafClearAllBody),
                   actions: [
                     TextButton(
                 onPressed: () => Navigator.pop(d, false),
-                child: const Text('Annuler')),
+                child: Text(AppLocalizations.of(context)!.commonCancel)),
                     TextButton(
                 onPressed: () => Navigator.pop(d, true),
-                child: const Text('Tout effacer',
+                child: Text(AppLocalizations.of(context)!.mushafClearAllTooltip,
                     style: TextStyle(color: Color(0xFFC62828)))),
                   ],
                 ),
@@ -2819,6 +2798,11 @@ class _BottomBar extends StatelessWidget {
   final VoidCallback? onBookmarkLongPress;
   /// Mode « Tajwid » : lecture sur la page, seules les regles sont signalees.
   final VoidCallback? onTajwidTap;
+
+  /// Carte mentale de la sourate. Cf. le bloc « LA CARTE MENTALE EST ICI »
+  /// dans le corps : elle a quitte l'en-tete le 2026-09-09, et n'a PAS ete
+  /// rangee dans le panneau « ⋯ » -- decision utilisateur.
+  final VoidCallback? onCarteMentaleTap;
   /// Lecture sur fond noir : le vert du theme s'y confond avec la page.
   final bool modeSombre;
   /// Le verset actif est-il marque ? Pilotait l'icone du signet dans cette
@@ -2833,7 +2817,7 @@ class _BottomBar extends StatelessWidget {
     this.onReciteTap, this.onChainTap,
     this.onMoreTap,
     this.onBookmarkTap, this.onBookmarkLongPress, this.estMarque = false,
-    this.onTajwidTap,
+    this.onTajwidTap, this.onCarteMentaleTap,
     this.isPlaying = false,
     this.modeSombre = false,
   });
@@ -2908,7 +2892,7 @@ class _BottomBar extends StatelessWidget {
                 // anglais, et l'arabe le reconnait (تجويد).
                 _BarButton(
                   icon: Icons.record_voice_over_rounded,
-                  label: 'Tajwid',
+                  label: t.mushafBarTajwid,
                   onTap: onTajwidTap ?? () {},
                 ),
                 // GROS MICRO DE RÉCITATION RETIRÉ le 2026-07-20 (demande
@@ -2950,7 +2934,20 @@ class _BottomBar extends StatelessWidget {
                 // dans la feuille "Plus" (`reading_settings_sheet.dart`).
                 _BarButton(
                   icon: Icons.link_rounded,
-                  label: t.memorizationGameTitle,
+                  // ── « Enchainement » -> « Chaine » (2026-09-09) ─────────
+                  //
+                  // Demande utilisateur : « Enchainement prend beaucoup
+                  // d'espace, trouve un autre mot ». Douze caracteres sur une
+                  // barre qui en compte desormais sept, c'etait le libelle qui
+                  // ecrasait les autres.
+                  //
+                  // « Chaine » dit la meme chose en deux fois moins de place,
+                  // et redit l'icone (`link_rounded`, une chaine) au lieu de
+                  // la doubler. Litteral et non `t.memorizationGameTitle` :
+                  // cette cle est le TITRE DE L'ECRAN du jeu, ou « Enchainement »
+                  // reste juste -- on ne raccourcit que le bouton. Meme voie
+                  // que « Tajwid » juste au-dessus, deja litteral ici.
+                  label: t.mushafBarChain,
                   onTap: onChainTap ?? () {},
                 ),
                 // "Coach IA" retiré d'ici le 2026-08-10 (constat utilisateur :
@@ -2962,6 +2959,24 @@ class _BottomBar extends StatelessWidget {
                 // bar, cf. surah_list_screen.dart), plus l'entree naturelle
                 // pour une fonction "mains-libres" qu'un onglet d'ecran de
                 // lecture precis.
+                // ── LA CARTE MENTALE EST ICI, PAS DANS UN TIROIR ────────
+                //
+                // Elle occupait l'en-tete jusqu'au 2026-09-09, ou le Mushaf
+                // papier a pris sa place. Je l'avais alors descendue dans le
+                // panneau « ⋯ » -- refuse par l'utilisateur le meme jour :
+                // « je ne suis pas d'accord pour cacher la carte mentale,
+                // trouve un endroit dans le menu ».
+                //
+                // Il a raison : un panneau qu'il faut ouvrir n'est pas un
+                // acces, c'est un rangement. La barre est le menu visible de
+                // cet ecran ; une vue d'ensemble de la sourate y a sa place au
+                // meme titre que Reciter ou Memoriser.
+                //
+                // La place a ete prise sur le libelle du jeu, pas sur la
+                // lisibilite des autres (cf. « Chaine » plus haut).
+                if (onCarteMentaleTap != null)
+                  _BarButton(icon: Icons.hub_outlined, label: t.mushafBarMap,
+                      onTap: onCarteMentaleTap!),
                 _BarButton(icon: Icons.more_horiz_rounded, label: t.mushafMore,
                     onTap: onMoreTap ?? () {}),
               ],
@@ -2992,8 +3007,17 @@ class _BarButton extends StatelessWidget {
         children: [
           Icon(icon, color: c, size: 22),
           const SizedBox(height: 2),
-          Text(label, style: GoogleFonts.manrope(
-              fontSize: 10, color: c, fontWeight: FontWeight.w500)),
+          // ── SEPT BOUTONS AU LIEU DE SIX (2026-09-09) ────────────────────
+          // La rangee est en `spaceEvenly` sans contrainte de largeur : un
+          // libelle trop long poussait les voisins hors de l'ecran, sans
+          // erreur ni avertissement -- il se serait vu seulement a l'usage,
+          // et seulement sur les petits ecrans. Une ligne, et l'ellipse si
+          // ca ne rentre pas : le bouton se retrecit au lieu de deborder.
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.manrope(
+                  fontSize: 10, color: c, fontWeight: FontWeight.w500)),
         ],
       ),
     );

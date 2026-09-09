@@ -8,11 +8,14 @@ import '../models/verse.dart';
 import '../models/prayer_settings.dart';
 import '../providers/prayer_settings_provider.dart';
 import '../theme/app_theme.dart';
+import '../l10n/prayer_labels.dart';
 
 class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
   final Surah surah;
   final VoidCallback? onBack;
-  final VoidCallback? onMindMap;
+  /// Cf. `_SurahNavRow.onMushafPapier` : l'en-tete ouvre le Mushaf papier
+  /// depuis le 2026-09-09, la carte mentale est passee dans le panneau « ⋯ ».
+  final VoidCallback? onMushafPapier;
 
   /// Lecture sur fond noir : le degrade vert du theme se confond avec la
   /// page et l'en-tete devient invisible (« le menu cache en mode dark est
@@ -22,10 +25,48 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
   final bool modeSombre;
 
   const MushafHeader({super.key, required this.surah, this.onBack,
-      this.onMindMap, this.modeSombre = false});
+      this.onMushafPapier, this.modeSombre = false});
+
+  /// ── 120 px NE SUFFISAIENT PAS (2026-09-09) ────────────────────────────
+  ///
+  /// Constate sur capture d'ecran : `BOTTOM OVERFLOWED BY 40 PIXELS` en plein
+  /// milieu de l'en-tete, entre le bandeau de priere et la rangee de
+  /// navigation.
+  ///
+  /// CAUSE : cette hauteur etait FIXE, alors que le contenu est enveloppe dans
+  /// un `SafeArea` -- il doit donc loger, en plus de ses deux rangees, la barre
+  /// d'etat et l'encoche de l'appareil. Sur le SM-S931B celles-ci prennent une
+  /// quarantaine de pixels, exactement ce qui manquait. Une constante ne peut
+  /// pas connaitre l'encoche : c'est une valeur qui change d'un telephone a
+  /// l'autre.
+  ///
+  /// [hauteurPour] rend donc la hauteur reelle pour un contexte donne. Le
+  /// `preferredSize` garde une valeur par defaut -- il est appele hors de
+  /// l'arbre par `PreferredSizeWidget`, sans acces au `MediaQuery`.
+  ///
+  /// ⚠️ `MushafScreen._kMushafHeaderHeight` doit rester d'accord avec ceci :
+  /// c'est lui qui reserve la place sous l'en-tete. Il appelle desormais la
+  /// meme fonction (cf. son commentaire).
+  /// Ce dont le CONTENU a besoin, mesure et non estime :
+  ///
+  ///     bandeau de priere   27  (padding vertical 6+6, texte 11 pt ~ 15)
+  ///     espacement           4
+  ///     rangee de navigation 48  (IconButton, dimension tactile minimale)
+  ///     ────────────────────────
+  ///     total               79   -> 84 avec une marge
+  ///
+  /// La valeur historique de 120 en reservait donc une quarantaine de trop.
+  /// Premiere correction du jour : j'ai ajoute l'encoche PAR-DESSUS ces 120,
+  /// ce qui a supprime le debordement mais laisse une bande vide sous la
+  /// rangee de navigation -- signale aussitot par l'utilisateur (« tu as
+  /// augmente la taille en haut pour quelle raison ! non, pas besoin
+  /// d'autant »). On additionne maintenant le besoin REEL et l'encoche.
+  static const _kContenu = 84.0;
+  static double hauteurPour(BuildContext context) =>
+      _kContenu + MediaQuery.paddingOf(context).top;
 
   @override
-  Size get preferredSize => const Size.fromHeight(120);
+  Size get preferredSize => const Size.fromHeight(_kContenu);
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +102,8 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
                 const _PrayerTimeBanner(),
                 const SizedBox(height: 4),
                 // Navigation row
-                _SurahNavRow(surah: surah, onBack: onBack, onMindMap: onMindMap),
+                _SurahNavRow(surah: surah, onBack: onBack,
+                    onMushafPapier: onMushafPapier),
               ],
             ),
           ],
@@ -121,19 +163,23 @@ class _PrayerTimeBannerState extends ConsumerState<_PrayerTimeBanner> {
   }
 
   /// Les memes noms que le rappel de la liste des sourates.
-  static const _noms = {
-    PrayerName.fajr: 'Sobh',
-    PrayerName.dhuhr: 'Dhohr',
-    PrayerName.asr: 'Asr',
-    PrayerName.maghrib: 'Maghrib',
-    PrayerName.isha: 'Ichaa',
-  };
+  // ── LES NOMS DE PRIERE VIENNENT DU HELPER PARTAGE (2026-09-09) ──────────
+  //
+  // Une `const Map` locale portait `Sobh`, `Dhohr`, `Ichaa` -- affiches tels
+  // quels au-dessus d'une page entierement arabe. C'est ce que l'utilisateur a
+  // vu sur sa capture : « Dhohr 13:49 » et « Dhohr maintenant » en francais,
+  // alors que toute la barre du bas etait bien en arabe.
+  //
+  // Quatrieme copie des memes libelles (avec l'ecran des horaires, l'accueil
+  // et le service de notifications) ; elle passe maintenant par
+  // `l10n/prayer_labels.dart`.
 
-  String _restant(Duration d) {
-    if (d.inMinutes < 1) return 'maintenant';
+  String _restant(BuildContext context, Duration d) {
+    final t = AppLocalizations.of(context)!;
+    if (d.inMinutes < 1) return t.prayerInNow;
     final h = d.inHours, m = d.inMinutes % 60;
-    if (h == 0) return 'dans $m min';
-    return m == 0 ? 'dans $h h' : 'dans $h h $m';
+    if (h == 0) return t.prayerInMinutes(m);
+    return m == 0 ? t.prayerInHours(h) : t.prayerInHoursMinutes(h, m);
   }
 
   @override
@@ -144,7 +190,7 @@ class _PrayerTimeBannerState extends ConsumerState<_PrayerTimeBanner> {
     final locale = suivante.time.toLocal();
     final hm = '${locale.hour.toString().padLeft(2, '0')}:'
         '${locale.minute.toString().padLeft(2, '0')}';
-    final nom = _noms[suivante.name] ?? '';
+    final nom = nomPriere(context, suivante.name);
     final style = GoogleFonts.manrope(
       fontSize: 11,
       color: AppColors.brassLight,
@@ -156,7 +202,8 @@ class _PrayerTimeBannerState extends ConsumerState<_PrayerTimeBanner> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('$nom ${_restant(suivante.time.difference(DateTime.now()))}',
+          Text('${nomPriere(context, suivante.name)} '
+              '${_restant(context, suivante.time.difference(DateTime.now()))}',
               style: style),
           Text('$nom $hm', style: style),
         ],
@@ -168,9 +215,24 @@ class _PrayerTimeBannerState extends ConsumerState<_PrayerTimeBanner> {
 class _SurahNavRow extends StatelessWidget {
   final Surah surah;
   final VoidCallback? onBack;
-  final VoidCallback? onMindMap;
 
-  const _SurahNavRow({required this.surah, this.onBack, this.onMindMap});
+  /// ── L'EN-TETE OUVRE LE MUSHAF PAPIER (2026-09-09) ─────────────────────
+  ///
+  /// Cette place portait la CARTE MENTALE (`Icons.hub_outlined`). Demande
+  /// utilisateur : « a la place de l'acces mindmap, remplace-le par l'acces
+  /// Mushaf papier ».
+  ///
+  /// Le raisonnement tient a la frequence : la carte mentale est une vue
+  /// d'ensemble qu'on ouvre UNE FOIS pour situer une sourate, le Mushaf papier
+  /// est une facon de LIRE, qu'on bascule au fil de la lecture. L'acces en un
+  /// tap va a ce qu'on repete.
+  ///
+  /// La carte mentale n'est pas perdue : elle descend dans le panneau « ⋯ »,
+  /// a la place exacte que l'action « Signet » y libere (cf.
+  /// `reading_settings_sheet.dart`). Le panneau ne gagne donc aucune ligne.
+  final VoidCallback? onMushafPapier;
+
+  const _SurahNavRow({required this.surah, this.onBack, this.onMushafPapier});
 
   @override
   Widget build(BuildContext context) {
@@ -198,11 +260,12 @@ class _SurahNavRow extends StatelessWidget {
               flex: true,
             ),
           ),
-          if (onMindMap != null)
+          if (onMushafPapier != null)
             IconButton(
-              icon: const Icon(Icons.hub_outlined, color: AppColors.cream, size: 22),
-              tooltip: AppLocalizations.of(context)!.mushafMindMapTooltip,
-              onPressed: onMindMap,
+              icon: const Icon(Icons.auto_stories_rounded,
+                  color: AppColors.cream, size: 22),
+              tooltip: AppLocalizations.of(context)!.mushafPaperTooltip,
+              onPressed: onMushafPapier,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             ),

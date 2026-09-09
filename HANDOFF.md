@@ -1,5 +1,15 @@
 # Passation de contexte entre agents/machines (Windows ↔ Ubuntu)
 
+## Actualisation ChGPT, 2026-09-09 : Mushaf papier
+
+Correction du debordement et des dernieres lignes coupees dans la vue papier.
+Mesure et rendu partagent les memes spans et comptent basmala, bandeaux et
+reserves avant de choisir la taille. Pagination Hafs/Warsh preservee ; aucune
+modification ASR. 29 tests passent, build v395 installe sur le SM-S931B,
+pages 573 et 574 verifiees par captures. Point de retour : `cabc45e`.
+Details, graphe de rendu et limites :
+[CORRECTION_MUSHAF_CHGPT_2026-09-09.md](CORRECTION_MUSHAF_CHGPT_2026-09-09.md).
+
 ## Actualisation ChGPT, 2026-09-07
 
 Correction du suivi de priere, sur la reference commitee `6eb88b7` : capture

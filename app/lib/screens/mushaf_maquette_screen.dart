@@ -253,7 +253,9 @@ double _reserveBasMesuree(String ecriture) {
       textDirection: TextDirection.rtl,
       maxLines: 1,
     )..layout();
-    return p.height;
+    final hauteur = p.height;
+    p.dispose();
+    return hauteur;
   }
 
   // `height: null` -> la police décide ; l'écart avec la ligne imposée est ce
@@ -396,6 +398,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
   /// d'ecriture ; apres balayage, elle s'ajuste »), et confirme par six
   /// ecritures differentes qui rendaient la meme occupation au dixieme.
   void _policeChargee() {
+    _cacheReserve.clear();
     if (mounted) setState(() {});
   }
 
@@ -1013,6 +1016,7 @@ class _PageMushaf extends StatelessWidget {
               // n'efface pas un mecanisme, on laisse la trace de pourquoi il
               // ne tourne pas). Le rebrancher tient a cette seule condition.
               Expanded(
+                key: ValueKey('mushaf-body-$page'),
                 child: _zone(
                   ClipRect(child: _blocAjuste(segments, spansParSegment)),
                   Colors.blue,
@@ -1359,11 +1363,10 @@ class _PageMushaf extends StatelessWidget {
     double interligne = _kInterligne,
     String? basmala,
   }) {
-    final style = styleEcriture(
-      ecriturePour(ecriture),
+    final style = _policePage(
+      famille: ecriture,
       taille: taille,
       interligne: interligne,
-      graisse: FontWeight.w600,
       // Blanc pur sur fond sombre fatigue sur une page pleine de texte : on
       // reprend l'encre crème du reste de l'app plutôt que `sombreInk`.
       couleur: sombre ? AppColors.cream : const Color(0xFF1A1208),
@@ -1398,15 +1401,10 @@ class _PageMushaf extends StatelessWidget {
         style: style,
         taille: taille,
         interligne: interligne,
-        corps: Text.rich(
-          TextSpan(
-            style: style,
-            children: _waqfSurLaLigne(
-              spans ?? [TextSpan(text: texte, style: style)],
-              style,
-              taille,
-            ),
-          ),
+        // ChGPT: RichText uses exactly the measured span, without inheriting
+        // Material's letter spacing or paragraph defaults through Text.rich.
+        corps: RichText(
+          text: _spanMesure(texte, spans, style, taille),
           textAlign: TextAlign.justify,
           // ── `applyHeightToFirstAscent: false` RETIRE (2026-09-04) ────────
           //
@@ -1497,13 +1495,13 @@ class _PageMushaf extends StatelessWidget {
         // On lui rend donc une ligne pleine et un centrage vertical. Elle
         // redescend de quelques pixels -- c'est le bon cote de l'erreur : mieux
         // vaut du blanc au-dessus qu'un texte tronque.
-        SizedBox(
-          height: _kInterligne * taille,
-          child: Center(
-            child: Text(basmala, style: style, textAlign: TextAlign.center),
-          ),
+        // ChGPT 2026-09-09: its real height is measured alongside the body.
+        // A taller font must not steal space from the final Quran line.
+        RichText(
+          text: _spanBasmala(basmala, style),
+          textAlign: TextAlign.center,
         ),
-        Flexible(child: corps),
+        corps,
       ],
     );
   }
@@ -1550,8 +1548,21 @@ class _PageMushaf extends StatelessWidget {
       // deux hauteurs ne coincidaient pas exactement et le corps perdait la
       // difference -- le `ClipRect` tranchait alors sa derniere ligne. On
       // ajoute donc EXACTEMENT ce que la boite consomme, ni plus ni moins.
-      out.add(peintre.height +
-          (segments[s].basmala != null ? _kInterligne * taille : 0.0));
+      var hauteur = peintre.height;
+      peintre.dispose();
+      final basmala = spansParSegment == null ? null : segments[s].basmala;
+      if (basmala != null) {
+        final p = TextPainter(
+          text: _spanBasmala(basmala, st),
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.center,
+        )..layout(maxWidth: largeur);
+        hauteur += p.height;
+        p.dispose();
+      }
+      // ChGPT: this reserve is part of the fit AND of the rendered box.
+      // Adding it only after fitting caused the yellow/black overflow stripe.
+      out.add(hauteur + taille * _reserveBasMesuree(ecriture));
     }
     return out;
   }
@@ -1589,22 +1600,12 @@ class _PageMushaf extends StatelessWidget {
         // ligne (cf. `_avecBasmala`). Mesure et rendu coïncident alors par
         // construction, et il n'y a plus rien à compenser ici.
         final dispo = contraintes.maxHeight - nBandeaux * hauteurBandeau;
-        double basse = 12, haute = 52;
-        for (var i = 0; i < 9; i++) {
+        double basse = 0, haute = 52;
+        for (var i = 0; i < 12; i++) {
           final milieu = (basse + haute) / 2;
-          var total = 0.0;
-          for (var s = 0; s < segments.length; s++) {
-            final sp = spansParSegment?[s];
-            final st = style.copyWith(fontSize: milieu);
-            final peintre = TextPainter(
-              text: _spanMesure(segments[s].texte, sp, st, milieu),
-              textDirection: TextDirection.rtl,
-              textAlign: TextAlign.justify,
-              textHeightBehavior:
-                  const TextHeightBehavior(applyHeightToFirstAscent: false),
-            )..layout(maxWidth: contraintes.maxWidth);
-            total += peintre.height;
-          }
+          final total = _hauteursSegments(segments, spansParSegment, style,
+              milieu, _kInterligne, contraintes.maxWidth)
+              .fold<double>(0, (a, b) => a + b);
           // Reserve de securite ABSOLUE et non proportionnelle : ce qu'elle
           // protege, c'est une diacritique haute de la DERNIERE ligne qui
           // depasse la hauteur annoncee par TextPainter. Ce depassement vaut
@@ -1612,7 +1613,7 @@ class _PageMushaf extends StatelessWidget {
           // pourcentage (0,93 avant le 2026-09-03) il reservait ~125 px sur
           // une page de 1800 pour un besoin d'une quinzaine, et c'est ce vide
           // que l'utilisateur voyait en haut et en bas.
-          if (total <= dispo - milieu * _reserveBasMesuree(ecriture)) {
+          if (total <= dispo) {
             basse = milieu;
           } else {
             haute = milieu;
@@ -1625,32 +1626,10 @@ class _PageMushaf extends StatelessWidget {
         // dichotomie s'arrete sur la plus grande taille qui TIENT : il reste
         // donc toujours jusqu'a une ligne entiere de rab. On le rend au texte
         // en ecartant les lignes, au lieu de le laisser en marges.
-        var hauteurTexte = 0.0;
-        var lignes = 0;
-        for (var s = 0; s < segments.length; s++) {
-          final sp = spansParSegment?[s];
-          final st = style.copyWith(fontSize: basse);
-          final peintre = TextPainter(
-            text: _spanMesure(segments[s].texte, sp, st, basse),
-            textDirection: TextDirection.rtl,
-            textAlign: TextAlign.justify,
-            textHeightBehavior:
-                const TextHeightBehavior(applyHeightToFirstAscent: false),
-          )..layout(maxWidth: contraintes.maxWidth);
-          hauteurTexte += peintre.height;
-          lignes += peintre.computeLineMetrics().length;
-        }
-        final residu = dispo - basse * 0.5 - hauteurTexte;
         // Plafond : sur une page peu remplie la police bute deja sur son
         // maximum et sans borne les quelques lignes s'etaleraient comme un
         // poeme. Au-dela, le reste redevient du vide centre -- le bon rendu
         // dans ce cas precis.
-        final interligne = lignes == 0 || residu <= 0
-            ? _kInterligne
-            : (_kInterligne + residu / lignes / basse).clamp(
-                _kInterligne,
-                2.45,
-              );
 
         // ── LA SOMME EST MESUREE, PAS SUPPOSEE (2026-09-03) ───────────────
         //
@@ -1667,22 +1646,23 @@ class _PageMushaf extends StatelessWidget {
         // rentre pas : d'abord en rendant l'air ajoute, ensuite en descendant
         // le corps. Certaines pages seront un peu moins pleines -- c'est le
         // bon cote de l'erreur : mieux vaut du blanc qu'une ligne coupee.
-        var interligneRetenu = interligne;
-        var tailleRetenue = basse;
+        // ChGPT: use the same complete measurement for both searches.
+        // No minimum font size or capped recovery loop may hide page content.
+        var interligneRetenu = _kInterligne;
+        var interligneMax = 2.45;
         var hauteurs = _hauteursSegments(segments, spansParSegment, style,
-            tailleRetenue, interligneRetenu, contraintes.maxWidth);
-        for (var essai = 0; essai < 24; essai++) {
-          if (hauteurs.fold<double>(0, (a, b) => a + b) <= dispo) break;
-          if (interligneRetenu > _kInterligne) {
-            interligneRetenu = _kInterligne;
+            basse, interligneRetenu, contraintes.maxWidth);
+        for (var essai = 0; essai < 8; essai++) {
+          final milieu = (interligneRetenu + interligneMax) / 2;
+          final mesure = _hauteursSegments(segments, spansParSegment, style,
+              basse, milieu, contraintes.maxWidth);
+          if (mesure.fold<double>(0, (a, b) => a + b) <= dispo) {
+            interligneRetenu = milieu;
+            hauteurs = mesure;
           } else {
-            if (tailleRetenue <= 12) break;
-            tailleRetenue -= 1;
+            interligneMax = milieu;
           }
-          hauteurs = _hauteursSegments(segments, spansParSegment, style,
-              tailleRetenue, interligneRetenu, contraintes.maxWidth);
         }
-        basse = tailleRetenue;
 
         // ── LE TEXTE COMMENCE EN HAUT DE SON BLOC (2026-09-04) ───────────
         //
@@ -1723,7 +1703,8 @@ class _PageMushaf extends StatelessWidget {
                   // Tolérance PROPORTIONNELLE et non 2 px fixes : ce qui
                   // déborde, ce sont des jambages et des kasra, dont la taille
                   // suit la police. Deux pixels suffisaient à 20 pt, pas à 45.
-                  height: hauteurs[s] + basse * 0.18,
+                  // ChGPT: already includes the reserve used by the search.
+                  height: hauteurs[s],
                   child: _bloc(
                     segments[s].texte,
                     basse,
@@ -1764,6 +1745,11 @@ class _PageMushaf extends StatelessWidget {
         taille,
       ),
     ],
+  );
+
+  TextSpan _spanBasmala(String texte, TextStyle style) => TextSpan(
+    text: texte,
+    style: style.copyWith(height: _kInterligne),
   );
 
   /// Separateur de sourate : L'ORNEMENT DE L'ECRAN DE LECTURE, en compact.
