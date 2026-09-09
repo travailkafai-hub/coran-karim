@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/recitation_provider.dart';
+import '../services/diagnostic_log.dart';
 import '../services/quran_verse_locator_service.dart';
 import '../theme/app_theme.dart';
 
@@ -44,6 +45,25 @@ class _ShazamSheetState extends ConsumerState<_ShazamSheet> {
   _ShazamState _state = _ShazamState.listening;
   QuranMatch? _match;
 
+  // ── MÉMOIRE ENTRE ESSAIS, DANS LA MÊME OUVERTURE (2026-09-09) ────────────
+  //
+  // Idée de l'utilisateur : deux clics sur « Réessayer » sans fermer la
+  // feuille portent quasiment toujours sur le même passage -- jeter le texte
+  // du premier essai à chaque nouvel essai revient à repartir avec moins de
+  // matière que nécessaire, alors que _rankCandidates (cf.
+  // QuranVerseLocatorService) vote par PAIRES de mots : plus de mots
+  // utilisables, plus de paires testées, plus de chances de dépasser le
+  // seuil et un nombre de votes ABSOLU plus solide (déjà noté comme signal
+  // plus fiable que le simple ratio, cf. QuranMatch.votes).
+  //
+  // Remise à zéro volontairement IMPLICITE : `_accumule` est un champ de CET
+  // état, détruit avec le widget à la fermeture de la feuille -- exactement
+  // le comportement que l'utilisateur a décrit et approuvé (« sortir et
+  // refaire, tout s'initialise »). Un essai périmé (l'ambiance a changé de
+  // sourate entre deux clics) se rattrape en fermant puis rouvrant la
+  // feuille, pas en réessayant sur place.
+  final List<String> _accumule = [];
+
   @override
   void initState() {
     super.initState();
@@ -70,8 +90,16 @@ class _ShazamSheetState extends ConsumerState<_ShazamSheet> {
     }
     await sub.cancel();
     if (!mounted) return;
+    // `latest` porte déjà le texte CUMULÉ de cet essai (committed + preview,
+    // cf. RecitationVerifier._rawCtrl) -- un silence total donne une chaîne
+    // vide, qu'on n'ajoute pas pour ne pas polluer l'historique avec des
+    // entrées inutiles.
+    if (latest.trim().isNotEmpty) _accumule.add(latest);
+    final texteCumule = _accumule.join(' ');
+    DiagnosticLog.log('Shazam',
+        'essai ${_accumule.length} accumulé(s) pour cette ouverture');
     setState(() => _state = _ShazamState.searching);
-    final match = await QuranVerseLocatorService.instance.locate(latest);
+    final match = await QuranVerseLocatorService.instance.locate(texteCumule);
     if (!mounted) return;
     setState(() {
       _match = match;
