@@ -107,6 +107,25 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar> {
                     : Icons.expand_less_rounded,
                 onTap: () => setState(() => _expanded = !_expanded),
               ),
+              // ── FERMER LA BARRE (2026-09-11) ─────────────────────────
+              //
+              // Retour utilisateur : « pour arreter la lecture j'ai
+              // besoin de taper deux fois sur le widget, une pour arreter
+              // la lecture et l'autre pour disparaitre le widget ».
+              //
+              // Confirmé dans le code : il n'existait AUCUN chemin pour
+              // appeler stop() (le seul qui met status=idle, donc fait
+              // disparaître la barre, cf. la condition tout en haut de
+              // build()) depuis cette barre. Le bouton central ne fait
+              // que pause()/resume() -- l'un des deux "taps" que
+              // l'utilisateur décrit était donc, sans le savoir, une
+              // REPRISE de la lecture plutôt qu'une fermeture. Ce bouton
+              // fait ce que ni pause ni aucun autre geste d'ici ne
+              // faisait : un stop() explicite, un seul tap.
+              _MiniButton(
+                icon: Icons.close_rounded,
+                onTap: () => ref.read(playerProvider.notifier).stop(),
+              ),
             ],
           ),
           const SizedBox(height: 6),
