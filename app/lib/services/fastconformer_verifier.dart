@@ -307,6 +307,24 @@ class FastConformerVerifier {
   // une detection acoustique et retrouvera la duree (2, 4 ou 6 harakat) par la
   // MESURE plutot que par une classe. `_signalNonFiable` les garde donc en
   // observation seule, comme depuis le 2026-09-03.
+  // ── PACK DE TEST `madd_normal` (2026-09-08) ────────────────────────────
+  // Rollback : 'models/cinq-tetes-2026-09-07' (toujours sur l'appareil, rien
+  // n'a ete supprime). Ce pack-ci porte la tete 12 classes remappee vers les
+  // 17 de l'app, avec un canal REEL pour `madda_normal` au lieu d'une
+  // constante -- cf. `benchmark/remapper_tajwid_12_vers_app.py` et la note de
+  // `porteesParLeTexte`. HAFS SEUL : pas de sortie `warsh_logprobs`.
+  // ── ROLLBACK VERS LE MODELE STABLE (2026-09-11) ─────────────────────────
+  // Le pack de test `madd-normal-test-2026-09-08` (ci-dessous en commentaire,
+  // pas efface -- regle projet) n'a jamais ete autorise a l'export applicatif
+  // par PC A lui-meme (LISEZ_MOI.md du transfert : « pas encore autorise [...]
+  // validation diagnostique, pas une selection produit ») : 13,1 % de faux
+  // positifs au seuil brut, et HAFS SEUL (aucun jugement tajwid pour les
+  // utilisateurs Warsh). Correct pour un test demande explicitement par
+  // l'utilisateur sur SON telephone de dev ; pas acceptable pour une release
+  // publique ou de vrais utilisateurs verraient ces faux positifs. Retour au
+  // modele stable, deja valide, Hafs+Warsh : cf. aussi le "REVENIR EN ARRIERE"
+  // documente dans judgement_options.dart (porteesParLeTexte/selectionnables).
+  // static const _kModelSubdir = 'models/madd-normal-test-2026-09-08';
   static const _kModelSubdir = 'models/cinq-tetes-2026-09-07';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';

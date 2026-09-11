@@ -157,6 +157,88 @@ enum TajwidRule {
   /// une grandeur de DUREE fiable existe -- les deux candidates ont ete
   /// mesurees et refutees le 2026-09-07 (duree du pic et tenue de voyelle :
   /// ordre INVERSE entre les types de madd dans les deux cas).
+  ///
+  /// ── LA CONDITION DE REOUVERTURE SE REALISE (2026-09-08) ────────────────
+  ///
+  /// Un checkpoint `madd-union-plus-normal-v1` a ete entraine le jour meme
+  /// avec 12 classes : les 11 de madd-union, plus `madd_normal` en ID 11 --
+  /// sans decaler les IDs existants. Validation independante, voix disjointes,
+  /// pilote de 1500 fenetres :
+  ///
+  ///     classe        rappel brut   FP fenetre   rappel calibre   FP
+  ///     madd_normal      83,15 %      13,11 %       39,56 %      0,90 %
+  ///     madd (les 3)     89,89 %      11,64 %       64,42 %      1,47 %
+  ///
+  /// `madd_normal` EST APPRENABLE. Elle est un peu sous `madd` mais du meme
+  /// ordre, sur un PREMIER essai -- alors que le modele deploye n'a pour elle
+  /// qu'un canal CONSTANT, donc un rappel structurellement nul.
+  ///
+  /// ⚠️ RIEN N'EST REACTIVE ICI, ET C'EST DELIBERE. Le LISEZ_MOI du transfert
+  /// est explicite : « pas encore autorise a l'export applicatif [...] c'est
+  /// une validation diagnostique (pilote 1500 fenetres, pas les 11 823
+  /// completes), pas une selection produit ». Le modele installe sur
+  /// l'appareil reste `cinq-tetes-2026-09-07`, ou `madda_normal` est une
+  /// constante : la remettre en jugement aujourd'hui rendrait les 163 violets
+  /// a l'identique.
+  ///
+  /// CE QU'IL FAUT POUR ROUVRIR, dans cet ordre :
+  ///   1. un checkpoint qui passe le gate >= 90 % par classe sur le banc
+  ///      COMPLET (11 823 fenetres), pas sur le pilote ;
+  ///   2. son export dans le pack applicatif, avec un canal REEL pour
+  ///      `madda_normal` -- verifiable en remontant le `Concat` de sortie :
+  ///      un `ConstantOfShape` a la position 3 signifie qu'elle est toujours
+  ///      morte, quel que soit ce que dit le rapport d'entrainement ;
+  ///   3. un seuil pour elle dans `seuils_tajwid.json` qui ne soit plus 1,1
+  ///      (valeur > 1 = infranchissable par construction) ;
+  ///   4. alors seulement, la retirer de cette liste et la remettre dans
+  ///      [selectionnables].
+  ///
+  /// Le seuil calibre de ce run (0,915 pour un rappel de 39,6 %) montre au
+  /// passage que le compromis reste dur : viser 1 % de faux positifs coute la
+  /// moitie du rappel. C'est le meme regime que celui deja constate sur les
+  /// autres classes -- cf. le rapport de validation des deux tetes.
+  ///
+  /// ── `maddaNormal` EN SORT POUR LE TEST (2026-09-08, soir) ──────────────
+  ///
+  /// Les quatre conditions ecrites ci-dessus sont remplies pour le pack de
+  /// test `madd-normal-test-2026-09-08`, et VERIFIEES et non supposees :
+  ///
+  ///   1. le checkpoint `madd-union-plus-normal-v1` apprend la classe --
+  ///      rappel brut 83,15 %, du meme ordre que `madd` a 89,89 % ;
+  ///   2. son canal est REEL dans le pack : le remappage 12 -> 17 a ete
+  ///      controle canal par canal contre le modele d'origine, ecart 0,00e+00
+  ///      sur les 17, et `madda_normal` y prend le canal `madd_normal` et non
+  ///      un `ConstantOfShape` (cf. `benchmark/remapper_tajwid_12_vers_app.py`) ;
+  ///   3. son seuil vaut 0,5 dans le `seuils_tajwid.json` de ce pack, plus 1,1 ;
+  ///   4. d'ou ce retrait.
+  ///
+  /// ⚠️ CE N'EST PAS UNE VALIDATION PRODUIT, et il ne faut pas le lire comme
+  /// telle. Le LISEZ_MOI du transfert est explicite : « pas encore autorise a
+  /// l'export applicatif [...] validation diagnostique (pilote 1500 fenetres,
+  /// pas les 11 823 completes) ». C'est un essai demande par l'utilisateur
+  /// (« non, applique le madd aussi, je veux tester »).
+  ///
+  /// CE QU'IL FAUT SURVEILLER, et c'est precisement ce que le test doit dire :
+  /// 13,11 % de faux positifs fenetre au seuil brut. Si `madda_normal`
+  /// ressort en violet sur une recitation CORRECTE, c'est ici qu'il faut la
+  /// remettre -- et cette fois avec le chiffre, comme le veut la mise en garde
+  /// deja ecrite pour `qalaqah`.
+  ///
+  /// ⚠️ REVENIR EN ARRIERE = remettre `maddaNormal` dans cette liste ET dans
+  /// [selectionnables], et repointer `_kModelSubdir` sur
+  /// `models/cinq-tetes-2026-09-07`. Le pack de test est HAFS SEUL (le modele
+  /// diagnostique n'a pas de sortie `warsh_logprobs`) : ne pas le laisser
+  /// installe pour un usage Warsh.
+  ///
+  /// ── FAIT (2026-09-11), EN PREPARANT LA PUBLICATION PLAY STORE ──────────
+  /// Exactement le retour en arriere decrit ci-dessus, execute a la lettre :
+  /// `maddaNormal` revient ici, ressort de [selectionnables], et
+  /// `_kModelSubdir` (fastconformer_verifier.dart) repointe sur
+  /// `models/cinq-tetes-2026-09-07`. Raison : le pack de test n'a jamais ete
+  /// autorise a l'export applicatif par PC A lui-meme (13,1 % de faux
+  /// positifs au seuil brut), et une release publique expose ce risque a de
+  /// vrais utilisateurs -- l'essai demande le 2026-09-08 restait un test sur
+  /// le telephone de dev, pas une decision de mise en production.
   static const List<TajwidRule> porteesParLeTexte = [
     laamShamsiyah, hamWasl, slnt, maddaNormal,
   ];
@@ -171,6 +253,7 @@ enum TajwidRule {
   /// MOINS porteesParLeTexte », les deux listes doivent rester coherentes.
   /// Laisser une regle selectionnable alors qu'aucun verdict ne peut en sortir
   /// serait annoncer un controle qu'on ne fait pas.
+  /// (Ressortie une seconde fois le 2026-09-11 -- cf. la note ci-dessus.)
   static const List<TajwidRule> selectionnables = [
     maddaNecessary, maddaObligatory, maddaPermissible,
     ghunnah, ikhafa, ikhafaShafawi, idghamGhunnah, idghamShafawi, iqlab,
