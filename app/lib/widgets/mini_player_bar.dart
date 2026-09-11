@@ -92,11 +92,8 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar> {
                 icon: Icons.skip_previous_rounded,
                 onTap: () => ref.read(playerProvider.notifier).prev(),
               ),
-              _MiniButton(
-                icon: state.isPlaying
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                size: 30,
+              _PlayPauseButton(
+                status: state.status,
                 onTap: () =>
                     ref.read(playerProvider.notifier).togglePlayPause(),
               ),
@@ -195,17 +192,77 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar> {
 class _MiniButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  final double size;
-  const _MiniButton({required this.icon, required this.onTap, this.size = 22});
+  // Bouton play/pause central retiré d'ici (cf. _PlayPauseButton) : c'était
+  // le seul appelant à surcharger cette taille (30 au lieu du défaut 22).
+  const _MiniButton({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Icon(icon, color: AppColors.cream, size: size),
+          child: Icon(icon, color: AppColors.cream, size: 22),
         ),
       );
+}
+
+/// Bouton central play/pause (2026-09-11, retour utilisateur : « je n'arrive
+/// pas à cliquer [...] et s'il y a un délai pour charger quand on utilise
+/// internet, que ce soit explicite pour qu'on évite de s'acharner sur
+/// l'icône en pensant que le clic ne marche pas »).
+///
+/// DEUX défauts distincts corrigés ici :
+///
+///  1. Zone tactile trop petite : l'ancien `_MiniButton` n'avait qu'un
+///     `Padding(all: 4)` autour d'une icône de 30 -- une cible de ~38×38,
+///     sous le minimum tactile usuel (~44). Zone portée à 44×44 ici, sans
+///     grossir l'icône dans les mêmes proportions pour ne pas déséquilibrer
+///     visuellement le reste de la barre.
+///
+///  2. AUCUN signe visuel de chargement : pendant `PlayerStatus.loading`
+///     (play() sur un nouveau verset, cf. player_provider.dart), l'icône
+///     restait `play_arrow_rounded` -- rigoureusement IDENTIQUE à l'état "en
+///     pause, prêt à démarrer". Pire : `togglePlayPause()` ignore
+///     silencieusement un tap dans cet état (il ne correspond ni à
+///     `isPlaying` ni à `isPaused`) -- un clic pendant le chargement ne
+///     produit donc RIEN, ce qui est exactement le symptôme décrit. Un
+///     spinner remplace maintenant l'icône, et le tap est désactivé le temps
+///     du chargement -- le message visuel ("patiente") remplace le silence
+///     qui poussait à recliquer.
+class _PlayPauseButton extends StatelessWidget {
+  final PlayerStatus status;
+  final VoidCallback onTap;
+  const _PlayPauseButton({required this.status, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final loading = status == PlayerStatus.loading;
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Center(
+          child: loading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation(AppColors.cream),
+                  ),
+                )
+              : Icon(
+                  status == PlayerStatus.playing
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  color: AppColors.cream,
+                  size: 32,
+                ),
+        ),
+      ),
+    );
+  }
 }
 
 class _Pill extends StatelessWidget {
