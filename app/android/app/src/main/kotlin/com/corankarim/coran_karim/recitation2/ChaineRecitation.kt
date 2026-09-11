@@ -224,7 +224,135 @@ object SeuilsDureeTajwid {
     //
     // Ne pas les remettre sans avoir d'abord etabli, sur du vrai audio, ce que
     // `frames` mesure exactement.
-    private val SEUILS_MS = mapOf<String, Pair<Int, Int>>()
+    // ── REMIS, SUR MESURE DE CINQ RECITATEURS REELS (2026-09-11) ──────────
+    //
+    // La condition posee juste au-dessus a recu une reponse : PC A a livre
+    // `seuils_tajwid_avec_durees_5reciteurs.json` (transfert
+    // 2026-09-11_production_v2), calibre sur CINQ recitateurs Hafs reels
+    // -- Ayman Sowaid, Husary, Abdul Basit, Minshawy, As-Sudais, sourate 90 --
+    // et surtout avec le VRAI decoupage de la chaine app
+    // (BancFluxBrut/ConstructeurDeFenetres), pas des clips isoles. C'est la
+    // premiere fois que ces durees viennent du meme regime que la production.
+    //
+    // Valeurs = `duree_moyenne_s` du fichier, x0,90 (strict) et x0,70
+    // (tolerant) -- facteurs choisis par l'utilisateur, memes que ceux deja
+    // employes pour ce meme reglage le 2026-09-03.
+    //
+    //   regle                moyenne   strict   tolerant
+    //   madda_obligatory       200 ms   180 ms    140 ms
+    //   madda_permissible      200 ms   180 ms    140 ms
+    //   madda_normal           100 ms    90 ms     70 ms
+    //   ghunnah                194 ms   175 ms    136 ms
+    //   ikhafa                 179 ms   161 ms    125 ms
+    //   idgham_ghunnah         154 ms   139 ms    108 ms
+    //   iqlab                  134 ms   121 ms     94 ms
+    //   idgham_wo_ghunnah      134 ms   121 ms     94 ms
+    //   qalaqah                129 ms   116 ms     90 ms
+    //
+    // ⚠️ CE QUE LA GRANULARITE DE 80 ms EN FAIT REELLEMENT. Une detection ne
+    // peut valoir que 0, 80, 160, 240 ms... Le seuil effectif est donc
+    // l'arrondi SUPERIEUR au multiple de 80 :
+    //
+    //   madda_obligatory / madda_permissible / ghunnah / ikhafa
+    //                              strict -> 3 frames (240 ms)
+    //                              tolerant -> 2 frames (160 ms)
+    //   idgham_ghunnah / iqlab / idgham_wo_ghunnah / qalaqah
+    //                              strict ET tolerant -> 2 frames (160 ms)
+    //   madda_normal               strict -> 2 frames (160 ms)
+    //                              tolerant -> 1 frame  (80 ms)
+    //
+    // ⚠️ ET CE QU'IL FAUT SURVEILLER, parce que la mesure le dit deja. Le
+    // rapport livre le MEME jour (`rapport_tenue_max_madd_v2_maxfenetres_
+    // 2026-09-11.json`), qui corrige pourtant le biais de fenetre signale par
+    // l'utilisateur, donne des medianes de 1 a 3 frames pour les madd et
+    // conclut lui-meme :
+    //     "ordre_attendu_respecte_sur_mediane": false
+    // -- le madd LAZIM (6 harakat, le plus long par definition) y ressort plus
+    // COURT que le permissible, et l'obligatoire le plus court des trois. Si
+    // cette grandeur mesurait la tenue, cet ordre serait respecte par
+    // construction. Le doute du 2026-09-05 n'est donc pas leve : `frames`
+    // capte probablement toujours le pic, pas la tenue.
+    //
+    // Le risque concret est celui deja mesure le 2026-09-05 (86 rejets, dont
+    // des `idgham_ghunnah` a p=1,000) : des regles REELLEMENT FAITES rejetees
+    // parce que leur pic tient sur une frame. A surveiller en premier dans le
+    // journal : les lignes `[tajwidDuree] ... REJETEE` sur une recitation
+    // dont on sait que la regle est appliquee. Si elles reviennent, c'est
+    // cette table qu'il faut revider -- pas un seuil a deplacer.
+    //
+    // Format : Pair(tolerant, strict), cf. `minMs` juste en dessous.
+    /** ── SEUILS DE PROBABILITE : 0,80 STRICT / 0,50 TOLERANT (2026-09-11) ──
+     *
+     *  Decision utilisateur : « garde 0,5 pour le tolerant et mets 0,8 pour le
+     *  strict ». Avant ce jour : 0,50 strict / 0,40 tolerant. Le strict
+     *  exigeait donc a peine plus qu'un tirage a pile ou face pour affirmer
+     *  qu'une regle est realisee, alors que la mesure des cinq recitateurs
+     *  montre des confiances naturelles bien plus hautes.
+     *
+     *  Ces deux constantes sont les VALEURS REELLES appliquees -- c'est
+     *  `facteurProba` juste en dessous qui fait la conversion vers ce
+     *  qu'attend le decodeur. Ecrire 1,60 ici (le facteur equivalent) avait
+     *  ete la premiere version, et elle rendait le code illisible : on y
+     *  lisait 1,60 pour un seuil qui vaut 0,80. */
+    const val P_STRICT = 0.80f
+    const val P_TOLERANT = 0.50f
+
+    /** Seuil ecrit dans `seuils_tajwid.json` pour les 14 regles jugees.
+     *
+     *  `decodeTajwid` ne prend pas un seuil mais un FACTEUR : il multiplie le
+     *  seuil de chaque classe par ce qu'on lui passe (en log). Pour obtenir
+     *  exactement [P_STRICT] / [P_TOLERANT], on divise donc par la valeur du
+     *  fichier. */
+    private const val P_FICHIER = 0.50f
+
+    /** Le facteur a passer a `decodeTajwid` pour obtenir le seuil voulu.
+     *
+     *  ⚠️ SUPPOSE QUE LE FICHIER DONNE [P_FICHIER]. C'est le cas du pack
+     *  deploye (0,50 sur les 14 regles jugees, 1,10 sur les 3 portees par le
+     *  texte -- ces dernieres sont protegees par le garde `seuilBrut >= 0f`
+     *  de `decodeTajwid`, le facteur ne les rallume pas).
+     *
+     *  Si un jour on adopte `seuils_tajwid_avec_durees_5reciteurs.json`
+     *  (livre le 2026-09-11, non adopte), qui porte 0,999 sur huit regles,
+     *  ce calcul devient faux : 0,999 x 1,60 = 1,60, soit une probabilite
+     *  impossible -- la regle ne serait PLUS JAMAIS detectee, et en silence.
+     *  Il faudra alors passer `decodeTajwid` a un seuil absolu plutot qu'a un
+     *  facteur (trois autres appelants s'en servent avec la valeur par
+     *  defaut, c'est pour eux qu'on ne l'a pas fait tout de suite). */
+    fun facteurProba(strict: Boolean): Float =
+        (if (strict) P_STRICT else P_TOLERANT) / P_FICHIER
+
+    private val SEUILS_MS = mapOf(
+        // `madda_necessary` ALIGNEE SUR LES AUTRES MADD (2026-09-11, demande
+        // utilisateur : « pareil pour madd necessary »). Le fichier des cinq
+        // recitateurs ne lui donne aucune duree (`null`) -- elle serait donc
+        // restee SANS exigence, ce qui n'a pas de sens : le madd lazim tient
+        // 6 harakat, le plus long des trois, et il aurait ete le seul a
+        // passer quelle que soit sa duree.
+        //
+        // Valeur alignee sur l'obligatoire et le permissible plutot que
+        // deduite : la theorie voudrait un seuil PLUS haut (6 temps contre
+        // 4-5), mais aucune mesure ne le fonde ici, et inventer un chiffre
+        // plus severe rejetterait des realisations correctes. Le jour ou une
+        // duree est mesuree pour elle, c'est cette ligne qu'on ajuste.
+        "madda_necessary" to Pair(140, 180),
+        "madda_obligatory" to Pair(140, 180),
+        "madda_permissible" to Pair(140, 180),
+        "madda_normal" to Pair(70, 90),
+        "ghunnah" to Pair(136, 175),
+        "ikhafa" to Pair(125, 161),
+        "idgham_ghunnah" to Pair(108, 139),
+        "iqlab" to Pair(94, 121),
+        "idgham_wo_ghunnah" to Pair(94, 121),
+        "qalaqah" to Pair(90, 116),
+        // Sans duree mesuree dans le fichier (`duree_moyenne_s: null`) :
+        // ikhafa_shafawi, idgham_shafawi, idgham_mutajanisayn,
+        // idgham_mutaqaribayn, laam_shamsiyah, ham_wasl, slnt. Absentes de la
+        // table -> `minMs` rend 0 -> aucune exigence de duree, exactement
+        // comme avant. On ne rejette jamais sur un chiffre qu'aucune mesure
+        // ne fonde. (`madda_necessary` etait de cette liste jusqu'au
+        // 2026-09-11 : elle en sort par alignement, cf. sa ligne plus haut.)
+    )
 
 
     /** @param nom nom de la regle tel que `rules.json` le donne.
@@ -1788,7 +1916,7 @@ class ChaineRecitation(
                 // mesuree en strict, 0,70 en tolerant (2026-09-03).
                 val detections = front.decodeTajwid(
                     sorties.tajwid.copyOfRange(debut, fin),
-                    if (tajwidStrict) 1.00f else 0.80f)
+                    SeuilsDureeTajwid.facteurProba(tajwidStrict))
                 // DUREE JOURNALISEE, JAMAIS JUGEE (2026-08-04). Le type d'un
                 // madd (`wajib` / `tabi'i`) est une categorie GRAMMATICALE que
                 // le texte connait deja ; l'acoustique ne peut repondre qu'a
@@ -1818,7 +1946,7 @@ class ChaineRecitation(
                     val vues = detections.map { it.ruleId }.toSet()
                     val maxima = front.probMaxParClasse(
                         sorties.tajwid.copyOfRange(debut, fin))
-                    val fact = if (tajwidStrict) 1.00f else 0.80f
+                    val fact = SeuilsDureeTajwid.facteurProba(tajwidStrict)
                     // ── LA PROBABILITE REMONTE JUSQU'A L'ECRAN (2026-09-05) ─
                     //
                     // Idee de l'utilisateur, nee du defaut qu'on venait de
@@ -1986,7 +2114,7 @@ class ChaineRecitation(
                             // signale une fois (« tu ne m'as pas montre mes
                             // valeurs »).
                             val seuil = front.seuilRegle(d.ruleId) *
-                                (if (tajwidStrict) 1.00f else 0.80f)
+                                (SeuilsDureeTajwid.facteurProba(tajwidStrict))
                             "$nom=${d.frames}f(${d.frames * 80}ms) " +
                                 "p=${"%.3f".format(d.prob)}/${"%.3f".format(seuil)}"
                         })
@@ -2001,14 +2129,45 @@ class ChaineRecitation(
                 // Une regle non calibree a un seuil de 0 : elle passe comme
                 // avant. On ne rejette jamais sur un chiffre qu'aucune mesure
                 // ne fonde.
+                // ── LE MAX SUR TOUTES LES OBSERVATIONS, PAS LA DERNIERE ────
+                //
+                // Remarque utilisateur (2026-09-11), et elle porte : « comme le
+                // mot est juge plusieurs fois, je ne sais pas si tu gardes le
+                // max de duree pour une meilleure decision ». Il avait raison
+                // de douter : ce filtre lisait `d.frames`, la seule observation
+                // COURANTE, alors que `dureesParMot` accumule deja le maximum
+                // par (mot, regle) quelques lignes plus haut.
+                //
+                // CE QUE CA CASSAIT. Un mot est vu par plusieurs fenetres
+                // glissantes ; celle qui l'attrape par le bord n'en voit qu'un
+                // fragment, donc une duree tronquee. Le filtre rejetait alors
+                // une regle que la fenetre SUIVANTE voyait entiere.
+                //
+                // ET SURTOUT, L'INCOHERENCE DE CALIBRAGE. Les seuils remis le
+                // 2026-09-11 (cf. `SeuilsDureeTajwid`) viennent d'un protocole
+                // qui prend explicitement le MAX sur quatre decoupes par ancre
+                // -- correction demandee par l'utilisateur le meme jour, « une
+                // fenetre unique peut couper la voyelle a son bord ». Calibrer
+                // sur un maximum et appliquer sur une observation unique rend
+                // les seuils trop hauts par construction : c'est exactement le
+                // regime qui avait produit 86 rejets de regles a p=1,000 le
+                // 2026-09-05.
+                //
+                // `dureesParMot` est rempli plus haut dans CE meme passage
+                // (l'observation courante y est donc deja incluse) ; le
+                // `maxOf` garde la borne meme si l'ordre changeait un jour.
                 detections.filter { d ->
                     val nom = front.nomsRegles.getOrNull(d.ruleId) ?: ""
                     val min = SeuilsDureeTajwid.minMs(nom, tajwidStrict)
-                    val gardee = d.frames * 80 >= min
+                    val courante = d.frames * Horloge.MS_PAR_FRAME
+                    val vue = maxOf(courante,
+                        dureesParMot[m.index]?.get(d.ruleId) ?: 0)
+                    val gardee = vue >= min
                     if (!gardee) {
                         journal?.invoke("[tajwidDuree] mot=${m.index} $nom " +
-                            "REJETEE ${d.frames * 80}ms < ${min}ms " +
-                            "(${if (tajwidStrict) "strict" else "tolerant"})")
+                            "REJETEE ${vue}ms < ${min}ms " +
+                            "(${if (tajwidStrict) "strict" else "tolerant"}" +
+                            ", max sur les observations ; courante=${courante}ms)")
                     }
                     gardee
                 }.map { it.ruleId }.distinct()
