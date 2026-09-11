@@ -10,7 +10,8 @@ import '../models/verse.dart';
 // `JudgementPreset` retire de ce `show` le 2026-08-14 : son seul usage ici
 // etait le garde des etoiles (cf. leur retrait plus bas).
 import '../models/judgement_options.dart' show TajwidRule;
-import '../providers/judgement_provider.dart' show judgementOptionsProvider;
+import '../providers/judgement_provider.dart'
+    show judgementOptionsProvider, modeTajwidDedieActifProvider;
 import '../models/recitation_state.dart';
 import '../models/objectif_coach.dart';
 import '../providers/app_settings_provider.dart';
@@ -612,6 +613,30 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     DiagnosticLog.log('KaraokeOuverture',
         'modeTajwid=${widget.modeTajwid} relecture=${widget.estRelecture} '
         'versets=${widget.verses.length}');
+    // Preset de jugement FORCE a tajwid pendant que cet ecran dedie est
+    // ouvert (2026-09-11, cf. `modeTajwidDedieActifProvider` et le
+    // commentaire de `judgementOptionsEffectivesProvider`) -- remis a false
+    // dans `dispose()`. Rien a faire hors mode tajwid : la valeur par defaut
+    // du provider (false) laisse `judgementOptionsEffectivesProvider` se
+    // comporter exactement comme avant.
+    //
+    // ⚠️ BUG REEL (2026-09-11, meme piege que celui documente plus bas dans
+    // ce initState pour `setupVerses`, deja rencontre le 2026-07-10) :
+    // modifier un provider directement dans `initState` leve
+    // « Tried to modify a provider while the widget tree was building »
+    // (Riverpod l'interdit dans build/initState/dispose/didUpdateWidget/
+    // didChangeDependencies). Ecran plante a l'ouverture du mode Tajwid,
+    // confirme par capture d'ecran device. `addPostFrameCallback` reporte
+    // la modification juste apres la fin du frame courant -- meme remede
+    // que `setupVerses` ci-dessous, largement avant qu'un jugement ne soit
+    // rendu (aucun mot ne peut etre juge avant que ce frame ne soit peint).
+    if (widget.modeTajwid) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(modeTajwidDedieActifProvider.notifier).state = true;
+        }
+      });
+    }
     _verses = List.of(widget.verses);
     _initialPassageKey = widget.verses.map((v) => v.key).join('-');
     _breath = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
@@ -1279,8 +1304,35 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       DiagnosticLog.log('Archive',
           'sortie d\'ecran : conteneur absent (demontage avant le premier '
           'build) -- rien a clore');
+      // Le forcage tajwid pose a l'ouverture (initState) ne peut PAS etre
+      // defait ici : ce chemin signifie qu'aucun `_container` n'a jamais ete
+      // capture (demontage avant le premier `build`, cf. sa capture plus bas
+      // dans `build`), et `ref` est deja invalide dans `dispose()` (cf. le
+      // commentaire juste en dessous -- meme piege que celui qui a impose
+      // `_container`). Cas limite deja traite ainsi pour toutes les autres
+      // ressources de cette fonction : rien d'autre n'est nettoye non plus
+      // sur ce chemin, on ne fait pas d'exception pour celle-ci.
       super.dispose();
       return;
+    }
+    // Fin du forcage tajwid (2026-09-11, cf. `initState` et
+    // `modeTajwidDedieActifProvider`) -- via `container`, jamais `ref`
+    // (cf. le commentaire ci-dessus : `ref` leve une exception ici).
+    //
+    // ⚠️ BUG REEL, meme famille que celui corrige dans `initState` :
+    // modifier un provider SYNCHRONE pendant `dispose()` leve la MEME
+    // exception Riverpod (« Tried to modify a provider while the widget
+    // tree was building » -- `dispose` est explicitement liste par le
+    // message d'erreur, au meme titre que `build`/`initState`). `container`
+    // rend `ref` valide de nouveau, il ne dispense pas de differer l'ecriture.
+    // `unawaited(() async {...})` separe et minimal, plutot qu'ajoute au
+    // bloc `unawaited` plus bas : celui-ci est deja complexe et documente
+    // (attente bornee, cf. son en-tete) -- ne pas y meler une ecriture sans
+    // rapport.
+    if (widget.modeTajwid) {
+      unawaited(() async {
+        container.read(modeTajwidDedieActifProvider.notifier).state = false;
+      }());
     }
     // ── INVALIDATION DU CACHE, DANS SON PROPRE try/catch (2026-08-11) ──────
     //
@@ -2645,6 +2697,40 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           ? AppColors.kindleInk
           : const Color(0xFF1A1208));
 
+  /// ── L'ACCENT DE `_topBar` SUIT LE MEME THEME (2026-09-11) ────────────────
+  ///
+  /// Meme defaut que celui corrige ci-dessus pour `_encreDouce` le 2026-09-05,
+  /// jamais applique a la barre du haut : `AppColors.brassLight` (dore PALE)
+  /// est pense pour ressortir sur le vert profond de la recitation normale.
+  /// En mode tajwid papier/Kindle, ce meme dore pale sur un fond clair est
+  /// aussi peu lisible que l'etait le texte creme du Coran avant le
+  /// 2026-09-05 -- constat utilisateur, capture a l'appui : « le pause et
+  /// l'acces au mode ne sont pas bien visibles [...] le texte de sourate
+  /// aussi [...] le probleme est global dans cette page ».
+  ///
+  /// Un dore plus sature (`brass`) sur fond clair passait la mesure de
+  /// contraste mais restait juge « pas interessant » (retour utilisateur
+  /// 2026-09-11) -- demande explicite : sur fond clair, prendre plutot le
+  /// VERT SIGNATURE de l'app (`green800`, deja la couleur des AppBar et des
+  /// puces actives de `PresetRow`) plutot qu'une simple variante du dore.
+  /// Chaque fond garde ainsi SON accent propre : dore clair sur fond fonce
+  /// (recitation normale, ou mode tajwid + theme sombre du Mushaf), vert
+  /// fonce sur fond clair (mode tajwid + papier ou Kindle) -- jamais une
+  /// dilution de l'un vers l'autre. Cf. `_surAccentTajwid` pour la couleur a
+  /// poser PAR-DESSUS cet accent (pastille du bouton pause).
+  Color get _accentTajwid => widget.modeTajwid
+      ? (ref.watch(modeSombreProvider) ? AppColors.brassLight : AppColors.green800)
+      : AppColors.brassLight;
+
+  /// Couleur a poser SUR `_accentTajwid` (ex. l'icone dans la pastille du
+  /// bouton pause) pour rester contrastee quel que soit l'accent choisi :
+  /// vert tres fonce sur l'accent dore (clair), creme sur l'accent vert
+  /// (fonce) -- les deux seuls cas que `_accentTajwid` produit.
+  Color get _surAccentTajwid =>
+      (widget.modeTajwid && !ref.watch(modeSombreProvider))
+          ? AppColors.cream
+          : AppColors.green900;
+
   ({String text, List<List<TextSpan>> spans, List<RecitationSegment> segments})
       _buildChunk(
           List<Verse> verses, int? prevSurahBefore, Verse bismillahVerse) {
@@ -3498,29 +3584,51 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       // L'ecran des regles reste joignable par le chevron a
                       // droite du titre -- il n'est simplement plus le seul
                       // chemin vers les modes.
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(t.karaokeVerificationModeTitle,
-                                style: GoogleFonts.manrope(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.cream)),
-                          ),
-                          // Le renvoi vers `TajwidRulesScreen` a ete retire
-                          // le 2026-09-02 : cette page ne portait plus que la
-                          // liste informative des regles et le curseur de
-                          // paliers, les modes etant desormais juste en
-                          // dessous. Cf. l'en-tete de `tajwid_rules_screen`.
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      PresetRow(
-                        current: ref.watch(judgementOptionsProvider).preset,
-                        notifier:
-                            ref.read(judgementOptionsProvider.notifier),
-                        surFondSombre: true,
-                      ),
+                      //
+                      // ── FORCE A TAJWID DANS L'ECRAN DEDIE (2026-09-11) ────
+                      //
+                      // Retour utilisateur : « dans le mode tajwid il faut
+                      // mettre un parametre independant de l'autre de reciter
+                      // et le forcer a tajwid, enleve ici alors adulte et
+                      // enfant, pas d'utilite ». Adulte/Enfant n'ont aucun
+                      // sens dans un ecran dont le but EST de verifier le
+                      // tajwid -- `PresetRow` (le choix) disparait, remplace
+                      // par un simple libelle fixe. Le forcage reel se fait
+                      // cote jugement via `modeTajwidDedieActifProvider` +
+                      // `judgementOptionsEffectivesProvider` (derive, ne
+                      // touche jamais au preset persiste que lisent le Coach
+                      // et le mode Reciter normal).
+                      if (widget.modeTajwid)
+                        Text(t.karaokeVerificationModeForcedTajwid,
+                            style: GoogleFonts.manrope(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.cream))
+                      else ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(t.karaokeVerificationModeTitle,
+                                  style: GoogleFonts.manrope(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.cream)),
+                            ),
+                            // Le renvoi vers `TajwidRulesScreen` a ete retire
+                            // le 2026-09-02 : cette page ne portait plus que la
+                            // liste informative des regles et le curseur de
+                            // paliers, les modes etant desormais juste en
+                            // dessous. Cf. l'en-tete de `tajwid_rules_screen`.
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        PresetRow(
+                          current: ref.watch(judgementOptionsProvider).preset,
+                          notifier:
+                              ref.read(judgementOptionsProvider.notifier),
+                          surFondSombre: true,
+                        ),
+                      ],
                       const Divider(color: Colors.white12, height: 20),
 
                       // ── « PHRASE DE FIN DE SOURATE » RETIREE (2026-09-02)
@@ -4180,7 +4288,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         children: [
           IconButton(
             visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.arrow_back, color: Colors.white70),
+            // Colors.white70 -> _encreDouce (2026-09-11, cf. le commentaire
+            // de `_accentTajwid` juste au-dessus : cette icone neutre etait,
+            // comme les autres de cette barre, pensee pour le seul fond vert.
+            icon: Icon(Icons.arrow_back, color: _encreDouce(0.7)),
             onPressed: () {
               // Trace IHM (2026-08-14). CE chemin-ci mérite sa ligne plus que
               // tout autre : c'est lui qui a laissé une session « ouverte et
@@ -4210,7 +4321,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                     style: GoogleFonts.fraunces(
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.brassLight,
+                      // AppColors.brassLight -> _accentTajwid (2026-09-11,
+                      // retour utilisateur : « le texte de sourate [...] pas
+                      // clair » -- ce titre dore pale se noyait sur le fond
+                      // clair du Mushaf en mode tajwid. Cf. `_accentTajwid`.
+                      color: _accentTajwid,
                       letterSpacing: 0.4,
                     ),
                   )
@@ -4226,7 +4341,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                         style: GoogleFonts.fraunces(
                           fontSize: 15.5,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.brassLight,
+                          color: _accentTajwid,
                           letterSpacing: 0.4,
                         ),
                       ),
@@ -4256,9 +4371,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               tooltip: AppLocalizations.of(context)!.karaokeHearExpectedWordTooltip,
               icon: Icon(
                 Icons.volume_up_rounded,
+                // Couleurs adaptatives (2026-09-11, meme correctif que les
+                // autres icones de cette barre -- cf. `_accentTajwid`).
                 color: (_autoCorrecting || _promptingWord)
-                    ? Colors.white24
-                    : AppColors.brassLight,
+                    ? _encreDouce(0.24)
+                    : _accentTajwid,
                 // 20 -> 26 (demande utilisateur 2026-08-06 : « agrandis un peu
                 // les icones pause, haut-parleur et reglages, c'est petit »).
                 // La BOITE de l'IconButton ne bouge pas (48 dp, ou ~40 avec
@@ -4282,7 +4399,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             tooltip: AppLocalizations.of(context)!.karaokeRestartTooltip,
             icon: Icon(
               Icons.replay_rounded,
-              color: _autoCorrecting ? Colors.white24 : Colors.white70,
+              // Couleurs adaptatives (2026-09-11) -- cf. `_accentTajwid`.
+              color: _autoCorrecting ? _encreDouce(0.24) : _encreDouce(0.7),
               size: 24,
             ),
             onPressed: _autoCorrecting ? null : _refaireRecitation,
@@ -4296,7 +4414,21 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           IconButton(
             visualDensity: VisualDensity.compact,
             tooltip: AppLocalizations.of(context)!.karaokeVerificationSettingsTitle,
-            icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 26),
+            // Couleur relevee de Colors.white70 a `_accentTajwid` (accent
+            // dore adaptatif, cf. son commentaire) -- retour utilisateur
+            // 2026-09-11 : « acces au mode pas bien visible ». Ce bouton se
+            // fondait avec Retour et Refaire (meme gris terne, boutons
+            // secondaires) alors qu'il ouvre TOUS les reglages de
+            // verification, modes Tajwid/Adulte/Enfant compris (cf.
+            // commentaire juste au-dessus) : au moins aussi important que la
+            // pause. Meme couleur d'accent que son equivalent dans le Coach
+            // (coach_screen.dart, icone auto_awesome) -- coherence entre les
+            // deux ecrans. `_accentTajwid` et non la constante fixe
+            // `AppColors.brassLight` employee dans un premier temps : ce
+            // dore pale se serait lui-meme noye sur le fond clair du Mushaf
+            // en mode tajwid (meme defaut que celui qui a motive ce
+            // correctif, cf. « le texte de sourate aussi [...] pas clair »).
+            icon: Icon(Icons.tune_rounded, color: _accentTajwid, size: 26),
             onPressed: () => _openVerificationSheet(context),
           ),
           // ── ACCÈS AU JEU RETIRÉ D'ICI (2026-08-10) ──────────────────────
@@ -4315,17 +4447,44 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               tooltip: _manuallyPaused
                   ? AppLocalizations.of(context)!.karaokeResumeTooltip
                   : AppLocalizations.of(context)!.karaokePauseTooltip,
-              icon: Icon(
-                _manuallyPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                color: AppColors.brassLight,
-                size: 32,
+              // Pastille pleine, plus une icone nue (2026-09-11, retour
+              // utilisateur : « le pause [...] pas bien visible »). Cause :
+              // l'icone seule partageait AppColors.brassLight avec le
+              // souffleur juste a cote (meme teinte doree, deux boutons
+              // qui se confondent) alors que pause est LE controle
+              // principal de la session. Meme langage visuel que
+              // `_PlayPauseButton` du mini-lecteur Mushaf
+              // (mini_player_bar.dart) : fond plein + icone contrastee,
+              // pas juste une couleur d'icone. Le cercle (34dp) reste
+              // sous la boite du IconButton (48dp sans compact density,
+              // deja le cas ici) -- aucun risque de reproduire le
+              // debordement de 2026-07-25 (cf. commentaire de `_topBar`).
+              //
+              // Fond/icone adaptatifs (`_accentTajwid`/`_surAccentTajwid`)
+              // et non plus AppColors.brass/green900 fixes : sur fond clair
+              // (mode tajwid papier/Kindle), l'accent devient le vert
+              // signature de l'app, pas une variante du dore -- meme
+              // renversement que le reste de cette barre.
+              icon: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: _accentTajwid,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _manuallyPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                  color: _surAccentTajwid,
+                  size: 22,
+                ),
               ),
               onPressed: _togglePause,
             )
           else if (_hasProfile == true)
             IconButton(
               tooltip: AppLocalizations.of(context)!.karaokeRedoReferenceTooltip,
-              icon: const Icon(Icons.tune_rounded, color: Colors.white54, size: 20),
+              // Colors.white54 -> _encreDouce (2026-09-11) -- cf. `_accentTajwid`.
+              icon: Icon(Icons.tune_rounded, color: _encreDouce(0.54), size: 20),
               onPressed: _requestNewReference,
             )
           else
@@ -4407,7 +4566,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         decoration: BoxDecoration(
           color: AppColors.brass.withOpacity(0.12),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.brassLight.withOpacity(0.35)),
+          // Bordure et textes adaptatifs (2026-09-11) -- cf. `_accentTajwid`.
+          // Le fond dore dilue (12%) reste discret sur les deux themes ; ce
+          // qui ne l'etait pas, c'est le TEXTE clair (brassLight/cream) qui
+          // s'y ecrivait, pense pour ressortir seulement sur fond sombre.
+          border: Border.all(color: _accentTajwid.withValues(alpha: 0.35)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -4415,8 +4578,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             if (title != null) ...[
               Row(
                 children: [
-                  const Icon(Icons.mic_none_rounded,
-                      size: 15, color: AppColors.brassLight),
+                  Icon(Icons.mic_none_rounded, size: 15, color: _accentTajwid),
                   const SizedBox(width: 6),
                   // Expanded (correctif 2026-07-25) : « RÉFÉRENCE EN COURS
                   // D'ENREGISTREMENT » en capitales avec letterSpacing 1.2 ne
@@ -4433,7 +4595,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                         fontSize: 10.5,
                         letterSpacing: 1.2,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.brassLight,
+                        color: _accentTajwid,
                       ),
                     ),
                   ),
@@ -4446,7 +4608,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               style: GoogleFonts.manrope(
                 fontSize: 12.5,
                 height: 1.45,
-                color: AppColors.cream.withOpacity(0.85),
+                color: _encreDouce(0.85),
               ),
             ),
           ],
@@ -4463,7 +4625,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // texte à plat. Chaque bloc reste un Wrap RTL normal, inchangé.
   Widget _verseArea(RecitationSessionState st) {
     if (st.words.isEmpty) {
-      return const CircularProgressIndicator(color: AppColors.brassLight);
+      // AppColors.brassLight -> _accentTajwid (2026-09-11) -- cf. son
+      // commentaire : ce dore pale se noyait sur le fond clair du Mushaf.
+      return CircularProgressIndicator(color: _accentTajwid);
     }
     // ── LA FENÊTRE DE RENDU SUIT L'ANCRE, PLUS `pointer` (2026-08-13) ──────
     // Cause racine du figement, trouvee par l'utilisateur : « si elle est a la
@@ -4609,7 +4773,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           final r = ranges[i];
           final b = r.banner;
           if (b != null) {
-            return _SurahTransitionBanner(_surahMeta[b]!, encre: _encreDouce(0.55));
+            return _SurahTransitionBanner(_surahMeta[b]!,
+                encre: _encreDouce(0.55), accent: _accentTajwid);
           }
           return _wordWrapBlock(st, r.start, r.end);
         },
@@ -4652,7 +4817,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             // "texte continu", pas de repère d'aya pendant la récitation,
             // contrairement à l'écran de lecture) -- même convention que
             // le Mushaf (le numéro marque la FIN du verset, pas son début).
-            if (_isLastWordOfVerse(i)) _KaraokeVerseBadge(_verseContaining(i)!.ayahNumber),
+            if (_isLastWordOfVerse(i))
+              _KaraokeVerseBadge(_verseContaining(i)!.ayahNumber, accent: _accentTajwid),
           ],
         ],
       ),
@@ -5070,11 +5236,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         borderRadius: BorderRadius.circular(6),
         border: Border(
           bottom: BorderSide(
+            // AppColors.brassLight -> _accentTajwid (2026-09-11) -- ce fil de
+            // lumiere dore pale se noyait deja sur le fond clair du Mushaf en
+            // mode tajwid, cf. `_accentTajwid`.
             color: borderTint ??
                 (lueur > 0
-                    ? AppColors.brassLight.withOpacity(lueur)
+                    ? _accentTajwid.withValues(alpha: lueur)
                     : (underline
-                        ? AppColors.brassLight.withOpacity(0.5)
+                        ? _accentTajwid.withValues(alpha: 0.5)
                         : Colors.transparent)),
             width: 2,
           ),
@@ -5124,8 +5293,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                 final t = (math.sin(_breath.value * 2 * math.pi) + 1) / 2;
                 return Opacity(
                   opacity: 0.45 + t * 0.55,
-                  child: const Icon(Icons.keyboard_double_arrow_down_rounded,
-                      color: AppColors.brassLight, size: 20),
+                  // AppColors.brassLight -> _accentTajwid (2026-09-11) --
+                  // cf. `_accentTajwid`.
+                  child: Icon(Icons.keyboard_double_arrow_down_rounded,
+                      color: _accentTajwid, size: 20),
                 );
               },
             ),
@@ -5404,10 +5575,17 @@ class _SurahTransitionBanner extends StatelessWidget {
   /// Encre du sous-titre : creme sur le vert de la recitation, encre du
   /// Mushaf en mode tajwid (2026-09-05).
   final Color encre;
-  const _SurahTransitionBanner(this.surah, {required this.encre});
+  /// Accent du nom de sourate et des filets decoratifs -- `_accentTajwid`
+  /// (2026-09-11, retour utilisateur : « le nom de la sourate [...] pas
+  /// visible, remets ici en vert egalement »). AppColors.brassLight en dur
+  /// avant ce jour : ce gros titre est la SEULE partie de cette bannniere
+  /// qui n'utilisait pas deja un parametre adaptatif venu du parent (le
+  /// sous-titre, lui, prenait deja `encre` = `_encreDouce`).
+  final Color accent;
+  const _SurahTransitionBanner(this.surah, {required this.encre, required this.accent});
 
   Widget _rule() => Expanded(
-        child: Container(height: 1, color: AppColors.brassLight.withOpacity(0.25)),
+        child: Container(height: 1, color: accent.withValues(alpha: 0.25)),
       );
 
   @override
@@ -5424,7 +5602,7 @@ class _SurahTransitionBanner extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Icon(Icons.star_rounded,
-                    size: 9, color: AppColors.brassLight.withOpacity(0.55)),
+                    size: 9, color: accent.withValues(alpha: 0.55)),
               ),
               _rule(),
             ],
@@ -5436,7 +5614,7 @@ class _SurahTransitionBanner extends StatelessWidget {
             style: GoogleFonts.amiri(
               fontSize: 28,
               fontWeight: FontWeight.w700,
-              color: AppColors.brassLight,
+              color: accent,
             ),
           ),
           const SizedBox(height: 6),
@@ -5457,7 +5635,7 @@ class _SurahTransitionBanner extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Icon(Icons.star_rounded,
-                    size: 9, color: AppColors.brassLight.withOpacity(0.55)),
+                    size: 9, color: accent.withValues(alpha: 0.55)),
               ),
               _rule(),
             ],
@@ -5474,7 +5652,11 @@ class _SurahTransitionBanner extends StatelessWidget {
 /// pouvoir importer un widget privé d'un autre fichier.
 class _KaraokeVerseBadge extends StatelessWidget {
   final int number;
-  const _KaraokeVerseBadge(this.number);
+  /// `_accentTajwid` (2026-09-11, retour utilisateur : « la couleur de
+  /// chiffre verset pas visible, remets ici en vert egalement ») --
+  /// AppColors.brassLight en dur avant ce jour, comme `_SurahTransitionBanner`.
+  final Color accent;
+  const _KaraokeVerseBadge(this.number, {required this.accent});
 
   static String _toArabicIndic(int n) {
     const digits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
@@ -5488,14 +5670,14 @@ class _KaraokeVerseBadge extends StatelessWidget {
       height: 30,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.brassLight, width: 1.2),
+        border: Border.all(color: accent, width: 1.2),
       ),
       child: Center(
         child: Text(
           _toArabicIndic(number),
           style: GoogleFonts.amiri(
             fontSize: 12,
-            color: AppColors.brassLight,
+            color: accent,
             fontWeight: FontWeight.w700,
           ),
         ),
