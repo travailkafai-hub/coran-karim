@@ -1944,6 +1944,10 @@
   "@karaokeVerificationModeTitle": {
     "description": "Réglage : ouvrir l'écran des règles/presets tajwid"
   },
+  "karaokeVerificationModeForcedTajwid": "Mode Tajwid",
+  "@karaokeVerificationModeForcedTajwid": {
+    "description": "Remplace le titre + le choix de preset dans l'écran de vérification tajwid dédié (widget.modeTajwid) : le preset y est forcé à tajwid, Adulte/Enfant n'ont pas de sens ici (2026-09-11)"
+  },
   "karaokeVerificationModeSubtitle": "Presets tajwid / adulte / enfant, 17 règles",
   "@karaokeVerificationModeSubtitle": {
     "description": "Sous-titre du réglage mode de vérification"
@@ -3015,5 +3019,318 @@
   "coachToggleCumulDetail": "Le contrôle porte sur tous les versets appris depuis le début de la session.",
   "@coachToggleCumulDetail": {
     "description": "Explication de la bascule de controle cumulatif"
+  },
+  "commonStop": "Arrêter",
+  "@commonStop": {
+    "description": "Bouton d'arret generique (bandeau d'ecoute du Mushaf)"
+  },
+  "mushafTajwidBanner": "Écoute du tajwid — les règles manquées passent en violet",
+  "@mushafTajwidBanner": {
+    "description": "Bandeau affiche pendant l'ecoute tajwid sur la page du Mushaf"
+  },
+  "mushafClearAllTooltip": "Tout effacer",
+  "@mushafClearAllTooltip": {
+    "description": "Info-bulle du bouton qui efface les annotations"
+  },
+  "mushafClearAllTitle": "Tout effacer ?",
+  "@mushafClearAllTitle": {
+    "description": "Titre de la confirmation d'effacement"
+  },
+  "mushafClearAllBody": "Toutes les annotations du Mushaf seront supprimées : surlignages et traits, toutes les sourates, quelle que soit leur date. Cette action est irréversible.",
+  "@mushafClearAllBody": {
+    "description": "Corps de la confirmation d'effacement des annotations"
+  },
+  "mushafBarTajwid": "Tajwid",
+  "@mushafBarTajwid": {
+    "description": "Bouton de la barre du Mushaf : ecoute tajwid sur la page"
+  },
+  "mushafBarChain": "Chaîne",
+  "@mushafBarChain": {
+    "description": "Bouton de la barre du Mushaf : jeu d'enchainement des mots"
+  },
+  "mushafBarMap": "Carte",
+  "@mushafBarMap": {
+    "description": "Bouton de la barre du Mushaf : carte mentale de la sourate"
+  },
+  "mushafPaperTooltip": "Mushaf papier",
+  "@mushafPaperTooltip": {
+    "description": "Info-bulle de l'icone d'en-tete qui ouvre la vue page"
+  },
+  "mushafBookmarkHere": "Poser un signet ici",
+  "@mushafBookmarkHere": {
+    "description": "Info-bulle du bouton signet quand rien n'est marque"
+  },
+  "mushafBookmarkRemove": "Retirer le signet",
+  "@mushafBookmarkRemove": {
+    "description": "Info-bulle du bouton signet quand le verset est marque"
+  },
+  "tajwidHelpTwoVersesBefore": "En partant deux versets avant",
+  "@tajwidHelpTwoVersesBefore": {
+    "description": "Sous-titre d'une action de la feuille d'aide tajwid"
+  },
+  "tajwidHelpStepTraining": "Entraînement par paliers",
+  "@tajwidHelpStepTraining": {
+    "description": "Titre d'une action de la feuille d'aide tajwid"
+  },
+  "tajwidHelpListenImitate": "Écoute, imite, contrôle — sur ce verset",
+  "@tajwidHelpListenImitate": {
+    "description": "Sous-titre de l'entrainement par paliers"
+  },
+  "tajwidHelpGameOrSteps": "Jeu ou entraînement par paliers",
+  "@tajwidHelpGameOrSteps": {
+    "description": "Intitule groupant les deux modes d'entrainement"
+  },
+  "settingsDiagnosticSubtitle": "Enregistre le détail de la récitation pour analyse. À laisser éteint en usage normal.",
+  "@settingsDiagnosticSubtitle": {
+    "description": "Description de l'interrupteur de diagnostic"
+  },
+  "settingsMushafScriptTitle": "Écriture du Mushaf",
+  "@settingsMushafScriptTitle": {
+    "description": "Entree de reglages qui ouvre le choix d'ecriture"
+  },
+  "settingsPrayerTimesTitle": "Horaires de prière",
+  "@settingsPrayerTimesTitle": {
+    "description": "Entree de reglages qui ouvre les horaires de priere"
+  },
+  "settingsBluetoothMicTitle": "Micro du casque Bluetooth",
+  "@settingsBluetoothMicTitle": {
+    "description": "Titre du reglage de routage du micro vers un casque Bluetooth"
+  },
+  "settingsBluetoothMicOn": "Activé — qualité réduite : le Bluetooth compresse la voix",
+  "@settingsBluetoothMicOn": {
+    "description": "Sous-titre quand le micro Bluetooth est actif"
+  },
+  "settingsBluetoothMicOff": "Éteint (recommandé) — le micro du téléphone capte mieux",
+  "@settingsBluetoothMicOff": {
+    "description": "Sous-titre quand le micro Bluetooth est eteint"
+  },
+  "tajwidRulesScreenTitle": "Vérification de la récitation",
+  "@tajwidRulesScreenTitle": {
+    "description": "Titre de l'ecran des regles de tajwid"
+  },
+  "tajwidRulesBetaSection": "RÈGLES DE TAJWID (BÊTA)",
+  "@tajwidRulesBetaSection": {
+    "description": "Titre de la section beta des regles"
+  },
+  "tajwidRulesBetaNote": "Règles vérifiées selon le mode choisi ci-dessus, à titre indicatif.",
+  "@tajwidRulesBetaNote": {
+    "description": "Note sous la section des regles"
+  },
+  "tajwidRulesBetaBadge": "BÊTA",
+  "@tajwidRulesBetaBadge": {
+    "description": "Etiquette beta sur une regle"
+  },
+  "tajwidRulesBetaWarning": "Détection encore imprécise : cette règle peut signaler un doute, mais ne validera jamais un mot en vert à elle seule.",
+  "@tajwidRulesBetaWarning": {
+    "description": "Avertissement sur une regle encore imprecise"
+  },
+  "contactTitle": "Nous contacter",
+  "@contactTitle": {
+    "description": "Titre de l'ecran de contact"
+  },
+  "contactIntro": "Une question, un bug à signaler, une suggestion ? Écris ton message ici — l'appli mail s'ouvrira ensuite avec tout déjà rempli, il ne restera qu'à l'envoyer.",
+  "@contactIntro": {
+    "description": "Texte d'introduction de l'ecran de contact"
+  },
+  "contactSubjectLabel": "OBJET (facultatif)",
+  "@contactSubjectLabel": {
+    "description": "Etiquette du champ objet"
+  },
+  "contactSubjectDefault": "Coran Karim — message",
+  "@contactSubjectDefault": {
+    "description": "Objet par defaut de l'e-mail"
+  },
+  "contactMessageHint": "Écris ton message…",
+  "@contactMessageHint": {
+    "description": "Texte d'invite du champ message"
+  },
+  "coachStepsTitle": "Les paliers de récitation",
+  "@coachStepsTitle": {
+    "description": "Titre de l'aide sur les paliers, et info-bulle qui l'ouvre"
+  },
+  "coachStepsExplain": "Une portion mastérisée (100 % des mots acquis) gagne une coche. La répéter en entier, plusieurs fois, débloque une pierre précieuse — sa couleur monte avec le nombre de récitations complètes.",
+  "@coachStepsExplain": {
+    "description": "Explication du systeme de paliers et de pierres"
+  },
+  "coachMyRecitations": "MES RÉCITATIONS",
+  "@coachMyRecitations": {
+    "description": "Titre de la section listant les recitations"
+  },
+  "coachArchiveUnreadable": "Archive illisible : {erreur}",
+  "@coachArchiveUnreadable": {
+    "description": "Message quand l'archive des sessions ne se lit pas",
+    "placeholders": {
+      "erreur": {
+        "type": "String"
+      }
+    }
+  },
+  "coachNoRecitationYet": "Aucune récitation enregistrée pour l’instant. Après une récitation contrôlée, vous retrouverez ici chaque mot signalé — avec votre voix.",
+  "@coachNoRecitationYet": {
+    "description": "Message quand aucune session n'a encore ete enregistree"
+  },
+  "coachDeleteRecitationTitle": "Supprimer cette récitation ?",
+  "@coachDeleteRecitationTitle": {
+    "description": "Titre de la confirmation de suppression"
+  },
+  "coachDeleteRecitationBody": "Le résultat et les enregistrements audio de mots de cette session seront définitivement supprimés. Le journal cumulé du Coach (statistiques par sourate) n'est pas affecté.",
+  "@coachDeleteRecitationBody": {
+    "description": "Corps de la confirmation de suppression d'une session"
+  },
+  "coachNoFlaggedWord": "Aucun mot signalé sur cette récitation.",
+  "@coachNoFlaggedWord": {
+    "description": "Message quand une session ne contient aucun mot signale"
+  },
+  "coachNotRecitedYet": "Pas encore récitées — {nombre}",
+  "@coachNotRecitedYet": {
+    "description": "Titre de la section des sourates jamais recitees",
+    "placeholders": {
+      "nombre": {
+        "type": "int"
+      }
+    }
+  },
+  "coachContinuePortion": "Continuer/refaire cette portion",
+  "@coachContinuePortion": {
+    "description": "Info-bulle du bouton qui relance une portion"
+  },
+  "coachDeleteRecitation": "Supprimer cette récitation",
+  "@coachDeleteRecitation": {
+    "description": "Info-bulle du bouton de suppression d'une session"
+  },
+  "coachMindMap": "Carte mentale",
+  "@coachMindMap": {
+    "description": "Info-bulle du bouton qui ouvre la carte mentale"
+  },
+  "coachStartSurah": "Commencer cette sourate",
+  "@coachStartSurah": {
+    "description": "Info-bulle du bouton qui lance une sourate neuve"
+  },
+  "scriptTajwidColors": "Couleurs du tajwid",
+  "@scriptTajwidColors": {
+    "description": "Interrupteur des couleurs de tajwid dans la vue Page"
+  },
+  "scriptSheetTitle": "Écriture du Mushaf",
+  "@scriptSheetTitle": {
+    "description": "Titre de la feuille de choix d'ecriture"
+  },
+  "scriptSheetExplain": "S'applique à la vue Page. Les premières de la liste dessinent tous les signes coraniques — waqf, sajda, fin de verset, petit zéro des lettres muettes. Plus bas, certains signes manqueront à l'écran.",
+  "@scriptSheetExplain": {
+    "description": "Explication sous le choix d'ecriture"
+  },
+  "prayerTimesTitle": "Horaires de prière",
+  "@prayerTimesTitle": {
+    "description": "Titre de l'ecran des horaires de priere"
+  },
+  "prayerTimesNext": "Prochaine prière",
+  "@prayerTimesNext": {
+    "description": "Libelle de la prochaine priere"
+  },
+  "prayerTimesDetected": "Détectée : {methode}",
+  "@prayerTimesDetected": {
+    "description": "Methode de calcul detectee automatiquement",
+    "placeholders": {
+      "methode": {
+        "type": "String"
+      }
+    }
+  },
+  "qiblaMagneticWarning": "Champ magnétique détecté — éloigne-toi du métal ou d'un aimant (coque, support, enceinte…), puis recalibre en dessinant un « 8 » avec le téléphone.",
+  "@qiblaMagneticWarning": {
+    "description": "Avertissement de perturbation magnetique sur l'ecran Qibla"
+  },
+  "prayerNotifSoon": "Bientôt — {priere} dans {minutes} min",
+  "@prayerNotifSoon": {
+    "description": "Titre de la notification qui precede une priere",
+    "placeholders": {
+      "priere": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "mushafTajwidOnPage": "Tajwid sur la page",
+  "@mushafTajwidOnPage": {
+    "description": "Action qui lance l'ecoute tajwid depuis le verset"
+  },
+  "mushafTajwidWarshIndisponible": "Le mode Tajwid ne fonctionne actuellement que pour la riwaya Hafs -- Warsh arrive prochainement.",
+  "@mushafTajwidWarshIndisponible": {
+    "description": "Message affiche (SnackBar) au tap sur le bouton/l'action Tajwid quand la riwaya active est Warsh -- le preset tajwid y retombe silencieusement sur adulte (cf. judgementOptionsEffectivesProvider), donc le bouton reste visible mais grise, avec ce message explicite au lieu d'ouvrir un ecran qui ne verifierait en pratique rien de plus qu'en mode adulte (2026-09-11)"
+  },
+  "settingsNoiseSuppressTitle": "Suppression de bruit du micro",
+  "@settingsNoiseSuppressTitle": {
+    "description": "Titre du reglage de suppression de bruit"
+  },
+  "prayerNameFajr": "Sobh",
+  "@prayerNameFajr": {
+    "description": "Nom de la priere de l'aube"
+  },
+  "prayerNameDhuhr": "Dhouhr",
+  "@prayerNameDhuhr": {
+    "description": "Nom de la priere de midi"
+  },
+  "prayerNameAsr": "Asr",
+  "@prayerNameAsr": {
+    "description": "Nom de la priere de l'apres-midi"
+  },
+  "prayerNameMaghrib": "Maghrib",
+  "@prayerNameMaghrib": {
+    "description": "Nom de la priere du coucher"
+  },
+  "prayerNameIsha": "Ichaa",
+  "@prayerNameIsha": {
+    "description": "Nom de la priere de la nuit"
+  },
+  "prayerMethodMwl": "Muslim World League",
+  "@prayerMethodMwl": {
+    "description": "Methode de calcul : Ligue islamique mondiale"
+  },
+  "prayerMethodUmmAlQura": "Umm al-Qura (Golfe)",
+  "@prayerMethodUmmAlQura": {
+    "description": "Methode de calcul : Umm al-Qura"
+  },
+  "prayerMethodEgyptian": "Égyptienne",
+  "@prayerMethodEgyptian": {
+    "description": "Methode de calcul : autorite egyptienne"
+  },
+  "prayerMethodFranceUoif": "France (UOIF, 12°)",
+  "@prayerMethodFranceUoif": {
+    "description": "Methode de calcul : convention francaise UOIF"
+  },
+  "prayerInNow": "maintenant",
+  "@prayerInNow": {
+    "description": "Compte a rebours : la priere est a l'instant"
+  },
+  "prayerInMinutes": "dans {minutes} min",
+  "@prayerInMinutes": {
+    "description": "Compte a rebours en minutes",
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "prayerInHours": "dans {heures} h",
+  "@prayerInHours": {
+    "description": "Compte a rebours en heures pleines",
+    "placeholders": {
+      "heures": {
+        "type": "int"
+      }
+    }
+  },
+  "prayerInHoursMinutes": "dans {heures} h {minutes}",
+  "@prayerInHoursMinutes": {
+    "description": "Compte a rebours en heures et minutes",
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      },
+      "heures": {
+        "type": "int"
+      }
+    }
   }
 }

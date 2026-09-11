@@ -1483,6 +1483,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get karaokeVerificationModeTitle => 'وضع التحقق';
 
   @override
+  String get karaokeVerificationModeForcedTajwid => 'وضع التجويد';
+
+  @override
   String get karaokeVerificationModeSubtitle =>
       'أنماط تجويد / بالغ / طفل، 17 حكمًا';
 
@@ -2348,4 +2351,235 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get coachToggleCumulDetail =>
       'يشمل الاختبار كل الآيات المحفوظة منذ بداية الجلسة.';
+
+  @override
+  String get commonStop => 'إيقاف';
+
+  @override
+  String get mushafTajwidBanner =>
+      'الاستماع للتجويد — القواعد الفائتة تظهر بالبنفسجي';
+
+  @override
+  String get mushafClearAllTooltip => 'مسح الكل';
+
+  @override
+  String get mushafClearAllTitle => 'مسح الكل؟';
+
+  @override
+  String get mushafClearAllBody =>
+      'ستُحذف جميع التعليقات في المصحف: التظليل والخطوط، في كل السور، مهما كان تاريخها. لا يمكن التراجع عن هذا الإجراء.';
+
+  @override
+  String get mushafBarTajwid => 'تجويد';
+
+  @override
+  String get mushafBarChain => 'سلسلة';
+
+  @override
+  String get mushafBarMap => 'خريطة';
+
+  @override
+  String get mushafPaperTooltip => 'المصحف الورقي';
+
+  @override
+  String get mushafBookmarkHere => 'ضع علامة هنا';
+
+  @override
+  String get mushafBookmarkRemove => 'إزالة العلامة';
+
+  @override
+  String get tajwidHelpTwoVersesBefore => 'بدءًا من آيتين قبلها';
+
+  @override
+  String get tajwidHelpStepTraining => 'تدريب بالمراحل';
+
+  @override
+  String get tajwidHelpListenImitate => 'استمع، قلّد، تحقّق — في هذه الآية';
+
+  @override
+  String get tajwidHelpGameOrSteps => 'لعبة أو تدريب بالمراحل';
+
+  @override
+  String get settingsDiagnosticSubtitle =>
+      'يسجّل تفاصيل التلاوة للتحليل. اتركه مطفأً في الاستعمال العادي.';
+
+  @override
+  String get settingsMushafScriptTitle => 'خط المصحف';
+
+  @override
+  String get settingsPrayerTimesTitle => 'مواقيت الصلاة';
+
+  @override
+  String get settingsBluetoothMicTitle => 'ميكروفون سماعة البلوتوث';
+
+  @override
+  String get settingsBluetoothMicOn => 'مُفعّل — جودة أقل: البلوتوث يضغط الصوت';
+
+  @override
+  String get settingsBluetoothMicOff =>
+      'مطفأ (مستحسن) — ميكروفون الهاتف ألتقط أفضل';
+
+  @override
+  String get tajwidRulesScreenTitle => 'التحقق من التلاوة';
+
+  @override
+  String get tajwidRulesBetaSection => 'قواعد التجويد (تجريبي)';
+
+  @override
+  String get tajwidRulesBetaNote =>
+      'تُفحص القواعد حسب الوضع المختار أعلاه، على سبيل الإرشاد فقط.';
+
+  @override
+  String get tajwidRulesBetaBadge => 'تجريبي';
+
+  @override
+  String get tajwidRulesBetaWarning =>
+      'الكشف ما زال غير دقيق: قد تُثير هذه القاعدة شكًّا، لكنها لن تُصحّح كلمة بمفردها.';
+
+  @override
+  String get contactTitle => 'اتصل بنا';
+
+  @override
+  String get contactIntro =>
+      'سؤال، خلل تريد الإبلاغ عنه، اقتراح؟ اكتب رسالتك هنا — سيُفتح تطبيق البريد بعدها وكل شيء مُعبّأ، ولا يبقى إلا الإرسال.';
+
+  @override
+  String get contactSubjectLabel => 'الموضوع (اختياري)';
+
+  @override
+  String get contactSubjectDefault => 'القرآن الكريم — رسالة';
+
+  @override
+  String get contactMessageHint => 'اكتب رسالتك…';
+
+  @override
+  String get coachStepsTitle => 'مراحل التلاوة';
+
+  @override
+  String get coachStepsExplain =>
+      'المقطع المُتقن (100 % من الكلمات) ينال علامة. وتكراره كاملًا عدة مرات يفتح حجرًا كريمًا — يرتقي لونه بعدد التلاوات الكاملة.';
+
+  @override
+  String get coachMyRecitations => 'تلاواتي';
+
+  @override
+  String coachArchiveUnreadable(String erreur) {
+    return 'الأرشيف غير قابل للقراءة: $erreur';
+  }
+
+  @override
+  String get coachNoRecitationYet =>
+      'لا توجد تلاوة مسجّلة بعد. بعد تلاوة مُراجَعة، ستجد هنا كل كلمة مُشار إليها — بصوتك.';
+
+  @override
+  String get coachDeleteRecitationTitle => 'حذف هذه التلاوة؟';
+
+  @override
+  String get coachDeleteRecitationBody =>
+      'ستُحذف نتيجة هذه الجلسة وتسجيلات كلماتها نهائيًا. أما سجل المدرّب التراكمي (إحصاءات كل سورة) فلا يتأثر.';
+
+  @override
+  String get coachNoFlaggedWord => 'لا توجد كلمة مُشار إليها في هذه التلاوة.';
+
+  @override
+  String coachNotRecitedYet(int nombre) {
+    return 'لم تُتلَ بعد — $nombre';
+  }
+
+  @override
+  String get coachContinuePortion => 'متابعة/إعادة هذا المقطع';
+
+  @override
+  String get coachDeleteRecitation => 'حذف هذه التلاوة';
+
+  @override
+  String get coachMindMap => 'الخريطة الذهنية';
+
+  @override
+  String get coachStartSurah => 'ابدأ هذه السورة';
+
+  @override
+  String get scriptTajwidColors => 'ألوان التجويد';
+
+  @override
+  String get scriptSheetTitle => 'خط المصحف';
+
+  @override
+  String get scriptSheetExplain =>
+      'ينطبق على عرض الصفحة. الخطوط الأولى في القائمة ترسم جميع العلامات القرآنية — الوقف، السجدة، نهاية الآية، الصفر الصغير للحروف الساكنة. وأسفل القائمة ستغيب بعض العلامات عن الشاشة.';
+
+  @override
+  String get prayerTimesTitle => 'مواقيت الصلاة';
+
+  @override
+  String get prayerTimesNext => 'الصلاة القادمة';
+
+  @override
+  String prayerTimesDetected(String methode) {
+    return 'المكتشفة: $methode';
+  }
+
+  @override
+  String get qiblaMagneticWarning =>
+      'تم رصد مجال مغناطيسي — ابتعد عن المعدن أو المغناطيس (الغطاء، الحامل، السمّاعة…)، ثم أعد المعايرة برسم الرقم 8 بالهاتف.';
+
+  @override
+  String prayerNotifSoon(String priere, int minutes) {
+    return 'قريبًا — $priere بعد $minutes د';
+  }
+
+  @override
+  String get mushafTajwidOnPage => 'التجويد على الصفحة';
+
+  @override
+  String get mushafTajwidWarshIndisponible =>
+      'وضع التجويد يعمل حاليًا لرواية حفص فقط -- رواية ورش قريبًا.';
+
+  @override
+  String get settingsNoiseSuppressTitle => 'كتم ضجيج الميكروفون';
+
+  @override
+  String get prayerNameFajr => 'الفجر';
+
+  @override
+  String get prayerNameDhuhr => 'الظهر';
+
+  @override
+  String get prayerNameAsr => 'العصر';
+
+  @override
+  String get prayerNameMaghrib => 'المغرب';
+
+  @override
+  String get prayerNameIsha => 'العشاء';
+
+  @override
+  String get prayerMethodMwl => 'رابطة العالم الإسلامي';
+
+  @override
+  String get prayerMethodUmmAlQura => 'أم القرى (الخليج)';
+
+  @override
+  String get prayerMethodEgyptian => 'الهيئة المصرية';
+
+  @override
+  String get prayerMethodFranceUoif => 'فرنسا (UOIF، ‏12°)';
+
+  @override
+  String get prayerInNow => 'الآن';
+
+  @override
+  String prayerInMinutes(int minutes) {
+    return 'بعد $minutes د';
+  }
+
+  @override
+  String prayerInHours(int heures) {
+    return 'بعد $heures س';
+  }
+
+  @override
+  String prayerInHoursMinutes(int minutes, int heures) {
+    return 'بعد $heures س $minutes';
+  }
 }

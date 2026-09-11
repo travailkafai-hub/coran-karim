@@ -1562,6 +1562,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get karaokeVerificationModeTitle => 'Mode de vérification';
 
   @override
+  String get karaokeVerificationModeForcedTajwid => 'Mode Tajwid';
+
+  @override
   String get karaokeVerificationModeSubtitle =>
       'Presets tajwid / adulte / enfant, 17 règles';
 
@@ -2451,4 +2454,237 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get coachToggleCumulDetail =>
       'Le contrôle porte sur tous les versets appris depuis le début de la session.';
+
+  @override
+  String get commonStop => 'Arrêter';
+
+  @override
+  String get mushafTajwidBanner =>
+      'Écoute du tajwid — les règles manquées passent en violet';
+
+  @override
+  String get mushafClearAllTooltip => 'Tout effacer';
+
+  @override
+  String get mushafClearAllTitle => 'Tout effacer ?';
+
+  @override
+  String get mushafClearAllBody =>
+      'Toutes les annotations du Mushaf seront supprimées : surlignages et traits, toutes les sourates, quelle que soit leur date. Cette action est irréversible.';
+
+  @override
+  String get mushafBarTajwid => 'Tajwid';
+
+  @override
+  String get mushafBarChain => 'Chaîne';
+
+  @override
+  String get mushafBarMap => 'Carte';
+
+  @override
+  String get mushafPaperTooltip => 'Mushaf papier';
+
+  @override
+  String get mushafBookmarkHere => 'Poser un signet ici';
+
+  @override
+  String get mushafBookmarkRemove => 'Retirer le signet';
+
+  @override
+  String get tajwidHelpTwoVersesBefore => 'En partant deux versets avant';
+
+  @override
+  String get tajwidHelpStepTraining => 'Entraînement par paliers';
+
+  @override
+  String get tajwidHelpListenImitate =>
+      'Écoute, imite, contrôle — sur ce verset';
+
+  @override
+  String get tajwidHelpGameOrSteps => 'Jeu ou entraînement par paliers';
+
+  @override
+  String get settingsDiagnosticSubtitle =>
+      'Enregistre le détail de la récitation pour analyse. À laisser éteint en usage normal.';
+
+  @override
+  String get settingsMushafScriptTitle => 'Écriture du Mushaf';
+
+  @override
+  String get settingsPrayerTimesTitle => 'Horaires de prière';
+
+  @override
+  String get settingsBluetoothMicTitle => 'Micro du casque Bluetooth';
+
+  @override
+  String get settingsBluetoothMicOn =>
+      'Activé — qualité réduite : le Bluetooth compresse la voix';
+
+  @override
+  String get settingsBluetoothMicOff =>
+      'Éteint (recommandé) — le micro du téléphone capte mieux';
+
+  @override
+  String get tajwidRulesScreenTitle => 'Vérification de la récitation';
+
+  @override
+  String get tajwidRulesBetaSection => 'RÈGLES DE TAJWID (BÊTA)';
+
+  @override
+  String get tajwidRulesBetaNote =>
+      'Règles vérifiées selon le mode choisi ci-dessus, à titre indicatif.';
+
+  @override
+  String get tajwidRulesBetaBadge => 'BÊTA';
+
+  @override
+  String get tajwidRulesBetaWarning =>
+      'Détection encore imprécise : cette règle peut signaler un doute, mais ne validera jamais un mot en vert à elle seule.';
+
+  @override
+  String get contactTitle => 'Nous contacter';
+
+  @override
+  String get contactIntro =>
+      'Une question, un bug à signaler, une suggestion ? Écris ton message ici — l\'appli mail s\'ouvrira ensuite avec tout déjà rempli, il ne restera qu\'à l\'envoyer.';
+
+  @override
+  String get contactSubjectLabel => 'OBJET (facultatif)';
+
+  @override
+  String get contactSubjectDefault => 'Coran Karim — message';
+
+  @override
+  String get contactMessageHint => 'Écris ton message…';
+
+  @override
+  String get coachStepsTitle => 'Les paliers de récitation';
+
+  @override
+  String get coachStepsExplain =>
+      'Une portion mastérisée (100 % des mots acquis) gagne une coche. La répéter en entier, plusieurs fois, débloque une pierre précieuse — sa couleur monte avec le nombre de récitations complètes.';
+
+  @override
+  String get coachMyRecitations => 'MES RÉCITATIONS';
+
+  @override
+  String coachArchiveUnreadable(String erreur) {
+    return 'Archive illisible : $erreur';
+  }
+
+  @override
+  String get coachNoRecitationYet =>
+      'Aucune récitation enregistrée pour l’instant. Après une récitation contrôlée, vous retrouverez ici chaque mot signalé — avec votre voix.';
+
+  @override
+  String get coachDeleteRecitationTitle => 'Supprimer cette récitation ?';
+
+  @override
+  String get coachDeleteRecitationBody =>
+      'Le résultat et les enregistrements audio de mots de cette session seront définitivement supprimés. Le journal cumulé du Coach (statistiques par sourate) n\'est pas affecté.';
+
+  @override
+  String get coachNoFlaggedWord => 'Aucun mot signalé sur cette récitation.';
+
+  @override
+  String coachNotRecitedYet(int nombre) {
+    return 'Pas encore récitées — $nombre';
+  }
+
+  @override
+  String get coachContinuePortion => 'Continuer/refaire cette portion';
+
+  @override
+  String get coachDeleteRecitation => 'Supprimer cette récitation';
+
+  @override
+  String get coachMindMap => 'Carte mentale';
+
+  @override
+  String get coachStartSurah => 'Commencer cette sourate';
+
+  @override
+  String get scriptTajwidColors => 'Couleurs du tajwid';
+
+  @override
+  String get scriptSheetTitle => 'Écriture du Mushaf';
+
+  @override
+  String get scriptSheetExplain =>
+      'S\'applique à la vue Page. Les premières de la liste dessinent tous les signes coraniques — waqf, sajda, fin de verset, petit zéro des lettres muettes. Plus bas, certains signes manqueront à l\'écran.';
+
+  @override
+  String get prayerTimesTitle => 'Horaires de prière';
+
+  @override
+  String get prayerTimesNext => 'Prochaine prière';
+
+  @override
+  String prayerTimesDetected(String methode) {
+    return 'Détectée : $methode';
+  }
+
+  @override
+  String get qiblaMagneticWarning =>
+      'Champ magnétique détecté — éloigne-toi du métal ou d\'un aimant (coque, support, enceinte…), puis recalibre en dessinant un « 8 » avec le téléphone.';
+
+  @override
+  String prayerNotifSoon(String priere, int minutes) {
+    return 'Bientôt — $priere dans $minutes min';
+  }
+
+  @override
+  String get mushafTajwidOnPage => 'Tajwid sur la page';
+
+  @override
+  String get mushafTajwidWarshIndisponible =>
+      'Le mode Tajwid ne fonctionne actuellement que pour la riwaya Hafs -- Warsh arrive prochainement.';
+
+  @override
+  String get settingsNoiseSuppressTitle => 'Suppression de bruit du micro';
+
+  @override
+  String get prayerNameFajr => 'Sobh';
+
+  @override
+  String get prayerNameDhuhr => 'Dhouhr';
+
+  @override
+  String get prayerNameAsr => 'Asr';
+
+  @override
+  String get prayerNameMaghrib => 'Maghrib';
+
+  @override
+  String get prayerNameIsha => 'Ichaa';
+
+  @override
+  String get prayerMethodMwl => 'Muslim World League';
+
+  @override
+  String get prayerMethodUmmAlQura => 'Umm al-Qura (Golfe)';
+
+  @override
+  String get prayerMethodEgyptian => 'Égyptienne';
+
+  @override
+  String get prayerMethodFranceUoif => 'France (UOIF, 12°)';
+
+  @override
+  String get prayerInNow => 'maintenant';
+
+  @override
+  String prayerInMinutes(int minutes) {
+    return 'dans $minutes min';
+  }
+
+  @override
+  String prayerInHours(int heures) {
+    return 'dans $heures h';
+  }
+
+  @override
+  String prayerInHoursMinutes(int minutes, int heures) {
+    return 'dans $heures h $minutes';
+  }
 }

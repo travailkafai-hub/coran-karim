@@ -2599,6 +2599,12 @@ abstract class AppLocalizations {
   /// **'Mode de vérification'**
   String get karaokeVerificationModeTitle;
 
+  /// Remplace le titre + le choix de preset dans l'écran de vérification tajwid dédié (widget.modeTajwid) : le preset y est forcé à tajwid, Adulte/Enfant n'ont pas de sens ici (2026-09-11)
+  ///
+  /// In fr, this message translates to:
+  /// **'Mode Tajwid'**
+  String get karaokeVerificationModeForcedTajwid;
+
   /// Sous-titre du réglage mode de vérification
   ///
   /// In fr, this message translates to:
@@ -3930,6 +3936,414 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Le contrôle porte sur tous les versets appris depuis le début de la session.'**
   String get coachToggleCumulDetail;
+
+  /// Bouton d'arret generique (bandeau d'ecoute du Mushaf)
+  ///
+  /// In fr, this message translates to:
+  /// **'Arrêter'**
+  String get commonStop;
+
+  /// Bandeau affiche pendant l'ecoute tajwid sur la page du Mushaf
+  ///
+  /// In fr, this message translates to:
+  /// **'Écoute du tajwid — les règles manquées passent en violet'**
+  String get mushafTajwidBanner;
+
+  /// Info-bulle du bouton qui efface les annotations
+  ///
+  /// In fr, this message translates to:
+  /// **'Tout effacer'**
+  String get mushafClearAllTooltip;
+
+  /// Titre de la confirmation d'effacement
+  ///
+  /// In fr, this message translates to:
+  /// **'Tout effacer ?'**
+  String get mushafClearAllTitle;
+
+  /// Corps de la confirmation d'effacement des annotations
+  ///
+  /// In fr, this message translates to:
+  /// **'Toutes les annotations du Mushaf seront supprimées : surlignages et traits, toutes les sourates, quelle que soit leur date. Cette action est irréversible.'**
+  String get mushafClearAllBody;
+
+  /// Bouton de la barre du Mushaf : ecoute tajwid sur la page
+  ///
+  /// In fr, this message translates to:
+  /// **'Tajwid'**
+  String get mushafBarTajwid;
+
+  /// Bouton de la barre du Mushaf : jeu d'enchainement des mots
+  ///
+  /// In fr, this message translates to:
+  /// **'Chaîne'**
+  String get mushafBarChain;
+
+  /// Bouton de la barre du Mushaf : carte mentale de la sourate
+  ///
+  /// In fr, this message translates to:
+  /// **'Carte'**
+  String get mushafBarMap;
+
+  /// Info-bulle de l'icone d'en-tete qui ouvre la vue page
+  ///
+  /// In fr, this message translates to:
+  /// **'Mushaf papier'**
+  String get mushafPaperTooltip;
+
+  /// Info-bulle du bouton signet quand rien n'est marque
+  ///
+  /// In fr, this message translates to:
+  /// **'Poser un signet ici'**
+  String get mushafBookmarkHere;
+
+  /// Info-bulle du bouton signet quand le verset est marque
+  ///
+  /// In fr, this message translates to:
+  /// **'Retirer le signet'**
+  String get mushafBookmarkRemove;
+
+  /// Sous-titre d'une action de la feuille d'aide tajwid
+  ///
+  /// In fr, this message translates to:
+  /// **'En partant deux versets avant'**
+  String get tajwidHelpTwoVersesBefore;
+
+  /// Titre d'une action de la feuille d'aide tajwid
+  ///
+  /// In fr, this message translates to:
+  /// **'Entraînement par paliers'**
+  String get tajwidHelpStepTraining;
+
+  /// Sous-titre de l'entrainement par paliers
+  ///
+  /// In fr, this message translates to:
+  /// **'Écoute, imite, contrôle — sur ce verset'**
+  String get tajwidHelpListenImitate;
+
+  /// Intitule groupant les deux modes d'entrainement
+  ///
+  /// In fr, this message translates to:
+  /// **'Jeu ou entraînement par paliers'**
+  String get tajwidHelpGameOrSteps;
+
+  /// Description de l'interrupteur de diagnostic
+  ///
+  /// In fr, this message translates to:
+  /// **'Enregistre le détail de la récitation pour analyse. À laisser éteint en usage normal.'**
+  String get settingsDiagnosticSubtitle;
+
+  /// Entree de reglages qui ouvre le choix d'ecriture
+  ///
+  /// In fr, this message translates to:
+  /// **'Écriture du Mushaf'**
+  String get settingsMushafScriptTitle;
+
+  /// Entree de reglages qui ouvre les horaires de priere
+  ///
+  /// In fr, this message translates to:
+  /// **'Horaires de prière'**
+  String get settingsPrayerTimesTitle;
+
+  /// Titre du reglage de routage du micro vers un casque Bluetooth
+  ///
+  /// In fr, this message translates to:
+  /// **'Micro du casque Bluetooth'**
+  String get settingsBluetoothMicTitle;
+
+  /// Sous-titre quand le micro Bluetooth est actif
+  ///
+  /// In fr, this message translates to:
+  /// **'Activé — qualité réduite : le Bluetooth compresse la voix'**
+  String get settingsBluetoothMicOn;
+
+  /// Sous-titre quand le micro Bluetooth est eteint
+  ///
+  /// In fr, this message translates to:
+  /// **'Éteint (recommandé) — le micro du téléphone capte mieux'**
+  String get settingsBluetoothMicOff;
+
+  /// Titre de l'ecran des regles de tajwid
+  ///
+  /// In fr, this message translates to:
+  /// **'Vérification de la récitation'**
+  String get tajwidRulesScreenTitle;
+
+  /// Titre de la section beta des regles
+  ///
+  /// In fr, this message translates to:
+  /// **'RÈGLES DE TAJWID (BÊTA)'**
+  String get tajwidRulesBetaSection;
+
+  /// Note sous la section des regles
+  ///
+  /// In fr, this message translates to:
+  /// **'Règles vérifiées selon le mode choisi ci-dessus, à titre indicatif.'**
+  String get tajwidRulesBetaNote;
+
+  /// Etiquette beta sur une regle
+  ///
+  /// In fr, this message translates to:
+  /// **'BÊTA'**
+  String get tajwidRulesBetaBadge;
+
+  /// Avertissement sur une regle encore imprecise
+  ///
+  /// In fr, this message translates to:
+  /// **'Détection encore imprécise : cette règle peut signaler un doute, mais ne validera jamais un mot en vert à elle seule.'**
+  String get tajwidRulesBetaWarning;
+
+  /// Titre de l'ecran de contact
+  ///
+  /// In fr, this message translates to:
+  /// **'Nous contacter'**
+  String get contactTitle;
+
+  /// Texte d'introduction de l'ecran de contact
+  ///
+  /// In fr, this message translates to:
+  /// **'Une question, un bug à signaler, une suggestion ? Écris ton message ici — l\'appli mail s\'ouvrira ensuite avec tout déjà rempli, il ne restera qu\'à l\'envoyer.'**
+  String get contactIntro;
+
+  /// Etiquette du champ objet
+  ///
+  /// In fr, this message translates to:
+  /// **'OBJET (facultatif)'**
+  String get contactSubjectLabel;
+
+  /// Objet par defaut de l'e-mail
+  ///
+  /// In fr, this message translates to:
+  /// **'Coran Karim — message'**
+  String get contactSubjectDefault;
+
+  /// Texte d'invite du champ message
+  ///
+  /// In fr, this message translates to:
+  /// **'Écris ton message…'**
+  String get contactMessageHint;
+
+  /// Titre de l'aide sur les paliers, et info-bulle qui l'ouvre
+  ///
+  /// In fr, this message translates to:
+  /// **'Les paliers de récitation'**
+  String get coachStepsTitle;
+
+  /// Explication du systeme de paliers et de pierres
+  ///
+  /// In fr, this message translates to:
+  /// **'Une portion mastérisée (100 % des mots acquis) gagne une coche. La répéter en entier, plusieurs fois, débloque une pierre précieuse — sa couleur monte avec le nombre de récitations complètes.'**
+  String get coachStepsExplain;
+
+  /// Titre de la section listant les recitations
+  ///
+  /// In fr, this message translates to:
+  /// **'MES RÉCITATIONS'**
+  String get coachMyRecitations;
+
+  /// Message quand l'archive des sessions ne se lit pas
+  ///
+  /// In fr, this message translates to:
+  /// **'Archive illisible : {erreur}'**
+  String coachArchiveUnreadable(String erreur);
+
+  /// Message quand aucune session n'a encore ete enregistree
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune récitation enregistrée pour l’instant. Après une récitation contrôlée, vous retrouverez ici chaque mot signalé — avec votre voix.'**
+  String get coachNoRecitationYet;
+
+  /// Titre de la confirmation de suppression
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer cette récitation ?'**
+  String get coachDeleteRecitationTitle;
+
+  /// Corps de la confirmation de suppression d'une session
+  ///
+  /// In fr, this message translates to:
+  /// **'Le résultat et les enregistrements audio de mots de cette session seront définitivement supprimés. Le journal cumulé du Coach (statistiques par sourate) n\'est pas affecté.'**
+  String get coachDeleteRecitationBody;
+
+  /// Message quand une session ne contient aucun mot signale
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucun mot signalé sur cette récitation.'**
+  String get coachNoFlaggedWord;
+
+  /// Titre de la section des sourates jamais recitees
+  ///
+  /// In fr, this message translates to:
+  /// **'Pas encore récitées — {nombre}'**
+  String coachNotRecitedYet(int nombre);
+
+  /// Info-bulle du bouton qui relance une portion
+  ///
+  /// In fr, this message translates to:
+  /// **'Continuer/refaire cette portion'**
+  String get coachContinuePortion;
+
+  /// Info-bulle du bouton de suppression d'une session
+  ///
+  /// In fr, this message translates to:
+  /// **'Supprimer cette récitation'**
+  String get coachDeleteRecitation;
+
+  /// Info-bulle du bouton qui ouvre la carte mentale
+  ///
+  /// In fr, this message translates to:
+  /// **'Carte mentale'**
+  String get coachMindMap;
+
+  /// Info-bulle du bouton qui lance une sourate neuve
+  ///
+  /// In fr, this message translates to:
+  /// **'Commencer cette sourate'**
+  String get coachStartSurah;
+
+  /// Interrupteur des couleurs de tajwid dans la vue Page
+  ///
+  /// In fr, this message translates to:
+  /// **'Couleurs du tajwid'**
+  String get scriptTajwidColors;
+
+  /// Titre de la feuille de choix d'ecriture
+  ///
+  /// In fr, this message translates to:
+  /// **'Écriture du Mushaf'**
+  String get scriptSheetTitle;
+
+  /// Explication sous le choix d'ecriture
+  ///
+  /// In fr, this message translates to:
+  /// **'S\'applique à la vue Page. Les premières de la liste dessinent tous les signes coraniques — waqf, sajda, fin de verset, petit zéro des lettres muettes. Plus bas, certains signes manqueront à l\'écran.'**
+  String get scriptSheetExplain;
+
+  /// Titre de l'ecran des horaires de priere
+  ///
+  /// In fr, this message translates to:
+  /// **'Horaires de prière'**
+  String get prayerTimesTitle;
+
+  /// Libelle de la prochaine priere
+  ///
+  /// In fr, this message translates to:
+  /// **'Prochaine prière'**
+  String get prayerTimesNext;
+
+  /// Methode de calcul detectee automatiquement
+  ///
+  /// In fr, this message translates to:
+  /// **'Détectée : {methode}'**
+  String prayerTimesDetected(String methode);
+
+  /// Avertissement de perturbation magnetique sur l'ecran Qibla
+  ///
+  /// In fr, this message translates to:
+  /// **'Champ magnétique détecté — éloigne-toi du métal ou d\'un aimant (coque, support, enceinte…), puis recalibre en dessinant un « 8 » avec le téléphone.'**
+  String get qiblaMagneticWarning;
+
+  /// Titre de la notification qui precede une priere
+  ///
+  /// In fr, this message translates to:
+  /// **'Bientôt — {priere} dans {minutes} min'**
+  String prayerNotifSoon(String priere, int minutes);
+
+  /// Action qui lance l'ecoute tajwid depuis le verset
+  ///
+  /// In fr, this message translates to:
+  /// **'Tajwid sur la page'**
+  String get mushafTajwidOnPage;
+
+  /// Message affiche (SnackBar) au tap sur le bouton/l'action Tajwid quand la riwaya active est Warsh -- le preset tajwid y retombe silencieusement sur adulte (cf. judgementOptionsEffectivesProvider), donc le bouton reste visible mais grise, avec ce message explicite au lieu d'ouvrir un ecran qui ne verifierait en pratique rien de plus qu'en mode adulte (2026-09-11)
+  ///
+  /// In fr, this message translates to:
+  /// **'Le mode Tajwid ne fonctionne actuellement que pour la riwaya Hafs -- Warsh arrive prochainement.'**
+  String get mushafTajwidWarshIndisponible;
+
+  /// Titre du reglage de suppression de bruit
+  ///
+  /// In fr, this message translates to:
+  /// **'Suppression de bruit du micro'**
+  String get settingsNoiseSuppressTitle;
+
+  /// Nom de la priere de l'aube
+  ///
+  /// In fr, this message translates to:
+  /// **'Sobh'**
+  String get prayerNameFajr;
+
+  /// Nom de la priere de midi
+  ///
+  /// In fr, this message translates to:
+  /// **'Dhouhr'**
+  String get prayerNameDhuhr;
+
+  /// Nom de la priere de l'apres-midi
+  ///
+  /// In fr, this message translates to:
+  /// **'Asr'**
+  String get prayerNameAsr;
+
+  /// Nom de la priere du coucher
+  ///
+  /// In fr, this message translates to:
+  /// **'Maghrib'**
+  String get prayerNameMaghrib;
+
+  /// Nom de la priere de la nuit
+  ///
+  /// In fr, this message translates to:
+  /// **'Ichaa'**
+  String get prayerNameIsha;
+
+  /// Methode de calcul : Ligue islamique mondiale
+  ///
+  /// In fr, this message translates to:
+  /// **'Muslim World League'**
+  String get prayerMethodMwl;
+
+  /// Methode de calcul : Umm al-Qura
+  ///
+  /// In fr, this message translates to:
+  /// **'Umm al-Qura (Golfe)'**
+  String get prayerMethodUmmAlQura;
+
+  /// Methode de calcul : autorite egyptienne
+  ///
+  /// In fr, this message translates to:
+  /// **'Égyptienne'**
+  String get prayerMethodEgyptian;
+
+  /// Methode de calcul : convention francaise UOIF
+  ///
+  /// In fr, this message translates to:
+  /// **'France (UOIF, 12°)'**
+  String get prayerMethodFranceUoif;
+
+  /// Compte a rebours : la priere est a l'instant
+  ///
+  /// In fr, this message translates to:
+  /// **'maintenant'**
+  String get prayerInNow;
+
+  /// Compte a rebours en minutes
+  ///
+  /// In fr, this message translates to:
+  /// **'dans {minutes} min'**
+  String prayerInMinutes(int minutes);
+
+  /// Compte a rebours en heures pleines
+  ///
+  /// In fr, this message translates to:
+  /// **'dans {heures} h'**
+  String prayerInHours(int heures);
+
+  /// Compte a rebours en heures et minutes
+  ///
+  /// In fr, this message translates to:
+  /// **'dans {heures} h {minutes}'**
+  String prayerInHoursMinutes(int minutes, int heures);
 }
 
 class _AppLocalizationsDelegate

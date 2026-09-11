@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../models/player_state_model.dart';
+import '../models/riwaya.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/mushaf_annotation_provider.dart';
 import '../providers/player_provider.dart';
@@ -516,7 +517,10 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         (_verses.isEmpty ? 1 : (_verses.first.pageNumber ?? 1));
     final lue = await Navigator.of(context).push<int>(
       MaterialPageRoute(
-        builder: (_) => MushafMaquetteScreen(pageInitiale: page),
+        builder: (_) => MushafMaquetteScreen(
+          pageInitiale: page,
+          modeSystemeAuRetour: SystemUiMode.immersiveSticky,
+        ),
       ),
     );
     if (!mounted || lue == null || lue == page) return;
@@ -1021,8 +1025,25 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                             onMoreTap: _openReadingSettings,
                             onBookmarkTap:
                                 _verses.isEmpty ? null : _basculerMarquePage,
-                            onTajwidTap:
-                                _verses.isEmpty ? null : _openKaraokeTajwid,
+                            // Warsh (2026-09-11, demande utilisateur) : le
+                            // bouton reste visible (grise) plutot que de
+                            // disparaitre -- « desactive le menu tajwid
+                            // quand c'est Warsh avec message d'information
+                            // si on clique dessus pour dire qu'il marche
+                            // actuellement que pour Hafs, prochainement sur
+                            // Warsh ». Justifie : `judgementOptionsEffectivesProvider`
+                            // fait DEJA retomber le preset tajwid sur adulte
+                            // en Warsh (vocabulaire de regles pas raccorde,
+                            // cf. son commentaire) -- ouvrir l'ecran sans le
+                            // dire aurait laisse croire a une verification
+                            // tajwid qui, en pratique, n'en est pas une.
+                            onTajwidTap: _verses.isEmpty
+                                ? null
+                                : (ref.watch(riwayaProvider) == Riwaya.warsh
+                                    ? _afficherInfoTajwidWarsh
+                                    : _openKaraokeTajwid),
+                            tajwidIndisponible:
+                                ref.watch(riwayaProvider) == Riwaya.warsh,
                             onCarteMentaleTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) =>
@@ -1713,6 +1734,24 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
       ));
   }
 
+  /// Tajwid indisponible en Warsh (2026-09-11) -- cf. le commentaire de
+  /// `onTajwidTap` dans `_BottomBar` et le garde-fou jumeau de
+  /// `judgementOptionsEffectivesProvider`. Meme style de SnackBar que
+  /// `_basculerMarquePage` juste au-dessus.
+  void _afficherInfoTajwidWarsh() {
+    final t = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        duration: const Duration(seconds: 3),
+        backgroundColor: AppColors.green900,
+        content: Text(
+          t.mushafTajwidWarshIndisponible,
+          style: GoogleFonts.manrope(fontSize: 13, color: AppColors.cream),
+        ),
+      ));
+  }
+
   void _openMemorization() {
     final verse = _verses[_activeVerse];
     Navigator.push(context,
@@ -1824,7 +1863,17 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                 _ActionVerset(
                   icone: Icons.spellcheck_rounded,
                   libelle: AppLocalizations.of(context)!.mushafTajwidOnPage,
-                  onTap: () { Navigator.pop(ctx); _openKaraokeTajwid(); },
+                  // Warsh (2026-09-11) : meme garde-fou que le bouton
+                  // Tajwid de `_BottomBar`, cf. son commentaire.
+                  disabled: ref.read(riwayaProvider) == Riwaya.warsh,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    if (ref.read(riwayaProvider) == Riwaya.warsh) {
+                      _afficherInfoTajwidWarsh();
+                    } else {
+                      _openKaraokeTajwid();
+                    }
+                  },
                 ),
                 _ActionVerset(
                   // Icône dédiée (2026-08-28, demande utilisateur) --
@@ -2798,6 +2847,11 @@ class _BottomBar extends StatelessWidget {
   final VoidCallback? onBookmarkLongPress;
   /// Mode « Tajwid » : lecture sur la page, seules les regles sont signalees.
   final VoidCallback? onTajwidTap;
+  /// Vrai en riwaya Warsh (2026-09-11) : le bouton reste visible mais grise
+  /// (`onTajwidTap` affiche alors un message d'information au lieu
+  /// d'ouvrir l'ecran -- cf. son commentaire d'appel). Cf. le garde-fou
+  /// jumeau de `judgementOptionsEffectivesProvider`.
+  final bool tajwidIndisponible;
 
   /// Carte mentale de la sourate. Cf. le bloc « LA CARTE MENTALE EST ICI »
   /// dans le corps : elle a quitte l'en-tete le 2026-09-09, et n'a PAS ete
@@ -2817,7 +2871,7 @@ class _BottomBar extends StatelessWidget {
     this.onReciteTap, this.onChainTap,
     this.onMoreTap,
     this.onBookmarkTap, this.onBookmarkLongPress, this.estMarque = false,
-    this.onTajwidTap, this.onCarteMentaleTap,
+    this.onTajwidTap, this.tajwidIndisponible = false, this.onCarteMentaleTap,
     this.isPlaying = false,
     this.modeSombre = false,
   });
@@ -2893,6 +2947,12 @@ class _BottomBar extends StatelessWidget {
                 _BarButton(
                   icon: Icons.record_voice_over_rounded,
                   label: t.mushafBarTajwid,
+                  // Grise en Warsh (2026-09-11) -- `onTajwidTap` reste actif
+                  // (message d'info), seule l'apparence change : cf.
+                  // `tajwidIndisponible`.
+                  color: tajwidIndisponible
+                      ? AppColors.cream.withAlpha(90)
+                      : null,
                   onTap: onTajwidTap ?? () {},
                 ),
                 // GROS MICRO DE RÉCITATION RETIRÉ le 2026-07-20 (demande
@@ -3051,25 +3111,33 @@ class _ActionVerset extends StatelessWidget {
   final IconData icone;
   final String libelle;
   final VoidCallback onTap;
+  /// Grise l'icone et le libelle SANS desactiver `onTap` (2026-09-11, meme
+  /// principe que `tajwidIndisponible` dans `_BarButton` -- le tap doit
+  /// rester actif pour afficher un message d'information).
+  final bool disabled;
   const _ActionVerset(
-      {required this.icone, required this.libelle, required this.onTap});
+      {required this.icone,
+      required this.libelle,
+      required this.onTap,
+      this.disabled = false});
 
   @override
   Widget build(BuildContext context) {
+    final c = disabled ? AppColors.inkLight.withAlpha(140) : AppColors.green800;
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
         child: Row(
           children: [
-            Icon(icone, color: AppColors.green800, size: 22),
+            Icon(icone, color: c, size: 22),
             const SizedBox(width: 14),
             Expanded(
               child: Text(libelle,
                   style: GoogleFonts.manrope(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.ink)),
+                      color: disabled ? AppColors.inkLight.withAlpha(140) : AppColors.ink)),
             ),
             const Icon(Icons.chevron_right_rounded,
                 color: AppColors.inkLight, size: 20),
