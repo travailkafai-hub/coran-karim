@@ -2,10 +2,14 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
+import '../models/reciter.dart';
+import '../models/riwaya.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/mushaf_annotation_provider.dart';
 import '../providers/player_provider.dart';
+import '../screens/reciter_select_screen.dart';
 import '../theme/app_theme.dart';
+import 'choix_ecriture_sheet.dart';
 
 /// Réglages de lecture (demande utilisateur 2026-07-06) : taille du texte
 /// ("zoomer") et défilement automatique à vitesse réglable ("lire le Coran
@@ -18,7 +22,9 @@ import '../theme/app_theme.dart';
 /// `_MushafScreenState._showTranslation` (pas un réglage persistant comme les
 /// autres de cette feuille) ; `onToggleTranslation` null masque simplement la
 /// section, pour un futur appelant qui n'aurait pas ce concept.
-/// [cleVersetActif]/[onToggleSignet]/[onOuvrirSignets] (2026-09-05) : le
+/// [cleVersetActif]/[onToggleSignet] (2026-09-05) : le
+/// (`onOuvrirSignets` retire le 2026-09-09 -- il n'y a plus de LISTE de
+///  signets, cf. le bloc « MES SIGNETS A ETE RETIRE » dans le corps)
 /// SIGNET descend de la barre du bas du Mushaf, dont le tajwid a pris la place
 /// (demande utilisateur : « acces rapide depuis le menu avec une icone propre ;
 /// par exemple le signet, range-le a un autre endroit »). Il y gagne ce que
@@ -32,7 +38,6 @@ void showReadingSettingsSheet(
   VoidCallback? onToggleTranslation,
   String? cleVersetActif,
   VoidCallback? onToggleSignet,
-  VoidCallback? onOuvrirSignets,
 }) {
   showModalBottomSheet(
     context: context,
@@ -51,7 +56,6 @@ void showReadingSettingsSheet(
       onToggleTranslation: onToggleTranslation,
       cleVersetActif: cleVersetActif,
       onToggleSignet: onToggleSignet,
-      onOuvrirSignets: onOuvrirSignets,
     ),
   );
 }
@@ -78,13 +82,12 @@ class _ReadingSettingsSheet extends ConsumerStatefulWidget {
   /// Cf. la doc de [showReadingSettingsSheet].
   final String? cleVersetActif;
   final VoidCallback? onToggleSignet;
-  final VoidCallback? onOuvrirSignets;
+
   const _ReadingSettingsSheet({
     required this.showTranslation,
     required this.onToggleTranslation,
     this.cleVersetActif,
     this.onToggleSignet,
-    this.onOuvrirSignets,
   });
 
   @override
@@ -112,6 +115,18 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
     final playerState = ref.watch(playerProvider);
     final playbackSpeed = playerState.speed;
     const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+    // ── RÉCITATEUR / ÉCRITURE / RIWAYA (2026-09-11) ─────────────────────────
+    // Cf. les deux blocs plus bas pour le pourquoi du déménagement depuis
+    // settings_screen.dart. Même calcul de sous-titre récitateur que là-bas
+    // (REFONTE_IHM.md §7bis : aucun mot latin à l'écran en arabe).
+    final riwaya = ref.watch(riwayaProvider);
+    final reciter = playerState.reciter;
+    final reciterStyleLabel = reciter.style == 'Mujawwad'
+        ? t.settingsStyleMujawwad
+        : t.settingsStyleMurattal;
+    final reciterSubtitle = isArabic
+        ? '${reciter.nameAr} • $reciterStyleLabel'
+        : '${reciter.nameFr}  •  ${reciter.style}';
 
     return SafeArea(
       child: ConstrainedBox(
@@ -182,6 +197,67 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
                 ),
               ],
             ),
+            // ── ÉCRITURE DU MUSHAF ET RIWAYA (2026-09-11) ────────────────
+            //
+            // Déménagées depuis settings_screen.dart (Réglages généraux),
+            // où elles vivaient depuis leur création -- cf. le commentaire
+            // toujours en place là-bas, conservé pour expliquer pourquoi
+            // elles y étaient (« fais-moi toutes les écritures en
+            // paramètre » pour l'écriture, 2026-09-03 ; « placée juste sous
+            // le récitateur » pour la riwaya, 2026-08-12). Demande
+            // utilisateur du jour : ce sont des réglages qu'on ajuste EN
+            // LISANT le Mushaf, pas des réglages généraux de l'app -- « le
+            // mieux les mettre [...] côté Mushaf, facile d'accès ». Même
+            // famille que la taille du texte juste au-dessus : comment le
+            // texte s'écrit et se lit.
+            const SizedBox(height: 14),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.font_download_outlined,
+                  color: AppColors.green800, size: 20),
+              title: Text(t.settingsMushafScriptTitle,
+                  style:
+                      GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink)),
+              subtitle: Text(
+                  libelleEcriture(ref.watch(policeMushafPageProvider)),
+                  style: GoogleFonts.manrope(
+                      fontSize: 12, color: AppColors.inkLight)),
+              trailing: const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.inkLight),
+              onTap: () =>
+                  ouvrirChoixEcriture(context, ref, sombre: modeSombre),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.menu_book_rounded,
+                  color: AppColors.green800, size: 20),
+              title: Text(t.settingsRiwayaTitle,
+                  style:
+                      GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink)),
+              subtitle: Text(
+                  riwaya == Riwaya.warsh
+                      ? t.settingsRiwayaWarsh
+                      : t.settingsRiwayaHafs,
+                  style: GoogleFonts.manrope(
+                      fontSize: 12, color: AppColors.inkLight)),
+              value: riwaya == Riwaya.warsh,
+              activeColor: AppColors.green700,
+              onChanged: (v) async {
+                await ref
+                    .read(riwayaProvider.notifier)
+                    .set(v ? Riwaya.warsh : Riwaya.hafs);
+                // Le récitateur doit suivre le texte, sinon on entend une
+                // riwāya et on en lit une autre (même geste que l'ancien
+                // emplacement, settings_screen.dart).
+                ref.read(playerProvider.notifier).accorderALaRiwaya();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(t.settingsRiwayaChangeNotice),
+                    duration: const Duration(seconds: 4),
+                  ));
+                }
+              },
+            ),
             // ── SIGNET (2026-09-05) ───────────────────────────────────
             //
             // Deux lignes la ou il y avait un bouton a deux gestes : poser le
@@ -192,43 +268,45 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
             // L'etat se LIT ici (`marquePagesProvider`), il n'est pas recu :
             // la ligne change donc de libelle et d'icone au moment du tap,
             // feuille ouverte.
-            if (widget.onToggleSignet != null &&
-                widget.cleVersetActif != null) ...[
-              Builder(builder: (_) {
-                final marque = ref
-                    .watch(marquePagesProvider)
-                    .contains(widget.cleVersetActif!);
-                return Column(mainAxisSize: MainAxisSize.min, children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                        marque
-                            ? Icons.bookmark_rounded
-                            : Icons.bookmark_border_rounded,
-                        color: marque ? AppColors.brass : AppColors.green800,
-                        size: 20),
-                    title: Text(t.mushafFavorites,
-                        style: GoogleFonts.manrope(
-                            fontSize: 13.5, color: AppColors.ink)),
-                    onTap: widget.onToggleSignet,
-                  ),
-                  if (widget.onOuvrirSignets != null)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.bookmarks_rounded,
-                          color: AppColors.green800, size: 20),
-                      title: Text(t.mushafBookmarksTitle,
-                          style: GoogleFonts.manrope(
-                              fontSize: 13.5, color: AppColors.ink)),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        widget.onOuvrirSignets!();
-                      },
-                    ),
-                ]);
-              }),
-              const Divider(height: 20),
-            ],
+            // ── UNE ENTREE SORT, UNE ENTRE (2026-09-09) ──────────────────
+            //
+            // Demande utilisateur, en trois temps : « a la place de l'acces
+            // mindmap remplace-le par l'acces Mushaf papier ; a la place de
+            // l'icone Mushaf papier rajoute la possibilite de marquer signet
+            // la ou on est arrive ; enleve Signet des parametres des trois
+            // points ».
+            //
+            // CE QUI EST PARTI D'ICI : l'action « Signet » (poser/retirer sur
+            // le verset actif). Elle est devenue le bouton rond de l'ecran de
+            // lecture -- c'est un geste qu'on fait EN LISANT, a l'endroit
+            // precis ou l'on s'arrete, il n'avait rien a faire au fond d'un
+            // panneau. Son icone y suit l'etat du verset.
+            //
+            // CE QUI EST GARDE : « Mes signets », la LISTE. C'est une
+            // consultation et non un geste de lecture, et c'est le seul moyen
+            // de revenir a un signet pose ailleurs.
+            //
+            // CE QUI ARRIVE : la carte mentale, qui occupait l'en-tete. Elle
+            // s'ouvre UNE FOIS pour situer une sourate ; le signet se pose au
+            // fil de la lecture. L'acces en un tap va a ce qu'on repete. Le
+            // panneau ne s'allonge donc d'aucune ligne : c'est un echange.
+            // ── CE BLOC A ETE VIDE, EN DEUX TEMPS (2026-09-09) ───────────
+            //
+            // Il portait « Signet » (poser) puis « Mes signets » (la liste),
+            // et j'y avais fait descendre la carte mentale. Les trois en sont
+            // sortis le meme jour, chacun pour sa raison :
+            //
+            //   - « Signet » : poser un signet est un geste qu'on fait EN
+            //     LISANT, il est devenu le bouton rond de l'ecran ;
+            //   - « Mes signets » : il n'y a plus de liste, un seul signet
+            //     existe (cf. `marquePagesProvider`, `Set<String>` -> `String?`) ;
+            //   - la carte mentale : « je ne suis pas d'accord pour cacher la
+            //     carte mentale » -- elle est remontee dans la barre du bas,
+            //     ou elle se voit sans ouvrir quoi que ce soit.
+            //
+            // Ce qui reste vrai et vaut d'etre garde : un panneau qu'il faut
+            // ouvrir n'est pas un acces, c'est un rangement. Ce qui se repete
+            // en lisant appartient a l'ecran, pas au tiroir.
             Center(
               child: Text(
                 'بِسْمِ ٱللَّهِ',
@@ -296,6 +374,39 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
             const SizedBox(height: 22),
             _EnTeteIntention(t.readingSettingsGroupListen),
             const SizedBox(height: 10),
+            // ── RÉCITATEUR (2026-09-11) ──────────────────────────────────
+            //
+            // Déménagé depuis settings_screen.dart, même mouvement que
+            // l'écriture et la riwaya ci-dessus (cf. leur commentaire).
+            // Choix TRANSVERSE au départ (écoute, souffleur, corrections
+            // audio -- cf. la note d'origine, toujours en place là-bas),
+            // mais c'est ICI, en train d'écouter le Mushaf, qu'on a besoin
+            // d'en changer : en tête du bloc ÉCOUTER, avant la vitesse.
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.record_voice_over,
+                  color: AppColors.green800, size: 20),
+              title: Text(t.settingsReciterTitle,
+                  style:
+                      GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink)),
+              subtitle: Text(reciterSubtitle,
+                  style: GoogleFonts.manrope(
+                      fontSize: 12, color: AppColors.inkLight)),
+              trailing: const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.inkLight),
+              onTap: () async {
+                final picked = await Navigator.push<Reciter>(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          ReciterSelectScreen(currentId: reciter.id)),
+                );
+                if (picked != null) {
+                  ref.read(playerProvider.notifier).setReciter(picked);
+                }
+              },
+            ),
+            const SizedBox(height: 14),
             Text(
               t.readingSettingsPlaybackSpeedSection,
               style: GoogleFonts.manrope(

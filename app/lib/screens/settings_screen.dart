@@ -4,11 +4,7 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
-import '../models/reciter.dart';
-import '../models/riwaya.dart';
-import '../widgets/choix_ecriture_sheet.dart';
 import '../providers/app_settings_provider.dart';
-import '../providers/player_provider.dart';
 import '../providers/recitation_provider.dart' show recitationVerifierProvider;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/diagnostic_log.dart';
@@ -18,7 +14,6 @@ import 'about_screen.dart';
 import 'contact_screen.dart';
 import 'prayer_times_settings_screen.dart';
 import 'qibla_screen.dart';
-import 'reciter_select_screen.dart';
 // Conservé en commentaire : l'écran de calibrage existe toujours, seule son
 // entrée dans les Réglages est retirée de la v1 (cf. plus bas).
 // import 'voice_calibration_screen.dart';
@@ -30,18 +25,10 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
     final locale = ref.watch(appLocaleProvider);
-    final reciter = ref.watch(playerProvider).reciter;
-    final riwaya = ref.watch(riwayaProvider);
-    // En arabe, aucun mot latin à l'écran (règle verrouillée REFONTE_IHM.md
-    // §7bis) : le nom du récitateur et son style passent en arabe ; en fr/en,
-    // le nom romanisé + le style (termes techniques déjà transparents dans
-    // les deux langues) restent, avec le nom arabe en flourish à droite.
-    final reciterStyleLabel = reciter.style == 'Mujawwad'
-        ? t.settingsStyleMujawwad
-        : t.settingsStyleMurattal;
-    final reciterSubtitle = locale == 'ar'
-        ? '${reciter.nameAr} • $reciterStyleLabel'
-        : '${reciter.nameFr}  •  ${reciter.style}';
+    // Le calcul du sous-titre récitateur (nom + style, règle REFONTE_IHM.md
+    // §7bis sur l'arabe sans mot latin) vit désormais dans
+    // reading_settings_sheet.dart, avec le réglage lui-même -- cf. la note
+    // de migration plus bas (2026-09-11).
     return Scaffold(
       backgroundColor: AppColors.cream,
       appBar: AppBar(
@@ -71,38 +58,26 @@ class SettingsScreen extends ConsumerWidget {
           //      * RÉCITATEUR -> reste ici (ci-dessous) : transverse (écoute,
           //        souffleur, corrections audio), pas propre à la récitation.
           _SectionHeader(t.settingsSectionAudio),
-          // Le RÉCITATEUR reste ici, dans les réglages généraux (précision
+          // ── RÉCITATEUR, ÉCRITURE ET RIWAYA : DÉMÉNAGÉS (2026-09-11) ──────
+          //
+          // Les trois tiles qui vivaient ici sont parties dans le tiroir
+          // « Plus » du Mushaf (reading_settings_sheet.dart) : demande
+          // utilisateur, mettre ces réglages « côté Mushaf, facile d'accès »
+          // plutôt qu'au fond des Réglages généraux. Les commentaires
+          // ci-dessous, conservés (règle projet : ne pas effacer le
+          // "pourquoi" d'une décision passée), expliquent pourquoi ils
+          // étaient ICI à l'origine -- ce raisonnement reste vrai en tant
+          // qu'historique, il est simplement devenu secondaire face à la
+          // demande d'accès direct pendant la lecture.
+          //
+          // Le RÉCITATEUR restait ici, dans les réglages généraux (précision
           // utilisateur 2026-07-20 : « le récitateur c'est dans réglages
-          // générale »). C'est un choix TRANSVERSE : il sert à l'écoute d'une
-          // sourate, au souffleur, aux corrections audio -- pas seulement à la
-          // récitation. Les paramètres de VÉRIFICATION, eux, vivent sur
-          // l'écran de récitation (icône dédiée), cf. REFONTE_IHM.md §11.
-          _SettingsTile(
-            icon: Icons.record_voice_over,
-            title: t.settingsReciterTitle,
-            subtitle: reciterSubtitle,
-            color: AppColors.settingsAudio,
-            // Flourish calligraphique -- uniquement en fr/en (en arabe, le
-            // nom arabe est déjà le sous-titre principal, pas de doublon).
-            trailing: locale == 'ar'
-                ? null
-                : Text(reciter.nameAr,
-                    textDirection: TextDirection.rtl,
-                    style: GoogleFonts.scheherazadeNew(
-                        fontSize: 14, color: AppColors.green700)),
-            onTap: () async {
-              final picked = await Navigator.push<Reciter>(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => ReciterSelectScreen(
-                        currentId: ref.read(playerProvider).reciter.id)),
-              );
-              if (picked != null) {
-                ref.read(playerProvider.notifier).setReciter(picked);
-              }
-            },
-          ),
-
+          // générale »). C'était un choix TRANSVERSE : il sert à l'écoute
+          // d'une sourate, au souffleur, aux corrections audio -- pas
+          // seulement à la récitation. Les paramètres de VÉRIFICATION, eux,
+          // restent sur l'écran de récitation (icône dédiée), cf.
+          // REFONTE_IHM.md §11.
+          //
           // ── RIWAYA (2026-08-12) ──────────────────────────────────────────
           // Placée juste sous le récitateur : c'est le même sujet vu de plus
           // haut, et changer de riwāya change justement le récitateur (cf.
@@ -119,47 +94,6 @@ class SettingsScreen extends ConsumerWidget {
           // lecture, le coach et le karaoke partagent `TajweedText` et leurs
           // propres reglages de taille ; y propager ce choix demanderait de
           // verifier chacun, ce qui n'a pas ete demande.
-          _SettingsTile(
-            icon: Icons.font_download_outlined,
-            title: AppLocalizations.of(context)!.settingsMushafScriptTitle,
-            subtitle: libelleEcriture(ref.watch(policeMushafPageProvider)),
-            color: AppColors.settingsAudio,
-            onTap: () => ouvrirChoixEcriture(
-              context,
-              ref,
-              sombre: ref.read(modeSombreProvider),
-            ),
-          ),
-          _SettingsTile(
-            icon: Icons.menu_book_rounded,
-            title: t.settingsRiwayaTitle,
-            subtitle: riwaya == Riwaya.warsh
-                ? t.settingsRiwayaWarsh
-                : t.settingsRiwayaHafs,
-            color: AppColors.settingsAudio,
-            trailing: Switch(
-              value: riwaya == Riwaya.warsh,
-              onChanged: (v) async {
-                await ref
-                    .read(riwayaProvider.notifier)
-                    .set(v ? Riwaya.warsh : Riwaya.hafs);
-                // Le récitateur doit suivre le texte, sinon on entend une
-                // riwāya et on en lit une autre.
-                ref.read(playerProvider.notifier).accorderALaRiwaya();
-                // Bandeau de réassurance (2026-08-23, demande utilisateur) :
-                // ce bouton change ce qu'on VA réciter/entendre, pas ce qu'on
-                // A DÉJÀ récité -- sans lui, rien à l'écran ne dit que la
-                // mémorisation passée reste intacte, séparée par riwaya (cf.
-                // la migration `portions.riwaya`/`sessions.riwaya`).
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(t.settingsRiwayaChangeNotice),
-                    duration: const Duration(seconds: 4),
-                  ));
-                }
-              },
-            ),
-          ),
           // ── JOURNAL DE DIAGNOSTIC (2026-08-12) ──────────────────────────
           // Remis apres le nettoyage du 2026-08-09, pour une raison precise :
           // en build RELEASE le journal est eteint par defaut
