@@ -6,8 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/recitation_provider.dart' show recitationVerifierProvider;
-import 'package:shared_preferences/shared_preferences.dart';
-import '../services/diagnostic_log.dart';
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
@@ -94,52 +92,31 @@ class SettingsScreen extends ConsumerWidget {
           // lecture, le coach et le karaoke partagent `TajweedText` et leurs
           // propres reglages de taille ; y propager ce choix demanderait de
           // verifier chacun, ce qui n'a pas ete demande.
-          // ── JOURNAL DE DIAGNOSTIC (2026-08-12) ──────────────────────────
-          // Remis apres le nettoyage du 2026-08-09, pour une raison precise :
-          // en build RELEASE le journal est eteint par defaut
-          // (`DiagnosticLog.enabled = !kReleaseMode`), et le plugin natif est
-          // alors le seul a ecrire. Toute la chaine Dart (verdicts par mot,
-          // decrochages, enchainements de page) reste muette -- donc TOUT
-          // diagnostic sur un build installe se fait a l'aveugle, ce qui a
-          // deja produit deux correctifs poses sur des hypotheses non
-          // verifiees (figement de l'ecran, 2026-08-12).
+          // ── JOURNAL DE DIAGNOSTIC : RE-RETIRÉ (2026-09-11) ───────────────
           //
-          // Eteint par defaut : rien ne change pour un utilisateur publie.
-          // C'est un interrupteur de RECETTE, qu'on allume le temps de
-          // reproduire un defaut et de tirer le log.
-          // `StatefulBuilder` : cet ecran est un ConsumerWidget sans etat, et
-          // `DiagnosticLog.enabled` est un champ statique, pas un provider.
-          // C'est le moyen le plus court de rafraichir la seule bascule
-          // concernee sans transformer tout l'ecran en StatefulWidget.
-          StatefulBuilder(
-            builder: (context, setLocal) => SwitchListTile(
-            value: DiagnosticLog.enabled,
-            onChanged: (v) async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setBool('diagnostic_enabled', v);
-              setLocal(() => DiagnosticLog.enabled = v);
-              // ── LE TROU QUE L'AUDIT A TROUVE (SEC-01, 2026-09-09) ────────
-              //
-              // Ce commutateur ecrivait la preference et le champ statique
-              // Dart, mais n'appelait JAMAIS `setLogEnabled` : le natif ne
-              // recevait le bon etat qu'au PROCHAIN demarrage de session
-              // (`RecitationNotifier._applyDiagnosticCapture`), donc apres
-              // coup, pas au moment du geste. `_DiagnosticTile` plus bas dans
-              // ce fichier le faisait deja correctement -- il a ete retire du
-              // parcours visible le 2026-08-09 sans que ce commutateur-ci
-              // reprenne cette ligne.
-              unawaited(ref.read(recitationVerifierProvider).setLogEnabled(v));
-            },
-            title: Text(AppLocalizations.of(context)!.settingsDiagnosticTitle,
-                style: GoogleFonts.manrope(
-                    fontSize: 14, fontWeight: FontWeight.w600)),
-            subtitle: Text(
-                AppLocalizations.of(context)!.settingsDiagnosticSubtitle,
-                style: GoogleFonts.manrope(
-                    fontSize: 11.5, color: AppColors.inkLight)),
-          ),
-          ),
-
+          // Historique complet : retiré une 1ère fois le 2026-08-09 (cf. le
+          // point 4 du bloc "CINQ RÉGLAGES RETIRÉS" plus bas), REMIS le
+          // 2026-08-12 pour une raison précise -- en build RELEASE le
+          // journal Dart est éteint par défaut, seul le plugin natif écrit,
+          // donc tout diagnostic sur un build installé se faisait à
+          // l'aveugle (deux correctifs posés sur des hypothèses non
+          // vérifiées ce jour-là). Cette raison reste vraie -- elle n'est
+          // pas effacée, cf. ci-dessus.
+          //
+          // Demande utilisateur, en préparant la publication sur le Play
+          // Store : « enlève diagnostic du paramétrage et désactive-le pour
+          // la création apk -- mais garde-le en programme, pour le dev ».
+          // Le commutateur quitte donc l'IHM une seconde fois ; le code
+          // reste intact dans `_DiagnosticTile` plus bas (elle appelait déjà
+          // `setLogEnabled` au moment du geste -- c'était CE commutateur
+          // inline, remis le 2026-08-12 pour remplacer `_DiagnosticTile`,
+          // qui avait le défaut trouvé par l'audit SEC-01, corrigé sur lui
+          // avant ce retrait). `_DiagnosticTile` est donc prête à être
+          // remontée pour une session de recette si besoin.
+          // `DiagnosticLog.enabled` reste
+          // `!kReleaseMode` par défaut (actif en dev, éteint en release) :
+          // sans ce commutateur, plus personne ne peut le rallumer une fois
+          // l'app publiée -- exactement l'effet recherché.
           const SizedBox(height: 12),
           _SectionHeader(t.settingsSectionPrayer),
           _SettingsTile(
