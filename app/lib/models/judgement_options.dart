@@ -239,8 +239,29 @@ enum TajwidRule {
   /// positifs au seuil brut), et une release publique expose ce risque a de
   /// vrais utilisateurs -- l'essai demande le 2026-09-08 restait un test sur
   /// le telephone de dev, pas une decision de mise en production.
+  ///
+  /// ── `maddaNormal` EN RESSORT, DE NOUVEAU (2026-09-11, meme jour) ────────
+  ///
+  /// Nouveau pack `transfert_2026-09-11_production_v2` : MEME poids de tete
+  /// (`madd-union-plus-normal-v1`, memes chiffres 83,2 %/13,1 % au seuil
+  /// 0,5), mais cette fois correctement greffe sur l'encodeur de production
+  /// (Hafs+Warsh, contrairement au pack de test HAFS SEUL) et EXPLICITEMENT
+  /// presente « pret a l'emploi » par PC A -- la reserve de son LISEZ_MOI.md
+  /// ne porte que sur un regime alternatif a 97,5 % de rappel (94 % de faux
+  /// declenchements, non retenu), pas sur le seuil 0,5 ici en usage. Verifie
+  /// avant integration (entree `audio_signal`, 5 sorties, seuils) -- cf.
+  /// `fastconformer_verifier.dart`.
+  ///
+  /// Decision utilisateur : « integre a l'app dev, on verra apres pour la
+  /// prod ». `maddaNormal` redevient donc SELECTIONNABLE des maintenant --
+  /// mais UNIQUEMENT pour les builds de test (`_kModelSubdir` pointe sur le
+  /// nouveau pack, cf. son commentaire) : les artefacts de release deja
+  /// construits pour Play Store restent sur l'ancien pack sans cette regle
+  /// active. Si la decision finale repasse par le pack `2026-09-07` (ou tout
+  /// autre pack sans `madda_normal` reel), refaire EXACTEMENT le retour en
+  /// arriere documente juste au-dessus.
   static const List<TajwidRule> porteesParLeTexte = [
-    laamShamsiyah, hamWasl, slnt, maddaNormal,
+    laamShamsiyah, hamWasl, slnt,
   ];
 
   /// Les règles qu'un utilisateur peut voir et activer.
@@ -254,8 +275,11 @@ enum TajwidRule {
   /// Laisser une regle selectionnable alors qu'aucun verdict ne peut en sortir
   /// serait annoncer un controle qu'on ne fait pas.
   /// (Ressortie une seconde fois le 2026-09-11 -- cf. la note ci-dessus.)
+  /// (Re-ressortie une troisieme fois le 2026-09-11, plus tard le meme jour,
+  /// pour le pack `production_v2` -- cf. la note jumelle sur
+  /// [porteesParLeTexte].)
   static const List<TajwidRule> selectionnables = [
-    maddaNecessary, maddaObligatory, maddaPermissible,
+    maddaNecessary, maddaObligatory, maddaPermissible, maddaNormal,
     ghunnah, ikhafa, ikhafaShafawi, idghamGhunnah, idghamShafawi, iqlab,
     idghamWoGhunnah, idghamMutajanisayn, idghamMutaqaribayn,
     qalaqah,

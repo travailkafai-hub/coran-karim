@@ -325,7 +325,42 @@ class FastConformerVerifier {
   // modele stable, deja valide, Hafs+Warsh : cf. aussi le "REVENIR EN ARRIERE"
   // documente dans judgement_options.dart (porteesParLeTexte/selectionnables).
   // static const _kModelSubdir = 'models/madd-normal-test-2026-09-08';
-  static const _kModelSubdir = 'models/cinq-tetes-2026-09-07';
+  // ── PACK PRODUCTION v2 (2026-09-11) -- TEST DEV, PAS ENCORE LA RELEASE ──
+  //
+  // Transfert `transfert_2026-09-11_production_v2`, LISEZ_MOI.md different en
+  // nature du pack de test du 2026-09-08 ci-dessus : celui-ci se presente
+  // explicitement « pret a l'emploi », remplace nommement le pack
+  // `2026-09-07` (celui de la ligne juste en dessous, deja shippe pour la
+  // release Play Store en cours), encodeur identique verifie (hash SHA-256,
+  // 692 tenseurs). Verifie de mon cote avant integration (pas seulement lu) :
+  // entree `audio_signal` confirmee par onnxruntime, les 5 sorties (logprobs,
+  // warsh_logprobs, tajwid_logprobs 17, encoder_state, tajwid_fine_logprobs
+  // 80) et `seuils_tajwid.json` (madda_normal a bien 0,5, pas 1,1) conformes
+  // au document.
+  //
+  // Tete famille `madd-union-plus-normal-v1` (12 classes, madda_normal
+  // SEPAREE de madd et enfin detectee : 83,2 % rappel / 13,1 % faux positifs
+  // au seuil 0,5 -- memes chiffres que le pack de test du 2026-09-08, meme
+  // poids de tete, cette fois correctement greffe sur l'encodeur de
+  // production et presente comme autorise). Reserve documentee par PC A :
+  // seul le regime alternatif "rappel d'abord" a 97,5 % est explicitement
+  // REFUSE (94 % de declenchement sur fenetres sans regle) -- le seuil 0,5
+  // retenu ici n'est pas concerne par cette reserve.
+  //
+  // Decision utilisateur (2026-09-11, apres proposition refusee de trancher
+  // par question structuree) : « integre a l'app dev, on verra apres pour la
+  // prod ». Donc : bascule ICI (le seul `_kModelSubdir` du code, partage par
+  // tous les types de build) pour tester sur le telephone de dev, mais LES
+  // ARTEFACTS DE RELEASE DEJA CONSTRUITS (app-release.apk/aab) NE SONT PAS
+  // reconstruits -- ils gardent le pack `cinq-tetes-2026-09-07` stable pour
+  // la publication en cours. Rebuild release UNIQUEMENT si l'usage sur
+  // device confirme que 13,1 % de faux positifs est acceptable, et sur
+  // decision explicite. Les deux dossiers coexistent dans `model_pack` pour
+  // l'instant (retour arriere possible) -- nettoyer celui qui ne sera pas
+  // retenu avant tout futur build de release, meme regle que les vestiges
+  // deja retires le meme jour.
+  // static const _kModelSubdir = 'models/cinq-tetes-2026-09-07';
+  static const _kModelSubdir = 'models/cinq-tetes-2026-09-11-madd-normal';
   static const _kModelFile = 'model.onnx';
   static const _kVocabFile = 'vocab.json';
   // TETE 3 (ecart canonique), OPTIONNELLE -- cf. Tete3.kt : en observation
