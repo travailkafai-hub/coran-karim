@@ -40,7 +40,7 @@ class TajwidRulesScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: AppColors.green800,
         foregroundColor: AppColors.cream,
-        title: Text('Vérification de la récitation',
+        title: Text(AppLocalizations.of(context)!.tajwidRulesScreenTitle,
             style: GoogleFonts.manrope(fontWeight: FontWeight.w700)),
       ),
       body: reliabilityAsync.when(
@@ -80,7 +80,7 @@ class TajwidRulesScreen extends ConsumerWidget {
             // presets (Tajwid/Adulte/Enfant) pilotent toujours `activeRules`
             // -- cette liste devient une référence, plus un réglage manuel
             // règle par règle.
-            Text('RÈGLES DE TAJWID (BÊTA)',
+            Text(AppLocalizations.of(context)!.tajwidRulesBetaSection,
                 style: GoogleFonts.manrope(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -88,7 +88,7 @@ class TajwidRulesScreen extends ConsumerWidget {
                     color: AppColors.inkLight)),
             const SizedBox(height: 4),
             Text(
-              'Règles vérifiées selon le mode choisi ci-dessus, à titre indicatif.',
+              AppLocalizations.of(context)!.tajwidRulesBetaNote,
               style: GoogleFonts.manrope(fontSize: 12.5, color: AppColors.inkLight),
             ),
             const SizedBox(height: 8),
@@ -228,6 +228,10 @@ class PresetRow extends StatelessWidget {
     // écart de règle, seulement un orange -- cf. `_capByRuleReliability`
     // dans recitation_provider.dart) mais l'étiquette prévient qu'il ne faut
     // pas encore s'y fier comme verdict fiable.
+    // ⚠️ NOTE 2026-09-11 : `_capByRuleReliability` n'existe plus dans le code
+    // (verifie ce jour : plus aucune definition, seulement trois commentaires
+    // qui y renvoient, celui-ci compris). La parenthese ci-dessus ne decrit
+    // donc plus rien d'actif. Ce qui reste vrai : l'etiquette « beta ».
     Widget chip(JudgementPreset preset, String label, IconData icon,
         {bool beta = false}) {
       final selected = current == preset;
@@ -293,7 +297,7 @@ class PresetRow extends StatelessWidget {
                           color: AppColors.brass,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text('BÊTA',
+                        child: Text(AppLocalizations.of(context)!.tajwidRulesBetaBadge,
                             style: GoogleFonts.manrope(
                                 fontSize: 8.5,
                                 fontWeight: FontWeight.w800,
@@ -546,8 +550,7 @@ class _RuleTile extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Détection encore imprécise : cette règle peut signaler un '
-                  'doute, mais ne validera jamais un mot en vert à elle seule.',
+                  AppLocalizations.of(context)!.tajwidRulesBetaWarning,
                   style: GoogleFonts.manrope(
                       fontSize: 11,
                       fontStyle: FontStyle.italic,

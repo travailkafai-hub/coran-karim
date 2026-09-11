@@ -55,6 +55,24 @@ final judgementOptionsProvider =
 });
 
 
+/// Vrai pendant qu'un ECRAN DE VERIFICATION TAJWID DEDIE (`_openKaraokeTajwid`
+/// dans mushaf_screen.dart, `KaraokeRecitationScreen(modeTajwid: true)`) est
+/// ouvert (2026-09-11).
+///
+/// Pilote UNIQUEMENT par cet ecran (`initState`/`dispose`) -- jamais ailleurs.
+/// Sert de contexte a `judgementOptionsEffectivesProvider` ci-dessous, meme
+/// principe que le garde-fou Warsh juste en dessous : DERIVE, pas une
+/// ecriture dans `judgementOptionsProvider`. Le choix persiste de
+/// l'utilisateur (Coach, mode Reciter normal) reste intact -- il ressort de
+/// l'ecran Tajwid dedie et retrouve son preset d'avant sans rien refaire.
+///
+/// Retour utilisateur (2026-09-11) qui motive ce forcage : « dans le mode
+/// tajwid il faut mettre un parametre independant de l'autre de reciter et le
+/// forcer a tajwid, enleve ici alors adulte et enfant, pas d'utilite » --
+/// Adulte/Enfant n'ont pas de sens dans un ecran dont le but EST de verifier
+/// le tajwid.
+final modeTajwidDedieActifProvider = StateProvider<bool>((ref) => false);
+
 /// Les options de jugement REELLEMENT appliquees a la chaine de recitation.
 ///
 /// ── POURQUOI UN PROVIDER DERIVE (2026-08-21) ────────────────────────────────
@@ -84,7 +102,32 @@ final judgementOptionsProvider =
 /// une decision sur le Warsh : la tete tajwid du modele fonctionne, c'est son
 /// vocabulaire de regles qui n'est pas encore raccorde.
 final judgementOptionsEffectivesProvider = Provider<JudgementOptions>((ref) {
-  final choisi = ref.watch(judgementOptionsProvider);
+  // Ecran de verification tajwid dedie (2026-09-11, cf.
+  // `modeTajwidDedieActifProvider`) : preset FORCE a tajwid, quel que soit le
+  // choix persiste ailleurs (Coach, mode Reciter normal). Calcule AVANT le
+  // garde-fou Warsh ci-dessous, qui doit continuer a s'appliquer par-dessus --
+  // le vocabulaire de regles Warsh/modele ne correspond toujours pas, forcer
+  // tajwid ici inventerait les memes fausses fautes qu'en Reciter normal.
+  //
+  // ⚠️ NE JAMAIS FORCER `JudgementOptions.tajwidDefault` NUE : sa liste
+  // `activeRules` est VIDE par construction (elle est remplie par
+  // `applyPreset`, depuis la fiabilite mesuree de chaque regle). La premiere
+  // version de ce forcage le faisait, et produisait exactement l'inverse du
+  // but : `preset=tajwid regles=aucune`, donc plus aucune coloration verte ou
+  // violette dans l'ecran qui existe pour verifier le tajwid. Cf.
+  // `JudgementOptionsNotifier.reglesFiables` pour le detail et la mesure.
+  //
+  // Et on ne force QUE si le preset persiste n'est pas deja tajwid : sinon on
+  // ecraserait les regles que l'utilisateur a pu ajouter a la main dans
+  // l'ecran des regles (le mode tajwid les laisse selectionnables, badge de
+  // fiabilite a l'appui).
+  final persiste = ref.watch(judgementOptionsProvider);
+  final choisi = (ref.watch(modeTajwidDedieActifProvider) &&
+          persiste.preset != JudgementPreset.tajwid)
+      ? JudgementOptions.tajwidDefault.copyWith(
+          activeRules: JudgementOptionsNotifier.reglesFiables(
+              ref.watch(ruleReliabilityProvider).asData?.value ?? const {}))
+      : persiste;
   final riwaya = ref.watch(riwayaProvider);
   if (riwaya != Riwaya.warsh) return choisi;
   if (choisi.preset != JudgementPreset.tajwid) return choisi;
@@ -174,12 +217,70 @@ class JudgementOptionsNotifier extends StateNotifier<JudgementOptions> {
   /// améliore une règle, le fichier suffit à la faire entrer dans le mode.
   Set<TajwidRule> _reliableRules = const {};
 
+  /// Le calcul des regles fiables, EXTRAIT pour avoir une seule source de
+  /// verite (2026-09-11).
+  ///
+  /// `judgementOptionsEffectivesProvider` en a besoin lui aussi depuis qu'il
+  /// peut forcer le mode tajwid (ecran dedie). Il avait d'abord ete ecrit avec
+  /// `JudgementOptions.tajwidDefault` NUE -- dont `activeRules` est vide, les
+  /// regles etant remplies ici par `applyPreset` -- ce qui donnait le
+  /// contraire du but recherche : `preset=tajwid regles=aucune` dans le
+  /// journal, et plus une seule coloration verte ou violette dans l'ecran
+  /// tajwid. Defaut signale par l'utilisateur et confirme par correlation
+  /// exacte, trois fois de suite : `KaraokeOuverture modeTajwid=true` suivi
+  /// 3 s plus tard de `regles=aucune`.
+  ///
+  /// Dupliquer le filtre cote provider aurait fait diverger les deux le jour
+  /// ou `_contextDependentRules` change : une fonction, deux appelants.
+  /// Activees d'office MALGRE l'absence de mesure (2026-09-11, demande
+  /// utilisateur : « idgham_mutajanisayn, idgham_mutaqaribayn -- active quand
+  /// meme avec des seuils plus tolerants »).
+  ///
+  /// CE QU'ELLES SONT VRAIMENT, et ce n'est pas « peu fiables » :
+  /// `rule_reliability.json` leur donne `status: insufficient_data` -- aucun
+  /// recall mesure, ni bon ni mauvais. Le fichier date du 2026-07-23 et porte
+  /// sur un modele anterieur ; le silence sur ces deux regles n'a jamais ete
+  /// leve depuis. Le modele, lui, SORT bien une probabilite pour ces deux
+  /// canaux (remarque utilisateur : « mais on a des probas quand meme »),
+  /// et `seuils_tajwid.json` leur donne un seuil comme aux autres.
+  ///
+  /// Elles entrent donc dans le mode tajwid, mais avec un seuil de detection
+  /// ABAISSE (0,30 au lieu de 0,50 dans le pack, soit 0,48 en strict et 0,30
+  /// en tolerant contre 0,80/0,50) : faute de savoir ce que le modele rate,
+  /// on preferera le laisser detecter trop que l'inverse -- une regle non
+  /// detectee produit un VIOLET sur une recitation correcte, ce qui est le
+  /// pire retour possible pour apprendre.
+  ///
+  /// ⚠️ RECTIFICATION, le jour meme : j'avais ecrit ici « elles restent
+  /// capsToUnclear, jamais de vert franc, le jugement les plafonne a incertain
+  /// (cf. `_capByRuleReliability`) ». C'est FAUX, et l'utilisateur l'a releve
+  /// (« si vert, pas d'orange »). Verifie : `_capByRuleReliability` N'EXISTE
+  /// PLUS dans le code -- il n'en reste que trois mentions en commentaire, ici
+  /// et dans `recitation_provider.dart` / `tajwid_rules_screen.dart`, toutes
+  /// annotees ce jour. `capsToUnclear` n'est plus lu que pour DECIDER DE
+  /// L'ACTIVATION (juste en dessous) et pour un badge d'ecran ; il ne plafonne
+  /// plus aucun verdict.
+  ///
+  /// Donc ces deux regles donnent bien un VERT FRANC quand elles sont
+  /// detectees -- ce qui est le comportement voulu : une regle realisee ne
+  /// doit pas laisser un mot en orange.
+  static const _sansMesureMaisActivees = {
+    TajwidRule.idghamMutajanisayn,
+    TajwidRule.idghamMutaqaribayn,
+  };
+
+  static Set<TajwidRule> reglesFiables(
+          Map<TajwidRule, RuleReliability> reliability) =>
+      {
+        for (final e in reliability.entries)
+          if ((!e.value.capsToUnclear ||
+                  _sansMesureMaisActivees.contains(e.key)) &&
+              !_contextDependentRules.contains(e.key))
+            e.key,
+      };
+
   void setReliability(Map<TajwidRule, RuleReliability> reliability) {
-    _reliableRules = {
-      for (final e in reliability.entries)
-        if (!e.value.capsToUnclear && !_contextDependentRules.contains(e.key))
-          e.key,
-    };
+    _reliableRules = reglesFiables(reliability);
   }
 
   /// Modifier une option individuelle bascule automatiquement le preset sur

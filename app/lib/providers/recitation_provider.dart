@@ -973,7 +973,15 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
   /// désormais activables (le grisage privait l'app du madd 6 ; cf.
   /// `RuleReliability.selectable` pour les 3 raisons mesurées). Le garde-fou
   /// vit maintenant dans [_capByRuleReliability], qui refuse le vert franc sur
-  /// une règle peu fiable au lieu d'en interdire l'activation. Ici, on affiche
+  /// une règle peu fiable au lieu d'en interdire l'activation.
+  /// ⚠️ NOTE 2026-09-11 : la phrase ci-dessus n'est plus vraie NON PLUS.
+  /// `_capByRuleReliability` a disparu du code (verifie : plus aucune
+  /// definition, seulement trois commentaires qui y renvoient encore, celui-ci
+  /// compris). AUCUN plafonnement de verdict ne depend plus de la fiabilite
+  /// d'une regle : une regle detectee donne un vert franc, fiable ou non.
+  /// Le commentaire d'origine est conserve -- il documente un garde-fou qui a
+  /// existe, et sa disparition n'a laisse aucune autre trace.
+  /// Ici, on affiche
   /// donc bien TOUTES les règles actives, y compris les moins fiables — c'est
   /// voulu : l'utilisateur doit voir ce qui est évalué.
   List<TajwidRule> shownRulesFor(int wordIndex) {
