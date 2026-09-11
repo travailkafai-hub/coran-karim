@@ -27,6 +27,7 @@ import 'services/quran_api.dart';
 import 'services/session_media.dart';
 import 'services/reciter_download_service.dart';
 import 'theme/app_theme.dart';
+import 'package:upgrader/upgrader.dart';
 
 import 'services/fastconformer_verifier.dart';
 
@@ -152,8 +153,51 @@ class _PointDEntreeState extends State<_PointDEntree> {
       // Canal absent (autre plateforme, moteur pas encore prêt) : accueil normal.
     }
     if (!mounted) return;
+    // ── MISE À JOUR FORCÉE (2026-09-11) ─────────────────────────────────
+    //
+    // Demande utilisateur : « est-ce qu'il y a moyen [...] de forcer
+    // l'utilisateur à mettre à jour l'application s'il y a une nouvelle
+    // version [sur le] Play Store ». Deux options possibles : l'API Play
+    // Core « immediate update » (natif, mais ne peut se tester qu'une
+    // fois déjà publié) ou une vérification via le package `upgrader`
+    // (compare la version installée à celle du Play Store, testable dès
+    // que l'app a une fiche sur le Store). Choix validé : `upgrader`.
+    //
+    // `showIgnore: false` + `showLater: false` retirent les deux seules
+    // échappatoires du dialog ; `barrierDismissible` (tap extérieur) ET
+    // le bouton retour Android sont déjà bloqués par défaut dans le
+    // package tant qu'aucun des deux n'est explicitement autorisé (cf.
+    // `UpgradeAlert.barrierDismissible = false` par défaut, et
+    // `onCanPop()` qui s'aligne dessus en l'absence de `shouldPopScope`).
+    // Seul le bouton "Mettre à jour" reste actionnable -- pas besoin de
+    // maintenir un `minAppVersion` à la main : dès qu'une version plus
+    // récente existe sur le Store, le dialog s'affiche et ne peut plus
+    // être esquivé. `checkOnResume` (par défaut `true`) revérifie aussi
+    // au retour dans l'app si l'utilisateur est allé sur le Store sans
+    // finaliser la mise à jour.
+    //
+    // UNIQUEMENT sur l'accueil normal, JAMAIS sur le banc de recette
+    // (`RecetteScreen`, ci-dessous) : un banc de mesure automatisé ne
+    // doit jamais se retrouver bloqué par un dialog qui attend un geste
+    // humain sur le Play Store.
+    //
+    // VÉRIFIÉ SUR DEVICE (pas supposé) : le nom de package interrogé est
+    // TOUJOURS `packageInfo.packageName` (`upgrade_store_controller.dart`),
+    // donc `com.corankarim.coran_karim.dev` sur un build debug -- qui
+    // n'existe pas sur le Play Store, la vraie comparaison de version ne
+    // peut donc pas être testée avant publication. Ce qui A été vérifié
+    // par exécution, avec `Upgrader(debugDisplayAlways: true)` temporaire
+    // (retiré après coup, JAMAIS à laisser en place -- il afficherait ce
+    // dialog en permanence, même sans mise à jour) : le dialog s'affiche
+    // bien avec pour seul bouton "MAINTENANT", et le bouton retour Android
+    // ne le ferme pas (l'écran passe en arrière-plan, le dialog reste
+    // au-dessus) -- capture d'écran à l'appui.
     setState(() => _ecran = extras == null
-        ? const HomeScreen()
+        ? UpgradeAlert(
+            showIgnore: false,
+            showLater: false,
+            child: const HomeScreen(),
+          )
         : RecetteScreen(
             mode: extras['mode'] as String?,
             surah: (extras['sourate'] as num?)?.toInt() ?? 2,
