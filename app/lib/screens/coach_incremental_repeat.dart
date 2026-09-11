@@ -209,6 +209,14 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
   /// (recitateur sans fichier local, audio illisible). Le repli est alors le
   /// comportement d'avant, inchange : les coupes d'Afasy. Degrade, jamais
   /// casse -- meme discipline que le reste de ce fichier.
+  ///
+  /// ⚠️ PLUS LU DEPUIS LE 2026-09-11 (`unused_field` assume, convention du
+  /// projet : on n'efface pas ce qui a servi). Ces index sont des intervalles
+  /// entre PICS d'emission CTC, pas des silences -- demonstration chiffree
+  /// dans le bloc `_finsUnite`. Il reste RENSEIGNE et journalise : le jour ou
+  /// l'aligneur rendra l'etendue reelle d'un mot et non son pic, rebrancher
+  /// cette source tient a remettre `t1` dans l'union.
+  // ignore: unused_field
   List<int>? _coupesMesurees;
 
   /// La decoupe complete -- les bornes en MILLISECONDES de chaque mot.
@@ -269,14 +277,60 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     // court : c'est un desagrement. Une coupe manquante fait reciter au-dela
     // de ce qui est affiche : c'est le defaut qu'on corrige. Les deux
     // n'ont pas le meme poids.
-    final t1 = _coupesMesurees ?? const <int>[];
+    //
+    // ── LA VOIX (1) NE DECIDE PLUS AUCUNE COUPE (2026-09-11) ───────────
+    //
+    // Defaut signale : « la premiere c'est bien, palier deux je reviens j'ai
+    // UN MOT ». Verset 2:6 (11 mots) : 9 paliers, la plupart d'un seul mot,
+    // quand le verset 3:4 (18 mots, plus long) en donnait 3 corrects.
+    //
+    // CAUSE, mesuree sur le cache de decoupe du device (`files/decoupes/
+    // 7-2-6.json`) et non supposee -- duree = fin - debut de chaque mot :
+    //     mot 0 `إِنَّ`      80 ms      mot 4 `عَلَيْهِمْ`  80 ms
+    //     mot 1 `ٱلَّذِينَ`   0 ms (!)  mot 9 `لَا`        80 ms
+    // Un mot recite ne dure jamais 80 ms, et encore moins 0. L'aligneur ne
+    // rend pas l'ETENDUE du mot : il rend le PIC d'emission du CTC, qui est
+    // « peaky » par construction (un token sur une ou deux frames, puis du
+    // blank). Les seuls mots « longs » sont ceux a plusieurs pieces, donc a
+    // plusieurs pics espaces.
+    //
+    // Consequence mecanique : tout l'espace ENTRE deux pics devient un faux
+    // trou, et ces trous font 400 a 960 ms -- tous au-dessus du seuil de
+    // 350 ms de `v2DecouperVerset`. D'ou une coupe apres presque chaque mot.
+    // Sur 2:6, 51 % du verset est compte comme du silence ; sur 2:4, 74 %
+    // (3 520 ms de « mots » sur 13 280), avec 10 coupes sur 11 trous.
+    //
+    // C'EST LE PIEGE DEJA PAYE LE 2026-09-03 sur les durees tajwid, a un
+    // autre endroit du code : nœud `[PIEGE] frames compte les pics
+    // d'emission du CTC, jamais la duree du son` du graphe, ne le tenter
+    // qu'avec une mesure NOUVELLE de ce que ces bornes contiennent. Le
+    // constat d'alors etait deja le meme chiffre : « impossible un madd
+    // obligatoire en 80 ms !! c'est sur 4 a 6 temps ! ». `SEUILS_MS` avait
+    // ete vide pour cette raison ; ici c'est `t1` qui sort de l'union.
+    //
+    // DECISION UTILISATEUR (2026-09-11) : « les paliers c'est exactement ce
+    // qu'on a prevu, il faut juste decouper l'audio selon ce texte ». Le
+    // TEXTE decide donc ou l'on coupe -- il est precalcule sur les 6 236
+    // versets et donne `[5]` pour 2:6, ce que l'energie mesuree hors ligne
+    // sur la voix d'Al-Afasy (`coupes_palier_afasy.json`) confirme au mot
+    // pres. Les deux sources independantes s'accordent ; seule la mesure en
+    // direct diverge, et on sait maintenant pourquoi.
+    //
+    // ⚠️ `_coupesMesurees` ET `DecoupeAudioService` RESTENT : les bornes en
+    // millisecondes sont la SEULE facon de savoir ou tombe le mot N dans le
+    // fichier audio, et c'est elles qui font jouer le bon extrait (cf.
+    // `_decoupe` dans la lecture audio du palier). Ce qui disparait ici,
+    // c'est uniquement leur droit de CREER une coupe.
+    const t1 = <int>[];
     // La riwaya de la SESSION, pas le reglage global : l'asset est calcule sur
     // le Hafs et ne s'applique en Warsh que si les deux textes s'accordent
     // (cf. `CoupesTexteService.coupes`).
     final t2 = CoupesTexteService.instance.coupes(
         widget.verse.surahNumber, widget.verse.ayahNumber, _words.length,
         estWarsh: ref.read(recitationProvider).riwaya == Riwaya.warsh);
-    final t3 = (t1.isEmpty && t2.isEmpty)
+    // `t2.isEmpty` seul desormais : `t1` etant toujours vide, le tester
+    // rendrait la condition trompeuse a la relecture.
+    final t3 = t2.isEmpty
         ? CoupesPalierService.instance
             .coupes(widget.verse.surahNumber, widget.verse.ayahNumber)
         : const <int>[];
@@ -730,9 +784,15 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
         _decoupe = d;
         _cheminAudio = chemin;
       });
+      // « ne pilotent plus les paliers » depuis le 2026-09-11 : ces coupes
+      // sont des intervalles entre PICS CTC, pas des silences (cf. le bloc
+      // de `_finsUnite`). Le dire ICI, sinon la prochaine analyse de journal
+      // les lira comme la source des paliers -- ce qu'elles ont ete jusqu'a
+      // ce jour. Les BORNES, elles, servent toujours a jouer l'audio.
       DiagnosticLog.log('Decoupe',
-          'palier $s:$a : ${fins.length} coupe(s) MESUREE(S) sur la voix de '
-          '${r.nameFr} -> fins=$fins');
+          'palier $s:$a : ${fins.length} coupe(s) mesuree(s) sur la voix de '
+          '${r.nameFr} -> fins=$fins (OBSERVATION SEULE -- ne pilotent plus '
+          'les paliers ; bornes ms toujours utilisees pour l audio)');
     } catch (e) {
       DiagnosticLog.log('Decoupe', 'mesure des coupes ignoree : $e');
     }
