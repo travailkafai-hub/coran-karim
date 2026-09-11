@@ -4,7 +4,9 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
+import '../models/riwaya.dart';
 import '../providers/app_settings_provider.dart';
+import '../providers/player_provider.dart' show playerProvider;
 import '../providers/recitation_provider.dart' show recitationVerifierProvider;
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
@@ -92,6 +94,54 @@ class SettingsScreen extends ConsumerWidget {
           // lecture, le coach et le karaoke partagent `TajweedText` et leurs
           // propres reglages de taille ; y propager ce choix demanderait de
           // verifier chacun, ce qui n'a pas ete demande.
+          //
+          // ── LA RIWAYA REVIENT ICI, SEULE (2026-09-11, plus tard) ─────────
+          //
+          // Demande utilisateur, le meme jour que le demenagement ci-dessus :
+          // « deplace le reglage wurch et hafs, revient sur parametres
+          // generaux ». DEPLACEE et non dupliquee : elle quitte le tiroir
+          // « Plus » du Mushaf (cf. `reading_settings_sheet.dart`, ou la note
+          // du retour est laissee au meme endroit) -- un reglage qui vit a
+          // deux endroits finit par diverger, et l'utilisateur a deja tranche
+          // ce principe (« un element d'IHM juge inutile se supprime, le
+          // fusionner ailleurs c'est discuter la demande »).
+          //
+          // Le RECITATEUR et l'ECRITURE, eux, restent cote Mushaf : seule la
+          // riwaya fait ce chemin retour. Ce qui la distingue des deux autres
+          // est ecrit juste au-dessus (bloc 2026-08-12) et n'a pas change :
+          // elle ne regle pas comment le texte s'affiche, elle decide QUEL
+          // texte -- Mushaf, recitation, recherche, jeux et audio de
+          // correction en dependent tous.
+          SwitchListTile(
+            secondary: const Icon(Icons.menu_book_rounded,
+                color: AppColors.brassLight),
+            title: Text(t.settingsRiwayaTitle,
+                style: GoogleFonts.manrope(
+                    fontSize: 14.5, fontWeight: FontWeight.w600)),
+            subtitle: Text(
+                ref.watch(riwayaProvider) == Riwaya.warsh
+                    ? t.settingsRiwayaWarsh
+                    : t.settingsRiwayaHafs,
+                style: GoogleFonts.manrope(
+                    fontSize: 12, color: AppColors.cream.withAlpha(160))),
+            value: ref.watch(riwayaProvider) == Riwaya.warsh,
+            activeThumbColor: AppColors.brassLight,
+            onChanged: (v) async {
+              await ref
+                  .read(riwayaProvider.notifier)
+                  .set(v ? Riwaya.warsh : Riwaya.hafs);
+              // Le recitateur doit suivre le texte, sinon on entend une
+              // riwaya et on en lit une autre (geste conserve a l'identique
+              // depuis les deux emplacements precedents).
+              ref.read(playerProvider.notifier).accorderALaRiwaya();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(t.settingsRiwayaChangeNotice),
+                  duration: const Duration(seconds: 4),
+                ));
+              }
+            },
+          ),
           // ── JOURNAL DE DIAGNOSTIC : RE-RETIRÉ (2026-09-11) ───────────────
           //
           // Historique complet : retiré une 1ère fois le 2026-08-09 (cf. le

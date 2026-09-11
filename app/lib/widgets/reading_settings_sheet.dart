@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/reciter.dart';
-import '../models/riwaya.dart';
+// import '../models/riwaya.dart'; -- retire avec le reglage riwaya (2026-09-11)
 import '../providers/app_settings_provider.dart';
 import '../providers/mushaf_annotation_provider.dart';
 import '../providers/player_provider.dart';
@@ -119,7 +119,8 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
     // Cf. les deux blocs plus bas pour le pourquoi du déménagement depuis
     // settings_screen.dart. Même calcul de sous-titre récitateur que là-bas
     // (REFONTE_IHM.md §7bis : aucun mot latin à l'écran en arabe).
-    final riwaya = ref.watch(riwayaProvider);
+    // `riwaya` retire avec le SwitchListTile qui la lisait (2026-09-11, cf.
+    // la note plus bas) -- plus aucun rendu de cette feuille n'en depend.
     final reciter = playerState.reciter;
     final reciterStyleLabel = reciter.style == 'Mujawwad'
         ? t.settingsStyleMujawwad
@@ -227,37 +228,19 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
               onTap: () =>
                   ouvrirChoixEcriture(context, ref, sombre: modeSombre),
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              secondary: const Icon(Icons.menu_book_rounded,
-                  color: AppColors.green800, size: 20),
-              title: Text(t.settingsRiwayaTitle,
-                  style:
-                      GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink)),
-              subtitle: Text(
-                  riwaya == Riwaya.warsh
-                      ? t.settingsRiwayaWarsh
-                      : t.settingsRiwayaHafs,
-                  style: GoogleFonts.manrope(
-                      fontSize: 12, color: AppColors.inkLight)),
-              value: riwaya == Riwaya.warsh,
-              activeColor: AppColors.green700,
-              onChanged: (v) async {
-                await ref
-                    .read(riwayaProvider.notifier)
-                    .set(v ? Riwaya.warsh : Riwaya.hafs);
-                // Le récitateur doit suivre le texte, sinon on entend une
-                // riwāya et on en lit une autre (même geste que l'ancien
-                // emplacement, settings_screen.dart).
-                ref.read(playerProvider.notifier).accorderALaRiwaya();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(t.settingsRiwayaChangeNotice),
-                    duration: const Duration(seconds: 4),
-                  ));
-                }
-              },
-            ),
+            // ── LA RIWAYA EST REPARTIE DANS LES REGLAGES (2026-09-11) ────
+            //
+            // Elle etait ici, juste sous l'ecriture, depuis le demenagement
+            // decrit dans le bloc ci-dessus -- quelques heures seulement.
+            // Demande utilisateur le meme jour : « deplace le reglage wurch
+            // et hafs, revient sur parametres generaux ». Le SwitchListTile
+            // complet est donc retourne dans `settings_screen.dart`, section
+            // audio, la ou il vivait avant (la note du retour y explique ce
+            // qui distingue la riwaya de ses deux voisines).
+            //
+            // DEPLACEE, pas dupliquee : le meme reglage a deux endroits finit
+            // par diverger, et l'un des deux ment. L'ECRITURE juste au-dessus
+            // et le RECITATEUR plus bas, eux, restent ici.
             // ── SIGNET (2026-09-05) ───────────────────────────────────
             //
             // Deux lignes la ou il y avait un bouton a deux gestes : poser le
