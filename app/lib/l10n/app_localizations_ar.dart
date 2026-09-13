@@ -2905,4 +2905,40 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get guideAudioNotifTexte =>
       'الإيقاف والتشغيل يبقيان متاحين عند تصغير التطبيق.';
+
+  @override
+  String get demoRecitationTitre => 'عرض توضيحي';
+
+  @override
+  String get demoRecitationBandeau =>
+      'مثال مُعدّ مسبقاً. الميكروفون غير مستخدم، ولا يُسجَّل شيء، ولا يتغيّر تقدّمك.';
+
+  @override
+  String get demoRecitationLancer => 'ابدأ العرض';
+
+  @override
+  String get demoRecitationRejouer => 'إعادة';
+
+  @override
+  String get demoRecitationEnCours => 'جارٍ…';
+
+  @override
+  String get demoLegendeVert => 'صحيح';
+
+  @override
+  String get demoLegendeOrange => 'تقريبي';
+
+  @override
+  String get demoLegendeRouge => 'فرق مسموع';
+
+  @override
+  String get guideChapitreDemoTitre => 'شاهد تلاوة';
+
+  @override
+  String get guideChapitreDemoResume =>
+      'مثال مُعدّ: تصحيح، وشكّ، وخطأ، ثم استئناف.';
+
+  @override
+  String get guideDemoTexte =>
+      'انظر كيف تتلوّن الكلمات تباعاً. هذا عرض توضيحي، وليس تلاوة حقيقية.';
 }

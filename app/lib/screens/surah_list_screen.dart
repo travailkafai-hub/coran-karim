@@ -12,6 +12,7 @@ import 'mushaf_screen.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/player_provider.dart';
 import 'prayer_follow_screen.dart';
+import '../data/guides_catalogue.dart';
 
 class SurahListScreen extends ConsumerStatefulWidget {
   const SurahListScreen({super.key});
@@ -25,10 +26,34 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
   bool _loading = true;
   String? _error;
 
+  // ── CIBLES DE LA VISITE GUIDÉE (2026-09-13) ──────────────────────────────
+  //
+  // Posées sur de VRAIS éléments de cet écran, et publiées dans
+  // `data/guides_catalogue.dart` pour que la main puisse les mettre en
+  // lumière. Sans elles, les étapes qui parlent de la carte de prière ou du
+  // bouton d'écoute ne faisaient que les décrire.
+  final GlobalKey _cleCartePriere = GlobalKey();
+  final GlobalKey _cleBoutonEcoute = GlobalKey();
+  final GlobalKey _cleSignet = GlobalKey();
+
   @override
   void initState() {
     super.initState();
+    cleCartePriere = _cleCartePriere;
+    cleBoutonEcoute = _cleBoutonEcoute;
+    cleSignet = _cleSignet;
     _load();
+  }
+
+  @override
+  void dispose() {
+    // Une clé publiée qui survit à son widget ferait pointer la main sur une
+    // position périmée -- pire qu'aucune cible, parce que ça DÉSIGNE quelque
+    // chose et enseigne donc un mensonge.
+    if (cleCartePriere == _cleCartePriere) cleCartePriere = null;
+    if (cleBoutonEcoute == _cleBoutonEcoute) cleBoutonEcoute = null;
+    if (cleSignet == _cleSignet) cleSignet = null;
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -97,7 +122,7 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
               // LinkedHashSet, qui conserve l'ordre d'INSERTION. Le dernier
               // pose est simplement `state.last`, et c'est lui qu'on veut :
               // « reprendre » veut dire la ou on s'est arrete en dernier.
-              const _BoutonSignet(),
+              KeyedSubtree(key: _cleSignet, child: const _BoutonSignet()),
               IconButton(
                 icon: const Icon(Icons.hearing_rounded, color: AppColors.cream),
                 tooltip: t.homeIdentifyTooltip,
@@ -259,12 +284,29 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
               ),
             )
           else ...[
-            const SliverToBoxAdapter(child: CompactPrayerQiblaCard()),
+            SliverToBoxAdapter(
+              // Clé lue par la visite guidée pour mettre cette carte en
+              // lumière (cf. `data/guides_catalogue.dart`). `KeyedSubtree` et
+              // non une clé posée sur `CompactPrayerQiblaCard` : ce widget est
+              // `const`, et lui donner une clé lui ferait perdre sa
+              // canonicalisation -- il serait reconstruit à chaque frame.
+              child: KeyedSubtree(
+                key: _cleCartePriere,
+                child: const CompactPrayerQiblaCard(),
+              ),
+            ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
-                  (context, i) => _SurahTile(surah: _surahs[i]),
+                  (context, i) => _SurahTile(
+                    surah: _surahs[i],
+                    // Seule la PREMIÈRE ligne porte la clé : la visite montre
+                    // « le bouton d'écoute », pas les 114. Une clé par ligne
+                    // serait de toute façon invalide -- un `GlobalKey` doit
+                    // être unique dans l'arbre.
+                    cleEcoute: i == 0 ? _cleBoutonEcoute : null,
+                  ),
                   childCount: _surahs.length,
                 ),
               ),
@@ -317,8 +359,12 @@ class _TitleRule extends StatelessWidget {
 // avec un design différent.
 
 class _SurahTile extends ConsumerWidget {
+  /// Posée sur le bouton d'écoute de la PREMIÈRE ligne seulement, pour la
+  /// visite guidée. `null` partout ailleurs : un `GlobalKey` doit être unique
+  /// dans l'arbre, une clé par ligne serait invalide.
+  final GlobalKey? cleEcoute;
   final Surah surah;
-  const _SurahTile({required this.surah});
+  const _SurahTile({required this.surah, this.cleEcoute});
 
   // ── LANCER LA LECTURE DEPUIS LA LISTE (2026-09-13) ───────────────────────
   //
@@ -448,6 +494,7 @@ class _SurahTile extends ConsumerWidget {
             // de l'autre bout de la meme ligne. Meme traitement que le
             // badge : contour dore fin sur fond clair, plus d'aplat sombre.
             IconButton(
+              key: cleEcoute,
               onPressed: () => _togglePlay(ref),
               tooltip: enCours ? t.mushafPause : t.mushafPlay,
               padding: EdgeInsets.zero,

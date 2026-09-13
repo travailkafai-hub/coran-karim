@@ -2997,4 +2997,40 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get guideAudioNotifTexte =>
       'Pause and play stay available when the app is minimised.';
+
+  @override
+  String get demoRecitationTitre => 'Demonstration';
+
+  @override
+  String get demoRecitationBandeau =>
+      'Prepared example. The microphone is not used, nothing is recorded, your progress is not changed.';
+
+  @override
+  String get demoRecitationLancer => 'Start the demonstration';
+
+  @override
+  String get demoRecitationRejouer => 'Play again';
+
+  @override
+  String get demoRecitationEnCours => 'Running…';
+
+  @override
+  String get demoLegendeVert => 'Correct';
+
+  @override
+  String get demoLegendeOrange => 'Approximate';
+
+  @override
+  String get demoLegendeRouge => 'Difference heard';
+
+  @override
+  String get guideChapitreDemoTitre => 'Watch a recitation';
+
+  @override
+  String get guideChapitreDemoResume =>
+      'A prepared example: validation, doubt, error, recovery.';
+
+  @override
+  String get guideDemoTexte =>
+      'Watch how the words take colour as you go. This is a demonstration, not a real recitation.';
 }

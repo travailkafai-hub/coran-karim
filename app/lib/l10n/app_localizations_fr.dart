@@ -3017,4 +3017,40 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get guideAudioNotifTexte =>
       'Pause et lecture restent accessibles quand l\'application est réduite.';
+
+  @override
+  String get demoRecitationTitre => 'Démonstration';
+
+  @override
+  String get demoRecitationBandeau =>
+      'Exemple préparé. Le micro n\'est pas utilisé, rien n\'est enregistré, ta progression n\'est pas modifiée.';
+
+  @override
+  String get demoRecitationLancer => 'Lancer la démonstration';
+
+  @override
+  String get demoRecitationRejouer => 'Rejouer';
+
+  @override
+  String get demoRecitationEnCours => 'En cours…';
+
+  @override
+  String get demoLegendeVert => 'Juste';
+
+  @override
+  String get demoLegendeOrange => 'Approximatif';
+
+  @override
+  String get demoLegendeRouge => 'Écart entendu';
+
+  @override
+  String get guideChapitreDemoTitre => 'Voir une récitation';
+
+  @override
+  String get guideChapitreDemoResume =>
+      'Un exemple préparé : validation, doute, erreur, reprise.';
+
+  @override
+  String get guideDemoTexte =>
+      'Regarde comment les mots se colorent au fur et à mesure. C\'est une démonstration, pas une vraie récitation.';
 }

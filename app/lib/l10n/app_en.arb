@@ -942,5 +942,16 @@
   "guideAudioHorsLigneTitre": "Offline",
   "guideAudioHorsLigneTexte": "A downloaded surah plays without a connection, and is never fetched again.",
   "guideAudioNotifTitre": "From the notification",
-  "guideAudioNotifTexte": "Pause and play stay available when the app is minimised."
+  "guideAudioNotifTexte": "Pause and play stay available when the app is minimised.",
+  "demoRecitationTitre": "Demonstration",
+  "demoRecitationBandeau": "Prepared example. The microphone is not used, nothing is recorded, your progress is not changed.",
+  "demoRecitationLancer": "Start the demonstration",
+  "demoRecitationRejouer": "Play again",
+  "demoRecitationEnCours": "Running…",
+  "demoLegendeVert": "Correct",
+  "demoLegendeOrange": "Approximate",
+  "demoLegendeRouge": "Difference heard",
+  "guideChapitreDemoTitre": "Watch a recitation",
+  "guideChapitreDemoResume": "A prepared example: validation, doubt, error, recovery.",
+  "guideDemoTexte": "Watch how the words take colour as you go. This is a demonstration, not a real recitation."
 }

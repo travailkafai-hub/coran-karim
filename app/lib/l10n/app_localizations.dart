@@ -4890,6 +4890,72 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Pause et lecture restent accessibles quand l\'application est réduite.'**
   String get guideAudioNotifTexte;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'Démonstration'**
+  String get demoRecitationTitre;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'Exemple préparé. Le micro n\'est pas utilisé, rien n\'est enregistré, ta progression n\'est pas modifiée.'**
+  String get demoRecitationBandeau;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'Lancer la démonstration'**
+  String get demoRecitationLancer;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'Rejouer'**
+  String get demoRecitationRejouer;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'En cours…'**
+  String get demoRecitationEnCours;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'Juste'**
+  String get demoLegendeVert;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'Approximatif'**
+  String get demoLegendeOrange;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'Écart entendu'**
+  String get demoLegendeRouge;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'Voir une récitation'**
+  String get guideChapitreDemoTitre;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'Un exemple préparé : validation, doute, erreur, reprise.'**
+  String get guideChapitreDemoResume;
+
+  /// Demonstration de recitation (scriptee)
+  ///
+  /// In fr, this message translates to:
+  /// **'Regarde comment les mots se colorent au fur et à mesure. C\'est une démonstration, pas une vraie récitation.'**
+  String get guideDemoTexte;
 }
 
 class _AppLocalizationsDelegate

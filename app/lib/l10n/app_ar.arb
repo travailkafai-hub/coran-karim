@@ -942,5 +942,16 @@
   "guideAudioHorsLigneTitre": "دون اتصال",
   "guideAudioHorsLigneTexte": "السورة المنزَّلة تُسمع دون اتصال، ولا تُنزَّل مرة أخرى.",
   "guideAudioNotifTitre": "من الإشعار",
-  "guideAudioNotifTexte": "الإيقاف والتشغيل يبقيان متاحين عند تصغير التطبيق."
+  "guideAudioNotifTexte": "الإيقاف والتشغيل يبقيان متاحين عند تصغير التطبيق.",
+  "demoRecitationTitre": "عرض توضيحي",
+  "demoRecitationBandeau": "مثال مُعدّ مسبقاً. الميكروفون غير مستخدم، ولا يُسجَّل شيء، ولا يتغيّر تقدّمك.",
+  "demoRecitationLancer": "ابدأ العرض",
+  "demoRecitationRejouer": "إعادة",
+  "demoRecitationEnCours": "جارٍ…",
+  "demoLegendeVert": "صحيح",
+  "demoLegendeOrange": "تقريبي",
+  "demoLegendeRouge": "فرق مسموع",
+  "guideChapitreDemoTitre": "شاهد تلاوة",
+  "guideChapitreDemoResume": "مثال مُعدّ: تصحيح، وشكّ، وخطأ، ثم استئناف.",
+  "guideDemoTexte": "انظر كيف تتلوّن الكلمات تباعاً. هذا عرض توضيحي، وليس تلاوة حقيقية."
 }

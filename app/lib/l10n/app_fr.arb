@@ -3731,5 +3731,49 @@
   "guideAudioNotifTexte": "Pause et lecture restent accessibles quand l'application est réduite.",
   "@guideAudioNotifTexte": {
     "description": "Visite guidee : chapitres detailles"
+  },
+  "demoRecitationTitre": "Démonstration",
+  "@demoRecitationTitre": {
+    "description": "Demonstration de recitation (scriptee)"
+  },
+  "demoRecitationBandeau": "Exemple préparé. Le micro n'est pas utilisé, rien n'est enregistré, ta progression n'est pas modifiée.",
+  "@demoRecitationBandeau": {
+    "description": "Demonstration de recitation (scriptee)"
+  },
+  "demoRecitationLancer": "Lancer la démonstration",
+  "@demoRecitationLancer": {
+    "description": "Demonstration de recitation (scriptee)"
+  },
+  "demoRecitationRejouer": "Rejouer",
+  "@demoRecitationRejouer": {
+    "description": "Demonstration de recitation (scriptee)"
+  },
+  "demoRecitationEnCours": "En cours…",
+  "@demoRecitationEnCours": {
+    "description": "Demonstration de recitation (scriptee)"
+  },
+  "demoLegendeVert": "Juste",
+  "@demoLegendeVert": {
+    "description": "Demonstration de recitation (scriptee)"
+  },
+  "demoLegendeOrange": "Approximatif",
+  "@demoLegendeOrange": {
+    "description": "Demonstration de recitation (scriptee)"
+  },
+  "demoLegendeRouge": "Écart entendu",
+  "@demoLegendeRouge": {
+    "description": "Demonstration de recitation (scriptee)"
+  },
+  "guideChapitreDemoTitre": "Voir une récitation",
+  "@guideChapitreDemoTitre": {
+    "description": "Demonstration de recitation (scriptee)"
+  },
+  "guideChapitreDemoResume": "Un exemple préparé : validation, doute, erreur, reprise.",
+  "@guideChapitreDemoResume": {
+    "description": "Demonstration de recitation (scriptee)"
+  },
+  "guideDemoTexte": "Regarde comment les mots se colorent au fur et à mesure. C'est une démonstration, pas une vraie récitation.",
+  "@guideDemoTexte": {
+    "description": "Demonstration de recitation (scriptee)"
   }
 }

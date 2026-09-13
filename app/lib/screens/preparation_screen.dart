@@ -50,6 +50,7 @@ import '../models/riwaya.dart';
 import '../providers/app_settings_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/choix_ecriture_sheet.dart';
+import '../widgets/quran_pattern_background.dart';
 
 /// Clé de persistance, distincte de `kPrefOnboardingVu` : voir la préparation
 /// n'est pas voir la présentation, et fusionner les deux drapeaux empêcherait
@@ -113,7 +114,34 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
     final t = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.green900,
-      body: SafeArea(
+      // ── L'ECRAN AVAIT ETE JUGE « MOCHE » (2026-09-13) ──────────────────
+      //
+      // Retour utilisateur sans detour. Trois choses manquaient, et ce sont
+      // les memes qui font l'identite du reste de l'application :
+      //   * un FOND qui vit -- degrade vert profond + le filigrane deja
+      //     utilise sur l'accueil et la couverture du Mushaf, au lieu d'un
+      //     aplat ;
+      //   * l'ORNEMENT dore (filet, losange) qui signe chaque en-tete ;
+      //   * des cartes en PARCHEMIN clair sur le vert, comme une page posee
+      //     sur la reliure, plutot que des rectangles vert sur vert qui se
+      //     distinguaient a peine les uns des autres.
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [AppColors.green900, AppColors.green800],
+                ),
+              ),
+            ),
+          ),
+          const Positioned.fill(
+            child: QuranPatternBackground(opacity: 0.07),
+          ),
+          SafeArea(
         child: Column(
           children: [
             _entete(t),
@@ -130,6 +158,8 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
             _pied(t),
           ],
         ),
+          ),
+        ],
       ),
     );
   }
@@ -142,12 +172,19 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
             Text(
               'القرآن الكريم',
               style: GoogleFonts.scheherazadeNew(
-                fontSize: 26,
+                fontSize: 30,
                 color: AppColors.cream,
                 fontWeight: FontWeight.w600,
+                height: 1.1,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
+            // Le filet a losange : c'est la signature visuelle de l'accueil et
+            // de la couverture. Le reprendre ici fait de la preparation une
+            // PAGE DE CET OUVRAGE, pas un formulaire de configuration pose
+            // devant.
+            const _FiletDore(),
+            const SizedBox(height: 14),
             // Une barre de progression plutôt qu'un « étape 1 sur 3 » : elle
             // dit la même chose sans texte à traduire, et se lit d'un coup
             // d'œil dans les trois langues.
@@ -339,22 +376,35 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
     bool arabe = false,
   }) =>
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-        child: Material(
-          color: choisi
-              ? AppColors.brass.withAlpha(46)
-              : AppColors.cream.withAlpha(18),
-          borderRadius: BorderRadius.circular(12),
+        padding: const EdgeInsets.fromLTRB(16, 5, 16, 5),
+        child: Builder(builder: (context) {
+        // Une seule variable pour l'encre : sur creme pleine il faut de
+        // l'encre sombre, sur le vert translucide il faut du creme. Le calculer
+        // ici evite de repeter la condition a chaque Text -- et d'en oublier
+        // un, ce qui produirait du texte creme sur fond creme, invisible.
+        final encre = choisi ? AppColors.ink : AppColors.cream;
+        return Material(
+          // Parchemin sur la reliure : la carte choisie passe en creme pleine,
+          // les autres restent en vert clair translucide. Le contraste porte
+          // donc sur la MATIERE et pas seulement sur un liseré -- avant, deux
+          // cartes vert-sur-vert ne se distinguaient qu'a la bordure, ce qui
+          // se voyait mal et faisait « plat ».
+          color: choisi ? AppColors.cream : AppColors.cream.withAlpha(22),
+          borderRadius: BorderRadius.circular(14),
+          elevation: choisi ? 3 : 0,
+          shadowColor: Colors.black54,
           child: InkWell(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             onTap: onTap,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: choisi ? AppColors.brass : Colors.transparent,
-                  width: 1.3,
+                  color: choisi
+                      ? AppColors.brass
+                      : AppColors.cream.withAlpha(38),
+                  width: choisi ? 1.6 : 1,
                 ),
               ),
               child: Row(
@@ -367,14 +417,14 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                           titre,
                           style: arabe
                               ? GoogleFonts.scheherazadeNew(
-                                  fontSize: 19,
-                                  color: AppColors.cream,
+                                  fontSize: 21,
+                                  color: encre,
                                   fontWeight: FontWeight.w600,
                                 )
-                              : const TextStyle(
-                                  fontSize: 15,
-                                  color: AppColors.cream,
-                                  fontWeight: FontWeight.w600,
+                              : TextStyle(
+                                  fontSize: 15.5,
+                                  color: encre,
+                                  fontWeight: FontWeight.w700,
                                 ),
                         ),
                         if (sous != null) ...[
@@ -383,7 +433,7 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                             sous,
                             style: TextStyle(
                               fontSize: 11.5,
-                              color: AppColors.cream.withAlpha(160),
+                              color: encre.withAlpha(165),
                               height: 1.35,
                             ),
                           ),
@@ -393,12 +443,13 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                   ),
                   if (choisi)
                     const Icon(Icons.check_circle_rounded,
-                        color: AppColors.brass, size: 22),
+                        color: AppColors.brass, size: 23),
                 ],
               ),
             ),
           ),
-        ),
+        );
+        }),
       );
 
   Widget _bascule({
@@ -411,12 +462,34 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
         child: SwitchListTile(
           value: valeur,
           onChanged: onChanged,
-          title: Text(titre,
-              style: const TextStyle(color: AppColors.cream, fontSize: 15)),
-          activeThumbColor: AppColors.brass,
-          tileColor: AppColors.cream.withAlpha(18),
+          // ── POLICE FORCEE (2026-09-13) ──────────────────────────────────
+          //
+          // Defaut vu a l'ecran : « Mode sombre » et « Couleurs du tajwid »
+          // s'affichaient dans la police ARABE decorative (Scheherazade), au
+          // milieu d'un ecran en police d'interface. Cause : un `ListTile` prend
+          // son style dans le `TextTheme` de l'application, dont la famille par
+          // defaut est celle du texte coranique. Les `Text` voisins n'etaient
+          // pas touches parce qu'ils declarent leur style eux-memes.
+          //
+          // On nomme donc la police ici. Ne pas se contenter d'une taille : le
+          // defaut ne vient pas de la taille, il vient de la FAMILLE.
+          title: Text(
+            titre,
+            style: GoogleFonts.manrope(
+              color: AppColors.cream,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          activeThumbColor: AppColors.green900,
+          activeTrackColor: AppColors.brass,
+          inactiveThumbColor: AppColors.cream,
+          inactiveTrackColor: AppColors.cream.withAlpha(40),
+          tileColor: AppColors.cream.withAlpha(22),
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: AppColors.cream.withAlpha(38)),
+          ),
         ),
       );
 
@@ -461,4 +534,48 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
           ],
         ),
       );
+}
+
+
+/// Le filet doré à losange qui souligne le titre.
+///
+/// Repris tel quel de l'accueil et de la couverture du Mushaf : c'est la
+/// signature visuelle de l'application. Redessiné ici plutôt qu'importé parce
+/// que l'original (`_TitleRule`, `surah_list_screen.dart`) est privé à son
+/// fichier — le dupliquer est le moindre mal tant que personne n'a besoin d'un
+/// troisième exemplaire ; au troisième, il faudra l'extraire dans `widgets/`.
+class _FiletDore extends StatelessWidget {
+  const _FiletDore();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget trait() => Container(
+          width: 52,
+          height: 1,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.brass.withAlpha(0),
+                AppColors.brass.withAlpha(190),
+              ],
+            ),
+          ),
+        );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        trait(),
+        const SizedBox(width: 7),
+        Transform.rotate(
+          angle: 0.785398, // 45° : un carré posé sur la pointe = le losange
+          child: Container(width: 6, height: 6, color: AppColors.brass),
+        ),
+        const SizedBox(width: 7),
+        // Le second trait est le miroir du premier : sans le retournement, le
+        // dégradé irait dans le même sens des deux côtés et l'ornement
+        // paraîtrait glisser vers la droite.
+        Transform.flip(flipX: true, child: trait()),
+      ],
+    );
+  }
 }
