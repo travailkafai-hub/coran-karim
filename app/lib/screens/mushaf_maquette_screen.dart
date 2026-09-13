@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/riwaya.dart';
 import '../models/verse.dart';
+import '../providers/player_provider.dart';
 import '../providers/app_settings_provider.dart';
 import '../services/mushaf_lignes_service.dart';
 import '../services/quran_api.dart';
@@ -44,8 +46,13 @@ import '../widgets/tajweed_text.dart';
 /// par l'espacement natif, et l'ajustement par la taille de police.
 class MushafMaquetteScreen extends ConsumerStatefulWidget {
   final int pageInitiale;
+  final SystemUiMode modeSystemeAuRetour;
 
-  const MushafMaquetteScreen({super.key, this.pageInitiale = 1});
+  const MushafMaquetteScreen({
+    super.key,
+    this.pageInitiale = 1,
+    this.modeSystemeAuRetour = SystemUiMode.edgeToEdge,
+  });
 
   @override
   ConsumerState<MushafMaquetteScreen> createState() =>
@@ -371,6 +378,35 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
   /// retrouver sa place, pas être renvoyé ailleurs.
   late int _pageLue = widget.pageInitiale.clamp(1, _kPages);
 
+  /// Premier verset de la page affichee -- la cible du signet (2026-09-12).
+  ///
+  /// La vue papier navigue par PAGE, le signet du projet se pose sur un
+  /// VERSET (`MarquePagesNotifier.cle(sourate, verset)`). Marquer le premier
+  /// verset de la page est ce qui permet d'y revenir : c'est la page qu'on
+  /// veut retrouver, pas une ligne precise.
+  ///
+  /// Charge a l'ouverture puis a chaque changement de page. `fetchVersesByPage`
+  /// sert deja la page affichee juste a cote, donc cet appel retombe sur le
+  /// meme cache -- pas de second acces reseau.
+  Verse? _premierVersetPage;
+
+  Future<void> _chargerPremierVerset() async {
+    final page = _pageLue;
+    final warsh = ref.read(riwayaProvider) == Riwaya.warsh;
+    try {
+      final v = warsh
+          ? await QuranApi.fetchWarshMushafVersesByPage(page)
+          : await QuranApi.fetchVersesByPage(page);
+      // La page a pu changer pendant le chargement : ne pas ecraser la cible
+      // d'une page qu'on ne regarde plus.
+      if (!mounted || page != _pageLue) return;
+      setState(() => _premierVersetPage = v.isEmpty ? null : v.first);
+    } catch (_) {
+      // Le signet est un confort : s'il ne peut pas cibler, il se desactive,
+      // il ne fait pas echouer l'affichage de la page.
+    }
+  }
+
   /// ── LE DECALAGE A L'OUVERTURE (2026-09-05) ────────────────────────────
   ///
   /// Constat utilisateur : « a l'ouverture, avant le plein ecran, il y a un
@@ -410,6 +446,9 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     // de telechargement depend du reseau, un delai serait tantot trop court,
     // tantot du retard gratuit a chaque ouverture.
     PaintingBinding.instance.systemFonts.addListener(_policeChargee);
+    // Cible du signet pour la page d'ouverture (cf. `_premierVersetPage`).
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _chargerPremierVerset());
     // Plein écran : ni barre d'état ni boutons système. `immersiveSticky` les
     // ramène brièvement sur un balayage depuis le bord puis les re-masque --
     // le geste de feuilletage n'est donc jamais confisqué par le système.
@@ -435,7 +474,9 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     PaintingBinding.instance.systemFonts.removeListener(_policeChargee);
     // Sans cette restauration, TOUT le reste de l'app resterait sans barres
     // système après un passage par la maquette.
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    // ChGPT: the normal reader is also immersive. Restoring edgeToEdge
+    // unconditionally changed its insets underneath the return animation.
+    SystemChrome.setEnabledSystemUIMode(widget.modeSystemeAuRetour);
     // Remettre le verrou de `main.dart`, sinon tout le reste de l'app
     // devient rotatif après un simple passage par cet écran -- exactement le
     // même piège que les barres système ci-dessus.
@@ -458,6 +499,55 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     // n'est fait.
     final ecriture = ref.watch(policeMushafPageProvider);
     final tajwid = ref.watch(tajwidMushafPageProvider);
+    // ── LE SURLIGNEMENT SUIT LA LECTURE (2026-09-12) ────────────────────
+    //
+    // Meme calcul que la vue liste (`playingVerseKey` dans
+    // mushaf_screen.dart), recopie a l'identique -- y compris le test sur
+    // `isActive` et non `isPlaying` : au moment ou `currentVerse` change, le
+    // statut vaut encore « loading », et filtrer sur `isPlaying` ferait
+    // clignoter le surlignement a chaque changement de verset.
+    final etatLecteur = ref.watch(playerProvider);
+    final cleVersetJoue =
+        etatLecteur.isActive ? etatLecteur.currentVerse?.key : null;
+    // ── RETOUR ET SIGNET, ICI AUSSI (2026-09-12) ─────────────────────────
+    //
+    // Demande utilisateur : « je veux egalement les marquer dans mushaf
+    // papier ». Cette vue n'avait aucun chrome -- on en sortait par le geste
+    // systeme, et le signet n'y etait pas posable du tout, alors que c'est la
+    // vue ou l'on LIT longtemps, donc celle ou l'on s'arrete.
+    //
+    // Memes couleurs que dans le Mushaf normal, et pour la meme raison : le
+    // rond n'est qu'un voile de la couleur du fond, c'est l'icone accordee au
+    // theme qui porte le contraste. Sur une page de mushaf, le texte prime sur
+    // le chrome.
+    // Alpha 76 : mi-chemin entre les 110 d'avant (le texte etait masque) et
+    // les 42 d'un premier essai (le bouton s'effacait) -- retour utilisateur
+    // du 2026-09-12, meme reglage que dans le Mushaf plein ecran.
+    final fondRond =
+        (sombre ? AppColors.sombreBgDeep : const Color(0xFFF3EAD6))
+            .withAlpha(76);
+    // ── LA MARGE HAUTE TIENT COMPTE DE CHAQUE TELEPHONE (2026-09-12) ─────
+    //
+    // Ni une valeur fixe, ni la marge systeme entiere. Une constante en dur
+    // passerait sous l'encoche des uns et flotterait au milieu de l'ecran des
+    // autres ; `SafeArea` entier posait les boutons trop bas sur la page
+    // (« est-ce qu'il y a moyen de les faire encore remonter »).
+    //
+    // On prend donc une PART de ce que l'appareil declare, bornee des deux
+    // cotes : 45 % de `padding.top`, au moins 4 (ecrans qui ne declarent
+    // rien -- cette vue tourne en `immersiveSticky`, la barre d'etat y est
+    // masquee), au plus 64 (tablettes et encoches profondes, ou 45 % ferait
+    // redescendre le bouton trop bas). Les deux boutons sont aux BORDS
+    // gauche et droit, la ou aucune encoche ni aucun poincon ne se place --
+    // le risque de recouvrement est donc structurellement faible.
+    final margeHauteRond = margeHauteBoutonsMushaf(context);
+    final encreRond = sombre ? AppColors.cream : AppColors.ink;
+    final cleSignet = _premierVersetPage == null
+        ? null
+        : MarquePagesNotifier.cle(_premierVersetPage!.surahNumber,
+            _premierVersetPage!.ayahNumber);
+    final estMarquee =
+        cleSignet != null && ref.watch(marquePagesProvider) == cleSignet;
     return PopScope(
       // Le retour rend la page LUE, pas celle d'entrée : c'est ce qui rend le
       // lien bidirectionnel (cf. la doc de `_pageLue`). `PopScope` plutôt
@@ -476,12 +566,17 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
       backgroundColor: sombre ? AppColors.sombreBg : const Color(0xFFF3EAD6),
       // CHGPT : la page reste toujours en plein ecran. Un toucher avance
       // directement, sans faire apparaitre de barre qui decale le Mushaf.
-      body: PageView.builder(
+      body: Stack(
+        children: [
+          PageView.builder(
         controller: _ctrl,
         reverse: true,
         physics: const _BalayagePage(),
         itemCount: _kPages,
-        onPageChanged: (i) => _pageLue = i + 1,
+        onPageChanged: (i) {
+          _pageLue = i + 1;
+          _chargerPremierVerset();
+        },
         // ── LE ZOOM SYSTEME CASSAIT LE CALCUL DE PAGE (2026-09-04) ───────
         //
         // Question de l'utilisateur : « l'affichage du mushaf papier tient-il
@@ -519,6 +614,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
           warsh: warsh,
           ecriture: ecriture,
           tajwid: tajwid,
+          cleVersetJoue: cleVersetJoue,
           onTap: () => _ctrl.nextPage(
             duration: const Duration(milliseconds: 260),
             curve: Curves.easeOutCubic,
@@ -529,6 +625,67 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
               ouvrirChoixEcriture(context, ref, sombre: sombre),
         ),
         ),
+      ),
+          // Poses APRES la page dans le Stack : ils flottent au-dessus d'elle,
+          // sans jamais entrer dans le calcul de mise en page du mushaf (la
+          // taille de police est mesuree par dichotomie sur la hauteur
+          // disponible -- un bouton dans le flux la ferait retrecir).
+          Positioned(
+            top: margeHauteRond,
+            left: 8,
+            child: Material(
+                color: fondRond,
+                shape: const CircleBorder(),
+                child: IconButton(
+                  icon: Icon(Icons.arrow_back_rounded, color: encreRond),
+                  onPressed: () => Navigator.of(context).pop(_pageLue),
+                ),
+            ),
+          ),
+          Positioned(
+            top: margeHauteRond,
+            right: 8,
+            child: Material(
+                color: fondRond,
+                shape: const CircleBorder(),
+                child: IconButton(
+                  tooltip: estMarquee
+                      ? AppLocalizations.of(context)!.mushafBookmarkRemove
+                      : AppLocalizations.of(context)!.mushafBookmarkHere,
+                  icon: Icon(
+                      estMarquee
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_border_rounded,
+                      color: estMarquee ? AppColors.brass : encreRond),
+                  // Desactive tant que la page n'a pas dit quel verset elle
+                  // commence : mieux vaut un bouton inerte qu'un signet pose
+                  // au mauvais endroit.
+                  onPressed: _premierVersetPage == null
+                      ? null
+                      : () async {
+                          final v = _premierVersetPage!;
+                          final pose = await ref
+                              .read(marquePagesProvider.notifier)
+                              .basculer(v.surahNumber, v.ayahNumber);
+                          if (!context.mounted) return;
+                          final t = AppLocalizations.of(context)!;
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(SnackBar(
+                              duration: const Duration(seconds: 2),
+                              backgroundColor: AppColors.green900,
+                              content: Text(
+                                '${pose ? t.mushafBookmarkAdded : t.mushafBookmarkRemoved}'
+                                '  ${v.surahNumber}:${v.ayahNumber}',
+                                style: GoogleFonts.manrope(
+                                    fontSize: 13, color: AppColors.cream),
+                              ),
+                            ));
+                        },
+                ),
+            ),
+          ),
+        ],
       ),
       ),
       ),
@@ -553,6 +710,21 @@ class _PageMushaf extends StatelessWidget {
   /// entre deux ecritures.
   final String ecriture;
 
+  /// Cle « sourate:verset » du verset en cours de LECTURE, ou `null` si le
+  /// lecteur est arrete (2026-09-12).
+  ///
+  /// Demande utilisateur : « lors de la lecture on a un surlignement sur la
+  /// page par verset, est-ce qu'on peut avoir le meme rendu dans le mushaf
+  /// papier, quelque chose qui suit la lecture ». La vue liste le fait depuis
+  /// longtemps (`isPlayingCursor` dans verse_tile.dart) ; cette page-ci ne
+  /// lisait tout simplement pas le lecteur -- rien ne s'y opposait, personne
+  /// ne le lui avait branche.
+  ///
+  /// Meme source que la vue liste, au calcul pres qui est recopie tel quel
+  /// (cf. `playingVerseKey` dans mushaf_screen.dart, et la note qui explique
+  /// pourquoi on teste `isActive` et non `isPlaying`).
+  final String? cleVersetJoue;
+
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   const _PageMushaf({
@@ -561,6 +733,7 @@ class _PageMushaf extends StatelessWidget {
     required this.warsh,
     required this.ecriture,
     required this.tajwid,
+    required this.cleVersetJoue,
     required this.onTap,
     required this.onLongPress,
   });
@@ -1238,10 +1411,61 @@ class _PageMushaf extends StatelessWidget {
   /// @param couleur applique la coloration tajwid. A `false`, les memes spans
   /// sont produits dans l'encre de base -- c'est ce qui garde le medaillon de
   /// fin de verset en Amiri quelle que soit l'ecriture choisie.
+  /// ── LE SURLIGNEMENT SUIT LA LECTURE (2026-09-12) ──────────────────────
+  ///
+  /// Demande utilisateur : « lors de la lecture on a un surlignement sur la
+  /// page par verset, est-ce qu'on peut avoir le meme rendu dans le mushaf
+  /// papier ». La vue liste le fait depuis longtemps (`isPlayingCursor`) ;
+  /// cette page-ci ne lisait tout simplement pas le lecteur.
+  ///
+  /// Une TEINTE de fond, pas un cadre : sur une page justifiee a la maniere
+  /// d'un mushaf, un verset court sur plusieurs lignes -- un cadre devrait se
+  /// refermer au bout de chacune et on verrait des boites empilees. Le fond
+  /// suit le texte ligne par ligne, comme un surligneur passe sur une page.
+  ///
+  /// RECURSIF et par `copyWith` : les spans du tajwid portent deja leur encre
+  /// et leurs enfants ; les ecraser eteindrait la coloration des regles sur le
+  /// verset qu'on ecoute -- precisement celui qu'on regarde.
+  TextSpan _surligner(TextSpan sp, Color teinte) => TextSpan(
+        text: sp.text,
+        style: (sp.style ?? const TextStyle())
+            .copyWith(background: Paint()..color = teinte),
+        children: sp.children
+            ?.map((e) => e is TextSpan ? _surligner(e, teinte) : e)
+            .toList(),
+      );
+
   List<TextSpan> _spansCanoniques(List<Verse> versets, {bool couleur = true}) {
     final base = _policePage(famille: ecriture);
     final out = <TextSpan>[];
+    // ── LES DEUX TEINTES SE VALENT A L'OEIL (2026-09-12) ────────────────
+    //
+    // Premiere version posee a vue : 0,13 sur parchemin et 0,20 sur fond
+    // sombre, en se disant qu'une teinte « disparaitrait » sur du noir.
+    // Constat utilisateur : « faut tenir du style, quand c'est noir c'est
+    // plus visible ». Verifie par le calcul, et il avait raison -- le meme
+    // alpha ne donne pas le meme ecart selon le fond :
+    //
+    //   parchemin #F3EAD6 (luminance 0,92) + vert700  a 0,13 -> saut  7,9 pts
+    //   sombre    #0B0B0B (luminance 0,04) + dore     a 0,20 -> saut 15,4 pts
+    //
+    // Deux fois plus marque sur fond sombre, parce que l'ecart entre la
+    // teinte et le fond y est bien plus grand : sur du noir, la moindre
+    // couche claire saute aux yeux.
+    //
+    // On egalise donc sur le SAUT DE LUMINANCE, pas sur l'alpha : 0,103
+    // rend exactement les memes 7,9 points que le mode clair. Le
+    // surlignement se remarque autant dans les deux themes -- et jamais plus
+    // que le texte qu'il accompagne.
+    final teinte = sombre
+        ? AppColors.brassLight.withValues(alpha: 0.10)
+        : AppColors.green700.withValues(alpha: 0.13);
     for (final v in versets) {
+      // Index de depart : tout ce que CE verset ajoute sera surligne d'un
+      // bloc en fin de tour -- medaillon et marques de waqf compris, qui lui
+      // appartiennent visuellement.
+      final debutDuVerset = out.length;
+      final estJoue = cleVersetJoue != null && v.key == cleVersetJoue;
       final mots = tajweedSpansPerWord(
         v.textUthmani,
         // `null` = aucune couleur empruntee a l'annotation : les mots sortent
@@ -1342,6 +1566,16 @@ class _PageMushaf extends StatelessWidget {
             style: base.copyWith(fontFamily: GoogleFonts.amiri().fontFamily),
           ),
         );
+      }
+      // Le verset est complet : on repasse dessus pour poser la teinte, d'un
+      // seul geste. En fin de tour plutot qu'a chaque ajout -- les mots, les
+      // marques de waqf, la sajda et le medaillon entrent par quatre chemins
+      // differents plus haut, et en oublier un laisserait un trou blanc au
+      // milieu du surlignement.
+      if (estJoue) {
+        for (var i = debutDuVerset; i < out.length; i++) {
+          out[i] = _surligner(out[i], teinte);
+        }
       }
     }
     return out;
