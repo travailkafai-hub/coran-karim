@@ -1,7 +1,6 @@
 import 'package:coran_karim/widgets/mushaf_cover_reveal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class _ReaderProbe extends StatefulWidget {
   final VoidCallback onInit;
@@ -30,10 +29,21 @@ class _ReaderProbeState extends State<_ReaderProbe> {
 }
 
 void main() {
-  setUpAll(() async {
+  setUpAll(() {
     TestWidgetsFlutterBinding.ensureInitialized();
-    GoogleFonts.config.allowRuntimeFetching = false;
-    await GoogleFonts.pendingFonts([GoogleFonts.amiri()]);
+  });
+
+  testWidgets('Approved artwork has no duplicate title and is not stretched', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: MushafClosedCover()));
+    await tester.pumpAndSettle();
+    final artwork = tester.widget<Image>(find.byType(Image));
+    expect((artwork.image as AssetImage).assetName, mushafCoverAsset);
+    expect(artwork.fit, BoxFit.contain);
+    expect(find.byType(Text), findsNothing);
+    expect(mushafCoverColor, const Color(0xFF0C3B2C));
+    expect(tester.takeException(), isNull);
   });
 
   Widget app({

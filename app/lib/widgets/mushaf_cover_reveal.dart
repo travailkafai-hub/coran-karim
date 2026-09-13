@@ -1,9 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-const mushafCoverColor = Color(0xFF183F3C);
+const mushafCoverColor = Color(0xFF0C3B2C);
 const mushafCoverAsset = 'assets/illumination/mushaf_cover.webp';
 
 /// A static, local cover also serves as the first Flutter frame.
@@ -14,36 +13,18 @@ class MushafClosedCover extends StatelessWidget {
   Widget build(BuildContext context) => ColoredBox(
     color: mushafCoverColor,
     child: SizedBox.expand(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.asset(
-            mushafCoverAsset,
-            fit: BoxFit.fill,
-            excludeFromSemantics: true,
-            errorBuilder: (_, _, _) => const SizedBox.shrink(),
-          ),
-          Center(
-            child: FractionallySizedBox(
-              widthFactor: 0.23,
-              heightFactor: 0.19,
-              child: FittedBox(
-                fit: BoxFit.contain,
-                child: Text(
-                  '\u0627\u0644\u0642\u0631\u0622\u0646\n\u0627\u0644\u0643\u0631\u064a\u0645',
-                  textDirection: TextDirection.rtl,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.amiri(
-                    fontSize: 42,
-                    height: 1.65,
-                    letterSpacing: 0,
-                    color: const Color(0xFFE2C58B),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+      // ChGPT: the approved artwork already includes the Arabic calligraphy.
+      // Contain preserves the medallion and the complete ornamental frame.
+      child: Semantics(
+        label:
+            '\u0627\u0644\u0642\u0631\u0622\u0646 \u0627\u0644\u0643\u0631\u064a\u0645',
+        image: true,
+        child: Image.asset(
+          mushafCoverAsset,
+          fit: BoxFit.contain,
+          excludeFromSemantics: true,
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        ),
       ),
     ),
   );
