@@ -501,7 +501,9 @@ def main() -> None:
     replays = {
         "policy": "three total executions for each representative case",
         "total_distinct_cases": 60,
-        "total_executions_if_device_available": 70,
+        "total_executions_if_device_available": sum(
+            3 if case["representatif"] else 1 for case in cases
+        ),
         "cases": [
             {"case_id": case["case_id"], "runs": [1, 2, 3]}
             for case in cases
