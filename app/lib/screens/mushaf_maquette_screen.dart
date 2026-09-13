@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +18,7 @@ import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
 import '../widgets/mushaf_page_chrome.dart';
 import '../widgets/mushaf_ornamental_frame.dart';
+import '../widgets/mushaf_measured_block.dart';
 import '../widgets/choix_ecriture_sheet.dart';
 import '../widgets/tajweed_text.dart';
 
@@ -243,17 +246,6 @@ const double _kBoiteBasmala = 1.30;
 /// Le résultat est borné à [0,4 ; 1,6] : en dessous on n'absorbe plus rien, et
 /// une valeur aberrante (police de secours pas encore chargée, métriques
 /// exotiques) ne doit pas réduire la page à une ligne.
-/// Mise en page MESUREE d'une page, retenue pour ne pas la recalculer.
-/// Cf. le long commentaire dans `_blocAjuste`, qui porte le pourquoi et la
-/// mesure. Clé : page, écriture, riwaya, tajwid, contraintes, nb de segments.
-final _cacheMiseEnPage =
-    <String, ({double taille, double interligne, List<double> hauteurs})>{};
-
-/// Au-delà, la plus ancienne entrée est évincée. 200 pages couvrent largement
-/// une session de lecture continue (on revient presque toujours sur ce qu'on
-/// vient de quitter) sans laisser la carte grandir indéfiniment.
-const int _kMaxPagesEnCache = 200;
-
 final _cacheReserve = <String, double>{};
 
 double _reserveBasMesuree(String ecriture) {
@@ -486,12 +478,31 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
       });
     });
     // La page de mushaf reste rotative sans changer le verrou global de l'app.
-    SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    //
+    // ⚠️ RÉVOQUÉ LE 2026-09-13 (demande utilisateur : « interdis le pivotement
+    // de l'écran, il n'est pas fait pour être horizontal »). Le commentaire
+    // d'origine est conservé au-dessus, parce qu'il dit une intention réelle --
+    // mais l'intention était mauvaise, et voici pourquoi, pour que personne ne
+    // la reprenne :
+    //
+    // La mise en page du mushaf est calculée pour une page HAUTE. La taille de
+    // police et l'interligne sortent d'une dichotomie sur la hauteur
+    // disponible (cf. `_blocAjuste`) ; en paysage cette hauteur s'effondre,
+    // la police tombe à une taille minuscule et une page de mushaf devient
+    // illisible. Ce n'était donc pas « une page rotative », c'était une page
+    // dégradée -- constatée à l'écran le jour même (page 113 en paysage).
+    //
+    // Cette ligne était par ailleurs le SEUL endroit de l'app qui déverrouillait
+    // la rotation : `main.dart` verrouille en portrait au démarrage, et le
+    // `dispose()` ci-dessous rétablissait le verrou en sortant. Entre les deux,
+    // toute l'app pouvait basculer.
+    //
+    // Le verrou est désormais posé DEUX fois, et c'est volontaire : ici côté
+    // Flutter, et dans `AndroidManifest.xml` (`android:screenOrientation`), que
+    // le système applique et qu'aucun code Dart ne peut défaire. Un seul des
+    // deux suffirait en théorie ; c'est justement ce qu'on croyait avant.
+    SystemChrome.setPreferredOrientations(
+        const [DeviceOrientation.portraitUp]);
   }
 
   @override
@@ -623,10 +634,13 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
         // comme un mushaf, quelle que soit la langue de l'interface. C'est un
         // livre, pas un ecran -- son sens ne se negocie pas avec la locale.
         reverse: Directionality.of(context) == TextDirection.ltr,
+        // ChGPT: prepare one neighboring viewport on each side, using the
+        // cooperative queue rather than blocking during the next gesture.
+        allowImplicitScrolling: true,
         physics: const _BalayagePage(),
         itemCount: _kPages,
         onPageChanged: (i) {
-          _pageLue = i + 1;
+          setState(() => _pageLue = i + 1);
           _chargerPremierVerset();
         },
         // ── LE ZOOM SYSTEME CASSAIT LE CALCUL DE PAGE (2026-09-04) ───────
@@ -662,6 +676,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
         itemBuilder: (context, i) => MediaQuery.withNoTextScaling(
           child: _PageMushaf(
           page: i + 1,
+          foreground: i + 1 == _pageLue,
           sombre: sombre,
           sepia: sepia,
           warsh: warsh,
@@ -746,10 +761,59 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
   }
 }
 
+/// ChGPT: keep the data Future stable across playback and theme rebuilds.
+class _MushafPageData extends StatefulWidget {
+  final int page;
+  final bool warsh;
+  final AsyncWidgetBuilder<List<List<Verse>>> builder;
+  const _MushafPageData({required this.page, required this.warsh,
+      required this.builder});
+
+  @override
+  State<_MushafPageData> createState() => _MushafPageDataState();
+}
+
+class _MushafPageDataState extends State<_MushafPageData> {
+  late Future<List<List<Verse>>> _data;
+
+  Future<List<List<Verse>>> _load() => Future.wait([
+    widget.warsh
+        ? QuranApi.fetchWarshMushafVersesByPage(widget.page)
+        : QuranApi.fetchVersesByPage(widget.page),
+    widget.warsh
+        ? QuranApi.fetchWarshMushafVersesByPage(1)
+        : QuranApi.fetchVersesByPage(1),
+    MushafLignesService.instance.ensureLoaded().then((_) => <Verse>[]),
+  ]);
+
+  @override
+  void initState() {
+    super.initState();
+    _data = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MushafPageData oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.page != widget.page || oldWidget.warsh != widget.warsh) {
+      _data = _load();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<List<Verse>>>(
+    // Reset retained snapshots when switching riwaya, never show old text.
+    key: ValueKey((widget.page, widget.warsh)),
+    future: _data,
+    builder: widget.builder,
+  );
+}
+
 /// Une page, chargée à la demande (le cache de `QuranApi` rend les retours
 /// en arrière gratuits).
 class _PageMushaf extends StatelessWidget {
   final int page;
+  final bool foreground;
   final bool sombre;
   final bool sepia;
   final bool warsh;
@@ -783,6 +847,7 @@ class _PageMushaf extends StatelessWidget {
   final VoidCallback onLongPress;
   const _PageMushaf({
     required this.page,
+    required this.foreground,
     required this.sombre,
     required this.sepia,
     required this.warsh,
@@ -813,21 +878,9 @@ class _PageMushaf extends StatelessWidget {
       // inventer et modifier le texte sacre » : on le LIT a la source, dans la
       // riwaya courante (le premier verset d'Al-Fatiha), au lieu de le saisir
       // a la main. Les deux lectures n'ecrivent pas la basmala identiquement.
-      child: FutureBuilder<List<List<Verse>>>(
-        future: Future.wait([
-          warsh
-              ? QuranApi.fetchWarshMushafVersesByPage(page)
-              : QuranApi.fetchVersesByPage(page),
-          warsh
-              ? QuranApi.fetchWarshMushafVersesByPage(1)
-              : QuranApi.fetchVersesByPage(1),
-          // Le découpage en lignes du mushaf imprimé. Chargé ici plutôt qu'au
-          // démarrage de l'app : il ne sert qu'à cette vue, et `ensureLoaded`
-          // ne relit l'asset qu'une fois.
-          MushafLignesService.instance
-              .ensureLoaded()
-              .then((_) => <Verse>[]),
-        ]),
+      child: _MushafPageData(
+        page: page,
+        warsh: warsh,
         builder: (context, snap) {
           if (snap.hasError) {
             return Center(
@@ -1856,272 +1909,129 @@ class _PageMushaf extends StatelessWidget {
   /// Extraite pour pouvoir etre RAPPELEE : la garde de debordement doit
   /// remesurer apres chaque recul, sinon elle valide une hauteur qui n'est
   /// plus celle qui sera peinte.
-  List<double> _hauteursSegments(
-    List<({int sourate, String texte, List<Verse> versets, String? basmala})>
-        segments,
+  Future<List<double>> _hauteursSegments(
+    List<({int sourate, String texte, List<Verse> versets, String? basmala})> segments,
     List<List<TextSpan>>? spansParSegment,
     TextStyle style,
     double taille,
     double interligne,
     double largeur,
-  ) {
+    MushafParagraphMeasure mesurer,
+  ) async {
     final out = <double>[];
     for (var s = 0; s < segments.length; s++) {
       final st = style.copyWith(fontSize: taille, height: interligne);
-      final peintre = TextPainter(
-        text: _spanMesure(segments[s].texte, spansParSegment?[s], st, taille),
-        textDirection: TextDirection.rtl,
-        textAlign: TextAlign.justify,
-      )..layout(maxWidth: largeur);
-      // ── LA BASMALA COMPTE COMME UNE LIGNE, A PART (2026-09-04) ────────
-      //
-      // Elle n'est plus dans le paragraphe mesure : le rendu la peint dans une
-      // `SizedBox` a lui (elle doit etre CENTREE, ce qu'un paragraphe justifie
-      // ne permet pas). Tant qu'elle etait comptee ici ET peinte la-bas, les
-      // deux hauteurs ne coincidaient pas exactement et le corps perdait la
-      // difference -- le `ClipRect` tranchait alors sa derniere ligne. On
-      // ajoute donc EXACTEMENT ce que la boite consomme, ni plus ni moins.
-      var hauteur = peintre.height;
-      peintre.dispose();
+      var hauteur = await mesurer(() {
+        final peintre = TextPainter(
+          text: _spanMesure(segments[s].texte, spansParSegment?[s], st, taille),
+          textDirection: TextDirection.rtl,
+          textAlign: TextAlign.justify,
+        );
+        try {
+          peintre.layout(maxWidth: largeur);
+          return peintre.height;
+        } finally {
+          peintre.dispose();
+        }
+      });
       final basmala = spansParSegment == null ? null : segments[s].basmala;
       if (basmala != null) {
-        final p = TextPainter(
-          text: _spanBasmala(basmala, st),
-          textDirection: TextDirection.rtl,
-          textAlign: TextAlign.center,
-        )..layout(maxWidth: largeur);
-        hauteur += p.height;
-        p.dispose();
+        hauteur += await mesurer(() {
+          final p = TextPainter(
+            text: _spanBasmala(basmala, st),
+            textDirection: TextDirection.rtl,
+            textAlign: TextAlign.center,
+          );
+          try {
+            p.layout(maxWidth: largeur);
+            return p.height;
+          } finally {
+            p.dispose();
+          }
+        });
       }
-      // ChGPT: this reserve is part of the fit AND of the rendered box.
-      // Adding it only after fitting caused the yellow/black overflow stripe.
       out.add(hauteur + taille * _reserveBasMesuree(ecriture));
     }
     return out;
   }
 
   Widget _blocAjuste(
-    List<({int sourate, String texte, List<Verse> versets, String? basmala})>
-        segments,
+    List<({int sourate, String texte, List<Verse> versets, String? basmala})> segments,
     List<List<TextSpan>>? spansParSegment,
   ) {
-    return LayoutBuilder(
-      builder: (context, contraintes) {
-        final style = _policePage(famille: ecriture);
-        // 58 et non 46 : en dessous, le libelle des medaillons
-        // (`آياتها`, `ترتيبها`) devient illisible.
-        // La hauteur vient du widget lui-meme (`hauteurCompacte`), elle
-        // n'est plus une valeur devinee ici : le bandeau la GARANTIT par
-        // un `SizedBox`, donc la reservation ne peut pas etre fausse.
-        const hauteurBandeau = MushafSurahBanner.compactHeight;
-        final nBandeaux = segments.length - 1;
-        // ── LA BASMALA COÛTE EXACTEMENT UNE LIGNE (2026-09-04) ───────────
-        //
-        // Elle est MESURÉE dans le paragraphe (`_spanMesure` la compte avec son
-        // saut de ligne) mais PEINTE hors de lui, dans une `Column` -- ce
-        // qu'exigeait le centrage. Un `Text` isolé porte ses propres métriques
-        // de bloc, plus hautes qu'une ligne partageant l'interligne de ses
-        // voisines : le corps recevait donc moins que ce qu'il avait demandé et
-        // `Flexible` le comprimait. Dernière ligne tranchée, vu page 562.
-        //
-        // PREMIÈRE TENTATIVE, FAUSSE : réserver « un tiers de ligne » dans
-        // `dispo`. Elle utilisait une taille de police SUPPOSÉE (40) alors que
-        // la vraie n'est connue qu'à la fin de la dichotomie -- la réserve ne
-        // correspondait donc à rien, et la ligne coupait toujours.
-        //
-        // CE QU'ON FAIT : la basmala est enfermée dans une hauteur EXACTE d'une
-        // ligne (cf. `_avecBasmala`). Mesure et rendu coïncident alors par
-        // construction, et il n'y a plus rien à compenser ici.
-        final dispo = contraintes.maxHeight - nBandeaux * hauteurBandeau;
-
-        // ── LA MISE EN PAGE MESUREE EST MISE EN CACHE (2026-09-13) ────────
-        //
-        // Ce qui suit est le point le plus couteux de l'application, mesure :
-        // deux dichotomies de 12 et 8 tours, chacune appelant
-        // `_hauteursSegments`, qui met en page le texte COMPLET de la page via
-        // `TextPainter`. Soit une VINGTAINE de mises en page d'un texte
-        // coranique entier, avec ses diacritiques et ses spans de tajwid, sur
-        // l'isolate qui dessine -- et le tout dans un `LayoutBuilder`, donc
-        // rejoue a chaque reconstruction, pour la page courante ET pour les
-        // pages voisines que `PageView.builder` prepare.
-        //
-        // Ce que l'instrument a relevé (Redmi Note 9 Pro, build debug) :
-        //     [Fluidite] construction p90=473ms p99=718..882ms
-        // alors qu'une tranche sans construction de page donne p50=2,7 ms.
-        // C'est ce qui fait perdre des gestes : pendant qu'une page se mesure,
-        // la file d'evenements tactiles n'est pas servie -- 12 balayages
-        // n'avaient fait tourner que 7 pages.
-        //
-        // ⚠️ CE CACHE NE CHANGE AUCUN RENDU, et c'est sa raison d'etre : pour
-        // des entrees identiques, la dichotomie redonne EXACTEMENT le meme
-        // resultat (elle est deterministe et ne lit aucun etat exterieur). On
-        // ne modifie donc ni la taille de police, ni l'interligne, ni les
-        // hauteurs -- on evite seulement de les recalculer. C'etait la
-        // condition pour toucher a ce code : la mise en page du mushaf a
-        // demande beaucoup d'allers-retours avec l'utilisateur, et un
-        // correctif de performance n'a pas le droit d'en deplacer un pixel.
-        //
-        // La cle porte TOUT ce qui entre dans la mesure. Un oubli ici ne
-        // produirait pas une erreur visible tout de suite, mais une page
-        // rendue avec la mise en page d'une AUTRE configuration -- le genre de
-        // defaut qui ne se voit qu'en changeant d'ecriture. Les dimensions
-        // sont arrondies au pixel : `LayoutBuilder` peut rendre des
-        // contraintes differant d'une fraction, ce qui ferait manquer le cache
-        // a chaque frame sans rien changer au resultat.
-        final cleMesure = '$page|$ecriture|$warsh|$tajwid|'
-            '${contraintes.maxWidth.round()}x${contraintes.maxHeight.round()}|'
-            '${segments.length}|${spansParSegment == null}';
-        final dejaMesure = _cacheMiseEnPage[cleMesure];
-
-        double basse = 0, haute = 52;
-        double interligneRetenu;
-        List<double> hauteurs;
-
-        if (dejaMesure != null) {
-          basse = dejaMesure.taille;
-          interligneRetenu = dejaMesure.interligne;
-          hauteurs = dejaMesure.hauteurs;
-        } else {
-        final tMesure = Stopwatch()..start();
-        for (var i = 0; i < 12; i++) {
-          final milieu = (basse + haute) / 2;
-          final total = _hauteursSegments(segments, spansParSegment, style,
-              milieu, _kInterligne, contraintes.maxWidth)
-              .fold<double>(0, (a, b) => a + b);
-          // Reserve de securite ABSOLUE et non proportionnelle : ce qu'elle
-          // protege, c'est une diacritique haute de la DERNIERE ligne qui
-          // depasse la hauteur annoncee par TextPainter. Ce depassement vaut
-          // une fraction du corps -- il ne grandit pas avec la page. En
-          // pourcentage (0,93 avant le 2026-09-03) il reservait ~125 px sur
-          // une page de 1800 pour un besoin d'une quinzaine, et c'est ce vide
-          // que l'utilisateur voyait en haut et en bas.
-          if (total <= dispo) {
-            basse = milieu;
-          } else {
-            haute = milieu;
+    return LayoutBuilder(builder: (context, contraintes) {
+      const hauteurBandeau = MushafSurahBanner.compactHeight;
+      final dispo = contraintes.maxHeight - (segments.length - 1) * hauteurBandeau;
+      // ChGPT: exact constraints and source content, never rounded pixel keys.
+      // Playback highlighting and frame colors do not affect font metrics.
+      final cleMesure = jsonEncode([
+        page, ecriture, warsh, tajwid,
+        contraintes.maxWidth, contraintes.maxHeight,
+        spansParSegment == null,
+        for (final segment in segments) [
+          segment.sourate, segment.texte, segment.basmala,
+          if (tajwid) for (final verse in segment.versets) verse.textUthmaniTajweed,
+        ],
+      ]);
+      return MushafMeasuredBlock(
+        requestKey: cleMesure,
+        page: page,
+        foreground: foreground,
+        calculate: (mesurer) async {
+          final style = _policePage(famille: ecriture);
+          double basse = 0, haute = 52;
+          // Same 12-step size search and 8-step leading search as before.
+          // Only scheduling changes; no approximation of the accepted height.
+          for (var i = 0; i < 12; i++) {
+            final milieu = (basse + haute) / 2;
+            final mesure = await _hauteursSegments(segments, spansParSegment,
+                style, milieu, _kInterligne, contraintes.maxWidth, mesurer);
+            final total = mesure.fold<double>(0, (a, b) => a + b);
+            if (total <= dispo) {
+              basse = milieu;
+            } else {
+              haute = milieu;
+            }
           }
-        }
-
-        // ── LE RELIQUAT DEVIENT DE L'INTERLIGNE (2026-09-03) ──────────────
-        //
-        // « il y a de l'espace en hauteur, tu peux occuper tout l'ecran ». La
-        // dichotomie s'arrete sur la plus grande taille qui TIENT : il reste
-        // donc toujours jusqu'a une ligne entiere de rab. On le rend au texte
-        // en ecartant les lignes, au lieu de le laisser en marges.
-        // Plafond : sur une page peu remplie la police bute deja sur son
-        // maximum et sans borne les quelques lignes s'etaleraient comme un
-        // poeme. Au-dela, le reste redevient du vide centre -- le bon rendu
-        // dans ce cas precis.
-
-        // ── LA SOMME EST MESUREE, PAS SUPPOSEE (2026-09-03) ───────────────
-        //
-        // Defaut constate a l'ecran, page 4 : « la derniere ligne n'est pas
-        // visible ». L'interligne definitif est DEDUIT d'une mesure faite a
-        // l'interligne de reference ; rien ne garantissait que la hauteur
-        // reelle, une fois l'interligne releve, tienne encore dans `dispo`.
-        // Quand elle debordait, le `ClipRect` de la page -- pose la pour
-        // empecher une diacritique de mordre le cadre -- coupait la derniere
-        // ligne SANS RIEN DIRE. Un `ClipRect` masque un debordement, il ne le
-        // corrige pas : c'est ce qui rendait le defaut invisible au calcul.
-        //
-        // On remesure donc apres chaque recul, et on recule tant que ca ne
-        // rentre pas : d'abord en rendant l'air ajoute, ensuite en descendant
-        // le corps. Certaines pages seront un peu moins pleines -- c'est le
-        // bon cote de l'erreur : mieux vaut du blanc qu'une ligne coupee.
-        // ChGPT: use the same complete measurement for both searches.
-        // No minimum font size or capped recovery loop may hide page content.
-        interligneRetenu = _kInterligne;
-        var interligneMax = 2.45;
-        hauteurs = _hauteursSegments(segments, spansParSegment, style,
-            basse, interligneRetenu, contraintes.maxWidth);
-        for (var essai = 0; essai < 8; essai++) {
-          final milieu = (interligneRetenu + interligneMax) / 2;
-          final mesure = _hauteursSegments(segments, spansParSegment, style,
-              basse, milieu, contraintes.maxWidth);
-          if (mesure.fold<double>(0, (a, b) => a + b) <= dispo) {
-            interligneRetenu = milieu;
-            hauteurs = mesure;
-          } else {
-            interligneMax = milieu;
+          var interligneRetenu = _kInterligne;
+          var interligneMax = 2.45;
+          var hauteurs = await _hauteursSegments(segments, spansParSegment,
+              style, basse, interligneRetenu, contraintes.maxWidth, mesurer);
+          for (var essai = 0; essai < 8; essai++) {
+            final milieu = (interligneRetenu + interligneMax) / 2;
+            final mesure = await _hauteursSegments(segments, spansParSegment,
+                style, basse, milieu, contraintes.maxWidth, mesurer);
+            if (mesure.fold<double>(0, (a, b) => a + b) <= dispo) {
+              interligneRetenu = milieu;
+              hauteurs = mesure;
+            } else {
+              interligneMax = milieu;
+            }
           }
-        }
-        tMesure.stop();
-        _cacheMiseEnPage[cleMesure] = (
-          taille: basse,
-          interligne: interligneRetenu,
-          hauteurs: hauteurs,
-        );
-        // Borne memoire : chaque entree ne pese que quelques `double`, mais
-        // rien n'empeche de parcourir les 604 pages dans plusieurs ecritures.
-        // Eviction du plus ancien insere (les `Map` Dart conservent l'ordre
-        // d'insertion) -- suffisant ici, ou ce qu'on relit est ce qu'on vient
-        // de quitter.
-        if (_cacheMiseEnPage.length > _kMaxPagesEnCache) {
-          _cacheMiseEnPage.remove(_cacheMiseEnPage.keys.first);
-        }
-        DiagnosticLog.log(
-            'Perf',
-            'mise en page mesuree page=$page ecriture=$ecriture '
-                '${tMesure.elapsedMilliseconds}ms '
-                '(20 mises en page TextPainter, thread UI) — '
-                'en cache : ${_cacheMiseEnPage.length} page(s)');
-        }
-
-        // ── LE TEXTE COMMENCE EN HAUT DE SON BLOC (2026-09-04) ───────────
-        //
-        // C'etait `MainAxisAlignment.center` : le reliquat de la dichotomie se
-        // repartissait moitie au-dessus du texte, moitie en dessous. Sur une
-        // page pleine ca ne se voyait pas ; sur les autres, une bande vide
-        // s'installait entre l'en-tete et la premiere ligne.
-        //
-        // Vu par l'utilisateur une fois les zones tracees en couleur, et
-        // formule exactement : « le bloc bleu doit commencer juste apres le
-        // rouge, et le segment orange c'est le debut du texte -- pourquoi
-        // doit-il commencer depuis la ligne bleue ? ». Mesure sur la capture
-        // page 78 : environ 80 px de vide en haut, autant en bas.
-        //
-        // `start` : le texte demarre sous l'en-tete, et ce qui reste tombe en
-        // bas, au-dessus du numero de page -- la ou un mushaf imprime le met.
-        return Column(
+          return (taille: basse, interligne: interligneRetenu, hauteurs: hauteurs);
+        },
+        builder: (mise) => Column(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
             for (var s = 0; s < segments.length; s++) ...[
               if (s > 0) _bandeauSourate(segments[s].sourate, hauteurBandeau),
-              // ── LE CLIPRECT EST « LE TRUC QUI CACHE » (2026-09-04) ────
-              //
-              // Intuition de l'utilisateur, exacte : « il y a des coupures, je
-              // pense que c'est un calque ou un truc qui cache ». C'en est un :
-              // ce `ClipRect` découpe net tout ce qui dépasse de `hauteurs[s]`.
-              // La ligne n'est pas mal dessinée, elle est TRANCHÉE -- d'où
-              // cette moitié de lettres, qu'aucune taille de police n'explique.
-              //
-              // Il protège le pied de page d'un texte qui déborderait, donc on
-              // le garde. Mais `TextPainter` rend une hauteur en flottant, et
-              // le rendu réel peut demander une fraction de pixel de plus :
-              // arrondi vers le bas, c'est la dernière ligne qui paie. Deux
-              // pixels de tolérance absorbent l'arrondi sans rien laisser
-              // déborder de visible.
               _zone(ClipRect(
                 child: SizedBox(
-                  // Tolérance PROPORTIONNELLE et non 2 px fixes : ce qui
-                  // déborde, ce sont des jambages et des kasra, dont la taille
-                  // suit la police. Deux pixels suffisaient à 20 pt, pas à 45.
-                  // ChGPT: already includes the reserve used by the search.
-                  height: hauteurs[s],
+                  height: mise.hauteurs[s],
                   child: _bloc(
                     segments[s].texte,
-                    basse,
+                    mise.taille,
                     spansParSegment?[s],
-                    interligne: interligneRetenu,
+                    interligne: mise.interligne,
                     basmala: segments[s].basmala,
                   ),
                 ),
               ), Colors.orange),
             ],
           ],
-        );
-      },
-    );
+        ),
+      );
+    });
   }
 
   /// [basmala] : posée en tête, sur sa propre ligne, quand le segment ouvre

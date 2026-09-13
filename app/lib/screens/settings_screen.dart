@@ -11,6 +11,7 @@ import '../providers/recitation_provider.dart' show recitationVerifierProvider;
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
+import 'decouverte_screen.dart';
 import 'contact_screen.dart';
 import 'prayer_times_settings_screen.dart';
 import 'qibla_screen.dart';
@@ -269,6 +270,21 @@ class SettingsScreen extends ConsumerWidget {
             color: AppColors.settingsApp,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const ContactScreen())),
+          ),
+          // ── DÉCOUVERTE GUIDÉE (2026-09-13) ──────────────────────────
+          //
+          // Placée JUSTE AVANT « À propos », en fin de liste : c'est là qu'on
+          // va quand on cherche à comprendre l'application, pas quand on
+          // cherche à la régler. Le tour d'ensemble se joue tout seul au
+          // premier lancement ; cette entrée est ce qui permet d'y revenir, et
+          // d'ouvrir les chapitres détaillés.
+          _SettingsTile(
+            icon: Icons.explore_outlined,
+            title: t.guideDecouverteTitre,
+            subtitle: t.guideDecouverteSous,
+            color: AppColors.settingsApp,
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const DecouverteScreen())),
           ),
           _SettingsTile(
             icon: Icons.info_outline_rounded,

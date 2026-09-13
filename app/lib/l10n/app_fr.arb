@@ -2171,6 +2171,65 @@
       }
     }
   },
+  "portionUnknownSurah": "Sourate {n}",
+  "@portionUnknownSurah": {
+    "description": "Repli du libellé de portion (Coach) quand la sourate n'a pas pu être trouvée dans les métadonnées",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "portionSurahHizb": "{surah} · Hizb {hizb}",
+  "@portionSurahHizb": {
+    "description": "Libellé de portion (Coach) : sourate + Hizb, sans quart ni moitié",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      },
+      "hizb": {
+        "type": "int"
+      }
+    }
+  },
+  "portionSurahHizbQuarter": "{surah} · Hizb {hizb} — quart {quarter}/4",
+  "@portionSurahHizbQuarter": {
+    "description": "Libellé de portion (Coach) : sourate + Hizb + rang du quart de Hizb",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      },
+      "hizb": {
+        "type": "int"
+      },
+      "quarter": {
+        "type": "int"
+      }
+    }
+  },
+  "portionSurahHizbHalf": "{surah} · Hizb {hizb} ({half})",
+  "@portionSurahHizbHalf": {
+    "description": "Libellé de portion (Coach) : sourate + Hizb + moitié (le texte de la moitié vient de portionHalfFirst/portionHalfSecond)",
+    "placeholders": {
+      "surah": {
+        "type": "String"
+      },
+      "hizb": {
+        "type": "int"
+      },
+      "half": {
+        "type": "String"
+      }
+    }
+  },
+  "portionHalfFirst": "1re moitié",
+  "@portionHalfFirst": {
+    "description": "Première moitié d'un Hizb, dans un libellé de portion"
+  },
+  "portionHalfSecond": "2e moitié",
+  "@portionHalfSecond": {
+    "description": "Seconde moitié d'un Hizb, dans un libellé de portion"
+  },
   "settingsSectionDiagnostic": "Diagnostic",
   "@settingsSectionDiagnostic": {
     "description": "Section header for diagnostic settings"
@@ -2842,6 +2901,10 @@
       }
     }
   },
+  "coachAccompagnementSousTitre": "Rappels quotidiens, retour sur les versets souvent ratés, alerte quand la série est en danger.",
+  "@coachAccompagnementSousTitre": {
+    "description": "Sous-titre de l'interrupteur d'accompagnement (2026-09-12) : decrit ce que fait le niveau exigeant SANS le nommer -- demande utilisateur, un seul interrupteur au lieu des trois niveaux"
+  },
   "coachNiveauTitle": "Accompagnement",
   "@coachNiveauTitle": {
     "description": "Titre du choix de niveau d'accompagnement (fréquence des rappels)"
@@ -3332,5 +3395,341 @@
         "type": "int"
       }
     }
+  },
+  "preparationLangueSous": "Tu peux la changer à tout moment dans les réglages.",
+  "@preparationLangueSous": {
+    "description": "Sous-titre de l'etape langue, ecran de preparation au premier lancement"
+  },
+  "preparationRiwayaSous": "La lecture du Coran que tu suis. Tout le texte de l'application s'y conforme.",
+  "@preparationRiwayaSous": {
+    "description": "Sous-titre de l'etape riwaya (Hafs/Warsh)"
+  },
+  "preparationEcritureSous": "L'aperçu ci-dessous est rendu avec la police choisie : c'est exactement ce que tu verras dans le Mushaf.",
+  "@preparationEcritureSous": {
+    "description": "Sous-titre de l'etape ecriture, annonce que l'apercu est reel"
+  },
+  "preparationOptionsTitre": "Quelques options",
+  "@preparationOptionsTitre": {
+    "description": "Titre de la derniere etape de preparation"
+  },
+  "preparationOptionsSous": "Rien d'obligatoire. Tu peux passer et y revenir plus tard.",
+  "@preparationOptionsSous": {
+    "description": "Sous-titre : aucune option n'est imposee"
+  },
+  "preparationModeSombre": "Mode sombre",
+  "@preparationModeSombre": {
+    "description": "Libelle de la bascule mode sombre dans la preparation"
+  },
+  "preparationToutModifiable": "Tous ces choix restent modifiables dans les réglages. Le micro et la position ne seront demandés qu'au moment où une fonction en aura besoin.",
+  "@preparationToutModifiable": {
+    "description": "Rappel en bas d'etape : tout reste modifiable, et les permissions sont demandees plus tard"
+  },
+  "preparationPasser": "Passer",
+  "@preparationPasser": {
+    "description": "Bouton : quitter la preparation"
+  },
+  "preparationRetour": "Retour",
+  "@preparationRetour": {
+    "description": "Bouton : etape precedente"
+  },
+  "preparationSuivant": "Suivant",
+  "@preparationSuivant": {
+    "description": "Bouton : etape suivante"
+  },
+  "preparationCommencer": "Commencer",
+  "@preparationCommencer": {
+    "description": "Bouton de la derniere etape : entrer dans l'application"
+  },
+  "guidePasser": "Passer le guide",
+  "@guidePasser": {
+    "description": "Bouton du guide interactif : arreter la decouverte guidee"
+  },
+  "guideRetour": "Retour",
+  "@guideRetour": {
+    "description": "Bouton du guide interactif : etape precedente"
+  },
+  "guideSuivant": "Suivant",
+  "@guideSuivant": {
+    "description": "Bouton du guide interactif : etape suivante"
+  },
+  "guideFin": "Terminer",
+  "@guideFin": {
+    "description": "Bouton du guide interactif a la derniere etape"
+  },
+  "visiteCoranTexte": "Le Mushaf complet. Appuie sur une sourate pour la lire ou l'écouter.",
+  "@visiteCoranTexte": {
+    "description": "Visite guidee : ce que dit la main sur l'onglet Coran"
+  },
+  "visiteDuasTexte": "Les invocations du jour, de la prière, du voyage — classées par moment.",
+  "@visiteDuasTexte": {
+    "description": "Visite guidee : onglet Invocations"
+  },
+  "visiteCoachTexte": "Ton suivi : ce que tu as récité, ce qui reste à revoir.",
+  "@visiteCoachTexte": {
+    "description": "Visite guidee : onglet Coach"
+  },
+  "visiteFinTitre": "À toi de jouer",
+  "@visiteFinTitre": {
+    "description": "Visite guidee : titre de la derniere etape"
+  },
+  "visiteFinTexte": "C'est tout. Tu peux revoir cette visite quand tu veux depuis les réglages.",
+  "@visiteFinTexte": {
+    "description": "Visite guidee : derniere etape, rappelle qu'on peut la rejouer"
+  },
+  "guideDecouverteTitre": "Découvrir l'application",
+  "@guideDecouverteTitre": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideDecouverteSous": "Une main te montre où appuyer. Tu peux l'arrêter à tout moment.",
+  "@guideDecouverteSous": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideRejouer": "Revoir",
+  "@guideRejouer": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideChapitreGlobalTitre": "Tour d'ensemble",
+  "@guideChapitreGlobalTitre": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideChapitreGlobalResume": "Les grandes parties de l'application, en quatre étapes.",
+  "@guideChapitreGlobalResume": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideChapitrePrieresTitre": "Prières et Qibla",
+  "@guideChapitrePrieresTitre": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideChapitrePrieresResume": "La direction de la Mecque, les horaires, l'adhan.",
+  "@guideChapitrePrieresResume": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideChapitreDuasResume": "Les invocations, classées par moment de la journée.",
+  "@guideChapitreDuasResume": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideChapitreReglagesResume": "Langue, riwāya, écriture, et ce que deviennent tes données.",
+  "@guideChapitreReglagesResume": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guidePriereAccueilTexte": "L'heure de la prochaine prière et la direction de la Qibla sont ici, sur l'accueil.",
+  "@guidePriereAccueilTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideQiblaTexte": "La flèche pointe vers la Mecque. Elle devient dorée quand tu es bien orienté.",
+  "@guideQiblaTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideHorairesTexte": "Méthode de calcul, adhan, rappel avant Sobh : tout se règle ici.",
+  "@guideHorairesTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guidePriereFinTexte": "Voilà. Tu peux relancer n'importe quel chapitre depuis les réglages.",
+  "@guidePriereFinTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideDuasUniversTexte": "Six univers : le jour, la prière, le Coran, le quotidien, le cœur, le pèlerinage.",
+  "@guideDuasUniversTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideDuasCollectionsTitre": "Les collections",
+  "@guideDuasCollectionsTitre": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideDuasCollectionsTexte": "Chaque univers se divise en moments précis : au réveil, avant de dormir, en voyage.",
+  "@guideDuasCollectionsTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideDuasAudioTitre": "Écouter",
+  "@guideDuasAudioTitre": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideDuasAudioTexte": "La plupart des invocations s'écoutent, et le compteur suit les répétitions.",
+  "@guideDuasAudioTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideReglagesLangueTexte": "Trois langues. En arabe, toute l'interface bascule de droite à gauche.",
+  "@guideReglagesLangueTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideReglagesRiwayaTexte": "Hafs ou Warsh : tout le texte de l'application suit ton choix.",
+  "@guideReglagesRiwayaTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideReglagesEcritureTexte": "Vingt-quatre écritures du Mushaf, avec un aperçu réel avant de choisir.",
+  "@guideReglagesEcritureTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideReglagesViePriveeTitre": "Tes données",
+  "@guideReglagesViePriveeTitre": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideReglagesViePriveeTexte": "Tout se passe sur ton téléphone. Pas de compte, pas de publicité.",
+  "@guideReglagesViePriveeTexte": {
+    "description": "Visite guidee (catalogue de chapitres)"
+  },
+  "guideChapitreLectureTitre": "Lire le Coran",
+  "@guideChapitreLectureTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideChapitreLectureResume": "La liste des sourates, l'écoute, le défilement, les signets.",
+  "@guideChapitreLectureResume": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideLectureListeTexte": "Les 114 sourates, avec leur nombre de versets et le lieu de révélation.",
+  "@guideLectureListeTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideLectureEcouteTitre": "Écouter",
+  "@guideLectureEcouteTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideLectureEcouteTexte": "Le bouton doré à droite lance la récitation de la sourate entière.",
+  "@guideLectureEcouteTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideLectureDefilementTitre": "Suivre pendant l'écoute",
+  "@guideLectureDefilementTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideLectureDefilementTexte": "Le texte défile tout seul et le verset en cours reste en vue.",
+  "@guideLectureDefilementTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideLectureSignetTitre": "Reprendre où tu t'es arrêté",
+  "@guideLectureSignetTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideLectureSignetTexte": "Le signet en haut de la liste te ramène à ta dernière lecture.",
+  "@guideLectureSignetTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideChapitreMushafTitre": "Le Mushaf papier",
+  "@guideChapitreMushafTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideChapitreMushafResume": "La page imprimée, 604 pages, avec son cadre et ses ornements.",
+  "@guideChapitreMushafResume": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideMushafOuvrirTexte": "La couverture s'ouvre sur la page où tu en étais.",
+  "@guideMushafOuvrirTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideMushafTournerTitre": "Tourner les pages",
+  "@guideMushafTournerTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideMushafTournerTexte": "Balaye de gauche à droite pour avancer, comme dans un vrai mushaf.",
+  "@guideMushafTournerTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideMushafEcritureTitre": "Changer d'écriture",
+  "@guideMushafEcritureTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideMushafEcritureTexte": "Un appui long sur la page ouvre le choix des 24 écritures.",
+  "@guideMushafEcritureTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideChapitreRecitationTitre": "Réciter et être corrigé",
+  "@guideChapitreRecitationTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideChapitreRecitationResume": "L'application écoute ta récitation et signale les écarts.",
+  "@guideChapitreRecitationResume": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideRecitationDepartTexte": "Ouvre une sourate, puis lance la récitation depuis l'écran de lecture.",
+  "@guideRecitationDepartTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideRecitationCouleursTitre": "Les couleurs des mots",
+  "@guideRecitationCouleursTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideRecitationCouleursTexte": "Vert : le mot est juste. Orange : un doute. Rouge : un écart entendu.",
+  "@guideRecitationCouleursTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideRecitationCorrectionTitre": "La correction",
+  "@guideRecitationCorrectionTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideRecitationCorrectionTexte": "Sur un décrochage, le récitateur te rejoue le passage pour reprendre.",
+  "@guideRecitationCorrectionTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideRecitationMicroTitre": "Le micro",
+  "@guideRecitationMicroTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideRecitationMicroTexte": "Il est demandé au moment de réciter, pas avant. Tout s'analyse sur le téléphone.",
+  "@guideRecitationMicroTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideChapitreCoachResume": "Tes portions, ta série, la mémorisation, l'historique.",
+  "@guideChapitreCoachResume": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideCoachPortionsTexte": "Chaque portion récitée est suivie : ce qui est acquis, ce qui reste.",
+  "@guideCoachPortionsTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideCoachSerieTitre": "La série",
+  "@guideCoachSerieTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideCoachSerieTexte": "Le nombre de jours d'affilée où tu as récité. Elle se rompt si tu sautes un jour.",
+  "@guideCoachSerieTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideCoachMemoTitre": "Mémoriser",
+  "@guideCoachMemoTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideCoachMemoTexte": "Un jeu de mémorisation reprend les versets par petits paliers.",
+  "@guideCoachMemoTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideCoachSessionsTitre": "L'historique",
+  "@guideCoachSessionsTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideCoachSessionsTexte": "Chaque session garde ses mots signalés, et l'audio de ta voix pour les réécouter.",
+  "@guideCoachSessionsTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideChapitreAudioTitre": "Récitateurs et audio",
+  "@guideChapitreAudioTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideChapitreAudioResume": "Choisir une voix, télécharger pour écouter hors ligne.",
+  "@guideChapitreAudioResume": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideAudioReciteurTitre": "Choisir un récitateur",
+  "@guideAudioReciteurTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideAudioReciteurTexte": "Plusieurs voix sont disponibles. Le choix vaut pour toute l'application.",
+  "@guideAudioReciteurTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideAudioHorsLigneTitre": "Hors ligne",
+  "@guideAudioHorsLigneTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideAudioHorsLigneTexte": "Une sourate téléchargée s'écoute sans connexion, et ne se retéléchargera pas.",
+  "@guideAudioHorsLigneTexte": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideAudioNotifTitre": "Depuis la notification",
+  "@guideAudioNotifTitre": {
+    "description": "Visite guidee : chapitres detailles"
+  },
+  "guideAudioNotifTexte": "Pause et lecture restent accessibles quand l'application est réduite.",
+  "@guideAudioNotifTexte": {
+    "description": "Visite guidee : chapitres detailles"
   }
 }

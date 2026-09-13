@@ -88,11 +88,36 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher">
+        <!-- PORTRAIT UNIQUEMENT (2026-09-13, demande utilisateur :
+             « interdis le pivotement de l'ecran, il n'est pas fait pour etre
+             horizontal »). Voir android:screenOrientation ci-dessous.
+
+             Pose ICI et pas seulement cote Flutter : la mise en page du mushaf
+             est calculee pour une page HAUTE (dichotomie de taille de police
+             sur la hauteur disponible, cf. _blocAjuste), et en paysage elle
+             s'effondre : police minuscule, page illisible, constate a l'ecran
+             sur la page 113.
+
+             Or SystemChrome.setPreferredOrientations n'est qu'une PREFERENCE,
+             que n'importe quel ecran peut ecraser a tout moment. C'est
+             exactement ce qui s'etait produit : mushaf_maquette_screen.dart la
+             deverrouillait pour lui-meme, et toute l'app devenait rotative
+             entre son initState et son dispose.
+
+             L'attribut est applique par le SYSTEME : aucun code Dart ne peut le
+             defaire. Un ecran futur ne peut donc pas reintroduire le defaut
+             sans toucher a CE fichier, ce qui se verra en revue. Le verrou
+             Flutter est conserve en plus, volontairement : l'un est une
+             preference, l'autre une contrainte.
+
+             NB : pas de tirets doubles dans ce commentaire, XML les interdit
+             a l'interieur d'un commentaire (erreur commise en l'ecrivant). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
+            android:screenOrientation="portrait"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"

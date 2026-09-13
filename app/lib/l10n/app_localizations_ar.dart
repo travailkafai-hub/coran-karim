@@ -1653,6 +1653,32 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String portionUnknownSurah(int n) {
+    return 'سورة $n';
+  }
+
+  @override
+  String portionSurahHizb(String surah, int hizb) {
+    return '$surah · حزب $hizb';
+  }
+
+  @override
+  String portionSurahHizbQuarter(String surah, int hizb, int quarter) {
+    return '$surah · حزب $hizb — ربع $quarter/٤';
+  }
+
+  @override
+  String portionSurahHizbHalf(String surah, int hizb, String half) {
+    return '$surah · حزب $hizb ($half)';
+  }
+
+  @override
+  String get portionHalfFirst => 'النصف الأول';
+
+  @override
+  String get portionHalfSecond => 'النصف الثاني';
+
+  @override
   String get settingsSectionDiagnostic => 'التشخيص';
 
   @override
@@ -2243,6 +2269,10 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String get coachAccompagnementSousTitre =>
+      'تذكيرات يومية، ومراجعة الآيات كثيرة الخطأ، وتنبيه عند خطر انقطاع السلسلة.';
+
+  @override
   String get coachNiveauTitle => 'المرافقة';
 
   @override
@@ -2582,4 +2612,297 @@ class AppLocalizationsAr extends AppLocalizations {
   String prayerInHoursMinutes(int minutes, int heures) {
     return 'بعد $heures س $minutes';
   }
+
+  @override
+  String get preparationLangueSous => 'يمكنك تغييرها في أي وقت من الإعدادات.';
+
+  @override
+  String get preparationRiwayaSous =>
+      'الرواية التي تقرأ بها. نص التطبيق كله يتبعها.';
+
+  @override
+  String get preparationEcritureSous =>
+      'المعاينة أدناه معروضة بالخط المختار: هي تماماً ما سيظهر في المصحف.';
+
+  @override
+  String get preparationOptionsTitre => 'بعض الخيارات';
+
+  @override
+  String get preparationOptionsSous =>
+      'لا شيء إلزامي. يمكنك التخطي والعودة لاحقاً.';
+
+  @override
+  String get preparationModeSombre => 'الوضع الداكن';
+
+  @override
+  String get preparationToutModifiable =>
+      'تبقى هذه الخيارات كلها قابلة للتعديل في الإعدادات. لن يُطلب الميكروفون ولا الموقع إلا عندما تحتاجهما إحدى الوظائف فعلاً.';
+
+  @override
+  String get preparationPasser => 'تخطٍ';
+
+  @override
+  String get preparationRetour => 'رجوع';
+
+  @override
+  String get preparationSuivant => 'التالي';
+
+  @override
+  String get preparationCommencer => 'ابدأ';
+
+  @override
+  String get guidePasser => 'تخطي الدليل';
+
+  @override
+  String get guideRetour => 'رجوع';
+
+  @override
+  String get guideSuivant => 'التالي';
+
+  @override
+  String get guideFin => 'إنهاء';
+
+  @override
+  String get visiteCoranTexte =>
+      'المصحف كاملاً. اضغط على سورة لقراءتها أو الاستماع إليها.';
+
+  @override
+  String get visiteDuasTexte =>
+      'أدعية اليوم والصلاة والسفر، مرتبة حسب المناسبة.';
+
+  @override
+  String get visiteCoachTexte => 'متابعتك: ما قرأته، وما بقي للمراجعة.';
+
+  @override
+  String get visiteFinTitre => 'الدور عليك';
+
+  @override
+  String get visiteFinTexte =>
+      'هذا كل شيء. يمكنك إعادة هذه الجولة متى شئت من الإعدادات.';
+
+  @override
+  String get guideDecouverteTitre => 'اكتشف التطبيق';
+
+  @override
+  String get guideDecouverteSous =>
+      'يد تدلّك على موضع الضغط. يمكنك إيقافها في أي وقت.';
+
+  @override
+  String get guideRejouer => 'إعادة';
+
+  @override
+  String get guideChapitreGlobalTitre => 'نظرة عامة';
+
+  @override
+  String get guideChapitreGlobalResume =>
+      'أقسام التطبيق الرئيسية في أربع خطوات.';
+
+  @override
+  String get guideChapitrePrieresTitre => 'الصلاة والقبلة';
+
+  @override
+  String get guideChapitrePrieresResume => 'اتجاه مكة، وأوقات الصلاة، والأذان.';
+
+  @override
+  String get guideChapitreDuasResume => 'الأدعية مرتبة حسب أوقات اليوم.';
+
+  @override
+  String get guideChapitreReglagesResume =>
+      'اللغة والرواية والخط، وما يحدث لبياناتك.';
+
+  @override
+  String get guidePriereAccueilTexte =>
+      'وقت الصلاة القادمة واتجاه القبلة هنا، في الشاشة الرئيسية.';
+
+  @override
+  String get guideQiblaTexte =>
+      'السهم يشير إلى مكة، ويصبح ذهبياً عند الاتجاه الصحيح.';
+
+  @override
+  String get guideHorairesTexte =>
+      'طريقة الحساب والأذان والتنبيه قبل الصبح: كل ذلك يُضبط هنا.';
+
+  @override
+  String get guidePriereFinTexte =>
+      'هذا كل شيء. يمكنك إعادة أي فصل من الإعدادات.';
+
+  @override
+  String get guideDuasUniversTexte =>
+      'ستة أبواب: اليوم، والصلاة، والقرآن، والحياة اليومية، والقلب، والحج.';
+
+  @override
+  String get guideDuasCollectionsTitre => 'المجموعات';
+
+  @override
+  String get guideDuasCollectionsTexte =>
+      'كل باب ينقسم إلى مواضع محددة: عند الاستيقاظ، وقبل النوم، وفي السفر.';
+
+  @override
+  String get guideDuasAudioTitre => 'الاستماع';
+
+  @override
+  String get guideDuasAudioTexte =>
+      'معظم الأدعية يمكن سماعها، والعدّاد يتابع التكرار.';
+
+  @override
+  String get guideReglagesLangueTexte =>
+      'ثلاث لغات. بالعربية تنقلب الواجهة كلها من اليمين إلى اليسار.';
+
+  @override
+  String get guideReglagesRiwayaTexte =>
+      'حفص أو ورش: نص التطبيق كله يتبع اختيارك.';
+
+  @override
+  String get guideReglagesEcritureTexte =>
+      'أربعة وعشرون خطاً للمصحف، مع معاينة حقيقية قبل الاختيار.';
+
+  @override
+  String get guideReglagesViePriveeTitre => 'بياناتك';
+
+  @override
+  String get guideReglagesViePriveeTexte =>
+      'كل شيء يجري على هاتفك. بلا حساب، وبلا إعلانات.';
+
+  @override
+  String get guideChapitreLectureTitre => 'قراءة القرآن';
+
+  @override
+  String get guideChapitreLectureResume =>
+      'قائمة السور، والاستماع، والتمرير، والعلامات.';
+
+  @override
+  String get guideLectureListeTexte =>
+      'السور المئة والأربع عشرة، مع عدد آياتها ومكان نزولها.';
+
+  @override
+  String get guideLectureEcouteTitre => 'الاستماع';
+
+  @override
+  String get guideLectureEcouteTexte =>
+      'الزر الذهبي على اليمين يشغّل السورة كاملة.';
+
+  @override
+  String get guideLectureDefilementTitre => 'المتابعة أثناء الاستماع';
+
+  @override
+  String get guideLectureDefilementTexte =>
+      'النص يتمرّر وحده وتبقى الآية الجارية ظاهرة.';
+
+  @override
+  String get guideLectureSignetTitre => 'المتابعة من حيث توقفت';
+
+  @override
+  String get guideLectureSignetTexte =>
+      'العلامة أعلى القائمة تعيدك إلى آخر قراءة.';
+
+  @override
+  String get guideChapitreMushafTitre => 'المصحف الورقي';
+
+  @override
+  String get guideChapitreMushafResume =>
+      'الصفحة المطبوعة، ٦٠٤ صفحات، بإطارها وزخارفها.';
+
+  @override
+  String get guideMushafOuvrirTexte =>
+      'يُفتح الغلاف على الصفحة التي توقفت عندها.';
+
+  @override
+  String get guideMushafTournerTitre => 'تقليب الصفحات';
+
+  @override
+  String get guideMushafTournerTexte =>
+      'اسحب من اليسار إلى اليمين للتقدّم، كما في المصحف الحقيقي.';
+
+  @override
+  String get guideMushafEcritureTitre => 'تغيير الخط';
+
+  @override
+  String get guideMushafEcritureTexte =>
+      'الضغط المطوّل على الصفحة يفتح اختيار الخطوط الأربعة والعشرين.';
+
+  @override
+  String get guideChapitreRecitationTitre => 'التلاوة والتصحيح';
+
+  @override
+  String get guideChapitreRecitationResume =>
+      'التطبيق يستمع إلى تلاوتك وينبّه على الفروق.';
+
+  @override
+  String get guideRecitationDepartTexte =>
+      'افتح سورة، ثم ابدأ التلاوة من شاشة القراءة.';
+
+  @override
+  String get guideRecitationCouleursTitre => 'ألوان الكلمات';
+
+  @override
+  String get guideRecitationCouleursTexte =>
+      'أخضر: الكلمة صحيحة. برتقالي: شكّ. أحمر: فرق مسموع.';
+
+  @override
+  String get guideRecitationCorrectionTitre => 'التصحيح';
+
+  @override
+  String get guideRecitationCorrectionTexte =>
+      'عند الانقطاع يعيد القارئ المقطع لتستأنف منه.';
+
+  @override
+  String get guideRecitationMicroTitre => 'الميكروفون';
+
+  @override
+  String get guideRecitationMicroTexte =>
+      'يُطلب عند التلاوة لا قبلها. وكل التحليل يجري على الهاتف.';
+
+  @override
+  String get guideChapitreCoachResume => 'أجزاؤك، وسلسلتك، والحفظ، والسجل.';
+
+  @override
+  String get guideCoachPortionsTexte => 'كل جزء تتلوه يُتابَع: ما ثبت وما بقي.';
+
+  @override
+  String get guideCoachSerieTitre => 'السلسلة';
+
+  @override
+  String get guideCoachSerieTexte =>
+      'عدد الأيام المتتالية التي تلوت فيها. تنقطع إن تركت يوماً.';
+
+  @override
+  String get guideCoachMemoTitre => 'الحفظ';
+
+  @override
+  String get guideCoachMemoTexte => 'لعبة حفظ تعيد الآيات على مراحل صغيرة.';
+
+  @override
+  String get guideCoachSessionsTitre => 'السجل';
+
+  @override
+  String get guideCoachSessionsTexte =>
+      'كل جلسة تحتفظ بكلماتها المنبَّه عليها، وبصوتك لإعادة السماع.';
+
+  @override
+  String get guideChapitreAudioTitre => 'القرّاء والصوت';
+
+  @override
+  String get guideChapitreAudioResume =>
+      'اختيار صوت، وتنزيله للاستماع دون اتصال.';
+
+  @override
+  String get guideAudioReciteurTitre => 'اختيار القارئ';
+
+  @override
+  String get guideAudioReciteurTexte =>
+      'أصوات عدّة متاحة، والاختيار يسري على التطبيق كله.';
+
+  @override
+  String get guideAudioHorsLigneTitre => 'دون اتصال';
+
+  @override
+  String get guideAudioHorsLigneTexte =>
+      'السورة المنزَّلة تُسمع دون اتصال، ولا تُنزَّل مرة أخرى.';
+
+  @override
+  String get guideAudioNotifTitre => 'من الإشعار';
+
+  @override
+  String get guideAudioNotifTexte =>
+      'الإيقاف والتشغيل يبقيان متاحين عند تصغير التطبيق.';
 }

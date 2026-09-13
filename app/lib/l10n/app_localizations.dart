@@ -2905,6 +2905,42 @@ abstract class AppLocalizations {
   /// **'JUZ {n}'**
   String mushafJuzChip(int n);
 
+  /// Repli du libellé de portion (Coach) quand la sourate n'a pas pu être trouvée dans les métadonnées
+  ///
+  /// In fr, this message translates to:
+  /// **'Sourate {n}'**
+  String portionUnknownSurah(int n);
+
+  /// Libellé de portion (Coach) : sourate + Hizb, sans quart ni moitié
+  ///
+  /// In fr, this message translates to:
+  /// **'{surah} · Hizb {hizb}'**
+  String portionSurahHizb(String surah, int hizb);
+
+  /// Libellé de portion (Coach) : sourate + Hizb + rang du quart de Hizb
+  ///
+  /// In fr, this message translates to:
+  /// **'{surah} · Hizb {hizb} — quart {quarter}/4'**
+  String portionSurahHizbQuarter(String surah, int hizb, int quarter);
+
+  /// Libellé de portion (Coach) : sourate + Hizb + moitié (le texte de la moitié vient de portionHalfFirst/portionHalfSecond)
+  ///
+  /// In fr, this message translates to:
+  /// **'{surah} · Hizb {hizb} ({half})'**
+  String portionSurahHizbHalf(String surah, int hizb, String half);
+
+  /// Première moitié d'un Hizb, dans un libellé de portion
+  ///
+  /// In fr, this message translates to:
+  /// **'1re moitié'**
+  String get portionHalfFirst;
+
+  /// Seconde moitié d'un Hizb, dans un libellé de portion
+  ///
+  /// In fr, this message translates to:
+  /// **'2e moitié'**
+  String get portionHalfSecond;
+
   /// Section header for diagnostic settings
   ///
   /// In fr, this message translates to:
@@ -3757,6 +3793,12 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{Objectif atteint} =1{Encore 1 quart} other{Encore {count} quarts}}'**
   String coachDashProgressRemaining(int count);
 
+  /// Sous-titre de l'interrupteur d'accompagnement (2026-09-12) : decrit ce que fait le niveau exigeant SANS le nommer -- demande utilisateur, un seul interrupteur au lieu des trois niveaux
+  ///
+  /// In fr, this message translates to:
+  /// **'Rappels quotidiens, retour sur les versets souvent ratés, alerte quand la série est en danger.'**
+  String get coachAccompagnementSousTitre;
+
   /// Titre du choix de niveau d'accompagnement (fréquence des rappels)
   ///
   /// In fr, this message translates to:
@@ -4344,6 +4386,510 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'dans {heures} h {minutes}'**
   String prayerInHoursMinutes(int minutes, int heures);
+
+  /// Sous-titre de l'etape langue, ecran de preparation au premier lancement
+  ///
+  /// In fr, this message translates to:
+  /// **'Tu peux la changer à tout moment dans les réglages.'**
+  String get preparationLangueSous;
+
+  /// Sous-titre de l'etape riwaya (Hafs/Warsh)
+  ///
+  /// In fr, this message translates to:
+  /// **'La lecture du Coran que tu suis. Tout le texte de l\'application s\'y conforme.'**
+  String get preparationRiwayaSous;
+
+  /// Sous-titre de l'etape ecriture, annonce que l'apercu est reel
+  ///
+  /// In fr, this message translates to:
+  /// **'L\'aperçu ci-dessous est rendu avec la police choisie : c\'est exactement ce que tu verras dans le Mushaf.'**
+  String get preparationEcritureSous;
+
+  /// Titre de la derniere etape de preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Quelques options'**
+  String get preparationOptionsTitre;
+
+  /// Sous-titre : aucune option n'est imposee
+  ///
+  /// In fr, this message translates to:
+  /// **'Rien d\'obligatoire. Tu peux passer et y revenir plus tard.'**
+  String get preparationOptionsSous;
+
+  /// Libelle de la bascule mode sombre dans la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Mode sombre'**
+  String get preparationModeSombre;
+
+  /// Rappel en bas d'etape : tout reste modifiable, et les permissions sont demandees plus tard
+  ///
+  /// In fr, this message translates to:
+  /// **'Tous ces choix restent modifiables dans les réglages. Le micro et la position ne seront demandés qu\'au moment où une fonction en aura besoin.'**
+  String get preparationToutModifiable;
+
+  /// Bouton : quitter la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Passer'**
+  String get preparationPasser;
+
+  /// Bouton : etape precedente
+  ///
+  /// In fr, this message translates to:
+  /// **'Retour'**
+  String get preparationRetour;
+
+  /// Bouton : etape suivante
+  ///
+  /// In fr, this message translates to:
+  /// **'Suivant'**
+  String get preparationSuivant;
+
+  /// Bouton de la derniere etape : entrer dans l'application
+  ///
+  /// In fr, this message translates to:
+  /// **'Commencer'**
+  String get preparationCommencer;
+
+  /// Bouton du guide interactif : arreter la decouverte guidee
+  ///
+  /// In fr, this message translates to:
+  /// **'Passer le guide'**
+  String get guidePasser;
+
+  /// Bouton du guide interactif : etape precedente
+  ///
+  /// In fr, this message translates to:
+  /// **'Retour'**
+  String get guideRetour;
+
+  /// Bouton du guide interactif : etape suivante
+  ///
+  /// In fr, this message translates to:
+  /// **'Suivant'**
+  String get guideSuivant;
+
+  /// Bouton du guide interactif a la derniere etape
+  ///
+  /// In fr, this message translates to:
+  /// **'Terminer'**
+  String get guideFin;
+
+  /// Visite guidee : ce que dit la main sur l'onglet Coran
+  ///
+  /// In fr, this message translates to:
+  /// **'Le Mushaf complet. Appuie sur une sourate pour la lire ou l\'écouter.'**
+  String get visiteCoranTexte;
+
+  /// Visite guidee : onglet Invocations
+  ///
+  /// In fr, this message translates to:
+  /// **'Les invocations du jour, de la prière, du voyage — classées par moment.'**
+  String get visiteDuasTexte;
+
+  /// Visite guidee : onglet Coach
+  ///
+  /// In fr, this message translates to:
+  /// **'Ton suivi : ce que tu as récité, ce qui reste à revoir.'**
+  String get visiteCoachTexte;
+
+  /// Visite guidee : titre de la derniere etape
+  ///
+  /// In fr, this message translates to:
+  /// **'À toi de jouer'**
+  String get visiteFinTitre;
+
+  /// Visite guidee : derniere etape, rappelle qu'on peut la rejouer
+  ///
+  /// In fr, this message translates to:
+  /// **'C\'est tout. Tu peux revoir cette visite quand tu veux depuis les réglages.'**
+  String get visiteFinTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Découvrir l\'application'**
+  String get guideDecouverteTitre;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Une main te montre où appuyer. Tu peux l\'arrêter à tout moment.'**
+  String get guideDecouverteSous;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Revoir'**
+  String get guideRejouer;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Tour d\'ensemble'**
+  String get guideChapitreGlobalTitre;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Les grandes parties de l\'application, en quatre étapes.'**
+  String get guideChapitreGlobalResume;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Prières et Qibla'**
+  String get guideChapitrePrieresTitre;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'La direction de la Mecque, les horaires, l\'adhan.'**
+  String get guideChapitrePrieresResume;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Les invocations, classées par moment de la journée.'**
+  String get guideChapitreDuasResume;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Langue, riwāya, écriture, et ce que deviennent tes données.'**
+  String get guideChapitreReglagesResume;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'L\'heure de la prochaine prière et la direction de la Qibla sont ici, sur l\'accueil.'**
+  String get guidePriereAccueilTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'La flèche pointe vers la Mecque. Elle devient dorée quand tu es bien orienté.'**
+  String get guideQiblaTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Méthode de calcul, adhan, rappel avant Sobh : tout se règle ici.'**
+  String get guideHorairesTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Voilà. Tu peux relancer n\'importe quel chapitre depuis les réglages.'**
+  String get guidePriereFinTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Six univers : le jour, la prière, le Coran, le quotidien, le cœur, le pèlerinage.'**
+  String get guideDuasUniversTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Les collections'**
+  String get guideDuasCollectionsTitre;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Chaque univers se divise en moments précis : au réveil, avant de dormir, en voyage.'**
+  String get guideDuasCollectionsTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Écouter'**
+  String get guideDuasAudioTitre;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'La plupart des invocations s\'écoutent, et le compteur suit les répétitions.'**
+  String get guideDuasAudioTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Trois langues. En arabe, toute l\'interface bascule de droite à gauche.'**
+  String get guideReglagesLangueTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Hafs ou Warsh : tout le texte de l\'application suit ton choix.'**
+  String get guideReglagesRiwayaTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Vingt-quatre écritures du Mushaf, avec un aperçu réel avant de choisir.'**
+  String get guideReglagesEcritureTexte;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Tes données'**
+  String get guideReglagesViePriveeTitre;
+
+  /// Visite guidee (catalogue de chapitres)
+  ///
+  /// In fr, this message translates to:
+  /// **'Tout se passe sur ton téléphone. Pas de compte, pas de publicité.'**
+  String get guideReglagesViePriveeTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Lire le Coran'**
+  String get guideChapitreLectureTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'La liste des sourates, l\'écoute, le défilement, les signets.'**
+  String get guideChapitreLectureResume;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Les 114 sourates, avec leur nombre de versets et le lieu de révélation.'**
+  String get guideLectureListeTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Écouter'**
+  String get guideLectureEcouteTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Le bouton doré à droite lance la récitation de la sourate entière.'**
+  String get guideLectureEcouteTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Suivre pendant l\'écoute'**
+  String get guideLectureDefilementTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Le texte défile tout seul et le verset en cours reste en vue.'**
+  String get guideLectureDefilementTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Reprendre où tu t\'es arrêté'**
+  String get guideLectureSignetTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Le signet en haut de la liste te ramène à ta dernière lecture.'**
+  String get guideLectureSignetTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Le Mushaf papier'**
+  String get guideChapitreMushafTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'La page imprimée, 604 pages, avec son cadre et ses ornements.'**
+  String get guideChapitreMushafResume;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'La couverture s\'ouvre sur la page où tu en étais.'**
+  String get guideMushafOuvrirTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Tourner les pages'**
+  String get guideMushafTournerTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Balaye de gauche à droite pour avancer, comme dans un vrai mushaf.'**
+  String get guideMushafTournerTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Changer d\'écriture'**
+  String get guideMushafEcritureTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Un appui long sur la page ouvre le choix des 24 écritures.'**
+  String get guideMushafEcritureTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Réciter et être corrigé'**
+  String get guideChapitreRecitationTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'L\'application écoute ta récitation et signale les écarts.'**
+  String get guideChapitreRecitationResume;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Ouvre une sourate, puis lance la récitation depuis l\'écran de lecture.'**
+  String get guideRecitationDepartTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Les couleurs des mots'**
+  String get guideRecitationCouleursTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Vert : le mot est juste. Orange : un doute. Rouge : un écart entendu.'**
+  String get guideRecitationCouleursTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'La correction'**
+  String get guideRecitationCorrectionTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Sur un décrochage, le récitateur te rejoue le passage pour reprendre.'**
+  String get guideRecitationCorrectionTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Le micro'**
+  String get guideRecitationMicroTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Il est demandé au moment de réciter, pas avant. Tout s\'analyse sur le téléphone.'**
+  String get guideRecitationMicroTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Tes portions, ta série, la mémorisation, l\'historique.'**
+  String get guideChapitreCoachResume;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Chaque portion récitée est suivie : ce qui est acquis, ce qui reste.'**
+  String get guideCoachPortionsTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'La série'**
+  String get guideCoachSerieTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Le nombre de jours d\'affilée où tu as récité. Elle se rompt si tu sautes un jour.'**
+  String get guideCoachSerieTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Mémoriser'**
+  String get guideCoachMemoTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Un jeu de mémorisation reprend les versets par petits paliers.'**
+  String get guideCoachMemoTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'L\'historique'**
+  String get guideCoachSessionsTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Chaque session garde ses mots signalés, et l\'audio de ta voix pour les réécouter.'**
+  String get guideCoachSessionsTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Récitateurs et audio'**
+  String get guideChapitreAudioTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisir une voix, télécharger pour écouter hors ligne.'**
+  String get guideChapitreAudioResume;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Choisir un récitateur'**
+  String get guideAudioReciteurTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Plusieurs voix sont disponibles. Le choix vaut pour toute l\'application.'**
+  String get guideAudioReciteurTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Hors ligne'**
+  String get guideAudioHorsLigneTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Une sourate téléchargée s\'écoute sans connexion, et ne se retéléchargera pas.'**
+  String get guideAudioHorsLigneTexte;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Depuis la notification'**
+  String get guideAudioNotifTitre;
+
+  /// Visite guidee : chapitres detailles
+  ///
+  /// In fr, this message translates to:
+  /// **'Pause et lecture restent accessibles quand l\'application est réduite.'**
+  String get guideAudioNotifTexte;
 }
 
 class _AppLocalizationsDelegate

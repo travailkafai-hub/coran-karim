@@ -21,9 +21,12 @@ import 'screens/coach_sessions.dart'
 import 'screens/dua_pour_nous_screen.dart';
 import 'screens/mushaf_opening_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/preparation_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
 import 'services/mesure_fluidite.dart';
+import 'data/guides_catalogue.dart';
+import 'widgets/guide_interactif.dart';
 import 'widgets/mushaf_cover_reveal.dart';
 import 'services/session_media.dart';
 import 'services/reciter_download_service.dart';
@@ -51,11 +54,68 @@ Future<T> _etape<T>(
   });
 }
 
-void main() async {
-  final tTotal = Stopwatch()..start();
-  final mesures = <String, int>{};
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  runApp(const _DemarrageApp());
+}
+
+// ChGPT: only the cover mounts before initialization, never audio providers.
+class _DemarrageApp extends StatefulWidget {
+  const _DemarrageApp();
+
+  @override
+  State<_DemarrageApp> createState() => _DemarrageAppState();
+}
+
+class _DemarrageAppState extends State<_DemarrageApp> {
+  late Future<void> _initialisation = _initialiserServices();
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<void>(
+    future: _initialisation,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.done &&
+          !snapshot.hasError) {
+        return const ProviderScope(child: CoranKarimApp());
+      }
+      if (!snapshot.hasError) {
+        return const Directionality(
+          textDirection: TextDirection.ltr,
+          child: MushafClosedCover(),
+        );
+      }
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              const MushafClosedCover(),
+              Center(
+                child: Material(
+                  color: mushafCoverColor,
+                  child: IconButton(
+                    tooltip: 'Réessayer le démarrage',
+                    color: Colors.white,
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () => setState(() {
+                      _initialisation = _initialiserServices();
+                    }),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Future<void> _initialiserServices() async {
+  final tTotal = Stopwatch()..start();
+  final mesures = <String, int>{};
 
   // ── LES TROIS ÉTAPES DE DÉMARRAGE SONT LANCÉES ENSEMBLE (2026-09-13) ──────
   //
@@ -65,14 +125,14 @@ void main() async {
   // sont désormais démarrées simultanément et attendues ensemble.
   //
   // ⚠️ CE QUI NE CHANGE PAS, ET C'EST VOULU : on attend toujours les trois
-  // AVANT `runApp`. La tentation suivante serait de les repousser APRÈS pour
-  // afficher l'écran plus tôt — ce serait un vrai piège, et c'est écrit ici
-  // pour que personne n'ait à le redécouvrir :
+  // AVANT de monter CoranKarimApp et ses providers. Seule la couverture
+  // statique est affichee pendant cette attente (ChGPT, 2026-09-13).
+  // Ne pas monter les ecrans fonctionnels plus tot :
   //   * `ReciterDownloadService.ensureReady` : tant qu'il n'a pas répondu,
   //     `localPathIfPresent` rend `null` et une sourate POURTANT téléchargée
   //     repart en streaming, silencieusement (cf. son propre commentaire).
   //   * `initSessionMedia` : `AudioService.init` doit précéder la création de
-  //     `PlayerNotifier`, qui lui branche ses rappels. Après `runApp`, un
+  //     `PlayerNotifier`, qui lui branche ses rappels. Dans l'app, un
   //     premier `ref.watch(playerProvider)` peut arriver avant — et la
   //     notification média serait morte sans que rien ne le dise.
   // Le gain vient donc du recouvrement, pas d'un report : aucune garantie
@@ -104,22 +164,26 @@ void main() async {
     // lui-meme.
     _etape('sessionMedia', mesures, () async {
       try {
-        await initSessionMedia();
+        if (sessionMedia == null) await initSessionMedia();
       } catch (e) {
         panneSessionMedia = e;
       }
     }),
   ]);
   if (panneSessionMedia != null) {
-    DiagnosticLog.log('Lecture', 'session media indisponible : $panneSessionMedia');
+    DiagnosticLog.log(
+      'Lecture',
+      'session media indisponible : $panneSessionMedia',
+    );
   }
   DiagnosticLog.log(
-      'Demarrage',
-      'avant runApp=${tTotal.elapsedMilliseconds}ms '
-          '(journal=${mesures['journal']}ms '
-          'audioLocal=${mesures['audioLocal']}ms '
-          'sessionMedia=${mesures['sessionMedia']}ms — lances en parallele, '
-          'le total est donc le MAX et non la somme)');
+    'Demarrage',
+    'services avant app=${tTotal.elapsedMilliseconds}ms '
+        '(journal=${mesures['journal']}ms '
+        'audioLocal=${mesures['audioLocal']}ms '
+        'sessionMedia=${mesures['sessionMedia']}ms — lances en parallele, '
+        'le total est donc le MAX et non la somme)',
+  );
   // Mesure de fluidite dans le journal de l'app (cf. mesure_fluidite.dart) --
   // inactive si le diagnostic est coupe, donc silencieuse en release.
   demarrerMesureFluidite();
@@ -133,12 +197,11 @@ void main() async {
   // utilisateur : « que ca reste tolere apres redemarrage »). Le provider la
   // restaure depuis les preferences, mais c'est le NATIF qui juge : sans ce
   // rappel, l'ecran afficherait « tolerant » pendant que le plugin garde son
-  // defaut `v2TajwidStrict = true`. Branche AVANT `runApp`, donc avant la
+  // defaut `v2TajwidStrict = true`. Branche AVANT les providers, donc avant la
   // premiere lecture du provider -- l'inverse laisserait passer la
   // restauration sans la pousser.
   TajwidStrictSettingNotifier.pousseurNatif =
       FastConformerVerifier.pousserTajwidStrict;
-  runApp(const ProviderScope(child: CoranKarimApp()));
 }
 
 /// `ConsumerStatefulWidget` et non `ConsumerWidget` — uniquement pour pouvoir
@@ -305,6 +368,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// fraction de seconde après le premier rendu.
   bool _montrerOnboarding = false;
 
+  /// Préparation du premier lancement (2026-09-13, demande utilisateur : « au
+  /// premier lancement, après la couverture du Mushaf : choisir la langue et
+  /// Hafs ou Warsh, choisir l'écriture avec un aperçu réel »).
+  ///
+  /// DISTINCTE de [_montrerOnboarding], et vérifiée AVANT lui : préparer et
+  /// présenter ne sont pas la même chose. La présentation
+  /// (`onboarding_screen.dart`) décrit ce que fait l'app ; la préparation
+  /// (`preparation_screen.dart`) enregistre de vrais réglages. Les deux
+  /// drapeaux sont séparés pour qu'on puisse activer l'un sans l'autre -- la
+  /// présentation est d'ailleurs coupée aujourd'hui (`kOnboardingActif`).
+  bool _montrerPreparation = false;
+
+  /// Visite guidée : la main 👆 se promène sur les vrais onglets et
+  /// l'application navigue pour de bon (cf. `widgets/guide_interactif.dart`).
+  bool _montrerVisite = false;
+
+  /// ── POINT D'ACCROCHE DE LA VISITE GUIDÉE (2026-09-13) ──────────────────
+  ///
+  /// Un chapitre de découverte doit pouvoir changer d'onglet ET connaître la
+  /// position des onglets, depuis un fichier de catalogue qui n'a aucun accès
+  /// à cet état. On expose donc trois choses, et rien de plus : aller à un
+  /// onglet, et les clés des onglets à mettre en lumière.
+  ///
+  /// Assignées dans `initState` plutôt que passées par un provider : le
+  /// catalogue est de la DONNÉE, pas un widget -- il n'a pas de `Ref`. Elles
+  /// vivent au premier niveau de `data/guides_catalogue.dart` et non ici : les
+  /// statiques d'une classe privée sont invisibles depuis un autre fichier
+  /// (erreur commise d'abord, signalée en « unused_field »).
+
+  /// Clés posées sur les VRAIS onglets. La visite lit leur position à
+  /// l'exécution -- aucune coordonnée codée, sans quoi la main se poserait à
+  /// côté dès qu'on change de téléphone.
+  final GlobalKey _cleOngletCoran = GlobalKey();
+  final GlobalKey _cleOngletDuas = GlobalKey();
+  final GlobalKey _cleOngletCoach = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -317,13 +416,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // suffit à poser les `ref.listen` qui garderont la programmation à jour,
     // cf. coach_notification_provider.dart.
     Future.microtask(() => ref.read(coachNotificationBootstrapProvider));
-    onboardingARegarder().then((aRegarder) {
-      if (aRegarder && mounted) {
-        setState(() => _montrerOnboarding = true);
-      } else {
-        _reprendreLectureAuLancement();
-      }
-    });
+    allerAOngletGuide = (i) {
+      if (mounted) setState(() => _tab = i);
+    };
+    cleOngletCoran = _cleOngletCoran;
+    cleOngletDuas = _cleOngletDuas;
+    cleOngletCoach = _cleOngletCoach;
+    _aiguillerPremierLancement();
+  }
+
+  @override
+  void dispose() {
+    // Sans ça, un chapitre lancé après la destruction de cet écran appellerait
+    // un `setState` sur un State mort.
+    allerAOngletGuide = null;
+    cleOngletCoran = null;
+    cleOngletDuas = null;
+    cleOngletCoach = null;
+    super.dispose();
+  }
+
+  /// Enchaîne préparation -> présentation -> lecture, en s'arrêtant au premier
+  /// qui a quelque chose à montrer.
+  ///
+  /// Écrit comme une seule fonction séquentielle plutôt qu'en `.then()`
+  /// imbriqués : l'ordre de ces trois écrans EST la décision, et il doit se
+  /// lire en trois lignes. La version précédente n'en enchaînait que deux et
+  /// l'imbrication était déjà à la limite.
+  Future<void> _aiguillerPremierLancement() async {
+    if (await preparationARegarder()) {
+      if (!mounted) return;
+      setState(() => _montrerPreparation = true);
+      return; // la suite reprend dans `onTermine` de la préparation.
+    }
+    if (await onboardingARegarder()) {
+      if (!mounted) return;
+      setState(() => _montrerOnboarding = true);
+      return;
+    }
+    _reprendreLectureAuLancement();
   }
 
   /// ChGPT: open the paper reader once per cold launch. Returning from it
@@ -365,6 +496,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // quatre onglets restent montés dessous (`IndexedStack`, « keep all tabs
     // alive »), donc rien n'est reconstruit à sa fermeture, et l'utilisateur
     // retombe exactement sur l'app déjà chargée.
+    // AVANT la présentation et avant la couverture : c'est le premier écran
+    // avec lequel on interagit. Il couvre l'app de la même façon (les onglets
+    // restent montés dessous), donc rien n'est reconstruit à sa fermeture.
+    if (_montrerPreparation) {
+      return PreparationScreen(
+        onTermine: () {
+          setState(() {
+            _montrerPreparation = false;
+            _ouvertureEnCours = false;
+          });
+          // ── PRÉPARER, PUIS FAIRE DÉCOUVRIR (2026-09-13) ──────────────
+          //
+          // La visite guidée suit immédiatement la préparation : c'est la
+          // deuxième moitié de la demande (« 1. préparer l'application,
+          // 2. découvrir en manipulant »). On ne passe PAS par
+          // `_aiguillerPremierLancement()` ici -- il repartirait sur la
+          // couverture du Mushaf, qui recouvrirait la visite avant qu'on
+          // l'ait vue.
+          demarrerVisite();
+        },
+      );
+    }
     if (_montrerOnboarding) {
       return OnboardingScreen(
         onTermine: () {
@@ -374,6 +527,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
     if (_ouvertureEnCours) return const MushafClosedCover();
+    // La visite se pose PAR-DESSUS l'app réelle, dans un `Stack` -- et non
+    // dans un `OverlayEntry` : elle doit mourir avec cet écran. Les onglets
+    // restent montés dessous, donc la main désigne de VRAIS boutons et
+    // l'`action` de chaque étape fait naviguer l'application pour de bon.
+    return Stack(children: [_appareil(), if (_montrerVisite) _visite()]);
+  }
+
+  /// Démarre la visite guidée. Appelée à la fin de la préparation, et
+  /// rappelable depuis les réglages.
+  void demarrerVisite() {
+    setState(() {
+      _tab = 0;
+      _montrerVisite = true;
+    });
+  }
+
+  Widget _visite() {
+    final t = AppLocalizations.of(context)!;
+    // ── UNE SEULE DÉFINITION DU TOUR D'ENSEMBLE (2026-09-13) ──────────────
+    //
+    // Les étapes étaient écrites ICI en dur, ET dans le catalogue. Deux
+    // définitions de la même visite finissent toujours par diverger : on
+    // corrige un texte d'un côté, et l'autre continue de dire l'ancienne
+    // chose. Le catalogue est la source unique ; ce premier lancement joue
+    // simplement son premier chapitre.
+    return VisiteGuidee(
+      libellePasser: t.guidePasser,
+      libelleSuivant: t.guideSuivant,
+      libelleFin: t.guideFin,
+      onTermine: () => setState(() => _montrerVisite = false),
+      etapes: kChapitresGuide.first.etapes(context, t),
+    );
+  }
+
+  Widget _appareil() {
     return Scaffold(
       body: IndexedStack(index: _tab, children: [
         TickerMode(enabled: _tab == 0, child: _screens[0]),
@@ -488,6 +676,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               Expanded(
                 child: _NavItem(
+                  key: _cleOngletCoran,
                   // ── LES QUATRE ONGLETS EN EMOJI (2026-08-09, demande
                   // utilisateur, apres l'emoji des Invocations) : « l'emoji
                   // invocation est bien, mais les autres sont vieux [les
@@ -502,6 +691,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               Expanded(
                 child: _NavItem(
+                  key: _cleOngletDuas,
                   // ── ICONE DES INVOCATIONS (2026-08-09, demande utilisateur)
                   //
                   // « il y a l'icone des invocations, je l'ai utilisee apres
@@ -526,6 +716,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               Expanded(
                 child: _NavItem(
+                  key: _cleOngletCoach,
                   icon: null,
                   emoji: '🎓',
                   label: t.navCoach,
@@ -572,7 +763,11 @@ class _NavItem extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const _NavItem({this.icon, this.emoji, required this.label,
+  /// `super.key` ajouté le 2026-09-13 : la visite guidée pose une `GlobalKey`
+  /// sur chaque onglet pour LIRE sa position à l'exécution (cf.
+  /// `widgets/guide_interactif.dart`). Sans elle il faudrait coder des
+  /// coordonnées, qui seraient fausses dès le téléphone suivant.
+  const _NavItem({super.key, this.icon, this.emoji, required this.label,
       required this.active, required this.onTap})
       : assert(icon != null || emoji != null);
 

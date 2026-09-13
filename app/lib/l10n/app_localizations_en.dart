@@ -1734,6 +1734,32 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String portionUnknownSurah(int n) {
+    return 'Surah $n';
+  }
+
+  @override
+  String portionSurahHizb(String surah, int hizb) {
+    return '$surah · Hizb $hizb';
+  }
+
+  @override
+  String portionSurahHizbQuarter(String surah, int hizb, int quarter) {
+    return '$surah · Hizb $hizb — quarter $quarter/4';
+  }
+
+  @override
+  String portionSurahHizbHalf(String surah, int hizb, String half) {
+    return '$surah · Hizb $hizb ($half)';
+  }
+
+  @override
+  String get portionHalfFirst => '1st half';
+
+  @override
+  String get portionHalfSecond => '2nd half';
+
+  @override
   String get settingsSectionDiagnostic => 'Diagnostics';
 
   @override
@@ -2325,6 +2351,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get coachAccompagnementSousTitre =>
+      'Daily reminders, review of often-missed verses, alert when your streak is at risk.';
+
+  @override
   String get coachNiveauTitle => 'Support level';
 
   @override
@@ -2667,4 +2697,304 @@ class AppLocalizationsEn extends AppLocalizations {
   String prayerInHoursMinutes(int minutes, int heures) {
     return 'in $heures h $minutes';
   }
+
+  @override
+  String get preparationLangueSous =>
+      'You can change it at any time in the settings.';
+
+  @override
+  String get preparationRiwayaSous =>
+      'The reading of the Qur\'an you follow. All the text in the app follows it.';
+
+  @override
+  String get preparationEcritureSous =>
+      'The preview below is rendered with the chosen font: it is exactly what you will see in the Mushaf.';
+
+  @override
+  String get preparationOptionsTitre => 'A few options';
+
+  @override
+  String get preparationOptionsSous =>
+      'Nothing is required. You can skip and come back later.';
+
+  @override
+  String get preparationModeSombre => 'Dark mode';
+
+  @override
+  String get preparationToutModifiable =>
+      'All of these choices remain editable in the settings. The microphone and location will only be requested when a feature actually needs them.';
+
+  @override
+  String get preparationPasser => 'Skip';
+
+  @override
+  String get preparationRetour => 'Back';
+
+  @override
+  String get preparationSuivant => 'Next';
+
+  @override
+  String get preparationCommencer => 'Start';
+
+  @override
+  String get guidePasser => 'Skip the guide';
+
+  @override
+  String get guideRetour => 'Back';
+
+  @override
+  String get guideSuivant => 'Next';
+
+  @override
+  String get guideFin => 'Done';
+
+  @override
+  String get visiteCoranTexte =>
+      'The full Mushaf. Tap a surah to read or listen to it.';
+
+  @override
+  String get visiteDuasTexte =>
+      'Supplications for the day, for prayer, for travel — sorted by moment.';
+
+  @override
+  String get visiteCoachTexte =>
+      'Your progress: what you have recited, what is left to review.';
+
+  @override
+  String get visiteFinTitre => 'Over to you';
+
+  @override
+  String get visiteFinTexte =>
+      'That\'s it. You can replay this tour any time from the settings.';
+
+  @override
+  String get guideDecouverteTitre => 'Discover the app';
+
+  @override
+  String get guideDecouverteSous =>
+      'A hand shows you where to tap. You can stop it at any time.';
+
+  @override
+  String get guideRejouer => 'Replay';
+
+  @override
+  String get guideChapitreGlobalTitre => 'Overview';
+
+  @override
+  String get guideChapitreGlobalResume =>
+      'The main parts of the app, in four steps.';
+
+  @override
+  String get guideChapitrePrieresTitre => 'Prayers and Qibla';
+
+  @override
+  String get guideChapitrePrieresResume =>
+      'The direction of Mecca, prayer times, the adhan.';
+
+  @override
+  String get guideChapitreDuasResume =>
+      'Supplications, sorted by moment of the day.';
+
+  @override
+  String get guideChapitreReglagesResume =>
+      'Language, riwāya, script, and what becomes of your data.';
+
+  @override
+  String get guidePriereAccueilTexte =>
+      'The next prayer time and the Qibla direction are right here, on the home screen.';
+
+  @override
+  String get guideQiblaTexte =>
+      'The arrow points to Mecca. It turns gold when you are correctly oriented.';
+
+  @override
+  String get guideHorairesTexte =>
+      'Calculation method, adhan, reminder before Ṣubḥ: it is all set here.';
+
+  @override
+  String get guidePriereFinTexte =>
+      'That\'s it. You can replay any chapter from the settings.';
+
+  @override
+  String get guideDuasUniversTexte =>
+      'Six worlds: the day, prayer, the Qur\'an, daily life, the heart, the pilgrimage.';
+
+  @override
+  String get guideDuasCollectionsTitre => 'The collections';
+
+  @override
+  String get guideDuasCollectionsTexte =>
+      'Each world splits into precise moments: on waking, before sleep, while travelling.';
+
+  @override
+  String get guideDuasAudioTitre => 'Listening';
+
+  @override
+  String get guideDuasAudioTexte =>
+      'Most supplications can be listened to, and the counter follows the repetitions.';
+
+  @override
+  String get guideReglagesLangueTexte =>
+      'Three languages. In Arabic the whole interface flips right to left.';
+
+  @override
+  String get guideReglagesRiwayaTexte =>
+      'Ḥafṣ or Warsh: all the text in the app follows your choice.';
+
+  @override
+  String get guideReglagesEcritureTexte =>
+      'Twenty-four Mushaf scripts, with a real preview before you choose.';
+
+  @override
+  String get guideReglagesViePriveeTitre => 'Your data';
+
+  @override
+  String get guideReglagesViePriveeTexte =>
+      'Everything happens on your phone. No account, no advertising.';
+
+  @override
+  String get guideChapitreLectureTitre => 'Reading the Qur\'an';
+
+  @override
+  String get guideChapitreLectureResume =>
+      'The surah list, listening, scrolling, bookmarks.';
+
+  @override
+  String get guideLectureListeTexte =>
+      'All 114 surahs, with their verse count and place of revelation.';
+
+  @override
+  String get guideLectureEcouteTitre => 'Listening';
+
+  @override
+  String get guideLectureEcouteTexte =>
+      'The gold button on the right plays the whole surah.';
+
+  @override
+  String get guideLectureDefilementTitre => 'Following along';
+
+  @override
+  String get guideLectureDefilementTexte =>
+      'The text scrolls by itself and the current verse stays in view.';
+
+  @override
+  String get guideLectureSignetTitre => 'Picking up where you left off';
+
+  @override
+  String get guideLectureSignetTexte =>
+      'The bookmark at the top of the list takes you back to your last reading.';
+
+  @override
+  String get guideChapitreMushafTitre => 'The paper Mushaf';
+
+  @override
+  String get guideChapitreMushafResume =>
+      'The printed page, 604 of them, with its frame and ornaments.';
+
+  @override
+  String get guideMushafOuvrirTexte =>
+      'The cover opens on the page where you left off.';
+
+  @override
+  String get guideMushafTournerTitre => 'Turning pages';
+
+  @override
+  String get guideMushafTournerTexte =>
+      'Swipe left to right to move forward, as in a real mushaf.';
+
+  @override
+  String get guideMushafEcritureTitre => 'Changing the script';
+
+  @override
+  String get guideMushafEcritureTexte =>
+      'A long press on the page opens the choice of 24 scripts.';
+
+  @override
+  String get guideChapitreRecitationTitre => 'Reciting and being corrected';
+
+  @override
+  String get guideChapitreRecitationResume =>
+      'The app listens to your recitation and flags what differs.';
+
+  @override
+  String get guideRecitationDepartTexte =>
+      'Open a surah, then start the recitation from the reading screen.';
+
+  @override
+  String get guideRecitationCouleursTitre => 'The word colours';
+
+  @override
+  String get guideRecitationCouleursTexte =>
+      'Green: the word is right. Orange: a doubt. Red: a difference heard.';
+
+  @override
+  String get guideRecitationCorrectionTitre => 'The correction';
+
+  @override
+  String get guideRecitationCorrectionTexte =>
+      'If you lose the thread, the reciter replays the passage so you can resume.';
+
+  @override
+  String get guideRecitationMicroTitre => 'The microphone';
+
+  @override
+  String get guideRecitationMicroTexte =>
+      'It is requested when you recite, not before. Everything is analysed on the phone.';
+
+  @override
+  String get guideChapitreCoachResume =>
+      'Your portions, your streak, memorisation, history.';
+
+  @override
+  String get guideCoachPortionsTexte =>
+      'Every portion you recite is tracked: what is secure, what is left.';
+
+  @override
+  String get guideCoachSerieTitre => 'The streak';
+
+  @override
+  String get guideCoachSerieTexte =>
+      'The number of consecutive days you have recited. It breaks if you skip a day.';
+
+  @override
+  String get guideCoachMemoTitre => 'Memorising';
+
+  @override
+  String get guideCoachMemoTexte =>
+      'A memorisation game takes the verses back in small steps.';
+
+  @override
+  String get guideCoachSessionsTitre => 'The history';
+
+  @override
+  String get guideCoachSessionsTexte =>
+      'Each session keeps its flagged words, and your own voice to listen back.';
+
+  @override
+  String get guideChapitreAudioTitre => 'Reciters and audio';
+
+  @override
+  String get guideChapitreAudioResume =>
+      'Choose a voice, download it to listen offline.';
+
+  @override
+  String get guideAudioReciteurTitre => 'Choosing a reciter';
+
+  @override
+  String get guideAudioReciteurTexte =>
+      'Several voices are available. The choice applies across the whole app.';
+
+  @override
+  String get guideAudioHorsLigneTitre => 'Offline';
+
+  @override
+  String get guideAudioHorsLigneTexte =>
+      'A downloaded surah plays without a connection, and is never fetched again.';
+
+  @override
+  String get guideAudioNotifTitre => 'From the notification';
+
+  @override
+  String get guideAudioNotifTexte =>
+      'Pause and play stay available when the app is minimised.';
 }
