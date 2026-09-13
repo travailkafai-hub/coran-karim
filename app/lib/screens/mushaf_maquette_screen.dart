@@ -508,6 +508,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     // faire clignoter l'écran du clair au sombre.
     //
     final sombre = ref.watch(modeSombreProvider);
+    final sepia = ref.watch(kindleModeProvider);
     final warsh = ref.watch(riwayaProvider) == Riwaya.warsh;
     // ECRITURE DU TEXTE CORANIQUE (2026-09-03) : reglage local a cette vue,
     // defaut `Amiri` -- le rendu d'origine, inchange tant qu'aucun autre choix
@@ -626,6 +627,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
           child: _PageMushaf(
           page: i + 1,
           sombre: sombre,
+          sepia: sepia,
           warsh: warsh,
           ecriture: ecriture,
           tajwid: tajwid,
@@ -713,6 +715,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
 class _PageMushaf extends StatelessWidget {
   final int page;
   final bool sombre;
+  final bool sepia;
   final bool warsh;
 
   /// Colorer le texte selon les regles de tajwid (cf.
@@ -745,6 +748,7 @@ class _PageMushaf extends StatelessWidget {
   const _PageMushaf({
     required this.page,
     required this.sombre,
+    required this.sepia,
     required this.warsh,
     required this.ecriture,
     required this.tajwid,
@@ -1154,6 +1158,7 @@ class _PageMushaf extends StatelessWidget {
               ? MushafFrameStyle.opening
               : MushafFrameStyle.regular,
           dark: sombre,
+          sepia: sepia,
           child: Column(
             children: [
               if (pageOuverture)

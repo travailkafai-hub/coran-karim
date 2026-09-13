@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/verse.dart';
+import 'mushaf_ornamental_frame.dart';
 
 /// Structure graphique d'une page de mushaf, dessinee uniquement par Flutter.
 ///
@@ -38,8 +39,10 @@ import '../models/verse.dart';
 /// Testee sur les configurations reelles dans
 /// `test/mushaf_marge_boutons_test.dart`.
 double margeHauteBoutonsMushaf(BuildContext context) =>
-    (MediaQuery.paddingOf(context).top * _partDeLaMarge)
-        .clamp(_margeMin, _margeMax);
+    (MediaQuery.paddingOf(context).top * _partDeLaMarge).clamp(
+      _margeMin,
+      _margeMax,
+    );
 
 const double _partDeLaMarge = 0.45;
 const double _margeMin = 4;
@@ -50,12 +53,14 @@ enum MushafFrameStyle { opening, regular }
 class MushafPageChrome extends StatelessWidget {
   final MushafFrameStyle style;
   final bool dark;
+  final bool sepia;
   final Widget child;
 
   const MushafPageChrome({
     super.key,
     required this.style,
     required this.dark,
+    this.sepia = false,
     required this.child,
   });
 
@@ -88,7 +93,20 @@ class MushafPageChrome extends StatelessWidget {
         return ColoredBox(
           color: dark ? const Color(0xFF111B19) : const Color(0xFFFFFEF6),
           child: CustomPaint(
-            painter: _MushafFramePainter(style: style, dark: dark),
+            painter: MushafOrnamentalFramePainter(
+              tone: dark
+                  ? MushafFrameTone.dark
+                  : sepia
+                  ? MushafFrameTone.sepia
+                  : MushafFrameTone.light,
+              opening: opening,
+              band: EdgeInsets.fromLTRB(
+                horizontal - 3,
+                (opening ? vertical : vertical * 0.40) - 1,
+                horizontal - 3,
+                (opening ? vertical * 0.86 : vertical) - 2,
+              ),
+            ),
             child: Padding(
               // ── UN PEU D'ESPACE REPRIS EN HAUT (2026-09-04) ──────────────
               //
@@ -351,148 +369,6 @@ class _SurahBannerPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SurahBannerPainter oldDelegate) =>
       oldDelegate.dark != dark;
-}
-
-class _MushafFramePainter extends CustomPainter {
-  final MushafFrameStyle style;
-  final bool dark;
-
-  const _MushafFramePainter({required this.style, required this.dark});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (style == MushafFrameStyle.opening) {
-      _paintOpening(canvas, size);
-    } else {
-      _paintRegular(canvas, size);
-    }
-  }
-
-  void _paintRegular(Canvas canvas, Size size) {
-    final green = dark ? const Color(0xFF7DB89F) : const Color(0xFF58A77E);
-    final pale = dark ? const Color(0xFF315B4E) : const Color(0xFFA7D6BE);
-    final outer = Rect.fromLTWH(2, 2, size.width - 4, size.height - 4);
-    canvas.drawRect(
-      outer,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.3
-        ..color = green,
-    );
-    canvas.drawRect(
-      outer.deflate(6),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.9
-        ..color = pale,
-    );
-    _paintEdgePattern(canvas, size, inset: 4.2, step: 11, color: pale);
-  }
-
-  void _paintOpening(Canvas canvas, Size size) {
-    // CHGPT : les pages d'ouverture restent distinctes sans reprendre les
-    // couleurs tres saturees du scan. Deux tons calmes et beaucoup de papier
-    // remplacent le rouge, le cyan et la frise florale dense.
-    final green = dark ? const Color(0xFF7F9F92) : const Color(0xFF416F5E);
-    final pale = dark ? const Color(0xFF344D45) : const Color(0xFFC8D9CF);
-    final gold = dark ? const Color(0xFF9B8551) : const Color(0xFFB59A5A);
-
-    final outer = Rect.fromLTWH(2, 2, size.width - 4, size.height - 4);
-    final band = (size.width * 0.055).clamp(18.0, 34.0);
-    final paints = <(double, Color, double)>[
-      (0, gold, 1.2),
-      (band * 0.22, pale, 2.0),
-      (band * 0.46, green, 1.4),
-      (band * 0.70, gold, 0.9),
-    ];
-    for (final (inset, color, width) in paints) {
-      canvas.drawRect(
-        outer.deflate(inset),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = width
-          ..color = color,
-      );
-    }
-
-    final motifInset = band * 0.22;
-    _paintEdgePattern(canvas, size, inset: motifInset, step: 24, color: pale);
-
-    final cornerPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = gold;
-    for (final corner in [
-      Offset(band * 0.55, band * 0.55),
-      Offset(size.width - band * 0.55, band * 0.55),
-      Offset(band * 0.55, size.height - band * 0.55),
-      Offset(size.width - band * 0.55, size.height - band * 0.55),
-    ]) {
-      canvas.drawCircle(corner, 3.2, cornerPaint);
-      canvas.drawCircle(
-        corner,
-        7,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = green,
-      );
-    }
-  }
-
-  void _paintEdgePattern(
-    Canvas canvas,
-    Size size, {
-    required double inset,
-    required double step,
-    required Color color,
-  }) {
-    void horizontal(double y, bool flip) {
-      for (double x = inset + step / 2; x < size.width - inset; x += step) {
-        _motif(canvas, Offset(x, y), step * 0.42, flip ? math.pi : 0, color);
-      }
-    }
-
-    void vertical(double x, bool flip) {
-      for (double y = inset + step / 2; y < size.height - inset; y += step) {
-        _motif(
-          canvas,
-          Offset(x, y),
-          step * 0.42,
-          flip ? -math.pi / 2 : math.pi / 2,
-          color,
-        );
-      }
-    }
-
-    horizontal(inset, false);
-    horizontal(size.height - inset, true);
-    vertical(inset, false);
-    vertical(size.width - inset, true);
-  }
-
-  void _motif(
-    Canvas canvas,
-    Offset center,
-    double radius,
-    double angle,
-    Color color,
-  ) {
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(angle);
-    final diamond = Path()
-      ..moveTo(0, -radius)
-      ..lineTo(radius * 0.62, 0)
-      ..lineTo(0, radius)
-      ..lineTo(-radius * 0.62, 0)
-      ..close();
-    canvas.drawPath(diamond, Paint()..color = color);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _MushafFramePainter oldDelegate) =>
-      oldDelegate.style != style || oldDelegate.dark != dark;
 }
 
 String _arabicDigits(int value) {
