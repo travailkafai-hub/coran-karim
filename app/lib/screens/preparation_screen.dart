@@ -40,6 +40,7 @@
 // `kOnboardingActif = false`) explique ce que fait l'app. Celle-ci la prépare.
 // Les deux peuvent coexister ; aucune n'est supprimée.
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -62,7 +63,40 @@ const String kPrefPreparationFaite = 'preparation_faite';
 /// Défaut `false` (« déjà fait ») en cas d'erreur de lecture : même principe
 /// que `onboardingARegarder` — mieux vaut manquer la préparation qu'imposer un
 /// plein écran à chaque démarrage si le stockage est indisponible.
+///
+/// ── REJOUÉE À CHAQUE LANCEMENT PENDANT LA RECETTE (2026-09-13) ─────────────
+///
+/// Demande utilisateur : « je veux que l'onboarding se lance tout le temps,
+/// période de recette ». Pendant qu'on met au point la préparation et la visite
+/// guidée, devoir effacer les préférences du téléphone à chaque essai est une
+/// friction absurde -- et on finit par tester autre chose que ce qu'on croit.
+///
+/// ⚠️ POURQUOI `!kReleaseMode` ET PAS UNE CONSTANTE À `true` : une constante
+/// qu'il faut penser à repasser à `false` avant publication FINIT par partir
+/// oubliée. Ici, la bascule est portée par le MODE DE COMPILATION : elle est
+/// vraie pour tous les builds de développement (ceux qu'on installe tous les
+/// jours, cf. la règle projet « builds en debug par défaut ») et
+/// structurellement fausse pour un build release. Le défaut ne PEUT PAS
+/// atteindre le Play Store -- ce n'est pas une discipline, c'est une
+/// impossibilité.
+///
+/// Conséquence à connaître : en debug, `kPrefPreparationFaite` est toujours
+/// écrit mais jamais relu. Si un jour on veut vérifier le comportement RÉEL du
+/// premier lancement (l'écran ne doit apparaître qu'une fois), il faut un build
+/// profile ou release -- pas un debug.
+const bool _kRejouerAChaqueLancement = !kReleaseMode;
+
+/// Le même interrupteur, exposé pour les autres morceaux de la chaîne de
+/// démarrage (la démonstration de récitation, cf. `main.dart`).
+///
+/// Un SEUL point de vérité : si un jour on veut couper la recette, on coupe
+/// ici et tout suit. Deux constantes séparées finiraient par diverger, et on
+/// se retrouverait avec une démo qui s'ouvre toute seule alors qu'on croit
+/// avoir tout éteint.
+bool get preparationEnRecette => _kRejouerAChaqueLancement;
+
 Future<bool> preparationARegarder() async {
+  if (_kRejouerAChaqueLancement) return true;
   try {
     final prefs = await SharedPreferences.getInstance();
     return !(prefs.getBool(kPrefPreparationFaite) ?? false);

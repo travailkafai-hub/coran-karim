@@ -21,6 +21,7 @@ import 'screens/coach_sessions.dart'
 import 'screens/dua_pour_nous_screen.dart';
 import 'screens/mushaf_opening_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/demo_recitation_screen.dart';
 import 'screens/preparation_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
@@ -556,7 +557,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       libellePasser: t.guidePasser,
       libelleSuivant: t.guideSuivant,
       libelleFin: t.guideFin,
-      onTermine: () => setState(() => _montrerVisite = false),
+      onTermine: () {
+        setState(() => _montrerVisite = false);
+        // ── LA DEMO ENCHAINE, PENDANT LA RECETTE (2026-09-13) ────────────
+        //
+        // Demande utilisateur : « relance-moi tout le temps la demo tant que
+        // je n'ai pas valide ». Elle est le morceau le moins verifie de tout
+        // ce chantier -- je n'ai jamais reussi a l'atteindre par des taps a
+        // l'aveugle, l'app rouvrant le Mushaf a chaque lancement a froid. La
+        // mettre au bout de la chaine de demarrage la place donc sous les
+        // yeux a chaque essai, sans navigation.
+        //
+        // Meme interrupteur que la preparation (`preparationEnRecette`), pour
+        // la meme raison : porte par le MODE DE COMPILATION, donc
+        // structurellement absent d'un build release. Une demo qui
+        // s'ouvrirait toute seule chez un utilisateur final serait un defaut
+        // grave, et ce n'est pas une discipline qui l'en empeche ici.
+        if (preparationEnRecette) {
+          Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute<void>(
+                builder: (_) => const DemoRecitationScreen()),
+          );
+        }
+      },
       etapes: kChapitresGuide.first.etapes(context, t),
     );
   }
