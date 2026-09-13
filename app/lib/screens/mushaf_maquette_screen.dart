@@ -9,6 +9,8 @@ import '../models/verse.dart';
 import '../providers/player_provider.dart';
 import '../providers/app_settings_provider.dart';
 import '../services/mushaf_lignes_service.dart';
+import '../services/mushaf_opening_position.dart';
+import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
@@ -401,7 +403,20 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
       // d'une page qu'on ne regarde plus.
       if (!mounted || page != _pageLue) return;
       setState(() => _premierVersetPage = v.isEmpty ? null : v.first);
-    } catch (_) {
+      if (v.isNotEmpty) {
+        // ChGPT: persist the actual paper page without changing verse IDs,
+        // manual bookmarks, or the ASR's Hafs/Warsh numbering.
+        final position = await lireDernierePositionLecture();
+        if (!mounted || page != _pageLue ||
+            warsh != (ref.read(riwayaProvider) == Riwaya.warsh)) {
+          return;
+        }
+        await MushafOpeningPosition.save(
+          warsh ? Riwaya.warsh : Riwaya.hafs, page, position,
+        );
+      }
+    } catch (e) {
+      DiagnosticLog.log('Lecture', 'memorisation page mushaf impossible : $e');
       // Le signet est un confort : s'il ne peut pas cibler, il se desactive,
       // il ne fait pas echouer l'affichage de la page.
     }

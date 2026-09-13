@@ -9,6 +9,42 @@ import '../models/verse.dart';
 ///
 /// Les scans Warsh servent de reference de proportions et de vocabulaire
 /// visuel. Aucun pixel de ces pages n'est embarque dans l'application.
+/// Marge haute des deux ronds flottants du Mushaf (retour, signet).
+///
+/// ── UNE SEULE FORMULE, POUR TOUS LES TELEPHONES (2026-09-12) ─────────────
+///
+/// Demande utilisateur, apres les avoir vus poses trop bas : « est-ce qu'il y
+/// a moyen de les faire encore remonter » -- puis, dans la foulee : « faut
+/// gerer ca pour tenir compte des plusieurs telephones qui vont telecharger
+/// l'app ».
+///
+/// Les deux naïvetes possibles sont ecartees :
+///   * une VALEUR FIXE passerait sous l'encoche des uns et flotterait au
+///     milieu de l'ecran des autres ;
+///   * `SafeArea` ENTIER reserve toute la marge declaree -- c'est ce qui les
+///     posait trop bas, et c'est ce qu'on corrige.
+///
+/// On prend donc une PART de ce que l'appareil declare, bornee des deux cotes.
+/// Les deux boutons vivent aux BORDS gauche et droit, la ou ni encoche ni
+/// poincon ne se placent (ils sont centres) : la marge haute n'a donc pas a
+/// couvrir toute la hauteur d'une encoche, seulement a eviter la barre d'etat
+/// quand elle est visible.
+///
+/// Bornes : au moins [_margeMin] pour les ecrans qui ne declarent aucune marge
+/// (mode immersif, ou la barre d'etat est masquee) -- sans ce plancher le rond
+/// collerait au pixel du bord ; au plus [_margeMax] pour les tablettes et les
+/// encoches profondes, ou 45 % ferait redescendre le bouton sur le texte.
+///
+/// Testee sur les configurations reelles dans
+/// `test/mushaf_marge_boutons_test.dart`.
+double margeHauteBoutonsMushaf(BuildContext context) =>
+    (MediaQuery.paddingOf(context).top * _partDeLaMarge)
+        .clamp(_margeMin, _margeMax);
+
+const double _partDeLaMarge = 0.45;
+const double _margeMin = 4;
+const double _margeMax = 64;
+
 enum MushafFrameStyle { opening, regular }
 
 class MushafPageChrome extends StatelessWidget {

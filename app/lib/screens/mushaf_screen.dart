@@ -14,6 +14,7 @@ import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer, recitationVerifierProvider;
 import '../theme/app_theme.dart';
+import '../widgets/mushaf_page_chrome.dart';
 import 'mushaf_maquette_screen.dart';
 import '../widgets/verse_tile.dart';
 import '../widgets/mushaf_header.dart';
@@ -659,6 +660,48 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
 
     final kindleMode = ref.watch(kindleModeProvider);
     final modeSombre = ref.watch(modeSombreProvider);
+    // ── LES DEUX RONDS FLOTTANTS S'EFFACENT (2026-09-12) ──────────────────
+    //
+    // Demande utilisateur : « le retour en arriere et le marqueur signet, je
+    // veux que ca tienne du style et que ce soit le plus transparent
+    // possible, plus qu'actuellement -- ca cache l'ecriture ».
+    //
+    // Troisieme passe sur ce reglage, et les deux precedentes s'annulaient :
+    // opaque le 2026-08-05 (l'icone n'etait pas lisible), alpha 110 le
+    // 2026-08-07 (« il cache du texte »). On tournait en rond parce que le
+    // fond portait TOUT le contraste : l'icone etait creme, donc elle exigeait
+    // un rond sombre sous elle, donc le rond devait rester dense.
+    //
+    // On inverse : c'est l'ICONE qui porte le contraste, accordee au theme de
+    // lecture, et le rond n'est plus qu'un voile de la couleur du fond -- il
+    // ne fait qu'attenuer ce qu'il recouvre au lieu de le masquer. Le texte
+    // coranique transparait donc, et l'icone reste lisible sur les trois
+    // themes, y compris Kindle qui n'etait pas distingue jusqu'ici.
+    //
+    // Alpha 42 au lieu de 110 : le rond reste percu (il donne sa cible au
+    // doigt) sans jamais cacher un mot.
+    // ── LE VOILE, A MI-CHEMIN (2026-09-12, seconde passe) ────────────────
+    // Retour utilisateur sur l'alpha 42 : « la je pense c'est 0 transparence,
+    // fais la moitie entre ce qui etait avant et maintenant ». 110 masquait le
+    // texte, 42 effacait le bouton : (110 + 42) / 2 = 76. Le rond redevient un
+    // reperage franc, le mot en dessous reste lisible.
+    final fondRondFlottant = (modeSombre
+            ? AppColors.sombreBgDeep
+            : kindleMode
+                ? AppColors.kindleBgDeep
+                : AppColors.cream)
+        .withAlpha(76);
+    // ── ET PLUS HAUT (meme retour : « les faire encore remonter ») ────────
+    // Ils prenaient la marge d'encoche ENTIERE via SafeArea, ce qui les posait
+    // bas sur la page. On n'en garde qu'une part : assez pour ne pas passer
+    // sous une encoche, assez peu pour qu'ils collent au bord. Plancher de 4
+    // pour les ecrans qui ne declarent aucune marge (mode immersif).
+    final margeHauteRond = margeHauteBoutonsMushaf(context);
+    final encreRondFlottant = modeSombre
+        ? AppColors.cream
+        : kindleMode
+            ? AppColors.kindleInk
+            : AppColors.ink;
     ref.listen(kindleAutoTurnProvider,
         (_, next) => _syncKindleAutoTurn(next, ref.read(kindlePageSecondsProvider)));
     ref.listen(kindlePageSecondsProvider,
@@ -864,10 +907,9 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                     // souvenir de taper la zone haute). Petit, discret,
                     // jamais cache par le minuteur.
                     Positioned(
-                      top: 8,
+                      top: margeHauteRond,
                       left: 8,
-                      child: SafeArea(
-                        child: Material(
+                      child: Material(
                           // OPAQUE (2026-08-05) : semi-transparent, le mot
                           // coranique juste en dessous transparaissait a
                           // travers le bouton -- signale par l'utilisateur sur
@@ -883,18 +925,14 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                           // 110) mais pose sur un fond sombre, donc l'icone
                           // creme reste lisible. En mode nuit on l'accorde au
                           // fond noir plutot qu'au vert du theme clair.
-                          color: (modeSombre
-                                  ? AppColors.sombreBgDeep
-                                  : AppColors.green900)
-                              .withAlpha(110),
+                          color: fondRondFlottant,
                           shape: const CircleBorder(),
                           child: IconButton(
-                            icon: const Icon(Icons.arrow_back_rounded,
-                                color: AppColors.cream),
+                            icon: Icon(Icons.arrow_back_rounded,
+                                color: encreRondFlottant),
                             onPressed: () => Navigator.of(context).maybePop(),
                           ),
                         ),
-                      ),
                     ),
                     // BASCULE « vue page » (2026-09-01). Demande
                     // utilisateur : « comment passer d'un affichage à l'autre
@@ -910,14 +948,10 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                     // demande d'origine, « je demande pas d'enlever ce qu'on a
                     // mais une possibilité en plus »).
                     Positioned(
-                      top: 8,
+                      top: margeHauteRond,
                       right: 8,
-                      child: SafeArea(
-                        child: Material(
-                          color: (modeSombre
-                                  ? AppColors.sombreBgDeep
-                                  : AppColors.green900)
-                              .withAlpha(110),
+                      child: Material(
+                          color: fondRondFlottant,
                           shape: const CircleBorder(),
                           // ── LE BOUTON ROND POSE LE SIGNET (2026-09-09) ─
                           //
@@ -956,13 +990,12 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                                       : Icons.bookmark_border_rounded,
                                   color: marque
                                       ? AppColors.brass
-                                      : AppColors.cream),
+                                      : encreRondFlottant),
                               onPressed:
                                   v == null ? null : _basculerMarquePage,
                             );
                           }),
                         ),
-                      ),
                     ),
                     // Le header lui-même, hauteur fixe, qui glisse hors écran
                     // (translation -- ne touche pas à ses contraintes de
