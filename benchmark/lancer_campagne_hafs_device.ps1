@@ -114,15 +114,13 @@ foreach ($case in $cases) {
                 '--es', 'riwaya', 'hafs'
             ) | Out-Null
 
-            $startedCurrent = $false
             for ($second = 0; $second -lt $TimeoutSeconds; $second++) {
                 Start-Sleep -Seconds 1
-                $tail = Get-LogTail
-                if ($tail -match '=== session démarée ===' -or
-                    $tail -match '=== session démarrée ===') {
-                    $startedCurrent = $true
-                }
-                if ($startedCurrent -and $tail -match 'FIN DU BANC') {
+                # Read only the lines added after this run. This avoids both
+                # old FIN DU BANC markers and PowerShell code-page issues on
+                # the accented session-start marker.
+                $tail = Get-SessionLog $before
+                if ($tail -match 'FIN DU BANC') {
                     $status = 'DONE'
                     break
                 }
