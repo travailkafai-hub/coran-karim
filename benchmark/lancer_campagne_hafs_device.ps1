@@ -5,7 +5,10 @@ param(
     [int]$TimeoutSeconds = 120
 )
 
-$ErrorActionPreference = 'Stop'
+# adb writes normal progress messages (notably `push`) to stderr even when its
+# exit code is zero. We inspect exit codes explicitly instead of treating that
+# stream as a terminating PowerShell exception.
+$ErrorActionPreference = 'Continue'
 $adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
 if (-not (Test-Path -LiteralPath $adb)) {
     throw "adb introuvable: $adb"
