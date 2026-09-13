@@ -19,11 +19,11 @@ import 'screens/coach_sessions.dart'
     show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider,
         derniersJoursProvider, serieProvider;
 import 'screens/dua_pour_nous_screen.dart';
-import 'screens/mushaf_screen.dart';
+import 'screens/mushaf_opening_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
-import 'services/quran_api.dart';
+import 'widgets/mushaf_cover_reveal.dart';
 import 'services/session_media.dart';
 import 'services/reciter_download_service.dart';
 import 'theme/app_theme.dart';
@@ -217,7 +217,7 @@ class _PointDEntreeState extends State<_PointDEntree> {
 
   @override
   Widget build(BuildContext context) =>
-      _ecran ?? const Scaffold(body: Center(child: CircularProgressIndicator()));
+      _ecran ?? const MushafClosedCover();
 }
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -228,6 +228,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tab = 0;
+  bool _ouvertureEnCours = true;
 
   /// Présentation du premier lancement (2026-08-09). `null` tant que la
   /// réponse des préférences n'est pas arrivée : on affiche alors l'app
@@ -258,40 +259,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
   }
 
-  /// Rouvre directement le Mushaf là où la lecture s'était arrêtée, si une
-  /// position a été enregistrée (2026-08-26, demande utilisateur : « si
-  /// ouverture une sourate en lecture faut se rappeler de la page et
-  /// l'ouvrir directement au prochain ouverture de l'application »).
-  ///
-  /// Jamais si la présentation du premier lancement doit s'afficher (cf.
-  /// l'appelant, `else` du test `aRegarder`) : un nouvel utilisateur doit
-  /// d'abord voir l'app, pas se retrouver en plein milieu d'une sourate
-  /// qu'il n'a jamais ouverte.
+  /// ChGPT: open the paper reader once per cold launch. Returning from it
+  /// reveals the existing tabs; resuming the app never replays the cover.
   Future<void> _reprendreLectureAuLancement() async {
-    final position = await lireDernierePositionLecture();
-    if (position == null) {
-      DiagnosticLog.log('Lecture', 'reprise au lancement : aucune position enregistree');
-      return;
-    }
+    await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
-    final (sourate, verset) = position;
-    DiagnosticLog.log(
-        'Lecture', 'reprise au lancement : sourate=$sourate verset=$verset');
     try {
-      final sourates = await QuranApi.fetchSurahs();
-      final trouvee = sourates.where((x) => x.number == sourate);
-      if (trouvee.isEmpty) {
-        DiagnosticLog.log('Lecture', 'reprise annulee : sourate $sourate introuvable');
-        return;
-      }
-      if (!mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) =>
-            MushafScreen(surah: trouvee.first, initialAyahNumber: verset),
+      await Navigator.of(context).push(PageRouteBuilder<int>(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, _, _) => const MushafOpeningScreen(),
       ));
-    } catch (e) {
-      // Best-effort : sans les metadonnees on n'ouvre pas un ecran vide.
-      DiagnosticLog.log('Lecture', 'reprise echouee : $e');
+    } finally {
+      if (mounted) setState(() => _ouvertureEnCours = false);
     }
   }
 
@@ -320,9 +300,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // retombe exactement sur l'app déjà chargée.
     if (_montrerOnboarding) {
       return OnboardingScreen(
-        onTermine: () => setState(() => _montrerOnboarding = false),
+        onTermine: () {
+          setState(() => _montrerOnboarding = false);
+          _reprendreLectureAuLancement();
+        },
       );
     }
+    if (_ouvertureEnCours) return const MushafClosedCover();
     return Scaffold(
       body: IndexedStack(index: _tab, children: _screens),
       // ── LES BOUTONS DE DEVELOPPEMENT SONT RETIRES (2026-08-06) ───────────

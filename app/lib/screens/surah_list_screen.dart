@@ -14,6 +14,7 @@ import 'mushaf_screen.dart';
 import '../providers/app_settings_provider.dart';
 import '../providers/prayer_settings_provider.dart';
 import 'prayer_follow_screen.dart';
+import '../l10n/prayer_labels.dart';
 
 class SurahListScreen extends ConsumerStatefulWidget {
   const SurahListScreen({super.key});
@@ -268,20 +269,25 @@ class _RappelPriereState extends ConsumerState<_RappelPriere> {
     super.dispose();
   }
 
-  static const _noms = {
-    PrayerName.fajr: 'Sobh',
-    PrayerName.dhuhr: 'Dhohr',
-    PrayerName.asr: 'Asr',
-    PrayerName.maghrib: 'Maghrib',
-    PrayerName.isha: 'Ichaa',
-  };
+  // ── LES NOMS DE PRIERE VIENNENT DU HELPER PARTAGE (2026-09-09) ──────────
+  //
+  // Une `const Map` locale portait ici `Sobh`, `Dhohr`, `Ichaa` -- une
+  // translitteration FRANCAISE affichee telle quelle meme quand toute
+  // l'application est en arabe. Defaut signale par l'utilisateur :
+  // « صلاة قادمة en arabe, il y a du francais aussi ».
+  //
+  // Trois copies de ces memes libelles existaient (cet ecran, celui des
+  // horaires, le service de notifications), chacune libre de diverger. Elles
+  // passent maintenant par `l10n/prayer_labels.dart` -- sauf le service, qui
+  // n'a pas de `BuildContext` (cf. la note de ce fichier).
 
   /// « dans 1 h 23 », « dans 24 min », « maintenant ».
-  String _restant(Duration d) {
-    if (d.inMinutes < 1) return 'maintenant';
+  String _restant(BuildContext context, Duration d) {
+    final t = AppLocalizations.of(context)!;
+    if (d.inMinutes < 1) return t.prayerInNow;
     final h = d.inHours, m = d.inMinutes % 60;
-    if (h == 0) return 'dans $m min';
-    return m == 0 ? 'dans $h h' : 'dans $h h $m';
+    if (h == 0) return t.prayerInMinutes(m);
+    return m == 0 ? t.prayerInHours(h) : t.prayerInHoursMinutes(h, m);
   }
 
   @override
@@ -317,14 +323,14 @@ class _RappelPriereState extends ConsumerState<_RappelPriere> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Prochaine priere'.toUpperCase(),
+                      Text(AppLocalizations.of(context)!.prayerTimesNext.toUpperCase(),
                           style: GoogleFonts.manrope(
                               fontSize: 9.5,
                               letterSpacing: 1.4,
                               fontWeight: FontWeight.w700,
                               color: AppColors.brassLight)),
                       const SizedBox(height: 3),
-                      Text('${_noms[suivante.name]} · $hm',
+                      Text('${nomPriere(context, suivante.name)} · $hm',
                           style: GoogleFonts.manrope(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
@@ -332,7 +338,7 @@ class _RappelPriereState extends ConsumerState<_RappelPriere> {
                     ],
                   ),
                 ),
-                Text(_restant(reste),
+                Text(_restant(context, reste),
                     style: GoogleFonts.manrope(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
@@ -490,10 +496,11 @@ class _BoutonSignet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cles = ref.watch(marquePagesProvider);
-    if (cles.isEmpty) return const SizedBox.shrink();
-    // `state` est un LinkedHashSet : le DERNIER pose est le dernier insere.
-    final p = cles.last.split(':').map(int.parse).toList();
+    final cle = ref.watch(marquePagesProvider);
+    if (cle == null) return const SizedBox.shrink();
+    // Un seul signet depuis le 2026-09-09 (cf. `marquePagesProvider`) : plus
+    // besoin de choisir « le dernier pose », c'est le seul.
+    final p = cle.split(':').map(int.parse).toList();
     return IconButton(
       icon: const Icon(Icons.bookmark_rounded, color: AppColors.brassLight),
       tooltip: '${p[0]}:${p[1]}',
