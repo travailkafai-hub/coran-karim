@@ -4,6 +4,7 @@ import 'package:coran_karim/models/riwaya.dart';
 import 'package:coran_karim/models/verse.dart';
 import 'package:coran_karim/screens/mushaf_maquette_screen.dart';
 import 'package:coran_karim/services/quran_api.dart';
+import 'package:coran_karim/widgets/mushaf_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -197,6 +198,133 @@ void main() {
           reason: 'Exact page $page ${riwaya.name}, no repagination',
         );
       }
+    }
+  });
+
+  for (final mode in [SystemUiMode.edgeToEdge, SystemUiMode.immersiveSticky]) {
+    testWidgets('paper back restores $mode after repeated visits', (
+      tester,
+    ) async {
+      // Load the real paper assets/fonts before exercising route disposal.
+      await ouvrir(tester, 573, Riwaya.hafs);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      final calls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          calls.add(call);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      int? returnedPage;
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () async {
+                    returnedPage = await Navigator.of(context).push<int>(
+                      MaterialPageRoute(
+                        builder: (_) => mode == SystemUiMode.edgeToEdge
+                            ? const MushafMaquetteScreen(pageInitiale: 573)
+                            : MushafMaquetteScreen(
+                                pageInitiale: 573,
+                                modeSystemeAuRetour: mode,
+                              ),
+                      ),
+                    );
+                  },
+                  child: const Text('Open paper'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      for (var visit = 0; visit < 3; visit++) {
+        calls.clear();
+        await tester.tap(find.text('Open paper'));
+        await tester.pumpAndSettle();
+        expect(
+          calls
+              .where((c) => c.method == 'SystemChrome.setEnabledSystemUIMode')
+              .last
+              .arguments,
+          SystemUiMode.immersiveSticky.toString(),
+        );
+        if (visit == 1) {
+          await tester.tap(find.byKey(const ValueKey('mushaf-body-573')));
+          await tester.pumpAndSettle();
+        }
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(returnedPage, visit == 1 ? 574 : 573);
+        expect(find.byType(MushafMaquetteScreen), findsNothing);
+        expect(
+          calls
+              .where((c) => c.method == 'SystemChrome.setEnabledSystemUIMode')
+              .last
+              .arguments,
+          mode.toString(),
+        );
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    });
+  }
+
+  testWidgets('header reserves top inset, never Android navigation inset', (
+    tester,
+  ) async {
+    const header = MushafHeader(
+      surah: Surah(
+        number: 109,
+        nameArabic: 'Test',
+        nameSimple: 'Test',
+        nameTranslationFr: 'Test',
+        versesCount: 6,
+        revelationPlace: 'makkah',
+      ),
+    );
+    // Inspect the real header's SafeArea contract without loading its prayer
+    // services or downloadable UI fonts. Full rendering is checked on device.
+    for (final padding in [
+      EdgeInsets.zero,
+      const EdgeInsets.only(top: 24, bottom: 48),
+      const EdgeInsets.only(bottom: 48),
+      const EdgeInsets.only(top: 48),
+    ]) {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: MediaQueryData(padding: padding),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Builder(
+              builder: (context) {
+                final root = header.build(context) as Container;
+                final safeArea = root.child! as SafeArea;
+                expect(safeArea.top, isTrue);
+                expect(safeArea.bottom, isFalse);
+                expect(
+                  MushafHeader.hauteurPour(context),
+                  header.preferredSize.height + padding.top,
+                );
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
     }
   });
 }
