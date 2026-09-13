@@ -1242,6 +1242,13 @@ class _ReglageObjectifSheetState
     _niveau = o.niveau;
   }
 
+  /// Plus appelé depuis le 2026-09-12 : les trois puces de niveau ont laissé
+  /// la place a un interrupteur unique (cf. le bloc dans `build`). CONSERVE
+  /// (regle projet : on n'efface pas ce qui a servi) -- il porte la
+  /// correspondance niveau -> libelle traduit, et les trois cles l10n
+  /// existent toujours. Le jour ou l'on voudrait reafficher les niveaux, ou
+  /// simplement nommer celui qui est actif quelque part, tout est la.
+  // ignore: unused_element
   String _libelleNiveau(AppLocalizations t, NiveauCoach n) => switch (n) {
         NiveauCoach.aMonRythme => t.coachNiveauAMonRythme,
         NiveauCoach.regulier => t.coachNiveauRegulier,
@@ -1351,17 +1358,39 @@ class _ReglageObjectifSheetState
                     fontWeight: FontWeight.w700,
                     color: AppColors.inkLight)),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final n in NiveauCoach.values)
-                  ChoiceChip(
-                    label: Text(_libelleNiveau(t, n)),
-                    selected: _niveau == n,
-                    onSelected: (_) => setState(() => _niveau = n),
-                  ),
-              ],
+            // ── UN INTERRUPTEUR, PLUS TROIS NIVEAUX (2026-09-12) ───────────
+            //
+            // Demande utilisateur : « enleve les trois options, je veux par
+            // defaut exigeant SANS LE PRECISER, juste un toggle pour activer
+            // l'accompagnement ou pas ; si active, c'est l'accompagnement
+            // exigeant ».
+            //
+            // Ce que les trois chips demandaient a l'utilisateur : arbitrer
+            // entre « Regulier » et « Exigeant » sans savoir ce que chacun
+            // declenche. La vraie question n'est pas de quel DEGRE on veut
+            // etre accompagne, c'est si on veut l'etre. Le sous-titre dit
+            // donc ce qui arrive quand c'est allume, au lieu de nommer un
+            // niveau.
+            //
+            // `NiveauCoach.regulier` n'est plus proposé mais RESTE dans
+            // l'enum (regle projet : on n'efface pas ce qui a servi) -- et il
+            // faut qu'il y reste : des reglages deja persistes le portent, et
+            // `coach_notification_service.dart` sait encore l'honorer. Le
+            // test ci-dessous est donc `!= aMonRythme` et non
+            // `== exigeant` : quelqu'un qui avait choisi « Regulier » voit
+            // son accompagnement allume, pas eteint en silence.
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(t.coachNiveauTitle,
+                  style: GoogleFonts.manrope(
+                      fontSize: 14.5, fontWeight: FontWeight.w600)),
+              subtitle: Text(t.coachAccompagnementSousTitre,
+                  style: GoogleFonts.manrope(
+                      fontSize: 12, color: AppColors.inkLight)),
+              value: _niveau != NiveauCoach.aMonRythme,
+              activeThumbColor: AppColors.green700,
+              onChanged: (v) => setState(() => _niveau =
+                  v ? NiveauCoach.exigeant : NiveauCoach.aMonRythme),
             ),
             const SizedBox(height: 22),
             SizedBox(

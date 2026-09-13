@@ -44,7 +44,6 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../screens/about_screen.dart';
 import '../screens/prayer_times_settings_screen.dart';
-import '../screens/demo_recitation_screen.dart';
 import '../screens/mushaf_opening_screen.dart';
 import '../screens/qibla_screen.dart';
 import '../widgets/guide_interactif.dart';
@@ -382,26 +381,6 @@ List<ChapitreGuide> get kChapitresGuide => [
             texte: t.guideRecitationMicroTexte,
             geste: GesteGuide.regarder,
             pause: const Duration(milliseconds: 3600),
-          ),
-        ],
-      ),
-      ChapitreGuide(
-        id: 'demo',
-        emoji: '▶️',
-        titre: (t) => t.guideChapitreDemoTitre,
-        resume: (t) => t.guideChapitreDemoResume,
-        etapes: (context, t) => [
-          EtapeGuide(
-            titre: t.guideChapitreDemoTitre,
-            texte: t.guideDemoTexte,
-            geste: GesteGuide.regarder,
-            // ⚠️ La demonstration est SCRIPTEE et le dit : elle n'ouvre ni le
-            // micro ni le modele, et n'ecrit rien. Cf. l'en-tete de
-            // `demo_recitation_screen.dart`, ou l'absence d'import EST la
-            // garantie. C'est le seul chapitre qui montre la recitation sans
-            // en declencher une -- et donc sans demander de permission.
-            action: () => _ouvrir(context, const DemoRecitationScreen()),
-            pause: const Duration(milliseconds: 3000),
           ),
         ],
       ),

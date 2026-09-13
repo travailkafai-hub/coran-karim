@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/prayer_settings.dart';
 import '../providers/prayer_settings_provider.dart';
 import '../theme/app_theme.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/prayer_labels.dart';
 
 const _methodLabels = {
   PrayerCalculationMethod.muslimWorldLeague: 'Muslim World League',
@@ -63,15 +65,15 @@ class PrayerTimesSettingsScreen extends ConsumerWidget {
         backgroundColor: AppColors.green900,
         foregroundColor: AppColors.cream,
         elevation: 0,
-        title: Text('Horaires de prière',
+        title: Text(AppLocalizations.of(context)!.prayerTimesTitle,
             style: GoogleFonts.scheherazadeNew(fontSize: 22, color: AppColors.brassLight)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
-          if (next != null) _buildNextPrayerHero(next),
+          if (next != null) _buildNextPrayerHero(context, next),
           const SizedBox(height: 12),
-          if (state.today != null) _buildTodayTimes(state.today!, next?.name),
+          if (state.today != null) _buildTodayTimes(context, state.today!, next?.name),
           const SizedBox(height: 12),
           _buildLocationAndMethod(context, state, settings, notifier),
           const SizedBox(height: 16),
@@ -102,7 +104,11 @@ class PrayerTimesSettingsScreen extends ConsumerWidget {
   /// Bandeau vedette : prochaine prière + compte à rebours. C'est la première
   /// chose que l'utilisateur vient chercher sur cet écran -- avant même la
   /// liste des cinq horaires du jour.
-  Widget _buildNextPrayerHero(({PrayerName name, DateTime time}) next) {
+  // `context` en parametre (2026-09-09) : cette methode affiche desormais
+  // un libelle traduit, et `ConsumerWidget` n'expose pas `context` hors de
+  // `build`.
+  Widget _buildNextPrayerHero(
+      BuildContext context, ({PrayerName name, DateTime time}) next) {
     final local = next.time.toLocal();
     final hm =
         '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
@@ -137,10 +143,10 @@ class PrayerTimesSettingsScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Prochaine prière',
+                Text(AppLocalizations.of(context)!.prayerTimesNext,
                     style: GoogleFonts.manrope(
                         fontSize: 10, color: AppColors.cream.withAlpha(200), fontWeight: FontWeight.w600)),
-                Text(_prayerLabels[next.name]!,
+                Text(nomPriere(context, next.name),
                     style: GoogleFonts.fraunces(
                         fontSize: 19, color: AppColors.cream, fontWeight: FontWeight.w600)),
               ],
@@ -161,7 +167,8 @@ class PrayerTimesSettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTodayTimes(Map<PrayerName, DateTime> today, PrayerName? current) {
+  Widget _buildTodayTimes(BuildContext context,
+      Map<PrayerName, DateTime> today, PrayerName? current) {
     String fmt(DateTime d) {
       final local = d.toLocal();
       return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
@@ -185,7 +192,7 @@ class PrayerTimesSettingsScreen extends ConsumerWidget {
                   Icon(_prayerIcons[p],
                       size: 14, color: active ? AppColors.green700 : AppColors.inkLight),
                   const SizedBox(height: 2),
-                  Text(_prayerLabels[p]!,
+                  Text(nomPriere(context, p),
                       style: GoogleFonts.manrope(
                           fontSize: 10,
                           color: active ? AppColors.green700 : AppColors.inkLight,
@@ -260,7 +267,8 @@ class PrayerTimesSettingsScreen extends ConsumerWidget {
             ),
             if (settings.methodIsAuto) ...[
               const SizedBox(height: 4),
-              Text('Détectée : ${_methodLabels[settings.method]}',
+              Text(AppLocalizations.of(context)!
+                  .prayerTimesDetected(nomMethode(context, settings.method)),
                   style: GoogleFonts.manrope(fontSize: 10, color: AppColors.inkLight)),
             ],
           ],
@@ -392,13 +400,13 @@ class _NotificationsTableState extends State<_NotificationsTable> {
         // « Avance » qui ne revelait plus rien (son unique role, ajouter la
         // colonne vibreur, n'avait plus d'objet). Un reglage a un seul endroit.
         ...PrayerName.values
-            .map((p) => _prayerNotificationRow(p, settings, notifier)),
+            .map((p) => _prayerNotificationRow(context, p, settings, notifier)),
       ],
     );
   }
 }
 
-Widget _prayerNotificationRow(
+Widget _prayerNotificationRow(BuildContext context,
     PrayerName p, PrayerSettings settings, PrayerSettingsNotifier notifier) {
   final adhanOn = settings.adhanEnabled[p] ?? true;
   final reminderOn = settings.reminderEnabled[p] ?? false;
@@ -412,7 +420,7 @@ Widget _prayerNotificationRow(
         const SizedBox(width: 8),
         SizedBox(
           width: 54,
-          child: Text(_prayerLabels[p]!,
+          child: Text(nomPriere(context, p),
               style: GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.ink)),
         ),
         _toggleIcon(
