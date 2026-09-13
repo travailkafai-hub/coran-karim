@@ -171,6 +171,125 @@ android {
             // l'ecran d'accueil, et on ne sait plus laquelle on lance.
             resValue("string", "app_name", "Coran Karim DEV")
         }
+
+        // ── LA VARIANTE DE MESURE (ajoutee 2026-09-13) ──────────────────────
+        //
+        // `profile` est creee par le plugin Gradle de Flutter, pas par nous :
+        // elle n'existait donc dans AUCUN des deux blocs ci-dessus, et
+        // n'heritait pas de leur `resValue`. Depuis que le manifeste porte
+        // `@string/app_name` (2026-09-04), tout `flutter build apk --profile`
+        // echouait donc net :
+        //
+        //   ERROR: AndroidManifest.xml:137: AAPT: error: resource
+        //          string/app_name (aka com.corankarim.coran_karim:string/app_name)
+        //          not found.
+        //
+        // ⚠️ CE QUE CA COUTAIT, et pourquoi ca ne se voyait pas : `profile` est
+        // LA variante de mesure de performance de Flutter -- compilee en AOT
+        // comme une release, mais sans keystore et avec le traceur branche.
+        // Tant qu'elle ne compile pas, la seule chose qu'on peut lancer sur un
+        // telephone est un build `debug` : Dart en JIT, couche de validation
+        // Vulkan chargee, aucune optimisation AOT. Toute plainte de lenteur
+        // devient alors indecidable -- on ne peut pas distinguer « l'app est
+        // lente » de « le mode debug est lent », faute de point de comparaison.
+        // C'est exactement le mur rencontre lors de l'audit du 2026-09-13.
+        //
+        // Meme suffixe `.dev` que `debug` : les chemins de diagnostic
+        // (/sdcard/Android/data/com.corankarim.coran_karim.dev/files/) restent
+        // identiques, donc toutes les commandes adb et scripts de banc
+        // existants continuent de marcher sans modification. Consequence
+        // assumee : un build profile REMPLACE le build debug installe (meme
+        // applicationId, meme cle de debug) -- c'est voulu, on compare deux
+        // regimes du meme binaire, pas deux applications.
+        //
+        // `versionNameSuffix` distinct pour qu'un releve ne puisse jamais etre
+        // attribue a la mauvaise variante (piege projet deja paye : « v8 mesure
+        // sous l'etiquette v23 pendant des heures »).
+        // `getByName` et non `profile { }` : le DSL Kotlin ne genere d'accesseur
+        // que pour `debug` et `release`. `profile` est cree a la main par le
+        // plugin Gradle de Flutter (`initWith debug`, au moment ou le plugin est
+        // applique, donc AVANT ce bloc) -- il existe deja, on le recupere.
+        getByName("profile") {
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-profile"
+            resValue("string", "app_name", "Coran Karim DEV")
+        }
+    }
+
+    // ── CE QUI RALENTIT UN BUILD DEBUG, ET CE QU'ON EN RETIRE (2026-09-13) ───
+    //
+    // Contexte : les builds de ce projet sont en DEBUG par defaut (decision
+    // utilisateur -- en release le journal Dart est muet et les WAV de
+    // diagnostic inaccessibles). Donc « c'est lent parce que c'est du debug »
+    // n'est PAS une reponse acceptable ici : le debug est le regime de tous
+    // les jours, il doit etre utilisable sur un telephone milieu de gamme.
+    //
+    // Mesure A/B faite ce jour sur Redmi Note 9 Pro, `am start -W`, meme
+    // session, meme telephone :
+    //     debug   : 3828 / 3434 / 3450 ms   (mediane ~3450)
+    //     profile : 1984 / 1996 / 1947 / 1897 ms  (mediane ~1970, -43 %)
+    // Le profile est compile en AOT et ne contient NI `kernel_blob.bin`
+    // (33,6 Mo de code Dart non compile, JIT au lancement) NI la couche de
+    // validation Vulkan -- verifie en listant le contenu des deux APK.
+    //
+    // Des deux, une seule peut etre retiree d'un build debug sans perdre le
+    // debug lui-meme : la couche de validation.
+    //
+    //   `libVkLayer_khronos_validation.so` -- 15,2 Mo dans l'APK debug, et le
+    //   chargeur Vulkan d'Android la charge REELLEMENT (ligne logcat
+    //   « added global layer 'VK_LAYER_KHRONOS_validation' » au demarrage).
+    //   Son travail est d'intercepter et de valider CHAQUE appel Vulkan emis
+    //   par le moteur de rendu Impeller. C'est un outil pour qui developpe le
+    //   MOTEUR Flutter, pas pour qui developpe une application : elle ne
+    //   diagnostique rien de ce code-ci, et son cout est paye a chaque frame.
+    //
+    // Ce qu'on NE perd PAS en la retirant : le JIT, le hot reload, le
+    // `DiagnosticLog`, les WAV de capture, `run-as`, le VM service, les
+    // assertions Dart, `flutter analyze`, le banc a deux telephones. Tout le
+    // diagnostic du projet est intact -- seule disparait une validation des
+    // appels graphiques que personne ici ne lit.
+    //
+    // Reversible en une commande, sans toucher a ce fichier :
+    //     flutter build apk --debug -PgarderValidationVulkan=true
+    // (a utiliser le jour ou l'on soupconne un bug de rendu natif et ou l'on
+    // veut relire les avertissements de la couche).
+    packaging {
+        jniLibs {
+            if (!project.hasProperty("garderValidationVulkan")) {
+                excludes += "**/libVkLayer_khronos_validation.so"
+            }
+            // ── 72 Mo d'emulateur dans chaque APK de developpement ──────────
+            //
+            // L'APK debug mesure 303 Mo, dont 204 Mo de bibliotheques natives
+            // reparties en TROIS jeux d'instructions :
+            //     lib/arm64-v8a     80,4 Mo   <- le seul utilise par un
+            //                                    telephone recent
+            //     lib/x86_64        72,2 Mo   <- emulateur uniquement
+            //     lib/armeabi-v7a   51,6 Mo   <- telephones 32 bits anciens
+            //
+            // ⚠️ HONNETETE SUR CE QUE CA CORRIGE : un jeu d'instructions
+            // inutilise n'est jamais charge en memoire (les .so sont mappes a
+            // la demande), donc retirer x86_64 ne change RIEN au temps de
+            // demarrage ni a la fluidite. Ce n'est pas un correctif de
+            // performance de l'application -- c'est un correctif de la BOUCLE
+            // de developpement : 72 Mo de moins a transferer et a installer a
+            // chaque `adb install`, et 72 Mo rendus sur le telephone. Ne pas
+            // le presenter autrement dans une mesure.
+            //
+            // `armeabi-v7a` est CONSERVE : la regle projet « fonctionnel sur
+            // n'importe quel telephone » couvre aussi les appareils 32 bits,
+            // et rien ne prouve qu'aucun des telephones de recette ne l'est.
+            // Seul x86/x86_64 part, car il ne sert qu'a un emulateur -- et le
+            // banc de ce projet tourne sur deux telephones REELS
+            // (benchmark/recette_2tel.sh), jamais sur emulateur.
+            //
+            // Le jour ou un emulateur devient necessaire :
+            //     flutter build apk --debug -PgarderAbiEmulateur=true
+            if (!project.hasProperty("garderAbiEmulateur")) {
+                excludes += "lib/x86/**"
+                excludes += "lib/x86_64/**"
+            }
+        }
     }
 
     testOptions {

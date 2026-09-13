@@ -15,6 +15,7 @@ import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
 import '../theme/app_theme.dart';
 import '../widgets/mushaf_page_chrome.dart';
+import '../widgets/mushaf_ornamental_frame.dart';
 import '../widgets/choix_ecriture_sheet.dart';
 import '../widgets/tajweed_text.dart';
 
@@ -242,6 +243,17 @@ const double _kBoiteBasmala = 1.30;
 /// Le résultat est borné à [0,4 ; 1,6] : en dessous on n'absorbe plus rien, et
 /// une valeur aberrante (police de secours pas encore chargée, métriques
 /// exotiques) ne doit pas réduire la page à une ligne.
+/// Mise en page MESUREE d'une page, retenue pour ne pas la recalculer.
+/// Cf. le long commentaire dans `_blocAjuste`, qui porte le pourquoi et la
+/// mesure. Clé : page, écriture, riwaya, tajwid, contraintes, nb de segments.
+final _cacheMiseEnPage =
+    <String, ({double taille, double interligne, List<double> hauteurs})>{};
+
+/// Au-delà, la plus ancienne entrée est évincée. 200 pages couvrent largement
+/// une session de lecture continue (on revient presque toujours sur ce qu'on
+/// vient de quitter) sans laisser la carte grandir indéfiniment.
+const int _kMaxPagesEnCache = 200;
+
 final _cacheReserve = <String, double>{};
 
 double _reserveBasMesuree(String ecriture) {
@@ -287,8 +299,6 @@ class _Charte {
   /// Filet fonce qui souligne le cadre.
   static const filet = Color(0xFF1A5B56);
 
-  /// Vert des cartouches de legende.
-  static const legende = Color(0xFF69BA9A);
 }
 
 /// Police de la page. MESURE du 2026-09-02, capture contre capture :
@@ -586,7 +596,33 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
         children: [
           PageView.builder(
         controller: _ctrl,
-        reverse: true,
+        // ── LE SENS DE LA TOURNE NE DEPEND PAS DE LA LANGUE (2026-09-13) ──
+        //
+        // C'etait `reverse: true` en dur. Constat utilisateur : « je viens de
+        // remarquer que tourner les pages ressemble a tourner en francais ».
+        // VERIFIE par la mesure, pas deduit : interface en arabe, un balayage
+        // droite -> gauche faisait passer de la page 16 a la page 23, c'est le
+        // sens d'un livre latin. Un mushaf se tourne dans l'autre sens.
+        //
+        // La cause est un DOUBLE RETOURNEMENT. Un `PageView` horizontal tire
+        // deja son sens de la `Directionality` ambiante :
+        //
+        //   LTR  + reverse:false -> avance en balayant droite -> gauche (latin)
+        //   LTR  + reverse:true  -> avance en balayant gauche -> droite (arabe)
+        //   RTL  + reverse:false -> avance en balayant gauche -> droite (arabe)
+        //   RTL  + reverse:true  -> avance en balayant droite -> gauche (LATIN)
+        //                                                        ^^^^^^^^^^^^
+        // `reverse: true` etait donc JUSTE tant que l'application etait en
+        // francais, et FAUX des qu'elle passe en arabe -- la locale arabe
+        // bascule toute la `Directionality` (cf. `MaterialApp(locale:)`), ce
+        // qui annulait le retournement au lieu de s'y ajouter. Le defaut
+        // n'apparait que dans une langue, ce qui explique qu'il ait survecu.
+        //
+        // En le derivant de la direction ambiante, les quatre cas se reduisent
+        // aux deux lignes « arabe » ci-dessus : le mushaf se tourne toujours
+        // comme un mushaf, quelle que soit la langue de l'interface. C'est un
+        // livre, pas un ecran -- son sens ne se negocie pas avec la locale.
+        reverse: Directionality.of(context) == TextDirection.ltr,
         physics: const _BalayagePage(),
         itemCount: _kPages,
         onPageChanged: (i) {
@@ -1135,7 +1171,8 @@ class _PageMushaf extends StatelessWidget {
       // texte, en gardant 6 px pour que le filet ne colle pas au bord.
       top: false,
       bottom: false,
-      minimum: const EdgeInsets.symmetric(vertical: 6),
+      // ChGPT: the same 6 px now live inside the painted chrome.
+      minimum: EdgeInsets.zero,
       child: Padding(
         // Marges resserrees : la page doit occuper l'ecran (demande
         // utilisateur), le decor remplace ce que les marges laissaient vide.
@@ -1154,6 +1191,7 @@ class _PageMushaf extends StatelessWidget {
         // meme contenu ; seul leur habillage graphique change. Les trois JPEG
         // de reference ne sont jamais charges par ce rendu.
         child: MushafPageChrome(
+          verticalReserve: 6,
           style: pageOuverture
               ? MushafFrameStyle.opening
               : MushafFrameStyle.regular,
@@ -1256,11 +1294,20 @@ class _PageMushaf extends StatelessWidget {
   /// En-tete : sourate(s) a droite, hizb et juz a gauche -- les trois
   /// reperes qu'un lecteur cherche pour se situer. Le juz etait ESTIME
   /// jusqu'au 2026-09-02 (cf. `_pageMushaf`), il vient maintenant des donnees.
+  /// Hauteur de chaque onglet de l'en-tete -- partagee entre `onglet()` (le
+  /// `Container` qui la fixe) et l'`OverflowBox` qui borne l'ensemble, pour ne
+  /// jamais ecrire "26" deux fois et risquer que les deux divergent.
+  static const double _kHauteurOnglet = 26;
+
   Widget _enTete(List<int> sourates, Set<int> juz, Set<int> hizb) {
+    final (fondCadre, filetCadre, encreCadre) =
+        MushafOrnamentalFramePainter.colorsFor(sombre
+            ? MushafFrameTone.dark
+            : sepia ? MushafFrameTone.sepia : MushafFrameTone.light);
     final style = GoogleFonts.amiri(
       fontSize: 13,
       fontWeight: FontWeight.w600,
-      color: sombre ? AppColors.brass : _Charte.filet,
+      color: encreCadre,
     );
     final gauche = [
       if (hizb.isNotEmpty) 'حزب ${_chiffresArabes(hizb.first)}',
@@ -1271,15 +1318,13 @@ class _PageMushaf extends StatelessWidget {
         // 26 et non 30 (2026-09-04, « cherche de la hauteur ») : le libelle
         // fait 13 px, l'onglet en reservait plus du double. Quatre pixels
         // rendus au texte sur chacune des 604 pages.
-        height: 26,
+        height: _kHauteurOnglet,
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: sombre ? const Color(0xFF172421) : const Color(0xFFFFFEF6),
+          color: fondCadre,
           border: Border.all(
-            color: sombre
-                ? AppColors.brass.withValues(alpha: 0.75)
-                : _Charte.legende,
+            color: filetCadre,
             width: 1.1,
           ),
         ),
@@ -1293,21 +1338,55 @@ class _PageMushaf extends StatelessWidget {
       ),
     );
 
-    return Transform.translate(
-      offset: const Offset(0, -7),
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: Row(
-          children: [
-            onglet(gauche),
-            const SizedBox(width: 8),
+    // ChGPT->ici : la ligne d'en-tete vit dans le meme padding de contenu
+    // que le texte des versets (`horizontal`, cf. MushafPageChrome), alors
+    // que le filet du cadre est peint 3 px plus au bord (`horizontal - 3`,
+    // meme fichier). Ecart mesure sur capture : ~8 px physiques de page nue
+    // visible entre le filet et chaque cartouche. On l'annule ICI seulement
+    // -- les marges du texte, elles, restent exactement les memes.
+    //
+    // ⚠️ `Padding` negatif fait planter Flutter (`padding.isNonNegative`,
+    // shifted_box.dart) -- contrairement a un margin CSS, ce n'est PAS
+    // autorise. `OverflowBox` est l'outil prevu pour laisser un enfant
+    // deborder des contraintes du parent sans le decouper : on l'elargit
+    // de `2 * headerBleed` (la moitie de chaque cote) et il se centre tout
+    // seul, ce qui deborde bien de `headerBleed` a gauche ET a droite.
+    // ⚠️ HAUTEUR EXPLICITE OBLIGATOIRE (corrige un plantage) : dans un
+    // `Column`, un enfant non `Expanded` recoit une hauteur LACHE (0..infini).
+    // `OverflowBox` sans `minHeight`/`maxHeight` la propage telle quelle a
+    // l'enfant ET la reprend pour SA PROPRE taille -- « BOTTOM OVERFLOWED BY
+    // Infinity PIXELS » constate a l'ecran. La largeur, elle, doit rester
+    // elargie (c'est tout l'objet du correctif) ; seule la hauteur doit donc
+    // etre fixee, a la valeur reelle et unique de la ligne : `_kHauteurOnglet`.
+    return SizedBox(
+      height: _kHauteurOnglet,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final largeurElargie =
+              constraints.maxWidth + 2 * MushafPageChrome.headerBleed;
+          return OverflowBox(
+            minWidth: largeurElargie,
+            maxWidth: largeurElargie,
+            minHeight: _kHauteurOnglet,
+            maxHeight: _kHauteurOnglet,
+            child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Row(
+              children: [
+                onglet(gauche),
+            // ChGPT->ici: 8 -> 0 (demande utilisateur : « faut vraiment
+            // juxtapose les creneaux » -- l'espace de page visible entre les
+            // deux cartouches doit disparaitre, elles se touchent).
             onglet(
               sourates
                   .map((s) => 'سورة ${_nomSourate(s)} ${_chiffresArabes(s)}')
                   .join(' · '),
+              ),
+                ],
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -1854,7 +1933,56 @@ class _PageMushaf extends StatelessWidget {
         // ligne (cf. `_avecBasmala`). Mesure et rendu coïncident alors par
         // construction, et il n'y a plus rien à compenser ici.
         final dispo = contraintes.maxHeight - nBandeaux * hauteurBandeau;
+
+        // ── LA MISE EN PAGE MESUREE EST MISE EN CACHE (2026-09-13) ────────
+        //
+        // Ce qui suit est le point le plus couteux de l'application, mesure :
+        // deux dichotomies de 12 et 8 tours, chacune appelant
+        // `_hauteursSegments`, qui met en page le texte COMPLET de la page via
+        // `TextPainter`. Soit une VINGTAINE de mises en page d'un texte
+        // coranique entier, avec ses diacritiques et ses spans de tajwid, sur
+        // l'isolate qui dessine -- et le tout dans un `LayoutBuilder`, donc
+        // rejoue a chaque reconstruction, pour la page courante ET pour les
+        // pages voisines que `PageView.builder` prepare.
+        //
+        // Ce que l'instrument a relevé (Redmi Note 9 Pro, build debug) :
+        //     [Fluidite] construction p90=473ms p99=718..882ms
+        // alors qu'une tranche sans construction de page donne p50=2,7 ms.
+        // C'est ce qui fait perdre des gestes : pendant qu'une page se mesure,
+        // la file d'evenements tactiles n'est pas servie -- 12 balayages
+        // n'avaient fait tourner que 7 pages.
+        //
+        // ⚠️ CE CACHE NE CHANGE AUCUN RENDU, et c'est sa raison d'etre : pour
+        // des entrees identiques, la dichotomie redonne EXACTEMENT le meme
+        // resultat (elle est deterministe et ne lit aucun etat exterieur). On
+        // ne modifie donc ni la taille de police, ni l'interligne, ni les
+        // hauteurs -- on evite seulement de les recalculer. C'etait la
+        // condition pour toucher a ce code : la mise en page du mushaf a
+        // demande beaucoup d'allers-retours avec l'utilisateur, et un
+        // correctif de performance n'a pas le droit d'en deplacer un pixel.
+        //
+        // La cle porte TOUT ce qui entre dans la mesure. Un oubli ici ne
+        // produirait pas une erreur visible tout de suite, mais une page
+        // rendue avec la mise en page d'une AUTRE configuration -- le genre de
+        // defaut qui ne se voit qu'en changeant d'ecriture. Les dimensions
+        // sont arrondies au pixel : `LayoutBuilder` peut rendre des
+        // contraintes differant d'une fraction, ce qui ferait manquer le cache
+        // a chaque frame sans rien changer au resultat.
+        final cleMesure = '$page|$ecriture|$warsh|$tajwid|'
+            '${contraintes.maxWidth.round()}x${contraintes.maxHeight.round()}|'
+            '${segments.length}|${spansParSegment == null}';
+        final dejaMesure = _cacheMiseEnPage[cleMesure];
+
         double basse = 0, haute = 52;
+        double interligneRetenu;
+        List<double> hauteurs;
+
+        if (dejaMesure != null) {
+          basse = dejaMesure.taille;
+          interligneRetenu = dejaMesure.interligne;
+          hauteurs = dejaMesure.hauteurs;
+        } else {
+        final tMesure = Stopwatch()..start();
         for (var i = 0; i < 12; i++) {
           final milieu = (basse + haute) / 2;
           final total = _hauteursSegments(segments, spansParSegment, style,
@@ -1902,9 +2030,9 @@ class _PageMushaf extends StatelessWidget {
         // bon cote de l'erreur : mieux vaut du blanc qu'une ligne coupee.
         // ChGPT: use the same complete measurement for both searches.
         // No minimum font size or capped recovery loop may hide page content.
-        var interligneRetenu = _kInterligne;
+        interligneRetenu = _kInterligne;
         var interligneMax = 2.45;
-        var hauteurs = _hauteursSegments(segments, spansParSegment, style,
+        hauteurs = _hauteursSegments(segments, spansParSegment, style,
             basse, interligneRetenu, contraintes.maxWidth);
         for (var essai = 0; essai < 8; essai++) {
           final milieu = (interligneRetenu + interligneMax) / 2;
@@ -1916,6 +2044,27 @@ class _PageMushaf extends StatelessWidget {
           } else {
             interligneMax = milieu;
           }
+        }
+        tMesure.stop();
+        _cacheMiseEnPage[cleMesure] = (
+          taille: basse,
+          interligne: interligneRetenu,
+          hauteurs: hauteurs,
+        );
+        // Borne memoire : chaque entree ne pese que quelques `double`, mais
+        // rien n'empeche de parcourir les 604 pages dans plusieurs ecritures.
+        // Eviction du plus ancien insere (les `Map` Dart conservent l'ordre
+        // d'insertion) -- suffisant ici, ou ce qu'on relit est ce qu'on vient
+        // de quitter.
+        if (_cacheMiseEnPage.length > _kMaxPagesEnCache) {
+          _cacheMiseEnPage.remove(_cacheMiseEnPage.keys.first);
+        }
+        DiagnosticLog.log(
+            'Perf',
+            'mise en page mesuree page=$page ecriture=$ecriture '
+                '${tMesure.elapsedMilliseconds}ms '
+                '(20 mises en page TextPainter, thread UI) — '
+                'en cache : ${_cacheMiseEnPage.length} page(s)');
         }
 
         // ── LE TEXTE COMMENCE EN HAUT DE SON BLOC (2026-09-04) ───────────

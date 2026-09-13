@@ -1,8 +1,35 @@
-import 'dart:convert' show json;
+import 'dart:convert' show json, utf8;
+import 'dart:typed_data' show Uint8List;
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/riwaya.dart';
 import '../models/verse.dart';
+import 'diagnostic_log.dart';
+
+/// Décode l'asset des versets et construit les deux index — exécuté sur un
+/// ISOLATE DE FOND via `compute`, jamais sur l'isolate qui dessine.
+///
+/// Fonction de premier niveau, et pas une méthode d'instance : `compute` exige
+/// une cible top-level ou statique (elle doit pouvoir être envoyée à l'isolate
+/// par son adresse). Elle ne touche AUCUN état statique de [QuranApi] — un
+/// isolate a son propre tas, écrire dans `_versesBySurah` d'ici ne modifierait
+/// qu'une copie invisible depuis l'isolate principal. Tout revient par la
+/// valeur de retour, et c'est l'appelant qui publie.
+(Map<int, List<Verse>>, Map<int, List<Verse>>) _decoderEtIndexer(
+    Uint8List octets) {
+  final versesRaw = json.decode(utf8.decode(octets)) as List;
+  final bySurah = <int, List<Verse>>{};
+  final byPage = <int, List<Verse>>{};
+  for (final v in versesRaw) {
+    final verse = QuranApi.parseVersePourIsolate(v as Map<String, dynamic>);
+    bySurah.putIfAbsent(verse.surahNumber, () => []).add(verse);
+    if (verse.pageNumber != null) {
+      byPage.putIfAbsent(verse.pageNumber!, () => []).add(verse);
+    }
+  }
+  return (bySurah, byPage);
+}
 
 /// Texte du Coran (chapitres, versets, tajweed, traduction fr) -- 100%
 /// LOCAL depuis le 2026-07-19 (`assets/data/quran_{chapters,verses}.json`,
@@ -112,6 +139,14 @@ class QuranApi {
     Riwaya.warsh => 'assets/data/quran_verses_warsh.json',
   };
 
+  /// Même chose que [_parseVerse], exposée pour `_decoderEtIndexer` qui vit
+  /// hors de cette classe (contrainte de `compute`, cf. sa doc). Simple
+  /// délégation : aucune logique dupliquée — dupliquer le parsing d'un texte
+  /// sacré serait le meilleur moyen de laisser diverger deux variantes Unicode
+  /// sans que ça se voie (piège déjà payé le 2026-07-09).
+  static Verse parseVersePourIsolate(Map<String, dynamic> map) =>
+      _parseVerse(map);
+
   static Verse _parseVerse(Map<String, dynamic> map) {
     final verse = Verse.fromJson(map);
     final translations = map['translations'] as List?;
@@ -149,6 +184,25 @@ class QuranApi {
     // le mauvais fichier pour la generation qu'on croit servir.
     final versesAssetCible = _versesAsset;
     return _loading ??= () async {
+      // ── INSTRUMENTATION (2026-09-13, audit de performance) ───────────────
+      //
+      // Cette fonction charge L'INTEGRALITE du Coran -- `quran_verses.json`
+      // fait 8,0 Mo (4,4 Mo en Warsh) -- puis le decode et le reindexe, le
+      // tout sur l'ISOLATE PRINCIPAL, celui qui dessine. `json.decode` est
+      // synchrone et non interruptible : tant qu'il tourne, aucune frame n'est
+      // produite et aucun geste n'est traite.
+      //
+      // Symptome rapporte par l'utilisateur, et qui a mis sur la piste :
+      // « la deja suis mushaf papier je n'utilise meme pas ASR ! juste un page
+      // de mushaf » -- puis, en regardant les assets : « est ce que c tt le
+      // curan qui est charge !! ». Oui. Mesure a l'appui ci-dessous.
+      //
+      // Les trois etapes sont chronometrees separement parce qu'elles
+      // appellent des correctifs differents : la LECTURE de l'asset se
+      // deplace en arriere-plan, le DECODAGE aussi, mais l'INDEXATION porte
+      // sur des objets Dart et coute surtout des allocations. Un chiffre
+      // global ne dirait pas laquelle traiter.
+      final tLecture = Stopwatch()..start();
       final chaptersRaw =
           json.decode(
                 await rootBundle.loadString('assets/data/quran_chapters.json'),
@@ -158,17 +212,52 @@ class QuranApi {
           .map((e) => Surah.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      final versesRaw =
-          json.decode(await rootBundle.loadString(versesAssetCible)) as List;
-      final bySurah = <int, List<Verse>>{};
-      final byPage = <int, List<Verse>>{};
-      for (final v in versesRaw) {
-        final verse = _parseVerse(v as Map<String, dynamic>);
-        bySurah.putIfAbsent(verse.surahNumber, () => []).add(verse);
-        if (verse.pageNumber != null) {
-          byPage.putIfAbsent(verse.pageNumber!, () => []).add(verse);
-        }
-      }
+      // ── LE GROS DU TRAVAIL PART SUR UN ISOLATE DE FOND (2026-09-13) ──────
+      //
+      // Mesure qui l'a motive (Redmi Note 9 Pro, build debug) :
+      //     lecture=276..623ms decodage=140..172ms indexation=26..34ms
+      // soit ~470 ms en regime etabli et ~800 ms a froid, INTEGRALEMENT sur
+      // l'isolate principal. `json.decode` est synchrone et non interruptible :
+      // pendant ce temps aucune frame n'est produite et aucun geste n'est
+      // traite. L'instrument de fluidite voyait la meme chose par l'autre
+      // bout -- une frame unique a `PIRE=880,5ms`, `construction p99=878ms`.
+      // Effet visible pour l'utilisateur : 12 gestes de tourne de page n'en
+      // faisaient avancer que 7, cinq gestes perdus dans le gel.
+      //
+      // `rootBundle.load` (et non `loadString`) rend des OCTETS sans les
+      // decoder : la conversion UTF-8 de 8 Mo, qui etait synchrone sur le
+      // thread UI et represente l'essentiel des « 276..623 ms de lecture »,
+      // part elle aussi en arriere-plan.
+      //
+      // `compute` termine par `Isolate.exit`, qui TRANSFERE le resultat au
+      // lieu de le copier -- sans quoi on aurait remplace un gel de decodage
+      // par un gel de copie de 7 Mo, et rien n'aurait ete gagne.
+      //
+      // ⚠️ CE QUE CECI NE CORRIGE PAS, et il ne faut pas le presenter
+      // autrement : on charge TOUJOURS les 6,67 Mo du Coran entier pour
+      // afficher une seule page. L'interface ne gele plus, mais la page met
+      // toujours ~470 ms a apparaitre. La correction de fond est le
+      // fenetrage par page (N-1/N/N+1 = ~31,5 Ko, facteur 210) demande par
+      // l'utilisateur -- cf. `PERFORMANCE.md` §7. Ceci est l'etape A, pas la
+      // reponse complete.
+      final tLectureOctets = Stopwatch()..start();
+      final octets = await rootBundle.load(versesAssetCible);
+      tLectureOctets.stop();
+      tLecture.stop();
+      final tFond = Stopwatch()..start();
+      final (chargesBySurah, chargesByPage) = await compute(
+          _decoderEtIndexer, octets.buffer.asUint8List());
+      tFond.stop();
+      final bySurah = chargesBySurah;
+      final byPage = chargesByPage;
+      DiagnosticLog.log(
+          'Perf',
+          'QuranApi chargement TOTAL du Coran ($versesAssetCible) : '
+              'octets=${tLectureOctets.elapsedMilliseconds}ms '
+              'decodage+indexation HORS thread UI=${tFond.elapsedMilliseconds}ms '
+              '-> ${bySurah.length} sourates, ${byPage.length} pages '
+              '(interface VIVANTE pendant ce temps -- mais le Coran entier est '
+              'toujours charge pour une seule page, cf. PERFORMANCE.md §7)');
       // BUG 2 corrige : publication ATOMIQUE, et seulement si rien n'a
       // change pendant l'attente. Une riwaya basculee entre-temps a deja
       // incremente `_generation` (cf. le setter) -- ce resultat, obtenu pour
@@ -287,13 +376,19 @@ class QuranApi {
     // normal, mais pas lors d'un lancement direct du banc de capture.
     await _ensureLoaded();
     if (_warshMushafByPage == null) {
-      final raw =
-          json.decode(
-                await rootBundle.loadString(
-                  'assets/data/quran_mushaf_warsh.json',
-                ),
-              )
-              as List;
+      // Instrumentation jumelle de celle de `_ensureLoaded` (2026-09-13).
+      // ⚠️ CE CHEMIN PAIE LES DEUX : le `_ensureLoaded()` juste au-dessus a
+      // deja decode l'integralite du Coran Hafs (6,67 Mo), et on enchaine ici
+      // sur les 2,0 Mo du Mushaf Warsh. Sans ces deux chronometres cote a
+      // cote, impossible de savoir lequel des deux domine -- et la branche
+      // `chantier-warsh` est precisement celle ou l'utilisateur constate le
+      // ralentissement sur une simple page de Mushaf papier.
+      final tWarsh = Stopwatch()..start();
+      final brutWarsh =
+          await rootBundle.loadString('assets/data/quran_mushaf_warsh.json');
+      final tLectureWarsh = tWarsh.elapsedMilliseconds;
+      final raw = json.decode(brutWarsh) as List;
+      final tDecodageWarsh = tWarsh.elapsedMilliseconds - tLectureWarsh;
       final byPage = <int, List<Verse>>{};
       final counts = <int, int>{};
       for (final item in raw) {
@@ -308,6 +403,14 @@ class QuranApi {
       }
       _warshMushafByPage = byPage;
       _warshMushafVerseCounts = counts;
+      tWarsh.stop();
+      DiagnosticLog.log(
+          'Perf',
+          'QuranApi Mushaf WARSH (quran_mushaf_warsh.json) : '
+              'lecture=${tLectureWarsh}ms decodage=${tDecodageWarsh}ms '
+              'indexation=${tWarsh.elapsedMilliseconds - tLectureWarsh - tDecodageWarsh}ms '
+              '-> ${raw.length} versets, ${byPage.length} pages '
+              '(S\'AJOUTE au chargement Hafs ci-dessus, meme isolate principal)');
     }
     return _warshMushafByPage![pageNumber] ?? const [];
   }

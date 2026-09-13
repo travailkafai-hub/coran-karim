@@ -23,6 +23,7 @@ import 'screens/mushaf_opening_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/diagnostic_log.dart';
+import 'services/mesure_fluidite.dart';
 import 'widgets/mushaf_cover_reveal.dart';
 import 'services/session_media.dart';
 import 'services/reciter_download_service.dart';
@@ -31,31 +32,97 @@ import 'package:upgrader/upgrader.dart';
 
 import 'services/fastconformer_verifier.dart';
 
+/// Chronomètre une étape de démarrage sans changer son comportement : rend le
+/// même futur, et range sa durée dans [mesures] quand il se termine.
+///
+/// Exister pour une raison précise (2026-09-13) : l'audit de démarrage a buté
+/// sur le fait qu'on ne savait PAS quelle étape coûtait quoi. `am start -W`
+/// donne 3861 ms de bout en bout et `onCreate` 903 ms, mais entre les deux
+/// personne ne pouvait dire si le temps partait dans le journal, dans la
+/// résolution du dossier audio ou dans la session média — on ne pouvait que
+/// supposer. Trois compteurs coûtent trois `Stopwatch` et suppriment la
+/// supposition : à chaque lancement, le journal porte désormais la répartition.
+Future<T> _etape<T>(
+    String nom, Map<String, int> mesures, Future<T> Function() action) {
+  final t = Stopwatch()..start();
+  return action().whenComplete(() {
+    t.stop();
+    mesures[nom] = t.elapsedMilliseconds;
+  });
+}
+
 void main() async {
+  final tTotal = Stopwatch()..start();
+  final mesures = <String, int>{};
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  // Journal persistant sur le téléphone (cf. diagnostic_log.dart) — avant
-  // tout le reste pour capturer même les tout premiers événements.
-  await DiagnosticLog.init();
-  // Résout la racine de l'audio téléchargé. DOIT précéder toute lecture :
-  // sans ça `localPathIfPresent` renvoie toujours null et une sourate pourtant
-  // téléchargée repart en streaming, sans le moindre message d'erreur.
-  await ReciterDownloadService().ensureReady();
-  // ── SESSION MEDIA (2026-09-03) ───────────────────────────────────────────
-  // Doit etre initialisee AVANT runApp : c'est elle qui declare le service de
-  // premier plan qui portera la lecture quand l'app sera reduite. Demande
-  // utilisateur : « pause/play depuis la notification [...] mais garder toute
-  // l'app en arriere-plan, c'est pas une bonne idee » -- une session media
-  // laisse justement le systeme suspendre l'interface Flutter.
+
+  // ── LES TROIS ÉTAPES DE DÉMARRAGE SONT LANCÉES ENSEMBLE (2026-09-13) ──────
   //
-  // Un echec n'est PAS fatal : mieux vaut une app sans notification qu'une app
-  // qui ne demarre pas. La variable globale sessionMedia reste alors null,
-  // et tout le branchement cote PlayerNotifier se desactive de lui-meme.
-  try {
-    await initSessionMedia();
-  } catch (e) {
-    DiagnosticLog.log('Lecture', 'session media indisponible : $e');
+  // Elles étaient `await`ées l'une APRÈS l'autre, alors qu'AUCUNE ne dépend du
+  // résultat d'une autre : trois allers-retours de canal de plateforme mis
+  // bout à bout, dont le coût s'additionnait au lieu de se recouvrir. Elles
+  // sont désormais démarrées simultanément et attendues ensemble.
+  //
+  // ⚠️ CE QUI NE CHANGE PAS, ET C'EST VOULU : on attend toujours les trois
+  // AVANT `runApp`. La tentation suivante serait de les repousser APRÈS pour
+  // afficher l'écran plus tôt — ce serait un vrai piège, et c'est écrit ici
+  // pour que personne n'ait à le redécouvrir :
+  //   * `ReciterDownloadService.ensureReady` : tant qu'il n'a pas répondu,
+  //     `localPathIfPresent` rend `null` et une sourate POURTANT téléchargée
+  //     repart en streaming, silencieusement (cf. son propre commentaire).
+  //   * `initSessionMedia` : `AudioService.init` doit précéder la création de
+  //     `PlayerNotifier`, qui lui branche ses rappels. Après `runApp`, un
+  //     premier `ref.watch(playerProvider)` peut arriver avant — et la
+  //     notification média serait morte sans que rien ne le dise.
+  // Le gain vient donc du recouvrement, pas d'un report : aucune garantie
+  // d'ordre n'est sacrifiée.
+  //
+  // Les erreurs sont journalisées APRÈS le `Future.wait`, pas dans les `catch`
+  // individuels : à ce moment `DiagnosticLog.init()` est forcément terminé,
+  // donc une panne de session média ne peut plus être perdue faute de fichier
+  // de journal ouvert — ce qui aurait été le cas en les journalisant en vol.
+  Object? panneSessionMedia;
+  await Future.wait([
+    // Journal persistant sur le téléphone (cf. diagnostic_log.dart).
+    _etape('journal', mesures, DiagnosticLog.init),
+    // Résout la racine de l'audio téléchargé. DOIT être fait avant toute
+    // lecture : sans ça `localPathIfPresent` renvoie toujours null et une
+    // sourate pourtant téléchargée repart en streaming, sans le moindre
+    // message d'erreur.
+    _etape('audioLocal', mesures, ReciterDownloadService().ensureReady),
+    // ── SESSION MEDIA (2026-09-03) ─────────────────────────────────────────
+    // C'est elle qui declare le service de premier plan qui portera la lecture
+    // quand l'app sera reduite. Demande utilisateur : « pause/play depuis la
+    // notification [...] mais garder toute l'app en arriere-plan, c'est pas
+    // une bonne idee » -- une session media laisse justement le systeme
+    // suspendre l'interface Flutter.
+    //
+    // Un echec n'est PAS fatal : mieux vaut une app sans notification qu'une
+    // app qui ne demarre pas. La variable globale sessionMedia reste alors
+    // null, et tout le branchement cote PlayerNotifier se desactive de
+    // lui-meme.
+    _etape('sessionMedia', mesures, () async {
+      try {
+        await initSessionMedia();
+      } catch (e) {
+        panneSessionMedia = e;
+      }
+    }),
+  ]);
+  if (panneSessionMedia != null) {
+    DiagnosticLog.log('Lecture', 'session media indisponible : $panneSessionMedia');
   }
+  DiagnosticLog.log(
+      'Demarrage',
+      'avant runApp=${tTotal.elapsedMilliseconds}ms '
+          '(journal=${mesures['journal']}ms '
+          'audioLocal=${mesures['audioLocal']}ms '
+          'sessionMedia=${mesures['sessionMedia']}ms — lances en parallele, '
+          'le total est donc le MAX et non la somme)');
+  // Mesure de fluidite dans le journal de l'app (cf. mesure_fluidite.dart) --
+  // inactive si le diagnostic est coupe, donc silencieuse en release.
+  demarrerMesureFluidite();
   // Le moteur LiteRT-LM du Coach IA (Gemma 4 E2B) était initialisé ici.
   // RETIRÉ le 2026-08-10 : le modèle `.litertlm` n'a jamais été livré, donc
   // aucune explication n'a jamais été produite — mais ses bibliothèques
@@ -308,7 +375,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
     if (_ouvertureEnCours) return const MushafClosedCover();
     return Scaffold(
-      body: IndexedStack(index: _tab, children: _screens),
+      body: IndexedStack(index: _tab, children: [
+        TickerMode(enabled: _tab == 0, child: _screens[0]),
+        ..._screens.skip(1),
+      ]),
       // ── LES BOUTONS DE DEVELOPPEMENT SONT RETIRES (2026-08-06) ───────────
       //
       // Demande utilisateur : « enlève le calibrage, il ne sert plus à rien ;

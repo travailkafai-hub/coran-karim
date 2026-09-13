@@ -20,6 +20,7 @@ App Android (Flutter/Kotlin) de récitation coranique : vérification ASR
 | Problématiques ASR (buffer, GOP, pauses) + état de l'art externe (forums/papers) | `PROBLEMATIQUES_ASR.md` |
 | Refonte IHM (presets de tolérance, navigation, plein écran, mindmap) | `REFONTE_IHM.md` |
 | Chantier "Suivre une prière" (journal détaillé) | `SUIVI_PRIERE.md` |
+| Performance (démarrage, fluidité, chargement des assets) + instruments et **erreurs de méthode** | `PERFORMANCE.md` |
 
 Tout entraînement/export/diagnostic de modèle : invoquer le skill
 `model-training` d'abord.
@@ -210,6 +211,20 @@ sur un chemin voisin jamais essayé (lire puis revenir en arrière).
   l'utilisateur, pas « assumé » unilatéralement puis mesuré après coup sur
   son temps.
   ⇒ Ne jamais enchaîner un correctif sur un correctif non validé.
+- **MESURER CE DONT L'UTILISATEUR SE PLAINT, PAS CE QUI SE MESURE LE PLUS
+  FACILEMENT** (audit de performance 2026-09-13, détail dans `PERFORMANCE.md`).
+  Plainte : « sérieux problème de performance ». L'audit est parti sur le
+  DÉMARRAGE, parce que `am start -W` donne un chiffre en dix secondes. Le vrai
+  sujet était ailleurs — l'utilisateur a dû le dire lui-même : *« la deja suis
+  mushaf papier je n'utilise mme pas ASR ! juste un page de mushaf »* puis
+  *« mon probelem aussi c le scrolling »*. Demander SUR QUEL ÉCRAN et PENDANT
+  QUEL GESTE avant de choisir l'instrument.
+  ⇒ Corollaire outillage : **`adb shell dumpsys gfxinfo` ne mesure PAS une app
+  Flutter** (il rapporte les frames HWUI ; Flutter dessine dans sa propre
+  surface — relevé « Total frames rendered: 0 » pendant un défilement actif).
+  L'instrument du projet est la ligne `[Fluidite]` du journal
+  (`app/lib/services/mesure_fluidite.dart`), qui sépare `construction` (thread
+  Dart) et `rasterisation` (GPU).
 - **PAS DE CORRECTIF PALLIATIF — chercher et traiter la cause d'origine**
   (consigne utilisateur 2026-07-25, après un correctif proposé puis refusé).
   Un correctif qui neutralise un **symptôme** dans une couche AVAL alors que
