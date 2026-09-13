@@ -157,7 +157,8 @@ class _MomentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final langue = Localizations.localeOf(context).languageCode;
+    final isArabic = langue == 'ar';
     final collection = kCollectionsById[moment.collectionId];
     final univers = kUniversByCollectionId[moment.collectionId];
     if (collection == null || univers == null) return const SizedBox.shrink();
@@ -200,7 +201,7 @@ class _MomentCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      isArabic ? collection.labelAr : moment.titleFr,
+                      isArabic ? collection.labelAr : moment.titre(langue),
                       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                       style: isArabic
                           ? GoogleFonts.scheherazadeNew(
@@ -218,10 +219,21 @@ class _MomentCard extends StatelessWidget {
                     // n'existe qu'en français dans les données actuelles --
                     // mieux vaut l'omettre que de fabriquer une traduction
                     // non relue d'un texte à caractère religieux.
+                    //
+                    // ⚠️ MISE À JOUR 2026-09-13 — la première phrase n'est plus
+                    // exacte, le principe si. `subtitleAr` EXISTE maintenant
+                    // (ajouté avec l'anglais, cf. `DuaMoment`), mais il n'a PAS
+                    // été relu : la garde `!isArabic` est donc maintenue
+                    // exprès. Ce qui a été corrigé ce jour-là est l'ANGLAIS,
+                    // qui retombait silencieusement sur le français (constat
+                    // utilisateur, capture à l'appui : « oui alors que je suis
+                    // en anglais »). Retirer cette garde est un geste séparé,
+                    // qui demande une relecture de l'arabe -- pas un effet de
+                    // bord d'un correctif d'anglais.
                     if (!isArabic) ...[
                       const SizedBox(height: 3),
                       Text(
-                        moment.subtitle,
+                        moment.sousTitre(langue),
                         style: GoogleFonts.manrope(
                           fontSize: 11,
                           color: AppColors.cream.withAlpha(200),
@@ -249,7 +261,8 @@ class _FavoritesRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final langue = Localizations.localeOf(context).languageCode;
+    final isArabic = langue == 'ar';
     final duas = ids.map((id) => kDuasById[id]).whereType<Dua>().toList();
     if (duas.isEmpty) return const SizedBox.shrink();
 
@@ -325,7 +338,8 @@ class _UniversCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final langue = Localizations.localeOf(context).languageCode;
+    final isArabic = langue == 'ar';
     // Les collections de rite (`rite:umra`) ne comptent pas d'invocations :
     // afficher « 0 invocation » à côté de « Hajj » serait absurde, on compte
     // donc les étapes pour elles.
@@ -360,7 +374,7 @@ class _UniversCard extends StatelessWidget {
             child: Text(univers.emoji, style: const TextStyle(fontSize: 22)),
           ),
           title: Text(
-            isArabic ? univers.labelAr : univers.labelFr,
+            univers.label(langue),
             textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
             style: isArabic
                 ? GoogleFonts.scheherazadeNew(
@@ -371,14 +385,19 @@ class _UniversCard extends StatelessWidget {
           // Le tagline n'existe qu'en français dans les données actuelles --
           // en arabe on affiche seulement le compte (donnée numérique, pas de
           // traduction à fabriquer), plutôt que de laisser du français.
+          //
+          // ⚠️ MISE À JOUR 2026-09-13 : `taglineEn` et `taglineAr` existent
+          // desormais. L'ANGLAIS est branché (`univers.accroche(langue)`) ;
+          // l'arabe reste volontairement au seul compte, le temps qu'il soit
+          // relu. Cf. la note détaillée sur la carte « maintenant » plus haut.
           subtitle: isArabic
               ? (total > 0 ? Text(t.duasInvocationCount(total),
                   style: GoogleFonts.manrope(fontSize: 11, color: AppColors.inkLight))
                   : null)
               : Text(
                   total > 0
-                      ? '${univers.tagline} · ${t.duasInvocationCount(total)}'
-                      : univers.tagline,
+                      ? '${univers.accroche(langue)} · ${t.duasInvocationCount(total)}'
+                      : univers.accroche(langue),
                   style: GoogleFonts.manrope(fontSize: 11, color: AppColors.inkLight),
                 ),
           trailing: isArabic
@@ -409,7 +428,8 @@ class _CollectionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final langue = Localizations.localeOf(context).languageCode;
+    final isArabic = langue == 'ar';
     final isRite = collection.id.startsWith('rite:');
     final count = isRite ? 0 : duasForCollection(collection.id).length;
 
@@ -442,7 +462,7 @@ class _CollectionRow extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          isArabic ? collection.labelAr : collection.labelFr,
+                          collection.label(langue),
                           textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                           style: isArabic
                               ? GoogleFonts.scheherazadeNew(
@@ -478,10 +498,17 @@ class _CollectionRow extends StatelessWidget {
                   ),
                   // collection.hint n'existe qu'en français -- omis en arabe
                   // pour la même raison que le tagline plus haut.
+                  //
+                  // ⚠️ MISE À JOUR 2026-09-13 : il existe maintenant en anglais
+                  // (`hintEn`, servi par `collection.contexte(langue)`). En
+                  // arabe, `contexte` rend une chaîne VIDE -- aucun arabe n'a
+                  // été écrit pour ce champ, on ne fabrique rien. La garde
+                  // `!isArabic` devient donc redondante ; elle est conservée
+                  // parce qu'elle dit l'intention à l'endroit où on la lit.
                   if (!isArabic) ...[
                     const SizedBox(height: 2),
                     Text(
-                      collection.hint,
+                      collection.contexte(langue),
                       style: GoogleFonts.manrope(
                         fontSize: 10.5,
                         color: AppColors.inkLight,

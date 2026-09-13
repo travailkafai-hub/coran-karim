@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
-import '../models/prayer_settings.dart';
-import 'prayer_times_settings_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
 import '../services/quran_api.dart';
 import '../theme/app_theme.dart';
+import '../widgets/home_prayer_panel.dart';
 import '../widgets/quran_shazam_sheet.dart';
 import '../widgets/quran_pattern_background.dart';
 import 'mushaf_screen.dart';
 import '../providers/app_settings_provider.dart';
-import '../providers/prayer_settings_provider.dart';
+import '../providers/player_provider.dart';
 import 'prayer_follow_screen.dart';
-import '../l10n/prayer_labels.dart';
 
 class SurahListScreen extends ConsumerStatefulWidget {
   const SurahListScreen({super.key});
@@ -154,34 +151,86 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
                       child: QuranPatternBackground(opacity: 0.10),
                     ),
                     SafeArea(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            'القرآن الكريم',
-                            style: GoogleFonts.scheherazadeNew(
-                              fontSize: 32, color: AppColors.cream,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const _TitleRule(),
-                          // "CORAN KARIM" est une graphie latine du titre --
-                          // masquée en mode arabe (règle verrouillée
-                          // REFONTE_IHM.md §7bis, bug corrigé 2026-07-22 :
-                          // seul texte latin restant sur la page de couverture).
-                          if (!isArabic) ...[
-                            const SizedBox(height: 6),
+                      // ── LE BLOC-TITRE ETAIT COLLE AU BORD DE DEPART, PAS
+                      // CENTRE (2026-09-13) ──────────────────────────────
+                      //
+                      // Constat utilisateur, capture a l'appui, sur la page
+                      // d'accueil : « en arabe c'est mal agence ». Cause :
+                      // `Column` etait un enfant NON positionne d'un `Stack` ;
+                      // sans largeur imposee, il se contracte a la largeur de
+                      // son texte le plus large puis se colle a l'alignement
+                      // par defaut du Stack (`AlignmentDirectional.topStart`)
+                      // -- le bord de DEPART, qui est la DROITE en arabe (la
+                      // locale bascule la Directionality de toute l'app).
+                      // Le titre semblait donc plaque contre le bord droit au
+                      // lieu d'etre centre, et le filet en dessous (`_TitleRule`)
+                      // avec lui. `crossAxisAlignment.center` du Column ne
+                      // pouvait rien y faire : il centre les ENFANTS du
+                      // Column DANS SA PROPRE largeur, pas le Column dans
+                      // celle de l'ecran.
+                      //
+                      // `Align` resout les deux a la fois : il s'etend a
+                      // TOUTE la zone du Stack (bornes lâches, donc pas de
+                      // contrainte de taille), puis positionne son enfant
+                      // (le Column, reduit a sa taille naturelle via
+                      // `mainAxisSize.min`) en bas-CENTRE de cette zone --
+                      // replique exactement le `mainAxisAlignment.end`
+                      // d'origine (colle en bas), en ajoutant le centrage
+                      // horizontal qui manquait.
+                      //
+                      // ⚠️ LE CENTRAGE A ETE REFUSE (2026-09-13, meme jour) :
+                      // « remet Coran Karim dans le côté, c'est mieux que le
+                      // milieu ». Le titre retourne donc au bord de DEPART --
+                      // ce qu'il faisait avant, mais par ACCIDENT (l'alignement
+                      // par defaut d'un enfant non positionne d'un `Stack`) et
+                      // non par choix. La difference compte : le bloc etait
+                      // aussi contraint a la largeur de son texte le plus
+                      // large, ce qui entrainait le filet `_TitleRule` avec lui
+                      // et produisait le « mal agence » d'origine.
+                      //
+                      // `AlignmentDirectional.bottomStart` et non
+                      // `Alignment.bottomLeft` : le bord de depart suit la
+                      // langue -- a GAUCHE en francais et en anglais, a DROITE
+                      // en arabe, ou la locale bascule la Directionality de
+                      // toute l'app. Un `bottomLeft` en dur collerait le titre
+                      // arabe du mauvais cote, contre le sens de lecture.
+                      // Le padding de depart evite qu'il touche le bord.
+                      child: Align(
+                        alignment: AlignmentDirectional.bottomStart,
+                        child: Padding(
+                        padding: const EdgeInsetsDirectional.only(start: 20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              'CORAN KARIM',
-                              style: GoogleFonts.fraunces(
-                                fontSize: 13, color: AppColors.brassLight,
-                                letterSpacing: 3,
+                              'القرآن الكريم',
+                              textAlign: TextAlign.start,
+                              style: GoogleFonts.scheherazadeNew(
+                                fontSize: 32, color: AppColors.cream,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
+                            const SizedBox(height: 6),
+                            const _TitleRule(),
+                            // "CORAN KARIM" est une graphie latine du titre --
+                            // masquée en mode arabe (règle verrouillée
+                            // REFONTE_IHM.md §7bis, bug corrigé 2026-07-22 :
+                            // seul texte latin restant sur la page de couverture).
+                            if (!isArabic) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'CORAN KARIM',
+                                style: GoogleFonts.fraunces(
+                                  fontSize: 13, color: AppColors.brassLight,
+                                  letterSpacing: 3,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
                           ],
-                          const SizedBox(height: 16),
-                        ],
+                        ),
+                        ),
                       ),
                     ),
                   ],
@@ -210,7 +259,7 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
               ),
             )
           else ...[
-            const SliverToBoxAdapter(child: _RappelPriere()),
+            const SliverToBoxAdapter(child: CompactPrayerQiblaCard()),
             SliverPadding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               sliver: SliverList(
@@ -227,133 +276,6 @@ class _SurahListScreenState extends ConsumerState<SurahListScreen> {
   }
 }
 
-
-/// Rappel de la prochaine priere, pose en tete de la liste des sourates.
-///
-/// ── POURQUOI ICI (2026-08-19) ───────────────────────────────────────────────
-/// Constat utilisateur : « ce qui manque dans cette page du debut, c'est un
-/// endroit pour mettre la prochaine heure de priere, avec combien il reste de
-/// temps -- parce que pour l'information il faut aller dans le parametrage ».
-/// C'est juste : l'horaire etait calcule et deja affiche, mais seulement sur
-/// l'ecran qui sert a le REGLER. Une information qu'on consulte plusieurs fois
-/// par jour n'a rien a faire derriere un ecran de reglages.
-///
-/// Le bandeau ne calcule rien lui-meme : il lit `prochainePriere`, la meme
-/// regle que l'ecran des reglages (cf. son extraction dans
-/// prayer_settings_provider.dart). Deux endroits qui annonceraient une
-/// prochaine priere differente seraient pires que pas de rappel du tout.
-class _RappelPriere extends ConsumerStatefulWidget {
-  const _RappelPriere();
-  @override
-  ConsumerState<_RappelPriere> createState() => _RappelPriereState();
-}
-
-class _RappelPriereState extends ConsumerState<_RappelPriere> {
-  Timer? _horloge;
-
-  @override
-  void initState() {
-    super.initState();
-    // Une minute : le compte a rebours s'affiche en heures et minutes, donc
-    // rafraichir plus souvent redessinerait pour rien. Plus rarement, et le
-    // « dans 1 h 23 » resterait faux jusqu'a une minute -- visible quand on
-    // regarde justement pour savoir s'il reste du temps.
-    _horloge = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _horloge?.cancel();
-    super.dispose();
-  }
-
-  // ── LES NOMS DE PRIERE VIENNENT DU HELPER PARTAGE (2026-09-09) ──────────
-  //
-  // Une `const Map` locale portait ici `Sobh`, `Dhohr`, `Ichaa` -- une
-  // translitteration FRANCAISE affichee telle quelle meme quand toute
-  // l'application est en arabe. Defaut signale par l'utilisateur :
-  // « صلاة قادمة en arabe, il y a du francais aussi ».
-  //
-  // Trois copies de ces memes libelles existaient (cet ecran, celui des
-  // horaires, le service de notifications), chacune libre de diverger. Elles
-  // passent maintenant par `l10n/prayer_labels.dart` -- sauf le service, qui
-  // n'a pas de `BuildContext` (cf. la note de ce fichier).
-
-  /// « dans 1 h 23 », « dans 24 min », « maintenant ».
-  String _restant(BuildContext context, Duration d) {
-    final t = AppLocalizations.of(context)!;
-    if (d.inMinutes < 1) return t.prayerInNow;
-    final h = d.inHours, m = d.inMinutes % 60;
-    if (h == 0) return t.prayerInMinutes(m);
-    return m == 0 ? t.prayerInHours(h) : t.prayerInHoursMinutes(h, m);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final etat = ref.watch(prayerSettingsProvider);
-    final suivante = etat.prochainePriere;
-    // Position pas encore connue, ou refusee : rien a annoncer. On n'affiche
-    // PAS un bandeau vide ni un « -- : -- » qui ferait croire a une panne.
-    if (suivante == null) return const SizedBox.shrink();
-
-    final locale = suivante.time.toLocal();
-    final hm = '${locale.hour.toString().padLeft(2, '0')}:'
-        '${locale.minute.toString().padLeft(2, '0')}';
-    final reste = suivante.time.difference(DateTime.now());
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 2),
-      child: Material(
-        color: AppColors.green900,
-        borderRadius: BorderRadius.circular(14),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const PrayerTimesSettingsScreen())),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
-            child: Row(
-              children: [
-                const Icon(Icons.access_time_rounded,
-                    size: 19, color: AppColors.brassLight),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(AppLocalizations.of(context)!.prayerTimesNext.toUpperCase(),
-                          style: GoogleFonts.manrope(
-                              fontSize: 9.5,
-                              letterSpacing: 1.4,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.brassLight)),
-                      const SizedBox(height: 3),
-                      Text('${nomPriere(context, suivante.name)} · $hm',
-                          style: GoogleFonts.manrope(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.cream)),
-                    ],
-                  ),
-                ),
-                Text(_restant(context, reste),
-                    style: GoogleFonts.manrope(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.brassLight)),
-                const SizedBox(width: 4),
-                const Icon(Icons.chevron_right_rounded,
-                    size: 20, color: AppColors.brassLight),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // Filet titre : simple règle horizontale + petit losange central --
 // séparateur entre le titre arabe et le sous-titre latin sur la couverture.
@@ -394,16 +316,47 @@ class _TitleRule extends StatelessWidget {
 // des cartes conservée dans l'historique git si on veut la reprendre un jour
 // avec un design différent.
 
-class _SurahTile extends StatelessWidget {
+class _SurahTile extends ConsumerWidget {
   final Surah surah;
   const _SurahTile({required this.surah});
 
+  // ── LANCER LA LECTURE DEPUIS LA LISTE (2026-09-13) ───────────────────────
+  //
+  // Demande utilisateur : « rajoute aussi la possibilite de lancer le play
+  // de la sourate » -- sans passer par l'ecran de lecture. Meme lecteur
+  // GLOBAL que `mushaf_screen.dart::_onPlayTap` (`playerProvider`, un seul
+  // par app) : le meme discriminant s'applique -- si CETTE sourate est deja
+  // celle chargee, le bouton devient transport (pause/reprise) ; sinon un
+  // tap (re)lance depuis le premier verset, playlist = la sourate entiere
+  // (le lecteur enchaine tout seul, cf. `PlayerNotifier.play`).
+  //
+  // `QuranApi.fetchVerses` est deja mis en cache par sourate (cf. sa doc) :
+  // un tap suivant sur la meme sourate ne refait pas la requete reseau.
+  Future<void> _togglePlay(WidgetRef ref) async {
+    final player = ref.read(playerProvider);
+    final dejaChargee = player.currentVerse?.surahNumber == surah.number;
+    if (dejaChargee && player.isPlaying) {
+      ref.read(playerProvider.notifier).pause();
+      return;
+    }
+    if (dejaChargee && player.isPaused) {
+      ref.read(playerProvider.notifier).resume();
+      return;
+    }
+    final versets = await QuranApi.fetchVerses(surah.number);
+    if (versets.isEmpty) return;
+    await ref.read(playerProvider.notifier).play(versets.first, versets);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
     final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final place = surah.revelationPlace == 'makkah' ? t.surahMeccan : t.surahMedinan;
     final metaLine = t.surahMetaLine(surah.versesCount, place);
+    final player = ref.watch(playerProvider);
+    final enCours =
+        player.currentVerse?.surahNumber == surah.number && player.isPlaying;
     return InkWell(
       onTap: () => Navigator.push(context,
         MaterialPageRoute(builder: (_) => MushafScreen(surah: surah))),
@@ -464,7 +417,7 @@ class _SurahTile extends StatelessWidget {
             ),
             // Nom arabe en flourish -- seulement en fr/en (en arabe, c'est
             // déjà le titre principal ci-dessus, pas de doublon).
-            if (!isArabic)
+            if (!isArabic) ...[
               Text(
                 surah.nameArabic,
                 textDirection: TextDirection.rtl,
@@ -472,6 +425,50 @@ class _SurahTile extends StatelessWidget {
                   fontSize: 20, color: AppColors.green800,
                 ),
               ),
+              const SizedBox(width: 4),
+            ],
+            // ── BOUTON LECTURE, TOUJOURS PRESENT (2026-09-13) ────────────
+            //
+            // Deuxieme effet du meme ajout, constate par l'utilisateur :
+            // « quand c'est la langue arabe le nom de la sourate est trop
+            // colle et on a de l'espace ». En arabe, ce Row est en RTL (la
+            // locale arabe bascule la Directionality de toute l'app, cf.
+            // `main.dart`) -- l'element `if (!isArabic)` ci-dessus disparait
+            // alors completement, et rien ne restait pour occuper le bord
+            // qui devient visuellement le bord GAUCHE. Ce bouton est
+            // desormais toujours present (arabe compris) : il comble cet
+            // espace au lieu de le laisser vide, et donne en plus l'acces
+            // lecture demande.
+            // ── COULEUR ADOUCIE (2026-09-13, meme session) ────────────────
+            //
+            // Retour utilisateur immediat : « c'est tres fonce, je veux une
+            // couleur pas trop imposante, surtout que de l'autre cote c'est
+            // couleur doree ». Le rond plein vert fonce (`green800`)
+            // tranchait avec le badge numerote (bordure `brass`, fond clair)
+            // de l'autre bout de la meme ligne. Meme traitement que le
+            // badge : contour dore fin sur fond clair, plus d'aplat sombre.
+            IconButton(
+              onPressed: () => _togglePlay(ref),
+              tooltip: enCours ? t.mushafPause : t.mushafPlay,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              icon: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.cream200,
+                  border: Border.all(color: AppColors.brass, width: 1.3),
+                ),
+                child: Icon(
+                  enCours
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  size: 18,
+                  color: AppColors.brass,
+                ),
+              ),
+            ),
             // Icône « carte mentale » par sourate RETIRÉE le 2026-07-20
             // (demande utilisateur : « la carte mentale, je veux que tu
             // l'enlèves de la première page »). La page principale redevient

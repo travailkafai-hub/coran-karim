@@ -161,17 +161,66 @@ class DuaCollection {
   final String labelFr;
   final String labelAr;
 
+  /// ── L'ANGLAIS MANQUAIT, ET L'APP RETOMBAIT SUR LE FRANÇAIS (2026-09-13) ──
+  ///
+  /// Constat utilisateur, capture à l'appui : *« oui alors que je suis en
+  /// anglais »*. L'interface affichait « Duas & Adhkar », « Search an
+  /// invocation… », « NOW », « EXPLORE » — et juste en dessous « Le fil du
+  /// jour », « Du réveil au sommeil », « Cœur & épreuves ».
+  ///
+  /// La cause n'était pas un oubli de traduction : c'était un choix BINAIRE
+  /// dans les écrans, `isArabic ? labelAr : labelFr`. Toute langue qui n'est
+  /// pas l'arabe recevait donc le français, et l'anglais n'avait aucun endroit
+  /// où exister. Ajouter des chaînes n'aurait rien changé tant que le modèle
+  /// ne portait que deux langues.
+  ///
+  /// ⚠️ Même famille de défaut que les libellés de portion du Coach, corrigés
+  /// le même jour — et pour la même raison de fond : une bascule à deux
+  /// branches dans une application qui en a trois. Quand on ajoute une langue,
+  /// chercher les `isArabic ? … : …` avant de chercher les chaînes.
+  final String labelEn;
+
   /// Une ligne de contexte affichée sous le titre — quand la dire, à qui elle
   /// s'adresse. Sans ça une liste de collections reste opaque.
   final String hint;
+
+  /// Version anglaise de [hint]. Cf. [labelEn].
+  final String hintEn;
 
   const DuaCollection({
     required this.id,
     required this.emoji,
     required this.labelFr,
     required this.labelAr,
+    required this.labelEn,
     required this.hint,
+    required this.hintEn,
   });
+
+  /// Libellé dans la langue de l'interface.
+  ///
+  /// Le repli est le FRANÇAIS et non une chaîne vide : une carte sans titre
+  /// serait un défaut pire que celui qu'on corrige. Il n'est plus censé servir
+  /// (les 35 collections sont traduites), mais il garantit qu'une collection
+  /// ajoutée demain sans `labelEn` reste lisible au lieu de disparaître.
+  String label(String langue) => switch (langue) {
+        'ar' => labelAr,
+        'en' => labelEn.isEmpty ? labelFr : labelEn,
+        _ => labelFr,
+      };
+
+  /// Ligne de contexte dans la langue de l'interface.
+  ///
+  /// ⚠️ L'ARABE N'EN A PAS, et c'est assumé pour l'instant : `hint` n'a jamais
+  /// eu de variante arabe (cf. le commentaire de `duas_screen.dart` : « hint
+  /// n'existe qu'en français -- omis en arabe »). On rend donc une chaîne vide
+  /// en arabe, ce que les écrans savent déjà ne pas afficher — plutôt que d'y
+  /// laisser tomber du français, qui serait le défaut qu'on corrige ici.
+  String contexte(String langue) => switch (langue) {
+        'ar' => '',
+        'en' => hintEn.isEmpty ? hint : hintEn,
+        _ => hint,
+      };
 }
 
 /// Un univers = un grand domaine de la vie du croyant, qui regroupe des
@@ -181,7 +230,19 @@ class DuaUnivers {
   final String emoji;
   final String labelFr;
   final String labelAr;
+
+  /// Cf. [DuaCollection.labelEn] pour le pourquoi.
+  final String labelEn;
   final String tagline;
+
+  /// Version anglaise de [tagline]. Cf. [DuaCollection.labelEn].
+  final String taglineEn;
+
+  /// Version arabe de [tagline] — AJOUTÉE en même temps que l'anglais, parce
+  /// que le défaut ne touchait pas que l'anglais : `tagline` était affiché tel
+  /// quel (« Du réveil au sommeil ») y compris en arabe, où il est la seule
+  /// ligne sous un titre pourtant traduit.
+  final String taglineAr;
   final Color color;
   final List<DuaCollection> collections;
 
@@ -190,10 +251,25 @@ class DuaUnivers {
     required this.emoji,
     required this.labelFr,
     required this.labelAr,
+    required this.labelEn,
     required this.tagline,
+    required this.taglineEn,
+    required this.taglineAr,
     required this.color,
     required this.collections,
   });
+
+  String label(String langue) => switch (langue) {
+        'ar' => labelAr,
+        'en' => labelEn.isEmpty ? labelFr : labelEn,
+        _ => labelFr,
+      };
+
+  String accroche(String langue) => switch (langue) {
+        'ar' => taglineAr.isEmpty ? '' : taglineAr,
+        'en' => taglineEn.isEmpty ? tagline : taglineEn,
+        _ => tagline,
+      };
 }
 
 /// L'arborescence complète.
@@ -206,44 +282,57 @@ const kDuaUnivers = <DuaUnivers>[
     id: 'jour',
     emoji: '🌅',
     labelFr: 'Le fil du jour',
+    labelEn: 'Through the day',
     labelAr: 'أذكار اليوم',
     tagline: 'Du réveil au sommeil',
+    taglineEn: 'From waking to sleep',
+    taglineAr: 'من الاستيقاظ إلى النوم',
     color: Color(0xFFb85000),
     collections: [
       DuaCollection(
         id: 'reveil',
         emoji: '🌄',
         labelFr: 'Au réveil',
+        labelEn: 'On waking',
         labelAr: 'أذكار الاستيقاظ',
         hint: 'Les premiers mots en ouvrant les yeux',
+        hintEn: 'The first words on opening your eyes',
       ),
       DuaCollection(
         id: 'matin',
         emoji: '☀️',
         labelFr: 'Adhkār du matin',
+        labelEn: 'Morning adhkār',
         labelAr: 'أذكار الصباح',
         hint: 'Après Ṣobḥ, jusqu\'au lever du soleil',
+        hintEn: 'After Ṣobḥ, until sunrise',
       ),
       DuaCollection(
         id: 'soir',
         emoji: '🌙',
         labelFr: 'Adhkār du soir',
+        labelEn: 'Evening adhkār',
         labelAr: 'أذكار المساء',
         hint: 'Après ʿAṣr, jusqu\'à la nuit tombée',
+        hintEn: 'After ʿAṣr, until nightfall',
       ),
       DuaCollection(
         id: 'sommeil',
         emoji: '🛏️',
         labelFr: 'Avant de dormir',
+        labelEn: 'Before sleep',
         labelAr: 'أذكار النوم',
         hint: 'Le dernier dhikr de la journée',
+        hintEn: 'The last dhikr of the day',
       ),
       DuaCollection(
         id: 'nuit',
         emoji: '🌌',
         labelFr: 'Veille de nuit',
+        labelEn: 'Night vigil',
         labelAr: 'قيام الليل',
         hint: 'Tahajjud, insomnie, dernier tiers de la nuit',
+        hintEn: 'Tahajjud, sleeplessness, the last third of the night',
       ),
     ],
   ),
@@ -251,65 +340,84 @@ const kDuaUnivers = <DuaUnivers>[
     id: 'priere',
     emoji: '🕌',
     labelFr: 'La prière',
+    labelEn: 'The prayer',
     labelAr: 'الصلاة',
     tagline: 'Avant, pendant, après',
+    taglineEn: 'Before, during, after',
+    taglineAr: 'قبل وأثناء وبعد',
     color: AppColors.green700,
     collections: [
       DuaCollection(
         id: 'avant_priere',
         emoji: '🚿',
         labelFr: 'Ablutions & adhān',
+        labelEn: 'Ablutions & adhān',
         labelAr: 'الوضوء والأذان',
         hint: 'Se préparer, répondre à l\'appel, entrer à la mosquée',
+        hintEn: 'Preparing, answering the call, entering the mosque',
       ),
       DuaCollection(
         id: 'dans_priere',
         emoji: '🤲',
         labelFr: 'Pendant la prière',
+        labelEn: 'During the prayer',
         labelAr: 'أذكار الصلاة',
         hint: 'Istiftāḥ, rukūʿ, sujūd, tashahhud',
+        hintEn: 'Istiftāḥ, rukūʿ, sujūd, tashahhud',
       ),
       DuaCollection(
         id: 'sobh',
         emoji: '🌤️',
         labelFr: 'Ṣalāt as-Ṣobḥ',
+        labelEn: 'Ṣalāt as-Ṣobḥ',
         labelAr: 'صلاة الصبح',
         hint: 'Ce qui est propre à la prière de l\'aube',
+        hintEn: 'What belongs to the dawn prayer alone',
       ),
       DuaCollection(
         id: 'apres_priere',
         emoji: '📿',
         labelFr: 'Après la prière',
+        labelEn: 'After the prayer',
         labelAr: 'أذكار بعد الصلاة',
         hint: 'Le chapelet qui suit chaque prière obligatoire',
+        hintEn: 'The dhikr that follows every obligatory prayer',
       ),
       DuaCollection(
         id: 'witr',
         emoji: '🌃',
         labelFr: 'Witr & Qunūt',
+        labelEn: 'Witr & Qunūt',
         labelAr: 'الوتر والقنوت',
         hint: 'La dernière prière de la nuit',
+        hintEn: 'The last prayer of the night',
       ),
       DuaCollection(
         id: 'joumoua',
         emoji: '🕋',
         labelFr: 'Vendredi',
+        labelEn: 'Friday',
         labelAr: 'الجمعة',
         hint: 'Joumouʿa, l\'heure exaucée, la Sourate Al-Kahf',
+        hintEn: 'Jumuʿa, the answered hour, Sūrat al-Kahf',
       ),
       DuaCollection(
         id: 'aid',
         emoji: '🎉',
         labelFr: 'Prière de l\'ʿAïd',
+        labelEn: 'ʿĪd prayer',
         labelAr: 'صلاة العيد',
         hint: 'Takbīrāt, ʿAïd al-Fiṭr et ʿAïd al-Aḍḥā',
+        hintEn: 'Takbīrāt, ʿĪd al-Fiṭr and ʿĪd al-Aḍḥā',
       ),
       DuaCollection(
         id: 'istikhara',
         emoji: '🧭',
         labelFr: 'Istikhāra',
+        labelEn: 'Istikhāra',
         labelAr: 'الاستخارة',
         hint: 'Demander à Allah de choisir pour soi',
+        hintEn: 'Asking Allah to choose on your behalf',
       ),
     ],
   ),
@@ -317,44 +425,57 @@ const kDuaUnivers = <DuaUnivers>[
     id: 'coran',
     emoji: '📖',
     labelFr: 'Le Coran',
+    labelEn: 'The Qur\'an',
     labelAr: 'القرآن',
     tagline: 'Invoquer avec Sa parole',
+    taglineEn: 'Supplicating with His own words',
+    taglineAr: 'الدعاء بكلامه',
     color: AppColors.brass,
     collections: [
       DuaCollection(
         id: 'rabbana',
         emoji: '💫',
         labelFr: 'Les « Rabbanā »',
+        labelEn: 'The "Rabbanā" verses',
         labelAr: 'دعاء ربنا',
         hint: 'Les invocations que le Coran met dans nos bouches',
+        hintEn: 'The supplications the Qur\'an places in our mouths',
       ),
       DuaCollection(
         id: 'prophetes',
         emoji: '🕊️',
         labelFr: 'Invocations des prophètes',
+        labelEn: 'The prophets\' supplications',
         labelAr: 'أدعية الأنبياء',
         hint: 'Ce qu\'ils ont dit dans l\'épreuve — et qui fut exaucé',
+        hintEn: 'What they said in hardship — and was answered',
       ),
       DuaCollection(
         id: 'lecture_coran',
         emoji: '📿',
         labelFr: 'Autour de la lecture',
+        labelEn: 'Around the reading',
         labelAr: 'آداب التلاوة',
         hint: 'Avant d\'ouvrir le Muṣḥaf, en le refermant',
+        hintEn: 'Before opening the Muṣḥaf, and on closing it',
       ),
       DuaCollection(
         id: 'khatm',
         emoji: '🏁',
         labelFr: 'Khatm — fin du Coran',
+        labelEn: 'Khatm — completing the Qur\'an',
         labelAr: 'دعاء ختم القرآن',
         hint: 'Quand on achève une lecture complète',
+        hintEn: 'On completing a full reading',
       ),
       DuaCollection(
         id: 'protection_coran',
         emoji: '🛡️',
         labelFr: 'Versets de protection',
+        labelEn: 'Verses of protection',
         labelAr: 'آيات الحفظ',
         hint: 'Āyat al-Kursī, les Muʿawwidhāt, fin d\'Al-Baqara',
+        hintEn: 'Āyat al-Kursī, the Muʿawwidhāt, the end of al-Baqara',
       ),
     ],
   ),
@@ -362,51 +483,66 @@ const kDuaUnivers = <DuaUnivers>[
     id: 'vie',
     emoji: '🏡',
     labelFr: 'La vie quotidienne',
+    labelEn: 'Daily life',
     labelAr: 'أذكار يومية',
     tagline: 'Manger, sortir, voyager',
+    taglineEn: 'Eating, going out, travelling',
+    taglineAr: 'الأكل والخروج والسفر',
     color: Color(0xFF0f766e),
     collections: [
       DuaCollection(
         id: 'repas',
         emoji: '🍽️',
         labelFr: 'Le repas',
+        labelEn: 'Meals',
         labelAr: 'أذكار الطعام',
         hint: 'Avant, après, chez un hôte, en rompant le jeûne',
+        hintEn: 'Before, after, as a guest, breaking the fast',
       ),
       DuaCollection(
         id: 'maison',
         emoji: '🚪',
         labelFr: 'La maison',
+        labelEn: 'The home',
         labelAr: 'أذكار المنزل',
         hint: 'Entrer, sortir, les toilettes, s\'habiller',
+        hintEn: 'Entering, leaving, the bathroom, getting dressed',
       ),
       DuaCollection(
         id: 'sortie',
         emoji: '🚶',
         labelFr: 'Dehors',
+        labelEn: 'Outside',
         labelAr: 'الخروج',
         hint: 'La rue, le marché, le transport',
+        hintEn: 'The street, the market, transport',
       ),
       DuaCollection(
         id: 'voyage',
         emoji: '✈️',
         labelFr: 'Le voyage',
+        labelEn: 'Travel',
         labelAr: 'أذكار السفر',
         hint: 'Partir, monter en véhicule, arriver, rentrer',
+        hintEn: 'Setting out, boarding, arriving, coming home',
       ),
       DuaCollection(
         id: 'meteo',
         emoji: '🌧️',
         labelFr: 'Ciel & météo',
+        labelEn: 'Sky & weather',
         labelAr: 'أذكار المطر والريح',
         hint: 'La pluie, le vent, le tonnerre, la lune',
+        hintEn: 'Rain, wind, thunder, the moon',
       ),
       DuaCollection(
         id: 'autrui',
         emoji: '🤝',
         labelFr: 'Avec les autres',
+        labelEn: 'With others',
         labelAr: 'مع الناس',
         hint: 'Remercier, saluer, féliciter, se quitter',
+        hintEn: 'Thanking, greeting, congratulating, parting',
       ),
     ],
   ),
@@ -414,58 +550,75 @@ const kDuaUnivers = <DuaUnivers>[
     id: 'coeur',
     emoji: '💚',
     labelFr: 'Cœur & épreuves',
+    labelEn: 'Heart & hardship',
     labelAr: 'الهم والكرب',
     tagline: 'Quand c\'est lourd',
+    taglineEn: 'When the heart is heavy',
+    taglineAr: 'عند الشدة',
     color: Color(0xFF7c3aed),
     collections: [
       DuaCollection(
         id: 'angoisse',
         emoji: '😔',
         labelFr: 'Angoisse & tristesse',
+        labelEn: 'Anxiety & sorrow',
         labelAr: 'الهم والحزن',
         hint: 'Quand la poitrine se serre',
+        hintEn: 'When the chest tightens',
       ),
       DuaCollection(
         id: 'maladie',
         emoji: '🩺',
         labelFr: 'Maladie & douleur',
+        labelEn: 'Illness & pain',
         labelAr: 'المرض',
         hint: 'Pour soi, pour un malade qu\'on visite',
+        hintEn: 'For yourself, and for the sick you visit',
       ),
       DuaCollection(
         id: 'peur',
         emoji: '🛡️',
         labelFr: 'Peur & protection',
+        labelEn: 'Fear & protection',
         labelAr: 'الخوف والحفظ',
         hint: 'Ennemi, mauvais œil, waswās, cauchemar',
+        hintEn: 'Enemies, the evil eye, waswās, nightmares',
       ),
       DuaCollection(
         id: 'dette',
         emoji: '💰',
         labelFr: 'Dette & subsistance',
+        labelEn: 'Debt & provision',
         labelAr: 'الدين والرزق',
         hint: 'Quand l\'argent manque ou étouffe',
+        hintEn: 'When money is short, or suffocating',
       ),
       DuaCollection(
         id: 'colere',
         emoji: '🔥',
         labelFr: 'Colère & discorde',
+        labelEn: 'Anger & discord',
         labelAr: 'الغضب',
         hint: 'Se retenir, réparer, pardonner',
+        hintEn: 'Holding back, making amends, forgiving',
       ),
       DuaCollection(
         id: 'deuil',
         emoji: '🕯️',
         labelFr: 'Deuil',
+        labelEn: 'Mourning',
         labelAr: 'الجنائز',
         hint: 'Le défunt, la famille, la visite des tombes',
+        hintEn: 'The deceased, the family, visiting the graves',
       ),
       DuaCollection(
         id: 'istighfar',
         emoji: '🤍',
         labelFr: 'Repentir & istighfār',
+        labelEn: 'Repentance & istighfār',
         labelAr: 'الاستغفار والتوبة',
         hint: 'Revenir, quel que soit le nombre de fois',
+        hintEn: 'Turning back, however many times it takes',
       ),
     ],
   ),
@@ -473,30 +626,39 @@ const kDuaUnivers = <DuaUnivers>[
     id: 'sacre',
     emoji: '🕋',
     labelFr: 'Le voyage sacré',
+    labelEn: 'The sacred journey',
     labelAr: 'الحج والعمرة',
     tagline: 'ʿUmra & Hajj, pas à pas',
+    taglineEn: 'ʿUmra & Hajj, step by step',
+    taglineAr: 'العمرة والحج خطوة بخطوة',
     color: Color(0xFF0c3b2c),
     collections: [
       DuaCollection(
         id: 'rite:umra',
         emoji: '🕋',
         labelFr: 'ʿUmra — guide pas à pas',
+        labelEn: 'ʿUmra — step by step',
         labelAr: 'مناسك العمرة',
         hint: '9 étapes, du mīqāt au taqṣīr · compteurs intégrés',
+        hintEn: '9 steps, from the mīqāt to the taqṣīr · built-in counters',
       ),
       DuaCollection(
         id: 'rite:hajj',
         emoji: '⛺',
         labelFr: 'Hajj — jour par jour',
+        labelEn: 'Hajj — day by day',
         labelAr: 'مناسك الحج',
         hint: 'Du 8 au 13 Dhū l-Ḥijja · ʿArafa, Muzdalifa, Minā',
+        hintEn: 'From 8 to 13 Dhū l-Ḥijja · ʿArafa, Muzdalifa, Minā',
       ),
       DuaCollection(
         id: 'pelerin',
         emoji: '🧳',
         labelFr: 'Duas du pèlerin',
+        labelEn: 'The pilgrim\'s duas',
         labelAr: 'أدعية الحاج',
         hint: 'Talbiya, Kaʿba, Zamzam, Rawḍa',
+        hintEn: 'Talbiya, Kaʿba, Zamzam, Rawḍa',
       ),
     ],
   ),
@@ -522,6 +684,13 @@ class DuaMoment {
   final String titleFr;
   final String subtitle;
 
+  /// Cf. [DuaCollection.labelEn]. La carte « NOW » du haut du hub affichait
+  /// « Avant de dormir / Les derniers mots de la journée » en anglais.
+  final String titleEn;
+  final String subtitleEn;
+  final String titleAr;
+  final String subtitleAr;
+
   /// Collection à ouvrir en un tap.
   final String collectionId;
 
@@ -529,8 +698,24 @@ class DuaMoment {
     required this.emoji,
     required this.titleFr,
     required this.subtitle,
+    required this.titleEn,
+    required this.subtitleEn,
+    required this.titleAr,
+    required this.subtitleAr,
     required this.collectionId,
   });
+
+  String titre(String langue) => switch (langue) {
+        'ar' => titleAr.isEmpty ? titleFr : titleAr,
+        'en' => titleEn.isEmpty ? titleFr : titleEn,
+        _ => titleFr,
+      };
+
+  String sousTitre(String langue) => switch (langue) {
+        'ar' => subtitleAr.isEmpty ? subtitle : subtitleAr,
+        'en' => subtitleEn.isEmpty ? subtitle : subtitleEn,
+        _ => subtitle,
+      };
 }
 
 /// POURQUOI : l'usage réel d'un recueil d'invocations est massivement
@@ -552,7 +737,11 @@ DuaMoment currentDuaMoment([DateTime? now]) {
     return const DuaMoment(
       emoji: '🕌',
       titleFr: 'C\'est vendredi',
+      titleEn: 'It\'s Friday',
+      titleAr: 'إنه يوم الجمعة',
       subtitle: 'Sourate Al-Kahf, ṣalāt sur le Prophète, l\'heure exaucée',
+      subtitleEn: 'Sūrat al-Kahf, ṣalāt upon the Prophet, the answered hour',
+      subtitleAr: 'سورة الكهف، الصلاة على النبي، ساعة الإجابة',
       collectionId: 'joumoua',
     );
   }
@@ -561,7 +750,11 @@ DuaMoment currentDuaMoment([DateTime? now]) {
     return const DuaMoment(
       emoji: '🌤️',
       titleFr: 'Autour de Ṣobḥ',
+      titleEn: 'Around Ṣobḥ',
+      titleAr: 'حول صلاة الصبح',
       subtitle: 'Ce qu\'on dit à la prière de l\'aube',
+      subtitleEn: 'What is said at the dawn prayer',
+      subtitleAr: 'ما يقال في صلاة الفجر',
       collectionId: 'sobh',
     );
   }
@@ -569,7 +762,11 @@ DuaMoment currentDuaMoment([DateTime? now]) {
     return const DuaMoment(
       emoji: '☀️',
       titleFr: 'Adhkār du matin',
+      titleEn: 'Morning adhkār',
+      titleAr: 'أذكار الصباح',
       subtitle: 'La protection de la journée qui commence',
+      subtitleEn: 'Protection for the day ahead',
+      subtitleAr: 'حصن اليوم الذي يبدأ',
       collectionId: 'matin',
     );
   }
@@ -577,7 +774,11 @@ DuaMoment currentDuaMoment([DateTime? now]) {
     return const DuaMoment(
       emoji: '📿',
       titleFr: 'Après la prière',
+      titleEn: 'After the prayer',
+      titleAr: 'بعد الصلاة',
       subtitle: 'Le chapelet qui suit chaque obligatoire',
+      subtitleEn: 'The dhikr that follows every obligatory prayer',
+      subtitleAr: 'الأذكار بعد كل صلاة مفروضة',
       collectionId: 'apres_priere',
     );
   }
@@ -585,7 +786,11 @@ DuaMoment currentDuaMoment([DateTime? now]) {
     return const DuaMoment(
       emoji: '🌙',
       titleFr: 'Adhkār du soir',
+      titleEn: 'Evening adhkār',
+      titleAr: 'أذكار المساء',
       subtitle: 'À dire après ʿAṣr, avant la nuit',
+      subtitleEn: 'To say after ʿAṣr, before nightfall',
+      subtitleAr: 'تقال بعد العصر قبل الليل',
       collectionId: 'soir',
     );
   }
@@ -593,14 +798,22 @@ DuaMoment currentDuaMoment([DateTime? now]) {
     return const DuaMoment(
       emoji: '🛏️',
       titleFr: 'Avant de dormir',
+      titleEn: 'Before sleep',
+      titleAr: 'أذكار النوم',
       subtitle: 'Les derniers mots de la journée',
+      subtitleEn: 'The last words of the day',
+      subtitleAr: 'آخر كلمات اليوم',
       collectionId: 'sommeil',
     );
   }
   return const DuaMoment(
     emoji: '🌌',
     titleFr: 'Le cœur de la nuit',
+    titleEn: 'The heart of the night',
+    titleAr: 'جوف الليل',
     subtitle: 'Tahajjud, istighfār, l\'heure où Il descend',
+    subtitleEn: 'Tahajjud, istighfār, the hour of His descent',
+    subtitleAr: 'التهجد والاستغفار وساعة النزول',
     collectionId: 'nuit',
   );
 }

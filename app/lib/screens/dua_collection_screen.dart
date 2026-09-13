@@ -266,7 +266,8 @@ class _DuaCollectionScreenState extends ConsumerState<DuaCollectionScreen> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
+    final langue = Localizations.localeOf(context).languageCode;
+    final isArabic = langue == 'ar';
     final collectionId = widget.collectionId;
     final highlightDuaId = widget.highlightDuaId;
     final collection = kCollectionsById[collectionId];
@@ -343,9 +344,7 @@ class _DuaCollectionScreenState extends ConsumerState<DuaCollectionScreen> {
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.only(left: 56, bottom: 14, right: 16),
               title: Text(
-                isArabic
-                    ? (collection?.labelAr ?? t.navDuas)
-                    : (collection?.labelFr ?? t.navDuas),
+                collection?.label(langue) ?? t.navDuas,
                 textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
                 style: isArabic
                     ? GoogleFonts.scheherazadeNew(
@@ -397,7 +396,7 @@ class _DuaCollectionScreenState extends ConsumerState<DuaCollectionScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(18, 16, 18, 4),
                 child: Text(
-                  collection.hint,
+                  collection.contexte(langue),
                   style: GoogleFonts.manrope(
                     fontSize: 12,
                     color: AppColors.inkLight,
