@@ -2064,7 +2064,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Trois ambiances de lecture : claire, sépia reposante, ou fond noir pour la nuit.';
 
   @override
-  String get onboardingReciteTitle => 'Réciter et être corrigé';
+  String get onboardingReciteTitle => 'Réciter avec correction';
 
   @override
   String get onboardingReciteBody =>
@@ -3132,7 +3132,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Sur quelques versets — quelques minutes. Tu peux revenir ensuite.';
 
   @override
-  String get preparationEssaiReciter => 'Réciter et être corrigé';
+  String get preparationEssaiReciter => 'Réciter avec correction';
 
   @override
   String get preparationEssaiReciterSous =>
@@ -3179,7 +3179,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get preparationConsigneReciter =>
-      'Récite normalement, sans rien changer à ta lecture — l\'IA contrôle derrière toi. Vert : le mot est juste. Orange : articulation approximative. Rouge : écart entendu.';
+      'Récite à voix haute, à ton rythme habituel. L’application écoute ta récitation et colore les mots pour t’aider à les revoir.\n\nVert : mot reconnu comme correct par l’application. Orange : prononciation à vérifier. Rouge : écart détecté par l’application.\n\nL’application peut se tromper dans son évaluation ; en cas de doute, demande à un enseignant.';
 
   @override
   String get preparationConsigneMemoriser =>

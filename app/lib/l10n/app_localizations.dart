@@ -3424,7 +3424,7 @@ abstract class AppLocalizations {
   /// Titre page 3
   ///
   /// In fr, this message translates to:
-  /// **'Réciter et être corrigé'**
+  /// **'Réciter avec correction'**
   String get onboardingReciteTitle;
 
   /// Corps page 3
@@ -5092,7 +5092,7 @@ abstract class AppLocalizations {
   /// Etape « Essayer » de la preparation
   ///
   /// In fr, this message translates to:
-  /// **'Réciter et être corrigé'**
+  /// **'Réciter avec correction'**
   String get preparationEssaiReciter;
 
   /// Etape « Essayer » de la preparation
@@ -5170,7 +5170,7 @@ abstract class AppLocalizations {
   /// Consigne de l'etape Essayer : ce qu'il faut faire
   ///
   /// In fr, this message translates to:
-  /// **'Récite normalement, sans rien changer à ta lecture — l\'IA contrôle derrière toi. Vert : le mot est juste. Orange : articulation approximative. Rouge : écart entendu.'**
+  /// **'Récite à voix haute, à ton rythme habituel. L’application écoute ta récitation et colore les mots pour t’aider à les revoir.\n\nVert : mot reconnu comme correct par l’application. Orange : prononciation à vérifier. Rouge : écart détecté par l’application.\n\nL’application peut se tromper dans son évaluation ; en cas de doute, demande à un enseignant.'**
   String get preparationConsigneReciter;
 
   /// Consigne de l'etape Essayer : ce qu'il faut faire

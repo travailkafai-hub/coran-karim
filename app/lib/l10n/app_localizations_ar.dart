@@ -1961,7 +1961,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'ثلاثة أجواء للقراءة: فاتح، وبنّي مريح للعين، وخلفية سوداء لليل.';
 
   @override
-  String get onboardingReciteTitle => 'اتلُ وصحِّح';
+  String get onboardingReciteTitle => 'تلاوة مع التصحيح';
 
   @override
   String get onboardingReciteBody =>
@@ -3016,7 +3016,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'على بضع آيات: دقائق معدودة. ويمكنك العودة لاحقاً.';
 
   @override
-  String get preparationEssaiReciter => 'اتلُ وكن مصححاً';
+  String get preparationEssaiReciter => 'تلاوة مع التصحيح';
 
   @override
   String get preparationEssaiReciterSous =>
@@ -3060,7 +3060,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get preparationConsigneReciter =>
-      'اتلُ كعادتك دون تغيير، والذكاء الاصطناعي يتابع خلفك. الأخضر: الكلمة صحيحة. البرتقالي: نطق تقريبي. الأحمر: فرق مسموع.';
+      'اقرأ بصوت مسموع وبإيقاعك المعتاد. يستمع التطبيق إلى تلاوتك ويُلوّن الكلمات لمساعدتك على المراجعة.\n\nالأخضر: كلمة تعرّف عليها التطبيق على أنها صحيحة. البرتقالي: نطق يحتاج إلى التحقق. الأحمر: اختلاف رصده التطبيق.\n\nقد يخطئ التطبيق في التقييم؛ استعن بمعلّم عند الشك.';
 
   @override
   String get preparationConsigneMemoriser =>

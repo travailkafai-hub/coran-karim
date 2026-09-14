@@ -2042,7 +2042,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Three reading moods: light, restful sepia, or black background for night-time.';
 
   @override
-  String get onboardingReciteTitle => 'Recite and be corrected';
+  String get onboardingReciteTitle => 'Recite with feedback';
 
   @override
   String get onboardingReciteBody =>
@@ -3109,7 +3109,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'On a few verses — a few minutes. You can come back later.';
 
   @override
-  String get preparationEssaiReciter => 'Recite and be corrected';
+  String get preparationEssaiReciter => 'Recite with feedback';
 
   @override
   String get preparationEssaiReciterSous =>
@@ -3156,7 +3156,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get preparationConsigneReciter =>
-      'Recite normally, changing nothing in your reading — the AI checks behind you. Green: the word is right. Orange: approximate articulation. Red: a difference heard.';
+      'Recite aloud at your usual pace. The app listens to your recitation and colours words to help you review them.\n\nGreen: a word the app recognised as correct. Orange: pronunciation to check. Red: a difference detected by the app.\n\nThe app can make mistakes in its assessment; ask a teacher when in doubt.';
 
   @override
   String get preparationConsigneMemoriser =>

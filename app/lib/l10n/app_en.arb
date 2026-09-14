@@ -663,7 +663,7 @@
   "onboardingReadTitle": "Read the Quran",
   "onboardingReadBody": "The complete Mushaf, with tajweed colours so you can see the rules as you read. Listen to the reciter of your choice, and drop a bookmark to pick up where you left off.",
   "onboardingReadHint": "Three reading moods: light, restful sepia, or black background for night-time.",
-  "onboardingReciteTitle": "Recite and be corrected",
+  "onboardingReciteTitle": "Recite with feedback",
   "onboardingReciteBody": "Recite out loud: the app listens and colours each word as you go. Green means the word is right; orange or red means it deserves another look.",
   "onboardingReciteHint": "Drawing a blank? The prompter plays the expected word for you, no judgement.",
   "onboardingMemorizeTitle": "Memorisation training",
@@ -976,7 +976,7 @@
   "preparationRiwayaWarshNote": "The tajwid mode is not yet trained on the rules specific to Warsh: its colours follow those of Ḥafṣ. Reading the mushaf and word correction work as usual.",
   "preparationEssaisTitre": "Try it right away",
   "preparationEssaisSous": "On a few verses — a few minutes. You can come back later.",
-  "preparationEssaiReciter": "Recite and be corrected",
+  "preparationEssaiReciter": "Recite with feedback",
   "preparationEssaiReciterSous": "Recite; the app listens and colours each word",
   "preparationEssaiTajwid": "Tajwid mode",
   "preparationEssaiTajwidSous": "It listens only for the tajwid rules",
@@ -989,7 +989,7 @@
   "preparationEssaiLireSous": "The text, the translation, the recitation",
   "preparationEssaisNote": "The microphone is only requested if you choose to recite.",
   "preparationConsigneTajwid": "Recite while applying the tajwid rules. Green: every expected rule was made. Violet: an expected rule was not observed. No colour: this word carries no rule.",
-  "preparationConsigneReciter": "Recite normally, changing nothing in your reading — the AI checks behind you. Green: the word is right. Orange: approximate articulation. Red: a difference heard.",
+  "preparationConsigneReciter": "Recite aloud at your usual pace. The app listens to your recitation and colours words to help you review them.\n\nGreen: a word the app recognised as correct. Orange: pronunciation to check. Red: a difference detected by the app.\n\nThe app can make mistakes in its assessment; ask a teacher when in doubt.",
   "preparationConsigneMemoriser": "Listen to the passage, repeat it aloud. The step grows with each success, up to the whole verse.",
   "preparationConsigneLire": "Scroll the text, tap a verse to listen to it, long-press to open its menu."
 }

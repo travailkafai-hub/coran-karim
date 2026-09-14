@@ -2528,7 +2528,7 @@
   "@onboardingReadHint": {
     "description": "Astuce page 2"
   },
-  "onboardingReciteTitle": "Réciter et être corrigé",
+  "onboardingReciteTitle": "Réciter avec correction",
   "@onboardingReciteTitle": {
     "description": "Titre page 3"
   },
@@ -3819,7 +3819,7 @@
   "@preparationEssaisSous": {
     "description": "Etape « Essayer » de la preparation"
   },
-  "preparationEssaiReciter": "Réciter et être corrigé",
+  "preparationEssaiReciter": "Réciter avec correction",
   "@preparationEssaiReciter": {
     "description": "Etape « Essayer » de la preparation"
   },
@@ -3865,7 +3865,7 @@
   "@preparationConsigneTajwid": {
     "description": "Consigne de l'etape Essayer : ce qu'il faut faire"
   },
-  "preparationConsigneReciter": "Récite normalement, sans rien changer à ta lecture — l'IA contrôle derrière toi. Vert : le mot est juste. Orange : articulation approximative. Rouge : écart entendu.",
+  "preparationConsigneReciter": "Récite à voix haute, à ton rythme habituel. L’application écoute ta récitation et colore les mots pour t’aider à les revoir.\n\nVert : mot reconnu comme correct par l’application. Orange : prononciation à vérifier. Rouge : écart détecté par l’application.\n\nL’application peut se tromper dans son évaluation ; en cas de doute, demande à un enseignant.",
   "@preparationConsigneReciter": {
     "description": "Consigne de l'etape Essayer : ce qu'il faut faire"
   },
