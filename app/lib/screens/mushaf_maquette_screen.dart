@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -53,11 +54,14 @@ import '../widgets/tajweed_text.dart';
 class MushafMaquetteScreen extends ConsumerStatefulWidget {
   final int pageInitiale;
   final SystemUiMode modeSystemeAuRetour;
+  // ChGPT: the tutorial may turn pages, never replace the user's reading position.
+  final bool apercuGuide;
 
   const MushafMaquetteScreen({
     super.key,
     this.pageInitiale = 1,
     this.modeSystemeAuRetour = SystemUiMode.edgeToEdge,
+    this.apercuGuide = false,
   });
 
   @override
@@ -395,6 +399,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
   Verse? _premierVersetPage;
 
   Future<void> _chargerPremierVerset() async {
+    if (!mounted) return;
     final page = _pageLue;
     final warsh = ref.read(riwayaProvider) == Riwaya.warsh;
     try {
@@ -405,7 +410,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
       // d'une page qu'on ne regarde plus.
       if (!mounted || page != _pageLue) return;
       setState(() => _premierVersetPage = v.isEmpty ? null : v.first);
-      if (v.isNotEmpty) {
+      if (v.isNotEmpty && !widget.apercuGuide) {
         // ChGPT: persist the actual paper page without changing verse IDs,
         // manual bookmarks, or the ASR's Hafs/Warsh numbering.
         final position = await lireDernierePositionLecture();
@@ -444,6 +449,20 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
   /// gratuit sur un rapide.
   bool _tailleStable = false;
 
+  @override
+  void didUpdateWidget(covariant MushafMaquetteScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.apercuGuide && oldWidget.pageInitiale != widget.pageInitiale) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_ctrl.hasClients) return;
+        _ctrl.animateToPage(widget.pageInitiale.clamp(1, _kPages) - 1,
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero : const Duration(milliseconds: 650),
+          curve: Curves.easeInOut);
+      });
+    }
+  }
+
   /// Une police vient d'arriver : la page doit se remesurer.
   ///
   /// Sans cela, la taille reste celle calculee sur la police de SECOURS --
@@ -469,7 +488,9 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     // Plein écran : ni barre d'état ni boutons système. `immersiveSticky` les
     // ramène brièvement sur un balayage depuis le bord puis les re-masque --
     // le geste de feuilletage n'est donc jamais confisqué par le système.
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    if (!widget.apercuGuide) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
     // Deux images : la premiere porte encore l'ancienne taille, la seconde la
     // nouvelle. On peint a partir de la.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -512,7 +533,9 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     // système après un passage par la maquette.
     // ChGPT: the normal reader is also immersive. Restoring edgeToEdge
     // unconditionally changed its insets underneath the return animation.
-    SystemChrome.setEnabledSystemUIMode(widget.modeSystemeAuRetour);
+    if (!widget.apercuGuide) {
+      SystemChrome.setEnabledSystemUIMode(widget.modeSystemeAuRetour);
+    }
     // Remettre le verrou de `main.dart`, sinon tout le reste de l'app
     // devient rotatif après un simple passage par cet écran -- exactement le
     // même piège que les barres système ci-dessus.
@@ -606,6 +629,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
       body: Stack(
         children: [
           PageView.builder(
+            key: const ValueKey('guide.paper.page'),
         controller: _ctrl,
         // ── LE SENS DE LA TOURNE NE DEPEND PAS DE LA LANGUE (2026-09-13) ──
         //
@@ -674,7 +698,10 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
         // veut un texte plus grand a le sélecteur d'écriture (appui long) et le
         // format lui-même, qui répond en tournant moins de lignes par page.
         itemBuilder: (context, i) => MediaQuery.withNoTextScaling(
-          child: _PageMushaf(
+          child: _FeuilleQuiTourne(
+            controleur: _ctrl,
+            index: i,
+            child: _PageMushaf(
           page: i + 1,
           foreground: i + 1 == _pageLue,
           sombre: sombre,
@@ -683,15 +710,23 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
           ecriture: ecriture,
           tajwid: tajwid,
           cleVersetJoue: cleVersetJoue,
+          // ── LE GESTE DURE, SINON ON NE VOIT RIEN (2026-09-14) ───────
+          // 260 ms : constat utilisateur, « ça se fait rapidement, on n'a pas
+          // l'impression que ça tourne ». Une feuille de papier met environ
+          // une demi-seconde à passer ; en dessous, l'œil enregistre un
+          // changement d'image, pas un mouvement. `easeInOut` plutôt que
+          // `easeOutCubic` : une feuille part doucement, accélère au milieu,
+          // et se pose — elle ne démarre pas à pleine vitesse.
           onTap: () => _ctrl.nextPage(
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOutCubic,
+            duration: const Duration(milliseconds: 820),
+            curve: Curves.easeInOut,
           ),
           // Raccourci : la meme feuille que dans les Reglages, pour
           // comparer deux ecritures sans quitter la page.
           onLongPress: () =>
               ouvrirChoixEcriture(context, ref, sombre: sombre),
         ),
+          ),
         ),
       ),
           // Poses APRES la page dans le Stack : ils flottent au-dessus d'elle,
@@ -717,6 +752,7 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
                 color: fondRond,
                 shape: const CircleBorder(),
                 child: IconButton(
+                  key: const ValueKey('guide.paper.bookmark'),
                   tooltip: estMarquee
                       ? AppLocalizations.of(context)!.mushafBookmarkRemove
                       : AppLocalizations.of(context)!.mushafBookmarkHere,
@@ -2120,5 +2156,130 @@ class _PageMushaf extends StatelessWidget {
   String _chiffresArabes(int n) {
     const chiffres = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
     return n.toString().split('').map((c) => chiffres[int.parse(c)]).join();
+  }
+}
+
+/// La page se TOURNE au lieu de glisser (2026-09-14, demande utilisateur).
+///
+/// ── CE QUI EST DEMANDÉ, ET CE QUI NE L'EST PAS ──────────────────────────────
+///
+/// « pour les pages mushaf papier je veux simuler tourner une page : on lit
+/// page 1 puis 2, puis au clic elle simule une page tournée ».
+///
+/// La LECTURE ne change pas : une page après l'autre, 1 puis 2 puis 3. Aucun
+/// numéro n'est sauté, aucune double page n'est introduite — c'est uniquement
+/// le MOUVEMENT qui change. Le `PageView` faisait glisser la page sur le côté,
+/// comme un écran ; une feuille de papier, elle, pivote autour de sa reliure.
+///
+/// ── COMMENT ─────────────────────────────────────────────────────────────────
+///
+/// Le `PageView` translate déjà les pages : sans rien faire, la feuille
+/// glisserait ET pivoterait. On ANNULE donc d'abord sa translation
+/// (`translate` de `delta * largeur`), puis on applique la rotation — la
+/// feuille reste ainsi en place et se soulève, au lieu de s'en aller.
+///
+/// `setEntry(3, 2, …)` est le terme de perspective : sans lui, la rotation est
+/// une simple compression horizontale, et l'œil n'y voit pas du papier.
+///
+/// SEULE LA FEUILLE QU'ON SOULÈVE BOUGE (`delta` entre 0 et 1). Celle qui
+/// arrive est dessous et reste immobile : c'est ce qui distingue un livre d'un
+/// carrousel — dans un livre, la page suivante ne se déplace jamais, elle est
+/// simplement découverte.
+/// Inclinaison maximale de la feuille. Volontairement SOUS 90° : à 90° la page
+/// est vue par la tranche et disparaît d'un coup (le « flash » signalé le
+/// 2026-09-14), au-delà elle montrerait son dos.
+const double _kAngleMax = 78 * math.pi / 180;
+
+/// Part du mouvement après laquelle la feuille commence à s'effacer. Elle sort
+/// ainsi du champ en étant encore inclinée, au lieu de s'évanouir à plat.
+const double _kDebutFondu = 0.55;
+
+class _FeuilleQuiTourne extends StatelessWidget {
+  final PageController controleur;
+  final int index;
+  final Widget child;
+
+  const _FeuilleQuiTourne({
+    required this.controleur,
+    required this.index,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controleur,
+      child: child,
+      builder: (context, enfant) {
+        var delta = 0.0;
+        if (controleur.hasClients && controleur.position.haveDimensions) {
+          delta = (controleur.page ?? index.toDouble()) - index;
+        }
+        // Hors du mouvement en cours : rien à transformer. Ce raccourci évite
+        // aussi de payer une matrice sur les 604 pages à chaque frame.
+        if (delta <= 0 || delta > 1) return enfant!;
+
+        final largeur = MediaQuery.sizeOf(context).width;
+        // Le `PageView` tourne dans le sens du mushaf, qu'il soit en `reverse`
+        // ou porté par une `Directionality` arabe (cf. le long commentaire sur
+        // `reverse:` plus haut) : la compensation suit donc le même sens que
+        // lui, sinon la feuille partirait du mauvais bord.
+        final versLaGauche = Directionality.of(context) == TextDirection.ltr;
+        final signe = versLaGauche ? 1.0 : -1.0;
+
+        // ── POURQUOI ON NE VA PAS JUSQU'À 90° ────────────────────────────
+        //
+        // Constat utilisateur : « ça fait un flash ». C'en était la cause
+        // exacte. À 90°, une surface plane est vue par la TRANCHE : elle
+        // disparaît d'un coup, et au-delà on verrait son dos — c'est-à-dire le
+        // même texte en miroir. La feuille semblait donc s'évanouir au lieu de
+        // se tourner.
+        //
+        // On s'arrête à 78° et on éteint la feuille sur la fin : elle sort du
+        // champ pendant qu'elle est encore inclinée, comme une page qui passe
+        // devant l'œil. `_kAngleMax` et `_kDebutFondu` sont les deux seules
+        // valeurs à toucher pour régler le rendu.
+        final angle = delta * _kAngleMax;
+        final opacite = delta <= _kDebutFondu
+            ? 1.0
+            : (1 - (delta - _kDebutFondu) / (1 - _kDebutFondu)).clamp(0.0, 1.0);
+
+        final matrice = Matrix4.identity()
+          ..translate(delta * largeur * signe)
+          ..setEntry(3, 2, 0.0012)
+          ..rotateY(versLaGauche ? -angle : angle);
+
+        return Transform(
+          // La reliure : le bord autour duquel la feuille pivote.
+          alignment:
+              versLaGauche ? Alignment.centerLeft : Alignment.centerRight,
+          transform: matrice,
+          child: Opacity(
+            opacity: opacite,
+            child: DecoratedBox(
+              // L'ombre du volume : le bord qui se soulève s'assombrit, et
+              // c'est ce dégradé qui donne l'épaisseur. Sans lui, la feuille
+              // reste une image plate qu'on incline.
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: versLaGauche
+                      ? Alignment.centerLeft
+                      : Alignment.centerRight,
+                  end: versLaGauche
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.28 * delta),
+                    Colors.black.withValues(alpha: 0.02 * delta),
+                  ],
+                ),
+              ),
+              position: DecorationPosition.foreground,
+              child: enfant,
+            ),
+          ),
+        );
+      },
+    );
   }
 }
