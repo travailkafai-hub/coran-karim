@@ -100,6 +100,90 @@ abstract class AppLocalizations {
     Locale('fr'),
   ];
 
+  /// No description provided for @preparationCommencerTest.
+  ///
+  /// In fr, this message translates to:
+  /// **'Commencer le test'**
+  String get preparationCommencerTest;
+
+  /// No description provided for @preparationFermerExplication.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fermer l’explication'**
+  String get preparationFermerExplication;
+
+  /// No description provided for @preparationEssaiErreur.
+  ///
+  /// In fr, this message translates to:
+  /// **'Impossible d’ouvrir cet essai. Réessaie dans un instant.'**
+  String get preparationEssaiErreur;
+
+  /// No description provided for @preparationEssaiMushaf.
+  ///
+  /// In fr, this message translates to:
+  /// **'Lecture Mushaf'**
+  String get preparationEssaiMushaf;
+
+  /// No description provided for @preparationEssaiMushafSous.
+  ///
+  /// In fr, this message translates to:
+  /// **'Le Coran en pages, comme un Mushaf papier'**
+  String get preparationEssaiMushafSous;
+
+  /// No description provided for @preparationConsigneMushaf.
+  ///
+  /// In fr, this message translates to:
+  /// **'Le Mushaf papier s’ouvre en plein écran, dans la lecture choisie : Hafs ou Warsh.\n\nTouche la page pour avancer, ou balaie de gauche à droite. Lis la page de droite, puis celle de gauche : l’effet de feuillet revient après les deux pages. Le geste inverse permet de revenir.\n\nLe signet en haut permet de marquer ta page. Un appui long ouvre le choix d’écriture. La flèche de retour ramène aux essais.'**
+  String get preparationConsigneMushaf;
+
+  /// No description provided for @preparationEnfantTitre.
+  ///
+  /// In fr, this message translates to:
+  /// **'Apprendre avec mon enfant'**
+  String get preparationEnfantTitre;
+
+  /// No description provided for @preparationEnfantSous.
+  ///
+  /// In fr, this message translates to:
+  /// **'De petits passages, un moment à partager.'**
+  String get preparationEnfantSous;
+
+  /// No description provided for @preparationEssaiEnfant.
+  ///
+  /// In fr, this message translates to:
+  /// **'Mode enfant'**
+  String get preparationEssaiEnfant;
+
+  /// No description provided for @preparationEssaiEnfantSous.
+  ///
+  /// In fr, this message translates to:
+  /// **'Écouter, répéter et avancer ensemble'**
+  String get preparationEssaiEnfantSous;
+
+  /// No description provided for @preparationEnfantEcouter.
+  ///
+  /// In fr, this message translates to:
+  /// **'Écouter'**
+  String get preparationEnfantEcouter;
+
+  /// No description provided for @preparationEnfantRepeter.
+  ///
+  /// In fr, this message translates to:
+  /// **'Répéter'**
+  String get preparationEnfantRepeter;
+
+  /// No description provided for @preparationEnfantAccompagner.
+  ///
+  /// In fr, this message translates to:
+  /// **'Accompagner'**
+  String get preparationEnfantAccompagner;
+
+  /// No description provided for @preparationConsigneEnfant.
+  ///
+  /// In fr, this message translates to:
+  /// **'Installe-toi avec ton enfant pour essayer Al-Ikhlâs, une sourate courte.\n\nL’entraînement propose de petits groupes de deux mots. Ton enfant écoute puis répète à voix haute ; le passage s’allonge progressivement. Prenez le temps de réécouter quand c’est nécessaire.\n\nLe mode enfant existant est activé pour cet essai seulement. À la sortie, tes réglages précédents sont rétablis.\n\nLes indications de l’IA peuvent se tromper : accompagne ton enfant et fais confirmer les difficultés par un enseignant. Le micro n’est utilisé que lorsque la récitation est lancée.'**
+  String get preparationConsigneEnfant;
+
   /// Onglet de navigation principal : lecture du Coran
   ///
   /// In fr, this message translates to:
@@ -3430,7 +3514,7 @@ abstract class AppLocalizations {
   /// Titre de l'écran de dua
   ///
   /// In fr, this message translates to:
-  /// **'Une invocation'**
+  /// **'Invocations & partage'**
   String get duaPourNousTitle;
 
   /// Introduction de l'écran de dua
@@ -3504,6 +3588,12 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Partager l\'application'**
   String get duaPourNousShare;
+
+  /// Trois arguments courts sous le bouton de partage (2026-09-14) : ce sont les raisons qu'on donne EN PARTAGEANT. Reprend mot pour mot la formulation deja validee dans onboardingPrivacyBody -- ne pas inventer une variante.
+  ///
+  /// In fr, this message translates to:
+  /// **'Aucune publicité · Aucun compte · Aucun traceur'**
+  String get duaPourNousArguments;
 
   /// Texte proposé au partage
   ///
@@ -4464,6 +4554,18 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Commencer'**
   String get preparationCommencer;
+
+  /// Dernier bouton de la preparation (2026-09-14). Etait "Commencer" : le mot promettait un depart alors que le bouton FERME la preparation. L'etape "Mode enfant" est sortie du parcours le meme jour -- le mode enfant se choisit desormais dans la fenetre de l'entrainement -- donc l'essai est la derniere etape et ce bouton la termine.
+  ///
+  /// In fr, this message translates to:
+  /// **'Fin'**
+  String get preparationFin;
+
+  /// Sous-titre de l'etape Recitateur de la preparation (2026-09-14). La liste est filtree par riwaya : en Warsh, seules les voix Warsh apparaissent.
+  ///
+  /// In fr, this message translates to:
+  /// **'Touche une voix pour l\'écouter sur les deux premiers versets d\'Al-Baqara. C\'est elle que tu entendras en lisant, et sur chaque mot corrigé.'**
+  String get preparationReciteurSous;
 
   /// Bouton du guide interactif : arreter la decouverte guidee
   ///

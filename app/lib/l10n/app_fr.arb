@@ -1,5 +1,19 @@
 {
   "@@locale": "fr",
+  "preparationCommencerTest": "Commencer le test",
+  "preparationFermerExplication": "Fermer l’explication",
+  "preparationEssaiErreur": "Impossible d’ouvrir cet essai. Réessaie dans un instant.",
+  "preparationEssaiMushaf": "Lecture Mushaf",
+  "preparationEssaiMushafSous": "Le Coran en pages, comme un Mushaf papier",
+  "preparationConsigneMushaf": "Le Mushaf papier s’ouvre en plein écran, dans la lecture choisie : Hafs ou Warsh.\n\nTouche la page pour avancer, ou balaie de gauche à droite. Lis la page de droite, puis celle de gauche : l’effet de feuillet revient après les deux pages. Le geste inverse permet de revenir.\n\nLe signet en haut permet de marquer ta page. Un appui long ouvre le choix d’écriture. La flèche de retour ramène aux essais.",
+  "preparationEnfantTitre": "Apprendre avec mon enfant",
+  "preparationEnfantSous": "De petits passages, un moment à partager.",
+  "preparationEssaiEnfant": "Mode enfant",
+  "preparationEssaiEnfantSous": "Écouter, répéter et avancer ensemble",
+  "preparationEnfantEcouter": "Écouter",
+  "preparationEnfantRepeter": "Répéter",
+  "preparationEnfantAccompagner": "Accompagner",
+  "preparationConsigneEnfant": "Installe-toi avec ton enfant pour essayer Al-Ikhlâs, une sourate courte.\n\nL’entraînement propose de petits groupes de deux mots. Ton enfant écoute puis répète à voix haute ; le passage s’allonge progressivement. Prenez le temps de réécouter quand c’est nécessaire.\n\nLe mode enfant existant est activé pour cet essai seulement. À la sortie, tes réglages précédents sont rétablis.\n\nLes indications de l’IA peuvent se tromper : accompagne ton enfant et fais confirmer les difficultés par un enseignant. Le micro n’est utilisé que lorsque la récitation est lancée.",
   "navQuran": "Coran",
   "@navQuran": {
     "description": "Onglet de navigation principal : lecture du Coran"
@@ -2574,7 +2588,7 @@
   "@duaPourNousTileSubtitle": {
     "description": "Sous-titre de la tuile"
   },
-  "duaPourNousTitle": "Une invocation",
+  "duaPourNousTitle": "Invocations & partage",
   "@duaPourNousTitle": {
     "description": "Titre de l'écran de dua"
   },
@@ -2620,6 +2634,10 @@
   },
   "duaPourNousHassanatBody": "Partagez l'application autour de vous : chaque personne qui l'utilise pour lire ou mémoriser le Coran, c'est une part de récompense qui vous revient, in shâ' Allah.",
   "duaPourNousShare": "Partager l'application",
+  "duaPourNousArguments": "Aucune publicité · Aucun compte · Aucun traceur",
+  "@duaPourNousArguments": {
+    "description": "Trois arguments courts sous le bouton de partage (2026-09-14) : ce sont les raisons qu'on donne EN PARTAGEANT. Reprend mot pour mot la formulation deja validee dans onboardingPrivacyBody -- ne pas inventer une variante."
+  },
   "@duaPourNousShare": {
     "description": "Bouton de partage sur l'écran de dua"
   },
@@ -3442,6 +3460,14 @@
     "description": "Bouton : etape suivante"
   },
   "preparationCommencer": "Commencer",
+  "preparationFin": "Fin",
+  "preparationReciteurSous": "Touche une voix pour l'écouter sur les deux premiers versets d'Al-Baqara. C'est elle que tu entendras en lisant, et sur chaque mot corrigé.",
+  "@preparationReciteurSous": {
+    "description": "Sous-titre de l'etape Recitateur de la preparation (2026-09-14). La liste est filtree par riwaya : en Warsh, seules les voix Warsh apparaissent."
+  },
+  "@preparationFin": {
+    "description": "Dernier bouton de la preparation (2026-09-14). Etait \"Commencer\" : le mot promettait un depart alors que le bouton FERME la preparation. L'etape \"Mode enfant\" est sortie du parcours le meme jour -- le mode enfant se choisit desormais dans la fenetre de l'entrainement -- donc l'essai est la derniere etape et ce bouton la termine."
+  },
   "@preparationCommencer": {
     "description": "Bouton de la derniere etape : entrer dans l'application"
   },

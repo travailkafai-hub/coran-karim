@@ -9,6 +9,51 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get preparationCommencerTest => 'ابدأ التجربة';
+
+  @override
+  String get preparationFermerExplication => 'إغلاق الشرح';
+
+  @override
+  String get preparationEssaiErreur =>
+      'تعذر فتح التجربة. حاول مجددًا بعد قليل.';
+
+  @override
+  String get preparationEssaiMushaf => 'قراءة المصحف';
+
+  @override
+  String get preparationEssaiMushafSous => 'صفحات القرآن كما في المصحف الورقي';
+
+  @override
+  String get preparationConsigneMushaf =>
+      'يفتح المصحف الورقي بملء الشاشة حسب الرواية المختارة: حفص أو ورش.\n\nالمس الصفحة للتقدم أو اسحب من اليسار إلى اليمين. اقرأ الصفحة اليمنى ثم اليسرى؛ يظهر تأثير تقليب الورقة بعد قراءة الصفحتين. اسحب في الاتجاه المعاكس للرجوع.\n\nتتيح العلامة أعلى الشاشة حفظ موضع الصفحة. اضغط مطولًا لاختيار الخط. يعيدك سهم الرجوع إلى التجارب.';
+
+  @override
+  String get preparationEnfantTitre => 'تعلّم مع طفلك';
+
+  @override
+  String get preparationEnfantSous => 'مقاطع صغيرة ولحظات تتشاركانها.';
+
+  @override
+  String get preparationEssaiEnfant => 'وضع الطفل';
+
+  @override
+  String get preparationEssaiEnfantSous => 'استمعا وردّدا وتقدّما معًا';
+
+  @override
+  String get preparationEnfantEcouter => 'الاستماع';
+
+  @override
+  String get preparationEnfantRepeter => 'الترديد';
+
+  @override
+  String get preparationEnfantAccompagner => 'المرافقة';
+
+  @override
+  String get preparationConsigneEnfant =>
+      'اجلس مع طفلك لتجربة سورة الإخلاص، وهي سورة قصيرة.\n\nيقدّم التدريب مجموعات صغيرة من كلمتين. يستمع طفلك ثم يردّد بصوت مسموع، ويزداد المقطع تدريجيًا. خذا الوقت لإعادة الاستماع عند الحاجة.\n\nيُفعّل وضع الطفل الموجود في التطبيق لهذه التجربة فقط، وتُستعاد إعداداتك السابقة عند الخروج.\n\nقد تخطئ ملاحظات الذكاء الاصطناعي؛ رافق طفلك واستعن بمعلّم عند وجود صعوبات. لا يُستخدم الميكروفون إلا عند بدء التلاوة.';
+
+  @override
   String get navQuran => 'القرآن';
 
   @override
@@ -1963,13 +2008,13 @@ class AppLocalizationsAr extends AppLocalizations {
       'تُحلَّل تلاوتك على الجهاز ولا تُرسل إلى أي مكان. لا حساب، ولا إعلانات، ولا متتبّعات. ولا تُستخدم الشبكة إلا لتنزيل التلاوات التي تطلبها.';
 
   @override
-  String get duaPourNousTileTitle => 'دعوة لنا';
+  String get duaPourNousTileTitle => 'ادعُ لنا';
 
   @override
   String get duaPourNousTileSubtitle => 'هذا التطبيق مجاني وبلا إعلانات';
 
   @override
-  String get duaPourNousTitle => 'دعوة';
+  String get duaPourNousTitle => 'الدعاء ونشر التطبيق';
 
   @override
   String get duaPourNousIntro =>
@@ -2008,10 +2053,13 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get duaPourNousHassanatBody =>
-      'شارِك التطبيق مع من حولك: كل من يستعمله لقراءة القرآن أو حفظه فلك نصيب من أجره، إن شاء الله.';
+      'انشُر التطبيق بين من حولك: كل من يستعمله لقراءة القرآن أو حفظه فلك نصيب من أجره، إن شاء الله.';
 
   @override
-  String get duaPourNousShare => 'مشاركة التطبيق';
+  String get duaPourNousShare => 'انشُر التطبيق';
+
+  @override
+  String get duaPourNousArguments => 'بلا إعلانات · بلا حساب · بلا تتبّع';
 
   @override
   String get duaPourNousShareText =>
@@ -2656,6 +2704,13 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get preparationCommencer => 'ابدأ';
+
+  @override
+  String get preparationFin => 'إنهاء';
+
+  @override
+  String get preparationReciteurSous =>
+      'المس صوتًا لتسمعه في أول آيتين من سورة البقرة. وهو الصوت الذي تسمعه أثناء القراءة، وعند تصحيح كل كلمة.';
 
   @override
   String get guidePasser => 'تخطي الدليل';

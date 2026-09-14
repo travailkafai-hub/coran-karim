@@ -9,6 +9,54 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
+  String get preparationCommencerTest => 'Commencer le test';
+
+  @override
+  String get preparationFermerExplication => 'Fermer l’explication';
+
+  @override
+  String get preparationEssaiErreur =>
+      'Impossible d’ouvrir cet essai. Réessaie dans un instant.';
+
+  @override
+  String get preparationEssaiMushaf => 'Lecture Mushaf';
+
+  @override
+  String get preparationEssaiMushafSous =>
+      'Le Coran en pages, comme un Mushaf papier';
+
+  @override
+  String get preparationConsigneMushaf =>
+      'Le Mushaf papier s’ouvre en plein écran, dans la lecture choisie : Hafs ou Warsh.\n\nTouche la page pour avancer, ou balaie de gauche à droite. Lis la page de droite, puis celle de gauche : l’effet de feuillet revient après les deux pages. Le geste inverse permet de revenir.\n\nLe signet en haut permet de marquer ta page. Un appui long ouvre le choix d’écriture. La flèche de retour ramène aux essais.';
+
+  @override
+  String get preparationEnfantTitre => 'Apprendre avec mon enfant';
+
+  @override
+  String get preparationEnfantSous =>
+      'De petits passages, un moment à partager.';
+
+  @override
+  String get preparationEssaiEnfant => 'Mode enfant';
+
+  @override
+  String get preparationEssaiEnfantSous =>
+      'Écouter, répéter et avancer ensemble';
+
+  @override
+  String get preparationEnfantEcouter => 'Écouter';
+
+  @override
+  String get preparationEnfantRepeter => 'Répéter';
+
+  @override
+  String get preparationEnfantAccompagner => 'Accompagner';
+
+  @override
+  String get preparationConsigneEnfant =>
+      'Installe-toi avec ton enfant pour essayer Al-Ikhlâs, une sourate courte.\n\nL’entraînement propose de petits groupes de deux mots. Ton enfant écoute puis répète à voix haute ; le passage s’allonge progressivement. Prenez le temps de réécouter quand c’est nécessaire.\n\nLe mode enfant existant est activé pour cet essai seulement. À la sortie, tes réglages précédents sont rétablis.\n\nLes indications de l’IA peuvent se tromper : accompagne ton enfant et fais confirmer les difficultés par un enseignant. Le micro n’est utilisé que lorsque la récitation est lancée.';
+
+  @override
   String get navQuran => 'Coran';
 
   @override
@@ -2070,7 +2118,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Cette application est offerte, sans publicité';
 
   @override
-  String get duaPourNousTitle => 'Une invocation';
+  String get duaPourNousTitle => 'Invocations & partage';
 
   @override
   String get duaPourNousIntro =>
@@ -2114,6 +2162,10 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get duaPourNousShare => 'Partager l\'application';
+
+  @override
+  String get duaPourNousArguments =>
+      'Aucune publicité · Aucun compte · Aucun traceur';
 
   @override
   String get duaPourNousShareText =>
@@ -2762,6 +2814,13 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get preparationCommencer => 'Commencer';
+
+  @override
+  String get preparationFin => 'Fin';
+
+  @override
+  String get preparationReciteurSous =>
+      'Touche une voix pour l\'écouter sur les deux premiers versets d\'Al-Baqara. C\'est elle que tu entendras en lisant, et sur chaque mot corrigé.';
 
   @override
   String get guidePasser => 'Passer le guide';

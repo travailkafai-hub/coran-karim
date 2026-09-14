@@ -9,6 +9,52 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get preparationCommencerTest => 'Start the trial';
+
+  @override
+  String get preparationFermerExplication => 'Close explanation';
+
+  @override
+  String get preparationEssaiErreur =>
+      'Unable to open this trial. Please try again shortly.';
+
+  @override
+  String get preparationEssaiMushaf => 'Read the Mushaf';
+
+  @override
+  String get preparationEssaiMushafSous => 'Quran pages, like a printed Mushaf';
+
+  @override
+  String get preparationConsigneMushaf =>
+      'The paper Mushaf opens full screen in your chosen reading: Hafs or Warsh.\n\nTap the page to advance, or swipe from left to right. Read the right-hand page, then the left-hand page: the leaf-turn effect returns after both pages. Swipe the other way to go back.\n\nUse the bookmark at the top to mark your page. Long press to choose the script. The back arrow returns to the trials.';
+
+  @override
+  String get preparationEnfantTitre => 'Learn with your child';
+
+  @override
+  String get preparationEnfantSous => 'Small passages, a moment to share.';
+
+  @override
+  String get preparationEssaiEnfant => 'Child mode';
+
+  @override
+  String get preparationEssaiEnfantSous =>
+      'Listen, repeat and progress together';
+
+  @override
+  String get preparationEnfantEcouter => 'Listen';
+
+  @override
+  String get preparationEnfantRepeter => 'Repeat';
+
+  @override
+  String get preparationEnfantAccompagner => 'Support';
+
+  @override
+  String get preparationConsigneEnfant =>
+      'Sit with your child to try Al-Ikhlas, a short surah.\n\nPractice uses small groups of two words. Your child listens, then repeats aloud; the passage grows gradually. Take time to listen again when needed.\n\nThe existing child mode is enabled only for this trial. Your previous settings are restored when you leave.\n\nAI feedback can be mistaken: support your child and ask a teacher about difficulties. The microphone is used only when recitation starts.';
+
+  @override
   String get navQuran => 'Quran';
 
   @override
@@ -2050,7 +2096,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'This application is given freely, with no ads';
 
   @override
-  String get duaPourNousTitle => 'A supplication';
+  String get duaPourNousTitle => 'Supplications & sharing';
 
   @override
   String get duaPourNousIntro =>
@@ -2094,6 +2140,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get duaPourNousShare => 'Share the application';
+
+  @override
+  String get duaPourNousArguments => 'No ads · No account · No trackers';
 
   @override
   String get duaPourNousShareText =>
@@ -2742,6 +2791,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get preparationCommencer => 'Start';
+
+  @override
+  String get preparationFin => 'Done';
+
+  @override
+  String get preparationReciteurSous =>
+      'Tap a voice to hear it on the first two verses of Al-Baqara. It is the voice you will hear while reading, and on every corrected word.';
 
   @override
   String get guidePasser => 'Skip the guide';
