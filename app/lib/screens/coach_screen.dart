@@ -767,6 +767,15 @@ class _ControleModeState extends ConsumerState<_ControleMode>
   /// Un écran ne décide que sur SA session.
   bool _controleLance = false;
 
+  /// Le recitateur a-t-il parle au moins une fois depuis le debut de ce
+  /// controle ? Meme garde que le palier, pour la meme raison mesuree le
+  /// 2026-09-14 sur الٓمٓ : sur une fenetre d'UN SEUL mot, « dernier mot
+  /// atteint » est vrai des l'ouverture du micro (l'ancre y est deja), et le
+  /// tour se coupait au bout de 800 ms de silence -- le temps normal que prend
+  /// un humain pour commencer. On ne peut pas avoir FINI sans avoir COMMENCE.
+  /// Cf. `_aParle` dans `coach_incremental_repeat.dart` pour le journal chiffre.
+  bool _aParle = false;
+
   StreamSubscription<int>? _wordLockedSub;
 
   /// ── ARRÊT AUTOMATIQUE DE L'ENREGISTREMENT (2026-08-27) ───────────────────
@@ -851,6 +860,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
           _fingerprintChecked = false;
           _fingerprintScore = null;
           _controleLance = true;
+          _aParle = false;
         });
         n.startControle();
       }
@@ -1057,7 +1067,9 @@ class _ControleModeState extends ConsumerState<_ControleMode>
       }
       final dernier = next.words.isEmpty ? null : next.words.last;
       final finAtteinte = dernier != null && dernier.status != WordStatus.pending;
-      if (finAtteinte && next.soundLevel < _seuilSilence) {
+      // On ne peut pas avoir FINI sans avoir COMMENCE (cf. `_aParle`).
+      if (next.soundLevel >= _seuilSilence) _aParle = true;
+      if (finAtteinte && _aParle && next.soundLevel < _seuilSilence) {
         // `??=` : ne pas ré-armer à chaque bloc PCM, sinon le minuteur repart
         // de zéro en permanence et n'échoit jamais.
         _finAuto ??= Timer(_delaiSilence, () {
@@ -1227,6 +1239,7 @@ class _ControleModeState extends ConsumerState<_ControleMode>
                   _fingerprintChecked = false;
                   _fingerprintScore = null;
                   _controleLance = true;
+                  _aParle = false;
                 });
                 n.startControle();
               }
