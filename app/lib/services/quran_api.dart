@@ -31,6 +31,22 @@ import 'diagnostic_log.dart';
   return (bySurah, byPage);
 }
 
+// ChGPT: Warsh paper data has a separate decoder and never rewrites Hafs indexes.
+(Map<int, List<Verse>>, Map<int, int>) _decoderMushafWarsh(Uint8List octets) {
+  final raw = json.decode(utf8.decode(octets)) as List;
+  final byPage = <int, List<Verse>>{};
+  final counts = <int, int>{};
+  for (final item in raw) {
+    final verse = QuranApi.parseVersePourIsolate(item as Map<String, dynamic>);
+    byPage.putIfAbsent(verse.pageNumber!, () => []).add(verse);
+    if (verse.ayahNumber > 0 &&
+        verse.ayahNumber > (counts[verse.surahNumber] ?? 0)) {
+      counts[verse.surahNumber] = verse.ayahNumber;
+    }
+  }
+  return (byPage, counts);
+}
+
 /// Texte du Coran (chapitres, versets, tajweed, traduction fr) -- 100%
 /// LOCAL depuis le 2026-07-19 (`assets/data/quran_{chapters,verses}.json`,
 /// générés une fois par `benchmark/fetch_quran_full_local.py`, 8 Mo au
@@ -361,6 +377,7 @@ class QuranApi {
   }
 
   static Map<int, List<Verse>>? _warshMushafByPage;
+  static Future<void>? _warshMushafLoading;
   static Map<int, int>? _warshMushafVerseCounts;
 
   static int? warshMushafVerseCount(int surahNumber) =>
@@ -376,43 +393,32 @@ class QuranApi {
     // normal, mais pas lors d'un lancement direct du banc de capture.
     await _ensureLoaded();
     if (_warshMushafByPage == null) {
-      // Instrumentation jumelle de celle de `_ensureLoaded` (2026-09-13).
-      // ⚠️ CE CHEMIN PAIE LES DEUX : le `_ensureLoaded()` juste au-dessus a
-      // deja decode l'integralite du Coran Hafs (6,67 Mo), et on enchaine ici
-      // sur les 2,0 Mo du Mushaf Warsh. Sans ces deux chronometres cote a
-      // cote, impossible de savoir lequel des deux domine -- et la branche
-      // `chantier-warsh` est precisement celle ou l'utilisateur constate le
-      // ralentissement sur une simple page de Mushaf papier.
-      final tWarsh = Stopwatch()..start();
-      final brutWarsh =
-          await rootBundle.loadString('assets/data/quran_mushaf_warsh.json');
-      final tLectureWarsh = tWarsh.elapsedMilliseconds;
-      final raw = json.decode(brutWarsh) as List;
-      final tDecodageWarsh = tWarsh.elapsedMilliseconds - tLectureWarsh;
-      final byPage = <int, List<Verse>>{};
-      final counts = <int, int>{};
-      for (final item in raw) {
-        final verse = _parseVerse(item as Map<String, dynamic>);
-        byPage.putIfAbsent(verse.pageNumber!, () => []).add(verse);
-        if (verse.ayahNumber > 0) {
-          final previous = counts[verse.surahNumber] ?? 0;
-          if (verse.ayahNumber > previous) {
-            counts[verse.surahNumber] = verse.ayahNumber;
-          }
-        }
-      }
-      _warshMushafByPage = byPage;
-      _warshMushafVerseCounts = counts;
-      tWarsh.stop();
-      DiagnosticLog.log(
-          'Perf',
-          'QuranApi Mushaf WARSH (quran_mushaf_warsh.json) : '
-              'lecture=${tLectureWarsh}ms decodage=${tDecodageWarsh}ms '
-              'indexation=${tWarsh.elapsedMilliseconds - tLectureWarsh - tDecodageWarsh}ms '
-              '-> ${raw.length} versets, ${byPage.length} pages '
-              '(S\'AJOUTE au chargement Hafs ci-dessus, meme isolate principal)');
+      // Coalesce page + basmala + neighboring-page requests into one decode.
+      await (_warshMushafLoading ??= _loadWarshMushaf());
     }
     return _warshMushafByPage![pageNumber] ?? const [];
+  }
+
+  static Future<void> _loadWarshMushaf() async {
+    final timer = Stopwatch()..start();
+    try {
+      final data = await rootBundle.load('assets/data/quran_mushaf_warsh.json');
+      final readMs = timer.elapsedMilliseconds;
+      final (pages, counts) = await compute(
+        _decoderMushafWarsh,
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        debugLabel: 'mushaf-warsh-decode',
+      );
+      // This fixed Warsh-only asset is independent of the active ASR riwaya.
+      _warshMushafByPage = pages;
+      _warshMushafVerseCounts = counts;
+      DiagnosticLog.log('Perf', 'ChGPT Mushaf WARSH lecture=${readMs}ms '
+          'decodage+indexation+transfert=${timer.elapsedMilliseconds - readMs}ms '
+          'isolate de fond pages=${pages.length}');
+    } finally {
+      // Allow a retry after failure; completed data stay in the indexes.
+      _warshMushafLoading = null;
+    }
   }
 
   /// Returns all audio file URLs for a surah, keyed by verse_key.

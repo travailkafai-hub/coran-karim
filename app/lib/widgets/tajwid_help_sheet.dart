@@ -981,15 +981,15 @@ class _EntrainementLauncherState extends State<_EntrainementLauncher> {
             ListTile(
               leading: const Icon(Icons.videogame_asset_rounded,
                   color: Colors.lightBlue),
-              title: const Text('Jeu de mémorisation'),
-              subtitle: const Text('En partant deux versets avant'),
+              title: Text(AppLocalizations.of(context)!.coachHubGameActionTitle),
+              subtitle: Text(AppLocalizations.of(context)!.tajwidHelpTwoVersesBefore),
               onTap: () => Navigator.pop(ctx, _ChoixEntrainement.jeu),
             ),
             ListTile(
               leading: const Icon(Icons.school_rounded,
                   color: AppColors.green700),
-              title: const Text('Entraînement par paliers'),
-              subtitle: const Text('Écoute, imite, contrôle -- sur ce verset'),
+              title: Text(AppLocalizations.of(context)!.tajwidHelpStepTraining),
+              subtitle: Text(AppLocalizations.of(context)!.tajwidHelpListenImitate),
               onTap: () => Navigator.pop(ctx, _ChoixEntrainement.paliers),
             ),
           ],
@@ -1078,7 +1078,7 @@ class _EntrainementLauncherState extends State<_EntrainementLauncher> {
                 color: AppColors.brass,
               ),
               label: Text(
-                'Jeu ou entraînement par paliers',
+                AppLocalizations.of(context)!.tajwidHelpGameOrSteps,
                 style: GoogleFonts.manrope(
                     fontWeight: FontWeight.w700, color: AppColors.brass),
               ),

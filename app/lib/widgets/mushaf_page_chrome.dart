@@ -54,13 +54,22 @@ class MushafPageChrome extends StatelessWidget {
   final MushafFrameStyle style;
   final bool dark;
   final bool sepia;
+  final double verticalReserve;
   final Widget child;
+
+  // ChGPT->ici : meme "3" que celui deja utilise plus bas pour `band.left`/
+  // `band.right` (le filet du cadre est peint 3 px plus pres du bord que le
+  // padding de contenu standard). Expose ici pour que l'en-tete
+  // (`_PageMushaf._enTete`, mushaf_maquette_screen.dart) puisse annuler EXACTEMENT
+  // ce meme ecart sur les cartouches, sans dupliquer le nombre a la main.
+  static const double headerBleed = 3;
 
   const MushafPageChrome({
     super.key,
     required this.style,
     required this.dark,
     this.sepia = false,
+    this.verticalReserve = 0,
     required this.child,
   });
 
@@ -69,9 +78,27 @@ class MushafPageChrome extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final opening = style == MushafFrameStyle.opening;
-        final horizontal = opening
-            ? (constraints.maxWidth * 0.075).clamp(24.0, 42.0)
-            : (constraints.maxWidth * 0.032).clamp(10.0, 16.0);
+        // ── LE CADRE NE DOIT PAS CHANGER DE LARGEUR SELON LA PAGE (2026-09-13) ──
+        //
+        // Constat utilisateur, capture a l'appui : « le cadre qui entoure
+        // l'ecran, a la difference des autres pages il est maintenant trop
+        // large ». Mesure sur les deux pages : 72 px de bordure visible sur
+        // une page d'OUVERTURE contre 26 px sur une page NORMALE -- pres de
+        // 3x plus large.
+        //
+        // CAUSE : `horizontal` avait une formule differente pour les pages
+        // d'ouverture (0,075 x largeur, jusqu'a 42 px) que pour les pages
+        // normales (0,032 x largeur, jusqu'a 16 px) -- ecart introduit pour
+        // « donner de l'air » au bandeau de titre (2026-09-04), a une epoque
+        // ou le cadre actuel n'existait pas encore. `horizontal` pilote a la
+        // fois le padding du CONTENU et la position du FILET (`band`) : les
+        // elargir ensemble a fini par rendre le filet lui-meme visiblement
+        // plus large que sur les autres pages, precisement ce que
+        // l'utilisateur vient de signaler.
+        //
+        // Une seule formule desormais, quel que soit le style : le cadre
+        // (et le padding qui l'accompagne) reste identique sur TOUTE page.
+        final horizontal = (constraints.maxWidth * 0.032).clamp(10.0, 16.0);
         // ── LE CADRE REND DE LA HAUTEUR AU TEXTE (2026-09-04) ────────────
         //
         // Demande utilisateur : « revois le haut de la page, retravaille le
@@ -83,12 +110,43 @@ class MushafPageChrome extends StatelessWidget {
         // respire encore, et la dichotomie récupère de quoi grandir la police
         // ou loger une ligne de plus.
         //
-        // La page d'OUVERTURE garde ses proportions : son bandeau de titre est
-        // un ornement, il a besoin d'air autour de lui pour ne pas paraître
-        // collé au cadre.
-        final vertical = opening
-            ? (constraints.maxHeight * 0.045).clamp(28.0, 48.0)
-            : (constraints.maxHeight * 0.013).clamp(8.0, 13.0);
+        // La page d'OUVERTURE gardait des proportions differentes (jusqu'a
+        // 48 px contre 13 px) pour donner de l'air a son bandeau de titre.
+        // ⚠️ REDUIT LE 2026-09-13, meme cause que pour `horizontal` juste
+        // au-dessus -- constat utilisateur, capture a l'appui, « haut et le
+        // bas c'est trop large » sur la page d'ouverture par rapport aux
+        // autres : le FILET du cadre (`band`, plus bas) se trouvait repousse
+        // loin du bord, sur cet axe comme sur l'horizontal, pour une raison
+        // qui n'a rien a voir avec la hauteur FIXE du bandeau lui-meme
+        // (`_bandeauSourate`, 76 px, cf. `MushafSurahBanner.openingHeight`).
+        //
+        // ⚠️ CORRECTION DU CORRECTIF (meme session) : j'avais d'abord ecrit
+        // ici que la marge etait inutile au bandeau et je l'avais unifiee
+        // partout, y compris pour le PADDING DU CONTENU. Constat immediat sur
+        // capture : la fleche retour et le signet (`Positioned(top:
+        // margeHauteBoutonsMushaf(context), ...)`, plus bas dans l'ecran
+        // appelant) flottent a une position FIXE, independante de ce widget --
+        // ils comptaient sur cette marge pour rester sous les medaillons du
+        // bandeau. Sans elle, ils se dessinent DESSUS, medaillon a moitie
+        // cache. La marge etait donc bien necessaire, mais pour une raison
+        // STRUCTURELLE (degager des boutons flottants d'un autre widget),
+        // jamais documentee comme telle -- pas pour le confort du bandeau.
+        // Le FILET du cadre, lui, n'a aucune raison de la porter : seul le
+        // PADDING DU CONTENU la reprend desormais, cf. [_margeHauteMinOuverture]
+        // plus bas.
+        // ChGPT: absorb the former outer whitespace into the painted frame,
+        // while computing the text layout from exactly its previous height.
+        final contentHeight = constraints.maxHeight - 2 * verticalReserve;
+        final vertical = (contentHeight * 0.013).clamp(8.0, 13.0);
+        // ── DEGAGER LES BOUTONS FLOTTANTS, PAGE D'OUVERTURE SEULEMENT ────
+        //
+        // 48 : diametre par defaut d'un `IconButton` (celui des boutons
+        // retour/signet, non redefini a l'appel). `margeHauteBoutonsMushaf`
+        // est la MEME fonction qui positionne ces boutons (cf. sa doc et
+        // `test/mushaf_marge_boutons_test.dart`) -- aucune valeur inventee
+        // ici, seulement la reutilisation de ce qui les place deja.
+        final margeHauteMinOuverture =
+            opening ? margeHauteBoutonsMushaf(context) + 48 : 0.0;
 
         return ColoredBox(
           color: dark ? const Color(0xFF111B19) : const Color(0xFFFFFEF6),
@@ -101,10 +159,10 @@ class MushafPageChrome extends StatelessWidget {
                   : MushafFrameTone.light,
               opening: opening,
               band: EdgeInsets.fromLTRB(
-                horizontal - 3,
-                (opening ? vertical : vertical * 0.40) - 1,
-                horizontal - 3,
-                (opening ? vertical * 0.86 : vertical) - 2,
+                horizontal - headerBleed,
+                vertical * 0.40 - 1 + verticalReserve,
+                horizontal - headerBleed,
+                vertical - 2 + verticalReserve,
               ),
             ),
             child: Padding(
@@ -125,9 +183,12 @@ class MushafPageChrome extends StatelessWidget {
                 // 0,40 et non 0,66 (2026-09-04) : « remonte le texte ».
                 // Cette marge ne separe le texte que du filet ornemental --
                 // rien ne s'y ecrit, et chaque pixel rendu est du texte.
-                opening ? vertical : vertical * 0.40,
+                // `max` avec `margeHauteMinOuverture` UNIQUEMENT en haut : le
+                // bas ne porte aucun bouton flottant, rien a y degager.
+                (vertical * 0.40 + verticalReserve)
+                    .clamp(margeHauteMinOuverture, double.infinity),
                 horizontal,
-                opening ? vertical * 0.86 : vertical,
+                vertical + verticalReserve,
               ),
               child: child,
             ),

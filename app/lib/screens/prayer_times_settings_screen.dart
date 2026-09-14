@@ -73,12 +73,16 @@ class PrayerTimesSettingsScreen extends ConsumerWidget {
         children: [
           if (next != null) _buildNextPrayerHero(context, next),
           const SizedBox(height: 12),
-          if (state.today != null) _buildTodayTimes(context, state.today!, next?.name),
+          if (state.today != null) KeyedSubtree(
+            key: const ValueKey('guide.prayer.times'),
+            child: _buildTodayTimes(context, state.today!, next?.name)),
           const SizedBox(height: 12),
-          _buildLocationAndMethod(context, state, settings, notifier),
+          KeyedSubtree(key: const ValueKey('guide.prayer.location'),
+            child: _buildLocationAndMethod(context, state, settings, notifier)),
           const SizedBox(height: 16),
           _sectionTitle('Notifications'),
-          _card(child: _NotificationsTable(settings: settings, notifier: notifier)),
+          KeyedSubtree(key: const ValueKey('guide.prayer.notifications'),
+            child: _card(child: _NotificationsTable(settings: settings, notifier: notifier))),
         ],
       ),
     );

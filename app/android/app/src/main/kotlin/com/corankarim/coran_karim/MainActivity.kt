@@ -6,7 +6,11 @@ import com.corankarim.coran_karim.fastconformer.FastConformerCtcPlugin
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import android.content.Intent
+import android.net.Uri
 import android.view.WindowManager
+import androidx.core.content.FileProvider
+import java.io.File
 import io.flutter.plugin.common.MethodChannel
 
 /**
@@ -69,6 +73,65 @@ class MainActivity : AudioServiceActivity() {
                         result.success(null)
                     }
                     else -> result.notImplemented()
+                }
+            }
+        // ── ENVOYER UN FICHIER PAR COURRIEL, DESTINATAIRE PRE-REMPLI ──────
+        //
+        // Demande utilisateur (2026-09-14) : que l'envoi des verdicts contestes
+        // arrive comme « Nous contacter », avec le champ « A » DEJA REMPLI.
+        //
+        // POURQUOI CA NE POUVAIT PAS SE FAIRE COTE DART. Deux chemins
+        // existaient, aucun ne suffit :
+        //   - `mailto:` remplit bien le destinataire (c'est ce que fait
+        //     `ContactScreen`), mais NE SAIT PAS porter de piece jointe -- le
+        //     .zip des verdicts, qui est tout l'objet de l'envoi, serait perdu ;
+        //   - le partage `share_plus` (`ACTION_SEND`) porte le fichier, mais ne
+        //     transmet ni `EXTRA_EMAIL` ni destinataire : aucune application de
+        //     partage n'accepte qu'on remplisse « A » a sa place.
+        // `ACTION_SEND` construit ICI porte LES DEUX a la fois.
+        //
+        // `createChooser` plutot qu'un lancement direct : si plusieurs clients
+        // de courriel sont installes, c'est a l'utilisateur de choisir -- et si
+        // aucun ne l'est, Dart recoit `false` et retombe sur le partage
+        // ordinaire plutot que de planter.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL_ENVOI)
+            .setMethodCallHandler { call, result ->
+                if (call.method != "envoyerFichierParMail") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                try {
+                    val chemin = call.argument<String>("fichier")
+                    val destinataire = call.argument<String>("destinataire") ?: ""
+                    val sujet = call.argument<String>("sujet") ?: ""
+                    val texte = call.argument<String>("texte") ?: ""
+                    val fichier = chemin?.let { File(it) }
+                    if (fichier == null || !fichier.exists()) {
+                        result.success(false)
+                        return@setMethodCallHandler
+                    }
+                    val uri: Uri = FileProvider.getUriForFile(
+                        applicationContext,
+                        applicationContext.packageName + ".fichiers",
+                        fichier,
+                    )
+                    val envoi = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/zip"
+                        putExtra(Intent.EXTRA_EMAIL, arrayOf(destinataire))
+                        putExtra(Intent.EXTRA_SUBJECT, sujet)
+                        putExtra(Intent.EXTRA_TEXT, texte)
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    val choix = Intent.createChooser(envoi, sujet)
+                    choix.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    applicationContext.startActivity(choix)
+                    result.success(true)
+                } catch (e: Exception) {
+                    // On rend `false` plutot qu'une erreur : l'appelant a un
+                    // repli (le partage ordinaire), et un envoi qui echoue ne
+                    // doit pas remonter comme un plantage a l'utilisateur.
+                    result.success(false)
                 }
             }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CANAL)
@@ -176,5 +239,6 @@ class MainActivity : AudioServiceActivity() {
         private const val CANAL = "coran_karim/recette"
         private const val CANAL_ECRAN = "coran_karim/ecran"
         private const val CANAL_MICRO = "coran_karim/routage_micro"
+        private const val CANAL_ENVOI = "coran_karim/envoi"
     }
 }

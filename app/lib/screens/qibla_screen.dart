@@ -17,7 +17,8 @@ import '../theme/app_theme.dart';
 /// dégradé que l'anneau de score, la même pulsation que le micro à l'écoute
 /// une fois orienté vers la Mecque.
 class QiblaScreen extends StatefulWidget {
-  const QiblaScreen({super.key});
+  final bool demanderPermission;
+  const QiblaScreen({super.key, this.demanderPermission = true});
 
   @override
   State<QiblaScreen> createState() => _QiblaScreenState();
@@ -40,13 +41,17 @@ class _QiblaScreenState extends State<QiblaScreen> {
   Future<void> _resolvePosition() async {
     setState(() => _state = _QiblaLoadState.loading);
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
+      final serviceActif = await Geolocator.isLocationServiceEnabled();
+      if (!mounted) return;
+      if (!serviceActif) {
         setState(() => _state = _QiblaLoadState.serviceDisabled);
         return;
       }
       var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
+      if (!mounted) return;
+      if (permission == LocationPermission.denied && widget.demanderPermission) {
         permission = await Geolocator.requestPermission();
+        if (!mounted) return;
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
@@ -476,7 +481,7 @@ class _QiblaScreenState extends State<QiblaScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Champ magnétique détecté — éloigne-toi du métal ou d\'un aimant (coque, support, enceinte...), puis recalibre en dessinant un « 8 » avec le téléphone.',
+              AppLocalizations.of(context)!.qiblaMagneticWarning,
               style: GoogleFonts.manrope(
                 fontSize: 11.5,
                 color: AppColors.cream,

@@ -13,6 +13,7 @@ import '../providers/player_provider.dart';
 import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer, recitationVerifierProvider;
+import '../main.dart' show observateurDeRoutes;
 import '../theme/app_theme.dart';
 import '../widgets/mushaf_page_chrome.dart';
 import 'mushaf_maquette_screen.dart';
@@ -59,7 +60,7 @@ class _ListEntry {
       : kind = _EntryKind.surahBanner, surah = s, verseIndex = null, bismillah = null;
 }
 
-class _MushafScreenState extends ConsumerState<MushafScreen> {
+class _MushafScreenState extends ConsumerState<MushafScreen> with RouteAware {
   List<Verse> _verses = [];
   bool _loading = true;
   String? _error;
@@ -259,8 +260,33 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
         'calibration demandee : deux taps pour donner la cadence');
   }
 
+  // ── LE MENU REVIENT QUAND ON REVIENT (2026-09-14) ──────────────────────
+  //
+  // Demande utilisateur : « à chaque retour arrière dans l'application, là où
+  // se trouve le menu, qu'il s'affiche au lieu de rester caché ».
+  //
+  // Cet écran vit dans un `IndexedStack` : revenir d'un sous-écran ne rejoue NI
+  // `initState` NI `build` avec un état neuf. Le menu replié l'était donc
+  // resté, et la page revenait nue -- sans rien de visible pour naviguer.
+  // `didPopNext` est le signal exact « on vient de revenir sur moi ».
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is ModalRoute<void>) observateurDeRoutes.subscribe(this, route);
+  }
+
+  @override
+  void didPopNext() {
+    super.didPopNext();
+    // `_showHeader` reprogramme aussi le repli automatique : le plein écran
+    // revient tout seul si l'utilisateur se remet à lire sans rien toucher.
+    if (mounted) _showHeader();
+  }
+
   @override
   void dispose() {
+    observateurDeRoutes.unsubscribe(this);
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _kindleAutoTurnTimer?.cancel();
@@ -820,6 +846,18 @@ class _MushafScreenState extends ConsumerState<MushafScreen> {
                     // fait un voile grisatre et mange le contraste du texte.
                     if (!kindleMode && !modeSombre)
                       const QuranPatternBackground(),
+                    // ── CADRE ORNEMENTAL RETIRE D'ICI (2026-09-13) ────────
+                    //
+                    // Demande utilisateur, apres capture : « le cadre qui
+                    // entoure l'ecran, c'est juste pour le Coran papier, pas
+                    // pour celui-la [cet ecran de lecture normale] ». Le
+                    // meme peintre (`MushafOrnamentalFramePainter`) dessinait
+                    // ici, en fond plein ecran, sur CET ecran de lecture
+                    // continue -- ajoute par le meme chantier que le cadre
+                    // du Mushaf papier (`CADRE_LECTURE_CHGPT_2026-09-13.md`),
+                    // qui prevoyait explicitement les deux. Il reste
+                    // exclusivement dans `mushaf_maquette_screen.dart`
+                    // (`MushafPageChrome`), jamais ici.
                     // ── TAP-POUR-MASQUER ESSAYE PUIS RETIRE (2026-09-02) ──
                     // Tentative : un `GestureDetector` translucent autour du
                     // contenu, qui masquait le menu au tap. Retour utilisateur
@@ -3140,6 +3178,25 @@ class _ErrorView extends StatelessWidget {
 }
 
 /// Une action de la bulle du verset : icone + libelle, sur une seule ligne.
+/// ChGPT: reuse the actual action rows without constructing a recitation engine.
+class ActionsVersetGuide extends ConsumerWidget {
+  const ActionsVersetGuide({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    Widget action(String id, IconData icon, String text, {bool disabled = false}) =>
+      KeyedSubtree(key: ValueKey('guide.actions.$id'),
+        child: _ActionVerset(icone: icon, libelle: text, onTap: () {}, disabled: disabled));
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      action('recite', Icons.mic_rounded, t.mushafRecite),
+      action('tajwid', Icons.spellcheck_rounded, t.mushafTajwidOnPage,
+        disabled: ref.watch(riwayaProvider) == Riwaya.warsh),
+      action('memorize', Icons.psychology_rounded, t.mushafMemorize),
+      action('game', Icons.videogame_asset_rounded, t.memorizationGameTitle),
+    ]);
+  }
+}
+
 class _ActionVerset extends StatelessWidget {
   final IconData icone;
   final String libelle;

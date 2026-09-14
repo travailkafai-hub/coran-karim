@@ -1,134 +1,329 @@
-// « Découvrir l'application » — le sommaire des visites guidées.
-//
-// ── POURQUOI UN SOMMAIRE PLUTÔT QU'UNE VISITE UNIQUE ─────────────────────────
-//
-// Demande utilisateur : « je veux un globale et de taillé même sous détaillé ».
-// Et, plus tôt : « je privilégierais un démarrage court, puis des guides par
-// fonction ; tout parcourir automatiquement dès l'installation serait long ».
-//
-// Cet écran est ce qui réconcilie les deux : le tour d'ensemble se joue seul au
-// premier lancement, et tout le reste attend ici, disponible quand on en a
-// besoin. On n'apprend pas une application en une fois, on y revient.
-//
-// ⚠️ CE N'EST PAS UNE LISTE DE PAGES D'AIDE. Chaque entrée LANCE la main sur
-// les vrais écrans (cf. `data/guides_catalogue.dart`). Si un chapitre venait à
-// ne plus faire que décrire, il vaudrait mieux le retirer : une aide qui parle
-// sans montrer, c'est `onboarding_screen.dart`, qui existe déjà et qui est
-// désactivée depuis le 2026-08-09 précisément parce qu'elle ne montrait rien.
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
-
+import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/guides_catalogue.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../widgets/guide_interactif.dart';
+import '../widgets/mushaf_cover_reveal.dart';
 
-class DecouverteScreen extends StatelessWidget {
+/// ChGPT: searchable chapters, direct steps and tutorial-only resume state.
+class DecouverteScreen extends StatefulWidget {
   const DecouverteScreen({super.key});
+  @override
+  State<DecouverteScreen> createState() => _DecouverteScreenState();
+}
+
+class _DecouverteScreenState extends State<DecouverteScreen> {
+  static const _pref = 'chgpt_guide_positions_v1';
+  final _positions = <String, int>{};
+  final _search = TextEditingController();
+  String _query = '';
+  bool _lancement = false;
+  Future<void> _ecriture = Future.value();
+  String _tr(String fr, String en, String ar) =>
+      guideTexte(context, fr, en, ar);
 
   @override
-  Widget build(BuildContext context) {
+  void initState() {
+    super.initState();
+    _charger();
+  }
+
+  Future<void> _charger() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_pref);
+      if (!mounted || raw == null || _lancement) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      setState(() {
+        for (final entry in decoded.entries) {
+          if (entry.key is String && entry.value is int && entry.value >= 0) {
+            _positions[entry.key as String] = entry.value as int;
+          }
+        }
+      });
+    } catch (_) {
+      /* A corrupt guide bookmark must not prevent discovery. */
+    }
+  }
+
+  void _retenir(String id, int i) {
+    _positions[id] = i;
+    final json = jsonEncode(_positions);
+    // Serialize writes so rapid Next/Previous cannot restore an older index.
+    _ecriture = _ecriture.then((_) async {
+      try {
+        await (await SharedPreferences.getInstance()).setString(_pref, json);
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _lancer(String id, List<EtapeGuide> etapes, {int? index}) async {
+    if (_lancement || etapes.isEmpty) return;
+    setState(() => _lancement = true);
     final t = AppLocalizations.of(context)!;
-    final chapitres = kChapitresGuide;
-    return Scaffold(
-      backgroundColor: AppColors.cream,
-      appBar: AppBar(
-        title: Text(t.guideDecouverteTitre),
-        backgroundColor: AppColors.green900,
-        foregroundColor: AppColors.cream,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-        children: [
-          Text(
-            t.guideDecouverteSous,
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              color: AppColors.ink.withAlpha(180),
-            ),
-          ),
-          const SizedBox(height: 18),
-          for (final c in chapitres) _carte(context, t, c),
-        ],
-      ),
-    );
-  }
-
-  Widget _carte(BuildContext context, AppLocalizations t, ChapitreGuide c) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => _lancer(context, t, c),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            child: Row(
-              children: [
-                Text(c.emoji, style: const TextStyle(fontSize: 26)),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        c.titre(t),
-                        style: const TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        c.resume(t),
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.4,
-                          color: AppColors.ink.withAlpha(165),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(Icons.play_arrow_rounded,
-                    color: AppColors.brass, size: 26),
-              ],
-            ),
-          ),
+    try {
+      await GuideHote.lancer(
+        context,
+        etapes: etapes,
+        indexInitial: (index ?? _positions[id] ?? 0).clamp(
+          0,
+          etapes.length - 1,
         ),
-      ),
-    );
-  }
-
-  void _lancer(BuildContext context, AppLocalizations t, ChapitreGuide c) {
-    // ── ON QUITTE CE SOMMAIRE AVANT DE LANCER LA VISITE ────────────────────
-    //
-    // Sans ce `pop`, la main désignerait des onglets qui sont CACHÉS derrière
-    // cet écran : la visite vit dans l'`Overlay` racine, donc elle se
-    // dessinerait bien au-dessus, mais au-dessus du sommaire, pas de
-    // l'application. On reviendrait à un guide qui commente une liste.
-    //
-    // On capture le navigateur AVANT le `pop` : après, ce `context` est
-    // démonté et `Navigator.of(context)` lève.
-    final navigateur = Navigator.of(context);
-    final calque = Navigator.of(context, rootNavigator: true).context;
-    navigateur.pop();
-    // Un battement pour laisser l'accueil revenir et ses onglets se monter,
-    // sinon la première étape mesure une cible qui n'existe pas encore.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!calque.mounted) return;
-      GuideHote.lancer(
-        calque,
-        etapes: c.etapes(calque, t),
+        onIndex: (i) => _retenir(id, i),
         libellePasser: t.guidePasser,
         libelleSuivant: t.guideSuivant,
         libelleFin: t.guideFin,
       );
-    });
+    } finally {
+      if (mounted) setState(() => _lancement = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final chapters = kChapitresGuide;
+    final details = {
+      for (final ch in chapters) ch.id: etapesDecouverte(ch, context, t),
+    };
+    final all = [for (final ch in chapters.skip(1)) ...details[ch.id]!];
+    final visible = chapters.where((ch) {
+      final q = _query.trim().toLowerCase();
+      return q.isEmpty ||
+          ch.titre(t).toLowerCase().contains(q) ||
+          details[ch.id]!.any(
+            (e) => '${e.titre} ${e.texte}'.toLowerCase().contains(q),
+          );
+    }).toList();
+    final style = GoogleFonts.manrope(
+      color: AppColors.ink,
+      fontSize: 14,
+      letterSpacing: 0,
+    );
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F7F5),
+      appBar: AppBar(
+        title: Text(
+          t.guideDecouverteTitre,
+          style: style.copyWith(fontWeight: FontWeight.w800, fontSize: 19),
+        ),
+        backgroundColor: const Color(0xFFF4F7F5),
+        foregroundColor: AppColors.ink,
+      ),
+      body: DefaultTextStyle(
+        style: style,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    mushafCoverAsset,
+                    width: 64,
+                    height: 96,
+                    fit: BoxFit.fill,
+                    excludeFromSemantics: true,
+                  ),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _tr('À ton rythme', 'At your own pace', 'على وتيرتك'),
+                          style: style.copyWith(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _tr(
+                            'Parcours complet ou accès direct à une fonctionnalité.',
+                            'Full tour or direct access to a feature.',
+                            'جولة كاملة أو وصول مباشر إلى ميزة.',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: _lancement
+                              ? null
+                              : () => _lancer('complet', all),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.green800,
+                          ),
+                          icon: const Icon(Icons.play_arrow),
+                          label: Text(
+                            _positions.containsKey('complet')
+                                ? _tr(
+                                    'Reprendre le parcours',
+                                    'Resume tour',
+                                    'استئناف الجولة',
+                                  )
+                                : _tr(
+                                    'Tout découvrir',
+                                    'Explore everything',
+                                    'اكتشاف الكل',
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: TextField(
+                controller: _search,
+                onChanged: (v) => setState(() => _query = v),
+                style: style,
+                decoration: InputDecoration(
+                  hintText: _tr(
+                    'Rechercher une fonctionnalité',
+                    'Find a feature',
+                    'البحث عن ميزة',
+                  ),
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: _tr(
+                            'Effacer la recherche',
+                            'Clear search',
+                            'مسح البحث',
+                          ),
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            _search.clear();
+                            setState(() => _query = '');
+                          },
+                        ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            if (visible.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  _tr(
+                    'Aucune fonctionnalité trouvée.',
+                    'No features found.',
+                    'لم يتم العثور على ميزة.',
+                  ),
+                ),
+              ),
+            for (final ch in visible)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                child: Material(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  clipBehavior: Clip.antiAlias,
+                  child: ExpansionTile(
+                    key: PageStorageKey(ch.id),
+                    leading: Text(
+                      ch.emoji,
+                      style: const TextStyle(fontSize: 23),
+                    ),
+                    title: Text(
+                      ch.titre(t),
+                      style: style.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      '${details[ch.id]!.length} ${_tr('étapes', 'steps', 'خطوات')}',
+                      style: style.copyWith(
+                        fontSize: 12,
+                        color: AppColors.inkLight,
+                      ),
+                    ),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextButton.icon(
+                                onPressed: _lancement
+                                    ? null
+                                    : () => _lancer(ch.id, details[ch.id]!),
+                                icon: Icon(
+                                  _positions.containsKey(ch.id)
+                                      ? Icons.play_circle_outline
+                                      : Icons.play_arrow,
+                                ),
+                                label: Text(
+                                  _positions.containsKey(ch.id)
+                                      ? _tr('Reprendre', 'Resume', 'استئناف')
+                                      : _tr('Commencer', 'Start', 'ابدأ'),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: _tr(
+                                'Recommencer le chapitre',
+                                'Restart chapter',
+                                'إعادة الفصل',
+                              ),
+                              icon: const Icon(Icons.replay),
+                              onPressed: _lancement
+                                  ? null
+                                  : () => _lancer(
+                                      ch.id,
+                                      details[ch.id]!,
+                                      index: 0,
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      for (var i = 0; i < details[ch.id]!.length; i++)
+                        ListTile(
+                          dense: true,
+                          leading: Text(
+                            '${i + 1}',
+                            style: style.copyWith(color: AppColors.green700),
+                          ),
+                          title: Text(
+                            details[ch.id]![i].titre,
+                            style: style.copyWith(fontSize: 13),
+                          ),
+                          trailing: const Icon(Icons.chevron_right, size: 18),
+                          onTap: _lancement
+                              ? null
+                              : () => _lancer(ch.id, details[ch.id]!, index: i),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }

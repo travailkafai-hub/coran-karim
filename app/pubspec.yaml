@@ -108,6 +108,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#183F3C"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  adaptive_icon_foreground_inset: 16
   # Pas de remove_alpha_ios : app Android uniquement (pas de cible iOS ici).
 
 dependency_overrides:

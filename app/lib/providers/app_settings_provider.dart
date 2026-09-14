@@ -648,6 +648,28 @@ class AppLocaleNotifier extends StateNotifier<String> {
     return kSupportedAppLocales.contains(systemLang) ? systemLang : 'fr';
   }
 
+  /// ── LA LANGUE SUIT ANDROID, PAS LE GPS (2026-09-09) ────────────────────
+  ///
+  /// Une deduction par la POSITION a ete ecrite puis retiree le meme jour, sur
+  /// demande utilisateur : « je veux egalement que la langue soit geree selon
+  /// GPS » puis, quelques minutes apres, « oublie position GPS, si le systeme
+  /// qui etait avant c'est bon ».
+  ///
+  /// Ce qui avait ete construit, pour qui voudrait y revenir : lecture de la
+  /// derniere position deja mise en cache par les horaires de priere (donc
+  /// aucune demande de permission), une boite geographique grossiere du monde
+  /// arabophone du meme grain que `PrayerTimesService.defaultMethodFor`, et
+  /// trois gardes -- premier lancement seulement, jamais par-dessus un choix
+  /// manuel, rien de persiste. Cela n'a jamais tourne sur appareil.
+  ///
+  /// ⚠️ CE QUE LA BOITE ATTRAPAIT, et qui reste l'objection de fond a toute
+  /// reprise : Israel, Chypre, le sud de la Turquie, l'Iran occidental,
+  /// l'Ethiopie, le Tchad, le Mali. Un decoupage juste demande des frontieres
+  /// reelles, donc du reseau ou des polygones embarques -- pour un DEFAUT que
+  /// l'utilisateur change en deux taps.
+  ///
+  /// REGLE ACTUELLE, inchangee depuis l'origine : langue systeme Android si
+  /// elle est dans {ar, fr, en}, sinon 'fr' ; un choix manuel prime toujours.
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_kPrefAppLocale);
@@ -780,13 +802,34 @@ const _kPrefMarquePages = 'marque_pages';
 /// Un couple de nombres serait plus « propre » et obligerait à inventer une
 /// sérialisation de plus ; la clé texte se relit à l'œil dans les préférences
 /// et se compare sans conversion.
+/// ── UN SEUL SIGNET (2026-09-09) ─────────────────────────────────────────
+///
+/// Le type était `Set<String>` : plusieurs signets simultanés, avec un écran
+/// de liste pour les parcourir. Décision utilisateur : « enlève Mes signets,
+/// ce n'est pas normal qu'on ait plusieurs signets ».
+///
+/// Elle est juste, et le commentaire d'origine ci-dessus le disait déjà sans
+/// en tirer la conséquence : « un signet dit mieux ce qu'on attend d'un Mushaf
+/// — RETROUVER OÙ ON S'ÉTAIT ARRÊTÉ — qu'un favori, qui suppose un classement
+/// dont personne n'a besoin ici ». On ne s'arrête qu'à un endroit à la fois.
+/// Plusieurs signets, c'était le classement revenu par la fenêtre.
+///
+/// Rien n'est perdu côté navigation : `_BoutonSignet` (écran d'accueil)
+/// ouvrait déjà « le DERNIER posé » — il ouvre maintenant le seul qui existe,
+/// et son code s'en trouve simplifié.
+///
+/// ⚠️ MIGRATION DES ANCIENNES DONNÉES : la préférence reste une liste
+/// (`setStringList`), pour que les installations existantes se relisent sans
+/// se perdre. On n'en garde que la DERNIÈRE entrée — la plus récente, donc
+/// celle qui a le plus de chances d'être l'endroit où l'utilisateur en était.
+/// Écraser la clé aurait fait disparaître le signet sans prévenir.
 final marquePagesProvider =
-    StateNotifierProvider<MarquePagesNotifier, Set<String>>((ref) {
+    StateNotifierProvider<MarquePagesNotifier, String?>((ref) {
   return MarquePagesNotifier();
 });
 
-class MarquePagesNotifier extends StateNotifier<Set<String>> {
-  MarquePagesNotifier() : super(const {}) {
+class MarquePagesNotifier extends StateNotifier<String?> {
+  MarquePagesNotifier() : super(null) {
     _restore();
   }
 
@@ -795,23 +838,28 @@ class MarquePagesNotifier extends StateNotifier<Set<String>> {
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getStringList(_kPrefMarquePages);
-    if (saved != null && mounted) state = saved.toSet();
+    // Cf. la note de migration : on ne reprend que le dernier pose.
+    if (saved != null && saved.isNotEmpty && mounted) state = saved.last;
   }
 
-  bool contient(int sourate, int verset) => state.contains(cle(sourate, verset));
+  bool contient(int sourate, int verset) => state == cle(sourate, verset);
 
-  /// @return true si le verset vient d'être marqué, false s'il vient d'être
+  /// Pose le signet sur ce verset, ou le retire s'il y était déjà.
+  ///
+  /// Poser ailleurs DÉPLACE le signet : il n'y en a qu'un. C'est le
+  /// comportement attendu d'un marque-page physique — on ne le duplique pas,
+  /// on l'avance.
+  ///
+  /// @return true si le signet vient d'être posé ici, false s'il vient d'être
   ///   retiré — l'appelant en a besoin pour dire lequel des deux s'est produit
   ///   sans relire l'état (qui est asynchrone à la persistance).
   Future<bool> basculer(int sourate, int verset) async {
     final k = cle(sourate, verset);
-    final suivant = Set<String>.from(state);
-    final ajoute = suivant.add(k);
-    if (!ajoute) suivant.remove(k);
-    state = suivant;
+    final pose = state != k;
+    state = pose ? k : null;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_kPrefMarquePages, suivant.toList());
-    return ajoute;
+    await prefs.setStringList(_kPrefMarquePages, pose ? [k] : const []);
+    return pose;
   }
 }
 

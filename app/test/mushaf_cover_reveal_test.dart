@@ -33,14 +33,14 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
   });
 
-  testWidgets('Approved artwork has no duplicate title and is not stretched', (
+  testWidgets('Approved artwork has no duplicate title and fills the viewport', (
     tester,
   ) async {
     await tester.pumpWidget(const MaterialApp(home: MushafClosedCover()));
     await tester.pumpAndSettle();
     final artwork = tester.widget<Image>(find.byType(Image));
     expect((artwork.image as AssetImage).assetName, mushafCoverAsset);
-    expect(artwork.fit, BoxFit.contain);
+    expect(artwork.fit, BoxFit.fill);
     expect(find.byType(Text), findsNothing);
     expect(mushafCoverColor, const Color(0xFF0C3B2C));
     expect(tester.takeException(), isNull);

@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/widgets.dart' show Locale;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/verse.dart';
 import '../services/portion_service.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_verifier.dart' show ArabicNormalizer;
-import 'app_settings_provider.dart' show portionGranularityProvider;
+import 'app_settings_provider.dart'
+    show portionGranularityProvider, appLocaleProvider;
 import 'memorization_game_records_provider.dart';
 import 'memorization_word_difficulty_provider.dart';
 
@@ -479,7 +481,9 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
     try {
       final granularite = _ref.read(portionGranularityProvider);
       final portion = await PortionService.resolve(
-          verse: state.currentVerse.verse, granularity: granularite);
+          verse: state.currentVerse.verse,
+          granularity: granularite,
+          locale: Locale(_ref.read(appLocaleProvider)));
       if (!mounted) return;
       state = state.copyWith(
         currentPortionUnitKey: portion.unitKey,
@@ -520,8 +524,10 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
   Future<void> _reportPortionProgress(Verse verse) async {
     try {
       final granularite = _ref.read(portionGranularityProvider);
-      final portion =
-          await PortionService.resolve(verse: verse, granularity: granularite);
+      final portion = await PortionService.resolve(
+          verse: verse,
+          granularity: granularite,
+          locale: Locale(_ref.read(appLocaleProvider)));
       final compte = (_portionRunCounts[portion.unitKey] ?? 0) + 1;
       _portionRunCounts[portion.unitKey] = compte;
       final battu = _ref

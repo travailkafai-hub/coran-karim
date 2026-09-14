@@ -1005,7 +1005,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachHubPickerGameSubtitle => 'اختر السورة التي تريد حفظها باللعب';
 
   @override
-  String get memorizationGameTitle => 'سلسلة';
+  String get memorizationGameTitle => 'لعبة التسلسل';
 
   @override
   String get memorizationGameRestartVerseTooltip => 'إعادة هذه الآية';
@@ -1927,15 +1927,15 @@ class AppLocalizationsAr extends AppLocalizations {
       'نسيت الكلمة؟ يُسمعك المُلقِّن الكلمة المنتظرة دون أي حكم عليك.';
 
   @override
-  String get onboardingMemorizeTitle => 'الحفظ باللعب';
+  String get onboardingMemorizeTitle => 'التدريب على الحفظ';
 
   @override
   String get onboardingMemorizeBody =>
-      'تجعلك لعبة الحفظ تعيد بناء النص كلمة بعد كلمة. ولا تتوقف الجولة عند نهاية الصفحة، بل تستمر ما دمت تتابع.';
+      'استمع إلى المقطع وردِّده بصوتٍ مسموع، فيتحقّق التطبيق منك، ويتّسع المقطع مع كل نجاح حتى تتلو الآية كاملة عن ظهر قلب.';
 
   @override
   String get onboardingMemorizeHint =>
-      'يُحفظ رقمك القياسي في عدد الكلمات المتتالية من جولة إلى أخرى.';
+      'ثم ينتقل التدريب إلى المراجعة: يُخفى النص، وتتلو وحدك.';
 
   @override
   String get onboardingCoachTitle => 'مدرّبك';
@@ -2002,6 +2002,13 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get duaPourNousForYouArabic =>
       'اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي';
+
+  @override
+  String get duaPourNousHassanatTitle => 'شارِك في الحسنات';
+
+  @override
+  String get duaPourNousHassanatBody =>
+      'شارِك التطبيق مع من حولك: كل من يستعمله لقراءة القرآن أو حفظه فلك نصيب من أجره، إن شاء الله.';
 
   @override
   String get duaPourNousShare => 'مشاركة التطبيق';
@@ -2941,4 +2948,70 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get guideDemoTexte =>
       'انظر كيف تتلوّن الكلمات تباعاً. هذا عرض توضيحي، وليس تلاوة حقيقية.';
+
+  @override
+  String get preparationRiwayaWarshNote =>
+      'لم يُدرَّب وضع التجويد بعدُ على أحكام ورش الخاصة، فألوانه تتبع رواية حفص. أما قراءة المصحف وتصحيح الكلمات فتعملان كالمعتاد.';
+
+  @override
+  String get preparationEssaisTitre => 'جرّب الآن';
+
+  @override
+  String get preparationEssaisSous =>
+      'على بضع آيات: دقائق معدودة. ويمكنك العودة لاحقاً.';
+
+  @override
+  String get preparationEssaiReciter => 'اتلُ وكن مصححاً';
+
+  @override
+  String get preparationEssaiReciterSous =>
+      'اتلُ، والتطبيق يستمع ويلوّن كل كلمة';
+
+  @override
+  String get preparationEssaiTajwid => 'وضع التجويد';
+
+  @override
+  String get preparationEssaiTajwidSous => 'يستمع لأحكام التجويد وحدها';
+
+  @override
+  String get preparationEssaiJeu => 'لعبة التسلسل';
+
+  @override
+  String get preparationEssaiJeuSous => 'ابحث عن الكلمة التالية بين عدة كلمات';
+
+  @override
+  String get preparationConsigneJeu =>
+      'تظهر الكلمة الأولى، ثم تختار ما بعدها من بين عدة كلمات. وعند الخطأ تظهر الكلمة الصحيحة، ثم تُستأنف الجولة من الآية السابقة.';
+
+  @override
+  String get preparationEssaiMemoriser => 'التدريب';
+
+  @override
+  String get preparationEssaiMemoriserSous => 'استمع ثم ردِّد، على مراحل';
+
+  @override
+  String get preparationEssaiLire => 'اقرأ واستمع';
+
+  @override
+  String get preparationEssaiLireSous => 'النص والترجمة والتلاوة';
+
+  @override
+  String get preparationEssaisNote =>
+      'لا يُطلب الميكروفون إلا إذا اخترت التلاوة.';
+
+  @override
+  String get preparationConsigneTajwid =>
+      'اتلُ مطبّقاً أحكام التجويد. الأخضر: تحققت كل الأحكام المتوقعة. البنفسجي: حكم متوقع لم يُلاحَظ. بلا لون: لا حكم في هذه الكلمة.';
+
+  @override
+  String get preparationConsigneReciter =>
+      'اتلُ كعادتك دون تغيير، والذكاء الاصطناعي يتابع خلفك. الأخضر: الكلمة صحيحة. البرتقالي: نطق تقريبي. الأحمر: فرق مسموع.';
+
+  @override
+  String get preparationConsigneMemoriser =>
+      'استمع إلى المقطع ثم ردِّده بصوتٍ مسموع. ويتّسع المقطع مع كل نجاح حتى تبلغ الآية كاملة.';
+
+  @override
+  String get preparationConsigneLire =>
+      'مرّر النص، واضغط على آية لسماعها، واضغط مطولاً لفتح قائمتها.';
 }

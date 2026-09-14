@@ -7,12 +7,14 @@
 // cause -- une logique dupliquée, pas partagée, donc corrigée d'un côté sans
 // jamais l'être de l'autre. Un seul endroit désormais ; un correctif futur
 // profite aux deux écrans à la fois.
+import 'package:flutter/widgets.dart' show Locale;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/recitation_state.dart' show RecitedWord, WordStatus;
 import '../models/riwaya.dart';
 import '../models/verse.dart';
-import '../providers/app_settings_provider.dart' show portionGranularityProvider;
+import '../providers/app_settings_provider.dart'
+    show portionGranularityProvider, appLocaleProvider;
 import '../providers/recitation_provider.dart';
 import 'diagnostic_log.dart';
 import 'portion_service.dart';
@@ -114,8 +116,10 @@ Future<void> archiverMotDansPortion({
   }
   try {
     final granularite = lire(portionGranularityProvider);
-    final portion =
-        await PortionService.resolve(verse: verse, granularity: granularite);
+    final portion = await PortionService.resolve(
+        verse: verse,
+        granularity: granularite,
+        locale: Locale(lire(appLocaleProvider)));
     await SessionArchiveService.instance.upsertPortionWord(
       surahNumber: verse.surahNumber,
       unitKey: portion.unitKey,

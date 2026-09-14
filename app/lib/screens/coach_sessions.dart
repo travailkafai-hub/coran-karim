@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,8 +8,10 @@ import '../l10n/app_localizations.dart';
 import '../models/objectif_coach.dart';
 import '../models/riwaya.dart' show Riwaya;
 import '../models/verse.dart';
+import '../providers/app_settings_provider.dart' show appLocaleProvider;
 import '../providers/memorization_game_records_provider.dart';
 import '../providers/mind_map_provider.dart';
+import '../services/portion_service.dart';
 import '../services/quran_api.dart';
 import '../services/recitation_error_log_service.dart';
 import '../services/session_archive_service.dart';
@@ -100,8 +104,53 @@ final serieProvider = FutureProvider<int>(
 /// mélange des deux.
 String _riwayaCle() => QuranApi.riwaya == Riwaya.warsh ? 'warsh' : 'hafs';
 
-final portionsProvider = FutureProvider<List<PortionResume>>(
-    (ref) => SessionArchiveService.instance.portions(riwaya: _riwayaCle()));
+final portionsProvider = FutureProvider<List<PortionResume>>((ref) async {
+  final portions =
+      await SessionArchiveService.instance.portions(riwaya: _riwayaCle());
+  // ── RELOCALISATION À LA VOLÉE (2026-09-13) ───────────────────────────────
+  //
+  // Constat utilisateur : « la liste dans مدرّبي reste en français alors que
+  // c'est [réglé sur] arabe ». `portions.label` est écrit UNE SEULE FOIS en
+  // base (cf. `SessionArchiveService.relabelPortion`) -- corriger
+  // `PortionService.resolve()` seul ne change donc rien aux lignes déjà
+  // enregistrées, seulement aux futures. Ici, à CHAQUE lecture, on compare
+  // le libellé stocké à celui que donnerait la locale ACTUELLE et on corrige
+  // la base en tâche de fond dès qu'ils divergent -- sans jamais rejouer
+  // `resolve()` (qui pourrait redécouper la portion avec le réglage de
+  // granularité du jour), uniquement `labelForUnitKey`, pure fonction de
+  // présentation à partir de ce qui est déjà enregistré.
+  //
+  // Coût : un appel `QuranApi.fetchSurahs()` (déjà en cache) par portion
+  // distincte de sourate, jamais un appel réseau par ligne.
+  final locale = Locale(ref.read(appLocaleProvider));
+  final corriges = <PortionResume>[];
+  for (final p in portions) {
+    final attendu = await PortionService.relabelFromStored(
+        surahNumber: p.surahNumber, unitKey: p.unitKey, locale: locale);
+    if (attendu == p.label) {
+      corriges.add(p);
+      continue;
+    }
+    unawaited(SessionArchiveService.instance.relabelPortion(p.id, attendu));
+    corriges.add(PortionResume(
+      id: p.id,
+      surahNumber: p.surahNumber,
+      unitKey: p.unitKey,
+      label: attendu,
+      firstAyah: p.firstAyah,
+      lastAyah: p.lastAyah,
+      wordsTotal: p.wordsTotal,
+      createdAt: p.createdAt,
+      lastRecitedAt: p.lastRecitedAt,
+      wordsReached: p.wordsReached,
+      wordsGreen: p.wordsGreen,
+      wordsSkipped: p.wordsSkipped,
+      riwaya: p.riwaya,
+      repetitions: p.repetitions,
+    ));
+  }
+  return corriges;
+});
 
 /// Quarts de Hizb déjà acquis sur tout le Coran (0 à 240), en fraction.
 ///
@@ -243,7 +292,7 @@ class PortionsSection extends ConsumerWidget {
             // « rajoute un endroit qui explique les niveaux »).
             IconButton(
               visualDensity: VisualDensity.compact,
-              tooltip: 'Les paliers de récitation',
+              tooltip: AppLocalizations.of(context)!.coachStepsTitle,
               icon: const Icon(Icons.info_outline_rounded,
                   size: 17, color: AppColors.green800),
               onPressed: () => _ouvrirLegendePaliers(context),
@@ -572,7 +621,7 @@ class _CartePortion extends ConsumerWidget {
             IconButton(
               icon: const Icon(Icons.play_circle_outline_rounded,
                   size: 22, color: AppColors.green700),
-              tooltip: 'Continuer/refaire cette portion',
+              tooltip: AppLocalizations.of(context)!.coachContinuePortion,
               onPressed: () async {
                 final versets = await QuranApi.fetchVerses(p.surahNumber);
                 if (!context.mounted) return;
@@ -839,17 +888,14 @@ void _ouvrirLegendePaliers(BuildContext context) {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Les paliers de récitation',
+            Text(AppLocalizations.of(context)!.coachStepsTitle,
                 style: GoogleFonts.manrope(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: AppColors.green900)),
             const SizedBox(height: 6),
             Text(
-              'Une portion mastérisée (100 % des mots acquis) gagne une '
-              'coche. La répéter en entier, plusieurs fois, débloque une '
-              'pierre précieuse -- sa couleur monte avec le nombre de '
-              'récitations complètes.',
+              AppLocalizations.of(context)!.coachStepsExplain,
               style: GoogleFonts.manrope(
                   fontSize: 12.5, color: AppColors.inkLight, height: 1.4),
             ),
@@ -1239,7 +1285,7 @@ class SessionsSection extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
-            Text('MES RÉCITATIONS',
+            Text(AppLocalizations.of(context)!.coachMyRecitations,
                 style: GoogleFonts.manrope(
                   fontSize: 11,
                   letterSpacing: 1.3,
@@ -1287,7 +1333,7 @@ class SessionsSection extends ConsumerWidget {
             padding: EdgeInsets.symmetric(vertical: 18),
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           ),
-          error: (e, _) => Text('Archive illisible : $e',
+          error: (e, _) => Text(AppLocalizations.of(context)!.coachArchiveUnreadable('$e'),
               style: GoogleFonts.manrope(
                   fontSize: 12, color: AppColors.inkLight)),
           data: (list) => list.isEmpty
@@ -1300,9 +1346,7 @@ class SessionsSection extends ConsumerWidget {
                     border: Border.all(color: AppColors.cream300),
                   ),
                   child: Text(
-                    'Aucune récitation enregistrée pour l’instant. '
-                    'Après une récitation contrôlée, vous retrouverez ici '
-                    'chaque mot signalé — avec votre voix.',
+                    AppLocalizations.of(context)!.coachNoRecitationYet,
                     style: GoogleFonts.manrope(
                         fontSize: 12.5, height: 1.45, color: AppColors.inkLight),
                   ),
@@ -1337,11 +1381,9 @@ class _CarteSession extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Supprimer cette récitation ?'),
-        content: const Text(
-            'Le résultat et les enregistrements audio de mots de cette '
-            'session seront définitivement supprimés. Le journal cumulé '
-            'du Coach (statistiques par sourate) n\'est pas affecté.'),
+        title: Text(AppLocalizations.of(context)!.coachDeleteRecitationTitle),
+        content: Text(
+            AppLocalizations.of(context)!.coachDeleteRecitationBody),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -1446,7 +1488,7 @@ class _CarteSession extends ConsumerWidget {
             IconButton(
               icon: const Icon(Icons.delete_outline_rounded,
                   size: 20, color: AppColors.inkLight),
-              tooltip: 'Supprimer cette récitation',
+              tooltip: AppLocalizations.of(context)!.coachDeleteRecitation,
               onPressed: () async {
                 final ok = await _confirmerSuppression(context);
                 if (!ok || !context.mounted) return;
@@ -1559,7 +1601,7 @@ class SessionDetailScreen extends ConsumerWidget {
               }
               return IconButton(
                 icon: const Icon(Icons.hub_outlined),
-                tooltip: 'Carte mentale',
+                tooltip: AppLocalizations.of(context)!.coachMindMap,
                 onPressed: () async {
                   final surahs = await QuranApi.fetchSurahs();
                   final surah = surahs
@@ -1581,7 +1623,7 @@ class SessionDetailScreen extends ConsumerWidget {
             _Bilan(session),
             const SizedBox(height: 18),
             if (list.isEmpty)
-              Text('Aucun mot signalé sur cette récitation.',
+              Text(AppLocalizations.of(context)!.coachNoFlaggedWord,
                   style: GoogleFonts.manrope(
                       fontSize: 13, color: AppColors.inkLight))
             else
@@ -1886,7 +1928,8 @@ class _SouratesJamaisReciteesState
                         size: 18, color: AppColors.inkLight),
                     const SizedBox(width: 4),
                     Text(
-                      'Pas encore récitées — ${restantes.length}',
+                      AppLocalizations.of(context)!
+                          .coachNotRecitedYet(restantes.length),
                       style: GoogleFonts.manrope(
                           fontSize: 11,
                           letterSpacing: 0.6,
@@ -1950,7 +1993,7 @@ class _LigneSourateNeuve extends StatelessWidget {
           const SizedBox(width: 6),
           IconButton(
             visualDensity: VisualDensity.compact,
-            tooltip: 'Commencer cette sourate',
+            tooltip: AppLocalizations.of(context)!.coachStartSurah,
             icon: const Icon(Icons.play_circle_outline_rounded,
                 size: 22, color: AppColors.green700),
             onPressed: () async {

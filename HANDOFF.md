@@ -1,5 +1,63 @@
 # Passation de contexte entre agents/machines (Windows ↔ Ubuntu)
 
+## Actualisation ChGPT, 2026-09-13 : ouverture sans icone centree
+
+Nouvelle demande utilisateur : retirer l'icone avant la couverture. Checkpoint
+`b74d24b`. Splash transparent sur Android 12+, couverture native plein cadre
+sur les anciens Android, sas Flutter immediat sans providers avant la fin
+des services. Modele et ASR non modifies. Un bref fond vert systeme reste
+possible sur Android 12+. Pas de recette telephone, a la demande utilisateur.
+Details : [DEMARRAGE_MUSHAF_CHGPT_2026-09-13.md](DEMARRAGE_MUSHAF_CHGPT_2026-09-13.md).
+
+## Actualisation ChGPT, 2026-09-13 : performance Mushaf
+
+Priorite utilisateur : performance, chantier IHM suspendu. Point de retour
+`30fc708`, sur le correctif preexistant `8c4e596` preserve. Mesures TextPainter
+reparties entre frames, cache exact, anticipation des pages voisines, Future
+de donnees stable et decodeur papier Warsh en isolate/coalesce. Recherches
+de taille et interligne inchangees. Aucun changement ASR. Aucun test lance
+sur demande utilisateur ; gains non mesures. Details et limites :
+[PERFORMANCE_MUSHAF_CHGPT_2026-09-13.md](PERFORMANCE_MUSHAF_CHGPT_2026-09-13.md).
+
+## Actualisation ChGPT, 2026-09-13 : cadre de lecture
+
+Cadre ornemental partage entre papier et lecture defilante, palettes clair,
+sepia et sombre. Dessin uniquement, marges de texte et pagination conservees.
+Sauvegarde avant modification : `9406f92`. Aucun test ni manipulation du
+telephone pour recette, sur demande utilisateur ; build et installation DEV
+uniquement. Details : [CADRE_LECTURE_CHGPT_2026-09-13.md](CADRE_LECTURE_CHGPT_2026-09-13.md).
+
+## Actualisation ChGPT, 2026-09-13 : agencement accueil
+
+Suite couverture : image vert/or approuvee remplace l'ancien WebP (213 ko),
+sans titre Flutter superpose. Sauvegarde `a860160`. Puis demande de cadre
+plein ecran : `BoxFit.fill`, sans bandes ajoutees, avec etirement au ratio
+du telephone ; sauvegarde avant ce changement `501f099`.
+L'utilisateur demande de ne plus tester : installation uniquement, recette
+visuelle par lui-meme. Aucun lancement ni capture telephone apres installation.
+
+Refonte ciblee de l'accueil : titre arabe contraint, horaires regroupes,
+miniature Qibla connectee au capteur et ouverture de la boussole existante.
+Compte a rebours corrige (arguments minutes/heures inverses dans l'ancien
+appel). Sauvegarde avant modifications : `2aabf9d`. 24 tests passent,
+analyse ciblee propre. DEV installee, nouvel accueil capture sur telephone ;
+ouverture Qibla observee, retour et rotation physique restent a verifier. Aucun changement
+ASR ni pagination Hafs/Warsh. Details et limites dans
+[ACCUEIL_CHGPT_2026-09-13.md](ACCUEIL_CHGPT_2026-09-13.md).
+
+## Actualisation ChGPT, 2026-09-09 : retour du Mushaf papier
+
+v396 corrige le debordement de l'en-tete de lecture classique au retour du
+papier : `SafeArea(bottom: false)` et restauration du mode systeme demande
+par l'appelant (immersif depuis la lecture, edgeToEdge par defaut ailleurs).
+Hauteur de l'en-tete inchangee, aucune modification ASR ou pagination.
+Sauvegarde ciblee avant correction : `38ee875`. 32 tests passent ; build debug
+et installation DEV reussis. Analyse ciblee sans erreur, neuf signalements
+preexistants. Verification visuelle du retour sur v396 encore en attente de
+disponibilite du telephone ; ne pas confondre la capture avant correction
+avec une validation apres correction. Details et graphe :
+[CORRECTION_MUSHAF_CHGPT_2026-09-09.md](CORRECTION_MUSHAF_CHGPT_2026-09-09.md).
+
 ## Actualisation ChGPT, 2026-09-09 : Mushaf papier
 
 Correction du debordement et des dernieres lignes coupees dans la vue papier.

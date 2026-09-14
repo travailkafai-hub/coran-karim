@@ -17,27 +17,30 @@ class MushafOrnamentalFramePainter extends CustomPainter {
     this.opening = false,
   });
 
+  static (Color, Color, Color) colorsFor(MushafFrameTone tone) =>
+      switch (tone) {
+        MushafFrameTone.light => (
+          const Color(0xFF174C3A),
+          const Color(0xFFBCA064),
+          const Color(0xFFE1D3A5),
+        ),
+        MushafFrameTone.sepia => (
+          const Color(0xFF5A6046),
+          const Color(0xFFB39C6B),
+          const Color(0xFFD7C69E),
+        ),
+        MushafFrameTone.dark => (
+          const Color(0xFF162A23),
+          const Color(0xFF9F8A55),
+          const Color(0xFFC1AE7A),
+        ),
+      };
+
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 4 || size.height <= 4) return;
-    final (ground, gold, detail) = switch (tone) {
-      MushafFrameTone.light => (
-        const Color(0xFF174C3A),
-        const Color(0xFFBCA064),
-        const Color(0xFFE1D3A5),
-      ),
-      MushafFrameTone.sepia => (
-        const Color(0xFF5A6046),
-        const Color(0xFFB39C6B),
-        const Color(0xFFD7C69E),
-      ),
-      MushafFrameTone.dark => (
-        const Color(0xFF162A23),
-        const Color(0xFF9F8A55),
-        const Color(0xFFC1AE7A),
-      ),
-    };
-    final outer = (Offset.zero & size).deflate(1);
+    final (ground, gold, detail) = colorsFor(tone);
+    final outer = Offset.zero & size;
     final left = band.left.clamp(1.5, size.width / 4).toDouble();
     final right = band.right.clamp(1.5, size.width / 4).toDouble();
     final top = band.top.clamp(1.5, size.height / 4).toDouble();

@@ -89,7 +89,7 @@ class IncrementalRepeatStep extends ConsumerStatefulWidget {
 }
 
 class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
@@ -384,6 +384,7 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // ── ÉVITER LE FLASH D'UN AUTRE VERSET (2026-08-09) ──────────────────────
     //
     // Constat utilisateur : « depuis Mushaf la mémorisation s'arrête bien au
@@ -470,8 +471,41 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     });
   }
 
+  /// Vrai tant que cet onglet est celui qu'on regarde (cf. `TickerMode` posé
+  /// dans `main.dart`). `null` tant qu'on ne l'a pas encore lu.
+  bool? _visible;
+
+  // ── L'AUDIO NE SURVIT PAS À UN DÉPART DE L'ÉCRAN (2026-09-14) ───────────
+  //
+  // Bug signalé : « au lancement de l'audio, si je bascule sur autre chose,
+  // l'audio continue ; il doit s'arrêter ».
+  //
+  // DEUX FAÇONS DE PARTIR, et `dispose()` n'en voit AUCUNE :
+  //   1. changer d'onglet -> l'écran reste monté (`IndexedStack`) ;
+  //   2. quitter l'application -> l'écran reste monté aussi.
+  // D'où les deux gardes ci-dessous. Elles ne coupent QUE la lecture : le tour
+  // en cours, lui, est conservé — on revient là où on en était, ce qui est la
+  // raison d'être de l'`IndexedStack`.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.of(context);
+    if (_visible == true && !visible) WordCorrectionAudio.stop();
+    _visible = visible;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // `inactive` inclus ici, contrairement au garde du micro : un volet de
+    // notifications tiré ne doit pas couper une RÉCITATION en cours, mais il
+    // n'y a aucun inconvénient à couper une LECTURE — elle se relance d'un
+    // appui, alors qu'une récitation interrompue est perdue.
+    if (state != AppLifecycleState.resumed) WordCorrectionAudio.stop();
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // Le drapeau ne doit pas survivre a cet ecran : la recitation garde
     // l'exigence de double observation.
     ref.read(recitationProvider.notifier).tajwidSansDoubleObservation = false;

@@ -1079,6 +1079,14 @@ class ChaineRecitation(
      *  1. positions FIABLES uniquement (cf. [plageFiable]) ;
      *  2. le mot demande est l'ANCRE : sans plage fiable pour lui, on rend
      *     `null` plutot qu'un extrait construit sur ses seuls voisins ;
+     *     ⚠️ ASSOUPLIE LE 2026-09-12, cf. [entreLesVoisins] : le refus sec
+     *     restait juste pour un mot PRONONCE mal situe (le cas de 2026-08-14,
+     *     ou l'extrait tombait sur un autre passage), mais il rendait muet
+     *     tout mot `omis` -- or c'est precisement celui qu'on veut entendre.
+     *     Le repli ne construit rien sur des voisins LOINTAINS : il se limite
+     *     aux deux mots JUXTAPOSES, ce qui borne l'extrait par construction.
+     *  2 bis. si le mot n'a aucune plage fiable MAIS que ses deux voisins
+     *     immediats en ont une, l'extrait est l'intervalle entre eux ;
      *  3. le contexte gauche n'est ajoute que s'il est CONTIGU, et la duree
      *     totale est plafonnee en rognant le DEBUT -- jamais la fin, qui porte
      *     le mot demande.
@@ -1087,7 +1095,7 @@ class ChaineRecitation(
         // `null` plutot qu'un extrait bati sur les seuls voisins : l'appelant
         // (FastConformerCtcPlugin) journalise deja l'indisponibilite. Cette
         // classe ne journalise rien -- c'est la couche natif pure.
-        val ancre = plageFiable(motFin) ?: return null
+        val ancre = plageFiable(motFin) ?: return entreLesVoisins(motFin)
         var debut = ancre.first
         var fin = ancre.second
         for (i in motDebut until motFin) {
@@ -1108,6 +1116,81 @@ class ChaineRecitation(
         val marge = (Horloge.TAUX * 0.25).toLong()
         val d = maxOf(fluxBrut.premierDisponible, debut - marge)
         val f = minOf(fluxBrut.total, fin + marge)
+        return fluxBrut.extraire(d, f)
+    }
+
+    /**
+     * ── LE MOT SE DEDUIT DE SES DEUX VOISINS (2026-09-12) ──────────────────
+     *
+     * Decision utilisateur, formulee ainsi : « si position non fiable, les deux
+     * mots juxtaposes sont fiables, donc le son entre ces deux mots c'est le son
+     * du mot » -- « on peut deduire ou le mot est dit si on sait deja les deux
+     * mots a cote sont connus ».
+     *
+     * CE QUE LE JOURNAL MONTRAIT, et qui a motive la demande (session du
+     * 2026-09-12, sourate An-Nasr, build v425) :
+     *
+     *     mot=4  "إِذَا"      -> definitif:vert | INT
+     *     mot=5  "جَآءَ"      -> omis           | bord/sansCreneau
+     *     mot=6  "نَصْرُ"     -> definitif:vert | INT
+     *
+     * Le mot manquant est ENCADRE par deux positions sures. L'audio situe entre
+     * la fin de l'un et le debut de l'autre est, par construction, l'endroit ou
+     * ce mot a ete dit -- ou celui ou il manque. Les deux reponses interessent
+     * le recitateur, et aucune n'etait audible jusqu'ici.
+     *
+     * POURQUOI CELA NE REOUVRE PAS LE DEFAUT DU 2026-08-14 (extraits de 12,10 s
+     * et 15,62 s tombant sur un autre passage) : ce defaut venait de l'UNION
+     * d'observations eloignees pour un mot bel et bien prononce. Ici on ne prend
+     * l'union de rien -- deux mots ADJACENTS ne peuvent enfermer qu'un seul mot,
+     * et l'intervalle est plafonne. La garde d'origine reste entiere pour tous
+     * les autres cas.
+     *
+     * TROIS REFUS, tous silencieux (l'appelant journalise deja) :
+     *  - un voisin immediat sans position fiable : on ne sait plus ou chercher ;
+     *  - un intervalle vide ou negatif : les deux voisins se chevauchent, il n'y
+     *    a rien entre eux ;
+     *  - un intervalle au-dela de [PLAGE_MAX_ECH] : une pause, une reprise ou un
+     *    decrochage s'est glisse la. On rend `null` PLUTOT QUE DE ROGNER, parce
+     *    qu'ici rogner reviendrait a deviner de quel cote du trou le mot se
+     *    trouve -- exactement ce qu'on ne sait pas.
+     */
+    private fun entreLesVoisins(mot: Int): FloatArray? {
+        // `observations` est une Map : un index negatif ou hors bornes rend une
+        // liste vide, donc `plageFiable` rend `null`. Pas de garde a ajouter.
+        val avant = plageFiable(mot - 1) ?: return null
+        val apres = plageFiable(mot + 1) ?: return null
+        var debut = avant.second
+        var fin = apres.first
+        // ── LE SILENCE EST UNE REPONSE, PAS UNE PANNE (2026-09-12) ────────────
+        //
+        // Demande utilisateur : « peut-etre c'est vraiment omis et du coup il
+        // n'y aura rien [...] si le decoupage montre qu'il y avait rien, ca
+        // veut dire qu'il y avait rien ». Rendre `null` quand les deux voisins
+        // se touchent afficherait « Audio plus disponible » -- un message de
+        // PANNE la ou le vide est justement le RESULTAT cherche. On rend donc
+        // la jonction elle-meme : le recitateur entend qu'il est passe d'un mot
+        // a l'autre sans rien entre les deux, ce qui confirme l'omission au
+        // lieu de laisser croire a un defaut de l'application.
+        if (fin <= debut) {
+            val centre = (avant.second + apres.first) / 2
+            debut = centre
+            fin = centre
+        }
+        if (fin - debut > PLAGE_MAX_ECH) return null
+        // La marge mord volontairement sur la fin du mot precedent et sur
+        // l'attaque du suivant : c'est ce qui rend le trou ECOUTABLE (« tu es
+        // passe de إِذَا directement a نَصْرُ »). Sans elle, un mot reellement
+        // saute ne donnerait qu'un silence nu, impossible a situer.
+        // 0,4 s de chaque cote, et non les 0,25 s de [voixSurPlage] : ici la
+        // marge ne sert pas a rattraper le piquage du CTC, elle est le SEUL
+        // contenu audible quand le trou est court ou nul. Trop courte, on
+        // n'entendrait ni la fin du mot d'avant ni l'attaque de celui d'apres,
+        // donc rien de reconnaissable.
+        val marge = (Horloge.TAUX * 0.4).toLong()
+        val d = maxOf(fluxBrut.premierDisponible, debut - marge)
+        val f = minOf(fluxBrut.total, fin + marge)
+        if (f <= d) return null
         return fluxBrut.extraire(d, f)
     }
 

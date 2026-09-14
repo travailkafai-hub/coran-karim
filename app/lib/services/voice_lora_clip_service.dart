@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+
+import '../screens/about_screen.dart' show kContactEmail;
 
 /// Enregistrements audio on-device.
 ///
@@ -329,9 +332,50 @@ class VoiceLoraClipService {
     }
     encoder.close();
 
+    // ── LE DESTINATAIRE EST CELUI DE « NOUS CONTACTER » (2026-09-14) ──────
+    //
+    // Demande utilisateur : « envoi des verdicts, il faut mettre la même
+    // adresse mail que nous contacter, pré-saisie ». UNE SEULE boîte pour tout
+    // ce que l'application demande d'envoyer — `kContactEmail`, la même que
+    // `ContactScreen` et le signalement IA. Sans elle, l'utilisateur devait
+    // deviner où adresser son envoi, et l'archive partait souvent nulle part.
+    //
+    // ── LE CHAMP « À » EST PRÉ-REMPLI (2026-09-14) ────────────────────────
+    //
+    // Demande utilisateur : « fais pareil » que « Nous contacter », dont le
+    // destinataire arrive déjà rempli (capture d'écran à l'appui).
+    //
+    // On passe donc par un `Intent ACTION_SEND` natif (cf. `MainActivity`,
+    // canal `coran_karim/envoi`) : lui seul porte À LA FOIS le destinataire
+    // (`EXTRA_EMAIL`) et la pièce jointe (`EXTRA_STREAM`). Les deux chemins
+    // Dart en étaient incapables — `mailto:` remplit « À » mais perd le .zip,
+    // le partage `share_plus` porte le .zip mais ignore le destinataire.
+    //
+    // REPLI CONSERVÉ, et ce n'est pas de la prudence de façade : sans client
+    // de courriel installé, `createChooser` ne trouve personne et le natif rend
+    // `false`. On repasse alors par le partage ordinaire avec l'adresse écrite
+    // en tête du message — l'utilisateur peut toujours envoyer son archive,
+    // simplement en collant l'adresse lui-même.
+    try {
+      final envoye = await const MethodChannel('coran_karim/envoi')
+          .invokeMethod<bool>('envoyerFichierParMail', {
+        'fichier': zipPath,
+        'destinataire': kContactEmail,
+        'sujet': 'Verdicts contestés — Coran Karim',
+        'texte': 'Verdicts contestés — Coran Karim (amélioration du modèle).',
+      });
+      if (envoye == true) return true;
+    } on PlatformException {
+      // Canal absent (autre plateforme) : on ne bloque pas, on replie.
+    } on MissingPluginException {
+      // Idem — l'envoi doit rester possible même hors Android.
+    }
+
     final result = await SharePlus.instance.share(ShareParams(
       files: [XFile(zipPath)],
-      text: 'Verdicts contestés — Coran Karim (amélioration du modèle)',
+      subject: 'Verdicts contestés — Coran Karim (pour $kContactEmail)',
+      text: 'À envoyer à $kContactEmail'
+          '\n\nVerdicts contestés — Coran Karim (amélioration du modèle).',
     ));
     return result.status == ShareResultStatus.success;
   }

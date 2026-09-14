@@ -246,11 +246,30 @@ class _CoranKarimAppState extends ConsumerState<CoranKarimApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      navigatorObservers: [_gardeMicro],
+      navigatorObservers: [_gardeMicro, observateurDeRoutes],
       home: const _PointDEntree(),
     );
   }
 }
+
+/// Observateur de routes de l'application.
+///
+/// ── POURQUOI IL EXISTE (2026-09-14, demande utilisateur) ────────────────────
+/// « à chaque retour arrière dans l'application, là où se trouve le menu, qu'il
+/// s'affiche au lieu de rester caché ».
+///
+/// Le Mushaf efface son en-tête et sa barre du bas après quelques secondes de
+/// lecture silencieuse -- volontaire, c'est ce qui donne le plein écran. Mais
+/// l'écran n'est jamais reconstruit quand on REVIENT d'un sous-écran (il vit
+/// dans un `IndexedStack`, son `initState` ne rejoue pas) : on retombait donc
+/// sur une page nue, sans aucun moyen visible de naviguer, et il fallait
+/// toucher l'écran au hasard pour faire réapparaître le menu.
+///
+/// `didPopNext` est le seul signal qui dit « on vient de revenir SUR moi ».
+/// Un `.then()` sur chaque `Navigator.push` aurait couvert les appels qu'on
+/// pense à modifier, jamais ceux qu'on ajoutera plus tard.
+final RouteObserver<ModalRoute<void>> observateurDeRoutes =
+    RouteObserver<ModalRoute<void>>();
 
 /// Aiguillage de démarrage : ouvre la RECETTE si l'app a été lancée par intent
 /// (`--es recette ecoute|lecture --ei sourate N`), l'accueil normal sinon.
@@ -466,6 +485,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       await Navigator.of(context).push(PageRouteBuilder<int>(
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
+        // TRANSPARENTE depuis le 2026-09-14 : la couverture s'ouvre sur les
+        // onglets déjà montés dessous, puis se referme seule. Opaque, elle
+        // révélait un écran vide — cf. `MushafOpeningScreen.build`.
+        opaque: false,
         pageBuilder: (_, _, _) => const MushafOpeningScreen(),
       ));
     } finally {
@@ -514,7 +537,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // `_aiguillerPremierLancement()` ici -- il repartirait sur la
           // couverture du Mushaf, qui recouvrirait la visite avant qu'on
           // l'ait vue.
-          demarrerVisite();
+          // Visite guidée désactivée (`kVisitesGuideesActives`, 2026-09-14) :
+          // la préparation rend donc la main directement à l'application. Sa
+          // dernière étape vient de proposer d'essayer les quatre fonctions,
+          // ce qui remplace le tour narré.
+          if (kVisitesGuideesActives) demarrerVisite();
         },
       );
     }
@@ -557,7 +584,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       libelleSuivant: t.guideSuivant,
       libelleFin: t.guideFin,
       onTermine: () => setState(() => _montrerVisite = false),
-      etapes: kChapitresGuide.first.etapes(context, t),
+      // ── EN RECETTE, LE DEMARRAGE JOUE TOUT (2026-09-14) ────────────────
+      //
+      // Constat utilisateur, capture a l'appui : « je ne vois que ce qu'il y a
+      // dans le menu principal ». C'etait exact, et c'etait le comportement
+      // normal -- le premier chapitre du catalogue est le TOUR D'ENSEMBLE, qui
+      // ne parcourt que les cinq onglets (4 etapes). Les ~53 etapes detaillees
+      // (reglages, menu d'un verset, prieres, Coach, memorisation) n'etaient
+      // atteignables que par Reglages -> Decouvrir l'application, ou personne
+      // ne va spontanement pendant une recette.
+      //
+      // Pendant la recette, le demarrage enchaine donc TOUS les chapitres. En
+      // release il rejoue le seul tour d'ensemble : imposer 57 etapes a
+      // quelqu'un qui ouvre l'app pour la premiere fois serait exactement ce
+      // que l'utilisateur voulait eviter (« tout parcourir automatiquement des
+      // l'installation serait long »). Les deux besoins sont opposes, d'ou la
+      // bascule -- et c'est la MEME que celle qui rejoue la preparation, donc
+      // rien de nouveau a penser a eteindre avant publication.
+      etapes: preparationEnRecette
+          ? [
+              for (final ch in kChapitresGuide) ...ch.etapes(context, t),
+            ]
+          : kChapitresGuide.first.etapes(context, t),
     );
   }
 
@@ -565,7 +613,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       body: IndexedStack(index: _tab, children: [
         TickerMode(enabled: _tab == 0, child: _screens[0]),
-        ..._screens.skip(1),
+        _screens[1],
+        // ── L'ONGLET COACH SAIT QUAND IL N'EST PLUS REGARDÉ (2026-09-14) ──
+        //
+        // Bug signalé : « lors de l'entraînement par palier, au lancement de
+        // l'audio, si je bascule sur autre chose, l'audio continue ; il doit
+        // s'arrêter ».
+        //
+        // La cause n'est pas dans l'écran d'entraînement, qui coupe bien son
+        // audio dans `dispose()` : c'est que `dispose()` N'ARRIVE JAMAIS.
+        // `IndexedStack` garde les cinq onglets montés — c'est voulu (on
+        // retrouve chaque onglet où on l'avait laissé) — donc changer d'onglet
+        // ne détruit rien.
+        //
+        // `TickerMode` est le signal qui manquait : il passe à `false` dès que
+        // l'onglet sort de l'écran, et l'entraînement s'y abonne pour couper
+        // sa lecture (cf. `IncrementalRepeatStep.didChangeDependencies`).
+        TickerMode(enabled: _tab == 2, child: _screens[2]),
+        ..._screens.skip(3),
       ]),
       // ── LES BOUTONS DE DEVELOPPEMENT SONT RETIRES (2026-08-06) ───────────
       //

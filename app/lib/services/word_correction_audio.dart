@@ -28,6 +28,59 @@ import 'reciter_download_service.dart';
 /// mécanisme ailleurs.
 class WordCorrectionAudio {
   static final _player = AudioPlayer();
+
+  /// ── UNE SEULE LECTURE VIVANTE A LA FOIS (2026-09-12) ───────────────────
+  ///
+  /// DEFAUT MESURE, scenario donne par l'utilisateur : lancer la memorisation
+  /// par palier sur un verset, revenir en arriere, en lancer un autre -- plus
+  /// aucun son ; recommencer -- et c'est l'audio du verset PRECEDENT qui
+  /// part. Le journal le montre au milliseconde pres :
+  ///
+  ///     14:20:43.513  Correction-Audio  verset=33:1     <- demande 33:1
+  ///     14:20:51.208  Correction-Audio  verset=33:5     <- demande 33:5
+  ///     14:20:51.429  joue verset=33:1  reel=7577 ms  <-- PLUS COURT
+  ///     14:21:06.764  Correction-Audio  verset=33:6
+  ///     14:21:06.966  joue verset=33:5  reel=15754 ms <-- PLUS COURT
+  ///     14:21:06.970  joue verset=33:5  reel=4458 ms  <-- PLUS COURT
+  ///
+  /// Deux lectures du MEME verset se terminent a 4 ms d'intervalle, et celle
+  /// qui s'annonce est toujours celle d'avant.
+  ///
+  /// LA CAUSE N'EST PAS LE LECTEUR PARTAGE, c'est qu'une lecture SURVIT a
+  /// l'ecran qui l'a lancee. Entre la demande et la fin il s'ecoule plusieurs
+  /// secondes ; pendant ce temps `posSub`/`doneSub` restent abonnes au
+  /// lecteur. Quand l'ecran suivant demarre sa propre lecture, les ecouteurs
+  /// de l'ancienne recoivent les positions de la NOUVELLE, croient leur
+  /// fenetre finie, et appellent `_player.pause()` -- ils coupent la lecture
+  /// de quelqu'un d'autre, puis completent leur `Completer` et journalisent
+  /// leur propre verset.
+  ///
+  /// `dispose()` appelle pourtant bien `stop()` cote ecran : ca n'aide pas,
+  /// Flutter construit le nouvel ecran AVANT de detruire l'ancien, donc ce
+  /// `stop()` arrive apres le `play()` du suivant et le coupe.
+  ///
+  /// POURQUOI PAS « UN LECTEUR PAR ECRAN » (question posee le 2026-09-12) :
+  /// le scenario oppose deux fois le MEME usage, deux ecrans palier. Leur
+  /// donner un lecteur chacun ne ferait pas taire l'ancien -- on entendrait
+  /// les deux versets ensemble. Le silence deviendrait une cacophonie, la
+  /// cause resterait. L'app dissocie deja par USAGE (Mushaf, duas, coran,
+  /// corrections) et arbitre entre eux par `_faireTaireLeMushaf`.
+  ///
+  /// LE JETON. Chaque lecture prend un numero au demarrage ; toute lecture
+  /// dont le numero n'est plus le courant est PERIMEE : elle se desabonne,
+  /// ne touche jamais au lecteur, et n'ecrit aucun verdict. La derniere
+  /// demandee gagne toujours. Meme mecanisme que la `generation` du micro
+  /// (cf. `[CTL][Micro] ... generation=` dans les journaux).
+  static int _generation = 0;
+
+  /// Ouvre une lecture et rend son jeton. A appeler AVANT le premier
+  /// `_player.stop()`/`play()`, pour que toute lecture deja en vol soit
+  /// perimee des cet instant -- et cesse donc de pouvoir couper celle-ci.
+  static int _nouvelleLecture() => ++_generation;
+
+  /// Cette lecture a-t-elle ete supplantee ? Tout ce qui touche au lecteur ou
+  /// journalise un verdict doit le demander d'abord.
+  static bool _perimee(int jeton) => jeton != _generation;
   /// ── LA CLE PORTE LE RECITATEUR, PAS SEULEMENT LA SOURATE (2026-09-06) ──
   ///
   /// Signale par l'audit (QUAL-04) et VERIFIE : ce cache etait indexe par le
@@ -143,6 +196,7 @@ class WordCorrectionAudio {
   }
 
   static Future<void> playFile(String path) async {
+    final jeton = _nouvelleLecture();
     DiagnosticLog.log('Voix', 'lecture extrait : $path');
     await _player.stop();
     final completer = Completer<void>();
@@ -151,6 +205,13 @@ class WordCorrectionAudio {
       doneSub.cancel();
       if (!completer.isCompleted) completer.complete();
     });
+    if (_perimee(jeton)) {
+      // Supplantee entre-temps : on rend la main sans jouer. Ne pas appeler
+      // `stop()` ici -- ce serait couper la lecture de celui qui nous a
+      // remplaces, le defaut meme que ce jeton corrige.
+      doneSub.cancel();
+      return;
+    }
     await _player.play(DeviceFileSource(path));
     // Garde-fou : un extrait fait au plus quelques secondes. Sans borne, une
     // fin de lecture jamais notifiée laisserait le bouton bloqué.
@@ -303,6 +364,9 @@ class WordCorrectionAudio {
         'startMs=$startMs endMs=$endMs '
         'source=${telecharge != null ? "telecharge($telecharge)" : localPath != null ? "precache($localPath)" : "url($url)"}');
 
+    // Jeton de cette lecture (cf. `_generation`) : pris avant tout appel au
+    // lecteur, pour perimer ce qui serait encore en vol.
+    final jeton = _nouvelleLecture();
     final completer = Completer<void>();
     late final StreamSubscription posSub;
     late final StreamSubscription doneSub;
@@ -329,6 +393,11 @@ class WordCorrectionAudio {
     // le repositionnement a été observé, pas supposé.
     var amorce = false;
     posSub = _player.onPositionChanged.listen((pos) {
+      // Perimee : se retirer sans toucher au lecteur (cf. `_generation`).
+      if (_perimee(jeton)) {
+        finish();
+        return;
+      }
       if (!amorce) {
         if (pos.inMilliseconds < endMs) amorce = true;
         return;
@@ -353,12 +422,21 @@ class WordCorrectionAudio {
     await completer.future.timeout(_plafondLecture(endMs - startMs), onTimeout: () {
       posSub.cancel();
       doneSub.cancel();
-      _player.pause();
+      if (!_perimee(jeton)) _player.pause();
       DiagnosticLog.log('Correction-Audio',
           'TRONQUE par le garde-fou : demande=${endMs - startMs} ms '
           'verset=${verse.key}');
     });
     final jouees = DateTime.now().difference(depart).inMilliseconds;
+    if (_perimee(jeton)) {
+      // Supplantee : son verdict mentirait sur ce qui a ete entendu -- c'est
+      // cette ligne-la qui annoncait « joue verset=33:1 » pendant que 33:5
+      // jouait (cf. `_generation`). On le dit, sans pretendre avoir joue.
+      DiagnosticLog.log('Correction-Audio',
+          'verset=${verse.key} : lecture SUPPLANTEE apres $jouees ms '
+          '-- aucun verdict');
+      return false;
+    }
     DiagnosticLog.log('Correction-Audio',
         'joue verset=${verse.key} demande=${endMs - startMs} ms '
         'reel=$jouees ms '
@@ -523,6 +601,9 @@ class WordCorrectionAudio {
         'startMs=$startMs endMs=$endMs echelle=${echelle.toStringAsFixed(2)} '
         'source=$path');
 
+    // Jeton de cette lecture (cf. `_generation`) : pris avant tout appel au
+    // lecteur, pour perimer ce qui serait encore en vol.
+    final jeton = _nouvelleLecture();
     final completer = Completer<void>();
     late final StreamSubscription posSub;
     late final StreamSubscription doneSub;
@@ -549,6 +630,11 @@ class WordCorrectionAudio {
     // le repositionnement a été observé, pas supposé.
     var amorce = false;
     posSub = _player.onPositionChanged.listen((pos) {
+      // Perimee : se retirer sans toucher au lecteur (cf. `_generation`).
+      if (_perimee(jeton)) {
+        finish();
+        return;
+      }
       if (!amorce) {
         if (pos.inMilliseconds < endMs) amorce = true;
         return;
@@ -572,7 +658,7 @@ class WordCorrectionAudio {
     await completer.future.timeout(_plafondLecture(endMs - startMs), onTimeout: () {
       posSub.cancel();
       doneSub.cancel();
-      _player.pause();
+      if (!_perimee(jeton)) _player.pause();
       // Une troncature ne doit JAMAIS être silencieuse : c'est elle qui a
       // fait passer quatre paliers pour le même audio sans laisser de trace.
       DiagnosticLog.log('Correction-Audio',
@@ -582,6 +668,15 @@ class WordCorrectionAudio {
     // Ce qui a RÉELLEMENT été joué, à chaque palier et à chaque répétition
     // (demande utilisateur 2026-08-18 : « fais du traçage de log »).
     final jouees = DateTime.now().difference(depart).inMilliseconds;
+    if (_perimee(jeton)) {
+      // Supplantee : son verdict mentirait sur ce qui a ete entendu -- c'est
+      // cette ligne-la qui annoncait « joue verset=33:1 » pendant que 33:5
+      // jouait (cf. `_generation`). On le dit, sans pretendre avoir joue.
+      DiagnosticLog.log('Correction-Audio',
+          'verset=${verse.key} : lecture SUPPLANTEE apres $jouees ms '
+          '-- aucun verdict');
+      return false;
+    }
     DiagnosticLog.log('Correction-Audio',
         'joue verset=${verse.key} mots=$fromIdx..$toIdx '
         'demande=${endMs - startMs} ms reel=$jouees ms '
@@ -682,6 +777,7 @@ class WordCorrectionAudio {
     String etiquette = '',
   }) async {
     if (endMs <= startMs) return false;
+    final jeton = _nouvelleLecture();
     DiagnosticLog.log('Correction-Audio',
         'plage MESUREE $etiquette : startMs=$startMs endMs=$endMs '
         '(duree=${endMs - startMs} ms) source=$path');
@@ -701,6 +797,13 @@ class WordCorrectionAudio {
     // entendre du tout.
     var amorce = false;
     posSub = _player.onPositionChanged.listen((pos) {
+      // Perimee : on se retire SANS toucher au lecteur. Sans ce garde, cette
+      // lecture-ci lisait les positions de la SUIVANTE, croyait sa fenetre
+      // finie, et la mettait en pause -- le silence signale le 2026-09-12.
+      if (_perimee(jeton)) {
+        finish();
+        return;
+      }
       if (!amorce) {
         if (pos.inMilliseconds < endMs) amorce = true;
         return;
@@ -714,6 +817,13 @@ class WordCorrectionAudio {
 
     await _faireTaireLeMushaf();
     final depart = DateTime.now();
+    if (_perimee(jeton)) {
+      // Supplantee pendant l'attente ci-dessus : ne rien jouer, et surtout ne
+      // pas arreter le lecteur -- il appartient desormais a la lecture qui
+      // nous a remplaces.
+      finish();
+      return false;
+    }
     await _player.stop();
     await _player.play(DeviceFileSource(path),
         position: Duration(milliseconds: startMs));
@@ -721,12 +831,20 @@ class WordCorrectionAudio {
         onTimeout: () {
       posSub.cancel();
       doneSub.cancel();
-      _player.pause();
+      if (!_perimee(jeton)) _player.pause();
       DiagnosticLog.log('Correction-Audio',
           'plage MESUREE $etiquette : TRONQUEE au plafond '
           '(demande=${endMs - startMs} ms)');
     });
     final reel = DateTime.now().difference(depart).inMilliseconds;
+    if (_perimee(jeton)) {
+      // Le verdict d'une lecture supplantee ment sur ce qui a ete entendu :
+      // c'est lui qui annoncait « joue verset=33:1 » alors que 33:5 jouait.
+      DiagnosticLog.log('Correction-Audio',
+          'plage MESUREE $etiquette : SUPPLANTEE par une lecture plus '
+          'recente apres $reel ms -- aucun verdict');
+      return false;
+    }
     DiagnosticLog.log('Correction-Audio',
         'plage MESUREE $etiquette : demande=${endMs - startMs} ms reel=$reel ms');
     return true;
@@ -822,5 +940,15 @@ class WordCorrectionAudio {
     }
   }
 
-  static Future<void> stop() => _player.stop();
+  /// Arrete la lecture en cours ET perime toute lecture en vol (2026-09-12).
+  ///
+  /// L'increment est le point essentiel : sans lui, une lecture lancee juste
+  /// avant ce `stop()` continuerait de recevoir les evenements du lecteur et
+  /// pourrait couper la SUIVANTE quelques secondes plus tard. C'est ce qui se
+  /// produisait quand un ecran se fermait pendant sa propre lecture -- cf. le
+  /// bloc de `_generation`.
+  static Future<void> stop() {
+    _nouvelleLecture();
+    return _player.stop();
+  }
 }

@@ -14,14 +14,14 @@ class MushafClosedCover extends StatelessWidget {
     color: mushafCoverColor,
     child: SizedBox.expand(
       // ChGPT: the approved artwork already includes the Arabic calligraphy.
-      // Contain preserves the medallion and the complete ornamental frame.
+      // ChGPT: stretch to the viewport as requested, keeping all four borders.
       child: Semantics(
         label:
             '\u0627\u0644\u0642\u0631\u0622\u0646 \u0627\u0644\u0643\u0631\u064a\u0645',
         image: true,
         child: Image.asset(
           mushafCoverAsset,
-          fit: BoxFit.contain,
+          fit: BoxFit.fill,
           excludeFromSemantics: true,
           errorBuilder: (_, _, _) => const SizedBox.shrink(),
         ),
@@ -35,10 +35,20 @@ class MushafCoverReveal extends StatefulWidget {
   final bool ready;
   final Widget child;
 
+  /// Appele UNE fois, quand la couverture a fini de s'ouvrir (2026-09-14).
+  ///
+  /// Sert a rendre la main : depuis cette date l'ouverture ne debouche plus sur
+  /// le mushaf papier mais sur la page principale, et c'est l'ecran appelant
+  /// qui referme sa route ici. Sans ce signal, il aurait fallu deviner la duree
+  /// de l'animation avec un `Future.delayed` -- un chiffre a resynchroniser a
+  /// la main chaque fois que l'animation change.
+  final VoidCallback? onTermine;
+
   const MushafCoverReveal({
     super.key,
     required this.ready,
     required this.child,
+    this.onTermine,
   });
 
   @override
@@ -54,6 +64,7 @@ class _MushafCoverRevealState extends State<MushafCoverReveal>
       )..addStatusListener((status) {
         if (status == AnimationStatus.completed && mounted) {
           setState(() => _finished = true);
+          widget.onTermine?.call();
         }
       });
   bool _scheduled = false;

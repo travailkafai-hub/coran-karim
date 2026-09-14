@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/app_theme.dart';
 import 'about_screen.dart' show kContactEmail;
+import '../l10n/app_localizations.dart';
 
 /// "Nous contacter" (2026-08-09, demande utilisateur) : écran de composition
 /// DANS l'app -- pas un simple lien qui bascule directement sur l'appli mail,
@@ -85,7 +86,7 @@ class _ContactScreenState extends State<ContactScreen> {
         backgroundColor: AppColors.green900,
         foregroundColor: AppColors.cream,
         elevation: 0,
-        title: Text('Nous contacter',
+        title: Text(AppLocalizations.of(context)!.contactTitle,
             style: GoogleFonts.scheherazadeNew(fontSize: 22, color: AppColors.brassLight)),
       ),
       body: ListView(
@@ -104,9 +105,7 @@ class _ContactScreenState extends State<ContactScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Une question, un bug à signaler, une suggestion ? Écris ton message ici -- '
-                    'l\'appli mail s\'ouvrira ensuite avec tout déjà rempli, il ne restera qu\'à '
-                    'l\'envoyer.',
+                    AppLocalizations.of(context)!.contactIntro,
                     style: GoogleFonts.manrope(fontSize: 12, color: AppColors.ink, height: 1.4),
                   ),
                 ),
@@ -114,15 +113,16 @@ class _ContactScreenState extends State<ContactScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          Text('OBJET (facultatif)',
+          Text(AppLocalizations.of(context)!.contactSubjectLabel,
               style: GoogleFonts.manrope(
                   fontSize: 10, color: AppColors.green700, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
           const SizedBox(height: 8),
           TextField(
             controller: _subjectCtrl,
+            key: const ValueKey('guide.contact.subject'),
             style: GoogleFonts.manrope(fontSize: 14, color: AppColors.ink),
             decoration: InputDecoration(
-              hintText: 'Coran Karim — message',
+              hintText: AppLocalizations.of(context)!.contactSubjectDefault,
               hintStyle: GoogleFonts.manrope(fontSize: 13, color: AppColors.inkLight),
               filled: true,
               fillColor: Colors.white,
@@ -148,12 +148,13 @@ class _ContactScreenState extends State<ContactScreen> {
           const SizedBox(height: 8),
           TextField(
             controller: _messageCtrl,
+            key: const ValueKey('guide.contact.message'),
             onChanged: (_) => setState(() {}),
             minLines: 8,
             maxLines: 14,
             style: GoogleFonts.manrope(fontSize: 14, color: AppColors.ink, height: 1.5),
             decoration: InputDecoration(
-              hintText: 'Écris ton message…',
+              hintText: AppLocalizations.of(context)!.contactMessageHint,
               hintStyle: GoogleFonts.manrope(fontSize: 13, color: AppColors.inkLight),
               filled: true,
               fillColor: Colors.white,
@@ -174,6 +175,7 @@ class _ContactScreenState extends State<ContactScreen> {
           ),
           const SizedBox(height: 24),
           FilledButton(
+            key: const ValueKey('guide.contact.send'),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.green700,
               foregroundColor: AppColors.cream,

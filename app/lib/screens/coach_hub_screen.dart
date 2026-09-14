@@ -144,9 +144,9 @@ class CoachHubScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: const [
-          _ObjectifSection(),
+          KeyedSubtree(key: ValueKey('guide.coach.goal'), child: _ObjectifSection()),
           SizedBox(height: 4),
-          PortionsSection(),
+          KeyedSubtree(key: ValueKey('guide.coach.portions'), child: PortionsSection()),
         ],
       ),
     );

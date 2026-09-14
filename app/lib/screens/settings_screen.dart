@@ -11,6 +11,7 @@ import '../providers/recitation_provider.dart' show recitationVerifierProvider;
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
+import '../data/guides_catalogue.dart';
 import 'decouverte_screen.dart';
 import 'contact_screen.dart';
 import 'prayer_times_settings_screen.dart';
@@ -117,6 +118,7 @@ class SettingsScreen extends ConsumerWidget {
             secondary: const Icon(Icons.menu_book_rounded,
                 color: AppColors.brassLight),
             title: Text(t.settingsRiwayaTitle,
+                key: const ValueKey('guide.settings.riwaya'),
                 style: GoogleFonts.manrope(
                     fontSize: 14.5, fontWeight: FontWeight.w600)),
             subtitle: Text(
@@ -172,6 +174,7 @@ class SettingsScreen extends ConsumerWidget {
           _SectionHeader(t.settingsSectionPrayer),
           _SettingsTile(
             icon: Icons.explore_rounded,
+            key: const ValueKey('guide.settings.qibla'),
             title: t.settingsQiblaTitle,
             subtitle: t.settingsQiblaSubtitle,
             color: AppColors.settingsPrayer,
@@ -180,6 +183,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           _SettingsTile(
             icon: Icons.access_time_rounded,
+            key: const ValueKey('guide.settings.prayers'),
             title: AppLocalizations.of(context)!.settingsPrayerTimesTitle,
             subtitle: 'Adhan programmé, rappel avant Sobh',
             color: AppColors.settingsPrayer,
@@ -221,13 +225,14 @@ class SettingsScreen extends ConsumerWidget {
           _SectionHeader(t.settingsSectionVoicePersonalization),
           // Le micro qui CAPTE la récitation : c'est le début de la chaîne de
           // reconnaissance, donc sa place est en tête de cette section.
-          const _MicroBluetoothTile(),
-          const _DisputedVerdictsTile(),
+          const KeyedSubtree(key: ValueKey('guide.settings.micro'), child: _MicroBluetoothTile()),
+          const KeyedSubtree(key: ValueKey('guide.settings.disputed'), child: _DisputedVerdictsTile()),
 
           const SizedBox(height: 12),
           _SectionHeader(t.settingsSectionApp),
           _SettingsTile(
             icon: Icons.language_rounded,
+            key: const ValueKey('guide.settings.language'),
             title: t.settingsLocaleTitle,
             subtitle: _localeLabel(locale),
             color: AppColors.settingsApp,
@@ -265,6 +270,7 @@ class SettingsScreen extends ConsumerWidget {
           // backend/Firebase pour un simple formulaire de contact.
           _SettingsTile(
             icon: Icons.mail_outline_rounded,
+            key: const ValueKey('guide.settings.contact'),
             title: t.settingsContactTitle,
             subtitle: t.settingsContactSubtitle,
             color: AppColors.settingsApp,
@@ -278,9 +284,13 @@ class SettingsScreen extends ConsumerWidget {
           // cherche à la régler. Le tour d'ensemble se joue tout seul au
           // premier lancement ; cette entrée est ce qui permet d'y revenir, et
           // d'ouvrir les chapitres détaillés.
-          _SettingsTile(
-            icon: Icons.explore_outlined,
-            title: t.guideDecouverteTitre,
+          // Masquée avec le reste des visites guidées (2026-09-14), cf.
+          // `kVisitesGuideesActives`. La tuile reste écrite ici : c'est elle
+          // qu'il faudra ré-afficher, la retirer obligerait à la réécrire.
+          if (kVisitesGuideesActives)
+            _SettingsTile(
+              icon: Icons.explore_outlined,
+              title: t.guideDecouverteTitre,
             subtitle: t.guideDecouverteSous,
             color: AppColors.settingsApp,
             onTap: () => Navigator.push(context,
@@ -288,6 +298,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           _SettingsTile(
             icon: Icons.info_outline_rounded,
+            key: const ValueKey('guide.settings.about'),
             title: t.appTitle,
             subtitle: t.settingsAboutSubtitle,
             color: AppColors.settingsApp,
@@ -348,6 +359,7 @@ class _SettingsTile extends StatelessWidget {
   /// défaut vert pour ne rien casser là où elle n'est pas encore précisée.
   final Color color;
   const _SettingsTile({
+    super.key,
     required this.icon, required this.title, required this.subtitle,
     this.trailing, this.onTap, this.color = AppColors.green700,
   });
@@ -374,7 +386,7 @@ class _SettingsTile extends StatelessWidget {
             ),
             child: Icon(icon, color: color, size: 20),
           ),
-          title: Text(title,
+            title: Text(title,
               style: GoogleFonts.manrope(
                   fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink)),
           subtitle: Text(subtitle,
@@ -680,4 +692,3 @@ class _LocaleSheet extends StatelessWidget {
         ),
       );
 }
-

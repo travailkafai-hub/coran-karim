@@ -1352,9 +1352,15 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         // `ChaineRecitation.plageFiable`). Mieux vaut ne rien
                         // faire ecouter que faire ecouter le mauvais mot --
                         // c'est precisement le defaut qu'on ferme.
+                        // Depuis le 2026-09-12 cette ligne implique AUSSI que
+                        // le repli par les deux voisins juxtapose a echoue
+                        // (cf. `ChaineRecitation.entreLesVoisins`) : un mot
+                        // sans position propre MAIS encadre de deux mots surs
+                        // rend desormais un extrait. Une INDISPONIBLE veut
+                        // donc dire qu'aucun des deux chemins n'a abouti.
                         DiagnosticLog.log(TAG, "[v2] extrait voix INDISPONIBLE " +
-                            "mots $d..$f (hors anneau, aucune position, ou " +
-                            "position non fiable pour le mot $f)")
+                            "mots $d..$f (hors anneau, aucune position pour le " +
+                            "mot $f, et aucun encadrement par ses deux voisins)")
                         result.success(null)
                     } else {
                         val p = "${cacheDir?.absolutePath}/voix_extrait.wav"

@@ -162,8 +162,21 @@ class ObjectifCoach {
 
   /// Bornes du curseur de la feuille de réglage (décision utilisateur
   /// 2026-08-14 : « curseur de 1 an à 6 ans »).
+  ///
+  /// ── PORTE A 10 ANS (2026-09-12, demande utilisateur) ──────────────────
+  /// La borne de 6 ans ci-dessus est conservée en commentaire : c'était bien
+  /// la décision du 2026-08-14, elle n'est pas effacée, seulement dépassée.
+  /// Ce que ça ouvre, et qui manquait : mémoriser tout le Coran en 6 ans
+  /// impose déjà 40 quarts par an, soit un rythme que beaucoup ne tiennent
+  /// pas -- et un objectif intenable se solde par un abandon, pas par un
+  /// effort. À 10 ans, 24 quarts par an, l'engagement redevient soutenable
+  /// pour qui avance lentement.
+  ///
+  /// Rien d'autre à changer : le rythme, l'échéance et le retard se calculent
+  /// tous depuis [annees] (cf. [joursDeLEcheance], `parJour`), et la
+  /// progression du curseur reste d'un an. Seule la borne haute bouge.
   static const int anneesMin = 1;
-  static const int anneesMax = 6;
+  static const int anneesMax = 10;
 
   /// En combien d'années mémoriser tout le Coran, TEL QUE CHOISI au moment du
   /// réglage. 0 = aucun objectif fixé.

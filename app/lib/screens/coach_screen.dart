@@ -1445,7 +1445,7 @@ class InfoBanner extends StatelessWidget {
   }
 }
 
-class VerseDisplay extends StatelessWidget {
+class VerseDisplay extends StatefulWidget {
   final List<RecitedWord> words;
   final List<Verse> verses;
 
@@ -1468,6 +1468,49 @@ class VerseDisplay extends StatelessWidget {
     this.onProblemWordTap,
     this.motsTajwidRates = const {},
   });
+
+  @override
+  State<VerseDisplay> createState() => _VerseDisplayState();
+}
+
+/// ── LA BORDURE D'UN MOT FAUTIF APPELLE LE DOIGT (2026-09-12) ─────────────
+///
+/// Demande utilisateur : « les mots en erreur, les users ne savent pas qu'ils
+/// peuvent cliquer dessus ; je pense que ce sera plus interessant d'avoir un
+/// clignotement de la bordure ».
+///
+/// Le defaut est une AFFORDANCE manquante, pas un defaut d'affichage : un mot
+/// rouge ou violet EST cliquable (il ouvre l'aide tajwid et fait entendre le
+/// recitateur sur ce mot), mais rien ne le dit. Un cadre fixe se lit comme un
+/// verdict ; un cadre qui respire se lit comme une invitation.
+///
+/// UN SEUL CONTROLEUR pour toute la strophe, pas un par mot : des controleurs
+/// independants se desynchroniseraient en quelques secondes et la page
+/// clignoterait en guirlande. Ici les mots fautifs pulsent ENSEMBLE, ce qui se
+/// lit comme une seule information (« ceux-la se touchent ») au lieu de
+/// plusieurs mouvements concurrents.
+///
+/// Cycle lent (1,4 s) et volontairement : l'attention du lecteur appartient au
+/// texte -- c'est la lecon du bandeau d'etoiles retire de l'ecran de
+/// recitation le 2026-08-14 (« ca perturbe le reciteur »). On veut un signal
+/// qu'on remarque en s'arretant, pas un scintillement qu'on subit en lisant.
+class _VerseDisplayState extends State<VerseDisplay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  List<RecitedWord> get words => widget.words;
+  List<Verse> get verses => widget.verses;
+  void Function(int)? get onProblemWordTap => widget.onProblemWordTap;
+  Set<int> get motsTajwidRates => widget.motsTajwidRates;
 
   @override
   Widget build(BuildContext context) {
@@ -1631,9 +1674,37 @@ class VerseDisplay extends StatelessWidget {
       child: Opacity(opacity: opacity, child: textWidget),
     );
     if (!tappable) return chip;
+    // La bordure respire tant que le mot n'a pas ete touche (cf. la doc de
+    // `_VerseDisplayState`). On REPEINT la decoration plutot que d'envelopper
+    // dans un second cadre : deux bordures concentriques sur un mot de trois
+    // lettres seraient illisibles.
     return GestureDetector(
       onTap: () => onProblemWordTap!(index),
-      child: chip,
+      child: AnimatedBuilder(
+        animation: _pulse,
+        builder: (context, _) {
+          // 0,45 -> 1,0 : la bordure ne disparait jamais completement. Un
+          // clignotement qui s'eteint ferait douter du verdict lui-meme --
+          // c'est l'appel au doigt qui pulse, pas la faute.
+          final t = 0.45 + 0.55 * _pulse.value;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(
+              color: bgTint,
+              borderRadius: BorderRadius.circular(6),
+              border: borderTint == null
+                  ? null
+                  : Border.all(
+                      color: borderTint.withValues(alpha: t),
+                      // L'epaisseur suit legerement : la pulsation se voit
+                      // encore quand le mot est petit ou la couleur pale.
+                      width: 1.5 + 0.7 * _pulse.value,
+                    ),
+            ),
+            child: Opacity(opacity: opacity, child: textWidget),
+          );
+        },
+      ),
     );
   }
 }

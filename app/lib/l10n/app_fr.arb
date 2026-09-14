@@ -2526,15 +2526,15 @@
   "@onboardingReciteHint": {
     "description": "Astuce page 3"
   },
-  "onboardingMemorizeTitle": "Mémoriser en jouant",
+  "onboardingMemorizeTitle": "S'entraîner à mémoriser",
   "@onboardingMemorizeTitle": {
     "description": "Titre page 4"
   },
-  "onboardingMemorizeBody": "Le jeu de mémorisation vous fait reconstruire le texte mot après mot. La partie ne s'arrête pas en fin de page : elle continue tant que vous enchaînez.",
+  "onboardingMemorizeBody": "Écoutez un passage, répétez-le à voix haute : l'application vérifie, et le palier s'allonge à chaque réussite — jusqu'à réciter le verset entier de mémoire.",
   "@onboardingMemorizeBody": {
     "description": "Corps page 4"
   },
-  "onboardingMemorizeHint": "Votre record personnel de mots enchaînés est conservé d'une partie à l'autre.",
+  "onboardingMemorizeHint": "L'entraînement passe ensuite au contrôle : le texte se masque, à vous de réciter seul.",
   "@onboardingMemorizeHint": {
     "description": "Astuce page 4"
   },
@@ -2614,6 +2614,11 @@
   "@duaPourNousForYouArabic": {
     "description": "Invocation en arabe en faveur de l'utilisateur"
   },
+  "duaPourNousHassanatTitle": "Participez aux hassanate",
+  "@duaPourNousHassanatTitle": {
+    "description": "Bloc de partage en tete de l'onglet Dua (2026-09-14) : l'application ne demande ni argent ni publicite, elle propose de partager"
+  },
+  "duaPourNousHassanatBody": "Partagez l'application autour de vous : chaque personne qui l'utilise pour lire ou mémoriser le Coran, c'est une part de récompense qui vous revient, in shâ' Allah.",
   "duaPourNousShare": "Partager l'application",
   "@duaPourNousShare": {
     "description": "Bouton de partage sur l'écran de dua"
@@ -3775,5 +3780,75 @@
   "guideDemoTexte": "Regarde comment les mots se colorent au fur et à mesure. C'est une démonstration, pas une vraie récitation.",
   "@guideDemoTexte": {
     "description": "Demonstration de recitation (scriptee)"
+  },
+  "preparationRiwayaWarshNote": "Le mode tajwid n'est pas encore entraîné sur les règles propres à Warsh : ses couleurs suivent celles de Ḥafṣ. La lecture du mushaf et la correction des mots, elles, fonctionnent normalement.",
+  "@preparationRiwayaWarshNote": {
+    "description": "Limite annoncee AVANT le choix de Warsh (2026-09-14) : le modele de tajwid est entraine sur Hafs"
+  },
+  "preparationEssaisTitre": "Essaie tout de suite",
+  "@preparationEssaisTitre": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationEssaisSous": "Sur quelques versets — quelques minutes. Tu peux revenir ensuite.",
+  "@preparationEssaisSous": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationEssaiReciter": "Réciter et être corrigé",
+  "@preparationEssaiReciter": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationEssaiReciterSous": "Récite, l'application écoute et colore chaque mot",
+  "@preparationEssaiReciterSous": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationEssaiTajwid": "Le mode tajwid",
+  "@preparationEssaiTajwid": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationEssaiTajwidSous": "Elle n'écoute que les règles de tajwid",
+  "@preparationEssaiTajwidSous": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationEssaiJeu": "Enchaînement",
+  "@preparationEssaiJeu": {
+    "description": "Tuile d'essai du jeu QCM (2026-09-14) — distinct de l'entrainement a la memorisation"
+  },
+  "preparationEssaiJeuSous": "Retrouver le mot suivant, parmi plusieurs",
+  "preparationConsigneJeu": "Le premier mot s'affiche, les suivants sont à retrouver parmi plusieurs propositions. Une erreur montre la bonne réponse, puis le verset reprend depuis le précédent.",
+  "preparationEssaiMemoriser": "Entraînement",
+  "@preparationEssaiMemoriser": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationEssaiMemoriserSous": "Écoute puis répète, par paliers",
+  "@preparationEssaiMemoriserSous": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationEssaiLire": "Lire et écouter",
+  "@preparationEssaiLire": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationEssaiLireSous": "Le texte, la traduction, la récitation",
+  "@preparationEssaiLireSous": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationEssaisNote": "Le micro n'est demandé que si tu choisis de réciter.",
+  "@preparationEssaisNote": {
+    "description": "Etape « Essayer » de la preparation"
+  },
+  "preparationConsigneTajwid": "Récite en appliquant les règles de tajwid. Vert : toutes les règles attendues sont faites. Violet : une règle attendue n'a pas été constatée. Sans couleur : ce mot ne porte aucune règle.",
+  "@preparationConsigneTajwid": {
+    "description": "Consigne de l'etape Essayer : ce qu'il faut faire"
+  },
+  "preparationConsigneReciter": "Récite normalement, sans rien changer à ta lecture — l'IA contrôle derrière toi. Vert : le mot est juste. Orange : articulation approximative. Rouge : écart entendu.",
+  "@preparationConsigneReciter": {
+    "description": "Consigne de l'etape Essayer : ce qu'il faut faire"
+  },
+  "preparationConsigneMemoriser": "Écoute le passage, répète-le à voix haute. Le palier grandit à chaque réussite, jusqu'au verset entier.",
+  "@preparationConsigneMemoriser": {
+    "description": "Consigne de l'etape Essayer : ce qu'il faut faire"
+  },
+  "preparationConsigneLire": "Fais défiler le texte, appuie sur un verset pour l'écouter, appuie longuement pour ouvrir son menu.",
+  "@preparationConsigneLire": {
+    "description": "Consigne de l'etape Essayer : ce qu'il faut faire"
   }
 }

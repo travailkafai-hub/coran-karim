@@ -3358,19 +3358,19 @@ abstract class AppLocalizations {
   /// Titre page 4
   ///
   /// In fr, this message translates to:
-  /// **'Mémoriser en jouant'**
+  /// **'S\'entraîner à mémoriser'**
   String get onboardingMemorizeTitle;
 
   /// Corps page 4
   ///
   /// In fr, this message translates to:
-  /// **'Le jeu de mémorisation vous fait reconstruire le texte mot après mot. La partie ne s\'arrête pas en fin de page : elle continue tant que vous enchaînez.'**
+  /// **'Écoutez un passage, répétez-le à voix haute : l\'application vérifie, et le palier s\'allonge à chaque réussite — jusqu\'à réciter le verset entier de mémoire.'**
   String get onboardingMemorizeBody;
 
   /// Astuce page 4
   ///
   /// In fr, this message translates to:
-  /// **'Votre record personnel de mots enchaînés est conservé d\'une partie à l\'autre.'**
+  /// **'L\'entraînement passe ensuite au contrôle : le texte se masque, à vous de réciter seul.'**
   String get onboardingMemorizeHint;
 
   /// Titre page 5
@@ -3486,6 +3486,18 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي'**
   String get duaPourNousForYouArabic;
+
+  /// Bloc de partage en tete de l'onglet Dua (2026-09-14) : l'application ne demande ni argent ni publicite, elle propose de partager
+  ///
+  /// In fr, this message translates to:
+  /// **'Participez aux hassanate'**
+  String get duaPourNousHassanatTitle;
+
+  /// No description provided for @duaPourNousHassanatBody.
+  ///
+  /// In fr, this message translates to:
+  /// **'Partagez l\'application autour de vous : chaque personne qui l\'utilise pour lire ou mémoriser le Coran, c\'est une part de récompense qui vous revient, in shâ\' Allah.'**
+  String get duaPourNousHassanatBody;
 
   /// Bouton de partage sur l'écran de dua
   ///
@@ -4956,6 +4968,120 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Regarde comment les mots se colorent au fur et à mesure. C\'est une démonstration, pas une vraie récitation.'**
   String get guideDemoTexte;
+
+  /// Limite annoncee AVANT le choix de Warsh (2026-09-14) : le modele de tajwid est entraine sur Hafs
+  ///
+  /// In fr, this message translates to:
+  /// **'Le mode tajwid n\'est pas encore entraîné sur les règles propres à Warsh : ses couleurs suivent celles de Ḥafṣ. La lecture du mushaf et la correction des mots, elles, fonctionnent normalement.'**
+  String get preparationRiwayaWarshNote;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Essaie tout de suite'**
+  String get preparationEssaisTitre;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Sur quelques versets — quelques minutes. Tu peux revenir ensuite.'**
+  String get preparationEssaisSous;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Réciter et être corrigé'**
+  String get preparationEssaiReciter;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Récite, l\'application écoute et colore chaque mot'**
+  String get preparationEssaiReciterSous;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Le mode tajwid'**
+  String get preparationEssaiTajwid;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Elle n\'écoute que les règles de tajwid'**
+  String get preparationEssaiTajwidSous;
+
+  /// Tuile d'essai du jeu QCM (2026-09-14) — distinct de l'entrainement a la memorisation
+  ///
+  /// In fr, this message translates to:
+  /// **'Enchaînement'**
+  String get preparationEssaiJeu;
+
+  /// No description provided for @preparationEssaiJeuSous.
+  ///
+  /// In fr, this message translates to:
+  /// **'Retrouver le mot suivant, parmi plusieurs'**
+  String get preparationEssaiJeuSous;
+
+  /// No description provided for @preparationConsigneJeu.
+  ///
+  /// In fr, this message translates to:
+  /// **'Le premier mot s\'affiche, les suivants sont à retrouver parmi plusieurs propositions. Une erreur montre la bonne réponse, puis le verset reprend depuis le précédent.'**
+  String get preparationConsigneJeu;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Entraînement'**
+  String get preparationEssaiMemoriser;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Écoute puis répète, par paliers'**
+  String get preparationEssaiMemoriserSous;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Lire et écouter'**
+  String get preparationEssaiLire;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Le texte, la traduction, la récitation'**
+  String get preparationEssaiLireSous;
+
+  /// Etape « Essayer » de la preparation
+  ///
+  /// In fr, this message translates to:
+  /// **'Le micro n\'est demandé que si tu choisis de réciter.'**
+  String get preparationEssaisNote;
+
+  /// Consigne de l'etape Essayer : ce qu'il faut faire
+  ///
+  /// In fr, this message translates to:
+  /// **'Récite en appliquant les règles de tajwid. Vert : toutes les règles attendues sont faites. Violet : une règle attendue n\'a pas été constatée. Sans couleur : ce mot ne porte aucune règle.'**
+  String get preparationConsigneTajwid;
+
+  /// Consigne de l'etape Essayer : ce qu'il faut faire
+  ///
+  /// In fr, this message translates to:
+  /// **'Récite normalement, sans rien changer à ta lecture — l\'IA contrôle derrière toi. Vert : le mot est juste. Orange : articulation approximative. Rouge : écart entendu.'**
+  String get preparationConsigneReciter;
+
+  /// Consigne de l'etape Essayer : ce qu'il faut faire
+  ///
+  /// In fr, this message translates to:
+  /// **'Écoute le passage, répète-le à voix haute. Le palier grandit à chaque réussite, jusqu\'au verset entier.'**
+  String get preparationConsigneMemoriser;
+
+  /// Consigne de l'etape Essayer : ce qu'il faut faire
+  ///
+  /// In fr, this message translates to:
+  /// **'Fais défiler le texte, appuie sur un verset pour l\'écouter, appuie longuement pour ouvrir son menu.'**
+  String get preparationConsigneLire;
 }
 
 class _AppLocalizationsDelegate

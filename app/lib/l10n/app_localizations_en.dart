@@ -2007,15 +2007,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Drawing a blank? The prompter plays the expected word for you, no judgement.';
 
   @override
-  String get onboardingMemorizeTitle => 'Memorise through play';
+  String get onboardingMemorizeTitle => 'Memorisation training';
 
   @override
   String get onboardingMemorizeBody =>
-      'The memorisation game has you rebuild the text word by word. The round does not stop at the end of a page: it carries on as long as you keep going.';
+      'Listen to a passage and repeat it aloud: the application checks you, and the step grows with each success — until you recite the whole verse from memory.';
 
   @override
   String get onboardingMemorizeHint =>
-      'Your personal record of consecutive words is kept from one round to the next.';
+      'Training then moves on to checking: the text is hidden, and you recite on your own.';
 
   @override
   String get onboardingCoachTitle => 'Your coach';
@@ -2084,6 +2084,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get duaPourNousForYouArabic =>
       'اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي';
+
+  @override
+  String get duaPourNousHassanatTitle => 'Share in the reward';
+
+  @override
+  String get duaPourNousHassanatBody =>
+      'Share the application around you: every person who uses it to read or memorise the Quran is a share of reward that comes back to you, in shâ\' Allah.';
 
   @override
   String get duaPourNousShare => 'Share the application';
@@ -3033,4 +3040,73 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get guideDemoTexte =>
       'Watch how the words take colour as you go. This is a demonstration, not a real recitation.';
+
+  @override
+  String get preparationRiwayaWarshNote =>
+      'The tajwid mode is not yet trained on the rules specific to Warsh: its colours follow those of Ḥafṣ. Reading the mushaf and word correction work as usual.';
+
+  @override
+  String get preparationEssaisTitre => 'Try it right away';
+
+  @override
+  String get preparationEssaisSous =>
+      'On a few verses — a few minutes. You can come back later.';
+
+  @override
+  String get preparationEssaiReciter => 'Recite and be corrected';
+
+  @override
+  String get preparationEssaiReciterSous =>
+      'Recite; the app listens and colours each word';
+
+  @override
+  String get preparationEssaiTajwid => 'Tajwid mode';
+
+  @override
+  String get preparationEssaiTajwidSous =>
+      'It listens only for the tajwid rules';
+
+  @override
+  String get preparationEssaiJeu => 'Chaining';
+
+  @override
+  String get preparationEssaiJeuSous => 'Find the next word among several';
+
+  @override
+  String get preparationConsigneJeu =>
+      'The first word is shown; the next ones must be found among several options. A mistake reveals the right answer, then the verse resumes from the previous one.';
+
+  @override
+  String get preparationEssaiMemoriser => 'Training';
+
+  @override
+  String get preparationEssaiMemoriserSous =>
+      'Listen then repeat, step by step';
+
+  @override
+  String get preparationEssaiLire => 'Read and listen';
+
+  @override
+  String get preparationEssaiLireSous =>
+      'The text, the translation, the recitation';
+
+  @override
+  String get preparationEssaisNote =>
+      'The microphone is only requested if you choose to recite.';
+
+  @override
+  String get preparationConsigneTajwid =>
+      'Recite while applying the tajwid rules. Green: every expected rule was made. Violet: an expected rule was not observed. No colour: this word carries no rule.';
+
+  @override
+  String get preparationConsigneReciter =>
+      'Recite normally, changing nothing in your reading — the AI checks behind you. Green: the word is right. Orange: approximate articulation. Red: a difference heard.';
+
+  @override
+  String get preparationConsigneMemoriser =>
+      'Listen to the passage, repeat it aloud. The step grows with each success, up to the whole verse.';
+
+  @override
+  String get preparationConsigneLire =>
+      'Scroll the text, tap a verse to listen to it, long-press to open its menu.';
 }

@@ -160,6 +160,7 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                       ),
                     ),
                   IconButton(
+                    key: const ValueKey('guide.dua.favorite'),
                     onPressed: () =>
                         ref.read(favoriteDuasProvider.notifier).toggle(dua.id),
                     visualDensity: VisualDensity.compact,
@@ -220,6 +221,7 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                   if (dua.hasAudio) ...[
                     const SizedBox(height: 10),
                     _ListenButton(
+                      key: const ValueKey('guide.dua.audio'),
                       loading: _audioLoading,
                       locked: widget.audioLocked,
                       onTap: _playAudio,
@@ -317,6 +319,7 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                   if (dua.repeat > 1) ...[
                     const SizedBox(height: 14),
                     _RepeatCounter(
+                      key: const ValueKey('guide.dua.counter'),
                       done: _repeatDone,
                       target: dua.repeat,
                       accent: widget.accent,
@@ -401,6 +404,7 @@ class _ListenButton extends StatelessWidget {
   final bool locked;
   final VoidCallback onTap;
   const _ListenButton({
+    super.key,
     required this.loading,
     this.locked = false,
     required this.onTap,
@@ -457,6 +461,7 @@ class _RepeatCounter extends StatelessWidget {
   final VoidCallback onReset;
 
   const _RepeatCounter({
+    super.key,
     required this.done,
     required this.target,
     required this.accent,

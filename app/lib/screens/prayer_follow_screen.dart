@@ -166,16 +166,11 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
     final dejaSouffle = _passagesSouffles[bornes.de];
     if (dejaSouffle != null) {
       final depuis = DateTime.now().difference(dejaSouffle);
-      if (depuis < _kDelaiAvantDeRedire) {
-        DiagnosticLog.log('Souffleur',
-            'passage ${bornes.de}..${bornes.a} ignore : deja souffle il y a '
-            '${depuis.inSeconds}s (moins de ${_kDelaiAvantDeRedire.inSeconds}s, '
-            'cf. _kDelaiAvantDeRedire)');
-        return;
-      }
       DiagnosticLog.log('Souffleur',
-          'passage ${bornes.de}..${bornes.a} REDIT : deja souffle il y a '
-          '${depuis.inSeconds}s et le recitant est toujours arrete la');
+          'passage ${bornes.de}..${bornes.a} ignore : deja souffle il y a '
+          '${depuis.inSeconds}s sur cette cible (on ne rejoue jamais le meme '
+          'audio)');
+      return;
     }
     final target = notifier.verseAndLocalIndexFor(bornes.de);
     if (target == null) {
@@ -226,26 +221,25 @@ class _PrayerFollowScreenState extends ConsumerState<PrayerFollowScreen> {
   /// Quand chaque passage a ete souffle. Cf. [_kDelaiAvantDeRedire].
   final _passagesSouffles = <int, DateTime>{};
 
-  /// ── UN PASSAGE PEUT ETRE REDIT (2026-09-08) ─────────────────────────────
+  /// ── ON NE REJOUE JAMAIS LE MEME AUDIO (2026-09-08) ──────────────────────
   ///
-  /// `_passagesSouffles` etait un ensemble : un passage souffle une fois ne
-  /// pouvait PLUS JAMAIS l'etre sur la meme cible. Mesure qui l'a montre,
-  /// session de 21:21 -- le recitant reste bloque, les DEUX mecanismes d'aide
-  /// le reperent correctement, et les deux sont refuses :
+  /// J'avais rendu un passage REDISIBLE au bout de 10 s, en lisant la session
+  /// de 21:21 : le recitant restait bloque au mot 20, les deux mecanismes
+  /// d'aide le reperaient, et les deux etaient refuses par ce garde. Il m'a
+  /// paru que c'etait une demande de reentendre.
   ///
-  ///     21:21:06,45  souffle du passage 20..22          <- premiere aide
-  ///     21:21:21,28  hesitation longue (4s)
-  ///     21:21:21,29  passage 20..20 ignore : deja souffle
-  ///     21:21:21,30  3s de silence reel -- aide proposee au mot 20
-  ///     21:21:21,31  passage 20..20 ignore : deja souffle
+  /// L'UTILISATEUR L'A RETIRE LE JOUR MEME : « je ne comprends pas, je n'ai
+  /// jamais demande de rejouer le meme audio ». Sa demande portait sur le
+  /// minuteur qui courait pendant le souffle, pas sur le rejeu -- j'ai etendu
+  /// sa consigne au-dela de ce qu'elle disait.
   ///
-  /// Quinze secondes de silence APRES avoir ete souffle, c'est une demande de
-  /// reentendre, pas une repetition parasite. Le garde gardait contre la
-  /// boucle ; il gardait aussi contre l'utilisateur.
+  /// Le garde redevient donc strict : un passage souffle une fois ne l'est
+  /// plus sur la meme cible. La date reste memorisee pour que le journal dise
+  /// DEPUIS QUAND -- c'est ce qui manquait pour comprendre la session de
+  /// 21:21, et cela ne coute rien.
   ///
-  /// Dix secondes : assez pour entendre le passage et reprendre (le souffle
-  /// lui-meme dure quelques secondes), trop pour boucler.
-  static const _kDelaiAvantDeRedire = Duration(seconds: 10);
+  /// (`_souffleRevision` remet la table a zero a chaque nouvelle cible : le
+  /// refus vaut pour la rak'ah en cours, pas pour la priere entiere.)
   @override
   void dispose() {
     if (_promptingWord) unawaited(WordCorrectionAudio.stop());

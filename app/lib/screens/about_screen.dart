@@ -75,6 +75,16 @@ const bool kTuteurIaEmbarque = false;
 /// volontairement la même adresse : une seule boîte à surveiller.
 const String kContactEmail = 'CoranKarim.Ia@gmail.com';
 
+/// Lien public de l'application sur le Play Store — ce qu'on envoie quand on
+/// partage (2026-09-14, adresse fournie par l'utilisateur).
+///
+/// ⚠️ L'identifiant est celui de PRODUCTION. En debug, `applicationId` porte un
+/// suffixe `.dev` : construire ce lien depuis le paquet courant mènerait donc à
+/// une page inexistante dès qu'on partage depuis un build de développement.
+/// Il est écrit en clair pour cette raison, et non déduit.
+const String kLienPlayStore =
+    'https://play.google.com/store/apps/details?id=com.corankarim.coran_karim';
+
 /// Notices des composants qui ne viennent PAS de pub.dev — `showLicensePage`
 /// ne peut pas les découvrir tout seul.
 ///

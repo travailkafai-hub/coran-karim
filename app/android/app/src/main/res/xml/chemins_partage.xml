@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chemins que l'application accepte d'exposer à une autre application, via
+     `FileProvider` (2026-09-14).
+
+     UNIQUEMENT le cache : c'est là que `exportDisputedClips` écrit son .zip
+     (`getTemporaryDirectory()`). On n'ouvre NI `files-path` (base SQLite,
+     modèles, captures de voix) NI `external-path` — un FileProvider trop large
+     rend lisible par n'importe quelle application tout ce qu'il couvre, et
+     cette application garde justement la voix de l'utilisateur en local. -->
+<paths>
+    <cache-path name="partage" path="." />
+</paths>

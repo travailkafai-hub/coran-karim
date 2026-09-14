@@ -98,3 +98,59 @@ Hafs, sans changement des preferences de lecture :
 Limites : la verification visuelle sur appareil porte sur ces deux pages.
 Les autres cas sont des tests de widgets et de donnees. Aucun nouveau
 benchmark ASR n'est revendique : sa chaine n'a pas ete modifiee ici.
+
+## Retour vers la lecture classique : v396
+
+Retour utilisateur apres v395 : la bande jaune/noire apparait au RETOUR du
+papier, dans la lecture classique. Ce parcours n'etait pas couvert par la
+verification precedente des pages papier. Sauvegarde ciblee avant ce nouveau
+correctif : `38ee875`.
+
+Reproduction sur le telephone : `screenshots/chgpt_retour_papier_avant.png`
+montre en realite la lecture classique d'Al-Kafirun (109), avec
+`BOTTOM OVERFLOWED BY 46 PIXELS` dans l'en-tete.
+
+Deux causes distinctes :
+- `MushafHeader.hauteurPour` reserve 84 pixels de contenu + l'inset du HAUT,
+  mais son `SafeArea` appliquait aussi l'inset du BAS. Quand la navigation
+  Android redevient visible, cette marge est soustraite a la place du contenu
+  de l'en-tete, alors qu'il ne touche jamais le bas de l'ecran.
+- `MushafMaquetteScreen.dispose` imposait `edgeToEdge` a tous ses appelants.
+  La lecture classique, qui etait deja immersive a l'entree, ne repassait pas
+  par `initState` au retour : son mode systeme avait donc change sans demande.
+
+Correction ChGPT :
+- `SafeArea(bottom: false)` dans l'en-tete. Sa hauteur n'est PAS augmentee.
+- `modeSystemeAuRetour` dans la vue papier, applique a sa destruction.
+  `MushafScreen` demande `immersiveSticky` ; les autres appels conservent
+  `edgeToEdge` par defaut. La restauration ne depend pas d'un delai arbitraire.
+- Aucune modification de la pagination, des polices ou de la chaine ASR.
+
+Tests : **32 passent**, dont les 29 precedents. Deux tests supplementaires
+exercent trois ouvertures/retours reels de route, le bouton retour systeme,
+le retour apres changement de page et le dernier appel au canal SystemChrome
+(immersif ou normal suivant l'appelant). Un test controle le contrat du
+SafeArea de l'en-tete avec quatre combinaisons d'insets. Il n'effectue pas
+le rendu complet du bandeau de priere : celui-ci reste a verifier sur appareil
+apres installation du correctif.
+
+Version installee : `v396-chgpt-retour-mushaf-sans-overflow`,
+`BUILD_TS=2026-09-09-ChGPT-retour-mushaf`. Build Android debug reussi et
+installation DEV par `adb install -r` reussie, sans effacement des donnees.
+Analyse Dart ciblee : aucune erreur ; neuf signalements preexistants
+(huit avertissements et une information) dans les ecrans et l'en-tete.
+`git diff --check` passe pour les fichiers du correctif.
+
+Verification visuelle du retour APRES installation : en attente de
+disponibilite du telephone. La capture de reproduction citee plus haut est
+celle de v395, pas une preuve visuelle du correctif v396. Les tests de routes
+ne remplacent pas ce controle reel des barres Android et du bandeau de priere.
+
+```mermaid
+flowchart LR
+  L[Lecture classique immersive] --> P[Mushaf papier immersif]
+  P --> B[Retour Android et destruction de la route papier]
+  B --> M[Restaurer le mode demande par l'appelant]
+  M --> L
+  L --> H[En-tete : contenu 84px + inset haut seulement]
+```

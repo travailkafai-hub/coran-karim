@@ -189,6 +189,29 @@
         <service android:name=".adhan.AdhanPlaybackService"
                  android:exported="false"
                  android:foregroundServiceType="mediaPlayback" />
+
+        <!-- ── ENVOI D'UN FICHIER PAR COURRIEL, DESTINATAIRE PRE-REMPLI ──────
+             (2026-09-14, demande utilisateur : « fais pareil » que « Nous
+             contacter », dont le champ « À » arrive déjà rempli.)
+
+             POURQUOI UN PROVIDER A NOUS. `share_plus` en déclare un
+             (`…flutter.share_provider`), mais son autorité et ses chemins lui
+             appartiennent : s'y greffer marcherait aujourd'hui et casserait à
+             sa prochaine version, sans rien pour le signaler. Celui-ci
+             n'expose QUE le cache (cf. `res/xml/chemins_partage.xml`).
+
+             `grantUriPermissions` : l'application de courriel reçoit un droit
+             de lecture TEMPORAIRE sur le seul fichier joint, révoqué par le
+             système. Rien d'autre du cache n'est accessible. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fichiers"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/chemins_partage" />
+        </provider>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

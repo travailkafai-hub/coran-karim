@@ -39,6 +39,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../providers/app_settings_provider.dart';
 import '../theme/app_theme.dart';
+import '../l10n/app_localizations.dart';
 
 /// Une écriture proposée : le nom Google Fonts, son libellé, ce qu'elle est,
 /// et sa couverture des signes coraniques.
@@ -473,7 +474,7 @@ class _BasculeTajwid extends ConsumerWidget {
                 .withValues(alpha: 0.5),
       ),
       title: Text(
-        'Couleurs du tajwid',
+        AppLocalizations.of(context)!.scriptTajwidColors,
         style: GoogleFonts.manrope(
           fontSize: 14,
           fontWeight: FontWeight.w700,
@@ -505,7 +506,7 @@ class _EnTeteFeuille extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Écriture du Mushaf',
+          AppLocalizations.of(context)!.scriptSheetTitle,
           style: GoogleFonts.manrope(
             fontSize: 17,
             fontWeight: FontWeight.w700,
@@ -514,9 +515,7 @@ class _EnTeteFeuille extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          "S'applique à la vue Page. Les premières de la liste dessinent tous "
-          'les signes coraniques — waqf, sajda, fin de verset, petit zéro des '
-          'lettres muettes. Plus bas, certains signes manqueront à l’écran.',
+          AppLocalizations.of(context)!.scriptSheetExplain,
           style: GoogleFonts.manrope(
             fontSize: 12,
             height: 1.4,

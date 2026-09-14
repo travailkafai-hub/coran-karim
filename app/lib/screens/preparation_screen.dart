@@ -49,6 +49,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
 import '../models/riwaya.dart';
 import '../providers/app_settings_provider.dart';
+
+import '../models/verse.dart';
+import '../services/quran_api.dart';
+import 'karaoke_recitation_screen.dart';
+import 'coach_screen.dart';
+import 'memorization_game_screen.dart';
+// `mushaf_screen.dart` n'est plus importé ici depuis le 2026-09-14 : la
+// tuile « Lire et écouter » était son seul appelant (cf. plus bas).
 import '../theme/app_theme.dart';
 import '../widgets/choix_ecriture_sheet.dart';
 import '../widgets/quran_pattern_background.dart';
@@ -126,7 +134,10 @@ class PreparationScreen extends ConsumerStatefulWidget {
 
 class _PreparationScreenState extends ConsumerState<PreparationScreen> {
   int _etape = 0;
-  static const _nbEtapes = 3;
+  static const _nbEtapes = 4;
+
+  /// Empeche deux ouvertures simultanees si on tape deux fois.
+  bool _chargementEssai = false;
 
   /// Le verset d'aperçu : la Fātiḥa 1:2, choisie parce qu'elle porte ce qui
   /// distingue VRAIMENT deux écritures — un alif suscrit, une shadda avec sa
@@ -185,7 +196,8 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                 child: switch (_etape) {
                   0 => _etapeLangueEtRiwaya(t),
                   1 => _etapeEcriture(t),
-                  _ => _etapeOptions(t),
+                  2 => _etapeOptions(t),
+                  _ => _etapeEssais(t),
                 },
               ),
             ),
@@ -305,6 +317,44 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
           choisi: riwaya == Riwaya.warsh,
           onTap: () => ref.read(riwayaProvider.notifier).set(Riwaya.warsh),
         ),
+        // ── CE QUE WARSH N'A PAS ENCORE (2026-09-14, demande utilisateur) ──
+        //
+        // « dans l'onboarding, au choix de Warsh, une information que l'IA
+        // n'est pas encore entraînée sur les règles de tajwid Warsh ».
+        //
+        // POURQUOI ELLE EST TOUJOURS VISIBLE, et pas seulement une fois Warsh
+        // coché : une limite qu'on découvre APRÈS avoir choisi n'aide plus à
+        // choisir. Elle est posée sous la carte, au moment où la question se
+        // pose.
+        //
+        // ELLE DIT AUSSI CE QUI MARCHE. « L'IA n'est pas entraînée sur Warsh »
+        // tout court laisserait croire que la récitation entière y est
+        // inutilisable — c'est faux : le texte Warsh est servi, les mots sont
+        // suivis et corrigés (cf. le correctif du YEH BARREE, qui a porté le
+        // squelette reconnu de 94,29 % à 98,06 %). Seule la tête de TAJWID est
+        // entraînée sur Ḥafṣ. Une mise en garde trop large coûte un usage
+        // qu'elle n'avait pas à décourager.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded,
+                  size: 15, color: AppColors.brassLight.withAlpha(200)),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  t.preparationRiwayaWarshNote,
+                  style: TextStyle(
+                    color: AppColors.cream.withAlpha(165),
+                    fontSize: 11.5,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 20),
       ],
     );
@@ -399,6 +449,279 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
       ],
     );
   }
+
+
+  // ── ÉTAPE 4 : ESSAYER, PLUTÔT QU'ÉCOUTER RACONTER (2026-09-14) ───────────
+  //
+  // Demande utilisateur, après avoir vu la visite guidée narrée : « sinon
+  // c'est compliqué, on oublie et on va faire plutôt un YouTube — à moins
+  // d'avoir des exemples de ce que l'app est capable de faire dans
+  // l'onboarding, il y a des accès directs à la récitation, mémoriser, puis
+  // tajwid, puis jeux, qu'il teste tout, par exemple sur Qul huwa Allahu
+  // ahad ».
+  //
+  // C'est un meilleur principe que le tour narré, et il faut le dire : 57
+  // étapes qui COMMENTENT l'application valent moins que quatre boutons qui la
+  // font ESSAYER. Le guide n'est pas supprimé pour autant (il reste dans
+  // Réglages → Découvrir), mais il n'est plus la seule porte d'entrée.
+  //
+  // ⚠️ CES BOUTONS OUVRENT LES VRAIS ÉCRANS, pas des aperçus. C'est tout
+  // l'intérêt : le micro EST demandé quand on choisit « Réciter », parce que
+  // l'utilisateur vient de le décider en appuyant. La règle qu'on s'est donnée
+  // n'a jamais été « ne jamais demander le micro » — elle était « jamais par
+  // une main simulée, toujours sur un geste de l'utilisateur ». Ici le geste
+  // est réel, donc la demande est légitime.
+  //
+  // AL-IKHLĀṢ (112) et pas une sourate au hasard : quatre versets, quinze
+  // mots. C'est assez court pour qu'un essai aille jusqu'au bout en moins
+  // d'une minute — condition pour que quelqu'un tente les quatre — et c'est la
+  // sourate que presque tout le monde connaît par cœur, donc la récitation et
+  // la mémorisation ont une chance de réussir dès le premier essai. Une
+  // sourate longue ou peu connue transformerait la découverte en échec.
+  static const _sourateEssai = 112;
+
+  /// Sourate de l'ESSAI D'ENTRAÎNEMENT : An-Nisāʾ (4) — cf. la tuile
+  /// correspondante pour le pourquoi, et [_versetsEntrainement] pour la borne.
+  static const _sourateEntrainement = 4;
+
+  /// ⚠️ ON N'EN PREND QUE LE PREMIER VERSET.
+  ///
+  /// An-Nisāʾ compte 176 versets : la charger entière pour un essai de
+  /// découverte donnerait une session sans fin, à l'opposé de ce que cet écran
+  /// promet (« quelques minutes, tu peux revenir ensuite »). Son verset 1
+  /// suffit largement — il est long, donc il SE DÉCOUPE, et c'est précisément
+  /// ce qu'on veut montrer ici.
+  static const _versetsEntrainement = 1;
+
+  /// Charge la sourate d'essai puis ouvre l'écran demandé.
+  ///
+  /// Le chargement est fait ICI et non dans chaque écran : les quatre en ont
+  /// besoin, et `QuranApi` met déjà la sourate en cache — le deuxième essai
+  /// est donc immédiat.
+  /// [surah] permet à une tuile de s'essayer sur une AUTRE sourate que la
+  /// sourate de découverte (2026-09-14) : l'entraînement se fait sur An-Nās,
+  /// cf. la tuile correspondante pour le pourquoi.
+  Future<void> _essayer(
+      BuildContext context, Widget Function(Surah, List<Verse>) ecran,
+      {int? surah}) async {
+    if (_chargementEssai) return;
+    setState(() => _chargementEssai = true);
+    try {
+      final numero = surah ?? _sourateEssai;
+      final sourates = await QuranApi.fetchSurahs();
+      final versets = await QuranApi.fetchVerses(numero);
+      final sourate = sourates.firstWhere((s) => s.number == numero,
+          orElse: () => sourates.first);
+      if (!context.mounted) return;
+      await Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute<void>(builder: (_) => ecran(sourate, versets)),
+      );
+    } catch (_) {
+      // Un essai qui ne peut pas charger le texte ne doit pas casser la
+      // préparation : on revient sans rien dire, l'utilisateur peut passer.
+    } finally {
+      if (mounted) setState(() => _chargementEssai = false);
+    }
+  }
+
+  Widget _etapeEssais(AppLocalizations t) {
+    return ListView(
+      key: const ValueKey(3),
+      children: [
+        _titreEtape(t.preparationEssaisTitre, t.preparationEssaisSous),
+        // ── LE TAJWID EN PREMIER (2026-09-14, demande utilisateur) ──────
+        //
+        // « dans essaie onboarding commence par tajwid ». C'est le bon ordre :
+        // le mode tajwid ne peint que DEUX couleurs et ne répond qu'à une
+        // question (« la règle attendue a-t-elle été faite ? »). La récitation
+        // complète en peint cinq. On montre donc le plus simple d'abord.
+        //
+        // ⚠️ LES CONSIGNES DÉCRIVENT LE COMPORTEMENT RÉEL, vérifié dans
+        // `karaoke_recitation_screen` (blocs « LE TAJWID, ET RIEN QUE LE
+        // TAJWID » et le switch principal) et dans
+        // `memorization_game_screen`. Une consigne fausse est pire que pas de
+        // consigne : elle apprend le mauvais geste. Ne pas les retoucher sans
+        // relire ces endroits.
+        _tuileEssai(
+          emoji: '🎨',
+          titre: t.preparationEssaiTajwid,
+          sous: t.preparationEssaiTajwidSous,
+          consigne: t.preparationConsigneTajwid,
+          onTap: () => _essayer(context,
+              (s, v) => KaraokeRecitationScreen(verses: v, modeTajwid: true)),
+        ),
+        _tuileEssai(
+          emoji: '🎙️',
+          titre: t.preparationEssaiReciter,
+          sous: t.preparationEssaiReciterSous,
+          consigne: t.preparationConsigneReciter,
+          onTap: () => _essayer(
+              context, (s, v) => KaraokeRecitationScreen(verses: v)),
+        ),
+        // ── CETTE TUILE OUVRE L'ENTRAINEMENT, PAS LE JEU (2026-09-14) ────
+        //
+        // Elle lançait `MemorizationGameScreen` (le QCM) tout en s'appelant
+        // « Mémoriser » : c'est le mélange que l'utilisateur a signalé --
+        // « tu mélanges mémoriser avec le jeu d'enchaînement ».
+        //
+        // LES DEUX MODES SONT DISTINCTS, et ce n'est pas qu'une affaire de nom :
+        //   - ENTRAINEMENT (`CoachScreen`) : on écoute un passage, on le répète
+        //     à voix haute, le palier grandit à chaque réussite. C'est le حفظ.
+        //   - JEU D'ENCHAINEMENT (`MemorizationGameScreen`) : un QCM où l'on
+        //     retrouve le mot suivant parmi plusieurs. C'est لعبة التسلسل.
+        // Le QCM n'est pas retiré de l'application (décision utilisateur :
+        // « QCM c'est une autre, à laisser ») -- il reste accessible par la
+        // barre du Mushaf. Il n'est simplement plus ce que cette tuile propose
+        // d'essayer.
+        _tuileEssai(
+          emoji: '🧠',
+          titre: t.preparationEssaiMemoriser,
+          sous: t.preparationEssaiMemoriserSous,
+          consigne: t.preparationConsigneMemoriser,
+          // ── AN-NISĀʾ (4) ET NON AL-IKHLĀṢ (2026-09-14) ────────────────
+          // Demande utilisateur : « pour l'entraînement, fais sourate
+          // An-Nisāʾ, plus grand, on comprend que ça permet de couper ».
+          //
+          // Le mécanisme de cet écran est le PALIER : un verset est découpé,
+          // puis le morceau s'allonge à chaque réussite. Sur les versets de
+          // deux ou trois mots d'Al-Ikhlāṣ, IL N'Y A RIEN À DÉCOUPER —
+          // l'écran affichait donc « Palier 1/5 » sans qu'on voie ce qu'il
+          // faisait. Le verset 4:1 est long : le découpage devient visible,
+          // et c'est toute la raison de ce changement.
+          //
+          // Borné au PREMIER verset (cf. `_versetsEntrainement`) : la sourate
+          // en compte 176.
+          onTap: () => _essayer(
+              context,
+              (s, v) => CoachScreen(
+                  verses: v.take(_versetsEntrainement).toList()),
+              surah: _sourateEntrainement),
+        ),
+        // ── LE JEU RESTE DANS L'ESSAI (2026-09-14) ───────────────────────
+        // « mais faut garder le jeu d'enchaînement ». Il avait disparu de cet
+        // écran quand la tuile 🧠 est passée à l'entraînement ; il revient
+        // avec SES PROPRES libellés — c'est la séparation demandée : le حفظ
+        // d'un côté, لعبة التسلسل de l'autre, chacun nommé pour ce qu'il est.
+        _tuileEssai(
+          emoji: '🧩',
+          titre: t.preparationEssaiJeu,
+          sous: t.preparationEssaiJeuSous,
+          consigne: t.preparationConsigneJeu,
+          onTap: () => _essayer(
+              context, (s, v) => MemorizationGameScreen(surah: s, verses: v)),
+        ),
+        // ── « LIRE ET ÉCOUTER » RETIRÉ DE L'ESSAI (2026-09-14) ───────────
+        //
+        // Demande utilisateur : « enlève lire et écouter dans l'essai ».
+        //
+        // C'était la seule tuile qui ne faisait RIEN ESSAYER : ouvrir le
+        // mushaf et faire défiler, c'est ce que l'application fait d'elle-même
+        // dès qu'on la lance — il n'y a rien à découvrir là que le premier
+        // écran ne montre déjà. Les trois autres proposent chacune un geste
+        // que l'utilisateur ne devinerait pas seul.
+        //
+        // Les clés (`preparationEssaiLire`, `…LireSous`,
+        // `preparationConsigneLire`) restent définies dans les trois langues :
+        // la tuile tient en six lignes si elle doit revenir.
+        //   _tuileEssai(emoji: '📖', titre: t.preparationEssaiLire, …
+        //       onTap: () => _essayer(context, (s, v) => MushafScreen(surah: s))),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: Text(
+            t.preparationEssaisNote,
+            style: TextStyle(
+              color: AppColors.cream.withAlpha(150),
+              fontSize: 12,
+              height: 1.5,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _tuileEssai({
+    required String emoji,
+    required String titre,
+    required String sous,
+    /// Ce qu'il faut FAIRE, et ce que l'écran répondra. C'est la partie utile :
+    /// le titre dit quelle fonction c'est, la consigne dit comment s'en servir.
+    required String consigne,
+    required VoidCallback onTap,
+  }) =>
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 5, 16, 5),
+        child: Material(
+          color: AppColors.cream.withAlpha(22),
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: _chargementEssai ? null : onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.cream.withAlpha(38)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(emoji, style: const TextStyle(fontSize: 26)),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(titre,
+                            style: const TextStyle(
+                              fontSize: 15.5,
+                              color: AppColors.cream,
+                              fontWeight: FontWeight.w700,
+                            )),
+                        const SizedBox(height: 3),
+                        Text(sous,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppColors.cream.withAlpha(165),
+                              height: 1.35,
+                            )),
+                        const SizedBox(height: 8),
+                        // Détachée par un filet doré : c'est une CONSIGNE, pas
+                        // la suite du sous-titre. Sans cette rupture les trois
+                        // lignes se lisent comme un seul paragraphe et on ne
+                        // voit plus ce qu'on doit faire.
+                        Container(
+                          padding: const EdgeInsetsDirectional.only(start: 9),
+                          decoration: const BoxDecoration(
+                            border: BorderDirectional(
+                              start: BorderSide(
+                                  color: AppColors.brass, width: 2),
+                            ),
+                          ),
+                          child: Text(consigne,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.brassLight.withAlpha(225),
+                                height: 1.45,
+                              )),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Alignée en haut depuis que la tuile porte trois lignes :
+                  // centrée, elle flottait au milieu d'un pavé de texte.
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(Icons.arrow_forward_rounded,
+                        color: AppColors.brass, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 
   // ── Briques communes ──────────────────────────────────────────────────────
 

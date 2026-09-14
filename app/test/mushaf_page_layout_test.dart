@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:coran_karim/models/riwaya.dart';
+import 'package:coran_karim/l10n/app_localizations.dart';
 import 'package:coran_karim/models/verse.dart';
 import 'package:coran_karim/screens/mushaf_maquette_screen.dart';
 import 'package:coran_karim/services/quran_api.dart';
@@ -54,6 +55,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           // Material's inherited tracking must not alter a measured paragraph.
           theme: ThemeData(
             textTheme: const TextTheme(
@@ -227,6 +230,8 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: Builder(
               builder: (context) => Scaffold(
                 body: TextButton(

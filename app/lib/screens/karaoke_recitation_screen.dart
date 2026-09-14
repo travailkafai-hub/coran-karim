@@ -1656,9 +1656,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       var quartsValides = 0;
       var quartsRepetesRecompenses = 0;
       final dejaVues = <String>{};
+      final locale = Locale(ref.read(appLocaleProvider));
       for (final v in _verses) {
-        final info =
-            await PortionService.resolve(verse: v, granularity: granularite);
+        final info = await PortionService.resolve(
+            verse: v, granularity: granularite, locale: locale);
         if (!dejaVues.add(info.unitKey)) continue;
         final departDuQuart = v.ayahNumber == info.firstAyah;
         if (departDuQuart) {
@@ -1826,10 +1827,37 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // acquis normal, exactement comme le fait déjà la session.
       final status =
           words[i].status == WordStatus.correct ? 'correct' : 'skipped';
+      // ── LA VOIX MANQUAIT ICI AUSSI (2026-09-12) ─────────────────────────
+      //
+      // Constat utilisateur sur l'ecran des portions (« mots en erreur ») :
+      // « derniere recitation toujours le gris, pas d'audio ». Ce scanner-ci
+      // ecrivait bien le VERDICT dans `portion_words` -- mais sans jamais
+      // tenter d'extraction, contrairement a `archiverMotDansPortion` (le
+      // chemin normal sur `wordLocked`) et a `_archiverNonVertsNonVerrouilles`
+      // (le meme correctif deja fait cote `session_words`, cf. plus haut dans
+      // ce fichier). Un mot jamais verrouille (le cas type : `omis` en fin de
+      // session, jamais rattrape par une observation suivante) passait
+      // TOUJOURS par ICI, jamais par `wordLocked` -- il ne pouvait donc
+      // structurellement jamais avoir de clip dans cette table.
+      //
+      // Meme convention que partout ailleurs : l'extrait n'est tente QUE pour
+      // un mot non vert (`status == 'skipped'`), jamais pour un correct.
+      String? extrait;
+      if (status != 'correct') {
+        try {
+          extrait = await _lireProvider(recitationVerifierProvider)
+              .v2ExtraitVoix(i > 0 ? i - 1 : i, i);
+        } catch (e) {
+          DiagnosticLog.log('Archive',
+              'extrait voix (mot non juge, portion) impossible mot=$i : $e');
+        }
+      }
       try {
         final granularite = _lireProvider(portionGranularityProvider);
         final portion = await PortionService.resolve(
-            verse: verse, granularity: granularite);
+            verse: verse,
+            granularity: granularite,
+            locale: Locale(_lireProvider(appLocaleProvider)));
         await SessionArchiveService.instance.upsertPortionWord(
           surahNumber: verse.surahNumber,
           unitKey: portion.unitKey,
@@ -1842,6 +1870,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           expectedWord: words[i].display,
           heardWord: words[i].heard,
           status: status,
+          audioSource: extrait,
           // riwaya de LA SESSION -- cf. RecitationSessionState.riwaya.
           riwaya: _lireProvider(recitationProvider).riwaya == Riwaya.warsh
               ? 'warsh'
@@ -2098,9 +2127,106 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// [etatPrecis] (2026-08-13) : à passer depuis `dispose()`, APRÈS
   /// `stopContinuous()`/`v2Terminer()` -- cf. la doc de `_compterMots`. Sans
   /// lui, l'appel utilise le dernier état connu au moment du `build()`.
+  /// Mots NON VERTS que la chaîne n'a JAMAIS VERROUILLÉS : leur voix, avant
+  /// que la session ne se ferme.
+  ///
+  /// ── POURQUOI CE SECOND CHEMIN EXISTE (2026-09-12) ────────────────────
+  ///
+  /// Constat utilisateur : « la dernière récitation je clique sur audio, j'ai
+  /// pas de clip », avec l'hypothèse « il ne garde que pour les rouges ».
+  /// Le journal dit autre chose, et c'est la vraie cause : sur la session 7
+  /// (sourate 4, build v424) il y avait 9 `definitif:vert`, 2
+  /// `provisoire:orange`, 1 `provisoire:rouge` — et AUCUN mot `definitif`
+  /// non vert. Or `_archiverMotNonVert` n'est branché que sur
+  /// `wordLockedNonGreen`, qui exige `definitif && locked` : il n'a donc
+  /// jamais pu tourner de toute la session. Le filtre de COULEUR était déjà
+  /// le bon (`statutFinal != correct`, donc orange et violet tajwid compris,
+  /// cf. `recitation_provider.dart`) — le barrage était le VERROUILLAGE.
+  ///
+  /// `_archiverMotsNonJugesDansPortions` voyait pourtant ces mots (« 3 vu(s) »
+  /// dans le journal), mais il n'écrit que dans `portion_words` : ni audio, ni
+  /// ligne `session_words`. Et il tourne APRÈS `terminer()`, qui remet
+  /// `_sessionCourante` à `null` — tout `archiverMot` y serait perdu en
+  /// silence (`archiverMot` sort dès sa première ligne sans session). D'où un
+  /// appel séparé, placé AVANT `terminer()`.
+  ///
+  /// L'extraction est encore possible à cet instant : `v2Terminer` ne détruit
+  /// PAS la chaîne native (`v2Chaine` n'y est jamais remise à `null`, cf.
+  /// `FastConformerCtcPlugin.kt`), donc l'anneau de 300 s et le registre
+  /// d'observations répondent toujours. Un mot provisoire a bien des
+  /// observations — sans quoi il n'aurait aucun statut à afficher — donc
+  /// `plageFiable` peut le situer comme elle situe un mot verrouillé.
+  ///
+  /// ⚠️ UNE SEULE FOIS, À LA CLÔTURE, jamais périodiquement : un
+  /// `provisoire:orange` peut encore devenir vert, et `archiverMot` fait un
+  /// `insert` PUR (pas un upsert) — archiver en cours de route laisserait une
+  /// ligne rouge définitive sur un mot finalement juste.
+  Future<void> _archiverNonVertsNonVerrouilles(
+      RecitationSessionState? etatPrecis) async {
+    if (_sansStatistiques) return;
+    if (SessionArchiveService.instance.sessionCourante == null) return;
+    final etat = etatPrecis ?? _dernierEtatConnu;
+    if (etat == null) return;
+    final words = etat.words;
+    // Même borne que `_compterMots` : l'ancre max, pas la cible — s'arrêter au
+    // milieu d'une sourate n'est pas une faute, et les mots jamais atteints
+    // n'ont aucune voix à archiver.
+    final ancreMax = words.lastIndexWhere((w) =>
+            w.status != WordStatus.pending && w.status != WordStatus.current) +
+        1;
+    var archives = 0, avecVoix = 0;
+    for (var i = 0; i < ancreMax; i++) {
+      if (words[i].locked) continue; // déjà passé par `wordLockedNonGreen`
+      if (words[i].isBasmala) continue; // jamais jugée (décision 2026-07-20)
+      // LE SEUL FILTRE DE COULEUR, et c'est la demande telle quelle : « garde
+      // la version du user pour tout sauf les verts ». Orange, rouge, violet
+      // tajwid et sauté passent donc tous par ici.
+      if (words[i].status == WordStatus.correct) continue;
+      final verse = _verseContaining(i);
+      final local = _localIndexInVerse(i);
+      String? extrait;
+      try {
+        // Même fenêtre que `_archiverMotNonVert` et que la fiche d'aide :
+        // `mot-1 .. mot`, le précédent portant la liaison et le madd de fin.
+        extrait = await _lireProvider(recitationVerifierProvider)
+            .v2ExtraitVoix(i > 0 ? i - 1 : i, i);
+      } catch (e) {
+        // L'audio est un bonus, jamais une condition : le verdict s'archive
+        // quand même (même règle que `SessionArchiveService.archiverMot`).
+        DiagnosticLog.log('Archive',
+            'extrait voix impossible (mot jamais verrouille) mot=$i : $e');
+      }
+      if (extrait != null) avecVoix++;
+      await SessionArchiveService.instance.archiverMot(
+        wordIndex: i,
+        expectedWord: words[i].display,
+        status: words[i].status.name,
+        surahNumber: verse?.surahNumber,
+        ayahNumber: verse?.ayahNumber,
+        wordInAyah: local,
+        heardWord: words[i].heard,
+        kind: _lireProvider(recitationProvider.notifier).classifyError(i).name,
+        audioSource: extrait,
+      );
+      archives++;
+    }
+    // Journalisé même à zéro : une ligne absente ne prouve rien (le balayage
+    // peut n'avoir jamais tourné), une ligne à zéro prouve qu'il a tourné.
+    // C'est exactement ce qui manquait pour répondre « pourquoi pas de clip »
+    // sans relire tout le journal de la chaîne.
+    DiagnosticLog.log(
+        'Archive',
+        'non verts jamais verrouilles : $archives archive(s), '
+        '$avecVoix avec voix');
+  }
+
   Future<void> _cloturerArchive([RecitationSessionState? etatPrecis]) async {
     if (SessionArchiveService.instance.sessionCourante == null) return;
     final (total, verts, atteints, nonJuges) = _compterMots(etatPrecis);
+    // AVANT `terminer()`, et l'ordre est la correction elle-même : `terminer()`
+    // remet `_sessionCourante` à `null`, après quoi `archiverMot` sort dès sa
+    // première ligne sans rien écrire ni signaler.
+    await _archiverNonVertsNonVerrouilles(etatPrecis);
     await SessionArchiveService.instance.terminer(
       wordsTotal: total,
       wordsGreen: verts,
@@ -5358,7 +5484,17 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     //
     // L'extrait archive existe pourtant deja en base (`session_words.audio_path`,
     // ecrit par `_archiverMotNonVert` au moment du verdict) : il n'etait
-    // simplement pas transporte jusqu'ici. `archivedAudioPath` non nul court-
+    // simplement pas transporte jusqu'ici.
+    // ⚠️ PRECISION AJOUTEE LE 2026-09-12 — la phrase ci-dessus n'etait vraie
+    // que pour les mots VERROUILLES. `_archiverMotNonVert` ecoute
+    // `wordLockedNonGreen` (`definitif && locked`) : un mot reste
+    // `provisoire:orange`/`provisoire:rouge` jusqu'a la fin n'avait AUCUNE
+    // ligne en base, donc `vRelecture` valait `null` et `interdireExtraction`
+    // (juste en dessous) fermait le repli — d'ou « Audio plus disponible »
+    // alors que la voix etait bien dans l'anneau. Mesure : session 7 du
+    // 2026-09-12, 9 `definitif:vert` et 3 non verts TOUS provisoires, zero
+    // clip archive. Comble par `_archiverNonVertsNonVerrouilles`, appele a la
+    // cloture AVANT `terminer()`. `archivedAudioPath` non nul court-
     // circuite l'extraction (cf. `_playVoix`) ; `interdireExtraction` ferme le
     // repli quand ce mot-la n'a pas d'audio archive -- mieux vaut « Audio plus
     // disponible » qu'un extrait pris dans une autre sourate.

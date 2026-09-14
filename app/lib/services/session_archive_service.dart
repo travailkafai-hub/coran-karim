@@ -1050,6 +1050,25 @@ class SessionArchiveService {
     return rows.map(PortionResume.fromMap).toList();
   }
 
+  /// Corrige le libellé d'UNE portion déjà enregistrée, sans toucher à rien
+  /// d'autre de la ligne (numéro de sourate, `unit_key`, mots acquis...).
+  ///
+  /// ── POURQUOI CETTE METHODE EXISTE (2026-09-13) ───────────────────────
+  ///
+  /// `portions.label` est écrit une seule fois, au moment où la portion est
+  /// touchée (cf. `upsertPortionWord`) -- jamais recalculé ensuite. Constat
+  /// utilisateur : « la liste dans مدرّبي [Coach] reste en français alors
+  /// que c'est [réglé sur] arabe ». `coach_sessions.dart::portionsProvider`
+  /// relocalise donc chaque libellé lu, à la volée, via cette méthode, sans
+  /// jamais rejouer `PortionService.resolve()` (qui pourrait, avec le
+  /// réglage de granularité ACTUEL, découper différemment de ce qui a été
+  /// enregistré -- cf. `PortionService.labelForUnitKey`).
+  Future<void> relabelPortion(int id, String label) async {
+    final db = await _database;
+    await db.update('portions', {'label': label},
+        where: 'id = ?', whereArgs: [id]);
+  }
+
   Future<List<PortionMot>> motsDePortion(int portionId) async {
     final db = await _database;
     final rows = await db.query('portion_words',

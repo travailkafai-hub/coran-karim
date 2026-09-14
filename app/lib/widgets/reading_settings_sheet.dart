@@ -95,6 +95,18 @@ class _ReadingSettingsSheet extends ConsumerStatefulWidget {
       _ReadingSettingsSheetState();
 }
 
+/// ChGPT: the actual reading drawer, mounted read-only by the guided tour.
+class ReadingSettingsGuide extends StatelessWidget {
+  const ReadingSettingsGuide({super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: AppColors.cream,
+    appBar: AppBar(title: Text(AppLocalizations.of(context)!.mushafMore)),
+    body: AbsorbPointer(child: _ReadingSettingsSheet(
+      showTranslation: false, onToggleTranslation: () {})),
+  );
+}
+
 class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
   /// Copie locale : cf. la doc de la classe. Le parent reste la source de
   /// verite pour l'AFFICHAGE du Mushaf, celle-ci ne sert qu'au temoin.
@@ -160,6 +172,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
                 const SizedBox(height: 10),
                 Text(
                   t.readingSettingsDisplaySection,
+                  key: const ValueKey('guide.read.size'),
               style: GoogleFonts.manrope(
                 fontSize: 10.5,
                 letterSpacing: 1.2,
@@ -217,6 +230,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
               leading: const Icon(Icons.font_download_outlined,
                   color: AppColors.green800, size: 20),
               title: Text(t.settingsMushafScriptTitle,
+                  key: const ValueKey('guide.read.script'),
                   style:
                       GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink)),
               subtitle: Text(
@@ -306,6 +320,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(
                   t.mushafTranslation,
+                  key: const ValueKey('guide.read.translation'),
                   style: GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink),
                 ),
                 value: _traduction,
@@ -337,6 +352,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
                   color: AppColors.green800, size: 20),
               title: Text(
                 t.mushafAnnotateButton,
+                key: const ValueKey('guide.read.annotations'),
                 style: GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink),
               ),
               value: ref.watch(mushafAnnotationModeProvider),
@@ -370,6 +386,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
               leading: const Icon(Icons.record_voice_over,
                   color: AppColors.green800, size: 20),
               title: Text(t.settingsReciterTitle,
+                  key: const ValueKey('guide.audio.reciter'),
                   style:
                       GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink)),
               subtitle: Text(reciterSubtitle,
@@ -392,6 +409,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
             const SizedBox(height: 14),
             Text(
               t.readingSettingsPlaybackSpeedSection,
+              key: const ValueKey('guide.audio.speed'),
               style: GoogleFonts.manrope(
                 fontSize: 10.5,
                 letterSpacing: 1.2,
@@ -467,6 +485,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
             // plages temporelles, `PlayerNotifier._boucleMots`) a été
             // retirée -- source de la boucle mal maîtrisée signalée.
             Text(t.readingSettingsGroupSize(playerState.groupeVersets),
+                key: const ValueKey('guide.audio.group'),
                 style: GoogleFonts.manrope(
                     fontSize: 12, color: AppColors.inkLight)),
             Slider(
@@ -486,6 +505,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
                   (playerState.repetitionsGroupe == 0
                       ? ' (${t.readingSettingsUnlimited})'
                       : ''),
+              key: const ValueKey('guide.audio.groupRepeat'),
               style: GoogleFonts.manrope(
                   fontSize: 12, color: AppColors.inkLight),
             ),
@@ -504,6 +524,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
                   (playerState.repetitionsGlobales == 0
                       ? ' (${t.readingSettingsUnlimited})'
                       : ''),
+              key: const ValueKey('guide.audio.globalRepeat'),
               style: GoogleFonts.manrope(
                   fontSize: 12, color: AppColors.inkLight),
             ),
@@ -524,6 +545,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
             const SizedBox(height: 20),
             Text(
               t.readingSettingsKindleSection,
+              key: const ValueKey('guide.read.theme'),
               style: GoogleFonts.manrope(
                 fontSize: 10.5,
                 letterSpacing: 1.2,
@@ -610,6 +632,7 @@ class _ReadingSettingsSheetState extends ConsumerState<_ReadingSettingsSheet> {
               contentPadding: EdgeInsets.zero,
               title: Text(
                 t.readingSettingsKindleAutoTurn,
+                key: const ValueKey('guide.read.auto'),
                 style: GoogleFonts.manrope(fontSize: 13.5, color: AppColors.ink),
               ),
               value: kindleAutoTurn,

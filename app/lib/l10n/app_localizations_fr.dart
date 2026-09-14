@@ -2027,15 +2027,15 @@ class AppLocalizationsFr extends AppLocalizations {
       'Un trou de mémoire ? Le souffleur vous fait entendre le mot attendu, sans jugement.';
 
   @override
-  String get onboardingMemorizeTitle => 'Mémoriser en jouant';
+  String get onboardingMemorizeTitle => 'S\'entraîner à mémoriser';
 
   @override
   String get onboardingMemorizeBody =>
-      'Le jeu de mémorisation vous fait reconstruire le texte mot après mot. La partie ne s\'arrête pas en fin de page : elle continue tant que vous enchaînez.';
+      'Écoutez un passage, répétez-le à voix haute : l\'application vérifie, et le palier s\'allonge à chaque réussite — jusqu\'à réciter le verset entier de mémoire.';
 
   @override
   String get onboardingMemorizeHint =>
-      'Votre record personnel de mots enchaînés est conservé d\'une partie à l\'autre.';
+      'L\'entraînement passe ensuite au contrôle : le texte se masque, à vous de réciter seul.';
 
   @override
   String get onboardingCoachTitle => 'Votre coach';
@@ -2104,6 +2104,13 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get duaPourNousForYouArabic =>
       'اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي';
+
+  @override
+  String get duaPourNousHassanatTitle => 'Participez aux hassanate';
+
+  @override
+  String get duaPourNousHassanatBody =>
+      'Partagez l\'application autour de vous : chaque personne qui l\'utilise pour lire ou mémoriser le Coran, c\'est une part de récompense qui vous revient, in shâ\' Allah.';
 
   @override
   String get duaPourNousShare => 'Partager l\'application';
@@ -3053,4 +3060,73 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get guideDemoTexte =>
       'Regarde comment les mots se colorent au fur et à mesure. C\'est une démonstration, pas une vraie récitation.';
+
+  @override
+  String get preparationRiwayaWarshNote =>
+      'Le mode tajwid n\'est pas encore entraîné sur les règles propres à Warsh : ses couleurs suivent celles de Ḥafṣ. La lecture du mushaf et la correction des mots, elles, fonctionnent normalement.';
+
+  @override
+  String get preparationEssaisTitre => 'Essaie tout de suite';
+
+  @override
+  String get preparationEssaisSous =>
+      'Sur quelques versets — quelques minutes. Tu peux revenir ensuite.';
+
+  @override
+  String get preparationEssaiReciter => 'Réciter et être corrigé';
+
+  @override
+  String get preparationEssaiReciterSous =>
+      'Récite, l\'application écoute et colore chaque mot';
+
+  @override
+  String get preparationEssaiTajwid => 'Le mode tajwid';
+
+  @override
+  String get preparationEssaiTajwidSous =>
+      'Elle n\'écoute que les règles de tajwid';
+
+  @override
+  String get preparationEssaiJeu => 'Enchaînement';
+
+  @override
+  String get preparationEssaiJeuSous =>
+      'Retrouver le mot suivant, parmi plusieurs';
+
+  @override
+  String get preparationConsigneJeu =>
+      'Le premier mot s\'affiche, les suivants sont à retrouver parmi plusieurs propositions. Une erreur montre la bonne réponse, puis le verset reprend depuis le précédent.';
+
+  @override
+  String get preparationEssaiMemoriser => 'Entraînement';
+
+  @override
+  String get preparationEssaiMemoriserSous => 'Écoute puis répète, par paliers';
+
+  @override
+  String get preparationEssaiLire => 'Lire et écouter';
+
+  @override
+  String get preparationEssaiLireSous =>
+      'Le texte, la traduction, la récitation';
+
+  @override
+  String get preparationEssaisNote =>
+      'Le micro n\'est demandé que si tu choisis de réciter.';
+
+  @override
+  String get preparationConsigneTajwid =>
+      'Récite en appliquant les règles de tajwid. Vert : toutes les règles attendues sont faites. Violet : une règle attendue n\'a pas été constatée. Sans couleur : ce mot ne porte aucune règle.';
+
+  @override
+  String get preparationConsigneReciter =>
+      'Récite normalement, sans rien changer à ta lecture — l\'IA contrôle derrière toi. Vert : le mot est juste. Orange : articulation approximative. Rouge : écart entendu.';
+
+  @override
+  String get preparationConsigneMemoriser =>
+      'Écoute le passage, répète-le à voix haute. Le palier grandit à chaque réussite, jusqu\'au verset entier.';
+
+  @override
+  String get preparationConsigneLire =>
+      'Fais défiler le texte, appuie sur un verset pour l\'écouter, appuie longuement pour ouvrir son menu.';
 }

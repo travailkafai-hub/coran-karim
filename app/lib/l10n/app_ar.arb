@@ -307,7 +307,7 @@
   "@coachHubPickerGameSubtitle": {
     "description": "العنوان الفرعي لمُنتقي السورة للعبة الحفظ"
   },
-  "memorizationGameTitle": "سلسلة",
+  "memorizationGameTitle": "لعبة التسلسل",
   "@memorizationGameTitle": {
     "description": "عنوان شاشة لعبة الحفظ"
   },
@@ -652,9 +652,9 @@
   "onboardingReciteTitle": "اتلُ وصحِّح",
   "onboardingReciteBody": "اتلُ بصوت مسموع: يستمع التطبيق ويلوّن كل كلمة تباعًا. الأخضر يعني أن الكلمة صحيحة، والبرتقالي أو الأحمر يعني أنها تحتاج مراجعة.",
   "onboardingReciteHint": "نسيت الكلمة؟ يُسمعك المُلقِّن الكلمة المنتظرة دون أي حكم عليك.",
-  "onboardingMemorizeTitle": "الحفظ باللعب",
-  "onboardingMemorizeBody": "تجعلك لعبة الحفظ تعيد بناء النص كلمة بعد كلمة. ولا تتوقف الجولة عند نهاية الصفحة، بل تستمر ما دمت تتابع.",
-  "onboardingMemorizeHint": "يُحفظ رقمك القياسي في عدد الكلمات المتتالية من جولة إلى أخرى.",
+  "onboardingMemorizeTitle": "التدريب على الحفظ",
+  "onboardingMemorizeBody": "استمع إلى المقطع وردِّده بصوتٍ مسموع، فيتحقّق التطبيق منك، ويتّسع المقطع مع كل نجاح حتى تتلو الآية كاملة عن ظهر قلب.",
+  "onboardingMemorizeHint": "ثم ينتقل التدريب إلى المراجعة: يُخفى النص، وتتلو وحدك.",
   "onboardingCoachTitle": "مدرّبك",
   "onboardingCoachBody": "بعد كل تلاوة، تجد ما تعثّرت فيه: الكلمات المُشار إليها، وصوتك أنت في كل منها، وقراءة القارئ للمقارنة.",
   "onboardingCoachHint": "تُجمَع الأخطاء حسب السورة وحسب حكم التجويد، لترى ما يتكرّر منها.",
@@ -674,6 +674,8 @@
   "duaPourNousForYouTitle": "ولك أنت",
   "duaPourNousForYouBody": "يسّر الله عليك تلاوة كتابه، وثبّت حفظه في قلبك، وتقبّل منك سعيك، وجعل القرآن ربيع قلبك ونور صدرك.",
   "duaPourNousForYouArabic": "اللَّهُمَّ اجْعَلِ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي",
+  "duaPourNousHassanatTitle": "شارِك في الحسنات",
+  "duaPourNousHassanatBody": "شارِك التطبيق مع من حولك: كل من يستعمله لقراءة القرآن أو حفظه فلك نصيب من أجره، إن شاء الله.",
   "duaPourNousShare": "مشاركة التطبيق",
   "duaPourNousShareText": "قرآن كريم — اقرأ القرآن واتلُه واحفظه، بلا إعلانات.",
   "navDuaPourNous": "دعاء",
@@ -953,5 +955,24 @@
   "demoLegendeRouge": "فرق مسموع",
   "guideChapitreDemoTitre": "شاهد تلاوة",
   "guideChapitreDemoResume": "مثال مُعدّ: تصحيح، وشكّ، وخطأ، ثم استئناف.",
-  "guideDemoTexte": "انظر كيف تتلوّن الكلمات تباعاً. هذا عرض توضيحي، وليس تلاوة حقيقية."
+  "guideDemoTexte": "انظر كيف تتلوّن الكلمات تباعاً. هذا عرض توضيحي، وليس تلاوة حقيقية.",
+  "preparationRiwayaWarshNote": "لم يُدرَّب وضع التجويد بعدُ على أحكام ورش الخاصة، فألوانه تتبع رواية حفص. أما قراءة المصحف وتصحيح الكلمات فتعملان كالمعتاد.",
+  "preparationEssaisTitre": "جرّب الآن",
+  "preparationEssaisSous": "على بضع آيات: دقائق معدودة. ويمكنك العودة لاحقاً.",
+  "preparationEssaiReciter": "اتلُ وكن مصححاً",
+  "preparationEssaiReciterSous": "اتلُ، والتطبيق يستمع ويلوّن كل كلمة",
+  "preparationEssaiTajwid": "وضع التجويد",
+  "preparationEssaiTajwidSous": "يستمع لأحكام التجويد وحدها",
+  "preparationEssaiJeu": "لعبة التسلسل",
+  "preparationEssaiJeuSous": "ابحث عن الكلمة التالية بين عدة كلمات",
+  "preparationConsigneJeu": "تظهر الكلمة الأولى، ثم تختار ما بعدها من بين عدة كلمات. وعند الخطأ تظهر الكلمة الصحيحة، ثم تُستأنف الجولة من الآية السابقة.",
+  "preparationEssaiMemoriser": "التدريب",
+  "preparationEssaiMemoriserSous": "استمع ثم ردِّد، على مراحل",
+  "preparationEssaiLire": "اقرأ واستمع",
+  "preparationEssaiLireSous": "النص والترجمة والتلاوة",
+  "preparationEssaisNote": "لا يُطلب الميكروفون إلا إذا اخترت التلاوة.",
+  "preparationConsigneTajwid": "اتلُ مطبّقاً أحكام التجويد. الأخضر: تحققت كل الأحكام المتوقعة. البنفسجي: حكم متوقع لم يُلاحَظ. بلا لون: لا حكم في هذه الكلمة.",
+  "preparationConsigneReciter": "اتلُ كعادتك دون تغيير، والذكاء الاصطناعي يتابع خلفك. الأخضر: الكلمة صحيحة. البرتقالي: نطق تقريبي. الأحمر: فرق مسموع.",
+  "preparationConsigneMemoriser": "استمع إلى المقطع ثم ردِّده بصوتٍ مسموع. ويتّسع المقطع مع كل نجاح حتى تبلغ الآية كاملة.",
+  "preparationConsigneLire": "مرّر النص، واضغط على آية لسماعها، واضغط مطولاً لفتح قائمتها."
 }

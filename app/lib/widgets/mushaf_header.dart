@@ -86,6 +86,9 @@ class MushafHeader extends StatelessWidget implements PreferredSizeWidget {
             : null,
       ),
       child: SafeArea(
+        // ChGPT: this is a TOP header. Reserving Android's bottom navigation
+        // inset here shrinks its 84px content after returning from paper view.
+        bottom: false,
         child: Stack(
           children: [
             // Mosque silhouette watermark
