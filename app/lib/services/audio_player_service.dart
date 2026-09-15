@@ -159,6 +159,55 @@ class AudioPlayerService {
   ///    frontière ; elle se contente de signaler la fin du verset.
   Timer? _minuteurFrontiere;
 
+  // ── LA PAUSE DOIT ARRETER LE MINUTEUR, PAS SEULEMENT LE SON (2026-09-15) ──
+  //
+  // Defaut constate sur telephone : « la lecture, je n'arrive plus a
+  // l'arreter ». Le journal le montre a 14 secondes d'intervalle :
+  //
+  //     07:18:06 [Lecture] PAUSE demandee
+  //     07:18:20 [Lecture] fin de verset 4:4 atteinte (minuteur) -> signal de fin
+  //
+  // `pause()` coupait le SON (`_player.pause()`) sans toucher au minuteur de
+  // frontiere. Celui-ci continuait donc sa course et sonnait a l'heure prevue
+  // pour un verset qui ne jouait plus -- `_completionCtrl` recevait la fin,
+  // l'appelant enchainait sur le verset suivant, et la lecture repartait
+  // toute seule. Mettre pause ne servait a rien : la seule facon d'arreter
+  // etait `stop()`, qui lui annule bien le minuteur.
+  //
+  // ⚠️ ANNULER SUFFIT POUR LA PAUSE, PAS POUR LA REPRISE. Ce minuteur est le
+  // SEUL mecanisme qui arrete un verset au bon endroit : le flux MP3Quran est
+  // UN SEUL fichier continu pour toute la sourate (cf. la doc ci-dessus), donc
+  // sans lui la lecture deborderait sur le verset suivant sans jamais
+  // s'arreter. On memorise donc ce qu'il restait a jouer, et `resume()` le
+  // rearme sur ce RESTE -- pas sur la duree entiere, qui ferait jouer le
+  // verset une seconde fois en partie.
+  DateTime? _minuteurArmeA;
+  Duration? _minuteurDuree;
+  Duration? _resteEnPause;
+
+  /// Le verset que le minuteur en cours doit terminer -- retenu pour pouvoir
+  /// le REARMER a la reprise (le `Timer` ne porte pas son contexte).
+  Verse? _versetDuMinuteur;
+
+  /// Arme le minuteur de frontiere et retient de quoi le reprendre.
+  void _armerFrontiere(Duration duree, Verse verse) {
+    _minuteurFrontiere?.cancel();
+    _minuteurArmeA = DateTime.now();
+    _minuteurDuree = duree;
+    _versetDuMinuteur = verse;
+    _resteEnPause = null;
+    _minuteurFrontiere = Timer(duree, () {
+      _minuteurFrontiere = null;
+      _minuteurArmeA = null;
+      _minuteurDuree = null;
+      _versetDuMinuteur = null;
+      _resteEnPause = null;
+      DiagnosticLog.log('Lecture',
+          'fin de verset ${verse.key} atteinte (minuteur) -> signal de fin');
+      if (!_completionCtrl.isClosed) _completionCtrl.add(null);
+    });
+  }
+
   Future<bool> _jouerViaMp3Quran(Verse verse, Reciter reciter) async {
     debugPrint('[Mp3Quran] _jouerViaMp3Quran verset=${verse.key}');
     final List<AyahTiming> timing;
@@ -262,20 +311,45 @@ class AudioPlayerService {
         'verset=${verse.key} (MP3Quran) debut=${debutMs}ms fin=${t.endMs}ms '
         'duree=${dureeMs}ms marge=${margeReelle}ms '
         'fluxDejaOuvert=${_sourateEnCoursMp3Quran == verse.surahNumber}');
-    _minuteurFrontiere = Timer(Duration(milliseconds: dureeMs), () {
-      _minuteurFrontiere = null;
-      DiagnosticLog.log('Lecture',
-          'fin de verset ${verse.key} atteinte (minuteur) -> signal de fin');
-      if (!_completionCtrl.isClosed) _completionCtrl.add(null);
-    });
+    _armerFrontiere(Duration(milliseconds: dureeMs), verse);
     return true;
   }
 
   Future<void> pause() {
-    DiagnosticLog.log('Lecture', 'PAUSE demandee');
+    // Le minuteur s'arrete AVEC le son : cf. le bloc de `_minuteurFrontiere`.
+    // Sans cela il sonnait sur un verset en pause et relancait la lecture.
+    final arme = _minuteurArmeA;
+    final duree = _minuteurDuree;
+    if (_minuteurFrontiere != null && arme != null && duree != null) {
+      final reste = duree - DateTime.now().difference(arme);
+      // Un reste nul ou negatif veut dire que la frontiere etait deja atteinte
+      // a l'instant de la pause : on ne garde rien, la reprise repartira sur
+      // le verset suivant comme elle l'aurait fait sans pause.
+      _resteEnPause = reste > Duration.zero ? reste : null;
+      _minuteurFrontiere!.cancel();
+      _minuteurFrontiere = null;
+      DiagnosticLog.log('Lecture',
+          'PAUSE demandee : minuteur de frontiere desarme, '
+          'reste=${_resteEnPause?.inMilliseconds ?? 0}ms');
+    } else {
+      DiagnosticLog.log('Lecture', 'PAUSE demandee (aucun minuteur arme)');
+    }
     return _player.pause();
   }
-  Future<void> resume() => _player.resume();
+
+  Future<void> resume() async {
+    // Rearme sur le RESTE, jamais sur la duree entiere -- sinon le verset
+    // rejouerait une partie de lui-meme avant que la frontiere ne tombe.
+    final reste = _resteEnPause;
+    final verse = _versetDuMinuteur;
+    if (reste != null && verse != null) {
+      _resteEnPause = null;
+      DiagnosticLog.log('Lecture',
+          'REPRISE : minuteur de frontiere rearme sur ${reste.inMilliseconds}ms');
+      _armerFrontiere(reste, verse);
+    }
+    await _player.resume();
+  }
   Future<void> stop() async {
     // Le flux MP3Quran réellement ouvert dans le lecteur natif est fermé par
     // `_player.stop()` -- sans remettre `_sourateEnCoursMp3Quran` à null, un
@@ -284,6 +358,12 @@ class AudioPlayerService {
     DiagnosticLog.log('Lecture', 'STOP : flux ferme, minuteur annule');
     _minuteurFrontiere?.cancel();
     _minuteurFrontiere = null;
+    // Un arret efface AUSSI la reprise en attente : sans cela, un `resume()`
+    // apres `stop()` rearmerait la frontiere d'un verset qui ne joue plus.
+    _resteEnPause = null;
+    _versetDuMinuteur = null;
+    _minuteurArmeA = null;
+    _minuteurDuree = null;
     _sourateEnCoursMp3Quran = null;
     await _player.stop();
   }

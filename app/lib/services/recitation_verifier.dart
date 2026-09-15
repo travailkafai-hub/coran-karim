@@ -1035,9 +1035,14 @@ class WhisperOnnxVerifier implements RecitationVerifier {
     if (prayerInference != null) await prayerInference;
     _generation++;
     final hasPerm = await _recorder.hasPermission();
+    // A deterministic benchmark feeds a WAV file directly into the same
+    // streaming queue; it does not open the microphone. Android may keep the
+    // runtime RECORD_AUDIO permission denied on a test device, so do not block
+    // this file-backed path. Real microphone sessions still require consent.
+    final sourceFichier = _wavRejoue != null;
     debugPrint(
-        '[ASR] [$_kAsrVersion] start() | perm=$hasPerm | mots=${expectedWords.length} | continu=$continuous | generation=$_generation');
-    if (!hasPerm) return;
+        '[ASR] [$_kAsrVersion] start() | perm=$hasPerm | fichier=$sourceFichier | mots=${expectedWords.length} | continu=$continuous | generation=$_generation');
+    if (!hasPerm && !sourceFichier) return;
 
     _continuous = continuous;
     _sessionEnding = false;
@@ -1494,8 +1499,8 @@ class WhisperOnnxVerifier implements RecitationVerifier {
         .map((e) => (
               index: e.index,
               statut: e.statut,
-              trace: 'fermeture de session',
-              heard: '',
+              trace: e.trace,
+              heard: e.heard,
               // Les regles remontent DESORMAIS par ce chemin (2026-09-03) :
               // le natif les lit dans le registre de preuves, que
               // `terminer()` vient de remplir via `traiter(fenetre)`.

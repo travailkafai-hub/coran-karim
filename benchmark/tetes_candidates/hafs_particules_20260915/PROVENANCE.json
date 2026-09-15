@@ -1,0 +1,32 @@
+[
+  {
+    "source": "C:\\Users\\kafai\\tunnel_pc_a\\reponses\\tete3_hafs_particules.json",
+    "copie": "benchmark\\tetes_candidates\\hafs_particules_20260915\\tete3_hafs_particules.json",
+    "sha256": "7e708b20a9a13e53f14b0491c36396992bdb2b078c05208215d774837e03b66e"
+  },
+  {
+    "source": "C:\\Users\\kafai\\tunnel_pc_a\\reponses\\NOUVELLE_TETE3_HAFS_PARTICULES_2026-09-15.md",
+    "copie": "benchmark\\tetes_candidates\\hafs_particules_20260915\\NOUVELLE_TETE3_HAFS_PARTICULES_2026-09-15.md",
+    "sha256": "9e0bc3a26efb8e819a6ab90572a2b5634d0e2255c9005e28f4f99a1c22a36094"
+  },
+  {
+    "source": "C:\\Users\\kafai\\tunnel_pc_a\\reponses\\comparer_tete3_particules_2026-09-15.py",
+    "copie": "benchmark\\tetes_candidates\\hafs_particules_20260915\\comparer_tete3_particules_2026-09-15.py",
+    "sha256": "301b4802793eebcd3305863dab61cd9a413dcd4e710e64c1a031fc8cb839e543"
+  },
+  {
+    "source": "C:\\Users\\kafai\\tunnel_pc_a\\reponses\\tete3_audio_reel.py",
+    "copie": "benchmark\\tetes_candidates\\hafs_particules_20260915\\tete3_audio_reel.py",
+    "sha256": "b694f8a3533ac733a46c06560ea3407952b4b2cc8c4399db0ca111d45c7d4e76"
+  },
+  {
+    "source": "C:\\Users\\kafai\\tunnel_pc_a\\reponses\\reference_tete3_hafs.json",
+    "copie": "benchmark\\tetes_candidates\\hafs_particules_20260915\\reference_tete3_hafs.json",
+    "sha256": "96f2a14c55175d16c0c8c4b274961be04f03b11034c41cd849da4a1ab3133e25"
+  },
+  {
+    "source": "C:\\Users\\kafai\\tunnel_pc_a\\reponses\\SUITE_2026-09-15_correction_blocage1_et_resultat_hafs.md",
+    "copie": "benchmark\\tetes_candidates\\hafs_particules_20260915\\SUITE_2026-09-15_correction_blocage1_et_resultat_hafs.md",
+    "sha256": "a266b61cd4de3070f877fc765eacbd7d4298e53cd284de05112cdf9c5f95fc2f"
+  }
+]

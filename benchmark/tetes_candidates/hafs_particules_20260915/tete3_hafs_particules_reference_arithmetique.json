@@ -1,0 +1,10 @@
+{
+  "commentaire": "Reference PUREMENT ARITHMETIQUE (pas d'encodeur, cf. l'en-tete de reference_parite_tete3_deployee.py) pour le fichier tete3_hafs_particules.json. Verifie le chargement JSON et le forward MLP, PAS l'extraction des 12 caracteristiques depuis l'audio.",
+  "fichier": "benchmark\\tetes_candidates\\hafs_particules_20260915\\tete3_hafs_particules.json",
+  "sha256": "7e708b20a9a13e53f14b0491c36396992bdb2b078c05208215d774837e03b66e",
+  "description": "tete 3 -- ecart au canonique, recalibree sur l'encodeur conjoint12 (2026-08-21)",
+  "seuils_mesures": null,
+  "taille_entree": 1036,
+  "cache": 32,
+  "logit_reference": 37.389693
+}

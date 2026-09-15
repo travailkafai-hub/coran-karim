@@ -70,6 +70,7 @@ def main():
         # taken immediately before BACK is the authoritative session stream
         # whenever it contains the recipe boundary.
         text = before if 'versets=20/' in before and 'borner=true' in before else final_text
+        event_log = run['before_close_log'] if text is before else run['log']
         decrochage_count = len(re.findall(r'\[v2\].*\bDECROCHAGE\b', text))
         repeat_count = repeat_marker_count(text)
         history, mismatches = events(text, case['expected_words'])
@@ -101,7 +102,8 @@ def main():
                        any_negative=any(s in NEGATIVE for s in states),
                        all_green=all(s=='definitif:vert' for s in states),
                        no_verdict=any(s=='no_verdict' for s in states),insertion_proxy_only=proxy,
-                       trace=[dict(index=i,events=history[i]) for i in indices],log=run['log'])
+                       trace=[dict(index=i,events=history[i]) for i in indices],
+                       event_log=event_log, log=run['log'])
             details.append(row)
             rows.append({k:v for k,v in row.items() if k != 'trace'})
         changed_verses = {op['verse'] for op in case['operations']}
@@ -138,6 +140,12 @@ def main():
                'Les montages utilisent les frontières API et ne sont pas validés à l’écoute. Ils ne mesurent pas des erreurs phonétiques humaines ni la qualité du tajwid.', '',
                '## Versets intacts dans les passages modifiés', '',str(dict(Counter(c['status'] for c in controls))), '',
                'Les pistes d’amélioration déduites de cette série sont dans `benchmark/PISTES_AMELIORATION_CAMPAGNE_DENSE30.md`.']
+    if (OUT/'audit_montages.json').exists():
+        report[2:2] = [
+            '**Rectification après vérification PCM :** les familles ci-dessous sont les étiquettes historiques du manifeste. '
+            '`omission_word` contient des troncatures ; certains replis conservent le mot original intégral. '
+            'Les comptes décrivent les derniers statuts et incluent des événements après reprise : ils ne mesurent pas un taux de faux négatif. '
+            'Voir [extraction vérifiée](MOTS_MAL_JUGES_CAMPAGNE_DENSE30_POUR_CODEX.md) et [audit PCM](audit_montages.json).', '']
     (OUT/'RESULTATS.md').write_text('\n'.join(report)+'\n',encoding='utf-8')
     print('\n'.join(report[:6]))
 

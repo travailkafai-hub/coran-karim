@@ -1,5 +1,11 @@
 # Relais de surveillance — campagne dense 100 × 20
 
+> Mise à jour après audit PCM : les étiquettes du manifeste ne décrivent pas
+> toutes le montage joué. Les 70 `omission_word` sont des troncatures ; le
+> repli synthétique conserve le mot original. Consulter en priorité
+> [l'extraction corrigée](campagne_100x20_dense30/MOTS_MAL_JUGES_CAMPAGNE_DENSE30_POUR_CODEX.md)
+> et [le correctif des répétitions](CORRECTION_REPETITIONS_DENSE30.md).
+
 Ce document est le point de reprise pour Claude ou un autre agent. Il fixe le
 protocole, l'état réel de la dernière exécution et les contrôles à conserver.
 
@@ -31,7 +37,7 @@ journal, ferme proprement la session et classe le cas
 - Résultat : 100/100 cas exécutés, 600 transformations enregistrées.
 - Fin audio : 49 cas `AUDIO_FINISHED`.
 - Répétition : 51 cas `REQUIRES_HUMAN_REPETITION`.
-- Signaux natifs `DECROCHAGE` : 63 cas ; marqueurs de reprise/correction : 495.
+- Signaux natifs `DECROCHAGE` : 63 événements ; marqueurs de reprise/correction : 495.
 - Clôture confirmée : 100/100 ; incohérence d'index ou de texte : 0.
 - Extension de page : aucun marqueur `Enchaînement page` ou `Enchainement page`.
 - Mode et APK : `valid_mode=true` partout, même APK SHA-256

@@ -8,6 +8,27 @@ import 'dart:io';
 import 'diagnostic_log.dart';
 import '../models/judgement_options.dart' show TajwidRule;
 
+/// Preuve native de la passe finale, conservee comme pendant le flux.
+typedef V2FermetureNative = ({int index, String statut, String heard, String trace,
+  Set<TajwidRule> detectedRules, bool tajwidObserve, double? margeLettres});
+
+V2FermetureNative decoderFermetureV2(Map<dynamic, dynamic> e, List<String> noms) => (
+  index: (e['i'] as num).toInt(),
+  statut: e['statut'] as String,
+  heard: e['entendu'] as String? ?? '',
+  trace: 'fermeture de session | f=${e['preuveFenetre']} '
+      'abs=[${e['preuveDebutAbs']},${e['preuveFinAbs']}] '
+      'gop=${e['gop']} forced=${e['forced']} free=${e['free']} '
+      'frames=${e['frames']} interieur=${e['interieur']}',
+  detectedRules: <TajwidRule>{
+    for (final id in ((e['rules'] as List?) ?? const []))
+      if ((id as int) >= 0 && id < noms.length)
+        if (TajwidRule.fromKey(noms[id]) case final r?) r,
+  },
+  tajwidObserve: (e['tajwidObserve'] as bool?) ?? false,
+  margeLettres: (e['margeL'] as num?)?.toDouble(),
+);
+
 // ── Alignement forcé GOP (cf. ForcedAligner.kt, refonte 2026-07-11) ──────────
 
 /// Résultat d'alignement pour UN mot attendu. [gop] = forced - free (toujours
@@ -1086,7 +1107,12 @@ class FastConformerVerifier {
               '${(m['interieur'] as bool?) ?? false ? 'INT' : 'bord'}'
               '${(m['sansCreneau'] as bool?) ?? false ? '/sansCreneau' : ''} '
               'margeL=${f(m['margeL'])} margeH=${f(m['margeH'])} '
-              'obs=${m['nbObs']} entendu="${m['entendu']}"',
+              'obs=${m['nbObs']} entendu="${m['entendu']}" '
+              't3Etat=${m['t3Etat'] ?? 'ABSENCE_PREUVE'} '
+              't3Logit=${m['t3Logit'] ?? '-'} '
+              't3Seuil2Pct=${m['t3Seuil2Pct'] ?? '-'} '
+              'preuveFenetre=${m['preuveFenetre'] ?? '-'} '
+              'preuveAbs=[${m['preuveDebutAbs'] ?? '-'},${m['preuveFinAbs'] ?? '-'}]',
           heard: m['entendu'] as String? ?? '',
           detectedRules: regles,
           // k=2 cote Kotlin : faux tant qu'on n'a pas REGARDE ce mot deux fois
@@ -1323,26 +1349,13 @@ class FastConformerVerifier {
   /// que le banc direct montrait la regle parfaitement realisee (ghunna a
   /// 0,993 sur `ٱلْخَنَّاسِ`). Le natif lit maintenant le registre de preuves
   /// que `terminer()` vient de remplir.
-  Future<List<({int index, String statut, Set<TajwidRule> detectedRules,
-                bool tajwidObserve, double? margeLettres})>> v2Terminer() async {
+  Future<List<V2FermetureNative>> v2Terminer() async {
     if (!_loaded) return const [];
     try {
       final r = await _channel.invokeMethod<List<dynamic>>('v2Terminer');
       if (r == null) return const [];
       final noms = _ruleNames;
-      return r
-          .map((e) => (
-                index: (e['i'] as num).toInt(),
-                statut: e['statut'] as String,
-                detectedRules: <TajwidRule>{
-                  for (final id in ((e['rules'] as List?) ?? const []))
-                    if ((id as int) >= 0 && id < noms.length)
-                      if (TajwidRule.fromKey(noms[id]) case final r?) r,
-                },
-                tajwidObserve: (e['tajwidObserve'] as bool?) ?? false,
-                margeLettres: (e['margeL'] as num?)?.toDouble(),
-              ))
-          .toList();
+      return r.map((e) => decoderFermetureV2(e as Map, noms)).toList();
     } catch (_) {
       return const [];
     }

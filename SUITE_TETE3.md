@@ -228,3 +228,60 @@ modèle que plus aucun commit ne décrit.
 - Après toute modification de la chaîne : **`superviseur-recette` obligatoire**,
   sans attendre qu'on le demande. Le hook `exige-superviseur.py` bloque le gel
   de version sans preuve postérieure à la modification.
+
+---
+
+## 10. MISE À JOUR 2026-09-15 — les DEUX têtes entrent dans la décision
+
+Le §6 posait la question « quel encodeur avant de brancher la tête ». Elle est
+tranchée depuis : les deux têtes utilisées ici sont calibrées sur
+`warsh-v5-epoch6.nemo` (empreinte encodeur `900a142d2b585d3c`), 1036 entrées
+(mean+std de l'état + 12 caractéristiques). Le nœud `[MESURE] la tête 3
+n'apporte RIEN sur le modèle de l'app` (2026-07-31) portait sur l'encodeur
+d'alors et une tête à 524 entrées : **cause nouvelle nommée**, pas une
+réintroduction d'un mécanisme mesuré perdant.
+
+### Ce qui est branché
+
+| riwaya | fichier de décision | SHA-256 (début) | logit de référence |
+|---|---|---|---|
+| Hafs | `tete3_hafs_particules_20260915.json` | `7e708b20…` | `37,389693` |
+| Warsh | `tete3_warsh_v1_20260915.json` | `39011c20…` | `−0,976116` |
+
+La riwaya choisit **un fichier de poids, jamais une règle** : `JugementTete3`
+porte une `Politique` par riwaya, et `evaluer`/`couleur` n'ont pas bougé d'une
+ligne. Le garde `!riwayaWarsh` du plugin n'excluait aucun défaut connu — il n'y
+avait alors aucune tête 3 Warsh vérifiée à mettre en face. Le vote entre
+fenêtres, lui, est aveugle à la riwaya (il compare des textes LIBRES entre eux)
+et reçoit déjà les équivalences orthographiques de la riwaya courante par
+`variantesOrthographePourRiwaya`.
+
+### Ce qui est prouvé, et seulement cela
+
+- **Identité + arithmétique des deux têtes**, sur le vecteur déterministe
+  `(((i*37) % 101) − 50) / 25` — la même formule des deux côtés, sinon les
+  deux nombres ne se comparent pas. Contrôle **croisé** : chaque politique
+  refuse la tête de l'autre riwaya (`JugementTete3Test`). Sans ce croisement,
+  une tête chargée pour la mauvaise riwaya produirait des logits plausibles
+  sans jamais rien signaler — deux fichiers de même format, seule l'empreinte
+  les distingue.
+- **Parité d'extraction Warsh sur de la VRAIE récitation**
+  (`Tete3PariteWarshAudioReelTest`, `AbdelKabirHadidi_assajda/100_10.wav`) : les
+  12 caractéristiques une par une, puis le logit. Mieux que le pendant Hafs,
+  qui est sur du TTS. Les logits de référence viennent de `tete3_warsh.json`
+  **du paquet**, vérifié et non supposé : recalculés hors Kotlin sur les trois
+  têtes candidates, seule celle du paquet retombe dessus à 1e-5.
+  Cette parité vaut pour les DEUX têtes Warsh : elles consomment le même
+  vecteur et ne diffèrent que par leurs poids.
+
+### Ce qui n'est PAS prouvé — à ne pas présenter autrement
+
+- **Aucune calibration.** Les deux fichiers n'ont pas de `seuils_mesures` ; la
+  frontière est le logit brut 0. Le jour où l'un d'eux porte des seuils, la
+  politique doit être revue, pas conservée en silence (le test le vérifie).
+- **Aucune mesure sur téléphone en Warsh.** Les replays device du 15/09
+  (11 cas `green_after_negative`) sont tous en Hafs.
+- **Aucun rappel mesuré sur fautes Warsh réelles.** Les chiffres par catégorie
+  du rapport de PC A sont une annonce de ce rapport, pas une mesure faite ici.
+- Le chemin reste derrière le marqueur de debug `files/vote_fenetres_actif` :
+  rien ne change pour un utilisateur de l'APK de production.

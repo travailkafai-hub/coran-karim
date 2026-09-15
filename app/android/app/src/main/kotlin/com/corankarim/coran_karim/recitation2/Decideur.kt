@@ -118,8 +118,31 @@ class Decideur(
      *  accepte de le condamner. Ce n'est pas une tolerance sur le critere :
      *  c'est le refus de conclure tant que la preuve peut encore arriver. */
     private val depassement: Int = 3,
+    /** Active seulement dans le banc Hafs explicite. Poids CTC encore non
+     * calibres : mesurer le collateral avant d'en faire la regle generale. */
+    val votePondere: Boolean = false,
+    /** Candidate Hafs : avis acoustique ajoute au jugement des transcriptions. */
+    val utiliserTete3: Boolean = false,
+    /** Depuis le 15/09/2026 la candidate n'est plus Hafs seule : la riwaya
+     *  choisit le FICHIER de poids, jamais la regle appliquee ensuite. Ce
+     *  champ ne sert donc qu'a nommer la tete dans le journal -- le jugement,
+     *  lui, ne lit que les logits deja poses sur chaque observation. */
+    private val politiqueTete3: JugementTete3.Politique = JugementTete3.HAFS,
+    private val journalJugement: ((String) -> Unit)? = null,
 ) {
+    init { require(!utiliserTete3 || votePondere) { "La tete 3 exige le vote par occurrence" } }
     private val definitifs = HashMap<Int, Couleur>()
+    private val preuvesRetenues = HashMap<Int, RegistreDePreuves.Observation>()
+    private val derniersAvisTete3 = HashMap<Int, String>()
+
+    data class ContexteVote(
+        val attendus: List<String>,
+        val debutMinimalFenetreFuture: Long,
+        val fermeture: Boolean = false,
+        val equivalences: (String) -> List<String> = Orthographe::variantes,
+    )
+
+    fun preuveRetenue(i: Int): RegistreDePreuves.Observation? = preuvesRetenues[i]
 
     /**
      * Oublie les verdicts DEFINITIFS a partir du mot [depuis] (inclus).
@@ -157,11 +180,15 @@ class Decideur(
      * constat sur le SUIVI DE PRIERE, mesure la-bas, et il n'a aucune mesure
      * sur le karaoke.
      *
-     * DEFAUT A `false` : le karaoke garde son comportement au caractere pres.
-     * Seul [ChaineRecitation.repartirApresSouffle] passe `true`.
+     * Depuis l'audit dense30, [ChaineRecitation.reculerAncre] passe aussi
+     * `true` : les tests RepetitionPreuvesTest reproduisent le vert provisoire
+     * de l'ancien essai qui masquait une nouvelle faute. Les deux chemins de
+     * reprise isolent en meme temps leurs preuves via commencerTentative.
      */
     fun oublierDepuis(depuis: Int, effacerProvisoires: Boolean = false) {
         definitifs.keys.filter { it >= depuis }.forEach { definitifs.remove(it) }
+        preuvesRetenues.keys.filter { it >= depuis }.forEach { preuvesRetenues.remove(it) }
+        derniersAvisTete3.keys.filter { it >= depuis }.forEach { derniersAvisTete3.remove(it) }
         if (!effacerProvisoires) return
         meilleurProvisoire.keys.filter { it >= depuis }
             .forEach { meilleurProvisoire.remove(it) }
@@ -315,7 +342,7 @@ class Decideur(
         // couterait plus cher que l'inference elle-meme.
         for (i in registre.motsObserves) {
             if (i < 0 || i >= nbMots) continue
-            for (o in registre.observations(i)) {
+            for (o in registre.observationsPourJugement(i)) {
                 if (o.sansCreneau || o.debutAbs < 0 || o.finAbs < 0) continue
                 if (o.entendu.isBlank()) continue
                 if (o.debutAbs < debutPropre[i]) debutPropre[i] = o.debutAbs
@@ -373,7 +400,9 @@ class Decideur(
      *
      * @return statut courant de chaque mot ayant au moins une observation.
      */
-    fun statuts(registre: RegistreDePreuves, nbMots: Int): Map<Int, Statut> {
+    fun statuts(registre: RegistreDePreuves, nbMots: Int,
+                contexteVote: ContexteVote? = null): Map<Int, Statut> {
+        if (votePondere) return statutsVote(registre, nbMots, requireNotNull(contexteVote))
         val out = HashMap<Int, Statut>()
         val ordre = ordreTemporel(registre, nbMots)
 
@@ -480,7 +509,7 @@ class Decideur(
             // FRONTIER_KEEP_SECONDS (2026-07-29), ou l'hypothese avait ete
             // REFUTEE en plus d'etre sans effet. Ce n'est pas le cas ici : la
             // justification tient, seul le gain immediat manque.
-            val nette = registre.observations(i).lastOrNull {
+            val nette = registre.observationsPourJugement(i).lastOrNull {
                 it.atteste && !it.sansCreneau && it.entendu.isNotBlank()
             }
             // REGRESSION MESUREE LE 2026-07-31, recette s2 : en laissant la
@@ -624,7 +653,7 @@ class Decideur(
                 // [PIEGE] attestation_normalisee -- « normaliser pour TROUVER,
                 // comparer exactement pour CONFIRMER ». Un fragment
                 // (ٱلْبَرْقُ entendu ٱلْبَرْءُ) ne doit PAS declencher ce secours.
-                val preuve = registre.observations(i).lastOrNull {
+                val preuve = registre.observationsPourJugement(i).lastOrNull {
                     it.atteste && it.entendu.isNotBlank() && !it.sansCreneau
                 }
                 if (preuve != null) {
@@ -652,6 +681,86 @@ class Decideur(
                 omis.add(i)
                 out[i] = Statut.Omis
             }
+        }
+        return out
+    }
+
+    /** Choix d'une lecture puis jugement : le GOP d'une lecture DIFFERENTE
+     * ne peut pas la blanchir. Mesure T023 du 15/09 : trois lectures de
+     * المرسلون contre l'attendu المرسلين, GOP -0.022/-0.673/-0.005 ; le
+     * meilleurProvisoire devenait vert sans UNE SEULE attestation exacte.
+     *
+     * Les anciens raccourcis restent ci-dessus pour le temoin ; aucun n'est
+     * appele ici. Les provisoires sont revisables, les definitifs ne sortent
+     * qu'une fois les frames hors de portee des fenetres futures, avec k>=2.
+     * Egalite, attribution ambigue et poids manquant restent du doute.
+     * Ce mode doit etre mesure sur fautes audio ET temoins, pas seulement sur
+     * les trois exemples de somme de poids : une lecture libre peut se tromper. */
+    private fun statutsVote(registre: RegistreDePreuves, nbMots: Int,
+                           contexte: ContexteVote): Map<Int, Statut> {
+        require(contexte.attendus.size == nbMots)
+        val ordre = ordreTemporel(registre, nbMots)
+        val out = HashMap<Int, Statut>()
+        for (i in 0 until nbMots) {
+            if (i in nonJugeables) continue
+            val fige = definitifs[i]
+            if (fige != null) {
+                out[i] = if (fige == Couleur.VERT && ordre.horsDeSaPlace(i)) Statut.Deplace
+                    else Statut.Definitif(fige)
+                continue
+            }
+            val actuelles = registre.observationsPourJugement(i)
+            val propres = actuelles.filter { !it.sansCreneau && it.entendu.isNotBlank() }
+            if (propres.isEmpty()) continue
+            preuvesRetenues.remove(i)
+            if (ordre.horsDeSaPlace(i)) { out[i] = Statut.Deplace; continue }
+            val vote = VoteFenetres.calculer(actuelles)
+            val gagnant = vote.gagnant
+            val uniques = actuelles.associateBy { it.fenetreId }
+            val conforme = gagnant != null && contexte.equivalences(contexte.attendus[i]).any {
+                VoteFenetres.cle(it) == gagnant
+            }
+            val couleurTexte = when {
+                gagnant == null -> Couleur.ORANGE
+                conforme -> Couleur.VERT
+                else -> Couleur.ROUGE
+            }
+            val avis = if (utiliserTete3) JugementTete3.evaluer(vote, actuelles, k) else null
+            val couleur = avis?.let { JugementTete3.couleur(couleurTexte, it) } ?: couleurTexte
+            val ecartAcoustique = couleurTexte != Couleur.ROUGE &&
+                couleur == Couleur.ROUGE && avis?.etat == JugementTete3.Etat.ECART
+            val idsPreuves = if (ecartAcoustique) avis!!.fenetresEcart
+                else vote.candidats.firstOrNull { it.texte == gagnant }?.fenetres?.toSet() ?: emptySet()
+            val soutiens = idsPreuves.mapNotNull { uniques[it] }
+            // La preuve jointe au statut est celle de la lecture CHOISIE,
+            // pas la derniere fenetre (qui peut la contredire ou etre au bord).
+            val preuve = soutiens.maxWithOrNull(compareBy<RegistreDePreuves.Observation> {
+                it.lectureVote!!.confiance!!.poids
+            }.thenBy { it.fenetreId })
+            if (preuve != null) preuvesRetenues[i] = preuve
+            val idsVotants = vote.fenetresRetenues
+            val derniereFrame = idsVotants.maxOfOrNull { uniques.getValue(it).finAbs } ?: Long.MAX_VALUE
+            val ferme = contexte.fermeture || (idsVotants.isNotEmpty() &&
+                derniereFrame + Horloge.ECH_PAR_FRAME <= contexte.debutMinimalFenetreFuture)
+            // Un avis contradictoire reste provisoire ; aucun verdict sans
+            // preuve et aucune fermeture precoce pour une alerte de tete 3.
+            if (couleur != Couleur.ORANGE && preuve != null &&
+                ferme && idsVotants.size >= maxOf(2, k)) {
+                definitifs[i] = couleur
+                out[i] = Statut.Definitif(couleur)
+            } else out[i] = Statut.Provisoire(couleur)
+            if (avis != null && journalJugement != null) {
+                val ligne = JournalVoteFenetres.jugementTete3(i, registre.tentativeId,
+                    vote, avis, couleurTexte, out.getValue(i), preuve, politiqueTete3)
+                if (derniersAvisTete3.put(i, ligne) != ligne) journalJugement.invoke(ligne)
+            }
+        }
+        // Une lecture propre non exploitable reste en doute, jamais Omis.
+        // Le secours d'attestation unique ne peut pas contourner le vote.
+        val finaux = definitifs.keys
+        for (i in 0 until nbMots) {
+            if (i in nonJugeables || i in out) continue
+            if (finaux.count { it > i } >= motsPosterieursPourOmission) out[i] = Statut.Omis
         }
         return out
     }
@@ -702,6 +811,8 @@ class Decideur(
 
     fun reinitialiser() {
         definitifs.clear()
+        preuvesRetenues.clear()
+        derniersAvisTete3.clear()
         omis.clear()
         meilleurProvisoire.clear()
     }

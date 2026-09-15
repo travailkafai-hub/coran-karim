@@ -1,0 +1,10 @@
+{
+  "commentaire": "Reference PUREMENT ARITHMETIQUE (pas d'encodeur, cf. l'en-tete de reference_parite_tete3_deployee.py) pour le fichier tete3_warsh_v1.json. Verifie le chargement JSON et le forward MLP, PAS l'extraction des 12 caracteristiques depuis l'audio.",
+  "fichier": "benchmark\\tetes_candidates\\warsh_v1_20260915\\tete3_warsh_v1.json",
+  "sha256": "39011c207199533a2bafc63005dd446ae196d70c84a5b3b9d6b025b300bf20a7",
+  "description": "tete 3 -- ecart au canonique, recalibree sur l'encodeur conjoint12 (2026-08-21)",
+  "seuils_mesures": null,
+  "taille_entree": 1036,
+  "cache": 32,
+  "logit_reference": -0.976116
+}

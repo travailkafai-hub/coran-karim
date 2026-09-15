@@ -388,10 +388,17 @@ class ChaineRecitation(
     private val decideur: Decideur = Decideur(),
     private val fluxBrut: FluxBrut = FluxBrut(),
     private val journal: ((String) -> Unit)? = null,
+    /** Instrumentation du vote A/B/C. Aucun effet sur les statuts ou l'ancre.
+     * Les poids CTC bruts doivent etre mesures sur les erreurs ET les temoins. */
+    private val observerVoteFenetres: Boolean = false,
     /** TETE 3 (ecart canonique), OPTIONNELLE. Cf. Tete3.kt : tant que la
      *  parite des 12 scores n'est pas verifiee sur device, sa sortie est
      *  seulement JOURNALISEE -- elle ne doit influencer aucun statut. */
     private val tete3: Tete3? = null,
+    /** Candidate sur le MEME vecteur, journal seulement, aucun effet sur le verdict. */
+    private val tete3Comparaison: Tete3? = null,
+    /** Tete Hafs verifiee reservee au jugement experimental par occurrence. */
+    private val tete3Jugement: Tete3? = null,
     /**
      * CLOISONNEMENT CTL/REF (2026-08-05). Le mecanisme SAUT REFUSE (cf. plus
      * bas dans [traiter]) est correct pour la recitation NORMALE : c'est la
@@ -947,7 +954,7 @@ class ChaineRecitation(
         // TETE 3 : son propre inventaire, cf. [confusionsTete3]. On NE filtre
         // PAS les tokenisations vides comme au-dessus -- le Python n'en ecarte
         // aucune, et une liste plus courte donnerait un autre `alt2`.
-        if (tete3 != null) {
+        if (tete3 != null || tete3Jugement != null) {
             confusionsTete3 = confusionsTete3 + mots.map { m ->
                 ConfusionsRecitation.variantes(m).map(tokeniserConfusion)
             }
@@ -959,6 +966,18 @@ class ChaineRecitation(
     }
 
     val preuves: RegistreDePreuves get() = registre
+
+    /** Les scores affiches doivent accompagner la lecture qui a gagne. */
+    fun observationRetenue(i: Int): RegistreDePreuves.Observation? =
+        if (decideur.votePondere) decideur.preuveRetenue(i)
+        else registre.observationsVotantes(i).lastOrNull()
+            ?: registre.observationsPourJugement(i).lastOrNull()
+
+    private val mesurerVote: Boolean get() = observerVoteFenetres || decideur.votePondere
+
+    private fun contexteVote(fermeture: Boolean = false): Decideur.ContexteVote? =
+        if (decideur.votePondere) Decideur.ContexteVote(motsAttendus,
+            constructeur.debutMinimalFenetreFuture, fermeture, variantesOrthographe) else null
 
     /**
      * Statuts courants. A LIRE ICI, jamais en rejouant un [Decideur] neuf sur
@@ -999,18 +1018,34 @@ class ChaineRecitation(
             return
         }
         val cible = mot.coerceIn(0, maxOf(0, motsAttendus.size - 1))
-        decideur.oublierDepuis(cible)
+        // Clearing the colors alone let the next alimenter() restore old
+        // greens from the append-only registry before the reciter repeated.
+        // Archive evidence, but start judging only the next captured attempt.
+        commencerTentative(cible)
         dernierDefinitif = cible - 1
         dernierAttesteVu = minOf(dernierAttesteVu, cible - 1)
         fenetresHorsTexte = 0
         decrochageDejaSignale = false
         statutsCourants = statutsCourants.filterKeys { it < cible }
         journal?.invoke("[v2] ANCRE RECULEE au mot $cible -- " +
-            "verdicts posterieurs oublies, le recitant peut repeter")
+            "nouvelle tentative depuis echantillon=${fluxBrut.total}, " +
+            "preuves anterieures archivees, le recitant peut repeter")
     }
 
     val statuts: Map<Int, Statut> get() = statutsCourants
     val brut: FluxBrut get() = fluxBrut
+
+    private fun commencerTentative(cible: Int) {
+        registre.commencerTentative(cible, fluxBrut.total)
+        decideur.oublierDepuis(cible, effacerProvisoires = true)
+        // Account for even the partial capture block discarded at rewind:
+        // the work clock must keep the absolute raw-audio sample positions.
+        constructeur.repartirDeZero(fluxBrut.total)
+        probasParMot.keys.removeAll { it >= cible }
+        reglesVuesParMot.keys.removeAll { it >= cible }
+        dureesParMot.keys.removeAll { it >= cible }
+        motsAReemettre.removeAll { it >= cible }
+    }
 
     /**
      * LA VOIX DU RECITATEUR SUR UNE PLAGE DE MOTS -- exactement l'audio qui a
@@ -1204,7 +1239,7 @@ class ChaineRecitation(
         for (fenetre in constructeur.alimenter(pcm)) {
             traiter(fenetre)
         }
-        val nouveaux = decideur.statuts(registre, motsAttendus.size)
+        val nouveaux = decideur.statuts(registre, motsAttendus.size, contexteVote())
         for ((i, s) in nouveaux) {
             if (statutsCourants[i] != s) changements.add(Changement(i, s))
             if (s is Statut.Definitif && i > dernierDefinitif) dernierDefinitif = i
@@ -1242,12 +1277,11 @@ class ChaineRecitation(
      * suivante et declencherait un second souffleur sur un passage que le
      * recitant est justement en train de reprendre.
      *
-     * Ce qui NE bouge pas : `motsAttendus`, `statutsCourants`, `registre`,
-     * `dernierDefinitif`, `dernierAttesteVu`. Le recitant reprend ou il en
-     * etait ; c'est l'oreille qu'on rince, pas la memoire.
+     * La cible et l'archive brute sont conservees. Les statuts et les preuves
+     * actives a partir du mot de reprise repartent sur une nouvelle tentative.
+     * Les anciennes observations restent disponibles pour l'audit et l'ecoute.
      */
     fun repartirApresSouffle(motDeReprise: Int) {
-        constructeur.repartirDeZero(constructeur.positionTravail)
         trouEnAttenteDe = -1
         trouEnAttenteA = -1
         idFenetreTrou = -1L
@@ -1284,17 +1318,16 @@ class ChaineRecitation(
         // localisateur la replace librement des la premiere fenetre suivante,
         // ou que le recitant en soit. « Reecouter pour se repositionner ».
         val cible = motDeReprise.coerceIn(0, maxOf(0, motsAttendus.size - 1))
-        // `true` ICI SEULEMENT : cf. la doc de `Decideur.oublierDepuis`. La
-        // correction du karaoke appelle la meme methode par `reculerAncre` et
-        // ne doit rien voir changer.
-        decideur.oublierDepuis(cible, effacerProvisoires = true)
+        // Like a controlled rewind, the hint starts a new acoustic attempt.
+        commencerTentative(cible)
         dernierDefinitif = cible - 1
         dernierAttesteVu = minOf(dernierAttesteVu, cible - 1)
         fenetresHorsTexte = 0
         decrochageDejaSignale = false
         statutsCourants = statutsCourants.filterKeys { it < cible }
         journal?.invoke("[v2] REPART APRES SOUFFLE : ancre reculee au mot " +
-            "$cible, verdicts et preuves posterieurs JETES, et l'audio qui a " +
+            "$cible, nouvelle tentative depuis echantillon=${fluxBrut.total}, " +
+            "preuves anterieures archivees, et l'audio qui a " +
             "servi a reperer le decrochage est oublie -- on reecoute pour se " +
             "repositionner")
     }
@@ -1342,7 +1375,7 @@ class ChaineRecitation(
             trouEnAttenteDe = -1
             trouEnAttenteA = -1
         }
-        val nouveaux = decideur.statuts(registre, motsAttendus.size)
+        val nouveaux = decideur.statuts(registre, motsAttendus.size, contexteVote(fermeture = true))
         for ((i, s) in nouveaux) {
             if (statutsCourants[i] != s) changements.add(Changement(i, s))
         }
@@ -1982,6 +2015,8 @@ class ChaineRecitation(
             etendue[m.index] = Pair(minOf(d, m.premiereFrame), maxOf(f, m.derniereFrame + 1))
         }
 
+        val libresPourVote = if (mesurerVote)
+            Decodage.motsAvecFrames(logprobs, front.pieces, front.blank) else emptyList()
         for (m in res.mots) {
             val debutAbs = if (m.frames > 0) fenetre.absoluDeFrame(m.premiereFrame) else -1L
             val finAbs = if (m.frames > 0) fenetre.absoluDeFrame(m.derniereFrame) else -1L
@@ -2255,31 +2290,53 @@ class ChaineRecitation(
                     gardee
                 }.map { it.ruleId }.distinct()
             } else emptyList()
-            // TETE 3 : OBSERVATION SEULE (journal), cf. vecteurTete3 ci-dessous
-            // -- ne touche ni Observation ni le statut.
-            if (tete3 != null && sorties.etat != null && m.frames > 0) {
+            // Keep the auxiliary score with its evidence instead of trying to
+            // join unrelated log lines later. It does not replace a V2 status.
+            var mesureTete3: Tete3.Mesure? = null
+            var mesureTete3Jugement: Tete3.Mesure? = null
+            var etatTete3 = "INDISPONIBLE"
+            val tetePourFormat = tete3 ?: tete3Jugement
+            if (tetePourFormat != null && sorties.etat != null && m.frames > 0) {
                 val vec = vecteurTete3(m, sorties.etat, logprobs)
                 if (vec == null) {
+                    etatTete3 = "ABSTENTION"
                     // ABSTENTION, et elle se dit. Un mot sans variante scorable
                     // ou sans chemin force n'est pas « correct » : il est
                     // INJUGEABLE par cette tete. Sans cette ligne, la difference
                     // entre « la tete l'a vu bon » et « la tete n'a rien vu du
                     // tout » serait invisible dans le log -- exactement le
                     // « zero trace = zero execution » deja paye sur le secours.
-                    journal?.invoke("[t3] mot=${m.index} ABSTENTION")
-                } else if (vec.size != tete3.tailleEntree) {
+                    journal?.invoke("[t3] mot=${m.index} ABSTENTION f=${fenetre.id} abs=[$debutAbs,$finAbs]")
+                } else if (vec.size != tetePourFormat.tailleEntree) {
+                    etatTete3 = "INCOMPATIBLE"
                     // Taille incoherente = mauvais fichier de tete deploye. On
                     // le dit une bonne fois plutot que de laisser la tete se
                     // taire : c'est le cas ou l'app tournait avec une tete a
                     // 524 caracteristiques nourrie d'un vecteur d'un autre
                     // format, et rendait des logits denues de sens.
                     journal?.invoke("[t3] mot=${m.index} TETE INCOMPATIBLE : " +
-                        "vecteur=${vec.size}, tete=${tete3.tailleEntree}")
+                        "vecteur=${vec.size}, tete=${tetePourFormat.tailleEntree}")
                 } else {
-                    val logit = tete3.logit(vec)
-                    journal?.invoke("[t3] mot=${m.index} logit=${"%.3f".format(logit)} " +
-                        "seuil2%=${"%.3f".format(tete3.seuil2Pct)} " +
-                        (if (logit > tete3.seuil2Pct) "DEVIATION_SUSPECTEE" else "ok"))
+                    mesureTete3 = tete3?.mesurer(vec)
+                    mesureTete3Jugement = tete3Jugement?.mesurer(vec)
+                    etatTete3 = mesureTete3?.statut ?: "NON_FINIE"
+                    val score = mesureTete3?.logit?.toString() ?: "absent"
+                    val seuil = mesureTete3?.seuil2Pct?.toString() ?: "absent"
+                    journal?.invoke("[t3] mot=${m.index} logit=$score " +
+                        "seuil2%=$seuil $etatTete3 f=${fenetre.id} abs=[$debutAbs,$finAbs]")
+                    tete3Comparaison?.let { candidate ->
+                        val comparee = candidate.mesurer(vec)
+                        journal?.invoke("[t3-comparaison] " + org.json.JSONObject()
+                            .put("mode", "observation").put("mot", m.index)
+                            .put("fenetre", fenetre.id).put("tentative", registre.tentativeId)
+                            .put("attendu", motsAttendus[m.index]).put("entendu", m.entendu)
+                            .put("debutAbs", debutAbs).put("finAbs", finAbs)
+                            .put("dimensions", vec.size).put("interieur", m.interieur)
+                            .put("actuelle", mesureTete3?.logit ?: org.json.JSONObject.NULL)
+                            .put("candidate", comparee?.logit ?: org.json.JSONObject.NULL)
+                            .put("etatCandidate", comparee?.statut ?: "INCOMPATIBLE_OU_NON_FINIE")
+                            .toString())
+                    }
                 }
             }
             registre.ajouter(
@@ -2303,8 +2360,21 @@ class ChaineRecitation(
                     debutAbs = debutAbs,
                     finAbs = finAbs,
                     reglesTajwid = reglesTajwid,
+                    mesureTete3 = mesureTete3,
+                    etatTete3 = etatTete3,
+                    mesureTete3Jugement = mesureTete3Jugement,
+                    lectureVote = if (mesurerVote) VoteFenetres.mesurer(
+                        m, libresPourVote, logprobs, front.blank, fenetre) else null,
                 )
             )
+            if (mesurerVote) {
+                val observations = registre.observationsPourJugement(m.index)
+                val o = registre.observations(m.index).last()
+                journal?.invoke(JournalVoteFenetres.observation(o,
+                    motsAttendus.getOrNull(m.index), registre.tentativeId))
+                journal?.invoke(JournalVoteFenetres.resultat(m.index, fenetre.id,
+                    registre.tentativeId, VoteFenetres.calculer(observations)))
+            }
         }
 
         journal?.invoke(
@@ -2394,7 +2464,7 @@ class ChaineRecitation(
         // trace qu une ligne de journal. Le garde a fait son travail ; il
         // ne remplace pas la correction.
         val dimEtat = etat[f0].size
-        val attendu = tete3?.tailleEntree ?: (2 * dimEtat + traits.size)
+        val attendu = (tete3 ?: tete3Jugement)?.tailleEntree ?: (2 * dimEtat + traits.size)
         val etatVec = (if (attendu == dimEtat + traits.size) {
             Tete3Traits.etatMoyen(etat, f0, f1)
         } else {

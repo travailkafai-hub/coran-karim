@@ -140,12 +140,20 @@ def prepare():
 
 def run(serial):
     manifest = json.loads((OUT/'manifest.json').read_text(encoding='utf-8'))
+    total_cases = len(manifest['cases'])
     adb_path = Path(os.environ['LOCALAPPDATA'])/'Android/Sdk/platform-tools/adb.exe'
     def adb(*args, timeout=60):
         p = subprocess.run([str(adb_path), '-s', serial, *args], capture_output=True, timeout=timeout)
         if p.returncode:
             raise RuntimeError(p.stderr.decode('utf-8', errors='replace'))
         return p.stdout.decode('utf-8', errors='replace')
+    def adb_optional(*args, timeout=60):
+        """Best-effort UI housekeeping; Android may deny shell input events."""
+        try:
+            return adb(*args, timeout=timeout)
+        except RuntimeError as error:
+            print(f'OPTIONAL_ADB_SKIPPED {args[0:2]}: {error}', flush=True)
+            return ''
     package = 'com.corankarim.coran_karim.dev'
     adb('get-state')
     remote = f'/sdcard/Android/data/{package}/files/campaign100.wav'
@@ -175,6 +183,9 @@ def run(serial):
     for case in sorted(manifest['cases'], key=execution_order):
         if case['case_id'] in done:
             continue
+        verse_count = int(case.get('verse_count', 20))
+        if verse_count < 1:
+            raise ValueError('verse_count doit etre positif')
         assert q.sha256(Path(case['wav'])) == case['sha256']
         assert adb('shell','sha256sum',apk).split()[0] == apk_hash, 'APK changed during run'
         marker = 'C100-' + uuid.uuid4().hex
@@ -182,14 +193,14 @@ def run(serial):
         logpath.parent.mkdir(exist_ok=True)
         adb('shell','am','force-stop',package)
         adb('push',case['wav'],remote)
-        adb('shell','input','keyevent','KEYCODE_WAKEUP')
-        adb('shell','wm','dismiss-keyguard')
+        adb_optional('shell','input','keyevent','KEYCODE_WAKEUP')
+        adb_optional('shell','wm','dismiss-keyguard')
         started = time.time()
         adb('shell','am','start','-n',f'{package}/com.corankarim.coran_karim.MainActivity',
             '--es','recette','ecoute','--ez','normal','true','--ei','sourate',str(case['surah']),
-            '--ei','depart',str(case['depart']),'--ei','versets','20','--es','wav',remote,
+            '--ei','depart',str(case['depart']),'--ei','versets',str(verse_count),'--es','wav',remote,
             '--es','riwaya','hafs','--ez','borner','true')
-        print(f'START {case["case_id"]}/100 {case["family"]} {case["duration_seconds"]:.0f}s',flush=True)
+        print(f'START {case["case_id"]}/{total_cases} {case["family"]} {case["duration_seconds"]:.0f}s',flush=True)
         eof_at = None
         repeat_at = None
         session = ''
@@ -220,7 +231,7 @@ def run(serial):
                 break
         status = ('REQUIRES_HUMAN_REPETITION' if repeat_at and not eof_at
                   else 'AUDIO_FINISHED' if eof_at else 'TIMEOUT')
-        valid_mode = ('session NORMALE' in session and 'versets=20/' in session and
+        valid_mode = ('session NORMALE' in session and f'versets={verse_count}/' in session and
                       'borner=true' in session and remote in session and
                       'Enchaînement page' not in session and 'Enchainement page' not in session)
         if not valid_mode:
@@ -233,7 +244,7 @@ def run(serial):
         if screenshot.returncode == 0 and screenshot.stdout.startswith(b'\x89PNG'):
             logpath.with_suffix('.png').write_bytes(screenshot.stdout)
         if eof_at or repeat_at:
-            adb('shell','input','keyevent','KEYCODE_BACK')
+            adb_optional('shell','input','keyevent','KEYCODE_BACK')
             time.sleep(12)
             raw = adb('shell','tail','-c','6000000',journal)
             if anchor is None:
@@ -258,7 +269,7 @@ def run(serial):
         print(f'END {case["case_id"]} {status}',flush=True)
         if status not in ('AUDIO_FINISHED', 'REQUIRES_HUMAN_REPETITION'):
             raise RuntimeError(f'{status}: inspect evidence before resuming')
-    print('COMPLETE 100 executions; analysis still required',flush=True)
+    print(f'COMPLETE {total_cases} executions; analysis still required',flush=True)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

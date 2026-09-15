@@ -61,9 +61,25 @@ class Tete3 private constructor(
     /** Seuil mesure hors device pour 2 % de collateral. Ce n'est PAS zero :
      *  la sortie est un logit, sa frontiere naturelle n'a aucune raison d'etre
      *  a 0 comme celle d'un rapport de vraisemblance. */
-    val seuil2Pct: Float,
-    val seuil10Pct: Float,
+    val seuil2Pct: Float?,
+    val seuil10Pct: Float?,
 ) {
+    /** A missing calibration is not a threshold of zero. The score can be
+     * archived for calibration without calling the word correct or faulty. */
+    data class Mesure(val logit: Float, val seuil2Pct: Float?) {
+        val statut: String get() = when {
+            seuil2Pct == null -> "NON_CALIBREE"
+            logit > seuil2Pct -> "DEVIATION_SUSPECTEE"
+            else -> "SOUS_SEUIL"
+        }
+    }
+
+    fun mesurer(entree: FloatArray): Mesure? {
+        if (entree.size != tailleEntree || entree.any { !it.isFinite() }) return null
+        val score = logit(entree)
+        return if (score.isFinite()) Mesure(score, seuil2Pct) else null
+    }
+
     /** Taille attendue du vecteur d'entree : 512 (etat) + 12 (scores cible). */
     val tailleEntree: Int get() = moyenne.size
 
@@ -108,7 +124,9 @@ class Tete3 private constructor(
             val c1 = c.getJSONObject(0)
             val c2 = c.getJSONObject(1)
             val s = o.optJSONObject("seuils_mesures")
-            Tete3(
+            fun seuil(nom: String): Float? = s?.optDouble(nom, Double.NaN)
+                ?.toFloat()?.takeIf { it.isFinite() }
+            val tete = Tete3(
                 moyenne = vec(n.getJSONArray("moyenne")),
                 ecartType = vec(n.getJSONArray("ecart_type")),
                 poids1 = mat(c1.getJSONArray("poids")),
@@ -116,9 +134,21 @@ class Tete3 private constructor(
                 // seconde couche : une seule sortie, donc une seule ligne
                 poids2 = vec(c2.getJSONArray("poids").getJSONArray(0)),
                 biais2 = c2.getJSONArray("biais").getDouble(0).toFloat(),
-                seuil2Pct = s?.optDouble("collateral_2pct", 0.0)?.toFloat() ?: 0f,
-                seuil10Pct = s?.optDouble("collateral_10pct", 0.0)?.toFloat() ?: 0f,
+                seuil2Pct = seuil("collateral_2pct"),
+                seuil10Pct = seuil("collateral_10pct"),
             )
+            // Invalid normalisation/weights otherwise yield NaN, which used
+            // to fall through the comparison and be logged as "ok".
+            require(tete.moyenne.isNotEmpty() && tete.moyenne.all { it.isFinite() })
+            require(tete.ecartType.size == tete.tailleEntree &&
+                tete.ecartType.all { it.isFinite() && it > 0f })
+            require(tete.poids1.isNotEmpty() && tete.poids1.all { row ->
+                row.size == tete.tailleEntree && row.all { it.isFinite() }
+            })
+            require(tete.biais1.size == tete.poids1.size && tete.biais1.all { it.isFinite() })
+            require(tete.poids2.size == tete.poids1.size && tete.poids2.all { it.isFinite() })
+            require(tete.biais2.isFinite())
+            tete
         } catch (e: Exception) {
             null
         }

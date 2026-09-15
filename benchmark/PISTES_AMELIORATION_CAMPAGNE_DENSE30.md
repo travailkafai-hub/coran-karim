@@ -1,5 +1,14 @@
 # Pistes d'amélioration déduites de la campagne dense 30 %
 
+> Analyse historique, rectifiée depuis par la comparaison des 100 WAV aux
+> sources. Les taux ci-dessous utilisent les anciennes étiquettes : les 70
+> `omission_word` sont des troncatures, et 21 replis contiennent le mot original
+> intégral. Un `no_verdict` peut concerner un montage non encore lu au moment
+> de l'arrêt pour reprise ; il ne prouve pas une faute non détectée. Voir
+> [le rapport vérifié](campagne_100x20_dense30/MOTS_MAL_JUGES_CAMPAGNE_DENSE30_POUR_CODEX.md)
+> et [la correction des répétitions](CORRECTION_REPETITIONS_DENSE30.md)
+> avant d'utiliser ces pistes pour régler le détecteur.
+
 Cette note sépare les observations mesurées des décisions de produit à tester.
 Les chiffres viennent de [RESULTATS.md](campagne_100x20_dense30/RESULTATS.md),
 des 600 lignes de [error_outcomes.csv](campagne_100x20_dense30/error_outcomes.csv)
@@ -115,4 +124,3 @@ avec des voix Hafs et deux récitants. Elles contournent le microphone réel et
 ne mesurent pas la phonétique humaine, le bruit ambiant ni la qualité du
 tajwîd. Une prochaine série doit compléter ces contrôles avec des erreurs
 enregistrées par un récitant et une validation à l'écoute.
-

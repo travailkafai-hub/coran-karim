@@ -570,7 +570,9 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         catch (e: Exception) { null }
                     }
                     DiagnosticLog.log(TAG,
-                        "tete3 chargee : hafs=${tete3 != null} warsh=${tete3Warsh != null}")
+                        "tete3 chargee : hafs=${tete3 != null} warsh=${tete3Warsh != null} " +
+                        "seuilHafs2pct=${tete3?.seuil2Pct ?: "absent"} " +
+                        "seuilWarsh2pct=${tete3Warsh?.seuil2Pct ?: "absent"}")
                     // Dictionnaire mot->tokens precalcule (optionnel, cf.
                     // build_word_token_lookup.py) -- source primaire du
                     // tokenizer de l'alignement force, null si absent
@@ -1310,10 +1312,20 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // aussi si le mot a ete OBSERVE -- sans quoi Dart ne peut
                     // pas distinguer « regle non faite » de « rien vu ».
                     result.success(changements.map { c ->
-                        val obsv = chaine.preuves.observations(c.motIndex)
+                        val obsv = chaine.preuves.observationsPourJugement(c.motIndex)
+                        val preuve = chaine.observationRetenue(c.motIndex)
                         mapOf(
                             "i" to c.motIndex,
                             "statut" to nomStatut(c.statut),
+                            "entendu" to (preuve?.entendu ?: ""),
+                            "gop" to preuve?.gop?.toDouble(),
+                            "forced" to preuve?.forced?.toDouble(),
+                            "free" to preuve?.free?.toDouble(),
+                            "frames" to (preuve?.frames ?: 0),
+                            "interieur" to (preuve?.interieur ?: false),
+                            "preuveFenetre" to preuve?.fenetreId,
+                            "preuveDebutAbs" to preuve?.debutAbs,
+                            "preuveFinAbs" to preuve?.finAbs,
                             "rules" to obsv.flatMap { it.reglesTajwid }.distinct(),
                             "tajwidObserve" to obsv.isNotEmpty(),
                         )
@@ -1789,13 +1801,71 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             var chaine = v2Chaine
             if (chaine == null) {
                 val tk = CtcTokenizer(moteur.vocabPieces, wordTokenLookupPourRiwaya(moteur))
+                // Activation explicite du banc, dans l'app de developpement.
+                // Aucun changement de preference utilisateur ou de pack modele.
+                val debuggable = ((appContext?.applicationInfo?.flags ?: 0) and
+                    android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                // WARSH OUVERT LE 15/09/2026. Le `!riwayaWarsh` qui etait ici
+                // n'excluait pas un defaut connu : il n'existait alors aucune
+                // tete 3 Warsh verifiee a mettre en face. Le vote lui-meme est
+                // aveugle a la riwaya -- il compare des textes LIBRES entre
+                // eux, et les equivalences orthographiques passees plus bas
+                // sont deja celles de la riwaya courante
+                // (`variantesOrthographePourRiwaya`, donc `variantesWarsh`).
+                val voteActif = debuggable && appContext?.filesDir?.let {
+                        java.io.File(it, "vote_fenetres_actif").isFile
+                    } == true
+                // Une tete par riwaya : seuls les POIDS changent, la regle de
+                // jugement est la meme des deux cotes.
+                val politiqueTete3 = com.corankarim.coran_karim.recitation2
+                    .JugementTete3.pour(moteur.riwayaWarsh)
+                DiagnosticLog.log(TAG, "[v2] decision=" +
+                    (if (voteActif) "VOTE_EXPERIMENTAL_V1 poids=NON_CALIBRES" else "HISTORIQUE") +
+                    " riwaya=${politiqueTete3.riwaya}")
+                val teteComparee = if (debuggable) {
+                    appContext?.filesDir?.let { dir ->
+                        val fichier = java.io.File(dir,
+                            "tete3_${politiqueTete3.riwaya}_comparaison.json")
+                        if (!fichier.isFile) null else {
+                            val bytes = fichier.readBytes()
+                            val sha = java.security.MessageDigest.getInstance("SHA-256")
+                                .digest(bytes).joinToString("") { "%02x".format(it) }
+                            val t = com.corankarim.coran_karim.recitation2.Tete3
+                                .charger(String(bytes, Charsets.UTF_8))
+                            DiagnosticLog.log(TAG, "[t3-comparaison-modele] sha256=$sha " +
+                                "chargee=${t != null} mode=observation")
+                            t
+                        }
+                    }
+                } else null
+                // Nouveau paquet explicitement identifie. La copie de comparaison
+                // externe ne peut jamais se substituer a la tete de decision.
+                val teteDecision = if (voteActif) try {
+                    val bytes = appContext!!.assets.open(politiqueTete3.asset)
+                        .use { it.readBytes() }
+                    com.corankarim.coran_karim.recitation2.JugementTete3
+                        .chargerVerifiee(bytes, politiqueTete3).also {
+                            DiagnosticLog.log(TAG, "[t3-decision-modele] " +
+                                "riwaya=${politiqueTete3.riwaya} " +
+                                "politique=${politiqueTete3.version} " +
+                                "sha256=${politiqueTete3.sha256} " +
+                                "pariteArithmetique=${it != null} active=${it != null}")
+                        }
+                } catch (e: Exception) {
+                    DiagnosticLog.log(TAG, "[t3-decision-modele] " +
+                        "riwaya=${politiqueTete3.riwaya} active=false erreur=${e.message}")
+                    null
+                } else null
                 chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
                     // Le Decideur recoit LES MEMES `nonJugeables` que la
                     // chaine : sans eux, il declarait `Omis` tout ce qui
                     // precede le point d'entree (cf. sa doc). Ils doivent etre
                     // passes ICI, a la construction, comme pour la chaine.
                     decideur = com.corankarim.coran_karim.recitation2
-                        .Decideur(k = v2Preuves, nonJugeables = v2NonJugeables),
+                        .Decideur(k = v2Preuves, nonJugeables = v2NonJugeables,
+                            votePondere = voteActif, utiliserTete3 = teteDecision != null,
+                            politiqueTete3 = politiqueTete3,
+                            journalJugement = { l -> DiagnosticLog.log(TAG, l) }),
                     front = com.corankarim.coran_karim.recitation2.FrontOnnx(moteur),
                     tokeniser = { mot -> tk.tokenizeWord(mot) },
                     variantesOrthographe = variantesOrthographePourRiwaya(moteur),
@@ -1902,6 +1972,17 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         .AligneurForce(moteur.vocabPieces, moteur.blank),
                     journal = { l -> DiagnosticLog.log(TAG, l) },
                     tete3 = tete3PourRiwaya(moteur),
+                    tete3Comparaison = teteComparee,
+                    tete3Jugement = teteDecision,
+                    // v1 de la MESURE du vote, pas une nouvelle decision.
+                    // Hafs debug seulement ; les modeles et verdicts restent
+                    // ceux de la campagne temoin, pour mesurer chaque lecture.
+                    // 15/09/2026 : ouvert a Warsh en meme temps que sa tete 3.
+                    // Ce drapeau ne decide RIEN -- il n'emet que les lignes
+                    // `[vote-observation]`. Le laisser ferme en Warsh
+                    // produirait des verdicts de vote sans les lectures qui
+                    // les expliquent, donc une riwaya impossible a calibrer.
+                    observerVoteFenetres = debuggable,
                     // Reprend la rigueur courante : sans cette ligne, une
                     // chaine recreee (nouvelle cible, changement de mode)
                     // repartirait au defaut et perdrait le choix de
@@ -1931,8 +2012,8 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 // mot `omis` n'en a aucune qui vote : savoir ce qu'il avait
                 // quand meme est precisement l'information utile).
                 val votantes = chaine.preuves.observationsVotantes(c.motIndex)
-                val obs = votantes.lastOrNull()
-                    ?: chaine.preuves.observations(c.motIndex).lastOrNull()
+                val actuelles = chaine.preuves.observationsPourJugement(c.motIndex)
+                val obs = chaine.observationRetenue(c.motIndex)
                 // Cf. le commentaire de "rules" plus bas : on ne regarde le
                 // tajwid QUE sur les observations qui ont le droit de voter
                 // (mot entierement dans la fenetre, quelque chose d'entendu).
@@ -1958,7 +2039,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 val reglesVotantes = if (votantes.size >= 2 || !estDefinitif) {
                     votantes.flatMap { it.reglesTajwid }.distinct()
                 } else {
-                    chaine.preuves.observations(c.motIndex).flatMap { it.reglesTajwid }.distinct()
+                    actuelles.flatMap { it.reglesTajwid }.distinct()
                 }
                 mapOf<String, Any?>(
                     "i" to c.motIndex,
@@ -1977,7 +2058,13 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     // avait touches.
                     "margeL" to obs?.margeLettres?.toDouble(),
                     "margeH" to obs?.margeHarakat?.toDouble(),
-                    "nbObs" to chaine.preuves.observations(c.motIndex).size,
+                    "nbObs" to actuelles.size,
+                    "t3Logit" to obs?.mesureTete3?.logit?.toDouble(),
+                    "t3Seuil2Pct" to obs?.mesureTete3?.seuil2Pct?.toDouble(),
+                    "t3Etat" to (obs?.etatTete3 ?: "ABSENCE_PREUVE"),
+                    "preuveFenetre" to obs?.fenetreId,
+                    "preuveDebutAbs" to obs?.debutAbs,
+                    "preuveFinAbs" to obs?.finAbs,
                     // TETE 2 : ids de regles (index dans rules.json, meme
                     // ordre que TajwidRule.values cote Dart -- cf.
                     // RegistreDePreuves.Observation.reglesTajwid). Vide sur un

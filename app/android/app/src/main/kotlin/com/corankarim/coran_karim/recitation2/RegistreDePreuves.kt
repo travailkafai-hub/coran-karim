@@ -72,15 +72,55 @@ class RegistreDePreuves {
          *  (attribution temporelle, cf. FastConformerCtc.decodeTajwid). Vide
          *  sur un modele sans tete tajwid -- rien d'autre ne change. */
         val reglesTajwid: List<Int> = emptyList(),
+        /** Auxiliary head output tied to this exact window/audio interval.
+         * It is not a V2 judgment; missing calibration remains explicit. */
+        val mesureTete3: Tete3.Mesure? = null,
+        val etatTete3: String = "INDISPONIBLE",
+        /** Mesure experimentale du texte libre ; jamais lue par Decideur. */
+        val lectureVote: VoteFenetres.Lecture? = null,
+        /** Candidate Hafs identifiee et verifiee, evaluee sur CE vecteur.
+         * Distincte de la tete historique en observation. */
+        val mesureTete3Jugement: Tete3.Mesure? = null,
     )
 
     private val parMot = HashMap<Int, MutableList<Observation>>()
+    private val debutArchiveParMot = HashMap<Int, Int>()
+    private val debutAudioParPlage = java.util.TreeMap<Int, Long>()
+    var tentativeId: Long = 0
+        private set
+
+    /** Start a new attempt while retaining every observation for audit.
+     * A later window of OLD audio cannot count as a new pronunciation.
+     * The list boundary also excludes already recorded evidence if a caller
+     * reuses the same audio clock when restarting a test or capture stream. */
+    fun commencerTentative(depuis: Int, premierEchantillon: Long) {
+        require(depuis >= 0 && premierEchantillon >= 0)
+        tentativeId++
+        debutAudioParPlage.tailMap(depuis, true).clear()
+        debutAudioParPlage[depuis] = premierEchantillon
+        for ((i, observations) in parMot) {
+            if (i >= depuis) debutArchiveParMot[i] = observations.size
+        }
+    }
 
     fun ajouter(o: Observation) {
         parMot.getOrPut(o.motIndex) { ArrayList(4) }.add(o)
     }
 
     fun observations(motIndex: Int): List<Observation> = parMot[motIndex] ?: emptyList()
+
+    /** Only evidence from the current attempt may locate or judge a word.
+     * [observations] remains the complete archive for listening and analysis. */
+    fun observationsPourJugement(motIndex: Int): List<Observation> {
+        val toutes = observations(motIndex)
+        val debutAudio = debutAudioParPlage.floorEntry(motIndex)?.value ?: return toutes
+        val debutArchive = debutArchiveParMot[motIndex] ?: 0
+        return toutes.filterIndexed { index, o ->
+            // finAbs is the start of the LAST CTC frame, not an exclusive
+            // end: one-frame words legitimately have finAbs == debutAbs.
+            index >= debutArchive && o.debutAbs >= debutAudio && o.finAbs >= o.debutAbs
+        }
+    }
 
     /**
      * Observations qui ont le droit de VOTER.
@@ -108,7 +148,9 @@ class RegistreDePreuves {
      *    bloc suivant les lisait parfaitement (`gop=0,00`, texte exact).
      */
     fun observationsVotantes(motIndex: Int): List<Observation> =
-        observations(motIndex).filter { it.interieur && it.entendu.isNotBlank() }
+        observationsPourJugement(motIndex).filter {
+            it.interieur && !it.sansCreneau && it.entendu.isNotBlank()
+        }
 
     val motsObserves: Set<Int> get() = parMot.keys
 
@@ -116,8 +158,7 @@ class RegistreDePreuves {
      *  le denominateur honnete d'un taux (compter sur les mots JUGES ferait
      *  sortir du calcul tout mot jamais observe : erreur deja commise). */
     fun indexMaxVotant(): Int =
-        parMot.entries.filter { e -> e.value.any { it.interieur } }
-            .maxOfOrNull { it.key } ?: -1
+        parMot.keys.filter { observationsVotantes(it).isNotEmpty() }.maxOrNull() ?: -1
 
     fun total(): Int = parMot.values.sumOf { it.size }
 }

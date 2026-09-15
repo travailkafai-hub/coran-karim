@@ -390,6 +390,11 @@ class ConstructeurDeFenetres(
 
     private var derniereCoupe = 0L        // debut du bloc en cours
     private var avantDerniereCoupe = -1L  // pour le bloc de fusion
+    /** Borne conservative du debut de TOUTE fenetre encore possible, apres
+     * traitement de celles deja emises. La fermeture peut elle aussi reprendre
+     * la coupe precedente (meme fusionner=false). Aucun decoupage ne change. */
+    val debutMinimalFenetreFuture: Long
+        get() = if (avantDerniereCoupe >= 0) avantDerniereCoupe else derniereCoupe
     private var runSilence = 0            // blocs de 80 ms de silence consecutifs
     private var debutSilence = -1L        // ou commence le silence en cours
     private var vuDeLaParole = false

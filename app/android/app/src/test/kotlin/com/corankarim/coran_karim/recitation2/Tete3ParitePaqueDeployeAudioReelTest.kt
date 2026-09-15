@@ -78,21 +78,22 @@ class Tete3ParitePaqueDeployeAudioReelTest {
     private fun entiers(a: org.json.JSONArray) = IntArray(a.length()) { a.getInt(it) }
 
     @Test
-    fun `caracteristiques et logit reproduisent le Python sur audio reel, paquet Hafs deploye`() {
+    // Precision apres reception du fichier PC A (15/09) : la reference
+    // fournie porte p000000_faute.wav, du TTS. L'intitule historique de la
+    // classe ne doit pas transformer cette parite en preuve sur recitateur.
+    fun `caracteristiques et logit reproduisent la reference TTS du paquet Hafs deploye`() {
         val fr = remonter("benchmark/tunnel_pc_a/reponses/reference_tete3_hafs.json")
         val ft = remonter(
             "app/android/model_pack/src/main/assets/models/" +
                 "cinq-tetes-2026-09-11-madd-normal/tete3.json")
-        if (fr == null || ft == null) {
-            println("reference_tete3_hafs.json ou tete3.json absent -- PARITE NON VERIFIEE")
-            return
-        }
-        val tete = Tete3.charger(ft.readText())
+        assertNotNull("reference_tete3_hafs.json absent -- PARITE NON VERIFIEE", fr)
+        assertNotNull("tete3.json absent -- PARITE NON VERIFIEE", ft)
+        val tete = Tete3.charger(ft!!.readText())
         assertNotNull("tete3.json illisible", tete)
         tete!!
         assertEquals(1036, tete.tailleEntree)
 
-        val ref = JSONObject(fr.readText())
+        val ref = JSONObject(fr!!.readText())
         val cas = ref.getJSONArray("cas")
         assertTrue("la reference doit porter plusieurs mots reels", cas.length() >= 3)
 

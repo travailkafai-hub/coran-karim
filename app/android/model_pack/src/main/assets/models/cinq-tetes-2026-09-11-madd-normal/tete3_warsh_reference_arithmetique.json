@@ -1,0 +1,10 @@
+{
+  "commentaire": "Reference PUREMENT ARITHMETIQUE (pas d'encodeur, cf. l'en-tete de reference_parite_tete3_deployee.py) pour le fichier tete3_warsh.json. Verifie le chargement JSON et le forward MLP, PAS l'extraction des 12 caracteristiques depuis l'audio.",
+  "fichier": "app\\android\\model_pack\\src\\main\\assets\\models\\cinq-tetes-2026-09-11-madd-normal\\tete3_warsh.json",
+  "sha256": "f6ac3851d5ed7896ff56443d151d129669aac03f5bff0efad0387603259f625d",
+  "description": "tete 3 -- ecart au canonique, recalibree sur encoder_state de warsh-v5-epoch6.nemo (hash encodeur 900a142d2b585d3c, IDENTIQUE a celui du pack production_5tetes_2026-09-07), riwaya Warsh, 157877 exemples -- CORRIGE 2026-09-07, l ancienne mention conjoint12 etait une chaine codee en dur du script, pas la vraie provenance",
+  "seuils_mesures": null,
+  "taille_entree": 1036,
+  "cache": 32,
+  "logit_reference": 13.663626
+}
