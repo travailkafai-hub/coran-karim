@@ -131,7 +131,7 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                           dua.titleAr,
                           textDirection: TextDirection.rtl,
                           style: GoogleFonts.scheherazadeNew(
-                            fontSize: isArabic ? 16 : 14,
+                            fontSize: isArabic ? 20 : 14,
                             color: isArabic ? AppColors.ink : AppColors.green700,
                             fontWeight: isArabic ? FontWeight.w600 : FontWeight.normal,
                           ),
@@ -196,7 +196,7 @@ class _DuaCardState extends ConsumerState<DuaCard> {
                     ),
                     child: TajweedText(
                       textUthmani: dua.textAr,
-                      fontSize: 22,
+                      fontSize: isArabic ? 26 : 22,
                       lineHeight: 2.0,
                     ),
                   ),

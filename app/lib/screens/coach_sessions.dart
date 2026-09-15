@@ -707,10 +707,29 @@ class _CartePortion extends ConsumerWidget {
 /// même liste, jamais deux définitions dupliquées qui pourraient diverger.
 class _PalierGemme {
   final int seuil;
-  final String nom;
+
+  /// ── UNE CLE, PLUS UN NOM (2026-09-14) ─────────────────────────────────
+  ///
+  /// Ce champ portait le nom EN FRANCAIS, en dur (« Amethyste »...). La liste
+  /// etant `const`, il ne pouvait pas venir des traductions -- et il restait
+  /// donc francais en arabe comme en anglais. Constat utilisateur sur une
+  /// capture en arabe : « il reste du francais ».
+  ///
+  /// Il porte maintenant une CLE, resolue a l'affichage par [nomGemme]. La
+  /// liste reste `const` (c'est une table de reference, pas un etat) et les
+  /// quatre noms vivent la ou vivent tous les autres textes.
+  final String cle;
   final Color couleur;
-  const _PalierGemme(this.seuil, this.nom, this.couleur);
+  const _PalierGemme(this.seuil, this.cle, this.couleur);
 }
+
+/// Le nom affichable d'une pierre, dans la langue de l'application.
+String nomGemme(AppLocalizations t, String cle) => switch (cle) {
+      'amethyste' => t.coachGemmeAmethyste,
+      'saphir' => t.coachGemmeSaphir,
+      'topaze' => t.coachGemmeTopaze,
+      _ => t.coachGemmeEmeraude,
+    };
 
 /// Quatre pierres précieuses (demande utilisateur 2026-08-29 : « des badges
 /// avec des pierres précieuses avec différentes couleurs ») -- ordre
@@ -718,10 +737,10 @@ class _PalierGemme {
 /// l'ancienne coche unique avant l'existence de paliers : aucune régression
 /// visuelle pour qui s'arrêtait là.
 const _paliersGemmes = [
-  _PalierGemme(5, 'Améthyste', Color(0xFF9B6BC7)),
-  _PalierGemme(10, 'Saphir', Color(0xFF4A7FE0)),
-  _PalierGemme(20, 'Topaze', AppColors.brass),
-  _PalierGemme(30, 'Émeraude', AppColors.green700),
+  _PalierGemme(5, 'amethyste', Color(0xFF9B6BC7)),
+  _PalierGemme(10, 'saphir', Color(0xFF4A7FE0)),
+  _PalierGemme(20, 'topaze', AppColors.brass),
+  _PalierGemme(30, 'emeraude', AppColors.green700),
 ];
 
 _PalierGemme? _trouverPalier(int seuil) {
@@ -847,6 +866,7 @@ class _BadgeRepetition extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     final seuil = portion.palierRepetition;
     if (seuil == null) {
       // Maîtrisée, mais pas encore assez de fois pour un palier : coche
@@ -857,7 +877,8 @@ class _BadgeRepetition extends StatelessWidget {
     final palier = _trouverPalier(seuil)!;
     return Tooltip(
       message:
-          '${palier.nom} -- ${portion.repetitions} récitations complètes',
+          '${nomGemme(t, palier.cle)} -- '
+          '${t.coachGemmeSeuil(portion.repetitions)}',
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -881,7 +902,9 @@ void _ouvrirLegendePaliers(BuildContext context) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (ctx) => SafeArea(
+    builder: (ctx) {
+      final t = AppLocalizations.of(ctx)!;
+      return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         child: Column(
@@ -911,12 +934,12 @@ void _ouvrirLegendePaliers(BuildContext context) {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(p.nom,
+                          Text(nomGemme(t, p.cle),
                               style: GoogleFonts.manrope(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.ink)),
-                          Text('${p.seuil} récitations complètes',
+                          Text(t.coachGemmeSeuil(p.seuil),
                               style: GoogleFonts.manrope(
                                   fontSize: 11.5, color: AppColors.inkLight)),
                         ],
@@ -928,7 +951,8 @@ void _ouvrirLegendePaliers(BuildContext context) {
           ],
         ),
       ),
-    ),
+    );
+    },
   );
 }
 

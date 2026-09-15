@@ -16,10 +16,16 @@ import 'screens/surah_list_screen.dart';
 import 'screens/duas_screen.dart';
 import 'screens/coach_hub_screen.dart';
 import 'screens/coach_sessions.dart'
-    show sessionsArchiveProvider, tailleArchiveProvider, portionsProvider,
-        derniersJoursProvider, serieProvider;
+    show
+        sessionsArchiveProvider,
+        tailleArchiveProvider,
+        portionsProvider,
+        derniersJoursProvider,
+        serieProvider;
 import 'screens/dua_pour_nous_screen.dart';
 import 'screens/mushaf_opening_screen.dart';
+import 'screens/mushaf_screen.dart';
+import 'services/quran_api.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/preparation_screen.dart';
 import 'screens/settings_screen.dart';
@@ -46,7 +52,10 @@ import 'services/fastconformer_verifier.dart';
 /// supposer. Trois compteurs coûtent trois `Stopwatch` et suppriment la
 /// supposition : à chaque lancement, le journal porte désormais la répartition.
 Future<T> _etape<T>(
-    String nom, Map<String, int> mesures, Future<T> Function() action) {
+  String nom,
+  Map<String, int> mesures,
+  Future<T> Function() action,
+) {
   final t = Stopwatch()..start();
   return action().whenComplete(() {
     t.stop();
@@ -222,8 +231,9 @@ class _CoranKarimAppState extends ConsumerState<CoranKarimApp> {
   /// récitation aujourd'hui — et pour ceux de demain, sans que personne ait à
   /// y penser. Cf. `services/garde_micro.dart` pour l'historique du défaut
   /// (corrigé trois fois au mauvais endroit).
-  late final GardeMicro _gardeMicro =
-      GardeMicro(() => ref.read(recitationVerifierProvider));
+  late final GardeMicro _gardeMicro = GardeMicro(
+    () => ref.read(recitationVerifierProvider),
+  );
 
   @override
   void dispose() {
@@ -341,32 +351,35 @@ class _PointDEntreeState extends State<_PointDEntree> {
     // bien avec pour seul bouton "MAINTENANT", et le bouton retour Android
     // ne le ferme pas (l'écran passe en arrière-plan, le dialog reste
     // au-dessus) -- capture d'écran à l'appui.
-    setState(() => _ecran = extras == null
-        ? UpgradeAlert(
-            showIgnore: false,
-            showLater: false,
-            child: const HomeScreen(),
-          )
-        : RecetteScreen(
-            mode: extras['mode'] as String?,
-            surah: (extras['sourate'] as num?)?.toInt() ?? 2,
-            limite: (extras['versets'] as num?)?.toInt() ?? 20,
-            depart: (extras['depart'] as num?)?.toInt() ?? 1,
-            wav: extras['wav'] as String?,
-            ecriture: extras['ecriture'] as String?,
-            riwaya: extras['riwaya'] as String?,
-            normal: extras['normal'] as bool? ?? false,
-            fusion: extras['fusion'] as bool? ?? true,
-            preuves: (extras['preuves'] as num?)?.toInt() ?? 2,
-            pas: (extras['pas'] as num?)?.toDouble() ?? 4.0,
-            largeur: (extras['largeur'] as num?)?.toDouble() ?? 4.0,
-            maxBloc: (extras['maxbloc'] as num?)?.toDouble() ?? 10.0,
-            maxFusion: (extras['maxfusion'] as num?)?.toDouble() ?? 18.0));
+    setState(
+      () => _ecran = extras == null
+          ? UpgradeAlert(
+              showIgnore: false,
+              showLater: false,
+              child: const HomeScreen(),
+            )
+          : RecetteScreen(
+              mode: extras['mode'] as String?,
+              surah: (extras['sourate'] as num?)?.toInt() ?? 2,
+              limite: (extras['versets'] as num?)?.toInt() ?? 20,
+              depart: (extras['depart'] as num?)?.toInt() ?? 1,
+              wav: extras['wav'] as String?,
+              ecriture: extras['ecriture'] as String?,
+              riwaya: extras['riwaya'] as String?,
+              normal: extras['normal'] as bool? ?? false,
+              bornerVersets: extras['borner'] as bool? ?? false,
+              fusion: extras['fusion'] as bool? ?? true,
+              preuves: (extras['preuves'] as num?)?.toInt() ?? 2,
+              pas: (extras['pas'] as num?)?.toDouble() ?? 4.0,
+              largeur: (extras['largeur'] as num?)?.toDouble() ?? 4.0,
+              maxBloc: (extras['maxbloc'] as num?)?.toDouble() ?? 10.0,
+              maxFusion: (extras['maxfusion'] as num?)?.toDouble() ?? 18.0,
+            ),
+    );
   }
 
   @override
-  Widget build(BuildContext context) =>
-      _ecran ?? const MushafClosedCover();
+  Widget build(BuildContext context) => _ecran ?? const MushafClosedCover();
 }
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -482,17 +495,69 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
     try {
-      await Navigator.of(context).push(PageRouteBuilder<int>(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        // TRANSPARENTE depuis le 2026-09-14 : la couverture s'ouvre sur les
-        // onglets déjà montés dessous, puis se referme seule. Opaque, elle
-        // révélait un écran vide — cf. `MushafOpeningScreen.build`.
-        opaque: false,
-        pageBuilder: (_, _, _) => const MushafOpeningScreen(),
-      ));
+      await Navigator.of(context).push(
+        PageRouteBuilder<int>(
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
+          // TRANSPARENTE depuis le 2026-09-14 : la couverture s'ouvre sur les
+          // onglets déjà montés dessous, puis se referme seule. Opaque, elle
+          // révélait un écran vide — cf. `MushafOpeningScreen.build`.
+          opaque: false,
+          pageBuilder: (_, _, _) => const MushafOpeningScreen(),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _ouvertureEnCours = false);
+    }
+    await _rouvrirLaDerniereLecture();
+  }
+
+  /// ── L'APPLICATION ROUVRE OU L'ON S'ETAIT ARRETE (2026-09-14) ───────────
+  ///
+  /// Demande utilisateur : « normalement sur les versions d'avant j'ai laisse
+  /// la possibilite de revenir sur la page ou j'etais avant », puis, sur la
+  /// carte que j'avais ajoutee a la place : « non, tu rajoutes de toi-meme,
+  /// avant c'etait AUTOMATIQUE ».
+  ///
+  /// CE QUI S'ETAIT PASSE : la position est enregistree a chaque verset lu
+  /// depuis le 2026-08-26 et l'ouverture la relit toujours -- mais depuis que
+  /// la couverture debouche sur la page principale (demande du meme jour),
+  /// plus rien n'y menait. La position etait calculee, mise en cache, et
+  /// n'ouvrait plus rien. J'avais propose une carte « Reprendre » sur
+  /// l'accueil : ce n'est pas ce qui existait, et ce n'est pas ce qui a ete
+  /// demande -- elle est retiree.
+  ///
+  /// ⚠️ LE LECTEUR DEROULANT, JAMAIS LE MUSHAF PAPIER. C'est la condition
+  /// posee le matin meme, dans la meme phrase que la demande d'origine : « ou
+  /// bien acces direct a l'ancienne lecture mais PAS PAPIER, ou le menu sera
+  /// affiche ». Le papier s'ouvre en plein ecran sans barre d'onglets ; le
+  /// lecteur deroulant, lui, porte son propre menu. Les deux demandes tiennent
+  /// donc ensemble, a condition de ne pas se tromper d'ecran.
+  ///
+  /// La route est POUSSEE par-dessus les onglets : un retour arriere ramene a
+  /// la page principale, qui est deja montee dessous. Personne n'est enferme.
+  ///
+  /// Silencieux si rien n'a jamais ete lu (premier lancement) ou si la sourate
+  /// est introuvable : on reste sur la page principale, sans message -- il n'y
+  /// a rien a signaler, juste rien a reprendre.
+  Future<void> _rouvrirLaDerniereLecture() async {
+    if (!mounted) return;
+    try {
+      final position = await lireDernierePositionLecture();
+      if (!mounted || position == null) return;
+      final sourates = await QuranApi.fetchSurahs();
+      if (!mounted) return;
+      final s = sourates.where((x) => x.number == position.$1).firstOrNull;
+      if (s == null) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              MushafScreen(surah: s, initialAyahNumber: position.$2),
+        ),
+      );
+    } catch (_) {
+      // Reprise best-effort : une lecture de preferences ou un cache de
+      // sourates en echec ne doit jamais empecher l'application de demarrer.
     }
   }
 
@@ -602,36 +667,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // bascule -- et c'est la MEME que celle qui rejoue la preparation, donc
       // rien de nouveau a penser a eteindre avant publication.
       etapes: preparationEnRecette
-          ? [
-              for (final ch in kChapitresGuide) ...ch.etapes(context, t),
-            ]
+          ? [for (final ch in kChapitresGuide) ...ch.etapes(context, t)]
           : kChapitresGuide.first.etapes(context, t),
     );
   }
 
   Widget _appareil() {
     return Scaffold(
-      body: IndexedStack(index: _tab, children: [
-        TickerMode(enabled: _tab == 0, child: _screens[0]),
-        _screens[1],
-        // ── L'ONGLET COACH SAIT QUAND IL N'EST PLUS REGARDÉ (2026-09-14) ──
-        //
-        // Bug signalé : « lors de l'entraînement par palier, au lancement de
-        // l'audio, si je bascule sur autre chose, l'audio continue ; il doit
-        // s'arrêter ».
-        //
-        // La cause n'est pas dans l'écran d'entraînement, qui coupe bien son
-        // audio dans `dispose()` : c'est que `dispose()` N'ARRIVE JAMAIS.
-        // `IndexedStack` garde les cinq onglets montés — c'est voulu (on
-        // retrouve chaque onglet où on l'avait laissé) — donc changer d'onglet
-        // ne détruit rien.
-        //
-        // `TickerMode` est le signal qui manquait : il passe à `false` dès que
-        // l'onglet sort de l'écran, et l'entraînement s'y abonne pour couper
-        // sa lecture (cf. `IncrementalRepeatStep.didChangeDependencies`).
-        TickerMode(enabled: _tab == 2, child: _screens[2]),
-        ..._screens.skip(3),
-      ]),
+      body: IndexedStack(
+        index: _tab,
+        children: [
+          TickerMode(enabled: _tab == 0, child: _screens[0]),
+          _screens[1],
+          // ── L'ONGLET COACH SAIT QUAND IL N'EST PLUS REGARDÉ (2026-09-14) ──
+          //
+          // Bug signalé : « lors de l'entraînement par palier, au lancement de
+          // l'audio, si je bascule sur autre chose, l'audio continue ; il doit
+          // s'arrêter ».
+          //
+          // La cause n'est pas dans l'écran d'entraînement, qui coupe bien son
+          // audio dans `dispose()` : c'est que `dispose()` N'ARRIVE JAMAIS.
+          // `IndexedStack` garde les cinq onglets montés — c'est voulu (on
+          // retrouve chaque onglet où on l'avait laissé) — donc changer d'onglet
+          // ne détruit rien.
+          //
+          // `TickerMode` est le signal qui manquait : il passe à `false` dès que
+          // l'onglet sort de l'écran, et l'entraînement s'y abonne pour couper
+          // sa lecture (cf. `IncrementalRepeatStep.didChangeDependencies`).
+          TickerMode(enabled: _tab == 2, child: _screens[2]),
+          ..._screens.skip(3),
+        ],
+      ),
       // ── LES BOUTONS DE DEVELOPPEMENT SONT RETIRES (2026-08-06) ───────────
       //
       // Demande utilisateur : « enlève le calibrage, il ne sert plus à rien ;
@@ -705,7 +771,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final maintenant = DateTime.now();
     final precedent = _dernierTapCoach;
     _dernierTapCoach = maintenant;
-    _tapsCoach = (precedent != null && maintenant.difference(precedent) <= _delaiTapsCoach)
+    _tapsCoach =
+        (precedent != null &&
+            maintenant.difference(precedent) <= _delaiTapsCoach)
         ? _tapsCoach + 1
         : 1;
     if (_tapsCoach < 5) return;
@@ -722,7 +790,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha(40),
-            blurRadius: 12, offset: const Offset(0, -2),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
           ),
         ],
       ),
@@ -747,8 +816,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   // invocation est bien, mais les autres sont vieux [les
                   // icones Material] » -- uniformise les quatre plutot que de
                   // laisser un seul onglet moderne au milieu de trois datés.
+                  // ── LE LOGO SUR LE PREMIER ONGLET (2026-09-14) ────────
+                  //
+                  // Demande utilisateur : « je parle du Coran, premier icone ».
+                  // C'est l'onglet d'accueil, celui qui porte le nom de
+                  // l'application -- le logo y designe l'app elle-meme, la ou
+                  // le livre ouvert (📖) etait l'emoji generique de n'importe
+                  // quel lecteur.
                   icon: null,
-                  emoji: '📖',
+                  image: 'assets/icon/app_icon.png',
                   label: t.navQuran,
                   active: _tab == 0,
                   onTap: () => setState(() => _tab = 0),
@@ -796,6 +872,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   // invocation pour nous" (jusque-là une tuile discrète dans
                   // Réglages) devient un onglet à part entière, à l'endroit
                   // demandé, pour que les utilisateurs ne l'oublient pas.
+                  // ⚠️ LE COEUR EST REVENU (2026-09-14). J'avais mis le
+                  // logo ICI ; l'utilisateur parlait du PREMIER onglet :
+                  // « non, je parle du Coran, premier icone [...] et remets le
+                  // coeur pour Dua ». Les deux corrections sont faites.
                   icon: null,
                   emoji: '❤️',
                   label: t.navDuaPourNous,
@@ -825,16 +905,34 @@ class _NavItem extends StatelessWidget {
   /// cf. l'onglet Invocations (🤲, aucune icône Material équivalente).
   final IconData? icon;
   final String? emoji;
+
+  /// Chemin d'un asset image, troisieme forme possible pour la pastille de
+  /// l'onglet (2026-09-14, demande utilisateur : « remplacer l'emoticone dans
+  /// le menu en bas avec notre icone »).
+  ///
+  /// POURQUOI UNE IMAGE ET PAS UNE `Icon` : c'est le logo de l'application,
+  /// une vraie illustration en couleurs -- aucun glyphe Material ne le rend, et
+  /// le redessiner en trait serait un AUTRE dessin. Meme traitement que
+  /// l'emoji : encombrement force a 24x24 et teinte par `Opacity`, parce qu'on
+  /// ne peut pas recolorer une image en couleurs sans la denaturer.
+  final String? image;
   final String label;
   final bool active;
   final VoidCallback onTap;
+
   /// `super.key` ajouté le 2026-09-13 : la visite guidée pose une `GlobalKey`
   /// sur chaque onglet pour LIRE sa position à l'exécution (cf.
   /// `widgets/guide_interactif.dart`). Sans elle il faudrait coder des
   /// coordonnées, qui seraient fausses dès le téléphone suivant.
-  const _NavItem({super.key, this.icon, this.emoji, required this.label,
-      required this.active, required this.onTap})
-      : assert(icon != null || emoji != null);
+  const _NavItem({
+    super.key,
+    this.icon,
+    this.emoji,
+    this.image,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  }) : assert(icon != null || emoji != null || image != null);
 
   @override
   Widget build(BuildContext context) {
@@ -854,53 +952,87 @@ class _NavItem extends StatelessWidget {
             fontWeight: active ? FontWeight.w700 : FontWeight.w500,
           );
     return GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Padding(
-          // Padding horizontal MODESTE (l'espacement vient du partage Expanded,
-          // plus d'un padding fixe qui débordait) -- garde juste une marge pour
-          // que les libellés ne se touchent pas.
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              emoji != null
-                  // ── DÉCALAGE CORRIGÉ (2026-08-09, constat utilisateur) ────
-                  // Un `Text` d'emoji n'a PAS le même encombrement vertical
-                  // qu'une `Icon` : sa hauteur de ligne vient de la police
-                  // système (marge au-dessus/en-dessous du glyphe), pas d'une
-                  // boîte carrée de `size`. Ligne "Invocations" décalée par
-                  // rapport aux trois autres onglets (Coran, Coach...). On
-                  // force donc le même encombrement 24x24 que `Icon(size: 24)`
-                  // ci-dessous, `Center` recadrant le glyphe dedans -- même
-                  // teinte active/inactive que le reste faite par `Opacity`
-                  // (impossible de teinter un emoji couleur autrement).
-                  ? Opacity(
-                      opacity: active ? 1.0 : 0.55,
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: Center(
-                          child: Text(emoji!,
-                              style: const TextStyle(fontSize: 20, height: 1)),
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        // Padding horizontal MODESTE (l'espacement vient du partage Expanded,
+        // plus d'un padding fixe qui débordait) -- garde juste une marge pour
+        // que les libellés ne se touchent pas.
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            image != null
+                ? Opacity(
+                    opacity: active ? 1.0 : 0.55,
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      // ── AGRANDI DE 25 % (2026-09-14) ─────────────
+                      //
+                      // Constat utilisateur : « il parait petit ». Il l'est,
+                      // et pas a cause de la taille demandee : un icone de
+                      // lancement porte une ZONE DE SECURITE dans son propre
+                      // fichier (le dessin ne remplit pas le carre, Android
+                      // la recadre au moment de poser l'icone sur l'ecran
+                      // d'accueil). Pose tel quel dans une case de 24, il
+                      // apparait donc plus petit que les emoji voisins, qui
+                      // eux remplissent leur cadratin.
+                      //
+                      // `Transform.scale` et NON une case plus grande : la
+                      // case donne sa hauteur a la colonne, l'agrandir
+                      // descendrait le libelle de cet onglet-la tout seul --
+                      // exactement le decalage corrige le 2026-08-09 sur
+                      // l'emoji des Invocations. Ici le dessin grandit, la
+                      // mise en page ne bouge pas.
+                      child: Transform.scale(
+                        scale: 1.25,
+                        child: Image.asset(image!, fit: BoxFit.contain),
+                      ),
+                    ),
+                  )
+                : emoji != null
+                // ── DÉCALAGE CORRIGÉ (2026-08-09, constat utilisateur) ────
+                // Un `Text` d'emoji n'a PAS le même encombrement vertical
+                // qu'une `Icon` : sa hauteur de ligne vient de la police
+                // système (marge au-dessus/en-dessous du glyphe), pas d'une
+                // boîte carrée de `size`. Ligne "Invocations" décalée par
+                // rapport aux trois autres onglets (Coran, Coach...). On
+                // force donc le même encombrement 24x24 que `Icon(size: 24)`
+                // ci-dessous, `Center` recadrant le glyphe dedans -- même
+                // teinte active/inactive que le reste faite par `Opacity`
+                // (impossible de teinter un emoji couleur autrement).
+                ? Opacity(
+                    opacity: active ? 1.0 : 0.55,
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Center(
+                        child: Text(
+                          emoji!,
+                          style: const TextStyle(fontSize: 20, height: 1),
                         ),
                       ),
-                    )
-                  : Icon(icon,
-                      color:
-                          active ? AppColors.brass : AppColors.cream.withAlpha(140),
-                      size: 24),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: labelStyle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+                    ),
+                  )
+                : Icon(
+                    icon,
+                    color: active
+                        ? AppColors.brass
+                        : AppColors.cream.withAlpha(140),
+                    size: 24,
+                  ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: labelStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-      );
+      ),
+    );
   }
 }

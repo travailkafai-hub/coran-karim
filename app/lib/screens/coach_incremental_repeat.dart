@@ -146,6 +146,44 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
   static const double _seuilSilence = 0.10;
   static const Duration _delaiSilence = Duration(milliseconds: 800);
 
+  /// Le récitateur a-t-il parlé AU MOINS UNE FOIS depuis le début de ce tour ?
+  ///
+  /// ── LE TOUR QUI MOURAIT EN 810 ms SUR الٓمٓ (2026-09-14) ──────────────────
+  ///
+  /// Constat utilisateur : « quand c'est الم, il ne laisse pas l'utilisateur
+  /// réciter, ça boucle ». MESURÉ dans le journal, quatre fois de suite :
+  ///
+  ///     09:49:27.367 [Palier] audio du palier 1/1 mots=0..0 ... texte="الٓمٓ"
+  ///     09:49:28.180 [CTL][Palier] arret auto : dernier mot atteint + silence 800 ms
+  ///     09:49:28.410 [Palier] fin de tour : success=false ... juges=0
+  ///                  assezDit=false PALIER FAUTIF=P1 (pas assez dit (0/1))
+  ///                  statuts=[current]
+  ///
+  /// 813 ms entre la fin de l'audio et la coupure — puis 807, 810 et 820 ms
+  /// aux trois tours suivants. L'utilisateur n'a jamais eu le temps d'ouvrir
+  /// la bouche ; l'échec relance l'audio, et la boucle est fermée.
+  ///
+  /// CAUSE. L'arrêt automatique s'arme sur « le DERNIER mot de la fenêtre a
+  /// été atteint », signalé par `words.last.status != pending` — l'ancre y est
+  /// arrivée. Sur une fenêtre d'UN SEUL MOT, le dernier mot EST le premier :
+  /// l'ancre est déjà dessus à l'ouverture du micro, donc `current`, donc
+  /// « fin atteinte » est vrai AVANT que quiconque ait parlé. Le silence de
+  /// 800 ms qui suit n'est pas la fin d'une récitation, c'est le temps normal
+  /// que prend un humain pour commencer. Les sourates concernées sont celles
+  /// dont un verset entier tient en un mot : الٓمٓ, طه, يس, صٓ, قٓ, نٓ...
+  ///
+  /// LE GARDE. On ne peut pas avoir FINI sans avoir COMMENCÉ. Le minuteur ne
+  /// s'arme donc que si la voix est montée au moins une fois au-dessus de
+  /// [_seuilSilence] pendant ce tour. Rien ne change pour les fenêtres de
+  /// plusieurs mots : l'ancre n'y atteint le dernier mot que parce que
+  /// quelqu'un a récité jusque-là.
+  ///
+  /// ⚠️ NE PAS « corriger » en exigeant qu'un mot soit JUGÉ : c'est ce qui
+  /// avait été essayé le 2026-08-18 et mesuré à 0 déclenchement sur 4 tours
+  /// (cf. la doc de [_finAuto]) — le dernier mot n'obtient son verdict qu'à la
+  /// fermeture de session, c'est-à-dire à l'instant qu'on cherche à provoquer.
+  bool _aParle = false;
+
   List<String> get _words => ArabicNormalizer.splitExpectedWords(widget.verse.textUthmani);
 
   /// Fins d'unité (index de mot INCLUSIF), lues dans la RÉCITATION plutôt que
@@ -663,6 +701,10 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
     _handledThisSession = false;
     _finAuto?.cancel();
     _finAuto = null;
+    // Remis à zéro à CHAQUE tour : « il a parlé » ne doit jamais se traîner
+    // du tour précédent, sinon le premier bloc de silence du tour suivant
+    // suffirait à couper (cf. `_aParle`).
+    _aParle = false;
     setState(() => _phase = _RoundPhase.listening);
     // ── LE MODE CONTINU, SINON RIEN N'EST JUGÉ (2026-08-17) ────────────────
     //
@@ -1190,7 +1232,11 @@ class _IncrementalRepeatStepState extends ConsumerState<IncrementalRepeatStep>
         final dernier = next.words.isEmpty ? null : next.words.last;
         final finAtteinte =
             dernier != null && dernier.status != WordStatus.pending;
-        if (finAtteinte && next.soundLevel < _seuilSilence) {
+        // On ne peut pas avoir FINI sans avoir COMMENCÉ : sur une fenêtre d'un
+        // seul mot, « fin atteinte » est vrai dès l'ouverture du micro et le
+        // tour mourait en 810 ms sans un mot dit. Cf. `_aParle`.
+        if (next.soundLevel >= _seuilSilence) _aParle = true;
+        if (finAtteinte && _aParle && next.soundLevel < _seuilSilence) {
           // `??=` : ne pas ré-armer à chaque bloc PCM, sinon le minuteur
           // repart de zéro en permanence et n'échoit jamais.
           _finAuto ??= Timer(_delaiSilence, () {

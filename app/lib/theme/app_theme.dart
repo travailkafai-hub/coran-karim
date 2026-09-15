@@ -197,6 +197,17 @@ class AppColors {
 }
 
 class AppTheme {
+  /// ChGPT: larger Arabic UI copy on reflowing surfaces, not paper pages.
+  static TextStyle readableUi(BuildContext context, TextStyle base) {
+    if (Localizations.localeOf(context).languageCode != 'ar') return base;
+    final size = (base.fontSize ?? 14) + 2;
+    return base.copyWith(
+      fontSize: size < 14 ? 14 : size,
+      height: (base.height ?? 1) < 1.55 ? 1.55 : base.height,
+      letterSpacing: 0,
+    );
+  }
+
   static TextTheme _arabicTextTheme() {
     return TextTheme(
       // Verse text — Scheherazade New for Uthmanic look

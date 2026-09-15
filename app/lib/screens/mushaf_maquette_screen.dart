@@ -1093,6 +1093,15 @@ class _PageMushaf extends StatelessWidget {
           out.add(sp ?? <InlineSpan>[TextSpan(text: mot, style: style)]);
         }
         // Le médaillon de fin de verset suit le dernier mot de CE verset.
+        //
+        // ⚠️ CE RENDU N'EST PLUS BRANCHE (`_pageLignes` n'est appelé de nulle
+        // part -- `flutter analyze` le signale). Le mushaf papier passe par
+        // `_spansCanoniques` + `TextAlign.justify`. Le décollement du
+        // médaillon signalé le 2026-09-14 a donc été corrigé LA-BAS ; si ce
+        // rendu-ci est un jour rebranché, il porte le même défaut : chaque
+        // entrée de `out` est un enfant du `Row(spaceBetween)` plus bas, donc
+        // le médaillon y reçoit le même écart qu'entre deux mots, des deux
+        // côtés, et part flotter entre son verset et le suivant.
         if (a < f.verset || f.mot >= bruts.length) {
           out.add(<InlineSpan>[
             TextSpan(
@@ -1778,6 +1787,35 @@ class _PageMushaf extends StatelessWidget {
         // texte -- meme montage que le signe de sajda. Amiri est embarquee
         // dans l'APK, ce repli tient donc hors ligne meme si l'ecriture
         // choisie, elle, doit encore se telecharger.
+        //
+        // ── LE MEDAILLON COLLE A SON VERSET (2026-09-14) ─────────────────
+        //
+        // Constat utilisateur, comparaison a l'appui avec un autre mushaf :
+        // « regarde l'emplacement en vrai des numeros de verset, ils viennent
+        // apres le verset ». Verifie sur la page 3 d'Al-Baqara : le medaillon
+        // du verset 6 se posait loin derriere « لا يؤمنون », a mi-chemin du
+        // verset suivant.
+        //
+        // CAUSE, et elle est dans la JUSTIFICATION, pas dans l'ordre des
+        // elements -- qui etait deja bon. Le corps de page est en
+        // `TextAlign.justify` : Flutter repartit le blanc manquant sur les
+        // ESPACES SECABLES de la ligne. Le mot precedent avait ajoute son
+        // `' '` habituel, et cet espace-la etait donc etire comme les autres :
+        // sur une ligne qui demande beaucoup de blanc, le medaillon se
+        // retrouvait pousse loin du mot qu'il ferme.
+        //
+        // On remplace cet espace par une ESPACE INSECABLE (U+00A0). Elle garde
+        // la meme largeur au repos -- le medaillon ne colle pas a la derniere
+        // lettre -- mais elle n'est pas une occasion de coupure, donc la
+        // justification ne peut plus l'etirer. Tout le blanc tombe sur
+        // l'espace qui SUIT le medaillon, c'est-a-dire avant le verset
+        // suivant : exactement ce que fait un mushaf imprime.
+        if (out.isNotEmpty && out.last.text == ' ') {
+          // Ecrite en ECHAPPEMENT et non en caractere nu : une espace insecable
+          // est invisible dans un editeur, et la premiere retouche du fichier
+          // la retransformerait en espace ordinaire sans que personne le voie.
+          out[out.length - 1] = TextSpan(text: '\u00A0', style: base);
+        }
         out.add(
           TextSpan(
             text: '${_medaillon(v.ayahNumber)} ',

@@ -145,7 +145,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Le texte se lit ici. Un appui sélectionne le verset ; un appui long ouvre les actions à partir de ce passage.',
             'Read here. Tap to select a verse; long-press to open actions from that passage.',
-            'اقرأ النص هنا. المس الآية لتحديدها، واضغط مطولاً لفتح الإجراءات من هذا الموضع.',
+            'اقرأ الآيات هنا. اضغط على آية لتحديدها، أو اضغط مطولًا لعرض الأدوات المتاحة لها.',
           ),
         ),
         _e(
@@ -158,7 +158,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Fais glisser le texte vers le haut pour poursuivre la lecture. Le guide défile jusqu’au verset concerné.',
             'Swipe the text upwards to continue reading. The tour scrolls to the relevant verse.',
-            'مرر النص إلى أعلى لمتابعة القراءة. تنتقل الجولة إلى الآية المعنية.',
+            'اسحب النص إلى أعلى لمتابعة القراءة. في هذه الجولة، ينتقل العرض إلى الآية المشار إليها.',
           ),
           scroll: true,
         ),
@@ -168,11 +168,11 @@ List<ChapitreGuide> get kChapitresGuide => [
           'actions',
           _actions,
           'actions.recite',
-          ('Ouvrir les actions', 'Open verse actions', 'فتح إجراءات الآية'),
+          ('Ouvrir les actions', 'Open verse actions', 'أدوات الآية'),
           (
             'Après un appui long, ce menu propose récitation, tajwid, mémorisation et jeu. Le départ est le verset sélectionné.',
             'Long-press opens recitation, tajwid, memorization and game actions. They start at the selected verse.',
-            'يفتح الضغط المطول التلاوة والتجويد والحفظ واللعبة، انطلاقاً من الآية المحددة.',
+            'اضغط مطولًا على الآية لاختيار التلاوة أو التجويد أو الحفظ أو لعبة تسلسل الكلمات، بدءًا من موضعها.',
           ),
         ),
         _e(
@@ -185,7 +185,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Dans le panneau Plus du lecteur, ajuste la taille avec le curseur. Le texte de cette visite n’est pas enregistré comme réglage.',
             'In the reader’s More panel, adjust the text size with the slider. This tour does not save settings.',
-            'في لوحة المزيد بالقارئ، اضبط حجم النص بالشريط. لا تحفظ هذه الجولة أي تغيير.',
+            'افتح «المزيد» في شاشة القراءة واضبط حجم الخط بالشريط. التغييرات المعروضة في الجولة لا تُحفظ.',
           ),
         ),
         _e(
@@ -198,7 +198,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Cette ligne ouvre le choix des polices du Mushaf papier. L’écriture change le dessin, pas la riwaya.',
             'This row opens the paper Mushaf font selector. A font changes appearance, not the riwaya.',
-            'يفتح هذا السطر خطوط المصحف الورقي. يغيّر الخط الشكل لا الرواية.',
+            'اعرض خطوط المصحف الورقي وعاينها. اختيار الخط يغيّر شكل الكتابة، ولا يغيّر الرواية.',
           ),
         ),
         if (Localizations.localeOf(c).languageCode != 'ar')
@@ -212,7 +212,7 @@ List<ChapitreGuide> get kChapitresGuide => [
             (
               'Ce commutateur affiche la traduction dans le lecteur. Il n’apparaît pas dans l’interface entièrement arabe.',
               'This switch shows the translation in the reader. It is hidden in the fully Arabic interface.',
-              'يعرض المفتاح الترجمة في القارئ، ولا يظهر في الواجهة العربية الكاملة.',
+              'أظهر ترجمة معاني الآيات أو أخفها. هذا الخيار غير ظاهر عند اختيار الواجهة العربية.',
             ),
           ),
         _e(
@@ -229,7 +229,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Active le crayon pour retrouver les outils d’annotation dans le lecteur. Les couleurs du crayon ne sont pas des verdicts de récitation.',
             'Enable the pencil to reveal annotation tools in the reader. Pencil colours are not recitation verdicts.',
-            'فعّل القلم لإظهار أدوات التعليق في القارئ. ألوان القلم ليست أحكاماً على التلاوة.',
+            'اضغط على القلم لتظليل الكلمات أو إضافة خطوط. هذه علامات تضيفها أنت، وليست تقييمًا لتلاوتك.',
           ),
           scroll: true,
         ),
@@ -247,7 +247,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Les pastilles choisissent le papier clair, le sépia ou le fond sombre. Elles restent un réglage de lecture.',
             'The swatches select light paper, sepia or dark background. They only affect reading appearance.',
-            'تختار الدوائر الورق الفاتح أو البني الفاتح أو الداكن. تخص مظهر القراءة فقط.',
+            'اختر خلفية فاتحة أو بلون الورق أو داكنة من دوائر الألوان. يتغيّر المظهر دون تغيير النص.',
           ),
           scroll: true,
         ),
@@ -294,7 +294,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'L’icône Mushaf du lecteur ouvre la pagination papier. Voici le vrai rendu de la première page, avec ta riwaya actuelle.',
             'The reader’s Mushaf icon opens paper pagination. This is the actual first page using your current riwaya.',
-            'تفتح أيقونة المصحف في القارئ ترقيم المصحف الورقي. هذه الصفحة الأولى بالرواية الحالية.',
+            'تفتح أيقونة المصحف القراءة بتقسيم الصفحات الورقية. تعرض الجولة الصفحة الأولى بالرواية المختارة.',
           ),
         ),
         _e(
@@ -311,7 +311,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'La page suivante s’ouvre ici. Le sens du livre arabe reste le même quelle que soit la langue de l’interface. Un appui sur la page avance aussi.',
             'The next page opens here. Arabic book direction stays the same in every interface language. Tapping the page also advances.',
-            'تفتح الصفحة التالية هنا. يبقى اتجاه المصحف العربي نفسه مهما كانت لغة الواجهة. كما تنقل لمسة الصفحة إلى التالية.',
+            'اسحب من اليسار إلى اليمين، أو اضغط على الصفحة، للانتقال إلى التالية. يبقى هذا الاتجاه ثابتًا في جميع لغات الواجهة.',
           ),
         ),
         _e(
@@ -328,7 +328,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Un balayage dans l’autre sens revient à la page précédente. Feuilleter pendant cette visite ne change pas ta position de lecture enregistrée.',
             'Swipe the other way to return. Turning pages in this tour does not change your saved reading position.',
-            'مرر في الاتجاه المعاكس للعودة. تقليب الصفحات في الجولة لا يغيّر موضع قراءتك المحفوظ.',
+            'اسحب من اليمين إلى اليسار للعودة إلى الصفحة السابقة. لا تغيّر هذه الجولة موضع قراءتك المحفوظ.',
           ),
         ),
         _e(
@@ -337,11 +337,11 @@ List<ChapitreGuide> get kChapitresGuide => [
           'paper',
           (_) => const MushafMaquetteScreen(apercuGuide: true),
           'paper.bookmark',
-          ('Poser un signet', 'Bookmark a page', 'وضع علامة'),
+          ('Poser un signet', 'Bookmark a page', 'حفظ موضع القراءة'),
           (
             'Le signet en haut permet de marquer le passage. Dans cette visite, il est montré sans être ajouté ni retiré.',
             'Use the top bookmark to mark this passage. The tour shows it without adding or removing a bookmark.',
-            'تضع العلامة العلوية إشارة على الموضع. تعرضها الجولة دون إضافة علامة أو حذفها.',
+            'استخدم أيقونة العلامة أعلى الصفحة لحفظ موضع القراءة. تعرض الجولة الأداة فقط، دون تغيير علاماتك.',
           ),
         ),
       ];
@@ -365,7 +365,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Le choix du récitateur est dans Plus, section Écouter, et non dans les paramètres généraux.',
             'Choose the reciter in More, under Listen, not in general settings.',
-            'اختر القارئ من المزيد ضمن الاستماع، وليس من الإعدادات العامة.',
+            'يمكنك اختيار القارئ من قسم «الاستماع» في لوحة «المزيد» دون مغادرة شاشة القراءة.',
           ),
           scroll: true,
         ),
@@ -396,7 +396,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Depuis le récitateur, ouvre ses téléchargements. Tu peux choisir des sourates et consulter l’espace utilisé ; aucun téléchargement ne démarre dans la visite.',
             'Open downloads from a reciter. Choose surahs and inspect storage usage; the tour starts no downloads.',
-            'افتح التنزيلات من القارئ لاختيار السور ومعرفة المساحة المستخدمة. لا تبدأ الجولة أي تنزيل.',
+            'افتح تنزيلات القارئ لاختيار السور التي تريد سماعها دون اتصال ومعرفة حجمها. لا تبدأ الجولة تنزيل أي ملف.',
           ),
         ),
         _e(
@@ -409,7 +409,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Ce curseur ralentit ou accélère l’audio du récitateur. Il ne règle ni le micro ni la reconnaissance.',
             'This slider slows down or speeds up the reciter’s audio. It does not configure the microphone or recognition.',
-            'يبطئ هذا الشريط صوت القارئ أو يسرّعه، ولا يضبط الميكروفون أو التعرف.',
+            'اضبط سرعة تلاوة القارئ بهذا الشريط. لا يؤثر ذلك في الميكروفون أو تحليل تلاوتك.',
           ),
           scroll: true,
         ),
@@ -441,7 +441,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Choisis combien de fois répéter chaque groupe avant de poursuivre. Zéro signifie illimité.',
             'Choose how often each group repeats before continuing. Zero means unlimited.',
-            'اختر مرات تكرار كل مجموعة قبل المتابعة. الصفر يعني تكراراً غير محدود.',
+            'حدّد عدد مرات سماع كل مجموعة قبل الانتقال إلى التالية. اختيار الصفر يعني التكرار دون حد.',
           ),
           scroll: true,
         ),
@@ -459,7 +459,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Le dernier curseur répète l’ensemble. Exemple : groupes de 3 versets, chaque groupe 2 fois, ensemble 3 fois.',
             'The final slider repeats the entire sequence. Example: groups of 3 verses, each group twice, the whole sequence three times.',
-            'يكرر الشريط الأخير التسلسل كله. مثال: مجموعات من ٣ آيات، كل مجموعة مرتين، والتسلسل كله ثلاث مرات.',
+            'حدّد بالشريط الأخير عدد مرات إعادة المقطع كاملًا، بعد تكرار مجموعاته. مثلًا: كل مجموعة مرتين، والمقطع كاملًا ثلاث مرات.',
           ),
           scroll: true,
         ),
@@ -502,7 +502,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Chaque mot se colore : vert quand il est juste, orange sur une articulation approximative, rouge sur un ecart entendu. Exemple prepare, sans micro.',
             'Each word takes colour: green when correct, orange for an approximate articulation, red for a difference heard. Prepared example, no microphone.',
-            'تتلون كل كلمة: أخضر إذا صحت، وبرتقالي عند نطق تقريبي، وأحمر عند فرق مسموع. مثال معد بلا ميكروفون.',
+            'بحسب تقييم التطبيق: الأخضر كلمة مقبولة، والبرتقالي نطق يحتاج إلى التحقق، والأحمر اختلاف يحتاج إلى مراجعة. هذا مثال مُعدّ مسبقًا، دون ميكروفون.',
           ),
         ),
         _e(
@@ -532,7 +532,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Réciter ouvre le suivi de ta voix depuis le passage choisi. Le micro ne sera demandé que lors d’un usage réel, pas par ce guide.',
             'Recite opens voice tracking from the chosen passage. This tour does not request microphone access.',
-            'تفتح التلاوة متابعة صوتك من الموضع المختار. لا تطلب هذه الجولة إذن الميكروفون.',
+            'اختر «تلاوة» ليبدأ التطبيق متابعة صوتك من الآية المحددة. الجولة تعرض الأداة فقط، ولا تطلب إذن الميكروفون.',
           ),
         ),
         _e(
@@ -549,7 +549,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Le tajwid possède son accès propre. Cet accès reste grisé pour Warsh dans la version actuelle ; le guide ne contourne pas cette limite.',
             'Tajwid has its own entry. It remains greyed out for Warsh in the current version; the tour does not bypass this restriction.',
-            'للتجويد مدخل مستقل يبقى باهتاً لورش في الإصدار الحالي. لا تتجاوز الجولة هذا القيد.',
+            'للتجويد أداة مستقلة عن تصحيح الكلمات. وهي غير متاحة لرواية ورش في هذا الإصدار، لذلك تظهر معطّلة عند اختيارها.',
           ),
         ),
         _e(
@@ -566,7 +566,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Le réglage du micro de casque est dans les paramètres généraux. Il concerne le son capté, pas la voix du récitateur écouté.',
             'The headset microphone setting is in general settings. It affects captured sound, not the reciter you listen to.',
-            'إعداد ميكروفون السماعة في الإعدادات العامة. يخص الصوت الملتقط لا القارئ الذي تسمعه.',
+            'اختر من الإعدادات استخدام ميكروفون الهاتف أو سماعة البلوتوث. هذا يخص تسجيل صوتك، لا اختيار القارئ.',
           ),
           scroll: true,
         ),
@@ -579,12 +579,12 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Retrouver les signalements',
             'Find disputed verdicts',
-            'مراجعة الأحكام المعترض عليها',
+            'مراجعة التقييمات المعترض عليها',
           ),
           (
             'Les réglages regroupent aussi la gestion des verdicts contestés. La visite montre cet accès sans transmettre ni supprimer de données.',
             'Settings also contain disputed-verdict management. The tour shows this entry without sending or deleting data.',
-            'تضم الإعدادات إدارة الأحكام المعترض عليها. تعرض الجولة هذا المدخل دون إرسال بيانات أو حذفها.',
+            'تجد في الإعدادات تقييمات الكلمات التي اعترضت عليها. تعرض الجولة موضعها دون إرسال بيانات أو حذفها.',
           ),
           scroll: true,
         ),
@@ -613,7 +613,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Mémoriser se lance depuis le menu du verset. Le Coach sert ensuite à retrouver le travail effectué.',
             'Start Memorize from the verse menu. Use the Coach afterwards to review your work.',
-            'ابدأ الحفظ من قائمة الآية، ثم راجع عملك في المدرب.',
+            'ابدأ التدريب على الحفظ من قائمة الآية: استمع ثم ردّد. يمكنك مراجعة تقدّمك لاحقًا في «مدرّبي».',
           ),
         ),
         _e(
@@ -626,7 +626,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Le jeu est une autre entrée du même menu. Il propose de retrouver l’enchaînement des mots ; aucun score de jeu n’est produit ici.',
             'The game is another entry in this menu. Practise word sequencing there; no game scores are created here.',
-            'اللعبة مدخل آخر في القائمة للتدرب على تسلسل الكلمات. لا تنتج الجولة نقاط لعبة.',
+            'اختر اللعبة للتدرّب على ترتيب كلمات الآيات من حفظك. وهي مختلفة عن الترديد بالميكروفون، ولا تضيف الجولة نقاطًا إلى رصيدك.',
           ),
         ),
         _e(
@@ -638,12 +638,12 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Retrouver ses portions',
             'Find your portions',
-            'العثور على الأجزاء المحفوظة',
+            'متابعة مقاطع الحفظ',
           ),
           (
             'Reviens au Coach pour consulter les portions travaillées. Une visite guidée ne valide ni sourate ni quart de hizb.',
             'Return to the Coach to review practised portions. A guided tour does not validate a surah or quarter hizb.',
-            'ارجع إلى المدرب لمراجعة المقاطع المتدرّب عليها. لا تعتمد الجولة سورة أو ربع حزب.',
+            'افتح «مدرّبي» لمراجعة المقاطع التي تدرّبت عليها. لا تُحتسب هذه الجولة إنجازًا لسورة أو ربع حزب.',
           ),
           scroll: true,
         ),
@@ -668,7 +668,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Le haut du Coach présente ton objectif. L’état affiché dépend de tes réglages et de ton activité réelle, sans progression inventée.',
             'The top of the Coach shows your goal. Its state depends on your settings and actual activity, without invented progress.',
-            'يعرض أعلى المدرب هدفك حسب إعداداتك ونشاطك الحقيقي، دون تقدم مختلق.',
+            'تابع هدف الحفظ والوتيرة المطلوبة في أعلى «مدرّبي». الأرقام تخص نشاطك الفعلي، ولا تتغيّر بمجرد مشاهدة الجولة.',
           ),
         ),
         _e(
@@ -681,7 +681,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Les indicateurs d’activité et de série se consultent dans ce tableau de bord. Ils résument les séances réelles, pas les étapes du tutoriel.',
             'Review activity and streak indicators in this dashboard. They summarize real practice, not tutorial steps.',
-            'راجع مؤشرات النشاط والاستمرارية هنا. تلخص التدريب الحقيقي لا خطوات الجولة.',
+            'تابع أيام المواظبة ونشاطك هنا. تُحتسب من جلسات التدريب، لا من خطوات الجولة.',
           ),
         ),
         _e(
@@ -698,7 +698,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'La liste des portions permet de retrouver ton travail par passage. Son contenu peut être vide tant que tu n’as pas commencé.',
             'The portions list groups your work by passage. It may be empty before you start practising.',
-            'تجمع قائمة المقاطع عملك حسب الموضع، وقد تكون فارغة قبل بدء التدريب.',
+            'تجد هنا تقدّمك مرتّبًا بحسب السور ومقاطع الأحزاب. تظهر القائمة بعد بدء التدريب.',
           ),
           scroll: true,
         ),
@@ -716,7 +716,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Ouvre une portion pour examiner les mots et revenir au passage à travailler. La visite ne crée pas de faux historique pour remplir cet écran.',
             'Open a portion to inspect its words and return to the passage to practise. The tour creates no fake history to populate this screen.',
-            'افتح المقطع لفحص كلماته والعودة للتدريب. لا تنشئ الجولة سجلاً وهمياً لملء الشاشة.',
+            'افتح مقطعًا لمراجعة كلماته واستئناف التدريب. تعرض الجولة سجلك الفعلي فقط، وقد يكون فارغًا.',
           ),
           scroll: true,
         ),
@@ -741,7 +741,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Les horaires détaillés sont accessibles dans la section Prières des réglages, en complément du bandeau d’accueil.',
             'Detailed times are in the Prayer section of settings, complementing the home panel.',
-            'توجد المواقيت المفصلة في قسم الصلاة بالإعدادات، إضافة إلى لوحة الرئيسية.',
+            'افتح مواقيت الصلاة من الإعدادات لعرض التفاصيل، أو تابع الصلاة القادمة من الشاشة الرئيسية.',
           ),
         ),
         _e(
@@ -758,7 +758,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Le tableau montre les horaires déjà calculés. Sans position disponible, cette zone peut être absente : la visite n’invente pas d’heures.',
             'The table shows already calculated times. Without an available location this area may be absent: the tour invents no times.',
-            'يعرض الجدول المواقيت المحسوبة. قد تغيب المنطقة دون موقع متاح، ولا تختلق الجولة مواقيت.',
+            'يعرض الجدول مواقيت اليوم بحسب الموقع وطريقة الحساب. إذا لم يتوفر الموقع، قد لا تظهر المواقيت.',
           ),
         ),
         _e(
@@ -789,7 +789,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Le tableau permet de régler les notifications par prière. Le tutoriel ne coche aucune option et n’accorde aucune autorisation.',
             'Use this table to configure notifications per prayer. The tour selects no option and grants no permission.',
-            'يضبط الجدول الإشعارات لكل صلاة. لا تختار الجولة أي خيار ولا تمنح أي إذن.',
+            'اضبط الأذان والتذكير لكل صلاة على حدة. لا تغيّر الجولة خياراتك ولا تمنح أذونات بدلًا منك.',
           ),
           scroll: true,
         ),
@@ -799,11 +799,11 @@ List<ChapitreGuide> get kChapitresGuide => [
           'settings',
           _reglages,
           'settings.qibla',
-          ('Trouver la Qibla', 'Find the Qibla', 'العثور على القبلة'),
+          ('Trouver la Qibla', 'Find the Qibla', 'تحديد اتجاه القبلة'),
           (
             'Cette entrée ouvre la boussole. Pour l’utiliser réellement, autorise la position si demandée et suis les indications du téléphone. Le guide n’active pas le GPS.',
             'This entry opens the compass. For real use, grant location if requested and follow the phone’s guidance. The tour does not activate GPS.',
-            'يفتح هذا المدخل البوصلة. للاستخدام الفعلي اسمح بالموقع عند الطلب واتبع إرشادات الهاتف. لا تفعّل الجولة GPS.',
+            'افتح بوصلة القبلة، واسمح بالوصول إلى موقعك عند استخدامها. لا تفعّل الجولة خدمة الموقع تلقائيًا.',
           ),
         ),
         _e(
@@ -844,7 +844,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'La recherche est en haut de l’onglet Invocations. Elle filtre les résultats selon le texte saisi.',
             'Search is at the top of the Invocations tab. It filters results using the text you enter.',
-            'البحث في أعلى تبويب الأدعية، ويصفي النتائج حسب النص المدخل.',
+            'اكتب في حقل البحث أعلى قسم الأذكار لعرض الأدعية المطابقة لكلماتك.',
           ),
         ),
         _e(
@@ -888,7 +888,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'Les radios sont plus bas, après les collections. Ce sont des flux distincts des invocations individuelles ; aucun flux n’est lancé par la visite.',
             'Radios are further down, after collections. They are streams, distinct from individual invocations; the tour starts none.',
-            'توجد الإذاعات أسفل المجموعات. إنها تدفقات مستقلة عن الأدعية المفردة، ولا تبدأ الجولة تشغيلها.',
+            'تجد إذاعات الأذكار أسفل المجموعات. تحتاج إلى الإنترنت، وهي مستقلة عن تسجيلات الأدعية. لا تشغّلها الجولة تلقائيًا.',
           ),
           scroll: true,
         ),
@@ -1056,7 +1056,7 @@ List<ChapitreGuide> get kChapitresGuide => [
           (
             'À propos regroupe les informations sur l’application, ses sources et ses limites. Tu peux retrouver cet écran depuis les réglages.',
             'About contains application information, sources and limitations. Reopen this screen from settings.',
-            'تجمع صفحة حول معلومات التطبيق ومصادره وحدوده. يمكنك الرجوع إليها من الإعدادات.',
+            'تعرّف على المصادر والخصوصية وحدود التقييم الآلي في صفحة «حول التطبيق»، المتاحة من الإعدادات.',
           ),
         ),
       ];

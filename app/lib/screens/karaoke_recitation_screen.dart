@@ -72,6 +72,10 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// d'alignement soit prête, et il le journalise.
   final bool autoDemarrer;
 
+  // ChGPT: live screens now always start when their own target is ready.
+  // The legacy flag above still selects diagnostic reference mode together
+  // with forcerModeNormal; changing its default would disable corrections.
+
   /// Retire la Basmala de la cible d'alignement (banc de recette, 2026-07-28).
   ///
   /// Le récitateur enregistré n'attaque PAS par la Basmala : l'audio de
@@ -89,6 +93,11 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// REFUSE/décrochage, actifs uniquement en normal. Défaut false : tout
   /// appel existant du banc garde exactement le comportement d'avant.
   final bool forcerModeNormal;
+
+  /// Recette bornée : garde exactement la plage de versets fournie par
+  /// l'intent. Le comportement utilisateur reste l'enchaînement automatique
+  /// des pages ; seul le banc déterministe peut le désactiver.
+  final bool autoriserEnchainement;
 
   /// ── MODE TAJWID : UNE LECTURE, PAS UN CONTROLE (2026-09-05) ────────────
   ///
@@ -154,9 +163,11 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   /// Une session archivée doit garder le verdict rendu CE JOUR-LÀ. L'archive
   /// est la source de vérité pour le passé ; le réglage du jour ne concerne
   /// que la récitation en cours.
-  final Map<(int, int, int),
-      ({WordStatus statut, String entendu, String? audio, String? kind})>?
-      relecture;
+  final Map<
+    (int, int, int),
+    ({WordStatus statut, String entendu, String? audio, String? kind})
+  >?
+  relecture;
 
   /// Titre du bandeau en mode relecture (nom de sourate ou libellé de portion).
   final String? titreRelecture;
@@ -185,6 +196,7 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
     this.autoDemarrer = false,
     this.sansBasmala = false,
     this.forcerModeNormal = false,
+    this.autoriserEnchainement = true,
     this.modeTajwid = false,
     this.relecture,
     this.titreRelecture,
@@ -196,11 +208,13 @@ class KaraokeRecitationScreen extends ConsumerStatefulWidget {
   bool get estRelecture => relecture != null;
 
   @override
-  ConsumerState<KaraokeRecitationScreen> createState() => _KaraokeRecitationScreenState();
+  ConsumerState<KaraokeRecitationScreen> createState() =>
+      _KaraokeRecitationScreenState();
 }
 
-class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScreen>
-    with SingleTickerProviderStateMixin {
+class _KaraokeRecitationScreenState
+    extends ConsumerState<KaraokeRecitationScreen>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _breath;
   final _pauseProfile = PauseProfileService();
   // Mini-LoRA personnalisation vocale (FONCTIONNALITES_FUTURES.md,
@@ -433,14 +447,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// C'est un choix d'AFFICHAGE : aucun critère de jugement n'est touché ici,
   /// on décide seulement où regarder.
   int _indexASuivre(RecitationSessionState st) {
-    final courant =
-        st.words.indexWhere((w) => w.status == WordStatus.current);
+    final courant = st.words.indexWhere((w) => w.status == WordStatus.current);
     if (courant >= 0) return courant;
     for (var i = st.words.length - 1; i >= 0; i--) {
       if (st.words[i].status != WordStatus.pending) return i;
     }
     return st.pointer.clamp(0, st.words.isEmpty ? 0 : st.words.length - 1);
   }
+
   DateTime? _manualScrollUntil;
 
   // Coloration tajwid lettre-par-lettre (demande utilisateur 2026-07-05 :
@@ -452,6 +466,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // potentiellement d'un fetch réseau (Bismillah), donc plus "late final".
   List<List<TextSpan>>? _tajwidSpans;
   bool _ready = false;
+  bool _initialTargetReady = false;
+  bool _openingStartPending = true;
+  bool _toggleBusy = false;
   RecitationStartStage? _startStage;
   int _bismillahWordCount = 0;
 
@@ -610,9 +627,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // vert est « le mode tajwid dont les couleurs n ont pas pris » ou « un mode
     // tajwid jamais demande ». Les deux hypotheses etaient egalement plausibles
     // a l ecran le 2026-09-05.
-    DiagnosticLog.log('KaraokeOuverture',
-        'modeTajwid=${widget.modeTajwid} relecture=${widget.estRelecture} '
-        'versets=${widget.verses.length}');
+    DiagnosticLog.log(
+      'KaraokeOuverture',
+      'modeTajwid=${widget.modeTajwid} relecture=${widget.estRelecture} '
+          'versets=${widget.verses.length}',
+    );
     // Preset de jugement FORCE a tajwid pendant que cet ecran dedie est
     // ouvert (2026-09-11, cf. `modeTajwidDedieActifProvider` et le
     // commentaire de `judgementOptionsEffectivesProvider`) -- remis a false
@@ -639,7 +658,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
     _verses = List.of(widget.verses);
     _initialPassageKey = widget.verses.map((v) => v.key).join('-');
-    _breath = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
+    _breath = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat();
     // ── RELECTURE : on prépare le TEXTE, jamais la chaîne (2026-08-13) ──────
     // `_prepareTexteSeul` fait exactement ce que `_initAsync` fait d'utile ici
     // (Bismillah, blocs, spans tajwid, clés de mots, métadonnées de sourate)
@@ -650,6 +672,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _prepareTexteSeul();
       return;
     }
+    WidgetsBinding.instance.addObserver(this);
     // L'ecran ne doit pas s'eteindre pendant qu'on recite (2026-08-13) :
     // l'extinction coupe le suivi. Relache dans `dispose`, et de toute facon
     // par le systeme si l'app quitte le premier plan (cf. MainActivity).
@@ -661,16 +684,21 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     _pauseProfile.isGlobalStable().then((stable) {
       if (mounted) setState(() => _globalStable = stable);
     });
-    if (widget.autoDemarrer) _autoDemarrage();
     // Correction automatique (demande utilisateur 2026-07-05) : dès qu'un mot
     // est verrouillé rouge, pause + lecture réciteur + reprise, sans tap —
     // seulement si le réglage est activé (sinon comportement inchangé,
     // correction disponible uniquement au tap sur le mot). ref.keepAlive()
     // dans recitationProvider (cf. recitation_provider.dart) garantit que
     // cette instance ne change plus sous nos pieds après cet abonnement.
-    _wordFailedSub = ref.read(recitationProvider.notifier).wordFailed.listen(
-        (i) => _onWordFailed(i,
-            raison: 'mot precedent egalement en echec (deux consecutifs)'));
+    _wordFailedSub = ref
+        .read(recitationProvider.notifier)
+        .wordFailed
+        .listen(
+          (i) => _onWordFailed(
+            i,
+            raison: 'mot precedent egalement en echec (deux consecutifs)',
+          ),
+        );
     // ARCHIVE DU COACH : tout mot verrouillé non vert, sans condition.
     // Distinct de `wordFailed` à dessein -- celui-ci pilote la correction et
     // est filtré (réglage, anti-rafale, mode) ; un mot rouge qui n'interrompt
@@ -693,8 +721,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // `wordFailed` (qui, lui, parle d'un mot attendu mal jugé) : ici, ce
     // n'est pas un mot qui est faux, c'est la récitation qui a quitté le
     // texte. On reprend la main sur le mot courant.
-    _decrochageSub =
-        ref.read(recitationProvider.notifier).decrochageDetecte.listen((ancre) {
+    _decrochageSub = ref.read(recitationProvider.notifier).decrochageDetecte.listen((
+      ancre,
+    ) {
       // NE PAS décrocher avant que la récitation ait VRAIMENT commencé
       // (2026-08-05, même raison que le minuteur de silence retiré ci-dessus,
       // confirmée par l'utilisateur sur ce cas précis : « je n'ai pas parlé,
@@ -705,17 +734,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // "الٓمٓ" mal reconnu, pas du texte étranger.
       final words = ref.read(recitationProvider).words;
       final premierReel = words.indexWhere((w) => !w.isBasmala);
-      if (premierReel >= 0 && ancre <= premierReel && !words[premierReel].locked) {
-        DiagnosticLog.log('Decrochage',
-            'ignoré : premier mot réel (mot=$premierReel) pas encore verrouillé');
+      if (premierReel >= 0 &&
+          ancre <= premierReel &&
+          !words[premierReel].locked) {
+        DiagnosticLog.log(
+          'Decrochage',
+          'ignoré : premier mot réel (mot=$premierReel) pas encore verrouillé',
+        );
         return;
       }
       // OUBLI archivé ICI, indépendamment du verdict final du mot (2026-08-09,
       // cf. `_archiverOubli`) : que la reprise soit jugée verte ou non, le
       // décrochage a bien eu lieu.
       unawaited(_archiverOubli(ancre, avecAudio: true));
-      _onWordFailed(ancre,
-          surSilence: true, raison: 'decrochage v2 (hors texte ou trou)');
+      _onWordFailed(
+        ancre,
+        surSilence: true,
+        raison: 'decrochage v2 (hors texte ou trou)',
+      );
     });
   }
 
@@ -747,24 +783,28 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final chunk = _buildChunk(_verses, null, bismillahVerse);
     final t2 = DateTime.now();
     final wordKeys = List.generate(
-        ArabicNormalizer.splitExpectedWords(chunk.text).length,
-        (_) => GlobalKey());
+      ArabicNormalizer.splitExpectedWords(chunk.text).length,
+      (_) => GlobalKey(),
+    );
     final t3 = DateTime.now();
     final initialSurahs = _verses.map((v) => v.surahNumber).toSet();
-    final metaEntries = await Future.wait(initialSurahs.map((n) async {
-      try {
-        return MapEntry(n, await _fetchSurahMeta(n));
-      } catch (_) {
-        return null;
-      }
-    }));
+    final metaEntries = await Future.wait(
+      initialSurahs.map((n) async {
+        try {
+          return MapEntry(n, await _fetchSurahMeta(n));
+        } catch (_) {
+          return null;
+        }
+      }),
+    );
     final t4 = DateTime.now();
     if (!mounted) return;
     setState(() {
       _tajwidSpans = chunk.spans;
       _wordKeys = wordKeys;
-      _bismillahWordCount =
-          ArabicNormalizer.splitExpectedWords(bismillahVerse.textUthmani).length;
+      _bismillahWordCount = ArabicNormalizer.splitExpectedWords(
+        bismillahVerse.textUthmani,
+      ).length;
       for (final e in metaEntries) {
         if (e != null) _surahMeta[e.key] = e.value;
       }
@@ -780,12 +820,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // sans avoir a re-instrumenter -- et sans noyer le log le reste du
       // temps. Seuil large devant les 24 ms mesures.
       if (ms(t0, t6) > 200) {
-        DiagnosticLog.log('Relecture',
+        DiagnosticLog.log(
+          'Relecture',
           'ouverture ${ms(t0, t6)} ms | bismillah=${ms(t0, t1)} '
-          'blocs+tajwid=${ms(t1, t2)} cles=${ms(t2, t3)} '
-          'meta=${ms(t3, t4)} tableVersets=${ms(t4, t5)} '
-          'etat=${ms(t5, t6)} | versets=${_verses.length} '
-          'mots=${wordKeys.length}');
+              'blocs+tajwid=${ms(t1, t2)} cles=${ms(t2, t3)} '
+              'meta=${ms(t3, t4)} tableVersets=${ms(t4, t5)} '
+              'etat=${ms(t5, t6)} | versets=${_verses.length} '
+              'mots=${wordKeys.length}',
+        );
       }
       _ready = true;
     });
@@ -831,35 +873,38 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // JUSTE -- c'est tout le principe d'une table qui ne garde que les
       // exceptions. Au-dela de l'ancre (ou pour une portion, cf.
       // `motsAtteintsRelecture`), l'absence signifie « jamais recite ».
-      final atteint = widget.motsAtteintsRelecture != null &&
+      final atteint =
+          widget.motsAtteintsRelecture != null &&
           i < widget.motsAtteintsRelecture!;
       if (atteint) dernierJuge = i;
-      out.add(RecitedWord(
-        display: mots[i],
-        normalized: warsh
-            ? ArabicNormalizer.normalizeWarsh(mots[i])
-            : ArabicNormalizer.normalize(mots[i]),
-        strict: warsh
-            ? ArabicNormalizer.normalizeStrictWarsh(mots[i])
-            : ArabicNormalizer.normalizeStrict(mots[i]),
-        training: warsh
-            ? ArabicNormalizer.normalizeTrainingWarsh(mots[i])
-            : ArabicNormalizer.normalizeTraining(mots[i]),
-        status: v?.statut ??
-            (atteint ? WordStatus.correct : WordStatus.pending),
-        // ── `locked: true` EN RELECTURE (2026-08-15) ────────────────────
-        // AVANT : « `locked` reste faux : rien n'est en cours de jugement
-        // ici ». Vrai sur l'intention, faux sur l'effet -- l'AFFICHAGE du
-        // rouge est garde par `locked` (pas celui du vert), donc AUCUN mot
-        // archive `error` ne pouvait s'afficher en rouge : il sortait en creme
-        // nu, a cote des verts et des orange. C'est le cas le plus visible du
-        // « mot sans couleur » signale par l'utilisateur.
-        // Ici le verdict vient de la BASE : il est definitif par construction,
-        // rien ne le rejugera, aucun clignotement n'est possible.
-        locked: v != null,
-        heard: v?.entendu ?? '',
-        isBasmala: verse == null,
-      ));
+      out.add(
+        RecitedWord(
+          display: mots[i],
+          normalized: warsh
+              ? ArabicNormalizer.normalizeWarsh(mots[i])
+              : ArabicNormalizer.normalize(mots[i]),
+          strict: warsh
+              ? ArabicNormalizer.normalizeStrictWarsh(mots[i])
+              : ArabicNormalizer.normalizeStrict(mots[i]),
+          training: warsh
+              ? ArabicNormalizer.normalizeTrainingWarsh(mots[i])
+              : ArabicNormalizer.normalizeTraining(mots[i]),
+          status:
+              v?.statut ?? (atteint ? WordStatus.correct : WordStatus.pending),
+          // ── `locked: true` EN RELECTURE (2026-08-15) ────────────────────
+          // AVANT : « `locked` reste faux : rien n'est en cours de jugement
+          // ici ». Vrai sur l'intention, faux sur l'effet -- l'AFFICHAGE du
+          // rouge est garde par `locked` (pas celui du vert), donc AUCUN mot
+          // archive `error` ne pouvait s'afficher en rouge : il sortait en creme
+          // nu, a cote des verts et des orange. C'est le cas le plus visible du
+          // « mot sans couleur » signale par l'utilisateur.
+          // Ici le verdict vient de la BASE : il est definitif par construction,
+          // rien ne le rejugera, aucun clignotement n'est possible.
+          locked: v != null,
+          heard: v?.entendu ?? '',
+          isBasmala: verse == null,
+        ),
+      );
     }
     return RecitationSessionState(
       words: out,
@@ -895,20 +940,25 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final text = chunk.text;
     final tajwidSpans = chunk.spans;
     final wordKeys = List.generate(
-        ArabicNormalizer.splitExpectedWords(text).length, (_) => GlobalKey());
-    final bismillahWordCount =
-        ArabicNormalizer.splitExpectedWords(bismillahVerse.textUthmani).length;
+      ArabicNormalizer.splitExpectedWords(text).length,
+      (_) => GlobalKey(),
+    );
+    final bismillahWordCount = ArabicNormalizer.splitExpectedWords(
+      bismillahVerse.textUthmani,
+    ).length;
     // Métadonnées (nom, nombre de versets) de la/les sourate(s) initiale(s) —
     // pour le bandeau de transition (cf. _SurahTransitionBanner), affiché dès
     // le tout premier mot, pas seulement aux enchaînements ultérieurs.
     final initialSurahs = _verses.map((v) => v.surahNumber).toSet();
-    final metaEntries = await Future.wait(initialSurahs.map((n) async {
-      try {
-        return MapEntry(n, await _fetchSurahMeta(n));
-      } catch (_) {
-        return null;
-      }
-    }));
+    final metaEntries = await Future.wait(
+      initialSurahs.map((n) async {
+        try {
+          return MapEntry(n, await _fetchSurahMeta(n));
+        } catch (_) {
+          return null;
+        }
+      }),
+    );
     if (!mounted) return;
     // setup() AVANT de rendre l'écran interactif (_ready=true) : sinon un tap
     // assez rapide entre les deux tombe sur state.words encore vide et
@@ -931,14 +981,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _rebuildWordVerseMap();
       _ready = true;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
       final notifier = ref.read(recitationProvider.notifier);
       // setupVerses (verset-conscient) : annote les règles tajwid pour le
       // modèle stage1b-260h (cible d'alignement = forme apprise avec symboles).
-      // Fire-and-forget : l'await interne (chargement des annotations, ~1x)
-      // ne bloque pas le frame ; _ready garde déjà l'écran non-interactif tant
-      // que ce callback n'a pas tourné (même garantie qu'avant avec setup()).
-      unawaited(notifier.setupVerses(chunk.segments));
+      // ChGPT: wait for this target, not words left by the previous screen.
+      await notifier.setupVerses(chunk.segments);
+      if (!mounted) return;
       // ── EN LECTURE, LA FENETRE N'A QU'UN TOUR (2026-09-05) ─────────────
       //
       // Defaut signale : « مَآ n'est ni vert ni violet ». Le journal le
@@ -960,6 +1010,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // (build()) ne rattrape que les CHANGEMENTS suivants, pas l'état
       // initial (même raison que le préchauffage de correction ci-dessous).
       notifier.setSensitivity(ref.read(correctionSensitivityProvider));
+      setState(() => _initialTargetReady = true);
+      await _autoDemarrage();
     });
     // Préchauffe le tout premier verset dès maintenant -- ref.listen (build())
     // ne se déclenche que sur les changements d'état SUIVANTS, pas sur l'état
@@ -982,6 +1034,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// atteigne réellement le dernier mot connu, la session se termine
   /// normalement (comportement inchangé) plutôt que de bloquer l'attente.
   Future<void> _maybeExtendNextPage() async {
+    if (!widget.autoriserEnchainement) return;
     if (_extending || _noMorePages || !mounted) return;
     if (_verses.isEmpty) return;
     // Capturé AVANT le premier `await` -- cf. la doc de
@@ -991,7 +1044,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final generationDepart = _generationRecitation;
     final lastVerse = _verses.last;
     final lastPage = lastVerse.pageNumber;
-    if (lastPage == null) return; // pagination inconnue -- pas d'enchaînement possible
+    if (lastPage == null)
+      return; // pagination inconnue -- pas d'enchaînement possible
     // ── FINIR LA PAGE COURANTE AVANT DE PASSER À LA SUIVANTE (2026-08-18) ───
     //
     // DÉFAUT CORRIGÉ ICI, constat utilisateur : « souvent la sourate suivante
@@ -1031,20 +1085,23 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           v.surahNumber > lastVerse.surahNumber ||
           (v.surahNumber == lastVerse.surahNumber &&
               v.ayahNumber > lastVerse.ayahNumber);
-      final restePageCourante = (await QuranApi.fetchVersesByPage(lastPage))
-          .where((v) => !known.contains(v.key) && apres(v))
-          .toList()
-        ..sort((a, b) => a.surahNumber != b.surahNumber
-            ? a.surahNumber.compareTo(b.surahNumber)
-            : a.ayahNumber.compareTo(b.ayahNumber));
+      final restePageCourante =
+          (await QuranApi.fetchVersesByPage(
+            lastPage,
+          )).where((v) => !known.contains(v.key) && apres(v)).toList()..sort(
+            (a, b) => a.surahNumber != b.surahNumber
+                ? a.surahNumber.compareTo(b.surahNumber)
+                : a.ayahNumber.compareTo(b.ayahNumber),
+          );
       if (!mounted) return;
       if (restePageCourante.isNotEmpty) {
         inedits = restePageCourante;
         DiagnosticLog.log(
-            'Karaoke',
-            'fin de la page $lastPage en premier : '
-            '${restePageCourante.length} verset(s) restant(s) '
-            '(sourate(s) ${restePageCourante.map((v) => v.surahNumber).toSet().join(",")})');
+          'Karaoke',
+          'fin de la page $lastPage en premier : '
+              '${restePageCourante.length} verset(s) restant(s) '
+              '(sourate(s) ${restePageCourante.map((v) => v.surahNumber).toSet().join(",")})',
+        );
       } else {
         final nextPage = lastPage + 1;
         if (nextPage > 604) {
@@ -1103,40 +1160,55 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           .where((n) => n != lastVerse.surahNumber)
           .toSet();
       if (nouvellesSourates.isNotEmpty) {
-        DiagnosticLog.log('Karaoke',
-            'enchaînement vers la/les sourate(s) '
-            '${nouvellesSourates.join(",")} (page $nextPage) -- '
-            'la sourate ${lastVerse.surahNumber} garde son propre score');
+        DiagnosticLog.log(
+          'Karaoke',
+          'enchaînement vers la/les sourate(s) '
+              '${nouvellesSourates.join(",")} (page $nextPage) -- '
+              'la sourate ${lastVerse.surahNumber} garde son propre score',
+        );
       }
       final bismillahVerse = await QuranApi.fetchBismillah();
       // _buildChunk insère une Bismillah devant CHAQUE début de sourate dans
       // ce lot (une page peut contenir plusieurs débuts de sourate, contraire
       // à l'ancienne version qui en supposait exactement un par appel).
-      final chunk = _buildChunk(nextVerses, lastVerse.surahNumber, bismillahVerse);
+      final chunk = _buildChunk(
+        nextVerses,
+        lastVerse.surahNumber,
+        bismillahVerse,
+      );
       // Métadonnées pour le bandeau de transition -- best-effort, seulement
       // pour les sourates pas déjà en cache.
       final newSurahs = nextVerses.map((v) => v.surahNumber).toSet()
         ..removeWhere(_surahMeta.containsKey);
-      final metaEntries = await Future.wait(newSurahs.map((n) async {
-        try {
-          return MapEntry(n, await _fetchSurahMeta(n));
-        } catch (_) {
-          return null;
-        }
-      }));
+      final metaEntries = await Future.wait(
+        newSurahs.map((n) async {
+          try {
+            return MapEntry(n, await _fetchSurahMeta(n));
+          } catch (_) {
+            return null;
+          }
+        }),
+      );
       if (!mounted) return;
       if (generationDepart != _generationRecitation) {
         // « Refaire » a été tapé pendant cette extension -- cf. la doc de
         // `_generationRecitation` : l'écran a déjà été remis à zéro, cette
         // extension appartient à une tentative abandonnée. Ne PAS écrire.
-        DiagnosticLog.log('Karaoke',
-            'enchaînement page $nextPage abandonné : refaire tapé entre-temps');
+        DiagnosticLog.log(
+          'Karaoke',
+          'enchaînement page $nextPage abandonné : refaire tapé entre-temps',
+        );
         return;
       }
-      final newWordCount = ArabicNormalizer.splitExpectedWords(chunk.text).length;
+      final newWordCount = ArabicNormalizer.splitExpectedWords(
+        chunk.text,
+      ).length;
       final newKeys = List.generate(newWordCount, (_) => GlobalKey());
-      DiagnosticLog.log('Karaoke', 'Enchaînement page $nextPage : '
-          '+${nextVerses.length} versets, +$newWordCount mots');
+      DiagnosticLog.log(
+        'Karaoke',
+        'Enchaînement page $nextPage : '
+            '+${nextVerses.length} versets, +$newWordCount mots',
+      );
       setState(() {
         _verses = [..._verses, ...nextVerses];
         _tajwidSpans = [...?_tajwidSpans, ...chunk.spans];
@@ -1230,9 +1302,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     setState(() => _promptingWord = true);
     final verifier = ref.read(recitationVerifierProvider);
     final wasListening = st.status == RecitationStatus.listening;
-    DiagnosticLog.log('Souffleur', 'demande mot pointer=$pointer '
-        'mot="${pointer < st.words.length ? st.words[pointer].display : "?"}" '
-        'verset=${verse.key} local=$local');
+    DiagnosticLog.log(
+      'Souffleur',
+      'demande mot pointer=$pointer '
+          'mot="${pointer < st.words.length ? st.words[pointer].display : "?"}" '
+          'verset=${verse.key} local=$local',
+    );
     try {
       if (wasListening) await verifier.pauseCapture();
       // riwaya de LA SESSION (pas du réglage global vivant) -- cf.
@@ -1251,17 +1326,26 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // Aligne ce réglage sur celui déjà en vigueur pour le décrochage
         // (`_kCorrectionWordsBefore = 1`, cf. sa doc) -- les deux jouaient
         // jusqu'ici des fenêtres différentes sans raison de fond.
-        await WordCorrectionAudio.playWordRange(verse, reciter,
-            errorWordIndex: local, wordsBefore: 1, wordsAfter: 1);
+        await WordCorrectionAudio.playWordRange(
+          verse,
+          reciter,
+          errorWordIndex: local,
+          wordsBefore: 1,
+          wordsAfter: 1,
+        );
       } catch (e) {
         // Même raison que dans _onWordFailed : audio/timing indisponible pour
         // ce récitateur/verset ne doit jamais casser la session en cours.
         DiagnosticLog.log('Souffleur', 'échec lecture : $e');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            duration: const Duration(seconds: 2),
-            content: Text(AppLocalizations.of(context)!.karaokeAudioUnavailable),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 2),
+              content: Text(
+                AppLocalizations.of(context)!.karaokeAudioUnavailable,
+              ),
+            ),
+          );
         }
       }
       // Laisse le haut-parleur se taire avant de rouvrir le micro.
@@ -1284,6 +1368,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _garderEcranAllume(false);
     _breath.dispose();
     _glypheTimer?.cancel();
@@ -1301,9 +1386,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // ni capture armée ni session à clore : on le dit, on ne lève pas.
     final container = _container;
     if (container == null) {
-      DiagnosticLog.log('Archive',
-          'sortie d\'ecran : conteneur absent (demontage avant le premier '
-          'build) -- rien a clore');
+      DiagnosticLog.log(
+        'Archive',
+        'sortie d\'ecran : conteneur absent (demontage avant le premier '
+            'build) -- rien a clore',
+      );
       // Le forcage tajwid pose a l'ouverture (initState) ne peut PAS etre
       // defait ici : ce chemin signifie qu'aucun `_container` n'a jamais ete
       // capture (demontage avant le premier `build`, cf. sa capture plus bas
@@ -1358,7 +1445,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       rafraichirTableauDeBordCoach(container.invalidate);
     } catch (e) {
       DiagnosticLog.log(
-          'Archive', 'sortie d\'ecran : invalidation cache a echoue (sans consequence) : $e');
+        'Archive',
+        'sortie d\'ecran : invalidation cache a echoue (sans consequence) : $e',
+      );
     }
     // ── CAUSE RACINE CORRIGÉE (2026-07-25) ───────────────────────────────
     // Ici, `dispose()` SUPPRIMAIT le dossier temporaire de capture
@@ -1463,12 +1552,17 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // fermée sur l'avant-dernier verdict que pas d'archive du tout.
         await notifier.stopContinuous().timeout(
           const Duration(seconds: 5),
-          onTimeout: () => DiagnosticLog.log('ASR',
-              'sortie d\'ecran : stopContinuous n\'a pas rendu la main en 5 s '
-              '-- on ferme quand meme l\'archive'),
+          onTimeout: () => DiagnosticLog.log(
+            'ASR',
+            'sortie d\'ecran : stopContinuous n\'a pas rendu la main en 5 s '
+                '-- on ferme quand meme l\'archive',
+          ),
         );
       } catch (e) {
-        DiagnosticLog.log('ASR', 'sortie d\'ecran : stopContinuous a echoue : $e');
+        DiagnosticLog.log(
+          'ASR',
+          'sortie d\'ecran : stopContinuous a echoue : $e',
+        );
       }
       // ── LE MÊME TRAITEMENT DE FIN QUE LA PAUSE, SUR LA FLÈCHE RETOUR ──────
       //
@@ -1492,13 +1586,17 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       try {
         await verifier.finaliserPourPause().timeout(
           const Duration(seconds: 5),
-          onTimeout: () => DiagnosticLog.log('ASR',
-              'sortie d\'ecran : finalisation de la queue audio abandonnee '
-              'apres 5 s'),
+          onTimeout: () => DiagnosticLog.log(
+            'ASR',
+            'sortie d\'ecran : finalisation de la queue audio abandonnee '
+                'apres 5 s',
+          ),
         );
       } catch (e) {
         DiagnosticLog.log(
-            'ASR', 'sortie d\'ecran : finalisation audio a echoue : $e');
+          'ASR',
+          'sortie d\'ecran : finalisation audio a echoue : $e',
+        );
       }
       // ── CLÔTURE DE L'ARCHIVE, APRÈS stopContinuous() (2026-08-13) ─────────
       //
@@ -1525,7 +1623,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         await _cloturerArchive(notifier.etatCourant);
       } catch (e) {
         DiagnosticLog.log(
-            'Archive', 'sortie d\'ecran : cloture archive a echoue : $e');
+          'Archive',
+          'sortie d\'ecran : cloture archive a echoue : $e',
+        );
       }
       try {
         await verifier.stop();
@@ -1536,7 +1636,6 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }());
     super.dispose();
   }
-
 
   /// Archive un mot verrouillé non vert : le verdict ET la voix du récitant.
   ///
@@ -1565,7 +1664,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     } catch (e) {
       // Audio sorti de l'anneau, ou chaîne déjà fermée : le verdict s'archive
       // quand même. Ne jamais laisser une panne d'audio faire perdre la trace.
-      DiagnosticLog.log('Archive', 'extrait voix impossible mot=$wordIndex : $e');
+      DiagnosticLog.log(
+        'Archive',
+        'extrait voix impossible mot=$wordIndex : $e',
+      );
     }
     await SessionArchiveService.instance.archiverMot(
       wordIndex: wordIndex,
@@ -1603,9 +1705,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           : const <TajwidRule>[];
       // Mot « frontière » : une règle de jonction (ikhafa/iqlab/idgham) se
       // joue sur DEUX mots -- garder le suivant pour l'afficher en paire.
-      final isBoundary = rules.isNotEmpty &&
-          RuleAnnotationService.instance
-              .isBoundaryWord(verse.surahNumber, verse.ayahNumber, local);
+      final isBoundary =
+          rules.isNotEmpty &&
+          RuleAnnotationService.instance.isBoundaryWord(
+            verse.surahNumber,
+            verse.ayahNumber,
+            local,
+          );
       final pairWord = isBoundary && wordIndex + 1 < words.length
           ? words[wordIndex + 1].display
           : null;
@@ -1659,7 +1765,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       final locale = Locale(ref.read(appLocaleProvider));
       for (final v in _verses) {
         final info = await PortionService.resolve(
-            verse: v, granularity: granularite, locale: locale);
+          verse: v,
+          granularity: granularite,
+          locale: locale,
+        );
         if (!dejaVues.add(info.unitKey)) continue;
         final departDuQuart = v.ayahNumber == info.firstAyah;
         if (departDuQuart) {
@@ -1668,28 +1777,37 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           if (fois <= _kPlafondRepetitionsParJour) quartsRepetesRecompenses++;
         }
         final apres = await SessionArchiveService.instance.portionParCle(
-            v.surahNumber, info.unitKey,
-            riwaya: _lireProvider(recitationProvider).riwaya == Riwaya.warsh
-                ? 'warsh'
-                : 'hafs');
+          v.surahNumber,
+          info.unitKey,
+          riwaya: _lireProvider(recitationProvider).riwaya == Riwaya.warsh
+              ? 'warsh'
+              : 'hafs',
+        );
         if (apres != null && apres.badge && departDuQuart) quartsValides++;
       }
       final bonusDepart = quartsRepetesRecompenses > 0;
       final multiplicateur = quartsRepetesRecompenses <= 0
           ? 1.0
-          : _kMultiplicateurEnchainement[
-              (quartsRepetesRecompenses - 1).clamp(0, 3)];
-      final points =
-          (wordsGreen * (bonusDepart ? 1.5 : 1.0) * multiplicateur).round();
+          : _kMultiplicateurEnchainement[(quartsRepetesRecompenses - 1).clamp(
+              0,
+              3,
+            )];
+      final points = (wordsGreen * (bonusDepart ? 1.5 : 1.0) * multiplicateur)
+          .round();
       await SessionArchiveService.instance.ajouterActiviteDuJour(
-          mots: wordsGreen, quartsValides: quartsValides, points: points);
+        mots: wordsGreen,
+        quartsValides: quartsValides,
+        points: points,
+      );
       final ObjectifCoach objectif =
           _dernierObjectifConnu ?? ref.read(objectifCoachProvider);
       if (objectif.actif) {
-        final aujourdhui =
-            await SessionArchiveService.instance.derniersJours(n: 1);
-        final motsDuJour =
-            aujourdhui.isEmpty ? 0 : aujourdhui.first.motsRecites;
+        final aujourdhui = await SessionArchiveService.instance.derniersJours(
+          n: 1,
+        );
+        final motsDuJour = aujourdhui.isEmpty
+            ? 0
+            : aujourdhui.first.motsRecites;
         // ── LE SEUIL DU JOUR EST DÉRIVÉ DE L'OBJECTIF (2026-08-14) ────────
         //
         // AVANT : `motsDuJour >= 150`, une constante en dur, la MÊME que
@@ -1719,12 +1837,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // par jour et la série ne pourrait plus se rompre.
         final quartsAcquis =
             (await SessionArchiveService.instance.motsAcquisTousCoran()) /
-                ObjectifCoach.motsParQuart;
+            ObjectifCoach.motsParQuart;
         final rythme = objectif.rythmePour(quartsAcquis);
         await SessionArchiveService.instance.marquerObjectifDuJour(
           seuilMots: rythme.seuilMotsParJour,
-          atteint:
-              quartsValides > 0 || motsDuJour >= rythme.seuilMotsParJour,
+          atteint: quartsValides > 0 || motsDuJour >= rythme.seuilMotsParJour,
         );
       }
     } catch (e) {
@@ -1790,8 +1907,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final etat = _dernierEtatConnu;
     if (etat == null) return;
     final words = etat.words;
-    final ancreMax = words.lastIndexWhere((w) =>
-            w.status != WordStatus.pending && w.status != WordStatus.current) +
+    final ancreMax =
+        words.lastIndexWhere(
+          (w) =>
+              w.status != WordStatus.pending && w.status != WordStatus.current,
+        ) +
         1;
     var aTraiter = 0, ecrits = 0, echecs = 0;
     for (var i = 0; i < ancreMax; i++) {
@@ -1825,8 +1945,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // confirmé reste neutralisé (c'est lui le vrai défaut d'origine, cf.
       // le mot 20 cité plus haut) ; un provisoire VERT compte comme un mot
       // acquis normal, exactement comme le fait déjà la session.
-      final status =
-          words[i].status == WordStatus.correct ? 'correct' : 'skipped';
+      final status = words[i].status == WordStatus.correct
+          ? 'correct'
+          : 'skipped';
       // ── LA VOIX MANQUAIT ICI AUSSI (2026-09-12) ─────────────────────────
       //
       // Constat utilisateur sur l'ecran des portions (« mots en erreur ») :
@@ -1845,19 +1966,23 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       String? extrait;
       if (status != 'correct') {
         try {
-          extrait = await _lireProvider(recitationVerifierProvider)
-              .v2ExtraitVoix(i > 0 ? i - 1 : i, i);
+          extrait = await _lireProvider(
+            recitationVerifierProvider,
+          ).v2ExtraitVoix(i > 0 ? i - 1 : i, i);
         } catch (e) {
-          DiagnosticLog.log('Archive',
-              'extrait voix (mot non juge, portion) impossible mot=$i : $e');
+          DiagnosticLog.log(
+            'Archive',
+            'extrait voix (mot non juge, portion) impossible mot=$i : $e',
+          );
         }
       }
       try {
         final granularite = _lireProvider(portionGranularityProvider);
         final portion = await PortionService.resolve(
-            verse: verse,
-            granularity: granularite,
-            locale: Locale(_lireProvider(appLocaleProvider)));
+          verse: verse,
+          granularity: granularite,
+          locale: Locale(_lireProvider(appLocaleProvider)),
+        );
         await SessionArchiveService.instance.upsertPortionWord(
           surahNumber: verse.surahNumber,
           unitKey: portion.unitKey,
@@ -1880,7 +2005,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       } catch (e) {
         echecs++;
         DiagnosticLog.log(
-            'Archive', 'archivage mot non juge impossible mot=$i : $e');
+          'Archive',
+          'archivage mot non juge impossible mot=$i : $e',
+        );
       }
     }
     // ── LA DIVERGENCE ÉCRAN / COACH DOIT SE VOIR (2026-08-18) ──────────────
@@ -1896,10 +2023,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // qu'il a tourné et que rien n'a été perdu.
     if (aTraiter > 0) {
       DiagnosticLog.log(
-          'Archive',
-          'mots non verrouilles : $aTraiter vu(s), $ecrits ecrit(s), '
-              '$echecs echec(s)'
-              '${echecs > 0 ? " -- ECRAN ET COACH VONT DIVERGER" : ""}');
+        'Archive',
+        'mots non verrouilles : $aTraiter vu(s), $ecrits ecrit(s), '
+            '$echecs echec(s)'
+            '${echecs > 0 ? " -- ECRAN ET COACH VONT DIVERGER" : ""}',
+      );
     }
   }
 
@@ -1980,10 +2108,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       try {
         extrait = await ref
             .read(recitationVerifierProvider)
-            .v2ExtraitVoix(wordIndex > 0 ? wordIndex - 1 : wordIndex, wordIndex);
+            .v2ExtraitVoix(
+              wordIndex > 0 ? wordIndex - 1 : wordIndex,
+              wordIndex,
+            );
       } catch (e) {
         DiagnosticLog.log(
-            'Archive', 'extrait voix (oubli) impossible mot=$wordIndex : $e');
+          'Archive',
+          'extrait voix (oubli) impossible mot=$wordIndex : $e',
+        );
       }
     }
     await SessionArchiveService.instance.archiverMot(
@@ -2056,8 +2189,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // `words_reached = 296` en base pour une ancre réelle de 295, mesuré sur
     // la recette déterministe. Un mot jamais jugé n'a rien à faire dans un
     // taux de réussite.
-    final ancreMax = words.lastIndexWhere((w) =>
-            w.status != WordStatus.pending && w.status != WordStatus.current) +
+    final ancreMax =
+        words.lastIndexWhere(
+          (w) =>
+              w.status != WordStatus.pending && w.status != WordStatus.current,
+        ) +
         1;
     // ── LA BISMILLAH EXCLUE DU TAUX (2026-08-09, constat utilisateur : « 70 %
     // alors qu'un seul mot en erreur ») ────────────────────────────────────
@@ -2162,7 +2298,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// `insert` PUR (pas un upsert) — archiver en cours de route laisserait une
   /// ligne rouge définitive sur un mot finalement juste.
   Future<void> _archiverNonVertsNonVerrouilles(
-      RecitationSessionState? etatPrecis) async {
+    RecitationSessionState? etatPrecis,
+  ) async {
     if (_sansStatistiques) return;
     if (SessionArchiveService.instance.sessionCourante == null) return;
     final etat = etatPrecis ?? _dernierEtatConnu;
@@ -2171,8 +2308,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // Même borne que `_compterMots` : l'ancre max, pas la cible — s'arrêter au
     // milieu d'une sourate n'est pas une faute, et les mots jamais atteints
     // n'ont aucune voix à archiver.
-    final ancreMax = words.lastIndexWhere((w) =>
-            w.status != WordStatus.pending && w.status != WordStatus.current) +
+    final ancreMax =
+        words.lastIndexWhere(
+          (w) =>
+              w.status != WordStatus.pending && w.status != WordStatus.current,
+        ) +
         1;
     var archives = 0, avecVoix = 0;
     for (var i = 0; i < ancreMax; i++) {
@@ -2188,13 +2328,16 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       try {
         // Même fenêtre que `_archiverMotNonVert` et que la fiche d'aide :
         // `mot-1 .. mot`, le précédent portant la liaison et le madd de fin.
-        extrait = await _lireProvider(recitationVerifierProvider)
-            .v2ExtraitVoix(i > 0 ? i - 1 : i, i);
+        extrait = await _lireProvider(
+          recitationVerifierProvider,
+        ).v2ExtraitVoix(i > 0 ? i - 1 : i, i);
       } catch (e) {
         // L'audio est un bonus, jamais une condition : le verdict s'archive
         // quand même (même règle que `SessionArchiveService.archiverMot`).
-        DiagnosticLog.log('Archive',
-            'extrait voix impossible (mot jamais verrouille) mot=$i : $e');
+        DiagnosticLog.log(
+          'Archive',
+          'extrait voix impossible (mot jamais verrouille) mot=$i : $e',
+        );
       }
       if (extrait != null) avecVoix++;
       await SessionArchiveService.instance.archiverMot(
@@ -2215,9 +2358,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // C'est exactement ce qui manquait pour répondre « pourquoi pas de clip »
     // sans relire tout le journal de la chaîne.
     DiagnosticLog.log(
-        'Archive',
-        'non verts jamais verrouilles : $archives archive(s), '
-        '$avecVoix avec voix');
+      'Archive',
+      'non verts jamais verrouilles : $archives archive(s), '
+          '$avecVoix avec voix',
+    );
   }
 
   Future<void> _cloturerArchive([RecitationSessionState? etatPrecis]) async {
@@ -2340,10 +2484,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // Le journal d'erreurs ci-dessus est deliberement AVANT ce point : on
     // continue d'enregistrer tout ce qu'on ne dit plus.
     if (!surSilence) {
-      DiagnosticLog.log('Correction',
-          'mot $wordIndex : erreur isolee, aucune interruption (mode retire '
-          'le 2026-08-07 -- le verdict arrive 4 a 8 s trop tard). Le mot reste '
-          'colore et archive pour revue dans le Coach.');
+      DiagnosticLog.log(
+        'Correction',
+        'mot $wordIndex : erreur isolee, aucune interruption (mode retire '
+            'le 2026-08-07 -- le verdict arrive 4 a 8 s trop tard). Le mot reste '
+            'colore et archive pour revue dans le Coach.',
+      );
       return;
     }
     // Jamais de correction pendant une récitation de RÉFÉRENCE (demande
@@ -2352,8 +2498,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // l'interrompre pour corriger fausserait justement ce qu'on cherche à
     // mesurer.
     if (_isReferenceSession) {
-      DiagnosticLog.log('Correction',
-          'IGNORÉ mot $wordIndex : session de référence');
+      DiagnosticLog.log(
+        'Correction',
+        'IGNORÉ mot $wordIndex : session de référence',
+      );
       return;
     }
     // Strict/tolérant (demande utilisateur 2026-07-06) : en mode tolérant,
@@ -2381,8 +2529,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // On ignore donc tout signal portant sur un mot situé DERRIÈRE celui que
     // la v2 suit. Corriger le passé n'a aucun intérêt : ce qui aide, c'est la
     // suite.
-    final suiviMaintenant =
-        words.indexWhere((w) => w.status == WordStatus.current);
+    final suiviMaintenant = words.indexWhere(
+      (w) => w.status == WordStatus.current,
+    );
     // ── UN DECROCHAGE SE REPETE TOUJOURS (2026-08-07) ─────────────────────
     //
     // Une premiere version ignorait ici un decrochage designant un mot situe
@@ -2401,9 +2550,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // exactement le palliatif que le projet interdit (corriger la ou le defaut
     // se VOIT et non la ou il NAIT).
     if (!surSilence && suiviMaintenant >= 0 && wordIndex < suiviMaintenant) {
-      DiagnosticLog.log('Correction',
-          'signal en retard sur le mot $wordIndex alors que le récitateur en '
-          'est au mot $suiviMaintenant -> ignoré (on ne rejoue pas le passé)');
+      DiagnosticLog.log(
+        'Correction',
+        'signal en retard sur le mot $wordIndex alors que le récitateur en '
+            'est au mot $suiviMaintenant -> ignoré (on ne rejoue pas le passé)',
+      );
       return;
     }
     // ── DÉCROCHAGE, PAS FAUTE ISOLÉE (2026-08-01) ─────────────────────────
@@ -2463,9 +2614,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // Mesuré : 1ʳᵉ correction complète, 2ᵉ décrochage signalé mais AUCUN
     // `wordFailed déclenché` ni `Correction-Audio` derrière.
     if (_autoCorrecting || _promptingWord) {
-      DiagnosticLog.log('Correction',
-          'IGNORÉ mot $wordIndex : action déjà en cours '
-          '(_autoCorrecting=$_autoCorrecting _promptingWord=$_promptingWord)');
+      DiagnosticLog.log(
+        'Correction',
+        'IGNORÉ mot $wordIndex : action déjà en cours '
+            '(_autoCorrecting=$_autoCorrecting _promptingWord=$_promptingWord)',
+      );
       return; // un mot/une action a la fois
     }
     // Anti-rafale (demande utilisateur 2026-07-06 : "il me donne pas le temps
@@ -2478,17 +2631,21 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // cascade côté reconnaissance.
     final cooldown = _correctionCooldownUntil;
     if (cooldown != null && DateTime.now().isBefore(cooldown)) {
-      DiagnosticLog.log('Correction',
-          'IGNORÉ mot $wordIndex : anti-rafale actif jusqu\'à $cooldown');
+      DiagnosticLog.log(
+        'Correction',
+        'IGNORÉ mot $wordIndex : anti-rafale actif jusqu\'à $cooldown',
+      );
       return;
     }
     final verse = _verseContaining(wordIndex);
     final local = _localIndexInVerse(wordIndex);
     if (verse == null || local == null) {
-      DiagnosticLog.log('Correction',
-          'IGNORÉ mot $wordIndex : position introuvable '
-          '(verset=${verse?.key} local=$local) -- mot hors des versets chargés '
-          'ou dans la Bismillah');
+      DiagnosticLog.log(
+        'Correction',
+        'IGNORÉ mot $wordIndex : position introuvable '
+            '(verset=${verse?.key} local=$local) -- mot hors des versets chargés '
+            'ou dans la Bismillah',
+      );
       return;
     }
     // Un seul essai forcé (demande utilisateur 2026-07-16 soir, réglable via
@@ -2507,9 +2664,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     if (ref.read(followWithoutBlockingProvider) &&
         _lastAutoCorrectedWordIndex == wordIndex) {
       _lastAutoCorrectedWordIndex = null;
-      DiagnosticLog.log('Correction',
-          'wordFailed déjà corrigé une fois sur ce mot -> on suit sans rebloquer : '
-          'wordIndex(global)=$wordIndex');
+      DiagnosticLog.log(
+        'Correction',
+        'wordFailed déjà corrigé une fois sur ce mot -> on suit sans rebloquer : '
+            'wordIndex(global)=$wordIndex',
+      );
       return;
     }
     // ── LE MOT EST-IL ENCORE FAUX ? (garde-fou 2026-07-25) ────────────────
@@ -2525,21 +2684,27 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // n'a AUCUN jugement (le récitateur ne l'a jamais dit) -- il est `current`
     // ou `pending`, ce qui ferait abandonner ce garde-fou alors que c'est
     // précisément le cas où il faut souffler.
-    final current =
-        wordIndex < words.length ? words[wordIndex].status : WordStatus.pending;
+    final current = wordIndex < words.length
+        ? words[wordIndex].status
+        : WordStatus.pending;
     if (!surSilence &&
         current != WordStatus.error &&
         current != WordStatus.unclear &&
         current != WordStatus.skipped) {
-      DiagnosticLog.log('Correction',
-          'ABANDON : le mot $wordIndex est repasse a $current avant la correction');
+      DiagnosticLog.log(
+        'Correction',
+        'ABANDON : le mot $wordIndex est repasse a $current avant la correction',
+      );
       return;
     }
-    DiagnosticLog.log('Correction', 'wordFailed déclenché : raison=$raison '
-        'wordIndex(global)=$wordIndex '
-        'mot="${wordIndex < words.length ? words[wordIndex].display : "?"}" '
-        'status=$current '
-        'verset=${verse.key} local(dans verset)=$local');
+    DiagnosticLog.log(
+      'Correction',
+      'wordFailed déclenché : raison=$raison '
+          'wordIndex(global)=$wordIndex '
+          'mot="${wordIndex < words.length ? words[wordIndex].display : "?"}" '
+          'status=$current '
+          'verset=${verse.key} local(dans verset)=$local',
+    );
     _lastAutoCorrectedWordIndex = wordIndex;
     _autoCorrecting = true;
     final notifier = ref.read(recitationProvider.notifier);
@@ -2606,7 +2771,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       //    « je suis oblige de reciter ».
       // Le decalage etait de NOTRE fait : c'est nous qui faisons entendre le
       // mot precedent.
-      final rewindTo = (wordIndex - _kCorrectionWordsBefore).clamp(0, wordIndex);
+      final rewindTo = (wordIndex - _kCorrectionWordsBefore).clamp(
+        0,
+        wordIndex,
+      );
       // ── PAS DE RECUL D'ANCRE QUAND LA v2 PILOTE (2026-08-01) ─────────────
       // `rewindAndUnlock` agit sur l'ancre et les verdicts de la v1. Or la v1
       // est COUPÉE dès que la v2 pilote (`v1Coupee` dans le plugin) : son
@@ -2651,9 +2819,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // JAMAIS EN SUIVI DE PRIERE : `ChaineRecitation.reculerAncre` refuse de
       // lui-meme quand `sautLibre` est actif.
       unawaited(ref.read(recitationVerifierProvider).v2ReculerAncre(rewindTo));
-      DiagnosticLog.log('Correction',
-          'ancre v2 reculee au mot $rewindTo -- les verdicts posterieurs sont '
-          'liberes, le passage peut etre repris et rejuge');
+      DiagnosticLog.log(
+        'Correction',
+        'ancre v2 reculee au mot $rewindTo -- les verdicts posterieurs sont '
+            'liberes, le passage peut etre repris et rejuge',
+      );
       if (mounted) setState(() => _resumeHintIndex = rewindTo);
       // riwaya de LA SESSION (pas du réglage global vivant) -- cf.
       // `RecitationSessionState.riwaya` et `PlayerNotifier.reciterPour`.
@@ -2680,47 +2850,50 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // n'entend que le premier. L'ancre recule bien sur TOUTE la plage
         // (cf. rewindAndUnlock ci-dessus, `remis en attente: N mot(s)`), donc
         // il sait ou reprendre et redit la suite de memoire.
-        await WordCorrectionAudio.playWordRange(verse, reciter,
-            errorWordIndex: local,
-            // DEUX SITUATIONS, DEUX AUDIOS (2026-08-01) :
-            //
-            //  - CORRECTION d'une faute : on redit le mot précédent PUIS le
-            //    mot fautif (`_kCorrectionWordsBefore`), pour que le
-            //    récitateur reprenne avec l'élan et se réentende dessus.
-            //
-            //  - BLOCAGE (silence, décrochage) : il faut lui donner LA SUITE.
-            //    Rejouer le mot d'avant serait lui répéter ce qu'il vient de
-            //    dire correctement -- défaut signalé par l'utilisateur :
-            //    « j'ai dit هُدًى لِّلْمُتَّقِينَ et l'audio me répète les deux
-            //    mots que je viens de dire alors qu'ils sont bien jugés ; il
-            //    fallait me dire la suite ». On part donc du premier mot NON
-            //    validé (déjà calculé par l'appelant) et on en donne deux.
-            // ⚠️ DÉFAUT CONNU (constaté 2026-08-15, CORRIGÉ le 2026-08-24) :
-            // cette expression et le recul de l'ancre (`rewindTo`, plus haut)
-            // divergeaient quand `surSilence` était vrai -- l'audio partait du
-            // mot N pendant que l'ancre revenait au mot N-1. La doc de
-            // `_kCorrectionWordsBefore` exige pourtant que « les deux ne soient
-            // JAMAIS réglés séparément ». Mesuré sur device (log 16:53:09,
-            // sourate 106) : `reprise=121`, `ancre reculee au mot 120`, audio
-            // `fromIdx=1 toIdx=2`.
-            // Un premier correctif avait été écrit puis RETIRÉ le 2026-08-15
-            // sur consigne utilisateur (« aucun changement sur mode ASR pour
-            // l'instant »).
-            //
-            // DÉCISION UTILISATEUR EXPLICITE (2026-08-24) : « je veux que
-            // l'audio commence du N-1 ». `wordsBefore` n'est plus conditionné
-            // par `surSilence` -- l'audio s'aligne désormais sur `rewindTo`
-            // dans les deux cas. Effet de bord ASSUMÉ, nommé et validé avant
-            // codage : ça réintroduit le cas que le retrait du 2026-08-01
-            // évitait (rejouer un mot déjà attesté avant de donner la suite,
-            // cf. le commentaire ci-dessus sur `هُدًى لِّلْمُتَّقِينَ`), ET ça
-            // porte le décrochage à 3 mots (N-1, N, N+1), au-dessus du
-            // plafond « 2 mots max » du 2026-07-25 -- l'utilisateur a choisi
-            // cette option en connaissance des deux, plutôt que
-            // `wordsBefore=1, wordsAfter=0` (2 mots, N-1 et N, sans "la
-            // suite").
-            wordsBefore: _kCorrectionWordsBefore,
-            wordsAfter: 1);
+        await WordCorrectionAudio.playWordRange(
+          verse,
+          reciter,
+          errorWordIndex: local,
+          // DEUX SITUATIONS, DEUX AUDIOS (2026-08-01) :
+          //
+          //  - CORRECTION d'une faute : on redit le mot précédent PUIS le
+          //    mot fautif (`_kCorrectionWordsBefore`), pour que le
+          //    récitateur reprenne avec l'élan et se réentende dessus.
+          //
+          //  - BLOCAGE (silence, décrochage) : il faut lui donner LA SUITE.
+          //    Rejouer le mot d'avant serait lui répéter ce qu'il vient de
+          //    dire correctement -- défaut signalé par l'utilisateur :
+          //    « j'ai dit هُدًى لِّلْمُتَّقِينَ et l'audio me répète les deux
+          //    mots que je viens de dire alors qu'ils sont bien jugés ; il
+          //    fallait me dire la suite ». On part donc du premier mot NON
+          //    validé (déjà calculé par l'appelant) et on en donne deux.
+          // ⚠️ DÉFAUT CONNU (constaté 2026-08-15, CORRIGÉ le 2026-08-24) :
+          // cette expression et le recul de l'ancre (`rewindTo`, plus haut)
+          // divergeaient quand `surSilence` était vrai -- l'audio partait du
+          // mot N pendant que l'ancre revenait au mot N-1. La doc de
+          // `_kCorrectionWordsBefore` exige pourtant que « les deux ne soient
+          // JAMAIS réglés séparément ». Mesuré sur device (log 16:53:09,
+          // sourate 106) : `reprise=121`, `ancre reculee au mot 120`, audio
+          // `fromIdx=1 toIdx=2`.
+          // Un premier correctif avait été écrit puis RETIRÉ le 2026-08-15
+          // sur consigne utilisateur (« aucun changement sur mode ASR pour
+          // l'instant »).
+          //
+          // DÉCISION UTILISATEUR EXPLICITE (2026-08-24) : « je veux que
+          // l'audio commence du N-1 ». `wordsBefore` n'est plus conditionné
+          // par `surSilence` -- l'audio s'aligne désormais sur `rewindTo`
+          // dans les deux cas. Effet de bord ASSUMÉ, nommé et validé avant
+          // codage : ça réintroduit le cas que le retrait du 2026-08-01
+          // évitait (rejouer un mot déjà attesté avant de donner la suite,
+          // cf. le commentaire ci-dessus sur `هُدًى لِّلْمُتَّقِينَ`), ET ça
+          // porte le décrochage à 3 mots (N-1, N, N+1), au-dessus du
+          // plafond « 2 mots max » du 2026-07-25 -- l'utilisateur a choisi
+          // cette option en connaissance des deux, plutôt que
+          // `wordsBefore=1, wordsAfter=0` (2 mots, N-1 et N, sans "la
+          // suite").
+          wordsBefore: _kCorrectionWordsBefore,
+          wordsAfter: 1,
+        );
       } catch (e) {
         // Ne bloque pas la correction si l'audio (URL/segments de timing)
         // est indisponible pour ce récitateur/verset — constat réel
@@ -2728,7 +2901,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         // des mots pourtant verrouillés rouge). Sans ce catch, une exception
         // ici empêchait rewindAndUnlock plus bas -> le mot restait verrouillé
         // à jamais, sans jamais pouvoir être retenté.
-        DiagnosticLog.log('Correction', 'Échec lecture audio de correction : $e');
+        DiagnosticLog.log(
+          'Correction',
+          'Échec lecture audio de correction : $e',
+        );
       }
       // Silence net avant de réécouter : marque clairement "à toi de parler"
       // plutôt qu'un enchaînement immédiat qui ressemble à une boucle.
@@ -2760,14 +2936,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // lecture, quand le réciteur écoute plutôt qu'il ne parle.
       await verifier.resumeCaptureAfterPlayback();
       _autoCorrecting = false;
-      _correctionCooldownUntil =
-          DateTime.now().add(const Duration(seconds: 4));
+      _correctionCooldownUntil = DateTime.now().add(const Duration(seconds: 4));
       if (mounted) {
         setState(() => _resumeHintIndex = wordIndex);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          duration: const Duration(seconds: 3),
-          content: Text(AppLocalizations.of(context)!.karaokeRepeatIndicated),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 3),
+            content: Text(AppLocalizations.of(context)!.karaokeRepeatIndicated),
+          ),
+        );
       }
     }
   }
@@ -2820,8 +2997,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   Color get _encreTajwid => ref.watch(modeSombreProvider)
       ? AppColors.cream
       : (ref.watch(kindleModeProvider)
-          ? AppColors.kindleInk
-          : const Color(0xFF1A1208));
+            ? AppColors.kindleInk
+            : const Color(0xFF1A1208));
 
   /// ── L'ACCENT DE `_topBar` SUIT LE MEME THEME (2026-09-11) ────────────────
   ///
@@ -2845,7 +3022,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// dilution de l'un vers l'autre. Cf. `_surAccentTajwid` pour la couleur a
   /// poser PAR-DESSUS cet accent (pastille du bouton pause).
   Color get _accentTajwid => widget.modeTajwid
-      ? (ref.watch(modeSombreProvider) ? AppColors.brassLight : AppColors.green800)
+      ? (ref.watch(modeSombreProvider)
+            ? AppColors.brassLight
+            : AppColors.green800)
       : AppColors.brassLight;
 
   /// Couleur a poser SUR `_accentTajwid` (ex. l'icone dans la pastille du
@@ -2854,19 +3033,19 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// (fonce) -- les deux seuls cas que `_accentTajwid` produit.
   Color get _surAccentTajwid =>
       (widget.modeTajwid && !ref.watch(modeSombreProvider))
-          ? AppColors.cream
-          : AppColors.green900;
+      ? AppColors.cream
+      : AppColors.green900;
 
   ({String text, List<List<TextSpan>> spans, List<RecitationSegment> segments})
-      _buildChunk(
-          List<Verse> verses, int? prevSurahBefore, Verse bismillahVerse) {
+  _buildChunk(List<Verse> verses, int? prevSurahBefore, Verse bismillahVerse) {
     // Les lettres SANS regle prennent cette couleur de base ; celles qui en
     // portent une gardent la leur (`tajweedSpansPerWord`). En recitation
     // normale le fond est vert sombre -> creme, inchange.
     final style = GoogleFonts.scheherazadeNew(
-        fontSize: 30,
-        height: 2.1,
-        color: widget.modeTajwid ? _encreTajwid : AppColors.cream);
+      fontSize: 30,
+      height: 2.1,
+      color: widget.modeTajwid ? _encreTajwid : AppColors.cream,
+    );
     // `sombre:` fait choisir a la palette tajwid ses variantes claires. En mode
     // tajwid le fond est celui du Mushaf : on lui passe le vrai theme, sinon
     // les couleurs de regles seraient calculees pour un fond qui n'est plus la.
@@ -2881,17 +3060,30 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     for (final v in verses) {
       if (!widget.sansBasmala && _bismillahBefore(v, prevSurah)) {
         parts.add(bismillahVerse.textUthmani);
-        spans.addAll(tajweedSpansPerWord(bismillahVerse.textUthmani,
-            bismillahVerse.textUthmaniTajweed, style,
-            sombre: sombreTajwid));
+        spans.addAll(
+          tajweedSpansPerWord(
+            bismillahVerse.textUthmani,
+            bismillahVerse.textUthmaniTajweed,
+            style,
+            sombre: sombreTajwid,
+          ),
+        );
         segments.add((surah: 1, ayah: 1, text: bismillahVerse.textUthmani));
       }
       parts.add(v.textUthmani);
-      spans.addAll(tajweedSpansPerWord(
-          v.textUthmani, v.textUthmaniTajweed, style,
-          sombre: sombreTajwid));
-      segments.add(
-          (surah: v.surahNumber, ayah: v.ayahNumber, text: v.textUthmani));
+      spans.addAll(
+        tajweedSpansPerWord(
+          v.textUthmani,
+          v.textUthmaniTajweed,
+          style,
+          sombre: sombreTajwid,
+        ),
+      );
+      segments.add((
+        surah: v.surahNumber,
+        ayah: v.ayahNumber,
+        text: v.textUthmani,
+      ));
       prevSurah = v.surahNumber;
     }
     return (text: parts.join(' '), spans: spans, segments: segments);
@@ -2973,7 +3165,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     int? prevSurah;
     for (final v in _verses) {
       if (_bismillahBefore(v, prevSurah)) {
-        if (wordIndex < offset + _bismillahWordCount) return null; // dans la Bismillah elle-même
+        if (wordIndex < offset + _bismillahWordCount)
+          return null; // dans la Bismillah elle-même
         offset += _bismillahWordCount;
       }
       prevSurah = v.surahNumber;
@@ -3034,7 +3227,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     int? prevSurah;
     for (final v in _verses) {
       if (_bismillahBefore(v, prevSurah)) {
-        if (wordIndex < offset + _bismillahWordCount) return null; // dans la Bismillah elle-même
+        if (wordIndex < offset + _bismillahWordCount)
+          return null; // dans la Bismillah elle-même
         offset += _bismillahWordCount;
       }
       prevSurah = v.surahNumber;
@@ -3074,12 +3268,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         prepareModel: verifier.ensureContinuousModelLoaded,
         startCapture: () {
           // Poussé AVANT start() : la valeur est lue à l'ouverture du flux.
-          ref.read(recitationVerifierProvider).noiseSuppress =
-              ref.read(noiseSuppressProvider);
+          ref.read(recitationVerifierProvider).noiseSuppress = ref.read(
+            noiseSuppressProvider,
+          );
           // Micro du casque Bluetooth (2026-09-03), éteint par défaut : le
           // profil HFP/SCO dégrade la voix, cf. `microBluetoothProvider`.
-          ref.read(recitationVerifierProvider).microBluetooth =
-              ref.read(microBluetoothProvider);
+          ref.read(recitationVerifierProvider).microBluetooth = ref.read(
+            microBluetoothProvider,
+          );
           // Cloisonnement 2026-08-05 : deux points d'entrée distincts au lieu
           // d'un paramètre booléen -- cf. la doc de startControle/startTest
           // dans recitation_provider.dart.
@@ -3087,7 +3283,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               ? notifier.startTest()
               : notifier.startControle();
         },
-        canContinue: () => mounted,
+        canContinue: _peutDemarrer,
         onStage: (stage) {
           if (stage == RecitationStartStage.modelUnavailable) {
             modelUnavailable = true;
@@ -3116,9 +3312,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           duration: detail == null
               ? const Duration(seconds: 4)
               : const Duration(seconds: 8),
-          content: Text(detail == null
-              ? AppLocalizations.of(context)!.karaokeModelUnavailable
-              : '${AppLocalizations.of(context)!.karaokeModelUnavailable}\n$detail'),
+          content: Text(
+            detail == null
+                ? AppLocalizations.of(context)!.karaokeModelUnavailable
+                : '${AppLocalizations.of(context)!.karaokeModelUnavailable}\n$detail',
+          ),
         ),
       );
     } catch (e, st) {
@@ -3140,35 +3338,71 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
   }
 
-  /// Attend que la session soit réellement prête, puis emprunte le MÊME chemin
-  /// que le tap. Deux conditions, pour ne pas démarrer dans le vide :
-  /// la cible d'alignement doit être chargée (`words`), et la vérification de
-  /// profil doit avoir répondu (`_hasProfile`) — sinon la session de référence
-  /// n'est pas marquée comme telle et rien n'est enregistré (bug du 2026-07-05).
-  Future<void> _autoDemarrage() async {
-    for (var i = 0; i < 60; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-      if (!mounted) return;
-      final st = ref.read(recitationProvider);
-      if (st.words.isNotEmpty && _hasProfile != null) {
-        if (st.status == RecitationStatus.listening) return;
-        DiagnosticLog.log('RECETTE',
-            'demarrage automatique (${st.words.length} mots, profil=$_hasProfile)');
-        await _toggle(st, ref.read(recitationProvider.notifier));
-        return;
-      }
+  bool _peutDemarrer() {
+    if (!mounted || widget.estRelecture) return false;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    return (ModalRoute.of(context)?.isCurrent ?? false) &&
+        (lifecycle == null || lifecycle == AppLifecycleState.resumed);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _openingStartPending) {
+      unawaited(_autoDemarrage());
     }
-    DiagnosticLog.log('RECETTE',
-        'demarrage automatique ABANDONNE : session pas prete apres 15 s');
+  }
+
+  // ChGPT: no polling of a previous session's words, no arbitrary 15 s limit.
+  // Resume can complete the initial opening, never undo a deliberate pause.
+  Future<void> _autoDemarrage() async {
+    if (!_openingStartPending ||
+        !_initialTargetReady ||
+        !_peutDemarrer() ||
+        _toggleBusy) {
+      return;
+    }
+    _openingStartPending = false;
+    final st = ref.read(recitationProvider);
+    if (st.status == RecitationStatus.listening) return;
+    DiagnosticLog.log(
+      'KaraokeStart',
+      'demarrage ouverture cible prete: ${st.words.length} mots',
+    );
+    await _toggle(st, ref.read(recitationProvider.notifier));
   }
 
   Future<void> _toggle(RecitationSessionState st, RecitationNotifier n) async {
+    if (_toggleBusy || !_initialTargetReady || !_peutDemarrer()) return;
+    _openingStartPending = false;
+    setState(() => _toggleBusy = true);
+    try {
+      await _executerToggle(st, n);
+    } catch (e) {
+      DiagnosticLog.log('KaraokeStart', 'echec de preparation: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.karaokeStartFailed),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _toggleBusy = false);
+    }
+  }
+
+  Future<void> _executerToggle(
+    RecitationSessionState st,
+    RecitationNotifier n,
+  ) async {
     // Trace IHM (2026-08-14) -- cf. `_togglePause`. Ce bouton-ci est celui qui
     // OUVRE et FERME la session : c'est le premier à confronter au journal
     // `Micro` quand on se demande si le micro a bien suivi l'écran.
-    DiagnosticLog.log('IHM',
-        'CLIC halo=${st.status == RecitationStatus.listening ? "ARRETER" : "DEMARRER"} '
-        '| statut=${st.status.name} enPause=$_manuallyPaused');
+    DiagnosticLog.log(
+      'IHM',
+      'CLIC halo=${st.status == RecitationStatus.listening ? "ARRETER" : "DEMARRER"} '
+          '| statut=${st.status.name} enPause=$_manuallyPaused',
+    );
     if (st.status == RecitationStatus.listening) {
       if (_manuallyPaused) setState(() => _manuallyPaused = false);
       await n.stopContinuous();
@@ -3217,6 +3451,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // (bug constaté au premier test réel, 2026-07-05).
       _hasProfile ??= await _pauseProfile.hasProfileFor(_initialPassageKey);
       _globalStable ??= await _pauseProfile.isGlobalStable();
+      if (!_peutDemarrer()) return;
       // Pas encore de référence DÉDIÉE pour ce passage -> proposer le choix,
       // SAUF si le profil global (autres passages déjà validés) est déjà
       // stable (demande utilisateur 2026-07-12 : "pendant les premières
@@ -3283,18 +3518,21 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       //   - pas d'applyBestFor => le seuil de gel reste au défaut, donc la
       //     segmentation n'est pas celle d'une session normale ;
       //   - aucune erreur journalisée, aucune stat remise à zéro.
-      DiagnosticLog.log('MODE',
-          _isReferenceSession
-              ? 'session de REFERENCE : correction DESACTIVEE (donc aucun recul '
+      DiagnosticLog.log(
+        'MODE',
+        _isReferenceSession
+            ? 'session de REFERENCE : correction DESACTIVEE (donc aucun recul '
                   'd\'ancre), seuil de gel NON personnalise (defaut), aucune '
                   'erreur journalisee, profil de pauses enregistre a la fin si '
                   'precision >= 60%'
-              : 'session NORMALE : correction active, seuil de gel personnalise '
-                  'si un profil existe');
+            : 'session NORMALE : correction active, seuil de gel personnalise '
+                  'si un profil existe',
+      );
       if (!_isReferenceSession) {
         // Session normale : seuil de gel adapté à la référence dédiée si elle
         // existe, sinon au profil global (cf. applyBestFor).
         await _pauseProfile.applyBestFor(_initialPassageKey);
+        if (!_peutDemarrer()) return;
       }
       // ── Capture audio de DIAGNOSTIC ─────────────────────────────────────
       // Historique : la capture n'était activée QUE sur une session de
@@ -3408,8 +3646,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// d'en empiler plusieurs.
   void _montrerGlypheEtat() {
     _glypheTimer?.cancel();
-    setState(() => _glypheEtatJusqua =
-        DateTime.now().add(const Duration(milliseconds: _kGlypheEtatMs)));
+    setState(
+      () => _glypheEtatJusqua = DateTime.now().add(
+        const Duration(milliseconds: _kGlypheEtatMs),
+      ),
+    );
     _glypheTimer = Timer(const Duration(milliseconds: _kGlypheEtatMs), () {
       if (mounted) setState(() => _glypheEtatJusqua = null);
     });
@@ -3425,9 +3666,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // pause a bien coupé le micro » de « le micro s'est coupé tout seul et
     // l'appui n'a rien fait ». Étiquette `IHM`, à lire avec `Micro` : les deux
     // colonnes racontent la même histoire vue de l'écran et vue du matériel.
-    DiagnosticLog.log('IHM',
-        'CLIC bouton=${_manuallyPaused ? "REPRENDRE" : "PAUSE"} '
-        '| enPause=$_manuallyPaused actif=${_dernierEtatConnu?.isActive}');
+    DiagnosticLog.log(
+      'IHM',
+      'CLIC bouton=${_manuallyPaused ? "REPRENDRE" : "PAUSE"} '
+          '| enPause=$_manuallyPaused actif=${_dernierEtatConnu?.isActive}',
+    );
     _montrerGlypheEtat();
     final verifier = ref.read(recitationVerifierProvider);
     if (_manuallyPaused) {
@@ -3480,8 +3723,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   /// retour et abandonne SANS toucher à l'écran (cf. `_maybeExtendNextPage`).
   Future<void> _refaireRecitation() async {
     final st = _dernierEtatConnu;
-    DiagnosticLog.log('IHM',
-        'CLIC bouton=REFAIRE | actif=${st?.isActive} enPause=$_manuallyPaused');
+    DiagnosticLog.log(
+      'IHM',
+      'CLIC bouton=REFAIRE | actif=${st?.isActive} enPause=$_manuallyPaused',
+    );
     final notifier = ref.read(recitationProvider.notifier);
     _generationRecitation++;
     if (st != null && st.status == RecitationStatus.listening) {
@@ -3501,8 +3746,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final bismillahVerse = await QuranApi.fetchBismillah();
     final chunk = _buildChunk(verses, null, bismillahVerse);
     final wordKeys = List.generate(
-        ArabicNormalizer.splitExpectedWords(chunk.text).length,
-        (_) => GlobalKey());
+      ArabicNormalizer.splitExpectedWords(chunk.text).length,
+      (_) => GlobalKey(),
+    );
     if (!mounted) return;
     setState(() {
       _verses = verses;
@@ -3545,8 +3791,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       final extra =
           '${rst.unclearCount > 0 ? t.karaokeUnclearSuffix(rst.unclearCount) : ''}'
           '${missed > 0 ? t.karaokeMissedSuffix(missed) : ''}';
-      setState(() => _sessionNotice = t.karaokeReferenceNotSaved(
-          rst.accuracy.round(), rst.correctCount, rst.total, extra));
+      setState(
+        () => _sessionNotice = t.karaokeReferenceNotSaved(
+          rst.accuracy.round(),
+          rst.correctCount,
+          rst.total,
+          extra,
+        ),
+      );
       // Le PROFIL DE PAUSES n'est pas retenu (récitation trop peu fiable pour
       // servir de référence de rythme), mais l'AUDIO est conservé quand même
       // depuis le 2026-07-25 : une session ratée est justement celle qu'on
@@ -3572,16 +3824,20 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final segs = notifier.referenceSegments;
     if (segs.length >= 2) {
       final n = await ReferenceTimingExtractor(
-              ref.read(recitationVerifierProvider))
-          .run(segs, ref.read(recitationProvider).words);
-      DiagnosticLog.log('RefTiming',
-          'extraction post-session : $n mots mesures sur ${segs.length} segments');
+        ref.read(recitationVerifierProvider),
+      ).run(segs, ref.read(recitationProvider).words);
+      DiagnosticLog.log(
+        'RefTiming',
+        'extraction post-session : $n mots mesures sur ${segs.length} segments',
+      );
     }
     if (mounted) {
       setState(() {
         _hasProfile = true;
         _sessionNotice = t.karaokeReferenceSaved(
-            rst.accuracy.round(), pauses.length);
+          rst.accuracy.round(),
+          pauses.length,
+        );
       });
     }
   }
@@ -3638,19 +3894,24 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   Future<void> _openMemorizationGame(BuildContext context) async {
     final first = widget.verses.first;
     final surahs = await QuranApi.fetchSurahs();
-    final surah = surahs.firstWhere((s) => s.number == first.surahNumber,
-        orElse: () => surahs.first);
+    final surah = surahs.firstWhere(
+      (s) => s.number == first.surahNumber,
+      orElse: () => surahs.first,
+    );
     final page = first.pageNumber;
     final pageVerses = page == null
         ? [first]
         : widget.verses
-            .where((v) => v.pageNumber == page && v.ayahNumber >= first.ayahNumber)
-            .toList();
+              .where(
+                (v) => v.pageNumber == page && v.ayahNumber >= first.ayahNumber,
+              )
+              .toList();
     if (!context.mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MemorizationGameScreen(surah: surah, verses: pageVerses),
+        builder: (_) =>
+            MemorizationGameScreen(surah: surah, verses: pageVerses),
       ),
     );
   }
@@ -3661,7 +3922,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       backgroundColor: AppColors.green800,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (sheetContext) => Consumer(
         builder: (context, ref, _) {
           final t = AppLocalizations.of(context)!;
@@ -3687,7 +3949,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           return SafeArea(
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.85),
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
               child: SingleChildScrollView(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
@@ -3695,11 +3958,14 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(t.karaokeVerificationSettingsTitle,
-                          style: GoogleFonts.fraunces(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.cream)),
+                      Text(
+                        t.karaokeVerificationSettingsTitle,
+                        style: GoogleFonts.fraunces(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.cream,
+                        ),
+                      ),
                       const SizedBox(height: 16),
 
                       // ── LES MODES, EN LIGNE (2026-09-02) ─────────────
@@ -3725,20 +3991,26 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       // touche jamais au preset persiste que lisent le Coach
                       // et le mode Reciter normal).
                       if (widget.modeTajwid)
-                        Text(t.karaokeVerificationModeForcedTajwid,
-                            style: GoogleFonts.manrope(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.cream))
+                        Text(
+                          t.karaokeVerificationModeForcedTajwid,
+                          style: GoogleFonts.manrope(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.cream,
+                          ),
+                        )
                       else ...[
                         Row(
                           children: [
                             Expanded(
-                              child: Text(t.karaokeVerificationModeTitle,
-                                  style: GoogleFonts.manrope(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.cream)),
+                              child: Text(
+                                t.karaokeVerificationModeTitle,
+                                style: GoogleFonts.manrope(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.cream,
+                                ),
+                              ),
                             ),
                             // Le renvoi vers `TajwidRulesScreen` a ete retire
                             // le 2026-09-02 : cette page ne portait plus que la
@@ -3750,8 +4022,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                         const SizedBox(height: 8),
                         PresetRow(
                           current: ref.watch(judgementOptionsProvider).preset,
-                          notifier:
-                              ref.read(judgementOptionsProvider.notifier),
+                          notifier: ref.read(judgementOptionsProvider.notifier),
                           surFondSombre: true,
                         ),
                       ],
@@ -3771,34 +4042,42 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                       // poser cette question.
 
                       // ── Sensibilité (réglable en direct) ──────────────────
-                      Text(t.karaokeSensitivityTitle,
-                          style: GoogleFonts.manrope(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.cream)),
+                      Text(
+                        t.karaokeSensitivityTitle,
+                        style: GoogleFonts.manrope(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.cream,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         t.karaokeSensitivityDescription,
                         style: TextStyle(
-                            color: AppColors.cream.withValues(alpha: 0.75),
-                            fontSize: 12.5),
+                          color: AppColors.cream.withValues(alpha: 0.75),
+                          fontSize: 12.5,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       SegmentedButton<bool>(
                         segments: [
                           ButtonSegment(
-                              value: false,
-                              label: Text(t.prayerFollowSensitivityTolerant)),
+                            value: false,
+                            label: Text(t.prayerFollowSensitivityTolerant),
+                          ),
                           ButtonSegment(
-                              value: true,
-                              label: Text(t.prayerFollowSensitivityStrict)),
+                            value: true,
+                            label: Text(t.prayerFollowSensitivityStrict),
+                          ),
                         ],
                         selected: {strictSensitivity},
                         showSelectedIcon: false,
                         onSelectionChanged: (s) {
                           ref
                               .read(correctionSensitivityProvider.notifier)
-                              .state = s.first ? 1.0 : 0.0;
+                              .state = s.first
+                              ? 1.0
+                              : 0.0;
                           // Un seul curseur pour toute la severite : ce
                           // segment porte desormais aussi la rigueur du
                           // TAJWID (seuils de duree par regle, calibres sur
@@ -3818,23 +4097,29 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                         },
                         style: ButtonStyle(
                           foregroundColor: WidgetStateProperty.resolveWith(
-                              (st) => st.contains(WidgetState.selected)
-                                  ? AppColors.ink
-                                  : AppColors.cream),
+                            (st) => st.contains(WidgetState.selected)
+                                ? AppColors.ink
+                                : AppColors.cream,
+                          ),
                           backgroundColor: WidgetStateProperty.resolveWith(
-                              (st) => st.contains(WidgetState.selected)
-                                  ? AppColors.brassLight
-                                  : Colors.transparent),
+                            (st) => st.contains(WidgetState.selected)
+                                ? AppColors.brassLight
+                                : Colors.transparent,
+                          ),
                           side: WidgetStateProperty.all(
-                              const BorderSide(color: Colors.white24)),
+                            const BorderSide(color: Colors.white24),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 6),
                       Center(
-                        child: Text(label,
-                            style: const TextStyle(
-                                color: AppColors.brassLight,
-                                fontWeight: FontWeight.w600)),
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            color: AppColors.brassLight,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                       const Divider(color: Colors.white12, height: 20),
 
@@ -3918,9 +4203,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       _hasProfile = false;
       _sessionNotice = null;
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(AppLocalizations.of(context)!.karaokeNewReferenceSnackbar),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AppLocalizations.of(context)!.karaokeNewReferenceSnackbar,
+        ),
+      ),
+    );
   }
 
   @override
@@ -3939,9 +4228,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         backgroundColor: AppColors.green900,
         foregroundColor: AppColors.cream,
         elevation: 0,
-        title: Text(widget.titreRelecture ?? '',
-            style: GoogleFonts.scheherazadeNew(
-                fontSize: 20, color: AppColors.brassLight)),
+        title: Text(
+          widget.titreRelecture ?? '',
+          style: GoogleFonts.scheherazadeNew(
+            fontSize: 20,
+            color: AppColors.brassLight,
+          ),
+        ),
       ),
       body: !_ready || st == null
           ? const SizedBox.expand()
@@ -3961,7 +4254,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // volontairement minimal (pas de spinner qui casserait l'immersion
     // karaoké) : ambiance seule, le temps que ça arrive (quasi instantané une
     // fois la Bismillah en cache).
-    if (!_ready) {
+    if (!_ready || !_initialTargetReady) {
       return const Scaffold(
         backgroundColor: AppColors.green900,
         body: SizedBox.expand(),
@@ -3977,7 +4270,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // Phrase de fin optionnelle (cf. phraseFinRecitationProvider) : poussée au
     // notifier, qui l'ajoutera à la cible de la PROCHAINE session -- la cible
     // en cours ne bouge jamais, ses index sont déjà engagés.
-    ref.read(recitationProvider.notifier)
+    ref
+        .read(recitationProvider.notifier)
         .setPhraseFin(ref.watch(phraseFinRecitationProvider));
     // Fin automatique (tous les mots validés sans tap manuel) : mémoriser le
     // profil de pauses de la session si la récitation était bonne.
@@ -4012,7 +4306,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // `_indexASuivre`) : sans lui, l'enchaînement de page s'arrêtait pour
       // toujours et la récitation se figeait sur le dernier mot chargé.
       final pointerExtend = _indexASuivre(next);
-      if (next.status == RecitationStatus.listening &&
+      if (widget.autoriserEnchainement &&
+          next.status == RecitationStatus.listening &&
           next.words.length - pointerExtend <= _kExtendLookaheadWords) {
         _maybeExtendNextPage();
       }
@@ -4075,9 +4370,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         if (cles == null || cles.isEmpty) return;
         final idxCle = currentIdx >= cles.length ? cles.length - 1 : currentIdx;
         if (currentIdx >= cles.length) {
-          DiagnosticLog.log('Karaoke',
-              'defilement : mot=$currentIdx hors des ${cles.length} cles '
-              '(ecran en retard sur la chaine) -> suivi du dernier mot connu');
+          DiagnosticLog.log(
+            'Karaoke',
+            'defilement : mot=$currentIdx hors des ${cles.length} cles '
+                '(ecran en retard sur la chaine) -> suivi du dernier mot connu',
+          );
         }
         final ctx = cles[idxCle].currentContext;
         if (ctx != null) {
@@ -4092,7 +4389,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     }
     final notifier = ref.read(recitationProvider.notifier);
     final listening = st.status == RecitationStatus.listening;
-    final starting = _startStage != null;
+    final starting = _startStage != null || _toggleBusy || !_initialTargetReady;
     final t = AppLocalizations.of(context)!;
     final ref0 = _verses.first;
     final subtitle = _verses.length == 1
@@ -4117,8 +4414,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final iCourant = st.words.indexWhere((w) => w.status == WordStatus.current);
     final iSuivi = iCourant >= 0
         ? iCourant
-        : st.words.lastIndexWhere((w) =>
-            w.status != WordStatus.pending && w.status != WordStatus.current);
+        : st.words.lastIndexWhere(
+            (w) =>
+                w.status != WordStatus.pending &&
+                w.status != WordStatus.current,
+          );
     final numSourate = (iSuivi >= 0 && iSuivi < _surahByWord.length)
         ? (_surahByWord[iSuivi] ?? ref0.surahNumber)
         : ref0.surahNumber;
@@ -4139,11 +4439,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final fondTajwid = ref.watch(modeSombreProvider)
         ? AppColors.sombreBg
         : (ref.watch(kindleModeProvider)
-            ? AppColors.kindleBg
-            : AppColors.mushafPapier);
+              ? AppColors.kindleBg
+              : AppColors.mushafPapier);
     return Scaffold(
-      backgroundColor:
-          widget.modeTajwid ? fondTajwid : AppColors.green900,
+      backgroundColor: widget.modeTajwid ? fondTajwid : AppColors.green900,
       body: GestureDetector(
         // Un tap n'importe où ne DÉMARRE l'écoute que si elle est arrêtée —
         // l'arrêter, une fois en cours, exige un tap précis sur le halo
@@ -4160,13 +4459,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             _ambientBackground(),
             AnimatedBuilder(
               animation: _breath,
-              builder: (context, _) => _halo(
-                st.soundLevel,
-                listening,
-                () {
-                  if (!starting) _toggle(st, notifier);
-                },
-              ),
+              builder: (context, _) => _halo(st.soundLevel, listening, () {
+                if (!starting) _toggle(st, notifier);
+              }),
             ),
             // ── ANNEAU CENTRAL : ESSAYÉ LE 2026-08-18, RETIRÉ LE MÊME JOUR ────
             //
@@ -4268,8 +4563,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           key: ValueKey(_glypheEtatJusqua),
           tween: Tween(begin: 0.0, end: 1.0),
           duration: const Duration(milliseconds: 160),
-          builder: (context, t, child) =>
-              Opacity(opacity: t, child: Transform.scale(scale: 0.92 + t * 0.08, child: child)),
+          builder: (context, t, child) => Opacity(
+            opacity: t,
+            child: Transform.scale(scale: 0.92 + t * 0.08, child: child),
+          ),
           child: Container(
             width: 128,
             height: 128,
@@ -4277,7 +4574,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               shape: BoxShape.circle,
               color: Colors.black.withOpacity(0.38),
               border: Border.all(
-                  color: AppColors.brassLight.withOpacity(0.55), width: 2),
+                color: AppColors.brassLight.withOpacity(0.55),
+                width: 2,
+              ),
             ),
             child: Icon(
               _manuallyPaused ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -4310,8 +4609,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         color: sombre
             ? AppColors.sombreBg
             : (ref.watch(kindleModeProvider)
-                ? AppColors.kindleBg
-                : AppColors.mushafPapier),
+                  ? AppColors.kindleBg
+                  : AppColors.mushafPapier),
         // Pas de trame geometrique : le mushaf de lecture n'en a pas, et elle
         // ajouterait un troisieme motif sous un texte deja colore.
         child: const SizedBox.expand(),
@@ -4401,8 +4700,12 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     return etoiles;
   }
 
-  Widget _topBar(BuildContext context, String subtitle, String? nomSourate,
-      RecitationSessionState st) {
+  Widget _topBar(
+    BuildContext context,
+    String subtitle,
+    String? nomSourate,
+    RecitationSessionState st,
+  ) {
     return Padding(
       // Marge droite ramenée de 20 à 4 (correctif 2026-07-25, cf. le bouton
       // pause rogné plus bas) : 16 dp récupérés sur un écran qui n'en avait
@@ -4425,9 +4728,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               // `dispose()`, après un `stopContinuous()` dont le garde
               // d'entrée sautait tout). Sans trace, rien ne distingue « il est
               // sorti par la flèche » de « il est sorti autrement ».
-              DiagnosticLog.log('IHM',
-                  'CLIC bouton=RETOUR | actif=${_dernierEtatConnu?.isActive} '
-                  'enPause=$_manuallyPaused');
+              DiagnosticLog.log(
+                'IHM',
+                'CLIC bouton=RETOUR | actif=${_dernierEtatConnu?.isActive} '
+                    'enPause=$_manuallyPaused',
+              );
               Navigator.of(context).pop();
             },
           ),
@@ -4494,7 +4799,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           if (st.status == RecitationStatus.listening)
             IconButton(
               visualDensity: VisualDensity.compact,
-              tooltip: AppLocalizations.of(context)!.karaokeHearExpectedWordTooltip,
+              tooltip: AppLocalizations.of(
+                context,
+              )!.karaokeHearExpectedWordTooltip,
               icon: Icon(
                 Icons.volume_up_rounded,
                 // Couleurs adaptatives (2026-09-11, meme correctif que les
@@ -4539,7 +4846,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           // durcir le jugement.
           IconButton(
             visualDensity: VisualDensity.compact,
-            tooltip: AppLocalizations.of(context)!.karaokeVerificationSettingsTitle,
+            tooltip: AppLocalizations.of(
+              context,
+            )!.karaokeVerificationSettingsTitle,
             // Couleur relevee de Colors.white70 a `_accentTajwid` (accent
             // dore adaptatif, cf. son commentaire) -- retour utilisateur
             // 2026-09-11 : « acces au mode pas bien visible ». Ce bouton se
@@ -4599,7 +4908,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  _manuallyPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                  _manuallyPaused
+                      ? Icons.play_arrow_rounded
+                      : Icons.pause_rounded,
                   color: _surAccentTajwid,
                   size: 22,
                 ),
@@ -4608,9 +4919,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             )
           else if (_hasProfile == true)
             IconButton(
-              tooltip: AppLocalizations.of(context)!.karaokeRedoReferenceTooltip,
+              tooltip: AppLocalizations.of(
+                context,
+              )!.karaokeRedoReferenceTooltip,
               // Colors.white54 -> _encreDouce (2026-09-11) -- cf. `_accentTajwid`.
-              icon: Icon(Icons.tune_rounded, color: _encreDouce(0.54), size: 20),
+              icon: Icon(
+                Icons.tune_rounded,
+                color: _encreDouce(0.54),
+                size: 20,
+              ),
               onPressed: _requestNewReference,
             )
           else
@@ -4770,7 +5087,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // l'enchainement (`_indexASuivre` : le mot `current`, a defaut le mot juge
     // le plus avance). Les trois mecanismes regardent enfin le meme endroit.
     final renderEnd = math.min(
-        st.words.length, _indexASuivre(st) + _kRenderLookaheadWords);
+      st.words.length,
+      _indexASuivre(st) + _kRenderLookaheadWords,
+    );
     // ── RENDU PARESSEUX (2026-07-27) ─────────────────────────────────────
     // On ne construit ici que les BORNES des blocs (quelques dizaines
     // d'entiers) ; les widgets eux-memes sont bâtis a la demande par le
@@ -4809,7 +5128,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // À `i == 0` : `i > blockStart` est faux, donc aucun bloc de mots vide
       // n'est créé ; seul le bandeau est posé, puis la lecture reprend
       // normalement.
-      final boundary = i == renderEnd ||
+      final boundary =
+          i == renderEnd ||
           i == 0 ||
           (surah != null && blockSurah != null && surah != blockSurah);
       if (boundary) {
@@ -4835,24 +5155,33 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // d'inventer une explication, on ECRIT ce que le rendu construit vraiment.
     // Emis une seule fois par composition de bandeaux, jamais a chaque frame.
     final signature = ranges
-        .map((r) => r.banner != null ? 'B${r.banner}@${r.start}' : '${r.start}-${r.end}')
+        .map(
+          (r) => r.banner != null
+              ? 'B${r.banner}@${r.start}'
+              : '${r.start}-${r.end}',
+        )
         .join(' ');
     if (signature != _derniereSignatureRanges) {
       _derniereSignatureRanges = signature;
       final st0 = ref.read(recitationProvider);
-      final couture = ranges.where((r) => r.banner != null).map((r) {
-        final i = r.start;
-        String mot(int k) => (k >= 0 && k < st0.words.length)
-            ? st0.words[k].display
-            : '(hors liste)';
-        return 'bandeau=${r.banner} @mot=$i '
-            'avant=[${mot(i - 2)} ${mot(i - 1)}] apres=[${mot(i)} ${mot(i + 1)} ${mot(i + 2)}] '
-            'surahOwning(${i - 1})=${_surahOwning(i - 1)} surahOwning($i)=${_surahOwning(i)}';
-      }).join(' | ');
-      DiagnosticLog.log('Karaoke',
-          '[COUTURE] blocs=$signature  meta=${_surahMeta.keys.toList()}  '
-          'mots=${st0.words.length} tables=${_surahByWord.length}'
-          '${couture.isEmpty ? "" : "  $couture"}');
+      final couture = ranges
+          .where((r) => r.banner != null)
+          .map((r) {
+            final i = r.start;
+            String mot(int k) => (k >= 0 && k < st0.words.length)
+                ? st0.words[k].display
+                : '(hors liste)';
+            return 'bandeau=${r.banner} @mot=$i '
+                'avant=[${mot(i - 2)} ${mot(i - 1)}] apres=[${mot(i)} ${mot(i + 1)} ${mot(i + 2)}] '
+                'surahOwning(${i - 1})=${_surahOwning(i - 1)} surahOwning($i)=${_surahOwning(i)}';
+          })
+          .join(' | ');
+      DiagnosticLog.log(
+        'Karaoke',
+        '[COUTURE] blocs=$signature  meta=${_surahMeta.keys.toList()}  '
+            'mots=${st0.words.length} tables=${_surahByWord.length}'
+            '${couture.isEmpty ? "" : "  $couture"}',
+      );
     }
 
     return NotificationListener<ScrollNotification>(
@@ -4899,8 +5228,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           final r = ranges[i];
           final b = r.banner;
           if (b != null) {
-            return _SurahTransitionBanner(_surahMeta[b]!,
-                encre: _encreDouce(0.55), accent: _accentTajwid);
+            return _SurahTransitionBanner(
+              _surahMeta[b]!,
+              encre: _encreDouce(0.55),
+              accent: _accentTajwid,
+            );
           }
           return _wordWrapBlock(st, r.start, r.end);
         },
@@ -4944,7 +5276,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             // contrairement à l'écran de lecture) -- même convention que
             // le Mushaf (le numéro marque la FIN du verset, pas son début).
             if (_isLastWordOfVerse(i))
-              _KaraokeVerseBadge(_verseContaining(i)!.ayahNumber, accent: _accentTajwid),
+              _KaraokeVerseBadge(
+                _verseContaining(i)!.ayahNumber,
+                accent: _accentTajwid,
+              ),
           ],
         ],
       ),
@@ -4971,8 +5306,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   // rouge est porté par le FOND, jamais par la couleur du texte, pour que les
   // deux systèmes ne se disputent jamais le même pixel.
   Widget _wordSpan(RecitedWord w, int index, [int curseur = -1]) {
-    final tajwidWord =
-        index < _tajwidSpans!.length ? _tajwidSpans![index] : null;
+    final tajwidWord = index < _tajwidSpans!.length
+        ? _tajwidSpans![index]
+        : null;
 
     Color? bgTint;
     Color? borderTint;
@@ -5019,8 +5355,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     //
     // La RELECTURE garde le forçage : la récitation est finie, la question
     // « l'a-t-il dite ? » est tranchée depuis longtemps, et rien ne se rejoue.
-    final effectiveStatus =
-        (w.isBasmala && widget.estRelecture) ? WordStatus.correct : w.status;
+    final effectiveStatus = (w.isBasmala && widget.estRelecture)
+        ? WordStatus.correct
+        : w.status;
 
     // ── L'OUBLI RESTE VISIBLE, MÊME REDIT CORRECTEMENT (2026-08-14) ──────
     // Un mot soufflé puis redit juste redevient `correct` : le vert effaçait
@@ -5045,8 +5382,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
         final verse = _verseContaining(index);
         final local = _localIndexInVerse(index);
         if (verse == null || local == null) return false;
-        final v = widget.relecture?[
-            (verse.surahNumber, verse.ayahNumber, local)];
+        final v =
+            widget.relecture?[(verse.surahNumber, verse.ayahNumber, local)];
         return v?.kind == 'tajwid';
       }
       // Le registre pose par le provider AU MOMENT de la degradation, et non
@@ -5058,6 +5395,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           .motsDegradesTajwid
           .contains(index);
     }
+
     // ── MODE TAJWID : SEUL LE VIOLET EST PEINT (2026-09-05) ──────────────
     //
     // On LIT sa page et l'app ecoute les regles : signaler en plus les lettres
@@ -5299,22 +5637,26 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     final tajwidNeutre = widget.modeTajwid
         ? tajwidWord
         : tajwidWord
-            ?.map((sp) => TextSpan(
+              ?.map(
+                (sp) => TextSpan(
                   text: sp.text,
                   children: sp.children,
-                  style: (sp.style ?? const TextStyle())
-                      .copyWith(color: AppColors.cream),
-                ))
-            .toList();
+                  style: (sp.style ?? const TextStyle()).copyWith(
+                    color: AppColors.cream,
+                  ),
+                ),
+              )
+              .toList();
 
     final textWidget = (tajwidNeutre != null && tajwidNeutre.isNotEmpty)
         ? RichText(text: TextSpan(children: tajwidNeutre))
         : Text(
             w.display,
             style: GoogleFonts.scheherazadeNew(
-                fontSize: 30,
-                height: 2.1,
-                color: widget.modeTajwid ? encreTajwid : AppColors.cream),
+              fontSize: 30,
+              height: 2.1,
+              color: widget.modeTajwid ? encreTajwid : AppColors.cream,
+            ),
           );
 
     // ── FIL DE LUMIERE (demande utilisateur 2026-08-06) ──────────────────
@@ -5349,7 +5691,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // donc ceux qui viennent APRES le dernier juge : le recitateur les a dits,
     // l'application les traite, et rien ne le montrait. Le fil les couvre.
     const traineeMax = _kTraineeMots;
-    final distance = index - curseur;   // devant le front, pas derriere
+    final distance = index - curseur; // devant le front, pas derriere
     final dansLaTrainee =
         borderTint == null && distance > 0 && distance <= traineeMax;
 
@@ -5365,12 +5707,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
             // AppColors.brassLight -> _accentTajwid (2026-09-11) -- ce fil de
             // lumiere dore pale se noyait deja sur le fond clair du Mushaf en
             // mode tajwid, cf. `_accentTajwid`.
-            color: borderTint ??
+            color:
+                borderTint ??
                 (lueur > 0
                     ? _accentTajwid.withValues(alpha: lueur)
                     : (underline
-                        ? _accentTajwid.withValues(alpha: 0.5)
-                        : Colors.transparent)),
+                          ? _accentTajwid.withValues(alpha: 0.5)
+                          : Colors.transparent)),
             width: 2,
           ),
         ),
@@ -5399,11 +5742,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // était dans ce fichier même -- `_openWordHelp` traite déjà `skipped` comme
     // un mot en erreur pour fusionner les mots contigus : la fiche savait le
     // servir, seul le tap ne le laissait pas entrer.
-    final tappable = w.status == WordStatus.error ||
+    final tappable =
+        w.status == WordStatus.error ||
         w.status == WordStatus.unclear ||
         w.status == WordStatus.skipped;
-    Widget result =
-        tappable ? GestureDetector(onTap: () => _openWordHelp(index), child: chip) : chip;
+    Widget result = tappable
+        ? GestureDetector(onTap: () => _openWordHelp(index), child: chip)
+        : chip;
 
     if (index == _resumeHintIndex) {
       result = Stack(
@@ -5421,8 +5766,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                   opacity: 0.45 + t * 0.55,
                   // AppColors.brassLight -> _accentTajwid (2026-09-11) --
                   // cf. `_accentTajwid`.
-                  child: Icon(Icons.keyboard_double_arrow_down_rounded,
-                      color: _accentTajwid, size: 20),
+                  child: Icon(
+                    Icons.keyboard_double_arrow_down_rounded,
+                    color: _accentTajwid,
+                    size: 20,
+                  ),
                 );
               },
             ),
@@ -5449,8 +5797,8 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // C'est l'état reconstruit depuis la base qui fait foi (2026-08-13).
     final RecitationSessionState st =
         widget.estRelecture && _etatRelecture != null
-            ? _etatRelecture!
-            : ref.read(recitationProvider);
+        ? _etatRelecture!
+        : ref.read(recitationProvider);
 
     // ── N'AFFICHER QUE LE MOT EN CAUSE, PAS TOUTE L'AYA ─────────────────────
     //
@@ -5462,8 +5810,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     // pas et affichait le verset entier. Sa doc porte aussi le correctif du
     // 2026-08-06 (`RangeError` si l'extension débordait sur le verset
     // suivant, indices globaux vs locaux) -- ne pas le redécouvrir ici.
-    final motsDuVerset =
-        ArabicNormalizer.splitExpectedWords(verse.textUthmani).length;
+    final motsDuVerset = ArabicNormalizer.splitExpectedWords(
+      verse.textUthmani,
+    ).length;
     final (debut, finExclusif) = etendreAuxMotsContigusEnErreur(
       words: st.words,
       wordIndexGlobal: wordIndex,
@@ -5511,24 +5860,31 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // MEME source que le journal et le Coach (`unrealizedRulesFor`) : la
       // fiche ne peut pas reprocher autre chose que ce qui a ete reproche.
       // Vide hors erreur de tajwid, donc le bandeau ne s'affiche pas.
-      reglesManquantes: ref
+      reglesManquantes:
+          ref
               .read(recitationProvider.notifier)
               .motsDegradesTajwid
               .contains(wordIndex)
-          ? ref.read(recitationProvider.notifier).unrealizedRulesFor(
-              wordIndex, st.words[wordIndex].detectedRules)
+          ? ref
+                .read(recitationProvider.notifier)
+                .unrealizedRulesFor(
+                  wordIndex,
+                  st.words[wordIndex].detectedRules,
+                )
           : const <TajwidRule>[],
       // Les scores du mot, pour la barre qui dit de COMBIEN la regle a ete
       // ratee (2026-09-05). Vides si le mot n a pas ete observe : la fiche
       // n affiche alors aucune barre plutot qu une barre a zero, qui se
       // lirait comme « rien fait » alors qu on n a rien mesure.
-      scoresRegles:
-          ref.read(recitationProvider.notifier).scoresReglesPour(wordIndex),
+      scoresRegles: ref
+          .read(recitationProvider.notifier)
+          .scoresReglesPour(wordIndex),
       // Ce que le mode courant EXIGE sur ce mot : `shownRulesFor` rend les
       // regles attendues ET actives, deja purgees de celles que le modele ne
       // peut pas constater (portees par le texte). Vide hors mode tajwid.
-      reglesAVerifier:
-          ref.read(recitationProvider.notifier).shownRulesFor(wordIndex),
+      reglesAVerifier: ref
+          .read(recitationProvider.notifier)
+          .shownRulesFor(wordIndex),
       wordIndex: wordIndex,
       localWordIndex: local,
       archivedAudioPath: vRelecture?.audio,
@@ -5560,7 +5916,10 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
               behavior: HitTestBehavior.opaque,
               child: Padding(
                 key: ValueKey(tail.length),
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 40,
+                  vertical: 6,
+                ),
                 child: Column(
                   children: [
                     Row(
@@ -5575,15 +5934,20 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
                           ),
                         ),
                         const SizedBox(width: 5),
-                        Icon(Icons.unfold_more_rounded,
-                            size: 12, color: AppColors.brassLight.withOpacity(0.5)),
+                        Icon(
+                          Icons.unfold_more_rounded,
+                          size: 12,
+                          color: AppColors.brassLight.withOpacity(0.5),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 2),
                     Directionality(
                       textDirection: TextDirection.rtl,
                       child: Text(
-                        tail.length > 90 ? '…${tail.substring(tail.length - 90)}' : tail,
+                        tail.length > 90
+                            ? '…${tail.substring(tail.length - 90)}'
+                            : tail,
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -5615,6 +5979,9 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
   }
 
   Widget _bottomHint(RecitationSessionState st) {
+    if (_openingStartPending || _toggleBusy || !_initialTargetReady) {
+      return const SizedBox.shrink();
+    }
     final t = AppLocalizations.of(context)!;
     final listening = st.status == RecitationStatus.listening;
     final finalizing = st.status == RecitationStatus.processing;
@@ -5657,9 +6024,13 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
       // prouve seulement qu'on l'entend -- et c'est exactement ce dont il
       // doute. Disparait des que le premier mot est juge : la couleur prend
       // alors le relais et se suffit.
-      final rienEncoreJuge = st.words.isEmpty ||
-          st.words.every((w) =>
-              w.status == WordStatus.pending || w.status == WordStatus.current);
+      final rienEncoreJuge =
+          st.words.isEmpty ||
+          st.words.every(
+            (w) =>
+                w.status == WordStatus.pending ||
+                w.status == WordStatus.current,
+          );
       if (!rienEncoreJuge) return const SizedBox.shrink();
       return _EcouteVivante(niveau: st.soundLevel, encre: _encreDouce(0.55));
     }
@@ -5673,7 +6044,7 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
     } else if (_willBeReferenceSession) {
       label = t.karaokeReferenceStartHint;
     } else {
-      label = t.karaokeTapToStartHint;
+      label = t.coachIncrementalTapToStart;
     }
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -5682,18 +6053,15 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
           listening && _manuallyPaused
               ? Icons.pause_circle_outline_rounded
               : listening
-                  ? Icons.graphic_eq
-                  : Icons.touch_app_outlined,
+              ? Icons.graphic_eq
+              : Icons.touch_app_outlined,
           size: 14,
           color: AppColors.brassLight.withOpacity(0.6),
         ),
         const SizedBox(width: 6),
         Text(
           label,
-          style: GoogleFonts.manrope(
-            fontSize: 12,
-            color: _encreDouce(0.5),
-          ),
+          style: GoogleFonts.manrope(fontSize: 12, color: _encreDouce(0.5)),
         ),
       ],
     );
@@ -5708,9 +6076,11 @@ class _KaraokeRecitationScreenState extends ConsumerState<KaraokeRecitationScree
 /// petit motif, nom arabe en grand, repère FR/numéro en dessous.
 class _SurahTransitionBanner extends StatelessWidget {
   final Surah surah;
+
   /// Encre du sous-titre : creme sur le vert de la recitation, encre du
   /// Mushaf en mode tajwid (2026-09-05).
   final Color encre;
+
   /// Accent du nom de sourate et des filets decoratifs -- `_accentTajwid`
   /// (2026-09-11, retour utilisateur : « le nom de la sourate [...] pas
   /// visible, remets ici en vert egalement »). AppColors.brassLight en dur
@@ -5718,11 +6088,15 @@ class _SurahTransitionBanner extends StatelessWidget {
   /// qui n'utilisait pas deja un parametre adaptatif venu du parent (le
   /// sous-titre, lui, prenait deja `encre` = `_encreDouce`).
   final Color accent;
-  const _SurahTransitionBanner(this.surah, {required this.encre, required this.accent});
+  const _SurahTransitionBanner(
+    this.surah, {
+    required this.encre,
+    required this.accent,
+  });
 
   Widget _rule() => Expanded(
-        child: Container(height: 1, color: accent.withValues(alpha: 0.25)),
-      );
+    child: Container(height: 1, color: accent.withValues(alpha: 0.25)),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -5737,8 +6111,11 @@ class _SurahTransitionBanner extends StatelessWidget {
               _rule(),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Icon(Icons.star_rounded,
-                    size: 9, color: accent.withValues(alpha: 0.55)),
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 9,
+                  color: accent.withValues(alpha: 0.55),
+                ),
               ),
               _rule(),
             ],
@@ -5755,8 +6132,11 @@ class _SurahTransitionBanner extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            t.karaokeSurahTransitionMeta(surah.number,
-                isArabic ? surah.nameArabic : surah.nameSimple, surah.versesCount),
+            t.karaokeSurahTransitionMeta(
+              surah.number,
+              isArabic ? surah.nameArabic : surah.nameSimple,
+              surah.versesCount,
+            ),
             style: GoogleFonts.manrope(
               fontSize: 11,
               letterSpacing: 0.6,
@@ -5770,8 +6150,11 @@ class _SurahTransitionBanner extends StatelessWidget {
               _rule(),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Icon(Icons.star_rounded,
-                    size: 9, color: accent.withValues(alpha: 0.55)),
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 9,
+                  color: accent.withValues(alpha: 0.55),
+                ),
               ),
               _rule(),
             ],
@@ -5788,6 +6171,7 @@ class _SurahTransitionBanner extends StatelessWidget {
 /// pouvoir importer un widget privé d'un autre fichier.
 class _KaraokeVerseBadge extends StatelessWidget {
   final int number;
+
   /// `_accentTajwid` (2026-09-11, retour utilisateur : « la couleur de
   /// chiffre verset pas visible, remets ici en vert egalement ») --
   /// AppColors.brassLight en dur avant ce jour, comme `_SurahTransitionBanner`.
@@ -5833,8 +6217,16 @@ class _LatticePainter extends CustomPainter {
       ..strokeWidth = 1;
     const step = 46.0;
     for (double x = -size.height; x < size.width + size.height; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x + size.height, size.height), paint);
-      canvas.drawLine(Offset(x, size.height), Offset(x + size.height, 0), paint);
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x + size.height, size.height),
+        paint,
+      );
+      canvas.drawLine(
+        Offset(x, size.height),
+        Offset(x + size.height, 0),
+        paint,
+      );
     }
   }
 
@@ -5851,7 +6243,8 @@ class _FullTranscriptSheet extends ConsumerStatefulWidget {
   const _FullTranscriptSheet({this.passageSubtitle});
 
   @override
-  ConsumerState<_FullTranscriptSheet> createState() => _FullTranscriptSheetState();
+  ConsumerState<_FullTranscriptSheet> createState() =>
+      _FullTranscriptSheetState();
 }
 
 class _FullTranscriptSheetState extends ConsumerState<_FullTranscriptSheet> {
@@ -5892,7 +6285,9 @@ class _FullTranscriptSheetState extends ConsumerState<_FullTranscriptSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final text = ref.watch(recitationProvider.select((s) => s.rawTranscript)).trim();
+    final text = ref
+        .watch(recitationProvider.select((s) => s.rawTranscript))
+        .trim();
     _scrollToBottomIfNeeded();
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -5931,7 +6326,11 @@ class _FullTranscriptSheetState extends ConsumerState<_FullTranscriptSheet> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.white54,
+                    size: 20,
+                  ),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -5943,7 +6342,10 @@ class _FullTranscriptSheetState extends ConsumerState<_FullTranscriptSheet> {
                 ? Center(
                     child: Text(
                       AppLocalizations.of(context)!.karaokeNothingHeardYet,
-                      style: GoogleFonts.manrope(color: Colors.white38, fontSize: 13),
+                      style: GoogleFonts.manrope(
+                        color: Colors.white38,
+                        fontSize: 13,
+                      ),
                     ),
                   )
                 : SingleChildScrollView(
@@ -5969,7 +6371,6 @@ class _FullTranscriptSheetState extends ConsumerState<_FullTranscriptSheet> {
   }
 }
 
-
 // ── Briques de la feuille « Paramètres de vérification » ─────────────────────
 
 class _SheetRow extends StatelessWidget {
@@ -5977,27 +6378,32 @@ class _SheetRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  const _SheetRow(
-      {required this.icon,
-      required this.title,
-      required this.subtitle,
-      required this.onTap});
+  const _SheetRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) => ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon, color: AppColors.brassLight, size: 22),
-        title: Text(title,
-            style: GoogleFonts.manrope(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppColors.cream)),
-        subtitle: Text(subtitle,
-            style: GoogleFonts.manrope(
-                fontSize: 11.5, color: Colors.white60)),
-        trailing: const Icon(Icons.chevron_right, color: Colors.white38),
-        onTap: onTap,
-      );
+    contentPadding: EdgeInsets.zero,
+    leading: Icon(icon, color: AppColors.brassLight, size: 22),
+    title: Text(
+      title,
+      style: GoogleFonts.manrope(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: AppColors.cream,
+      ),
+    ),
+    subtitle: Text(
+      subtitle,
+      style: GoogleFonts.manrope(fontSize: 11.5, color: Colors.white60),
+    ),
+    trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+    onTap: onTap,
+  );
 }
 
 // Réutilisé depuis le 2026-08-14 par le commutateur « Phrase de fin de
@@ -6009,32 +6415,37 @@ class _SheetSwitch extends StatelessWidget {
   final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
-  const _SheetSwitch(
-      {required this.icon,
-      required this.title,
-      required this.subtitle,
-      required this.value,
-      required this.onChanged});
+  const _SheetSwitch({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) => ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon, color: AppColors.brassLight, size: 22),
-        title: Text(title,
-            style: GoogleFonts.manrope(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppColors.cream)),
-        subtitle: Text(subtitle,
-            style: GoogleFonts.manrope(
-                fontSize: 11.5, color: Colors.white60)),
-        trailing: Switch.adaptive(
-          value: value,
-          onChanged: onChanged,
-          activeThumbColor: AppColors.brassLight,
-        ),
-        onTap: () => onChanged(!value),
-      );
+    contentPadding: EdgeInsets.zero,
+    leading: Icon(icon, color: AppColors.brassLight, size: 22),
+    title: Text(
+      title,
+      style: GoogleFonts.manrope(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: AppColors.cream,
+      ),
+    ),
+    subtitle: Text(
+      subtitle,
+      style: GoogleFonts.manrope(fontSize: 11.5, color: Colors.white60),
+    ),
+    trailing: Switch.adaptive(
+      value: value,
+      onChanged: onChanged,
+      activeThumbColor: AppColors.brassLight,
+    ),
+    onTap: () => onChanged(!value),
+  );
 }
 
 /// Bandeau d'etoiles du mode ENFANT (cf. `_etoilesGagnees`).
@@ -6067,25 +6478,30 @@ class _BandeauEtoiles extends StatelessWidget {
                   Transform.scale(scale: t, child: child),
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 2),
-                child: Icon(Icons.star_rounded,
-                    color: AppColors.brassLight, size: 26),
+                child: Icon(
+                  Icons.star_rounded,
+                  color: AppColors.brassLight,
+                  size: 26,
+                ),
               ),
             ),
           if (etoiles > 5)
             Padding(
               padding: const EdgeInsets.only(left: 6),
-              child: Text('x$etoiles',
-                  style: GoogleFonts.manrope(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.brassLight)),
+              child: Text(
+                'x$etoiles',
+                style: GoogleFonts.manrope(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.brassLight,
+                ),
+              ),
             ),
         ],
       ),
     );
   }
 }
-
 
 /// « Je t'écoute… continue » — la preuve visuelle qu'on entend, le temps que
 /// les premiers verdicts arrivent.
@@ -6105,6 +6521,7 @@ class _BandeauEtoiles extends StatelessWidget {
 /// l'app est morte ; celle-ci ne bouge que si la voix arrive vraiment.
 class _EcouteVivante extends StatelessWidget {
   final double niveau;
+
   /// Cf. `_SurahTransitionBanner.encre`.
   final Color encre;
   const _EcouteVivante({required this.niveau, required this.encre});
@@ -6137,16 +6554,19 @@ class _EcouteVivante extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        Text(t.karaokeEcouteEnCours,
-            style: GoogleFonts.manrope(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.brassLight)),
+        Text(
+          t.karaokeEcouteEnCours,
+          style: GoogleFonts.manrope(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: AppColors.brassLight,
+          ),
+        ),
         const SizedBox(height: 2),
-        Text(t.karaokeEcouteBientot,
-            style: GoogleFonts.manrope(
-                fontSize: 11,
-                color: encre)),
+        Text(
+          t.karaokeEcouteBientot,
+          style: GoogleFonts.manrope(fontSize: 11, color: encre),
+        ),
       ],
     );
   }

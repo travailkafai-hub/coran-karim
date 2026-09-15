@@ -63,7 +63,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get navCoach => 'مدرّبي';
 
   @override
-  String get navSettings => 'إعدادات';
+  String get navSettings => 'الإعدادات';
 
   @override
   String get appTitle => 'قرآن كريم';
@@ -80,17 +80,26 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String mindMapAyahCountBadge(int count) {
-    return '$count آية';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count آية',
+      few: '$count آيات',
+      two: 'آيتان',
+      one: 'آية واحدة',
+      zero: 'لا آيات',
+    );
+    return '$_temp0';
   }
 
   @override
   String get mindMapGoToVerse => 'الانتقال إلى الآية';
 
   @override
-  String get mindMapThemeLabel => 'الخيط الناظم';
+  String get mindMapThemeLabel => 'المحور الرئيسي';
 
   @override
-  String get mindMapSourcesLabel => 'المصادر والتحفظات';
+  String get mindMapSourcesLabel => 'المصادر والتنبيهات';
 
   @override
   String get mindMapNotReadyTitle => 'قريبًا';
@@ -147,7 +156,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get settingsRiwayaChangeNotice =>
-      'التلاوات والحفظ السابقان: يُتابَعان بشكل منفصل حسب الرواية، ولن يتغيّرا.';
+      'يُحفظ سجل التلاوة وتقدّم الحفظ لكل رواية على حدة. تغيير الرواية لا يمحو تقدّمك السابق.';
 
   @override
   String get settingsStyleMurattal => 'مرتّل';
@@ -165,14 +174,14 @@ class AppLocalizationsAr extends AppLocalizations {
   String get settingsQiblaSubtitle => 'بوصلة نحو مكة من موقعك';
 
   @override
-  String get settingsSectionVoicePersonalization => 'تخصيص الصوت';
+  String get settingsSectionVoicePersonalization => 'تخصيص التعرّف على صوتك';
 
   @override
   String get settingsVoiceCalibTitle => 'معايرة الصوت (الحروف المتشابهة)';
 
   @override
   String get settingsVoiceCalibSubtitle =>
-      'سجّل نحو 14 كلمة منطوقة عمدًا بشكل صحيح/خاطئ (ص/س، ط/ت...) لضبط حساسيتك';
+      'سجّل نحو 14 كلمة بنطق صحيح ثم بخطأ متعمّد، مثل ص/س وط/ت، لإعداد عينات تخصيص التعرّف على صوتك.';
 
   @override
   String get settingsMyClipsTitle => 'تسجيلات تلاواتي';
@@ -188,8 +197,12 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count تسجيلات محفوظة — اضغط لتصديرها',
-      one: 'تسجيل واحد محفوظ — اضغط لتصديره',
+      other: 'التسجيلات المحفوظة: $count، اضغط للتصدير',
+      many: '$count تسجيلًا محفوظًا، اضغط للتصدير',
+      few: '$count تسجيلات محفوظة، اضغط لتصديرها',
+      two: 'تسجيلان محفوظان، اضغط لتصديرهما',
+      one: 'تسجيل واحد محفوظ، اضغط لتصديره',
+      zero: 'لا توجد تسجيلات محفوظة',
     );
     return '$_temp0';
   }
@@ -198,19 +211,23 @@ class AppLocalizationsAr extends AppLocalizations {
   String get settingsExportStarted => 'بدأ التصدير — اختر أين ترسل الملف.';
 
   @override
-  String get settingsDisputedTitle => 'الأحكام المُعترض عليها';
+  String get settingsDisputedTitle => 'التقييمات المعترض عليها';
 
   @override
   String get settingsDisputedEmpty =>
-      'لا توجد أحكام معترض عليها بعد — استخدم 👎 تحت \"صوتي\" أثناء التلاوة';
+      'لا توجد اعتراضات بعد. للاعتراض على تقييم كلمة، استمع إلى تسجيلك ثم اختر «غير موافق» أسفل «صوتي».';
 
   @override
   String settingsDisputedCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count أحكام معترض عليها — اضغط لإرسالها',
-      one: 'حكم واحد معترض عليه — اضغط لإرساله',
+      other: 'التقييمات المعترض عليها: $count، اضغط للإرسال',
+      many: '$count تقييمًا معترضًا عليه، اضغط للإرسال',
+      few: '$count تقييمات معترض عليها، اضغط لإرسالها',
+      two: 'تقييمان معترض عليهما، اضغط لإرسالهما',
+      one: 'تقييم واحد معترض عليه، اضغط لإرساله',
+      zero: 'لا توجد تقييمات معترض عليها',
     );
     return '$_temp0';
   }
@@ -236,7 +253,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get settingsLocaleSheetDescription =>
-      'بالعربية، يبقى كل المحتوى (القوائم والقرآن) بالعربية دون ترجمة. بالفرنسية/الإنجليزية، يبقى القرآن دائمًا بالعربية؛ فقط القوائم والشروحات تتغيّر لغتها.';
+      'تحدّد اللغة نصوص الواجهة والشروحات. يبقى القرآن بالعربية دائمًا، ولا تُعرض ترجمة مع الآيات عند اختيار الواجهة العربية.';
 
   @override
   String get settingsAboutSubtitle => 'الإصدار والمصادر والتراخيص والخصوصية';
@@ -249,23 +266,23 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get settingsAdultChunkWordCountTitle =>
-      'عدد الكلمات في كل مرحلة (وضع البالغ)';
+      'كلمات المقطع التدريبي للبالغين';
 
   @override
   String settingsAdultChunkWordCountDescription(int max) {
-    return 'يقارب سطرًا من المصحف (من 1 إلى $max كلمة). بلا أثر في وضع الطفل، الذي يبقى كلمة بكلمة دائمًا.';
+    return 'حجم المقطع من 1 إلى $max كلمة. لا ينطبق هذا الإعداد على وضع الطفل، الذي يقسّم الآية إلى مجموعات من كلمتين، مع كلمة أخيرة منفردة إذا كان العدد فرديًا.';
   }
 
   @override
-  String get settingsRepeatWindowSizeTitle => 'نافذة التلاوة (المؤشر)';
+  String get settingsRepeatWindowSizeTitle => 'نافذة المراجعة (إعداد سابق)';
 
   @override
   String settingsRepeatWindowSizeDescription(int max) {
-    return 'عدد المراحل الواجب تلاوتها معًا للتثبيت (من 1 إلى $max). هذا العدد ثابت، والنافذة تنزلق مع تقدّم المراحل.';
+    return 'قيمة محفوظة من 1 إلى $max. لا تؤثر في التدريب الحالي، الذي يعيد المقطع من بداية الآية ويزيده تدريجيًا.';
   }
 
   @override
-  String get commonConnectionRequired => 'الاتصال مطلوب';
+  String get commonConnectionRequired => 'يلزم الاتصال بالإنترنت';
 
   @override
   String get commonRetry => 'إعادة المحاولة';
@@ -274,7 +291,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get homeIdentifyTooltip => 'البحث عن آية بالصوت';
 
   @override
-  String get homeFollowPrayerTooltip => 'متابعة صلاة';
+  String get homeFollowPrayerTooltip => 'متابعة التلاوة في الصلاة';
 
   @override
   String get surahMeccan => 'مكية';
@@ -284,7 +301,15 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String surahMetaLine(int count, String place) {
-    return '$count آية • $place';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count آية',
+      few: '$count آيات',
+      two: 'آيتان',
+      one: 'آية واحدة',
+    );
+    return '$_temp0 • $place';
   }
 
   @override
@@ -308,7 +333,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get mushafPause => 'إيقاف مؤقت';
 
   @override
-  String get mushafFavorites => 'علامة';
+  String get mushafFavorites => 'علامة القراءة';
 
   @override
   String get mushafMemorize => 'حفظ';
@@ -341,10 +366,11 @@ class AppLocalizationsAr extends AppLocalizations {
   String get commonClose => 'إغلاق';
 
   @override
-  String get shazamListening => 'اتلُ أو شغّل مقطعًا —\nتُوجد الآية ثم تُفتح.';
+  String get shazamListening =>
+      'اقرأ أو شغّل تلاوة مسموعة.\nيبحث التطبيق عن الآية ويفتح موضعها.';
 
   @override
-  String get shazamSearching => 'البحث في القرآن...';
+  String get shazamSearching => 'جارٍ البحث عن الآية…';
 
   @override
   String get shazamFound => 'تم التعرّف على المقطع!';
@@ -362,7 +388,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get shazamGoThere => 'الانتقال إليه';
+  String get shazamGoThere => 'فتح موضع الآية';
 
   @override
   String get readingSettingsDisplaySection => 'العرض';
@@ -378,11 +404,11 @@ class AppLocalizationsAr extends AppLocalizations {
   String get readingSettingsPlaybackSpeedSection => 'سرعة التلاوة (الصوت)';
 
   @override
-  String get readingSettingsRepeatSection => 'التكرار / الحلقات';
+  String get readingSettingsRepeatSection => 'تكرار الاستماع';
 
   @override
   String get readingSettingsRepeatDescription =>
-      'يكرّر كل آية (أو السورة كاملة) في حلقة قبل الانتقال إلى التالية.';
+      'أعد الاستماع إلى الآية أو السورة بالعدد الذي تختاره.';
 
   @override
   String get readingSettingsRepeatOff => 'معطّل';
@@ -415,7 +441,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get readingSettingsKindleDescription =>
-      'اختر أجواء القراءة: عادية، بيج كجهاز القراءة الإلكتروني، أو أسود للقراءة الليلية.';
+      'اختر خلفية القراءة: فاتحة، أو بلون الورق، أو سوداء للقراءة الليلية.';
 
   @override
   String get readingSettingsKindleAutoTurn => 'تقليب الصفحات تلقائيًا';
@@ -480,7 +506,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get tajwidHelpPlaying => 'قيد التشغيل…';
 
   @override
-  String get tajwidHelpVoiceFeedbackPrompt => 'هل سمع التطبيق بشكل صحيح؟';
+  String get tajwidHelpVoiceFeedbackPrompt =>
+      'هل توافق على تقييم التطبيق لهذه الكلمة؟';
 
   @override
   String get tajwidHelpVoiceFeedbackNeedsListen =>
@@ -493,10 +520,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get tajwidHelpVoiceThumbsDown => 'غير موافق، لقد نطقتها صحيحة';
 
   @override
-  String get tajwidHelpVoiceFeedbackThanks => 'شكرًا، تم التسجيل';
+  String get tajwidHelpVoiceFeedbackThanks => 'شكرًا، حُفظت ملاحظتك';
 
   @override
-  String get tajwidHelpRetryThisWord => 'إعادة المحاولة على هذه الكلمة';
+  String get tajwidHelpRetryThisWord => 'إعادة تلاوة هذه الكلمة';
 
   @override
   String tajwidHelpCorrectedHeard(String text) {
@@ -508,7 +535,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String tajwidHelpNotYetHeard(String text) {
-    return 'ليس بعد — المسموع: \"$text\". أعد المحاولة على راحتك.';
+    return 'لم يتعرّف التطبيق على النطق المطلوب بعد. المسموع: «$text». حاول مجددًا بهدوء.';
   }
 
   @override
@@ -634,7 +661,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'لا تُنطق لام «ال» بل يُشدَّد الحرف التالي بدلًا منها.';
 
   @override
-  String get tajwidRuleSlntName => 'حرف صامت';
+  String get tajwidRuleSlntName => 'حرف غير منطوق';
 
   @override
   String get tajwidRuleSlntExplanation => 'يُكتب ولا يُنطق.';
@@ -677,7 +704,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String duasInvocationCount(int count) {
-    return '$count دعاء';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count دعاء',
+      few: '$count أدعية',
+      two: 'دعاءان',
+      one: 'دعاء واحد',
+      zero: 'لا أدعية',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -695,7 +731,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get duaHideVirtue => 'إخفاء الفضل';
 
   @override
-  String get duaShowVirtue => 'لماذا تُقال';
+  String get duaShowVirtue => 'فضل هذا الدعاء';
 
   @override
   String duaRepeatComplete(int target) {
@@ -748,10 +784,10 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachReadAloudInstruction =>
-      'اقرأ هذه الآية بصوت مرتفع — يكتشف التطبيق الكلمات الصعبة ويحفظ صوتك.';
+      'اقرأ الآية بصوت مسموع. يسجّل التطبيق تلاوتك ويحدّد الكلمات التي قد تحتاج إلى تدريب.';
 
   @override
-  String get coachListeningLecture => 'أسجّل الكلمات الصعبة…';
+  String get coachListeningLecture => 'جارٍ تسجيل التلاوة وتحليلها…';
 
   @override
   String get coachDoneLecture => 'تم تحليل القراءة';
@@ -760,7 +796,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachTapToRead => 'اضغط واقرأ الآية';
 
   @override
-  String get coachAlreadyKnow => 'أعرفها من قبل';
+  String get coachAlreadyKnow => 'أحفظ هذه الآية';
 
   @override
   String get coachTrainButton => 'تدرّب';
@@ -769,7 +805,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachSubStepListen => 'استماع';
 
   @override
-  String get coachSubStepImitate => 'محاكاة';
+  String get coachSubStepImitate => 'ترديد مع القارئ';
 
   @override
   String get coachSubStepRepeat => 'تكرار';
@@ -784,24 +820,24 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachTapToListen => 'اضغط للاستماع';
 
   @override
-  String get coachMoveToImitation => 'الانتقال إلى المحاكاة';
+  String get coachMoveToImitation => 'الترديد مع القارئ';
 
   @override
   String get coachImitateInstruction =>
-      'شغّل الصوت وتكلّم في الوقت نفسه. حاكِ الإيقاع والوقفات والنبرة.';
+      'شغّل التلاوة وردّد مع القارئ، متابعًا نطقه وإيقاعه ومواضع وقفه.';
 
   @override
-  String get coachSpeakAlong => 'تكلّم في نفس وقت الصوت';
+  String get coachSpeakAlong => 'ردّد مع القارئ';
 
   @override
-  String get coachLaunchAndImitate => 'شغّل الصوت وحاكِه';
+  String get coachLaunchAndImitate => 'تشغيل التلاوة والترديد معها';
 
   @override
-  String get coachImitatedNext => 'حاكيت — أكرّر وحدي';
+  String get coachImitatedNext => 'جاهز للترديد وحدي';
 
   @override
   String get coachIncrementalInstruction =>
-      'استمع ثم كرّر. تكبر المرحلة مع كل نجاح.';
+      'استمع ثم ردّد. يزداد طول المقطع تدريجيًا مع تقدّمك.';
 
   @override
   String get coachIncrementalPreparing => 'التحضير جارٍ…';
@@ -846,7 +882,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String coachAccuracyPercent(int pct) {
-    return 'دقة $pct٪';
+    return 'دقة التعرّف: $pct٪';
   }
 
   @override
@@ -855,7 +891,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get coachMemorizedConfirmed => 'تأكّد الحفظ!';
+  String get coachMemorizedConfirmed => 'اجتزت اختبار الحفظ!';
 
   @override
   String get coachKeepTraining => 'واصل التدريب';
@@ -866,11 +902,12 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get coachMsgLectureExcellent => 'قراءة ممتازة! أتقنت نطق هذه الآية.';
+  String get coachMsgLectureExcellent =>
+      'أحسنت! لم يرصد التطبيق صعوبة واضحة في هذه القراءة.';
 
   @override
   String coachMsgLectureDifficultWords(String words) {
-    return 'هذه الكلمات كانت صعبة عليك: $words\n\nركّز عليها أثناء التدريب.';
+    return 'أشار التطبيق إلى هذه الكلمات: $words\n\nاستمع إليها وراجع نطقها أثناء التدريب.';
   }
 
   @override
@@ -883,15 +920,15 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachMsgTrainGoodStart =>
-      'بداية جيدة. أعد المحاولة مرة أخرى لترسيخ الكلمات المتردد فيها.';
+      'بداية جيدة. أعد المحاولة لتثبيت الكلمات التي تردّدت فيها.';
 
   @override
   String get coachMsgTrainRestart =>
-      'أعد الاستماع والمحاكاة، ثم حاول التكرار من جديد.';
+      'استمع مجددًا وردّد مع القارئ، ثم حاول وحدك.';
 
   @override
   String get coachMsgControlMashallah =>
-      'ما شاء الله! تلاوتك من الحفظ أفضل من قراءتك الأولى — الآية محفوظة!';
+      'ما شاء الله! تحسّنت نتيجتك في التلاوة من الحفظ مقارنة بالقراءة الأولى. واصل المراجعة لتثبيت الآية.';
 
   @override
   String get coachMsgControlVeryGood =>
@@ -899,11 +936,11 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachMsgControlGoodPath =>
-      'أنت في الطريق الصحيح. بضع تكرارات أخرى وستُرسَّخ الآية.';
+      'أنت تتقدّم. واصل التكرار والمراجعة لتثبيت الآية.';
 
   @override
   String get coachMsgControlKeepTraining =>
-      'واصل التدريب. عد إلى مرحلة القراءة لتستهدف نقاط الضعف.';
+      'واصل التدريب، وارجع إلى القراءة لمراجعة الكلمات التي تحتاج إلى اهتمام.';
 
   @override
   String get errorKindLettre => 'الحرف';
@@ -925,6 +962,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachHubTitle => 'مدرّبي';
+
+  @override
+  String get homeReprendreTitre => 'تابِع القراءة';
+
+  @override
+  String homeReprendreSous(String sourate, int verset) {
+    return '$sourate · الآية $verset';
+  }
 
   @override
   String get coachHubResumeLabel => 'متابعة';
@@ -953,7 +998,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachHubPickerMemorizeTitle => 'حفظ';
 
   @override
-  String get coachHubPickerMemorizeSubtitle => 'اختر السورة للعمل عليها';
+  String get coachHubPickerMemorizeSubtitle => 'اختر السورة التي تريد حفظها';
 
   @override
   String get coachHubReciteSurahTitle => 'تلاوة سورة';
@@ -995,7 +1040,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String coachHubAyahErrorCount(int ayah, int count) {
-    return 'الآية $ayah  ·  $count خطأ';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count خطأ',
+      few: '$count أخطاء',
+      two: 'خطآن',
+      one: 'خطأ واحد',
+      zero: 'لا أخطاء مسجّلة',
+    );
+    return 'الآية $ayah · $_temp0';
   }
 
   @override
@@ -1006,7 +1060,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachHubErrorNoteExplainer =>
-      'الحرف والحركات = النطق. «التجويد» تعني أن لا الحروف ولا الحركات تفسّر الفارق في كلمة تحمل حكمًا — إنه استنتاج، لا دليل على أن الحكم لم يُراعَ.';
+      'يشير تصنيف «الحروف» أو «الحركات» إلى اختلاف في النطق. أما تصنيف «التجويد» فهو استنتاج عند وجود اختلاف لا يفسّره حرف أو حركة في كلمة لها حكم تجويد؛ وليس دليلًا قاطعًا على خطأ في أداء الحكم.';
 
   @override
   String get coachHubRuleBreakdownTitle => 'التفصيل حسب حكم التجويد';
@@ -1034,30 +1088,30 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachHubGameSectionTitle => 'العب';
 
   @override
-  String get coachHubGameSectionSubtitle => 'استرجاع تدريجي، درجة بعد درجة';
+  String get coachHubGameSectionSubtitle => 'تدرّب على ترتيب الكلمات من حفظك';
 
   @override
-  String get coachHubGameActionTitle => 'لعبة الحفظ';
+  String get coachHubGameActionTitle => 'لعبة تسلسل الكلمات';
 
   @override
   String get coachHubGameActionSubtitle =>
-      'تظهر الكلمات واحدة تلو الأخرى، أكمل الباقي من حفظك';
+      'اختر الكلمة التالية وأكمل الآية من حفظك';
 
   @override
-  String get coachHubPickerGameTitle => 'لعبة الحفظ';
+  String get coachHubPickerGameTitle => 'لعبة تسلسل الكلمات';
 
   @override
   String get coachHubPickerGameSubtitle => 'اختر السورة التي تريد حفظها باللعب';
 
   @override
-  String get memorizationGameTitle => 'لعبة التسلسل';
+  String get memorizationGameTitle => 'لعبة تسلسل الكلمات';
 
   @override
   String get memorizationGameRestartVerseTooltip => 'إعادة هذه الآية';
 
   @override
   String get memorizationGameRulesHint =>
-      'ابحث عن الكلمة التالية. الخطأ يكلف -5 ويعيدك إلى الآية السابقة.';
+      'اختر الكلمة التالية. الإجابة الخاطئة تخصم 5 نقاط وتعيدك إلى الآية السابقة.';
 
   @override
   String get memorizationGameBridgeHint => 'خاتمة الآية السابقة';
@@ -1067,7 +1121,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'العودة إلى الآية السابقة (-5)';
 
   @override
-  String get memorizationGameStyleChaining => 'تسلسل';
+  String get memorizationGameStyleChaining => 'تسلسل الكلمات';
 
   @override
   String get memorizationGameStyleVerseStart => 'بداية الآية';
@@ -1090,7 +1144,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String memorizationGameCompleteBody(String surah) {
-    return 'لقد اجتزت جميع درجات $surah. أعد المحاولة لترسيخ حفظك.';
+    return 'أكملت جميع مراحل $surah. أعد اللعب لتثبيت حفظك.';
   }
 
   @override
@@ -1101,9 +1155,12 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count كلمة متتالية',
-      one: 'كلمة واحدة متتالية',
-      zero: 'لا كلمات بعد',
+      other: 'الكلمات المتتالية: $count',
+      many: '$count كلمة متتالية',
+      few: '$count كلمات متتالية',
+      two: 'كلمتان متتاليتان',
+      one: 'كلمة واحدة صحيحة',
+      zero: 'لم تُكمل أي كلمة بعد',
     );
     return '$_temp0';
   }
@@ -1124,11 +1181,14 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count كلمة متتالية',
-      one: 'كلمة واحدة متتالية',
-      zero: 'لا كلمات هذه المرة',
+      other: 'الكلمات المتتالية: $count',
+      many: '$count كلمة متتالية',
+      few: '$count كلمات متتالية',
+      two: 'كلمتان متتاليتان',
+      one: 'كلمة واحدة صحيحة',
+      zero: 'لم تُكمل أي كلمة هذه المرة',
     );
-    return '$_temp0 — الرقم القياسي: $best';
+    return '$_temp0. أفضل نتيجة: $best';
   }
 
   @override
@@ -1179,7 +1239,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'لا يحتوي هذا الجهاز على بوصلة. تبقى المسافة إلى مكة متاحة أدناه.';
 
   @override
-  String get qiblaKmToMecca => 'كم حتى مكة';
+  String get qiblaKmToMecca => 'كم إلى مكة';
 
   @override
   String get qiblaFacingQibla => 'أنت تواجه القبلة ✓';
@@ -1201,18 +1261,18 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get prayerFollowSensitivityDescription =>
-      'إعداد مستقل عن حساسية التلاوة العادية -- كلما زاد التساهل قُبلت نطقات أقل دقة باللون الأخضر، وكلما زادت الصرامة تطلّب الأمر دقة أكبر.';
+      'هذا الإعداد خاص بمتابعة الصلاة. الوضع المتساهل يقبل فروقًا أكبر في النطق، والوضع الصارم يتطلّب تطابقًا أدق.';
 
   @override
   String get prayerFollowSouffleurTitle => 'التلقين التلقائي';
 
   @override
   String prayerFollowSouffleurSubtitle(int seconds) {
-    return 'يشغّل الكلمة المتوقعة بعد $seconds ثانية من الصمت -- لا حظر أبدًا في هذا الوضع.';
+    return 'يُسمعك الكلمة المتوقعة بعد $seconds ثانية من الصمت، دون إلزامك بإعادتها لمتابعة التلاوة.';
   }
 
   @override
-  String get prayerFollowTitle => 'متابعة صلاة';
+  String get prayerFollowTitle => 'متابعة الصلاة';
 
   @override
   String get prayerFollowSettingsTooltip => 'الإعدادات';
@@ -1222,14 +1282,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get prayerFollowIdentifying =>
-      'انتهت الفاتحة -- يتم تحديد السورة التالية…';
+      'انتهت الفاتحة. جارٍ التعرّف على السورة التالية…';
 
   @override
   String get prayerFollowListening => 'الاستماع جارٍ…';
 
   @override
   String get prayerFollowTapToStart =>
-      'اضغط على الميكروفون لبدء متابعة الصلاة.';
+      'الاستماع متوقف. اضغط على الميكروفون لإعادة المحاولة.';
 
   @override
   String get prayerPhaseStandby => 'انتظار (الركوع/السجود)';
@@ -1271,7 +1331,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get riteDisclaimer =>
-      'هذا الدليل مذكّر لا فتوى. تختلف المذاهب الفقهية في عدة تفاصيل ثانوية: عند الشك في الموقع، اسأل مرشدًا مؤهلاً أو المشرفين على مجموعتك.';
+      'هذا الدليل للتذكير، وليس فتوى. تختلف بعض تفاصيل المناسك باختلاف المذاهب الفقهية. عند الشك، اسأل مرشدًا مؤهّلًا أو المشرف على مجموعتك.';
 
   @override
   String get riteResetConfirmTitle => 'إعادة البدء؟';
@@ -1293,7 +1353,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get riteStepDone => 'أُنجزت الخطوة';
 
   @override
-  String get riteMarkAsDone => 'وضع علامة كمنجزة';
+  String get riteMarkAsDone => 'تأكيد إتمام الخطوة';
 
   @override
   String get recitationModeLabel => 'وضع الحفظ';
@@ -1310,7 +1370,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String recitationSegmentAnalyzing(int count) {
-    return '$count مقطع قيد التحليل…';
+    return 'المقاطع قيد التحليل: $count…';
   }
 
   @override
@@ -1336,7 +1396,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get recitationFinishedRestart => 'انتهت — اضغط لإعادة البدء';
 
   @override
-  String get recitationTapToStart => 'اضغط وتلُ (عدة آيات متتالية)';
+  String get recitationTapToStart => 'ابدأ تلاوة الآيات تباعًا';
 
   @override
   String recitationMashallahAccuracy(String pct) {
@@ -1353,7 +1413,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get reciterSelectStreamingNote =>
-      'القرّاء المدمجون. القراءة تتم عبر الإنترنت افتراضيًا؛ حمّل سورة للاستماع دون اتصال.';
+      'اختر القارئ الذي تفضّله. تُشغّل التلاوة عبر الإنترنت ما لم تنزّل السورة للاستماع دون اتصال.';
 
   @override
   String get reciterSelectOfflineTitle => 'تنزيل للاستخدام دون اتصال';
@@ -1370,7 +1430,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String voiceCalibDoneBody(int count) {
-    return 'تم تسجيل $count مقطع. ستنضم إلى مقاطعك الموثّقة — صدّرها من الإعدادات لبدء التخصيص.';
+    return 'اكتمل تسجيل المقاطع: $count. أُضيفت إلى عيناتك الموثّقة؛ صدّرها من الإعدادات لإعداد تخصيص التعرّف على صوتك.';
   }
 
   @override
@@ -1398,7 +1458,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String voiceCalibSavedSnackbar(int count) {
-    return 'تم تسجيل $count مقطع معايرة — صدّرها من الإعدادات لتخصيص النموذج.';
+    return 'مقاطع المعايرة المحفوظة: $count. يمكنك تصديرها من الإعدادات لتخصيص النموذج.';
   }
 
   @override
@@ -1418,7 +1478,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get ruleNotMeasuredLabel => 'غير مقاس';
+  String get ruleNotMeasuredLabel => 'لم تُقَس الدقة بعد';
 
   @override
   String get tajwidRulesTitle => 'التحقق من التلاوة';
@@ -1429,18 +1489,18 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get tajwidRulesHarakatTitle => 'الحركات مطلوبة';
+  String get tajwidRulesHarakatTitle => 'التدقيق في الحركات';
 
   @override
   String get tajwidRulesHarakatSubtitle =>
-      'معطّل: الحركات القصيرة لا تُحتسب خطأً';
+      'عند تعطيله، لا تُحتسب الفروق في الحركات القصيرة أخطاءً.';
 
   @override
   String get tajwidRulesConfusablesTitle => 'التسامح مع الحروف المتقاربة';
 
   @override
   String get tajwidRulesConfusablesSubtitle =>
-      'ص/س، ط/ت، ض/د، ذ/ز، ح/ه، ق/ك، ع/ء تُحتسب متكافئة (وضع الطفل)';
+      'يسمح التقييم ببعض الخلط بين الحروف، مثل ص/س وط/ت، للتدرّب في وضع الطفل. هذا تساهل في التقييم، وليس إقرارًا بصحة النطق.';
 
   @override
   String get tajwidRulesSectionTitle => 'أحكام التجويد';
@@ -1457,10 +1517,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get tajwidPresetTajwid => 'تجويد';
 
   @override
-  String get tajwidPresetAdult => 'بالغ';
+  String get tajwidPresetAdult => 'للبالغين';
 
   @override
-  String get tajwidPresetChild => 'طفل';
+  String get tajwidPresetChild => 'للأطفال';
 
   @override
   String surahPickerLoadVersesError(String error) {
@@ -1474,7 +1534,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String surahPickerVerseCount(int count) {
-    return '$count آية';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count آية',
+      few: '$count آيات',
+      two: 'آيتان',
+      one: 'آية واحدة',
+      zero: 'لا آيات',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -1513,7 +1582,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String karaokeMissedSuffix(int count) {
-    return '، $count غير معروفة';
+    return '، $count لم يتعرّف عليها التطبيق';
   }
 
   @override
@@ -1532,7 +1601,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get karaokeVerificationModeSubtitle =>
-      'أنماط تجويد / بالغ / طفل، 17 حكمًا';
+      'إعدادات التجويد والبالغين والأطفال';
 
   @override
   String get karaokeSensitivityTitle => 'حساسية التصحيح';
@@ -1542,7 +1611,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'أكثر تساهلاً: يقبل الحركات/النطق غير الدقيق باللون الأخضر. أكثر صرامة: يتطلب نطقًا أقرب إلى النموذج.';
 
   @override
-  String get karaokeEngineTitle => 'المحرّك: المحاذاة القسرية (gop)';
+  String get karaokeEngineTitle => 'مطابقة الصوت بالنص (GOP)';
 
   @override
   String get karaokeEngineActiveSubtitle =>
@@ -1557,7 +1626,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get karaokeAutoCorrectionSubtitle =>
-      'كلمة حمراء ← إيقاف مؤقت، يصحّح القارئ، استئناف تلقائي';
+      'عند رصد كلمة تحتاج إلى تصحيح، تتوقف المتابعة مؤقتًا لتسمع نطق القارئ، ثم تُستأنف تلقائيًا.';
 
   @override
   String get karaokeStrictnessTitle => 'صرامة التصحيح';
@@ -1571,13 +1640,15 @@ class AppLocalizationsAr extends AppLocalizations {
       'متساهل — يُعاد الأحمر فقط (الكلمة الخاطئة)';
 
   @override
-  String get karaokeFollowFreeTitle => 'المتابعة دون حظر';
+  String get karaokeFollowFreeTitle => 'المتابعة دون إلزام بالإعادة';
 
   @override
-  String get karaokeFollowFreeOnSubtitle => 'يتقدّم بحرية حتى دون إعادة دقيقة';
+  String get karaokeFollowFreeOnSubtitle =>
+      'تستمر المتابعة حتى إن لم تُعِد الكلمة بدقة.';
 
   @override
-  String get karaokeFollowFreeOffSubtitle => 'كل خطأ يفرض إعادة الكلمة';
+  String get karaokeFollowFreeOffSubtitle =>
+      'تتطلب متابعة التلاوة إعادة الكلمة التي رصد التطبيق خطأً فيها.';
 
   @override
   String get karaokeNewReferenceSnackbar =>
@@ -1603,7 +1674,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get karaokeReferenceRecordingBody =>
-      'أول تلاوة لهذا المقطع: اتلُ بإيقاعك الطبيعي — ستُحفظ طريقتك في التلاوة (الوقفات، الإيقاع) وتُحترم في كل تلاواتك القادمة.';
+      'اقرأ المقطع بإيقاعك المعتاد. إذا كانت نتيجة التعرّف كافية، يحفظ التطبيق وقفاتك وإيقاعك للاستفادة منها في تلاواتك اللاحقة لهذا المقطع.';
 
   @override
   String get karaokeReferenceInProgressTitle => 'تسجيل المرجع جارٍ';
@@ -1621,7 +1692,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get karaokeNothingHeardYet => 'لم يُسمع شيء بعد.';
 
   @override
-  String get karaokeFinalizing => 'الإنهاء جارٍ…';
+  String get karaokeFinalizing => 'جارٍ إكمال التحليل…';
 
   @override
   String get karaokePausedHint => 'متوقف مؤقتًا — المس ⏸ للاستئناف';
@@ -1633,16 +1704,17 @@ class AppLocalizationsAr extends AppLocalizations {
   String get karaokeEcouteBientot => 'ستظهر الألوان بعد الكلمات الأولى';
 
   @override
-  String get karaokeListeningHint => 'الاستماع جارٍ — المس الدائرة للتوقف';
+  String get karaokeListeningHint => 'التطبيق يستمع إلى تلاوتك…';
 
   @override
   String get karaokeFinishedHint => 'المس الشاشة لإعادة البدء';
 
   @override
-  String get karaokeReferenceStartHint => 'المس الشاشة لتسجيل تلاوتك المرجعية';
+  String get karaokeReferenceStartHint =>
+      'اضغط لإعادة محاولة تسجيل التلاوة المرجعية';
 
   @override
-  String get karaokeTapToStartHint => 'المس الشاشة للبدء';
+  String get karaokeTapToStartHint => 'استعد للتلاوة';
 
   @override
   String get karaokeLoadingModel => 'جارٍ تحميل نموذج التلاوة…';
@@ -1664,12 +1736,28 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String karaokeSurahTransitionMeta(int number, String name, int count) {
-    return '$number · $name · $count آية';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count آية',
+      few: '$count آيات',
+      two: 'آيتان',
+      one: 'آية واحدة',
+    );
+    return '$number · $name · $_temp0';
   }
 
   @override
   String surahOrnamentMeta(String place, int count) {
-    return '$place · $count آية';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count آية',
+      few: '$count آيات',
+      two: 'آيتان',
+      one: 'آية واحدة',
+    );
+    return '$place · $_temp0';
   }
 
   @override
@@ -1677,7 +1765,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String miniPlayerRepeatVerse(int count) {
-    return '×$count آية';
+    return 'الآية × $count';
   }
 
   @override
@@ -1738,22 +1826,22 @@ class AppLocalizationsAr extends AppLocalizations {
       'مُعطَّل — لا يُكتب شيء أثناء التلاوة';
 
   @override
-  String get reciterDownloadsTitle => 'التحميل للاستماع دون اتصال';
+  String get reciterDownloadsTitle => 'تنزيل التلاوات';
 
   @override
   String reciterDownloadAll(String size) {
-    return 'تحميل الكل ($size)';
+    return 'تنزيل الكل ($size)';
   }
 
   @override
   String get reciterDownloadStop => 'إيقاف';
 
   @override
-  String get reciterDeleteAllTitle => 'حذف التحميلات';
+  String get reciterDeleteAllTitle => 'حذف التلاوات المنزّلة';
 
   @override
   String get reciterDeleteAllBody =>
-      'سيتم حذف جميع المقاطع الصوتية المحمّلة لهذا القارئ من الجهاز، وستعود القراءة عبر الإنترنت.';
+      'ستُحذف من الجهاز جميع التلاوات المنزّلة لهذا القارئ. سيظل الاستماع إليها متاحًا عبر الإنترنت.';
 
   @override
   String get reciterDeleteAllConfirm => 'حذف';
@@ -1765,11 +1853,11 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get reciterDownloadFailed =>
-      'فشل التحميل — تحقّق من اتصالك. الملفات المحمّلة محفوظة.';
+      'تعذّر التنزيل. تحقّق من اتصالك؛ الملفات التي اكتمل تنزيلها محفوظة.';
 
   @override
   String reciterDownloadingProgress(String done, String total) {
-    return 'جارٍ التحميل… $done/$total آية';
+    return 'جارٍ التنزيل… $done/$total آية';
   }
 
   @override
@@ -1814,17 +1902,17 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get recitationPausedTapToResume =>
-      'المِيكروفون متوقّف — انقر للمتابعة';
+      'الميكروفون متوقف. اضغط لاستئناف التلاوة.';
 
   @override
   String get tajwidHelpClose => 'إغلاق';
 
   @override
-  String get mushafBookmarksTitle => 'علاماتي';
+  String get mushafBookmarksTitle => 'علامات القراءة';
 
   @override
   String get mushafNoBookmarks =>
-      'لا توجد علامة بعد. انقر على الأيقونة لتعليم الآية التي توقّفت عندها.';
+      'لا توجد علامات قراءة بعد. اضغط على أيقونة العلامة لحفظ موضع الآية التي توقفت عندها.';
 
   @override
   String readingSettingsGroupSize(int n) {
@@ -1833,19 +1921,19 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String readingSettingsGroupRepeats(int n) {
-    return '٢ — عدد مرات هذه المجموعة: $n';
+    return '٢ — مرات تكرار المجموعة: $n';
   }
 
   @override
   String readingSettingsGlobalRepeats(int n) {
-    return '٣ — عدد مرات السورة كاملة: $n';
+    return '٣ — مرات تكرار السورة كاملة: $n';
   }
 
   @override
   String get readingSettingsUnlimited => 'بلا حد';
 
   @override
-  String get readingSettingsLoopSection => 'التكرار والحلقات';
+  String get readingSettingsLoopSection => 'تكرار الاستماع';
 
   @override
   String get readingSettingsLoopDescription =>
@@ -1855,7 +1943,8 @@ class AppLocalizationsAr extends AppLocalizations {
   String get aboutTitle => 'حول التطبيق';
 
   @override
-  String get aboutTagline => 'تلاوة القرآن، مع التحقق داخل جهازك.';
+  String get aboutTagline =>
+      'اقرأ القرآن وتدرّب على تلاوته بتحليل صوتي على جهازك.';
 
   @override
   String aboutVersionLine(String version, String build) {
@@ -1867,7 +1956,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get aboutPrivacyIntro =>
-      'كل شيء يجري داخل هاتفك: لا حساب، ولا إعلانات، ولا أدوات تتبُّع.';
+      'تُحلّل تلاوتك على هاتفك. لا يتطلب التطبيق حسابًا، ولا يعرض إعلانات أو يستخدم أدوات تتبّع.';
 
   @override
   String get aboutPrivacyMic =>
@@ -1883,10 +1972,10 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get aboutPrivacyNetwork =>
-      'الشبكة — فقط لتنزيل التلاوات والأذكار التي تطلبها.';
+      'الإنترنت — يُستخدم لجلب محتوى القرآن والتلاوات والأذكار وتشغيل الإذاعات، بحسب ما تفتحه أو تختار تنزيله.';
 
   @override
-  String get aboutSectionAsr => 'ما الذي يتحقَّق من تلاوتك';
+  String get aboutSectionAsr => 'كيف يحلّل التطبيق تلاوتك؟';
 
   @override
   String get aboutAsrBody =>
@@ -1930,7 +2019,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get aboutLicensesAll => 'عرض جميع التراخيص';
 
   @override
-  String get onboardingSkip => 'تخطّي';
+  String get onboardingSkip => 'تخطٍّ';
 
   @override
   String get onboardingNext => 'التالي';
@@ -1943,7 +2032,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get onboardingWelcomeBody =>
-      'اقرأ القرآن واتلُه واحفظه على وتيرتك. بلا إعلانات، بلا حساب، وبلا إزعاج.';
+      'اقرأ القرآن وتدرّب على تلاوته وحفظه بالوتيرة التي تناسبك. بلا إعلانات أو حساب.';
 
   @override
   String get onboardingWelcomeDedication =>
@@ -1958,25 +2047,25 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get onboardingReadHint =>
-      'ثلاثة أجواء للقراءة: فاتح، وبنّي مريح للعين، وخلفية سوداء لليل.';
+      'اختر خلفية فاتحة، أو بلون الورق، أو سوداء للقراءة الليلية.';
 
   @override
   String get onboardingReciteTitle => 'تلاوة مع التصحيح';
 
   @override
   String get onboardingReciteBody =>
-      'اتلُ بصوت مسموع: يستمع التطبيق ويلوّن كل كلمة تباعًا. الأخضر يعني أن الكلمة صحيحة، والبرتقالي أو الأحمر يعني أنها تحتاج مراجعة.';
+      'اقرأ بصوت مسموع. يلوّن التطبيق الكلمات بحسب ما يتعرّف عليه: الأخضر للكلمة المقبولة، والبرتقالي أو الأحمر لما يحتاج إلى مراجعة. وقد يخطئ التطبيق في التقييم.';
 
   @override
   String get onboardingReciteHint =>
-      'نسيت الكلمة؟ يُسمعك المُلقِّن الكلمة المنتظرة دون أي حكم عليك.';
+      'نسيت كلمة؟ استمع إلى نطق القارئ للكلمة المتوقعة ثم تابع.';
 
   @override
   String get onboardingMemorizeTitle => 'التدريب على الحفظ';
 
   @override
   String get onboardingMemorizeBody =>
-      'استمع إلى المقطع وردِّده بصوتٍ مسموع، فيتحقّق التطبيق منك، ويتّسع المقطع مع كل نجاح حتى تتلو الآية كاملة عن ظهر قلب.';
+      'استمع إلى المقطع ثم ردّده بصوت مسموع. يتابع التطبيق تلاوتك ويزيد طول المقطع تدريجيًا حتى تتدرّب على الآية كاملة.';
 
   @override
   String get onboardingMemorizeHint =>
@@ -1998,14 +2087,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get onboardingDuasBody =>
-      'أذكار اليوم والليلة بصوتها وعدد تكرارها. ومواقيت الصلاة محسوبة حسب موقعك، والأذان، واتجاه القبلة.';
+      'تصفّح أذكار اليوم والليلة مع عدّاد للتكرار وصوت عند توفره. وتابع مواقيت الصلاة والأذان واتجاه القبلة بحسب موقعك.';
 
   @override
   String get onboardingPrivacyTitle => 'بياناتك تبقى عندك';
 
   @override
   String get onboardingPrivacyBody =>
-      'تُحلَّل تلاوتك على الجهاز ولا تُرسل إلى أي مكان. لا حساب، ولا إعلانات، ولا متتبّعات. ولا تُستخدم الشبكة إلا لتنزيل التلاوات التي تطلبها.';
+      'تُحلّل تلاوتك على الجهاز. لا حساب ولا إعلانات ولا أدوات تتبّع. تحتاج بعض المحتويات والتلاوات والإذاعات إلى الإنترنت، وتصدير تسجيلاتك إجراء تختاره بنفسك.';
 
   @override
   String get duaPourNousTileTitle => 'ادعُ لنا';
@@ -2018,7 +2107,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get duaPourNousIntro =>
-      'كُتب هذا التطبيق ليكون تلاوة القرآن وتعلّمه أيسر عليك.';
+      'أُنشئ هذا التطبيق ليسهّل عليك قراءة القرآن وتعلّم تلاوته وحفظه.';
 
   @override
   String get duaPourNousAskTitle => 'إن نفعك';
@@ -2088,7 +2177,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachTrainDone => 'انتهت الجولة';
 
   @override
-  String get coachMoveToControl => 'الانتقال إلى المراقبة';
+  String get coachMoveToControl => 'اختبار الحفظ';
 
   @override
   String get coachObjectifTitle => 'هدفي';
@@ -2098,23 +2187,27 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count أيام متتالية',
-      one: 'يوم واحد متتالٍ',
-      zero: 'لا سلسلة حالياً',
+      other: 'أيام المواظبة المتتالية: $count',
+      many: '$count يومًا متتاليًا',
+      few: '$count أيام متتالية',
+      two: 'يومان متتاليان',
+      one: 'يوم واحد من المواظبة',
+      zero: 'ابدأ المواظبة اليوم',
     );
     return '$_temp0';
   }
 
   @override
   String coachObjectifWeekProgress(int faits, String total) {
-    return 'هذا الأسبوع: $faits من $total ربع/أرباع';
+    return 'أرباع الحزب هذا الأسبوع: $faits من $total';
   }
 
   @override
   String get coachObjectifEmptyTitle => 'لا يوجد هدف محدد';
 
   @override
-  String get coachObjectifEmptyBody => 'حدّد هدف حفظ لمتابعة سلسلتك وتقدّمك.';
+  String get coachObjectifEmptyBody =>
+      'حدّد هدفًا للحفظ لتتابع تقدّمك وأيام مواظبتك.';
 
   @override
   String get coachObjectifSetButton => 'تحديد هدف';
@@ -2127,9 +2220,12 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count أرباع حزب',
+      other: 'أرباع الحزب: $count',
+      many: '$count ربع حزب',
+      few: '$count أرباع حزب',
+      two: 'ربعان من الحزب',
       one: 'ربع حزب واحد',
-      zero: 'لا أرباع',
+      zero: 'لا أرباع حزب',
     );
     return '$_temp0';
   }
@@ -2139,17 +2235,24 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       annees,
       locale: localeName,
-      other: 'بقيت $annees سنوات',
-      one: 'بقيت سنة واحدة',
+      other: '$annees سنة',
+      many: '$annees سنة',
+      few: '$annees سنوات',
+      two: 'سنتان',
+      one: 'سنة واحدة',
+      zero: 'أقل من سنة',
     );
     String _temp1 = intl.Intl.pluralLogic(
       mois,
       locale: localeName,
-      other: ' و$mois أشهر',
+      other: ' و$mois شهر',
+      many: ' و$mois شهرًا',
+      few: ' و$mois أشهر',
+      two: ' وشهران',
       one: ' وشهر واحد',
       zero: '',
     );
-    return '$_temp0$_temp1';
+    return 'المدة المتبقية: $_temp0$_temp1';
   }
 
   @override
@@ -2157,8 +2260,12 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'بقي $count أشهر',
+      other: 'الأشهر المتبقية: $count',
+      many: 'بقي $count شهرًا',
+      few: 'بقيت $count أشهر',
+      two: 'بقي شهران',
       one: 'بقي شهر واحد',
+      zero: 'أقل من شهر متبقٍ',
     );
     return '$_temp0';
   }
@@ -2168,8 +2275,12 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'بقي $count أيام',
+      other: 'الأيام المتبقية: $count',
+      many: 'بقي $count يومًا',
+      few: 'بقيت $count أيام',
+      two: 'بقي يومان',
       one: 'بقي يوم واحد',
+      zero: 'الموعد اليوم',
     );
     return '$_temp0';
   }
@@ -2183,9 +2294,11 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'القرآن كاملاً في $count سنوات',
-      two: 'القرآن كاملاً في سنتين',
-      one: 'القرآن كاملاً في سنة واحدة',
+      other: 'حفظ القرآن كاملًا في $count سنة',
+      many: 'حفظ القرآن كاملًا في $count سنة',
+      few: 'حفظ القرآن كاملًا في $count سنوات',
+      two: 'حفظ القرآن كاملًا في سنتين',
+      one: 'حفظ القرآن كاملًا في سنة واحدة',
     );
     return '$_temp0';
   }
@@ -2195,7 +2308,9 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count سنوات',
+      other: '$count سنة',
+      many: '$count سنة',
+      few: '$count سنوات',
       two: 'سنتان',
       one: 'سنة واحدة',
     );
@@ -2203,7 +2318,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get coachObjectifSheetDureeTitle => 'في كم من الوقت؟';
+  String get coachObjectifSheetDureeTitle => 'ما المدة التي تناسبك؟';
 
   @override
   String get coachObjectifQuartUnite => 'ربع حزب';
@@ -2213,16 +2328,19 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'بقي $count أرباع حزب من 240',
+      other: 'أرباع الحزب المتبقية: $count من 240',
+      many: 'بقي $count ربع حزب من 240',
+      few: 'بقيت $count أرباع حزب من 240',
+      two: 'بقي ربعان من 240',
       one: 'بقي ربع حزب واحد من 240',
-      zero: 'تم حفظ القرآن كاملاً',
+      zero: 'اكتمل هدف حفظ القرآن',
     );
     return '$_temp0';
   }
 
   @override
   String coachObjectifRythmeDetail(String parJour, String parSemaine) {
-    return 'أي ≈ $parJour في اليوم و≈ $parSemaine في الأسبوع، بأرباع الحزب';
+    return 'الهدف بأرباع الحزب: نحو $parJour يوميًا و$parSemaine أسبوعيًا.';
   }
 
   @override
@@ -2238,13 +2356,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachDashProgressMoreHorizons => 'عرض السنة والقرآن كاملاً';
 
   @override
-  String get coachRythmeTenu => 'على الوتيرة';
+  String get coachRythmeTenu => 'ملتزم بالهدف';
 
   @override
   String get coachRythmeDerape => 'تأخّر يسير';
 
   @override
-  String get coachRythmeARattraper => 'يلزم التدارك';
+  String get coachRythmeARattraper => 'تحتاج إلى تدارك التأخر';
 
   @override
   String get coachObjectifPeriodeJour => 'في اليوم';
@@ -2257,13 +2375,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String coachObjectifPeriodProgress(int faits, int total, String periode) {
-    String _temp0 = intl.Intl.pluralLogic(
-      total,
-      locale: localeName,
-      other: '$faits من $total أرباع — $periode',
-      one: '$faits من ربع واحد — $periode',
-    );
-    return '$_temp0';
+    return 'أرباع الحزب: $faits من $total، $periode';
   }
 
   @override
@@ -2289,16 +2401,19 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachDashTodayPending => 'جارٍ';
 
   @override
-  String get coachDashStreakLabel => 'السلسلة';
+  String get coachDashStreakLabel => 'أيام المواظبة';
 
   @override
   String coachDashStreakValue(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count أيام',
+      other: '$count يوم',
+      many: '$count يومًا',
+      few: '$count أيام',
+      two: 'يومان',
       one: 'يوم واحد',
-      zero: 'لا شيء',
+      zero: 'لم تبدأ بعد',
     );
     return '$_temp0';
   }
@@ -2316,8 +2431,11 @@ class AppLocalizationsAr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'بقي $count أرباع',
-      one: 'بقي ربع واحد',
+      other: 'أرباع الحزب المتبقية: $count',
+      many: 'بقي $count ربع حزب',
+      few: 'بقيت $count أرباع حزب',
+      two: 'بقي ربعان من الحزب',
+      one: 'بقي ربع حزب واحد',
       zero: 'تم بلوغ الهدف',
     );
     return '$_temp0';
@@ -2325,7 +2443,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachAccompagnementSousTitre =>
-      'تذكيرات يومية، ومراجعة الآيات كثيرة الخطأ، وتنبيه عند خطر انقطاع السلسلة.';
+      'تذكيرات يومية، ومراجعة الآيات التي تحتاج إلى تدريب، وتنبيه للمحافظة على المواظبة.';
 
   @override
   String get coachNiveauTitle => 'المرافقة';
@@ -2350,16 +2468,16 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String coachPortionsError(Object error) {
-    return 'تعذّرت قراءة الأقسام: $error';
+    return 'تعذّر تحميل المقاطع: $error';
   }
 
   @override
   String get coachPortionsEmpty =>
-      'لا يوجد قسم متابَع بعد. ستظهر هنا كل سورة (أو جزء من حزب للسور الطويلة) تتلوها مع تقدّمها التراكمي.';
+      'لم تبدأ متابعة أي مقطع بعد. ستظهر هنا السور أو مقاطع الأحزاب التي تتلوها، مع تقدّمك المتراكم.';
 
   @override
   String coachPortionWordsCovered(int reached, int total) {
-    return '$reached/$total كلمة مغطاة';
+    return 'الكلمات التي تلوتها: $reached/$total';
   }
 
   @override
@@ -2381,13 +2499,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get coachSessionAccuracyLabel => 'من الكلمات المتلوة';
 
   @override
-  String get coachPortionFullCoverage => ' · تغطية كاملة';
+  String get coachPortionFullCoverage => ' · تمت تلاوة المقطع كاملًا';
 
   @override
-  String get coachPortionAccuracyLabel => 'من القسم';
+  String get coachPortionAccuracyLabel => 'من كلمات المقطع';
 
   @override
-  String get coachPortionBadgeLabel => 'قسم مُتقَن';
+  String get coachPortionBadgeLabel => 'مقطع مُتقَن';
 
   @override
   String coachPortionGameRecord(int best, int total) {
@@ -2401,21 +2519,22 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String coachPortionBilanDetail(int green, int reached, int total) {
-    return '$green كلمة صحيحة من أصل $reached متلوة، من إجمالي $total في هذا القسم. الكلمة المعترَض عليها تُحتسب صحيحة.';
+    return 'الكلمات المقبولة: $green، من أصل $reached كلمة تلوتها. مجموع كلمات المقطع: $total. الكلمة التي اعترضت على تقييمها تُحتسب صحيحة.';
   }
 
   @override
-  String get coachPortionNoneRecitedYet => 'لم تُتلَ أي كلمة بعد في هذا القسم.';
+  String get coachPortionNoneRecitedYet =>
+      'لم تُتلَ أي كلمة في هذا المقطع بعد.';
 
   @override
   String get coachPortionNothingToReview =>
-      'لا توجد كلمة للمراجعة في هذا القسم.';
+      'لا توجد كلمات للمراجعة في هذا المقطع.';
 
   @override
   String get coachWordUnavailable => 'الآية غير متاحة';
 
   @override
-  String get coachPortionHistorySection => 'أُخطئت سابقًا، مُتقَنة الآن';
+  String get coachPortionHistorySection => 'كلمات تحسّنت في تلاوتها';
 
   @override
   String get coachPortionCorrectedBadge => 'صُحّحت';
@@ -2442,7 +2561,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get mushafTajwidBanner =>
-      'الاستماع للتجويد — القواعد الفائتة تظهر بالبنفسجي';
+      'متابعة التجويد: الأحكام التي لم يرصدها التطبيق تظهر بالبنفسجي';
 
   @override
   String get mushafClearAllTooltip => 'مسح الكل';
@@ -2452,13 +2571,13 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get mushafClearAllBody =>
-      'ستُحذف جميع التعليقات في المصحف: التظليل والخطوط، في كل السور، مهما كان تاريخها. لا يمكن التراجع عن هذا الإجراء.';
+      'ستُحذف جميع علامات التظليل والخطوط التي أضفتها في كل السور. لا يمكن التراجع عن هذا الإجراء.';
 
   @override
   String get mushafBarTajwid => 'تجويد';
 
   @override
-  String get mushafBarChain => 'سلسلة';
+  String get mushafBarChain => 'تسلسل';
 
   @override
   String get mushafBarMap => 'خريطة';
@@ -2476,23 +2595,52 @@ class AppLocalizationsAr extends AppLocalizations {
   String get tajwidHelpTwoVersesBefore => 'بدءًا من آيتين قبلها';
 
   @override
-  String get tajwidHelpStepTraining => 'تدريب بالمراحل';
+  String get tajwidHelpStepTraining => 'تدريب تدريجي';
 
   @override
   String get tajwidHelpListenImitate => 'استمع، قلّد، تحقّق — في هذه الآية';
 
   @override
-  String get tajwidHelpGameOrSteps => 'لعبة أو تدريب بالمراحل';
+  String get tajwidHelpGameOrSteps => 'لعبة أو تدريب تدريجي';
 
   @override
   String get settingsDiagnosticSubtitle =>
-      'يسجّل تفاصيل التلاوة للتحليل. اتركه مطفأً في الاستعمال العادي.';
+      'يحفظ تفاصيل التلاوة لأغراض التشخيص. يُفضّل إبقاؤه معطّلًا في الاستخدام العادي.';
 
   @override
   String get settingsMushafScriptTitle => 'خط المصحف';
 
   @override
   String get settingsPrayerTimesTitle => 'مواقيت الصلاة';
+
+  @override
+  String get settingsPrayerTimesSubtitle => 'أذان مُجدوَل، وتنبيه قبل الفجر';
+
+  @override
+  String get coachGemmeAmethyste => 'أميثيست';
+
+  @override
+  String get coachGemmeSaphir => 'ياقوت أزرق';
+
+  @override
+  String get coachGemmeTopaze => 'توباز';
+
+  @override
+  String get coachGemmeEmeraude => 'زمرّد';
+
+  @override
+  String coachGemmeSeuil(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count تلاوة كاملة',
+      many: '$count تلاوة كاملة',
+      few: '$count تلاوات كاملة',
+      two: 'تلاوتان كاملتان',
+      one: 'تلاوة كاملة',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get settingsBluetoothMicTitle => 'ميكروفون سماعة البلوتوث';
@@ -2502,31 +2650,31 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get settingsBluetoothMicOff =>
-      'مطفأ (مستحسن) — ميكروفون الهاتف ألتقط أفضل';
+      'معطّل (موصى به): يُستخدم ميكروفون الهاتف لالتقاط صوت أوضح.';
 
   @override
   String get tajwidRulesScreenTitle => 'التحقق من التلاوة';
 
   @override
-  String get tajwidRulesBetaSection => 'قواعد التجويد (تجريبي)';
+  String get tajwidRulesBetaSection => 'أحكام التجويد (تجريبي)';
 
   @override
   String get tajwidRulesBetaNote =>
-      'تُفحص القواعد حسب الوضع المختار أعلاه، على سبيل الإرشاد فقط.';
+      'يتحقّق التطبيق من الأحكام بحسب الوضع المختار أعلاه. النتائج إرشادية وقد تخطئ.';
 
   @override
   String get tajwidRulesBetaBadge => 'تجريبي';
 
   @override
   String get tajwidRulesBetaWarning =>
-      'الكشف ما زال غير دقيق: قد تُثير هذه القاعدة شكًّا، لكنها لن تُصحّح كلمة بمفردها.';
+      'التعرّف على هذا الحكم ما زال غير دقيق. قد يستدعي مراجعة الكلمة، لكنه لا يكفي وحده لاعتبارها صحيحة.';
 
   @override
-  String get contactTitle => 'اتصل بنا';
+  String get contactTitle => 'تواصل معنا';
 
   @override
   String get contactIntro =>
-      'سؤال، خلل تريد الإبلاغ عنه، اقتراح؟ اكتب رسالتك هنا — سيُفتح تطبيق البريد بعدها وكل شيء مُعبّأ، ولا يبقى إلا الإرسال.';
+      'لديك سؤال أو اقتراح أو مشكلة؟ اكتب رسالتك هنا، ثم افتحها في تطبيق البريد لمراجعتها وإرسالها.';
 
   @override
   String get contactSubjectLabel => 'الموضوع (اختياري)';
@@ -2542,19 +2690,19 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get coachStepsExplain =>
-      'المقطع المُتقن (100 % من الكلمات) ينال علامة. وتكراره كاملًا عدة مرات يفتح حجرًا كريمًا — يرتقي لونه بعدد التلاوات الكاملة.';
+      'تحصل على علامة عند إتقان كلمات المقطع كلها. ومع تكرار تلاوته كاملًا، تحصل على شارة حجر كريم يتغيّر لونها بحسب عدد التلاوات المكتملة.';
 
   @override
   String get coachMyRecitations => 'تلاواتي';
 
   @override
   String coachArchiveUnreadable(String erreur) {
-    return 'الأرشيف غير قابل للقراءة: $erreur';
+    return 'تعذّر فتح سجل التلاوات: $erreur';
   }
 
   @override
   String get coachNoRecitationYet =>
-      'لا توجد تلاوة مسجّلة بعد. بعد تلاوة مُراجَعة، ستجد هنا كل كلمة مُشار إليها — بصوتك.';
+      'لا توجد جلسة مسجّلة بعد. بعد استخدام التلاوة مع التصحيح، ستجد هنا الكلمات التي أشار إليها التطبيق وتسجيلاتك المتاحة.';
 
   @override
   String get coachDeleteRecitationTitle => 'حذف هذه التلاوة؟';
@@ -2564,7 +2712,8 @@ class AppLocalizationsAr extends AppLocalizations {
       'ستُحذف نتيجة هذه الجلسة وتسجيلات كلماتها نهائيًا. أما سجل المدرّب التراكمي (إحصاءات كل سورة) فلا يتأثر.';
 
   @override
-  String get coachNoFlaggedWord => 'لا توجد كلمة مُشار إليها في هذه التلاوة.';
+  String get coachNoFlaggedWord =>
+      'لم يحدّد التطبيق كلمات تحتاج إلى مراجعة في هذه التلاوة.';
 
   @override
   String coachNotRecitedYet(int nombre) {
@@ -2572,7 +2721,7 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
-  String get coachContinuePortion => 'متابعة/إعادة هذا المقطع';
+  String get coachContinuePortion => 'تلاوة هذا المقطع مجددًا';
 
   @override
   String get coachDeleteRecitation => 'حذف هذه التلاوة';
@@ -2591,7 +2740,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get scriptSheetExplain =>
-      'ينطبق على عرض الصفحة. الخطوط الأولى في القائمة ترسم جميع العلامات القرآنية — الوقف، السجدة، نهاية الآية، الصفر الصغير للحروف الساكنة. وأسفل القائمة ستغيب بعض العلامات عن الشاشة.';
+      'يغيّر الخط شكل الكتابة في عرض الصفحة، ولا يغيّر الرواية أو نص الآيات. بعض الخطوط لا تُظهر جميع علامات الوقف والسجدة ونهاية الآية؛ راجع المعاينة قبل الاختيار.';
 
   @override
   String get prayerTimesTitle => 'مواقيت الصلاة';
@@ -2601,7 +2750,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String prayerTimesDetected(String methode) {
-    return 'المكتشفة: $methode';
+    return 'طريقة الحساب المحدّدة: $methode';
   }
 
   @override
@@ -2618,10 +2767,10 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get mushafTajwidWarshIndisponible =>
-      'وضع التجويد يعمل حاليًا لرواية حفص فقط -- رواية ورش قريبًا.';
+      'التحقّق من أحكام التجويد متاح حاليًا لرواية حفص فقط، ولا يتوفر لرواية ورش في هذا الإصدار.';
 
   @override
-  String get settingsNoiseSuppressTitle => 'كتم ضجيج الميكروفون';
+  String get settingsNoiseSuppressTitle => 'تقليل ضوضاء الميكروفون';
 
   @override
   String get prayerNameFajr => 'الفجر';
@@ -2665,19 +2814,20 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String prayerInHoursMinutes(int minutes, int heures) {
-    return 'بعد $heures س $minutes';
+    return 'بعد $heures س و$minutes د';
   }
 
   @override
-  String get preparationLangueSous => 'يمكنك تغييرها في أي وقت من الإعدادات.';
+  String get preparationLangueSous =>
+      'اختر لغة الواجهة. يمكنك تغييرها لاحقًا من الإعدادات.';
 
   @override
   String get preparationRiwayaSous =>
-      'الرواية التي تقرأ بها. نص التطبيق كله يتبعها.';
+      'اختر الرواية التي تتلو بها؛ يتبعها نص القرآن والقرّاء المتاحون.';
 
   @override
   String get preparationEcritureSous =>
-      'المعاينة أدناه معروضة بالخط المختار: هي تماماً ما سيظهر في المصحف.';
+      'عاين الخط أدناه واختر ما يناسب قراءتك في المصحف.';
 
   @override
   String get preparationOptionsTitre => 'بعض الخيارات';
@@ -2694,7 +2844,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'تبقى هذه الخيارات كلها قابلة للتعديل في الإعدادات. لن يُطلب الميكروفون ولا الموقع إلا عندما تحتاجهما إحدى الوظائف فعلاً.';
 
   @override
-  String get preparationPasser => 'تخطٍ';
+  String get preparationPasser => 'تخطٍّ';
 
   @override
   String get preparationRetour => 'رجوع';
@@ -2710,7 +2860,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get preparationReciteurSous =>
-      'المس صوتًا لتسمعه في أول آيتين من سورة البقرة. وهو الصوت الذي تسمعه أثناء القراءة، وعند تصحيح كل كلمة.';
+      'اختر قارئًا لسماع نموذج من بداية سورة البقرة. ستسمع تلاوته أثناء الاستماع والتصحيح الصوتي.';
 
   @override
   String get guidePasser => 'تخطي الدليل';
@@ -2747,7 +2897,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get guideDecouverteSous =>
-      'يد تدلّك على موضع الضغط. يمكنك إيقافها في أي وقت.';
+      'جولة تفاعلية توضّح أهم الأدوات ومواضعها. يمكنك إيقافها في أي وقت.';
 
   @override
   String get guideRejouer => 'إعادة';
@@ -2770,7 +2920,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get guideChapitreReglagesResume =>
-      'اللغة والرواية والخط، وما يحدث لبياناتك.';
+      'اللغة والرواية والخط وإعدادات الخصوصية.';
 
   @override
   String get guidePriereAccueilTexte =>
@@ -2782,7 +2932,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get guideHorairesTexte =>
-      'طريقة الحساب والأذان والتنبيه قبل الصبح: كل ذلك يُضبط هنا.';
+      'اضبط طريقة حساب المواقيت والأذان والتذكير قبل الفجر من هنا.';
 
   @override
   String get guidePriereFinTexte =>
@@ -2797,26 +2947,26 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get guideDuasCollectionsTexte =>
-      'كل باب ينقسم إلى مواضع محددة: عند الاستيقاظ، وقبل النوم، وفي السفر.';
+      'تجد داخل كل باب مجموعات بحسب المناسبة، مثل الاستيقاظ والنوم والسفر.';
 
   @override
   String get guideDuasAudioTitre => 'الاستماع';
 
   @override
   String get guideDuasAudioTexte =>
-      'معظم الأدعية يمكن سماعها، والعدّاد يتابع التكرار.';
+      'استمع إلى الدعاء عند توفر تسجيل له، واستخدم العدّاد لمتابعة عدد مرات ترديده.';
 
   @override
   String get guideReglagesLangueTexte =>
-      'ثلاث لغات. بالعربية تنقلب الواجهة كلها من اليمين إلى اليسار.';
+      'اختر العربية أو الفرنسية أو الإنجليزية. تتجه الواجهة من اليمين إلى اليسار عند اختيار العربية.';
 
   @override
   String get guideReglagesRiwayaTexte =>
-      'حفص أو ورش: نص التطبيق كله يتبع اختيارك.';
+      'اختر حفصًا أو ورشًا؛ يتبع نص القرآن والقرّاء المتاحون الرواية المختارة.';
 
   @override
   String get guideReglagesEcritureTexte =>
-      'أربعة وعشرون خطاً للمصحف، مع معاينة حقيقية قبل الاختيار.';
+      'عاين خطوط المصحف المتاحة قبل اختيار الخط الأنسب لك.';
 
   @override
   String get guideReglagesViePriveeTitre => 'بياناتك';
@@ -2840,8 +2990,7 @@ class AppLocalizationsAr extends AppLocalizations {
   String get guideLectureEcouteTitre => 'الاستماع';
 
   @override
-  String get guideLectureEcouteTexte =>
-      'الزر الذهبي على اليمين يشغّل السورة كاملة.';
+  String get guideLectureEcouteTexte => 'زر التشغيل يشغّل تلاوة السورة كاملة.';
 
   @override
   String get guideLectureDefilementTitre => 'المتابعة أثناء الاستماع';
@@ -2862,7 +3011,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get guideChapitreMushafResume =>
-      'الصفحة المطبوعة، ٦٠٤ صفحات، بإطارها وزخارفها.';
+      'اقرأ القرآن بتقسيم المصحف الورقي إلى ٦٠٤ صفحات.';
 
   @override
   String get guideMushafOuvrirTexte =>
@@ -2880,10 +3029,10 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get guideMushafEcritureTexte =>
-      'الضغط المطوّل على الصفحة يفتح اختيار الخطوط الأربعة والعشرين.';
+      'اضغط مطولًا على الصفحة لعرض الخطوط المتاحة واختيار أحدها.';
 
   @override
-  String get guideChapitreRecitationTitre => 'التلاوة والتصحيح';
+  String get guideChapitreRecitationTitre => 'تلاوة مع التصحيح';
 
   @override
   String get guideChapitreRecitationResume =>
@@ -2898,7 +3047,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get guideRecitationCouleursTexte =>
-      'أخضر: الكلمة صحيحة. برتقالي: شكّ. أحمر: فرق مسموع.';
+      'بحسب تقييم التطبيق: الأخضر كلمة مقبولة، والبرتقالي نطق يحتاج إلى التحقق، والأحمر اختلاف يحتاج إلى مراجعة. قد يخطئ التقييم.';
 
   @override
   String get guideRecitationCorrectionTitre => 'التصحيح';
@@ -2915,30 +3064,33 @@ class AppLocalizationsAr extends AppLocalizations {
       'يُطلب عند التلاوة لا قبلها. وكل التحليل يجري على الهاتف.';
 
   @override
-  String get guideChapitreCoachResume => 'أجزاؤك، وسلسلتك، والحفظ، والسجل.';
+  String get guideChapitreCoachResume =>
+      'مقاطع التدريب وأيام المواظبة وهدف الحفظ وسجل التلاوات.';
 
   @override
-  String get guideCoachPortionsTexte => 'كل جزء تتلوه يُتابَع: ما ثبت وما بقي.';
+  String get guideCoachPortionsTexte =>
+      'تابع تقدّمك في كل مقطع: الكلمات المقبولة وما يحتاج إلى مراجعة.';
 
   @override
-  String get guideCoachSerieTitre => 'السلسلة';
+  String get guideCoachSerieTitre => 'أيام المواظبة';
 
   @override
   String get guideCoachSerieTexte =>
-      'عدد الأيام المتتالية التي تلوت فيها. تنقطع إن تركت يوماً.';
+      'عدد الأيام المتتالية التي سجّلت فيها تلاوة. تبدأ سلسلة جديدة إذا فاتك يوم.';
 
   @override
   String get guideCoachMemoTitre => 'الحفظ';
 
   @override
-  String get guideCoachMemoTexte => 'لعبة حفظ تعيد الآيات على مراحل صغيرة.';
+  String get guideCoachMemoTexte =>
+      'استمع وردّد لتثبيت الحفظ تدريجيًا، أو اختر لعبة تسلسل الكلمات للتدرّب على ترتيبها.';
 
   @override
   String get guideCoachSessionsTitre => 'السجل';
 
   @override
   String get guideCoachSessionsTexte =>
-      'كل جلسة تحتفظ بكلماتها المنبَّه عليها، وبصوتك لإعادة السماع.';
+      'راجع نتيجة كل جلسة والكلمات التي أشار إليها التطبيق، واستمع إلى تسجيلاتك المتاحة.';
 
   @override
   String get guideChapitreAudioTitre => 'القرّاء والصوت';
@@ -2959,14 +3111,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get guideAudioHorsLigneTexte =>
-      'السورة المنزَّلة تُسمع دون اتصال، ولا تُنزَّل مرة أخرى.';
+      'بعد تنزيل تلاوة السورة، يمكنك الاستماع إليها دون اتصال ما دامت محفوظة على الجهاز.';
 
   @override
   String get guideAudioNotifTitre => 'من الإشعار';
 
   @override
   String get guideAudioNotifTexte =>
-      'الإيقاف والتشغيل يبقيان متاحين عند تصغير التطبيق.';
+      'يمكنك إيقاف التلاوة واستئنافها من الإشعار عند مغادرة التطبيق.';
 
   @override
   String get demoRecitationTitre => 'عرض توضيحي';
@@ -2988,17 +3140,17 @@ class AppLocalizationsAr extends AppLocalizations {
   String get demoLegendeVert => 'صحيح';
 
   @override
-  String get demoLegendeOrange => 'تقريبي';
+  String get demoLegendeOrange => 'يحتاج إلى تحقق';
 
   @override
-  String get demoLegendeRouge => 'فرق مسموع';
+  String get demoLegendeRouge => 'اختلاف مرصود';
 
   @override
   String get guideChapitreDemoTitre => 'شاهد تلاوة';
 
   @override
   String get guideChapitreDemoResume =>
-      'مثال مُعدّ: تصحيح، وشكّ، وخطأ، ثم استئناف.';
+      'مثال مسجّل مسبقًا يوضّح ألوان التقييم والتصحيح واستئناف التلاوة.';
 
   @override
   String get guideDemoTexte =>
@@ -3006,14 +3158,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get preparationRiwayaWarshNote =>
-      'لم يُدرَّب وضع التجويد بعدُ على أحكام ورش الخاصة، فألوانه تتبع رواية حفص. أما قراءة المصحف وتصحيح الكلمات فتعملان كالمعتاد.';
+      'التحقّق الصوتي من أحكام التجويد غير متاح لرواية ورش في هذا الإصدار. تبقى قراءة المصحف والتلاوة مع تصحيح الكلمات متاحتين.';
 
   @override
   String get preparationEssaisTitre => 'جرّب الآن';
 
   @override
   String get preparationEssaisSous =>
-      'على بضع آيات: دقائق معدودة. ويمكنك العودة لاحقاً.';
+      'اكتشف الأدوات على مقطع قصير، ويمكنك العودة إليها لاحقًا.';
 
   @override
   String get preparationEssaiReciter => 'تلاوة مع التصحيح';
@@ -3026,10 +3178,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get preparationEssaiTajwid => 'وضع التجويد';
 
   @override
-  String get preparationEssaiTajwidSous => 'يستمع لأحكام التجويد وحدها';
+  String get preparationEssaiTajwidSous => 'متابعة صوتية لأداء أحكام التجويد';
 
   @override
-  String get preparationEssaiJeu => 'لعبة التسلسل';
+  String get preparationEssaiJeu => 'لعبة تسلسل الكلمات';
 
   @override
   String get preparationEssaiJeuSous => 'ابحث عن الكلمة التالية بين عدة كلمات';
@@ -3039,7 +3191,7 @@ class AppLocalizationsAr extends AppLocalizations {
       'تظهر الكلمة الأولى، ثم تختار ما بعدها من بين عدة كلمات. وعند الخطأ تظهر الكلمة الصحيحة، ثم تُستأنف الجولة من الآية السابقة.';
 
   @override
-  String get preparationEssaiMemoriser => 'التدريب';
+  String get preparationEssaiMemoriser => 'التدرّب على الحفظ';
 
   @override
   String get preparationEssaiMemoriserSous => 'استمع ثم ردِّد، على مراحل';
@@ -3056,7 +3208,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get preparationConsigneTajwid =>
-      'اتلُ مطبّقاً أحكام التجويد. الأخضر: تحققت كل الأحكام المتوقعة. البنفسجي: حكم متوقع لم يُلاحَظ. بلا لون: لا حكم في هذه الكلمة.';
+      'اقرأ بصوت مسموع مع مراعاة أحكام التجويد.\n\nالأخضر: رصد التطبيق الأحكام المتوقعة. البنفسجي: لم يرصد حكمًا متوقعًا. دون لون: لا يوجد حكم يتابعه التطبيق في هذه الكلمة.\n\nهذه مؤشرات آلية قد تخطئ، ولا تغني عن التعلّم مع معلّم.';
 
   @override
   String get preparationConsigneReciter =>
@@ -3064,7 +3216,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get preparationConsigneMemoriser =>
-      'استمع إلى المقطع ثم ردِّده بصوتٍ مسموع. ويتّسع المقطع مع كل نجاح حتى تبلغ الآية كاملة.';
+      'استمع إلى المقطع ثم ردّده بصوت مسموع. يزداد طول المقطع تدريجيًا حتى تتدرّب على الآية كاملة، ثم يمكنك اختبار حفظك دون إظهار النص.';
 
   @override
   String get preparationConsigneLire =>

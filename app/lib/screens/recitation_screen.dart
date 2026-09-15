@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -22,13 +23,44 @@ class RecitationScreen extends ConsumerStatefulWidget {
 }
 
 class _RecitationScreenState extends ConsumerState<RecitationScreen> {
+  RecitationNotifier? _notifier;
+  bool _starting = false;
+
+  Future<void> _demarrer() async {
+    if (!mounted || _starting ||
+        !(ModalRoute.of(context)?.isCurrent ?? false)) {
+      return;
+    }
+    setState(() => _starting = true);
+    try {
+      await _notifier!.startControle();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocalizations.of(context)!.karaokeStartFailed)));
+      }
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     final text = widget.verses.map((v) => v.textUthmani).join(' ');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(recitationProvider.notifier).setup(text);
+      if (!mounted) return;
+      _notifier = ref.read(recitationProvider.notifier);
+      _notifier!.setup(text);
+      unawaited(_demarrer());
     });
+  }
+
+  @override
+  void dispose() {
+    final notifier = _notifier;
+    if (notifier != null) unawaited(notifier.stopContinuous());
+    super.dispose();
   }
 
   Color _colorFor(WordStatus s) {
@@ -280,26 +312,29 @@ class _RecitationScreenState extends ConsumerState<RecitationScreen> {
           const SizedBox(height: 8),
           GestureDetector(
             onTap: () {
+              if (_starting) return;
               if (listening) {
                 n.stopContinuous();
               } else if (!finalizing) {
                 // Cloisonnement 2026-08-05 : cet écran de debug n'a pas de
                 // notion de session de référence, il utilise donc le chemin
                 // contrôle (cf. recitation_provider.dart::startControle).
-                n.startControle();
+                unawaited(_demarrer());
               }
             },
             child: _MicButton(level: st.soundLevel, listening: listening),
           ),
           const SizedBox(height: 12),
           Text(
-            listening
+            _starting
+                ? AppLocalizations.of(context)!.karaokePreparingMicrophone
+                : listening
                 ? AppLocalizations.of(context)!.recitationListeningContinuous
                 : finalizing
                     ? AppLocalizations.of(context)!.recitationFinalizing
                     : finished
                         ? AppLocalizations.of(context)!.recitationFinishedRestart
-                        : AppLocalizations.of(context)!.recitationTapToStart,
+                        : AppLocalizations.of(context)!.coachIncrementalTapToStart,
             style: GoogleFonts.inter(
                 fontSize: 13, color: AppColors.inkLight),
           ),

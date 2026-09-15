@@ -46,22 +46,24 @@ import 'prayer_follow_screen.dart';
 /// le mode et la sourate explicitement, et [DiagnosticLog] les écrit — la
 /// session dit elle-même ce qu'elle teste.
 class RecetteScreen extends ConsumerStatefulWidget {
-  const RecetteScreen(
-      {super.key,
-      this.mode,
-      this.surah = 2,
-      this.limite = 20,
-      this.depart = 1,
-      this.wav,
-      this.normal = false,
-      this.fusion = true,
-      this.preuves = 2,
-      this.pas = 4.0,
-      this.largeur = 4.0,
-      this.maxBloc = 10.0,
-      this.maxFusion = 18.0,
-      this.ecriture,
-      this.riwaya});
+  const RecetteScreen({
+    super.key,
+    this.mode,
+    this.surah = 2,
+    this.limite = 20,
+    this.depart = 1,
+    this.wav,
+    this.normal = false,
+    this.bornerVersets = false,
+    this.fusion = true,
+    this.preuves = 2,
+    this.pas = 4.0,
+    this.largeur = 4.0,
+    this.maxBloc = 10.0,
+    this.maxFusion = 18.0,
+    this.ecriture,
+    this.riwaya,
+  });
 
   /// Riwāya imposée par le banc (`--es riwaya hafs|warsh`), ou null.
   ///
@@ -137,6 +139,10 @@ class RecetteScreen extends ConsumerStatefulWidget {
   /// affecté.
   final bool normal;
 
+  /// Désactive l'enchaînement Mushaf pour les replays déterministes bornés.
+  /// Les ouvertures manuelles gardent le comportement continu par défaut.
+  final bool bornerVersets;
+
   /// Bloc de FUSION de la v2 (2e observation d'un énoncé vu avec le précédent).
   /// `false` le désactive, pour mesurer l'hypothèse « les aperçus 2/4
   /// suffisent » en recette RÉELLE. Défaut `true` = comportement en place.
@@ -188,17 +194,19 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
       final v = tout.sublist(debut, fin);
       if (!mounted) return;
       setState(() => _verses = v);
-      DiagnosticLog.log('RECETTE',
-          'sourate=${widget.surah} versets=${v.length}/${tout.length} '
-          'depart=v${widget.depart} '
-          'mode=${widget.mode ?? "manuel"}');
+      DiagnosticLog.log(
+        'RECETTE',
+        'sourate=${widget.surah} versets=${v.length}/${tout.length} '
+            'depart=v${widget.depart} '
+            'mode=${widget.mode ?? "manuel"} '
+            'borner=${widget.bornerVersets}',
+      );
       // Mode imposé par l'intent : on enchaîne sans attendre un tap.
       // RIWAYA IMPOSEE : appliquee avant toute lecture de texte, c'est elle
       // qui decide quel asset QuranApi charge. Un audio Hafs juge contre un
       // texte Warsh rend TOUT rouge -- constate le 2026-09-03.
       if (widget.riwaya != null) {
-        final voulue =
-            widget.riwaya == 'warsh' ? Riwaya.warsh : Riwaya.hafs;
+        final voulue = widget.riwaya == 'warsh' ? Riwaya.warsh : Riwaya.hafs;
         await ref.read(riwayaProvider.notifier).set(voulue);
         ref.read(playerProvider.notifier).accorderALaRiwaya();
         DiagnosticLog.log('RECETTE', 'riwaya imposee : ${widget.riwaya}');
@@ -208,12 +216,14 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
         // audio, donc le drapeau doit être posé avant que la capture s'ouvre.
         await ref
             .read(recitationVerifierProvider)
-            .v2SetFusion(widget.fusion,
-                preuves: widget.preuves,
-                pas: widget.pas,
-                largeur: widget.largeur,
-                maxBloc: widget.maxBloc,
-                maxFusion: widget.maxFusion);
+            .v2SetFusion(
+              widget.fusion,
+              preuves: widget.preuves,
+              pas: widget.pas,
+              largeur: widget.largeur,
+              maxBloc: widget.maxBloc,
+              maxFusion: widget.maxFusion,
+            );
         if (widget.wav != null) {
           ref.read(recitationVerifierProvider).wavRejoue = widget.wav;
           DiagnosticLog.log('RECETTE', 'source deterministe : ${widget.wav}');
@@ -240,15 +250,20 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
         // perdre une journee entiere le 2026-08-29.
         if (widget.wav != null) {
           ref.read(recitationVerifierProvider).wavRejoue = widget.wav;
-          DiagnosticLog.log('RECETTE-PRIERE',
-              'source deterministe : ${widget.wav}');
+          DiagnosticLog.log(
+            'RECETTE-PRIERE',
+            'source deterministe : ${widget.wav}',
+          );
         } else {
-          DiagnosticLog.log('RECETTE-PRIERE',
-              'aucun WAV fourni (--es wav <chemin>) : le micro sera utilise');
+          DiagnosticLog.log(
+            'RECETTE-PRIERE',
+            'aucun WAV fourni (--es wav <chemin>) : le micro sera utilise',
+          );
         }
         if (!mounted) return;
-        Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => const PrayerFollowScreen()));
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const PrayerFollowScreen()));
       } else if (widget.mode == 'mushaf') {
         // MAQUETTE COMPARATIVE du rendu mushaf (demande utilisateur
         // 2026-09-01). Point d'entree RECETTE uniquement : rien n'est
@@ -265,18 +280,28 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
                 .read(policeMushafPageProvider.notifier)
                 .definir(widget.ecriture!);
             DiagnosticLog.log(
-                'RECETTE-MUSHAF', 'ecriture imposee : ${widget.ecriture}');
+              'RECETTE-MUSHAF',
+              'ecriture imposee : ${widget.ecriture}',
+            );
           } else {
-            DiagnosticLog.log('RECETTE-MUSHAF',
-                'ecriture INCONNUE ignoree : ${widget.ecriture}');
+            DiagnosticLog.log(
+              'RECETTE-MUSHAF',
+              'ecriture INCONNUE ignoree : ${widget.ecriture}',
+            );
           }
         }
-        DiagnosticLog.log('RECETTE-MUSHAF',
-            'maquette ouverte -- page de depart ${v.isNotEmpty ? v.first.pageNumber : 1}');
+        DiagnosticLog.log(
+          'RECETTE-MUSHAF',
+          'maquette ouverte -- page de depart ${v.isNotEmpty ? v.first.pageNumber : 1}',
+        );
         if (!mounted) return;
-        Navigator.of(context).push(MaterialPageRoute(
+        Navigator.of(context).push(
+          MaterialPageRoute(
             builder: (_) => MushafMaquetteScreen(
-                pageInitiale: v.isNotEmpty ? (v.first.pageNumber ?? 1) : 1)));
+              pageInitiale: v.isNotEmpty ? (v.first.pageNumber ?? 1) : 1,
+            ),
+          ),
+        );
       } else if (widget.mode == 'lecture') {
         _lire();
       } else if (widget.mode == 'v2') {
@@ -285,7 +310,10 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _erreur = '$e');
-      DiagnosticLog.log('RECETTE', 'chargement sourate ${widget.surah} echoue : $e');
+      DiagnosticLog.log(
+        'RECETTE',
+        'chargement sourate ${widget.surah} echoue : $e',
+      );
     }
   }
 
@@ -310,8 +338,7 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
     for (final v in verses) {
       mots.addAll(ArabicNormalizer.splitExpectedWords(v.textUthmani));
     }
-    DiagnosticLog.log('RECETTE-V2',
-        'cible=${mots.length} mots  wav=$wav');
+    DiagnosticLog.log('RECETTE-V2', 'cible=${mots.length} mots  wav=$wav');
     final pret = await FastConformerVerifier().ensureLoaded();
     if (!pret) {
       DiagnosticLog.log('RECETTE-V2', 'modele non deploye : rien a mesurer');
@@ -341,25 +368,31 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
     final v = _verses;
     if (v == null || v.isEmpty || !mounted) return;
     DiagnosticLog.log('RECETTE', 'ECOUTE : ouverture de la recitation');
-    Navigator.of(context).push(MaterialPageRoute(
+    Navigator.of(context).push(
+      MaterialPageRoute(
         builder: (_) => KaraokeRecitationScreen(
-              verses: v,
-              // Piloté par intent : on atterrit DANS la récitation déjà lancée,
-              // sans tap. Depuis l'accès manuel (bouton), on laisse l'écran se
-              // comporter normalement.
-              autoDemarrer: widget.mode == 'ecoute',
-              // Le récitateur ne dit pas la Basmala : la garder décalerait les
-              // deux téléphones de quatre mots dès le départ.
-              sansBasmala: widget.mode == 'ecoute',
-              forcerModeNormal: widget.normal,
-            )));
+          verses: v,
+          // Piloté par intent : on atterrit DANS la récitation déjà lancée,
+          // sans tap. Depuis l'accès manuel (bouton), on laisse l'écran se
+          // comporter normalement.
+          autoDemarrer: widget.mode == 'ecoute',
+          // Le récitateur ne dit pas la Basmala : la garder décalerait les
+          // deux téléphones de quatre mots dès le départ.
+          sansBasmala: widget.mode == 'ecoute',
+          forcerModeNormal: widget.normal,
+          autoriserEnchainement: !widget.bornerVersets,
+        ),
+      ),
+    );
   }
 
   Future<void> _lire() async {
     final v = _verses;
     if (v == null || v.isEmpty) return;
-    DiagnosticLog.log('RECETTE',
-        'LECTURE : ${v.length} versets de la sourate ${widget.surah}');
+    DiagnosticLog.log(
+      'RECETTE',
+      'LECTURE : ${v.length} versets de la sourate ${widget.surah}',
+    );
     // Le premier verset amorce la lecture, la liste complète sert de playlist :
     // le lecteur enchaîne alors seul jusqu'au bout de la sourate, ce qui est
     // exactement le protocole voulu (le téléphone récitateur ne doit demander
@@ -376,33 +409,40 @@ class _RecetteScreenState extends ConsumerState<RecetteScreen> {
         child: _erreur != null
             ? Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('Chargement impossible :\n$_erreur',
-                    textAlign: TextAlign.center))
+                child: Text(
+                  'Chargement impossible :\n$_erreur',
+                  textAlign: TextAlign.center,
+                ),
+              )
             : v == null
-                ? const CircularProgressIndicator()
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('${v.length} versets chargés',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 32),
-                      FilledButton.icon(
-                        onPressed: _ecouter,
-                        icon: const Icon(Icons.mic),
-                        style: FilledButton.styleFrom(
-                            minimumSize: const Size(260, 64)),
-                        label: const Text('ÉCOUTER (juge)'),
-                      ),
-                      const SizedBox(height: 20),
-                      FilledButton.icon(
-                        onPressed: _lire,
-                        icon: const Icon(Icons.play_arrow),
-                        style: FilledButton.styleFrom(
-                            minimumSize: const Size(260, 64)),
-                        label: const Text('LIRE (récitateur)'),
-                      ),
-                    ],
+            ? const CircularProgressIndicator()
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '${v.length} versets chargés',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
+                  const SizedBox(height: 32),
+                  FilledButton.icon(
+                    onPressed: _ecouter,
+                    icon: const Icon(Icons.mic),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(260, 64),
+                    ),
+                    label: const Text('ÉCOUTER (juge)'),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    onPressed: _lire,
+                    icon: const Icon(Icons.play_arrow),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(260, 64),
+                    ),
+                    label: const Text('LIRE (récitateur)'),
+                  ),
+                ],
+              ),
       ),
     );
   }

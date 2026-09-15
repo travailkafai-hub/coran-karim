@@ -1088,6 +1088,14 @@
   "@coachHubTitle": {
     "description": "Titre de l'écran hub Coach"
   },
+  "homeReprendreTitre": "Reprendre la lecture",
+  "@homeReprendreTitre": {
+    "description": "Carte d accueil qui rouvre le texte la ou on s etait arrete (2026-09-14). La position est enregistree a chaque lecture depuis le 2026-08-26 ; elle n avait plus aucune porte depuis que la couverture ouvre sur la page principale."
+  },
+  "homeReprendreSous": "{sourate} · verset {verset}",
+  "@homeReprendreSous": {
+    "placeholders": { "sourate": { "type": "String" }, "verset": { "type": "int" } }
+  },
   "coachHubResumeLabel": "Reprendre",
   "@coachHubResumeLabel": {
     "description": "Titre de la carte \"reprendre la dernière session\""
@@ -3175,6 +3183,19 @@
     "description": "Entree de reglages qui ouvre le choix d'ecriture"
   },
   "settingsPrayerTimesTitle": "Horaires de prière",
+  "settingsPrayerTimesSubtitle": "Adhan programmé, rappel avant Sobh",
+  "coachGemmeAmethyste": "Améthyste",
+  "coachGemmeSaphir": "Saphir",
+  "coachGemmeTopaze": "Topaze",
+  "coachGemmeEmeraude": "Émeraude",
+  "coachGemmeSeuil": "{count, plural, =1{1 récitation complète} other{{count} récitations complètes}}",
+  "@coachGemmeSeuil": {
+    "description": "Legende d un palier de pierre precieuse. ETAIT EN DUR DANS LE CODE jusqu au 2026-09-14, comme les quatre noms de pierres -- ils restaient en francais en arabe et en anglais.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "@settingsPrayerTimesSubtitle": {
+    "description": "Sous-titre de la tuile Horaires de priere. ETAIT EN DUR DANS LE CODE jusqu au 2026-09-14 : il restait donc en francais quelle que soit la langue, repere par l utilisateur sur une capture en arabe. Seule chaine en dur de cet ecran."
+  },
   "@settingsPrayerTimesTitle": {
     "description": "Entree de reglages qui ouvre les horaires de priere"
   },

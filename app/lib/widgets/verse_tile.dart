@@ -64,6 +64,10 @@ class VerseTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Only reflowing verses gain space; fixed/split paper pages stay unchanged.
+    final expandedArabic =
+        Localizations.localeOf(context).languageCode == 'ar' &&
+        wordStart == null && wordEnd == null;
     // Palette de lecture resolue une fois : sombre > kindle > clair.
     final fondProfond = modeSombre
         ? AppColors.sombreBgDeep
@@ -168,7 +172,7 @@ class VerseTile extends StatelessWidget {
               TajweedText(
                 textUthmani: verse.textUthmani,
                 textUthmaniTajweed: verse.textUthmaniTajweed,
-                fontSize: 26 * textScale,
+                fontSize: (expandedArabic ? 30 : 26) * textScale,
                 lineHeight: 2.1,
                 onWordTap: onWordTap,
                 onWordLongPress: onWordLongPress,

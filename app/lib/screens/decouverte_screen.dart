@@ -105,11 +105,11 @@ class _DecouverteScreenState extends State<DecouverteScreen> {
             (e) => '${e.titre} ${e.texte}'.toLowerCase().contains(q),
           );
     }).toList();
-    final style = GoogleFonts.manrope(
+    final style = AppTheme.readableUi(context, GoogleFonts.manrope(
       color: AppColors.ink,
       fontSize: 14,
       letterSpacing: 0,
-    );
+    ));
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F5),
       appBar: AppBar(
@@ -144,7 +144,7 @@ class _DecouverteScreenState extends State<DecouverteScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _tr('À ton rythme', 'At your own pace', 'على وتيرتك'),
+                          _tr('À ton rythme', 'At your own pace', 'بالوتيرة التي تناسبك'),
                           style: style.copyWith(
                             fontSize: 21,
                             fontWeight: FontWeight.w800,
@@ -155,7 +155,7 @@ class _DecouverteScreenState extends State<DecouverteScreen> {
                           _tr(
                             'Parcours complet ou accès direct à une fonctionnalité.',
                             'Full tour or direct access to a feature.',
-                            'جولة كاملة أو وصول مباشر إلى ميزة.',
+                            'شاهد الجولة كاملة، أو اختر الأداة التي تريد اكتشافها.',
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -287,7 +287,7 @@ class _DecouverteScreenState extends State<DecouverteScreen> {
                               tooltip: _tr(
                                 'Recommencer le chapitre',
                                 'Restart chapter',
-                                'إعادة الفصل',
+                                'إعادة هذا القسم',
                               ),
                               icon: const Icon(Icons.replay),
                               onPressed: _lancement

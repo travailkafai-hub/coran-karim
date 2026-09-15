@@ -58,22 +58,76 @@ class _QiblaScreenState extends State<QiblaScreen> {
         setState(() => _state = _QiblaLoadState.permissionDenied);
         return;
       }
+      // ── LA BOUSSOLE TOURNAIT DANS LE VIDE (2026-09-14) ──────────────────
+      //
+      // Constat utilisateur : « depuis la page d'accueil, quand je clique sur
+      // boussole prière, elle s'affiche en grand mais elle mouline, elle n'est
+      // pas réactive ».
+      //
+      // CAUSE. `getCurrentPosition()` était appelé SANS AUCUNE BORNE DE TEMPS.
+      // Cette fonction ne rend pas une position connue : elle demande un point
+      // NEUF au GPS et attend qu'il arrive. À l'intérieur d'un bâtiment, ce
+      // point peut mettre des minutes -- ou ne jamais venir. L'écran restait
+      // donc dans `loading`, c'est-à-dire un disque qui tourne ; et comme
+      // `_compass()` n'est construit que dans l'état `ready`, l'aiguille
+      // n'était jamais abonnée au magnétomètre. D'où les deux symptômes, qui
+      // n'en sont qu'un.
+      //
+      // Vérifié sur l'appareil avant de corriger, pour ne pas traiter le
+      // mauvais défaut : `ACCESS_FINE_LOCATION granted=true` et
+      // `location_mode=3` (haute précision). Les deux gardes au-dessus
+      // passaient donc, et le blocage ne pouvait être qu'ici.
+      //
+      // DEUX TEMPS, et le premier suffit presque toujours :
+      //
+      //  1. La DERNIÈRE POSITION CONNUE du système. Elle est immédiate et
+      //     amplement suffisante ici : la direction de La Mecque varie de
+      //     moins d'un degré sur des dizaines de kilomètres -- se tromper de
+      //     ville ne déplacerait pas l'aiguille de façon visible. On affiche
+      //     donc la boussole TOUT DE SUITE, et elle devient réactive.
+      //  2. Un point frais pour affiner, borné à 12 s. S'il n'arrive pas, on
+      //     GARDE ce qu'on a au lieu de basculer en erreur : une aiguille
+      //     juste à un demi-degré près vaut mieux qu'un message d'échec.
+      //
+      // Si aucune des deux sources ne donne rien, on tombe dans `error`, qui
+      // propose déjà de réessayer. Plus jamais de disque qui tourne sans fin.
+      try {
+        final connue = await Geolocator.getLastKnownPosition();
+        if (!mounted) return;
+        if (connue != null) _appliquer(connue);
+      } catch (_) {
+        // Best-effort : l'absence de cache n'est pas une erreur, le point
+        // frais ci-dessous reste à venir.
+      }
+
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 12),
+        ),
       );
       if (!mounted) return;
-      setState(() {
-        _qiblaBearing = QiblaService.bearingToMecca(pos.latitude, pos.longitude);
-        _distanceKm = QiblaService.distanceToMeccaKm(pos.latitude, pos.longitude);
-        _state = _QiblaLoadState.ready;
-      });
+      _appliquer(pos);
     } catch (e) {
       if (!mounted) return;
+      // Déjà une aiguille à l'écran (dernière position connue) : le point
+      // frais qui manque ne doit rien effacer.
+      if (_state == _QiblaLoadState.ready) return;
       setState(() {
         _errorMessage = '$e';
         _state = _QiblaLoadState.error;
       });
     }
+  }
+
+  /// Pose la direction et la distance, et fait passer l'écran en `ready` --
+  /// c'est ce passage qui ABONNE l'aiguille au magnétomètre (`_compass()`).
+  void _appliquer(Position pos) {
+    setState(() {
+      _qiblaBearing = QiblaService.bearingToMecca(pos.latitude, pos.longitude);
+      _distanceKm = QiblaService.distanceToMeccaKm(pos.latitude, pos.longitude);
+      _state = _QiblaLoadState.ready;
+    });
   }
 
   @override

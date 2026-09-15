@@ -184,8 +184,12 @@ class SettingsScreen extends ConsumerWidget {
           _SettingsTile(
             icon: Icons.access_time_rounded,
             key: const ValueKey('guide.settings.prayers'),
-            title: AppLocalizations.of(context)!.settingsPrayerTimesTitle,
-            subtitle: 'Adhan programmé, rappel avant Sobh',
+            title: t.settingsPrayerTimesTitle,
+            // ── ÉTAIT EN DUR, DONC EN FRANÇAIS PARTOUT (2026-09-14) ───────
+            // Repéré par l'utilisateur sur une capture en arabe : « il reste
+            // du français ». C'était la seule chaîne en dur de cet écran --
+            // elle traversait donc la locale sans jamais changer.
+            subtitle: t.settingsPrayerTimesSubtitle,
             color: AppColors.settingsPrayer,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const PrayerTimesSettingsScreen())),
@@ -341,11 +345,11 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
         child: Text(title.toUpperCase(),
-            style: GoogleFonts.manrope(
+            style: AppTheme.readableUi(context, GoogleFonts.manrope(
                 fontSize: 10,
                 color: AppColors.green700,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.5)),
+                letterSpacing: 0))),
       );
 }
 
@@ -387,11 +391,11 @@ class _SettingsTile extends StatelessWidget {
             child: Icon(icon, color: color, size: 20),
           ),
             title: Text(title,
-              style: GoogleFonts.manrope(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink)),
+              style: AppTheme.readableUi(context, GoogleFonts.manrope(
+                  fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink))),
           subtitle: Text(subtitle,
-              style: GoogleFonts.manrope(
-                  fontSize: 11, color: AppColors.inkLight)),
+              style: AppTheme.readableUi(context, GoogleFonts.manrope(
+                  fontSize: 11, color: AppColors.inkLight))),
           trailing: trailing ??
               (onTap != null
                   ? const Icon(Icons.chevron_right, color: AppColors.inkLight)

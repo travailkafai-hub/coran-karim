@@ -1700,6 +1700,18 @@ abstract class AppLocalizations {
   /// **'Mon coach'**
   String get coachHubTitle;
 
+  /// Carte d accueil qui rouvre le texte la ou on s etait arrete (2026-09-14). La position est enregistree a chaque lecture depuis le 2026-08-26 ; elle n avait plus aucune porte depuis que la couverture ouvre sur la page principale.
+  ///
+  /// In fr, this message translates to:
+  /// **'Reprendre la lecture'**
+  String get homeReprendreTitre;
+
+  /// No description provided for @homeReprendreSous.
+  ///
+  /// In fr, this message translates to:
+  /// **'{sourate} · verset {verset}'**
+  String homeReprendreSous(String sourate, int verset);
+
   /// Titre de la carte "reprendre la dernière session"
   ///
   /// In fr, this message translates to:
@@ -4188,6 +4200,42 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Horaires de prière'**
   String get settingsPrayerTimesTitle;
+
+  /// Sous-titre de la tuile Horaires de priere. ETAIT EN DUR DANS LE CODE jusqu au 2026-09-14 : il restait donc en francais quelle que soit la langue, repere par l utilisateur sur une capture en arabe. Seule chaine en dur de cet ecran.
+  ///
+  /// In fr, this message translates to:
+  /// **'Adhan programmé, rappel avant Sobh'**
+  String get settingsPrayerTimesSubtitle;
+
+  /// No description provided for @coachGemmeAmethyste.
+  ///
+  /// In fr, this message translates to:
+  /// **'Améthyste'**
+  String get coachGemmeAmethyste;
+
+  /// No description provided for @coachGemmeSaphir.
+  ///
+  /// In fr, this message translates to:
+  /// **'Saphir'**
+  String get coachGemmeSaphir;
+
+  /// No description provided for @coachGemmeTopaze.
+  ///
+  /// In fr, this message translates to:
+  /// **'Topaze'**
+  String get coachGemmeTopaze;
+
+  /// No description provided for @coachGemmeEmeraude.
+  ///
+  /// In fr, this message translates to:
+  /// **'Émeraude'**
+  String get coachGemmeEmeraude;
+
+  /// Legende d un palier de pierre precieuse. ETAIT EN DUR DANS LE CODE jusqu au 2026-09-14, comme les quatre noms de pierres -- ils restaient en francais en arabe et en anglais.
+  ///
+  /// In fr, this message translates to:
+  /// **'{count, plural, =1{1 récitation complète} other{{count} récitations complètes}}'**
+  String coachGemmeSeuil(int count);
 
   /// Titre du reglage de routage du micro vers un casque Bluetooth
   ///

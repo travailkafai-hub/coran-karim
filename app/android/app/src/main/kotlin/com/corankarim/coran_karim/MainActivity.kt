@@ -186,6 +186,11 @@ class MainActivity : AudioServiceActivity() {
                     // banc continue de forcer la reference comme avant.
                     val normal = intent?.getBooleanExtra("normal", false) ?: false
                     intent?.removeExtra("normal")
+                    // `--ez borner true` : la recette déterministe garde la
+                    // plage de versets demandée et désactive l'enchaînement
+                    // automatique des pages du Mushaf.
+                    val borner = intent?.getBooleanExtra("borner", false) ?: false
+                    intent?.removeExtra("borner")
                     // `--ez fusion false` : coupe le BLOC DE FUSION pour la
                     // mesure (cf. FastConformerCtcPlugin.v2Fusion). Defaut
                     // true = comportement en place, aucun appel existant du
@@ -225,6 +230,7 @@ class MainActivity : AudioServiceActivity() {
                         if (m == null) null
                         else mapOf("mode" to m, "sourate" to s, "versets" to n,
                                    "depart" to d, "wav" to w, "normal" to normal,
+                                   "borner" to borner,
                                    "fusion" to fusion,
                                    "preuves" to preuves,
                                    "pas" to pas, "largeur" to largeur,

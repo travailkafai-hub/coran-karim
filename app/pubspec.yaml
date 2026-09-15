@@ -1,7 +1,7 @@
 name: coran_karim
 description: "Application de mémorisation du Coran assistée par IA"
 publish_to: 'none'
-version: 1.0.8+9
+version: 1.0.9+12
 
 environment:
   sdk: ^3.12.2

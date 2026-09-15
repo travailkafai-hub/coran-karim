@@ -145,8 +145,29 @@ class MushafPageChrome extends StatelessWidget {
         // est la MEME fonction qui positionne ces boutons (cf. sa doc et
         // `test/mushaf_marge_boutons_test.dart`) -- aucune valeur inventee
         // ici, seulement la reutilisation de ce qui les place deja.
+        // ── LE TEXTE S'ÉCARTE DU SIGNET (2026-09-14, demande utilisateur) ───
+        //
+        // Constat, capture à l'appui (page 3, Al-Baqara) : le signet et la
+        // flèche de retour, qui flottent en haut à gauche, se posaient SUR la
+        // première ligne. « Y a moyen de descendre un peu le texte pour
+        // s'éloigner du signe signet, juste un peu ».
+        //
+        // CAUSE : ce dégagement existait déjà, mais `opening ? … : 0.0` le
+        // réservait à la page d'ouverture. Les pages courantes, elles, faisaient
+        // commencer le texte juste sous le filet -- alors qu'elles portent
+        // exactement les mêmes boutons flottants.
+        //
+        // ⚠️ 12 px et non le dégagement complet (~44, la hauteur d'un bouton) :
+        // les boutons occupent le seul coin haut-gauche, le texte est justifié
+        // sur toute la largeur, et libérer leur hauteur entière coûterait une
+        // ligne de texte SUR CHAQUE PAGE. On écarte, on ne dégage pas.
+        //
+        // ⚠️ ET CELA ANNULE EN PARTIE LE GAIN DU 2026-09-04 (« gagne un peu
+        // d'espace en haut », ~6 px repris au profit du texte) : c'est voulu et
+        // arbitré par la même personne, deux constats différents à dix jours
+        // d'écart. Ne pas « re-optimiser » cette marge sans le lui redemander.
         final margeHauteMinOuverture =
-            opening ? margeHauteBoutonsMushaf(context) + 48 : 0.0;
+            opening ? margeHauteBoutonsMushaf(context) + 48 : 12.0;
 
         return ColoredBox(
           color: dark ? const Color(0xFF111B19) : const Color(0xFFFFFEF6),

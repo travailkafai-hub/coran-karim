@@ -488,12 +488,12 @@ class _VisiteGuideeState extends State<VisiteGuidee>
     borderRadius: BorderRadius.circular(8),
     clipBehavior: Clip.antiAlias,
     child: DefaultTextStyle(
-      style: GoogleFonts.manrope(
+      style: AppTheme.readableUi(context, GoogleFonts.manrope(
         fontSize: 13,
         color: AppColors.ink,
         height: 1.45,
         letterSpacing: 0,
-      ),
+      )),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -556,7 +556,7 @@ class _VisiteGuideeState extends State<VisiteGuidee>
                               : _tr(
                                   'Cette zone n’est pas disponible dans cet état de l’écran.',
                                   'This area is unavailable in the current screen state.',
-                                  'هذه المنطقة غير متاحة في حالة الشاشة الحالية.',
+                                  'هذه الأداة غير متاحة في الشاشة الحالية.',
                                 ),
                           style: const TextStyle(
                             color: Color(0xFF9C4B22),

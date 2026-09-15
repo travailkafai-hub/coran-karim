@@ -344,7 +344,7 @@ const kDuaUnivers = <DuaUnivers>[
     labelAr: 'الصلاة',
     tagline: 'Avant, pendant, après',
     taglineEn: 'Before, during, after',
-    taglineAr: 'قبل وأثناء وبعد',
+    taglineAr: 'قبل الصلاة وأثناءها وبعدها',
     color: AppColors.green700,
     collections: [
       DuaCollection(
@@ -429,7 +429,7 @@ const kDuaUnivers = <DuaUnivers>[
     labelAr: 'القرآن',
     tagline: 'Invoquer avec Sa parole',
     taglineEn: 'Supplicating with His own words',
-    taglineAr: 'الدعاء بكلامه',
+    taglineAr: 'أدعية من القرآن الكريم',
     color: AppColors.brass,
     collections: [
       DuaCollection(
@@ -437,7 +437,7 @@ const kDuaUnivers = <DuaUnivers>[
         emoji: '💫',
         labelFr: 'Les « Rabbanā »',
         labelEn: 'The "Rabbanā" verses',
-        labelAr: 'دعاء ربنا',
+        labelAr: 'أدعية تبدأ بربنا',
         hint: 'Les invocations que le Coran met dans nos bouches',
         hintEn: 'The supplications the Qur\'an places in our mouths',
       ),
@@ -589,7 +589,7 @@ const kDuaUnivers = <DuaUnivers>[
         emoji: '💰',
         labelFr: 'Dette & subsistance',
         labelEn: 'Debt & provision',
-        labelAr: 'الدين والرزق',
+        labelAr: 'الدَّيْن والرزق',
         hint: 'Quand l\'argent manque ou étouffe',
         hintEn: 'When money is short, or suffocating',
       ),
@@ -738,7 +738,7 @@ DuaMoment currentDuaMoment([DateTime? now]) {
       emoji: '🕌',
       titleFr: 'C\'est vendredi',
       titleEn: 'It\'s Friday',
-      titleAr: 'إنه يوم الجمعة',
+      titleAr: 'اليوم الجمعة',
       subtitle: 'Sourate Al-Kahf, ṣalāt sur le Prophète, l\'heure exaucée',
       subtitleEn: 'Sūrat al-Kahf, ṣalāt upon the Prophet, the answered hour',
       subtitleAr: 'سورة الكهف، الصلاة على النبي، ساعة الإجابة',
@@ -751,7 +751,7 @@ DuaMoment currentDuaMoment([DateTime? now]) {
       emoji: '🌤️',
       titleFr: 'Autour de Ṣobḥ',
       titleEn: 'Around Ṣobḥ',
-      titleAr: 'حول صلاة الصبح',
+      titleAr: 'صلاة الفجر',
       subtitle: 'Ce qu\'on dit à la prière de l\'aube',
       subtitleEn: 'What is said at the dawn prayer',
       subtitleAr: 'ما يقال في صلاة الفجر',
@@ -766,7 +766,7 @@ DuaMoment currentDuaMoment([DateTime? now]) {
       titleAr: 'أذكار الصباح',
       subtitle: 'La protection de la journée qui commence',
       subtitleEn: 'Protection for the day ahead',
-      subtitleAr: 'حصن اليوم الذي يبدأ',
+      subtitleAr: 'ابدأ يومك بذكر الله',
       collectionId: 'matin',
     );
   }

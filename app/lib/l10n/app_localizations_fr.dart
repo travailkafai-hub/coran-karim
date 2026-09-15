@@ -957,6 +957,14 @@ class AppLocalizationsFr extends AppLocalizations {
   String get coachHubTitle => 'Mon coach';
 
   @override
+  String get homeReprendreTitre => 'Reprendre la lecture';
+
+  @override
+  String homeReprendreSous(String sourate, int verset) {
+    return '$sourate · verset $verset';
+  }
+
+  @override
   String get coachHubResumeLabel => 'Reprendre';
 
   @override
@@ -2601,6 +2609,33 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get settingsPrayerTimesTitle => 'Horaires de prière';
+
+  @override
+  String get settingsPrayerTimesSubtitle =>
+      'Adhan programmé, rappel avant Sobh';
+
+  @override
+  String get coachGemmeAmethyste => 'Améthyste';
+
+  @override
+  String get coachGemmeSaphir => 'Saphir';
+
+  @override
+  String get coachGemmeTopaze => 'Topaze';
+
+  @override
+  String get coachGemmeEmeraude => 'Émeraude';
+
+  @override
+  String coachGemmeSeuil(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count récitations complètes',
+      one: '1 récitation complète',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get settingsBluetoothMicTitle => 'Micro du casque Bluetooth';

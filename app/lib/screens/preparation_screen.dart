@@ -40,7 +40,8 @@
 // `kOnboardingActif = false`) explique ce que fait l'app. Celle-ci la prépare.
 // Les deux peuvent coexister ; aucune n'est supprimée.
 
-import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -97,7 +98,26 @@ const String kPrefPreparationFaite = 'preparation_faite';
 /// écrit mais jamais relu. Si un jour on veut vérifier le comportement RÉEL du
 /// premier lancement (l'écran ne doit apparaître qu'une fois), il faut un build
 /// profile ou release -- pas un debug.
-const bool _kRejouerAChaqueLancement = !kReleaseMode;
+// ── LA PREPARATION NE SE JOUE QU'UNE FOIS (2026-09-14) ────────────────────
+//
+// Demande utilisateur : « maintenant l'onboarding doit fonctionner qu'une seule
+// fois, au demarrage, la premiere fois de l'application ».
+//
+// ETAIT `!kReleaseMode` depuis le 2026-09-13, pour la recette : « je veux que
+// l'onboarding se lance tout le temps, periode de recette ». La periode est
+// finie -- l'ecran se comporte donc partout comme il se comportera chez les
+// gens, et `kPrefPreparationFaite` redevient ce qui decide.
+//
+// ⚠️ CONSEQUENCE IMMEDIATE SUR UN TELEPHONE DE DEVELOPPEMENT : la preference a
+// deja ete ecrite des dizaines de fois pendant la recette, donc la preparation
+// NE S'AFFICHERA PLUS. Pour la revoir, il faut effacer les donnees de
+// l'application (Parametres Android -> Stockage -> Effacer les donnees), ou
+// desinstaller puis reinstaller. Ce n'est pas un defaut, c'est exactement ce
+// que « une seule fois » veut dire.
+//
+// Le commentaire qui suit explique pourquoi la bascule etait portee par le mode
+// de compilation ; il reste vrai le jour ou l'on rouvrirait une recette.
+const bool _kRejouerAChaqueLancement = false;
 
 /// Le même interrupteur, exposé pour les autres morceaux de la chaîne de
 /// démarrage (la démonstration de récitation, cf. `main.dart`).
@@ -165,6 +185,152 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
   /// l'etape « Mode enfant » retiree le meme jour (cf. `_etapeEnfant`).
   static const _nbEtapes = 5;
 
+  // ── LE BALAYAGE : MONTRER QU'IL Y A PLUSIEURS CHOIX (2026-09-14) ────────
+  //
+  // Demande utilisateur : « en attendant que le user choisisse, quand il y a
+  // plusieurs choix, il y a un balayage auto en attendant qu'il choisisse ;
+  // une fois choisi c'est bon ».
+  //
+  // CE QUE ÇA RÉSOUT. Une liste de cartes dont une seule est en crème pleine se
+  // lit comme un état, pas comme une question : on voit « c'est Scheherazade »
+  // et on passe, sans comprendre que les trois autres lignes sont cliquables.
+  // Le halo qui se déplace dit, sans un mot et dans les trois langues, qu'il y
+  // a ici quelque chose à choisir.
+  //
+  // ⚠️ LE BALAYAGE NE CHOISIT RIEN, et c'est la règle à ne pas franchir. Il
+  // déplace un HALO et, là où l'étape a un aperçu, ce que l'aperçu montre --
+  // jamais le réglage persisté. Sans cela, quelqu'un qui laisse la page tourner
+  // puis appuie sur « Suivant » repartirait avec une écriture ou un fond qu'il
+  // n'a jamais choisis : l'écran aurait décidé à sa place.
+  //
+  // Il s'arrête dès le premier tap SUR CETTE ÉTAPE (la question est répondue,
+  // l'animation n'a plus rien à dire) et pendant qu'une fenêtre est ouverte.
+  int _tic = 0;
+  Timer? _minuteurBalayage;
+
+  // ── LE BALAYAGE AGIT, IL NE CLIGNOTE PAS (2026-09-14, correction) ────────
+  //
+  // Premiere version : un halo se deplacait, et rien d'autre. Verdict de
+  // l'utilisateur, sans appel : « mais le balayage ACTIF !! sinon ca sert a
+  // rien, il doit modifier ou changer le texte ou lancer les audio ».
+  //
+  // Il a raison, et le principe se formule : un balayage qui ne fait que
+  // designer ne montre pas plus qu'une liste immobile -- il ajoute du
+  // mouvement sans ajouter d'information. Ce qu'on veut faire comprendre,
+  // c'est CE QUE CHAQUE CHOIX CHANGE. Chaque etape balayee applique donc son
+  // effet pour de vrai :
+  //
+  //   Langue      -> l'interface passe en arabe, en francais, en anglais
+  //   Ecriture    -> l'apercu change de lettres
+  //   Recitateur  -> la voix SE FAIT ENTENDRE, une apres l'autre
+  //   Fonds       -> l'apercu devient papier, marron, noir
+  //
+  // ⚠️ CE QUI N'EST TOUJOURS PAS FRANCHI : le balayage n'ENREGISTRE rien. Ce
+  // que l'utilisateur avait en entrant dans l'etape est mis de cote et REMIS
+  // s'il repart sans avoir touche une carte. Sinon, laisser la page tourner
+  // puis appuyer sur « Suivant » suffirait a repartir avec une langue ou une
+  // voix qu'on n'a jamais choisies -- l'ecran aurait decide a la place de
+  // l'utilisateur, ce qui est exactement ce que cette animation existe pour
+  // eviter.
+
+  /// La cadence n'est pas la meme partout : une voix a besoin d'etre ecoutee.
+  /// 1,5 s suffit pour une lettre ou un fond qui change ; il en faut cinq fois
+  /// plus pour qu'on entende autre chose qu'un debut de mot.
+  /// 2,5 s pour la langue (toute l'interface se retourne, il faut le temps de
+  /// la LIRE avant qu'elle ne change encore), 1,5 s pour une lettre ou un fond,
+  /// qui se saisissent d'un coup d'oeil.
+  ///
+  /// ⚠️ L'ETAPE DU RECITATEUR N'EST PLUS BALAYEE (2026-09-14). Elle l'a ete
+  /// une version : le halo avancait toutes les 8 s et faisait entendre chaque
+  /// voix. Verdict de l'utilisateur : « c'est complique pour le choix de
+  /// recitateur, c'est pas interessant ». Il a raison, et on peut dire
+  /// pourquoi : les trois autres balayages montrent en une seconde une
+  /// difference qu'on voit d'un coup d'oeil ; une voix demande d'ECOUTER, et
+  /// huit secondes par recitateur font une demonstration qu'il faut SUBIR
+  /// avant de pouvoir choisir. Le tap qui fait entendre reste, lui -- c'est la
+  /// bonne interaction ici : on demande la voix qu'on veut entendre, quand on
+  /// la veut.
+  Duration get _periodeBalayage => _etape == 0
+      ? const Duration(milliseconds: 2500)
+      : const Duration(milliseconds: 1500);
+
+  /// Ce que l'utilisateur avait AVANT que le balayage ne passe -- remis tel
+  /// quel s'il quitte l'etape sans rien choisir.
+  String? _localeAvantBalayage;
+  bool _langueChoisie = false;
+  // `_reciteurAvantBalayage` et `_reciteurChoisi` retires le 2026-09-14 avec le
+  // balayage de l'etape du recitateur (cf. `_periodeBalayage`) : sans balayage
+  // qui emprunte la voix, il n'y a plus rien a rendre ni a marquer.
+
+  /// Les étapes où l'utilisateur a déjà touché un choix : le balayage y est
+  /// définitivement éteint, même si on y revient.
+  final Set<int> _etapesRepondues = {};
+
+  /// Nombre de cartes balayées à l'étape courante -- 0 = pas de balayage ici.
+  int _nbCartesBalayees = 0;
+
+  bool get _balayageActif =>
+      !_etapesRepondues.contains(_etape) && !_occupe && _nbCartesBalayees > 1;
+
+  /// L'index survolé dans une liste de [nb] cartes, ou -1 si le balayage est
+  /// éteint. Appelé par chaque étape qui en veut un.
+  int _survole(int nb) {
+    _nbCartesBalayees = nb;
+    if (_etapesRepondues.contains(_etape) || _occupe || nb < 2) return -1;
+    return _tic % nb;
+  }
+
+  /// Un choix a été touché : le balayage de cette étape est terminé.
+  void _choixFait() {
+    if (_etapesRepondues.add(_etape)) setState(() {});
+  }
+
+  void _armerBalayage() {
+    _minuteurBalayage?.cancel();
+    _minuteurBalayage = Timer.periodic(_periodeBalayage, (_) {
+      if (!mounted) return;
+      if (!_balayageActif) return;
+      setState(() => _tic++);
+      _appliquerLeBalayage();
+    });
+  }
+
+  /// Applique l'effet du choix que le balayage vient de designer.
+  ///
+  /// L'ecriture et les fonds n'ont rien a faire ici : leur apercu lit
+  /// directement l'index balaye au moment de se construire. Restent les deux
+  /// effets qui ne sont pas dans la page -- la langue de l'interface, et la
+  /// voix.
+  void _appliquerLeBalayage() {
+    if (_etape == 0 && !_langueChoisie) {
+      final i = _tic % kSupportedAppLocales.length;
+      _localeAvantBalayage ??= ref.read(appLocaleProvider);
+      ref.read(appLocaleProvider.notifier).set(kSupportedAppLocales[i]);
+      return;
+    }
+    // Ancienne branche du RECITATEUR, retiree le 2026-09-14 et gardee en trace
+    // (cf. `_periodeBalayage`) -- elle faisait entendre chaque voix a tour de
+    // role, ce qui obligeait a subir la demonstration avant de choisir :
+    //   if (_etape == 2 && !_reciteurChoisi) {
+    //     final voix = Reciter.pour(ref.read(riwayaProvider));
+    //     final r = voix[_tic % voix.length];
+    //     _reciteurAvantBalayage ??= ref.read(playerProvider).reciter;
+    //     _ecouterUnExtrait(r, enregistrer: false);
+    //   }
+  }
+
+  /// Rend ce que le balayage avait emprunte, si l'utilisateur part sans avoir
+  /// choisi. Appele a chaque changement d'etape et a la fermeture.
+  void _rendreCeQuiEtaitLa() {
+    final loc = _localeAvantBalayage;
+    if (loc != null && !_langueChoisie) {
+      ref.read(appLocaleProvider.notifier).set(loc);
+    }
+    _localeAvantBalayage = null;
+    // Le recitateur n'a plus rien a rendre : le balayage ne touche plus a la
+    // voix (cf. `_periodeBalayage`).
+  }
+
   /// Empeche deux ouvertures simultanees si on tape deux fois.
   bool _chargementEssai = false;
   bool _explicationOuverte = false;
@@ -177,19 +343,33 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
   static const _apercu = 'ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَـٰلَمِينَ';
 
   @override
+  void initState() {
+    super.initState();
+    _armerBalayage();
+  }
+
+  @override
   void dispose() {
+    _minuteurBalayage?.cancel();
+    _rendreCeQuiEtaitLa();
     _couperEcoute();
     super.dispose();
   }
 
   void _suivant() {
     _couperEcoute();
+    _rendreCeQuiEtaitLa();
+    _nbCartesBalayees = 0;
+    _tic = 0;
     if (_etape + 1 >= _nbEtapes) {
       marquerPreparationFaite();
       widget.onTermine();
       return;
     }
     setState(() => _etape++);
+    // La cadence depend de l'etape (cf. `_periodeBalayage`) : il faut donc
+    // refaire le minuteur, pas seulement le laisser courir.
+    _armerBalayage();
   }
 
   @override
@@ -303,20 +483,20 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
           children: [
             Text(
               titre,
-              style: const TextStyle(
+              style: AppTheme.readableUi(context, const TextStyle(
                 color: AppColors.cream,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-              ),
+              )),
             ),
             const SizedBox(height: 4),
             Text(
               sous,
-              style: TextStyle(
+              style: AppTheme.readableUi(context, TextStyle(
                 color: AppColors.cream.withAlpha(170),
                 fontSize: 13,
                 height: 1.4,
-              ),
+              )),
             ),
           ],
         ),
@@ -331,17 +511,29 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
     // quelqu'un qui ouvre l'app dans une langue qu'il ne lit pas doit pouvoir
     // trouver la sienne. « Arabe » n'aide personne qui cherche « العربية ».
     const noms = {'ar': 'العربية', 'fr': 'Français', 'en': 'English'};
+    // UNE SEULE liste balayée par étape : faire pulser la langue ET la riwaya
+    // en même temps donnerait deux halos concurrents, donc du bruit. C'est la
+    // langue qui l'emporte -- c'est la première chose qu'on voit de l'app, et
+    // celle qu'on cherche quand on ne lit pas ce qui est affiché.
+    final survoleLangue = _survole(kSupportedAppLocales.length);
     return ListView(
       key: const ValueKey(0),
       children: [
         _titreEtape(t.settingsLocaleTitle, t.preparationLangueSous),
-        for (final code in kSupportedAppLocales)
+        for (var i = 0; i < kSupportedAppLocales.length; i++)
           _carte(
-            titre: noms[code] ?? code,
-            choisi: locale == code,
-            onTap: () =>
-                ref.read(appLocaleProvider.notifier).set(code),
-            arabe: code == 'ar',
+            titre: noms[kSupportedAppLocales[i]] ?? kSupportedAppLocales[i],
+            choisi: locale == kSupportedAppLocales[i],
+            survole: i == survoleLangue,
+            onTap: () {
+              _langueChoisie = true;
+              _localeAvantBalayage = null;
+              _choixFait();
+              ref
+                  .read(appLocaleProvider.notifier)
+                  .set(kSupportedAppLocales[i]);
+            },
+            arabe: kSupportedAppLocales[i] == 'ar',
           ),
         const SizedBox(height: 10),
         _titreEtape(t.settingsRiwayaTitle, t.preparationRiwayaSous),
@@ -349,13 +541,19 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
           titre: 'حفص — Ḥafṣ',
           sous: t.settingsRiwayaHafs,
           choisi: riwaya == Riwaya.hafs,
-          onTap: () => _choisirRiwaya(Riwaya.hafs),
+          onTap: () {
+            _choixFait();
+            _choisirRiwaya(Riwaya.hafs);
+          },
         ),
         _carte(
           titre: 'ورش — Warsh',
           sous: t.settingsRiwayaWarsh,
           choisi: riwaya == Riwaya.warsh,
-          onTap: () => _choisirRiwaya(Riwaya.warsh),
+          onTap: () {
+            _choixFait();
+            _choisirRiwaya(Riwaya.warsh);
+          },
         ),
         // ── CE QUE WARSH N'A PAS ENCORE (2026-09-14, demande utilisateur) ──
         //
@@ -404,6 +602,12 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
 
   Widget _etapeEcriture(AppLocalizations t) {
     final famille = ref.watch(policeMushafPageProvider);
+    // L'apercu montre l'ecriture BALAYEE tant que rien n'est choisi -- c'est
+    // tout l'interet ici : on ne voit pas un halo, on voit les lettres changer.
+    // Des le premier tap, il revient a l'ecriture choisie et n'en bouge plus.
+    final survole = _survole(kEcrituresMushaf.length);
+    final familleMontree =
+        survole >= 0 ? kEcrituresMushaf[survole].famille : famille;
     return Column(
       key: const ValueKey(1),
       children: [
@@ -424,7 +628,7 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
             textAlign: TextAlign.center,
             textDirection: TextDirection.rtl,
             style: styleEcriture(
-              ecriturePour(famille),
+              ecriturePour(familleMontree),
               taille: 30,
               interligne: 1.9,
               couleur: AppColors.ink,
@@ -441,9 +645,13 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                 titre: e.libelle,
                 sous: e.note,
                 choisi: e.famille == famille,
-                onTap: () => ref
-                    .read(policeMushafPageProvider.notifier)
-                    .definir(e.famille),
+                survole: i == survole,
+                onTap: () {
+                  _choixFait();
+                  ref
+                      .read(policeMushafPageProvider.notifier)
+                      .definir(e.famille);
+                },
               );
             },
           ),
@@ -487,6 +695,11 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
     final riwaya = ref.watch(riwayaProvider);
     final courant = ref.watch(playerProvider).reciter;
     final voix = Reciter.pour(riwaya);
+    // AUCUN balayage sur cette etape (2026-09-14, cf. `_periodeBalayage`) :
+    // ni halo, ni extrait automatique. C'est le tap qui fait entendre.
+    // `_survole(0)` remet a zero le compteur de cartes balayees, ce qui coupe
+    // le minuteur tant qu'on est ici.
+    final survole = _survole(0);
     final enArabe = Localizations.localeOf(context).languageCode == 'ar';
     return Column(
       key: const ValueKey(2),
@@ -504,7 +717,11 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                 // nom, qui sert de repère à qui connaît le récitateur.
                 sous: enArabe ? '${r.nameFr} · ${r.style}' : r.style,
                 choisi: r.id == courant.id,
-                onTap: () => _ecouterUnExtrait(r),
+                survole: i == survole,
+                onTap: () {
+                  _choixFait();
+                  _ecouterUnExtrait(r);
+                },
               );
             },
           ),
@@ -538,12 +755,18 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
     final tajwid = ref.watch(tajwidMushafPageProvider);
     final famille = ref.watch(policeMushafPageProvider);
     final riwaya = ref.watch(riwayaProvider);
-    final fond = sombre
-        ? AppColors.sombreBg
-        : kindle
-            ? AppColors.kindleBg
-            : AppColors.mushafPapier;
-    final encre = sombre ? AppColors.cream : AppColors.ink;
+    // Trois fonds, dans l'ordre des pastilles : papier, kindle, sombre.
+    final survole = _survole(3);
+    // Le fond MONTRE est celui que le balayage designe tant que rien n'est
+    // choisi -- on voit le papier devenir marron puis noir, ce qu'aucun libelle
+    // ne raconterait. Le reglage reel, lui, n'a pas bouge.
+    final iFond = survole >= 0 ? survole : (sombre ? 2 : (kindle ? 1 : 0));
+    final fond = [
+      AppColors.mushafPapier,
+      AppColors.kindleBg,
+      AppColors.sombreBg,
+    ][iFond];
+    final encre = iFond == 2 ? AppColors.cream : AppColors.ink;
     return ListView(
       key: const ValueKey(3),
       children: [
@@ -579,7 +802,9 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
             _pastilleFond(
               couleur: AppColors.mushafPapier,
               choisi: !kindle && !sombre,
+              survole: survole == 0,
               onTap: () {
+                _choixFait();
                 ref.read(kindleModeProvider.notifier).set(false);
                 ref.read(modeSombreProvider.notifier).set(false);
               },
@@ -587,7 +812,9 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
             _pastilleFond(
               couleur: AppColors.kindleBg,
               choisi: kindle && !sombre,
+              survole: survole == 1,
               onTap: () {
+                _choixFait();
                 ref.read(kindleModeProvider.notifier).set(true);
                 ref.read(modeSombreProvider.notifier).set(false);
               },
@@ -595,7 +822,9 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
             _pastilleFond(
               couleur: AppColors.sombreBg,
               choisi: sombre,
+              survole: survole == 2,
               onTap: () {
+                _choixFait();
                 ref.read(modeSombreProvider.notifier).set(true);
                 ref.read(kindleModeProvider.notifier).set(false);
               },
@@ -645,8 +874,10 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
   /// Le texte vient de l'asset local, donc l'extrait existe hors ligne ; seul
   /// l'AUDIO peut manquer sans réseau, et `play` pose alors son propre état
   /// d'erreur -- on ne prétend pas avoir joué.
-  Future<void> _ecouterUnExtrait(Reciter r) async {
-    _lecteur.setReciter(r);
+  Future<void> _ecouterUnExtrait(Reciter r, {bool enregistrer = true}) async {
+    // `enregistrer: false` quand c'est le BALAYAGE qui fait entendre la voix :
+    // on la joue, on ne la choisit pas a la place de l'utilisateur.
+    if (enregistrer) _lecteur.setReciter(r);
     try {
       final versets = await QuranApi.fetchVerses(2);
       if (!mounted || versets.isEmpty) return;
@@ -678,22 +909,37 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
     required Color couleur,
     required bool choisi,
     required VoidCallback onTap,
+    bool survole = false,
   }) =>
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 7),
         child: InkWell(
           borderRadius: BorderRadius.circular(30),
           onTap: onTap,
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeInOut,
             width: 46,
             height: 46,
             decoration: BoxDecoration(
               color: couleur,
               shape: BoxShape.circle,
               border: Border.all(
-                color: choisi ? AppColors.brass : AppColors.cream.withAlpha(60),
-                width: choisi ? 3 : 1,
+                color: choisi
+                    ? AppColors.brass
+                    : survole
+                        ? AppColors.brass.withValues(alpha: .55)
+                        : AppColors.cream.withAlpha(60),
+                width: choisi ? 3 : (survole ? 2.5 : 1),
               ),
+              boxShadow: survole && !choisi
+                  ? [
+                      BoxShadow(
+                          color: AppColors.brass.withValues(alpha: .30),
+                          blurRadius: 14,
+                          spreadRadius: 1),
+                    ]
+                  : const [],
             ),
           ),
         ),
@@ -881,9 +1127,9 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(consigne, style: GoogleFonts.manrope(
+                Text(consigne, style: AppTheme.readableUi(dialogContext, GoogleFonts.manrope(
                   fontSize: 16, height: 1.65, color: AppColors.ink,
-                )),
+                ))),
                 if (choixDuMode) ...[
                   const SizedBox(height: 18),
                   Text(t.coachVerificationModeTooltip.toUpperCase(),
@@ -1159,19 +1405,19 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(titre,
-                            style: TextStyle(
+                            style: AppTheme.readableUi(context, TextStyle(
                               fontSize: 15.5,
                               color: accent ? AppColors.ink : AppColors.cream,
                               fontWeight: FontWeight.w700,
-                            )),
+                            ))),
                         const SizedBox(height: 3),
                         Text(sous,
-                            style: TextStyle(
+                            style: AppTheme.readableUi(context, TextStyle(
                               fontSize: 11.5,
                               color: accent ? AppColors.inkLight :
                                   AppColors.cream.withAlpha(165),
                               height: 1.35,
-                            )),
+                            ))),
                       ],
                     ),
                   ),
@@ -1195,6 +1441,9 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
     required bool choisi,
     required VoidCallback onTap,
     bool arabe = false,
+    /// La carte que le balayage désigne en ce moment (cf. `_survole`). Un
+    /// liseré laiton qui passe, RIEN DE PLUS : ni sélection, ni réglage.
+    bool survole = false,
   }) =>
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 5, 16, 5),
@@ -1204,7 +1453,23 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
         // ici evite de repeter la condition a chaque Text -- et d'en oublier
         // un, ce qui produirait du texte creme sur fond creme, invisible.
         final encre = choisi ? AppColors.ink : AppColors.cream;
-        return Material(
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeInOut,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            // Une lueur, pas un cadre : c'est ce qui fait « balayage » plutot
+            // que « deuxieme selection ».
+            boxShadow: survole && !choisi
+                ? [
+                    BoxShadow(
+                        color: AppColors.brass.withValues(alpha: .30),
+                        blurRadius: 14,
+                        spreadRadius: 1),
+                  ]
+                : const [],
+          ),
+          child: Material(
           // Parchemin sur la reliure : la carte choisie passe en creme pleine,
           // les autres restent en vert clair translucide. Le contraste porte
           // donc sur la MATIERE et pas seulement sur un liseré -- avant, deux
@@ -1224,8 +1489,13 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                 border: Border.all(
                   color: choisi
                       ? AppColors.brass
-                      : AppColors.cream.withAlpha(38),
-                  width: choisi ? 1.6 : 1,
+                      // Le halo du balayage : le meme laiton que la selection,
+                      // mais a demi-teinte et sans la matiere creme -- on voit
+                      // qu'il PASSE, on ne le confond pas avec le choix fait.
+                      : survole
+                          ? AppColors.brass.withValues(alpha: .55)
+                          : AppColors.cream.withAlpha(38),
+                  width: choisi || survole ? 1.6 : 1,
                 ),
               ),
               child: Row(
@@ -1236,7 +1506,7 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                       children: [
                         Text(
                           titre,
-                          style: arabe
+                          style: AppTheme.readableUi(context, arabe
                               ? GoogleFonts.scheherazadeNew(
                                   fontSize: 21,
                                   color: encre,
@@ -1246,17 +1516,17 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                                   fontSize: 15.5,
                                   color: encre,
                                   fontWeight: FontWeight.w700,
-                                ),
+                                )),
                         ),
                         if (sous != null) ...[
                           const SizedBox(height: 3),
                           Text(
                             sous,
-                            style: TextStyle(
+                            style: AppTheme.readableUi(context, TextStyle(
                               fontSize: 11.5,
                               color: encre.withAlpha(165),
                               height: 1.35,
-                            ),
+                            )),
                           ),
                         ],
                       ],
@@ -1269,6 +1539,7 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
               ),
             ),
           ),
+        ),
         );
         }),
       );
@@ -1329,6 +1600,7 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
               // otage, pas une préparation.
               onPressed: _occupe ? null : () {
                 _couperEcoute();
+                _rendreCeQuiEtaitLa();
                 marquerPreparationFaite();
                 widget.onTermine();
               },
@@ -1343,7 +1615,11 @@ class _PreparationScreenState extends ConsumerState<PreparationScreen> {
                     ? null
                     : () {
                         _couperEcoute();
+                        _rendreCeQuiEtaitLa();
+                        _nbCartesBalayees = 0;
+                        _tic = 0;
                         setState(() => _etape--);
+                        _armerBalayage();
                       },
                 child: Text(t.preparationRetour,
                     style: const TextStyle(color: AppColors.cream)),

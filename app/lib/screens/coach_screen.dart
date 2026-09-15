@@ -738,6 +738,7 @@ class _ControleMode extends ConsumerStatefulWidget {
 
 class _ControleModeState extends ConsumerState<_ControleMode>
     with SingleTickerProviderStateMixin {
+  bool _demarrageEnCours = false;
   late AnimationController _pulse;
   final _fingerprint = VoiceFingerprintService();
   double? _fingerprintScore;
@@ -819,6 +820,38 @@ class _ControleModeState extends ConsumerState<_ControleMode>
   String get _text => widget.verses.map((v) => v.textUthmani).join(' ');
   String get _passageKey => widget.verses.map((v) => v.key).join('-');
 
+  Future<void> _demarrerControle() async {
+    if (!mounted || _demarrageEnCours ||
+        !(ModalRoute.of(context)?.isCurrent ?? false)) {
+      return;
+    }
+    setState(() => _demarrageEnCours = true);
+    final n = ref.read(recitationProvider.notifier);
+    try {
+      // A direct switch from training can leave its capture finishing.
+      await n.stopContinuous();
+      if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) return;
+      _finAuto?.cancel();
+      n.setup(_text);
+      ref.read(coachProvider.notifier).resetControl();
+      setState(() {
+        _fingerprintChecked = false;
+        _fingerprintScore = null;
+        _controleLance = true;
+        _aParle = false;
+      });
+      await n.startControle();
+    } catch (e) {
+      DiagnosticLog.log('Coach', 'demarrage du controle impossible: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocalizations.of(context)!.karaokeStartFailed)));
+      }
+    } finally {
+      if (mounted) setState(() => _demarrageEnCours = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -847,23 +880,9 @@ class _ControleModeState extends ConsumerState<_ControleMode>
     )..repeat(reverse: true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final n = ref.read(recitationProvider.notifier);
-      n.setup(_text);
-      // ── MICRO OUVERT D'OFFICE APRES LES PALIERS (2026-09-02) ───────────
-      // `consommerDemarrageAuto` ne rend true que si l'on vient de valider le
-      // dernier palier, et une seule fois -- cf. sa doc. Meme sequence que le
-      // tap sur le micro (`resetControl` + `_controleLance` + `startControle`)
-      // pour qu'il n'y ait pas deux chemins de demarrage a maintenir.
-      if (ref.read(coachProvider.notifier).consommerDemarrageAuto()) {
-        ref.read(coachProvider.notifier).resetControl();
-        setState(() {
-          _fingerprintChecked = false;
-          _fingerprintScore = null;
-          _controleLance = true;
-          _aParle = false;
-        });
-        n.startControle();
-      }
+      // ChGPT: every entry into Control starts, not just the final training step.
+      ref.read(coachProvider.notifier).consommerDemarrageAuto();
+      unawaited(_demarrerControle());
     });
     _fingerprint.ensureLoaded();
     // ── SUIVI PERMANENT PAR PORTION, COMME EN RÉCITATION LIVE (2026-08-24) ──
@@ -1193,15 +1212,18 @@ class _ControleModeState extends ConsumerState<_ControleMode>
           const SizedBox(height: 28),
           MicSection(
             listening: listening,
-            processing: rst.status == RecitationStatus.processing,
+            processing: _demarrageEnCours || rst.status == RecitationStatus.processing,
             finished: finished,
             pulse: _pulse,
-            statusText: listening
+            statusText: _demarrageEnCours
+                ? t.karaokePreparingMicrophone
+                : listening
                 ? t.coachListeningControl
                 : finished
                     ? t.coachControlDone
-                    : t.coachTapToRecall,
+                    : t.coachIncrementalTapToStart,
             onTap: () {
+              if (_demarrageEnCours) return;
               // ── LE CONTROLE FINAL DOIT PASSER PAR LA v2 (2026-08-18) ─────
               //
               // DEFAUT MESURE sur la session du 2026-08-18 21:10 (verset 4:1,
@@ -1233,24 +1255,11 @@ class _ControleModeState extends ConsumerState<_ControleMode>
               if (listening) {
                 n.stopContinuous();
               } else {
-                n.setup(_text);
-                ref.read(coachProvider.notifier).resetControl();
-                setState(() {
-                  _fingerprintChecked = false;
-                  _fingerprintScore = null;
-                  _controleLance = true;
-                  _aParle = false;
-                });
-                n.startControle();
+                unawaited(_demarrerControle());
               }
             },
             onReset: () {
-              ref.read(recitationProvider.notifier).setup(_text);
-              ref.read(coachProvider.notifier).resetControl();
-              setState(() {
-                _fingerprintChecked = false;
-                _fingerprintScore = null;
-              });
+              unawaited(_demarrerControle());
             },
           ),
           RawTranscriptBox(text: rst.rawTranscript),

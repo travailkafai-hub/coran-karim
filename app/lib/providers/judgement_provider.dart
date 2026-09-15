@@ -136,7 +136,28 @@ final judgementOptionsEffectivesProvider = Provider<JudgementOptions>((ref) {
 
 class JudgementOptionsNotifier extends StateNotifier<JudgementOptions> {
   JudgementOptionsNotifier() : super(JudgementOptions.adulteDefault) {
-    _restore();
+    _loaded = _restore();
+  }
+
+  late final Future<void> _loaded;
+  bool _temporarySession = false;
+
+  /// ChGPT: an explicit onboarding trial uses an existing preset in memory.
+  /// Even changes made inside that trial must not replace the saved settings.
+  Future<void> withTemporaryPreset(
+      JudgementPreset preset, Future<void> Function() trial) async {
+    await _loaded;
+    if (!mounted) return;
+    if (_temporarySession) throw StateError('A preset trial is already active');
+    final previous = state;
+    _temporarySession = true;
+    try {
+      await applyPreset(preset);
+      await trial();
+    } finally {
+      _temporarySession = false;
+      if (mounted) state = previous;
+    }
   }
 
   Future<void> _restore() async {
@@ -163,8 +184,10 @@ class JudgementOptionsNotifier extends StateNotifier<JudgementOptions> {
   }
 
   Future<void> _persist() async {
+    if (_temporarySession) return;
+    final encoded = jsonEncode(state.toJson());
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kPrefJudgement, jsonEncode(state.toJson()));
+    await prefs.setString(_kPrefJudgement, encoded);
   }
 
   /// Applique un preset complet -- écrase toutes les options actuelles.

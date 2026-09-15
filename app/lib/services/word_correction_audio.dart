@@ -81,6 +81,35 @@ class WordCorrectionAudio {
   /// Cette lecture a-t-elle ete supplantee ? Tout ce qui touche au lecteur ou
   /// journalise un verdict doit le demander d'abord.
   static bool _perimee(int jeton) => jeton != _generation;
+
+  /// ── LE JETON NE PROTEGE PAS DE CE QUI N'A PAS ENCORE COMMENCE ───────────
+  ///
+  /// Compteur des ARRETS demandes, distinct de [_generation] et pour une
+  /// raison precise : le jeton est pris JUSTE AVANT de toucher au lecteur,
+  /// donc APRES toute la preparation (chargement du minutage, `ayatTiming`
+  /// reseau, telechargement de la sourate entiere -- 4,5 a 9,2 s mesurees sur
+  /// reseau degrade, cf. la doc de [prefetch]).
+  ///
+  /// CONSEQUENCE, ET C'EST LE DEFAUT : un [stop] demande PENDANT cette
+  /// preparation n'annulait rien. La lecture finissait de se preparer, prenait
+  /// alors un jeton TOUT NEUF -- elle devenait donc « la plus recente », jamais
+  /// perimee -- et demarrait. L'ecran qui l'avait demandee n'existait plus.
+  ///
+  /// ET PLUS RIEN NE POUVAIT L'ARRETER : l'ecoute de position se retire sans
+  /// toucher au lecteur des qu'elle se croit supplantee (c'est voulu, cf.
+  /// `_generation`), et aucun autre `stop()` ne viendra puisque l'ecran est
+  /// parti. Le fichier jouait donc jusqu'a sa fin -- la sourate entiere depuis
+  /// la position demandee. Symptome utilisateur (2026-09-14) : « je suis sur
+  /// audio, je passe directement au controle, l'audio continue ».
+  ///
+  /// Chaque lecture releve donc ce compteur A SON ENTREE et le revalide avant
+  /// de toucher au lecteur : un arret survenu entre les deux l'annule.
+  static int _arrets = 0;
+
+  /// Un arret a-t-il ete demande depuis [marque] ? A demander en plus de
+  /// [_perimee] : les deux repondent a des questions differentes -- « quelqu'un
+  /// d'autre joue-t-il ? » et « m'a-t-on dit de me taire ? ».
+  static bool _arreteDepuis(int marque) => _arrets != marque;
   /// ── LA CLE PORTE LE RECITATEUR, PAS SEULEMENT LA SOURATE (2026-09-06) ──
   ///
   /// Signale par l'audit (QUAL-04) et VERIFIE : ce cache etait indexe par le
@@ -236,6 +265,9 @@ class WordCorrectionAudio {
     int wordsBefore = 1,
     int wordsAfter = 0,
   }) async {
+    // Releve AVANT toute attente : c'est le point de comparaison qui dira si
+    // un `stop()` est arrive pendant la preparation (cf. `_arrets`).
+    final marqueArret = _arrets;
     // ── CHEMIN LOCAL MP3QURAN, SANS QURAN FOUNDATION (2026-08-16) ───────────
     //
     // Pour Al-Afasy (seul récitateur MP3Quran de l'app à ce jour), le
@@ -410,10 +442,26 @@ class WordCorrectionAudio {
     doneSub = _player.onPlayerComplete.listen((_) => finish());
 
     await _faireTaireLeMushaf();
+    // ── UN ARRET PENDANT LA PREPARATION ANNULE CETTE LECTURE (2026-09-14) ──
+    // Sans ce garde, la lecture demarrait APRES le `stop()` qui la visait, et
+    // plus rien ne pouvait l'arreter. Cf. `_arrets` pour le detail.
+    if (_arreteDepuis(marqueArret)) {
+      finish();
+      DiagnosticLog.log('Correction-Audio',
+          'verset=${verse.key} : lecture ANNULEE avant de commencer '
+          '(arret demande pendant la preparation)');
+      return false;
+    }
     final depart = DateTime.now();
     // `stop()` d'abord : remet la position du lecteur à zéro pour qu'aucun
     // événement de l'ancienne lecture ne puisse être pris pour la nouvelle.
     await _player.stop();
+    // Re-demande apres CHAQUE attente : `stop()` et `play()` sont deux appels
+    // de plateforme, l'arret peut tomber entre les deux.
+    if (_arreteDepuis(marqueArret) || _perimee(jeton)) {
+      finish();
+      return false;
+    }
     await _player.play(source, position: Duration(milliseconds: startMs));
     // Garde-fou : si ni la position ni la fin de lecture ne se déclenchent
     // (URL corrompue, lecteur bloqué), ne pas bloquer la reprise indéfiniment.
@@ -465,6 +513,10 @@ class WordCorrectionAudio {
     required int wordsBefore,
     required int wordsAfter,
   }) async {
+    // Releve AVANT toute attente (cf. `_arrets`) : ce chemin attend le
+    // minutage local, `ayatTiming` en reseau, PUIS le telechargement de la
+    // sourate entiere. C'est la fenetre la plus large du fichier.
+    final marqueArret = _arrets;
     // ── CES SEGMENTS SONT CEUX D'AL-AFASY, ET DE LUI SEUL (2026-09-05) ───
     //
     // `word_segments_mp3quran_afasy.json` a ete calcule par alignement force
@@ -647,9 +699,22 @@ class WordCorrectionAudio {
     doneSub = _player.onPlayerComplete.listen((_) => finish());
 
     await _faireTaireLeMushaf();
+    // Même garde que le chemin quran.com (2026-09-14) : ce chemin-ci est le
+    // plus exposé, il télécharge la sourate entière avant de jouer.
+    if (_arreteDepuis(marqueArret)) {
+      finish();
+      DiagnosticLog.log('Correction-Audio',
+          'verset=${verse.key} (MP3Quran) : lecture ANNULEE avant de commencer '
+          '(arret demande pendant la preparation)');
+      return false;
+    }
     final depart = DateTime.now();
     // `stop()` d'abord, même raison que le chemin quran.com ci-dessus.
     await _player.stop();
+    if (_arreteDepuis(marqueArret) || _perimee(jeton)) {
+      finish();
+      return false;
+    }
     await _player.play(DeviceFileSource(path),
         position: Duration(milliseconds: startMs));
     // Même garde-fou que le chemin quran.com : ne jamais bloquer indéfiniment
@@ -777,6 +842,7 @@ class WordCorrectionAudio {
     String etiquette = '',
   }) async {
     if (endMs <= startMs) return false;
+    final marqueArret = _arrets;
     final jeton = _nouvelleLecture();
     DiagnosticLog.log('Correction-Audio',
         'plage MESUREE $etiquette : startMs=$startMs endMs=$endMs '
@@ -817,14 +883,21 @@ class WordCorrectionAudio {
 
     await _faireTaireLeMushaf();
     final depart = DateTime.now();
-    if (_perimee(jeton)) {
+    if (_perimee(jeton) || _arreteDepuis(marqueArret)) {
       // Supplantee pendant l'attente ci-dessus : ne rien jouer, et surtout ne
       // pas arreter le lecteur -- il appartient desormais a la lecture qui
       // nous a remplaces.
+      // `_arreteDepuis` depuis le 2026-09-14 : un `stop()` peut aussi etre
+      // tombe ici sans qu'aucune autre lecture ne nous supplante (cf.
+      // `_arrets`) -- le jeton seul ne le voyait pas.
       finish();
       return false;
     }
     await _player.stop();
+    if (_perimee(jeton) || _arreteDepuis(marqueArret)) {
+      finish();
+      return false;
+    }
     await _player.play(DeviceFileSource(path),
         position: Duration(milliseconds: startMs));
     await completer.future.timeout(_plafondLecture(endMs - startMs),
@@ -948,6 +1021,10 @@ class WordCorrectionAudio {
   /// produisait quand un ecran se fermait pendant sa propre lecture -- cf. le
   /// bloc de `_generation`.
   static Future<void> stop() {
+    // Avant l'increment de generation : une lecture encore EN PREPARATION ne
+    // sera jamais perimee par ce jeton-la (elle n'a pas encore le sien), c'est
+    // ce compteur qui l'annule. Cf. `_arrets`.
+    _arrets++;
     _nouvelleLecture();
     return _player.stop();
   }

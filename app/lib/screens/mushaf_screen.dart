@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+// `ScrollDirection` vit dans `rendering` : c'est lui qui distingue un vrai
+// geste du doigt d'un defilement programme (cf. `_chromeSelonLeGeste`).
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart' show SystemChrome, SystemUiMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -120,18 +123,45 @@ class _MushafScreenState extends ConsumerState<MushafScreen> with RouteAware {
   // reste toujours visible -- ce sont des contrôles fonctionnels, pas du
   // chrome de navigation, le plein écran ne vise que le texte + son header.
   bool _headerVisible = true;
-  Timer? _headerHideTimer;
-  /// Delai avant que le menu du Mushaf se replie tout seul.
-  ///
-  /// 4 s a l'origine, porte a 10 s le 2026-09-02 (« reviens au menu, avec
-  /// cette fois 10 s -- ca veut dire qu'il a commence a lire »), puis ramene a
-  /// 6 s le 2026-09-03 apres usage : 10 s laissaient le menu trop longtemps
-  /// sur la page. C'est le meme raisonnement que la tentative de tap-pour-masquer
-  /// (cf. son commentaire dans `build`) : le menu doit s'effacer quand
-  /// l'utilisateur LIT, pas quand une temporisation arbitraire expire. Faute
-  /// de pouvoir capter le geste, 10 s est le proxy retenu -- assez long pour
-  /// chercher son verset, assez court pour rendre le plein ecran a qui lit.
-  static const _kHeaderAutoHideDelay = Duration(seconds: 6);
+
+  /// Seuil sous lequel le menu reste TOUJOURS visible : tout en haut de la
+  /// page, on n'est pas en train de lire, on arrive.
+  static const double _kHautDePage = 8.0;
+  // ── LE MINUTEUR EST REMPLACE PAR LE GESTE (2026-09-14) ─────────────────
+  //
+  // Demande utilisateur : « des users me demandent de garder le menu qui se
+  // cache ; on va le garder, et au scroll en bas on peut le cacher ».
+  //
+  // CE QUI EXISTAIT : `_kHeaderAutoHideDelay`, un repli automatique au bout de
+  // 4 s (2026-08), puis 10 s (2026-09-02, « ca veut dire qu'il a commence a
+  // lire »), puis 6 s (2026-09-03, « 10 s laissaient le menu trop longtemps
+  // sur la page »). TROIS valeurs en un mois, et aucune bonne -- c'est le
+  // signe que la grandeur mesuree n'etait pas la bonne.
+  //
+  // Le commentaire de cette constante l'avait d'ailleurs ECRIT, et c'est la
+  // meilleure preuve : « le menu doit s'effacer quand l'utilisateur LIT, pas
+  // quand une temporisation arbitraire expire. FAUTE DE POUVOIR CAPTER LE
+  // GESTE, 10 s est le proxy retenu. » L'intention etait juste, seul le moyen
+  // manquait.
+  //
+  // POURQUOI LE MINUTEUR EST FAUX, et pas seulement mal regle : il cache sur
+  // l'INACTION. Le menu disparaissait donc exactement quand on ne faisait
+  // rien -- quand on lit lentement, quand on reflechit, quand on cherche une
+  // commande. Le moment ou l'on a le plus besoin des boutons etait celui ou
+  // ils s'en allaient.
+  //
+  // CE QUI LE REMPLACE : le sens du defilement. On descend, on avance dans la
+  // lecture, on ne cherche rien -> le menu s'efface. On remonte, donc on
+  // cherche quelque chose -> il revient. L'utilisateur est la cause de chaque
+  // changement, le comportement s'apprend en une fois, et il n'y a plus aucun
+  // delai a choisir.
+  //
+  // ⚠️ `userScrollDirection` ET NON UN DELTA D'OFFSET. L'application fait
+  // defiler la page elle-meme (tournage automatique, suivi du karaoke, saut a
+  // un verset) : un delta brut prendrait ces defilements-la pour un geste et
+  // cacherait les commandes de transport pendant l'ecoute -- precisement le
+  // defaut corrige le 2026-08-13. `userScrollDirection` ne bouge que sur une
+  // vraie traction du doigt et reste `idle` sur un defilement programme.
   // ── CETTE CONSTANTE IGNORAIT L'ENCOCHE (2026-09-09) ────────────────────
   //
   // Elle valait 120, comme `MushafHeader.preferredSize`, et les deux
@@ -200,7 +230,29 @@ class _MushafScreenState extends ConsumerState<MushafScreen> with RouteAware {
     _scrollController.addListener(_onScroll);
     _load();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _scheduleHeaderHide();
+    // ── ET UNE SECONDE FOIS APRES LA PREMIERE FRAME (2026-09-14) ──────────
+    //
+    // Constat utilisateur, capture a l'appui : « ce n'est pas du plein ecran,
+    // il y a le truc de Samsung qui reste ».
+    //
+    // CAUSE : une ROUTE QUI SE FERME remet le mode systeme en partant. Depuis
+    // que l'application rouvre seule la derniere lecture, cet ecran est pousse
+    // juste apres la fermeture de la couverture -- et le `dispose` de celle-ci
+    // (`MushafOpeningScreen`, qui repose `edgeToEdge`) s'execute APRES cet
+    // `initState`, a la fin de la meme frame. Le dernier a parler gagne, et ce
+    // n'etait pas nous.
+    //
+    // Repeter la demande apres la frame est le seul ordre sur lequel on a
+    // prise : a ce moment-la, toutes les routes en cours de fermeture ont fini
+    // de se disposer. C'est deux appels au lieu d'un, sur un canal de
+    // plateforme, une seule fois a l'ouverture de l'ecran -- le cout est nul
+    // devant un plein ecran qui n'en est pas un.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    });
+    // Le menu est visible a l'ouverture et le reste tant qu'on n'a pas
+    // commence a descendre : on arrive sur la page, on ne la lit pas encore.
     // `kindleAutoTurnProvider` est un état global (pas ré-initialisé par
     // écran) -- s'il était déjà activé avant d'arriver sur CET écran, il faut
     // démarrer le minuteur ici ; `ref.listen` dans build() ne réagit qu'aux
@@ -290,37 +342,45 @@ class _MushafScreenState extends ConsumerState<MushafScreen> with RouteAware {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _kindleAutoTurnTimer?.cancel();
-    _headerHideTimer?.cancel();
     // Restaure le chrome système normal en quittant l'écran de lecture --
     // ne pas laisser toute l'app en immersif au-delà de cet écran.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
-  void _scheduleHeaderHide() {
-    _headerHideTimer?.cancel();
-    // ── LE MENU RESTE PENDANT LA LECTURE (2026-08-13) ──────────────────────
-    // Demande utilisateur : « quand on lance l'audio dans le Mushaf, laisse le
-    // menu affiché, ne le réduis pas ».
+  /// Le menu suit le sens du geste (cf. le bloc en tete de classe).
+  ///
+  /// Appele depuis `_onScroll`, donc potentiellement a chaque frame : les deux
+  /// gardes sur `_headerVisible` font que `setState` n'est appele qu'au
+  /// CHANGEMENT, jamais en continu.
+  void _chromeSelonLeGeste(ScrollPosition pos) {
+    // ── LE GESTE REDUIT, LA POIGNEE RAPPELLE (2026-09-14, precision) ─────
     //
-    // Le repli automatique sert la lecture SILENCIEUSE : on lit, le chrome
-    // s'efface, on a le plein écran. Pendant une écoute, il dessert -- les
-    // commandes de transport (pause, vitesse, répétition) sont précisément ce
-    // dont on a besoin sous la main, et il fallait retoucher l'écran pour les
-    // faire revenir à chaque fois.
+    // Premiere version : descendre cachait, REMONTER rappelait. Correction de
+    // l'utilisateur apres usage : « ca va permettre de reduire, mais apres
+    // pour s'afficher il faut cliquer sur le truc qui fait apparaitre ».
     //
-    // On ne coupe pas le mécanisme, on le suspend le temps de l'écoute : dès
-    // que l'audio s'arrête, le prochain `_showHeader` reprogramme le repli et
-    // le plein écran revient de lui-même.
+    // Il a raison, et c'est une dissymetrie voulue : on remonte dans le texte
+    // pour RELIRE un passage, pas pour appeler un menu. Rendre le menu sur ce
+    // geste le faisait surgir en pleine lecture, par-dessus le texte qu'on
+    // etait justement revenu voir. Le rappel est donc une DEMANDE explicite --
+    // un appui sur la poignee -- et rien d'autre ne le declenche.
+    //
+    // Consequence assumee : revenir en haut de la page ne ramene pas le menu
+    // non plus. C'est le meme raisonnement, et cela evite qu'il apparaisse
+    // seul a la fin d'un defilement rapide vers le haut.
+    if (pos.userScrollDirection != ScrollDirection.reverse) return;
+    // ── LE MENU RESTE PENDANT L'ECOUTE (2026-08-13, toujours vrai) ─────────
+    // « quand on lance l'audio dans le Mushaf, laisse le menu affiche ». Les
+    // commandes de transport sont ce dont on a besoin sous la main ; les faire
+    // disparaitre parce qu'on suit le texte du doigt les rendrait introuvables
+    // au moment ou l'on veut mettre en pause.
     if (ref.read(playerProvider).isPlaying) return;
-    _headerHideTimer = Timer(_kHeaderAutoHideDelay, () {
-      if (mounted) setState(() => _headerVisible = false);
-    });
+    if (_headerVisible) setState(() => _headerVisible = false);
   }
 
   void _showHeader() {
-    setState(() => _headerVisible = true);
-    _scheduleHeaderHide();
+    if (!_headerVisible) setState(() => _headerVisible = true);
   }
 
   Future<void> _load() async {
@@ -360,6 +420,7 @@ class _MushafScreenState extends ConsumerState<MushafScreen> with RouteAware {
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
+    _chromeSelonLeGeste(pos);
     if (!_loadingMore &&
         _nextPage != null &&
         pos.maxScrollExtent - pos.pixels < _kLoadMoreThreshold) {
@@ -776,18 +837,11 @@ class _MushafScreenState extends ConsumerState<MushafScreen> with RouteAware {
       // On traite donc la TRANSITION vers la lecture, pas seulement l'état à
       // l'armement. Symétriquement, quand la lecture s'arrête, on reprogramme
       // le repli : le plein écran revient de lui-même à qui se remet à lire.
-      final joue = next.isPlaying;
-      if (joue != (prev?.isPlaying ?? false)) {
-        if (joue) {
-          // On ANNULE le repli, on ne fait pas REAPPARAITRE le menu : la
-          // demande est « ne doit pas se rétracter ». Le faire surgir sur un
-          // écran déjà en plein texte, parce qu'on a lancé l'audio depuis la
-          // barre du bas, serait un geste que personne n'a demandé.
-          _headerHideTimer?.cancel();
-        } else {
-          _scheduleHeaderHide();
-        }
-      }
+      // Rien a faire ici depuis le 2026-09-14 : il n'y a plus de repli
+      // programme a annuler ou a reprogrammer. Le respect de l'ecoute est
+      // porte par `_chromeSelonLeGeste`, qui refuse de cacher le menu tant que
+      // le lecteur joue -- meme regle qu'avant, au meme endroit que la
+      // decision. Le champ `next.isPlaying` reste lu par le reste du listener.
     });
 
     return Scaffold(
@@ -908,31 +962,96 @@ class _MushafScreenState extends ConsumerState<MushafScreen> with RouteAware {
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: _showHeader,
-                            child: SizedBox(
-                              width: 120,
-                              height: 44,
-                              child: Center(
-                                child: Container(
-                                  width: 44,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    // Le vert foncé à 59 % d'opacité tient sur
-                                    // le fond crème et sur le sépia du mode
-                                    // Kindle, mais devient INVISIBLE sur le
-                                    // fond noir (`sombreBg` = #0B0B0B) --
-                                    // constat utilisateur 2026-08-09. En mode
-                                    // sombre on passe donc à l'or du thème
-                                    // (`sombreAccent`), et à pleine opacité :
-                                    // ce repère est le SEUL moyen de faire
-                                    // revenir l'entête une fois masqué, un
-                                    // repère qu'on ne voit pas est un écran
-                                    // sans issue.
-                                    color: modeSombre
-                                        ? AppColors.sombreAccent
-                                        : AppColors.green800.withAlpha(150),
-                                    borderRadius: BorderRadius.circular(2),
+                            onVerticalDragEnd: (d) {
+                              // Vers le HAUT seulement : vers le bas, ce geste
+                              // veut dire « continue a descendre ».
+                              if ((d.primaryVelocity ?? 0) < 0) _showHeader();
+                            },
+                            // ── UN ONGLET, PLUS UN TRAIT (2026-09-14) ──────
+                            //
+                            // Constat utilisateur : « les utilisateurs ne
+                            // comprennent pas que c'est le menu reduit ; je
+                            // veux bien un style classeur avec un peu plus de
+                            // largeur ».
+                            //
+                            // Le trait de 44 x 4 px etait la convention de la
+                            // POIGNEE DE FEUILLE MODALE : elle dit « ca se
+                            // tire », elle ne dit pas CE QU'IL Y A dessous. Un
+                            // onglet de classeur se lit comme le BORD D'UNE
+                            // CHOSE RANGEE -- on voit qu'un element entier est
+                            // glisse sous le bord de l'ecran et qu'il ressort
+                            // si on le touche.
+                            //
+                            // Il en prend donc la forme ET la couleur : celle
+                            // de la barre du bas, coins hauts arrondis, coins
+                            // bas droits. Ce n'est plus un signe pose sur la
+                            // page, c'est la barre elle-meme qui depasse. Le
+                            // chevron dit dans quel sens elle sortira.
+                            //
+                            // ⚠️ LE PROBLEME DE VISIBILITE DE 2026-08-09 EST
+                            // RESOLU AUTREMENT, pas oublie : le trait etait
+                            // peint en vert translucide, invisible sur le fond
+                            // noir, d'ou le passage a l'or en mode sombre.
+                            // L'onglet, lui, est PLEIN et prend le fond de la
+                            // barre -- il se detache des trois fonds de
+                            // lecture sans avoir a changer de couleur pour
+                            // rester visible.
+                            // ── PLUS FIN ET TRANSPARENT (2026-09-14) ─────
+                            //
+                            // Demande utilisateur, apres l'avoir vu plein :
+                            // « ok, mais en plus fin et transparent ». La
+                            // LARGEUR reste -- c'est elle qui fait lire
+                            // l'onglet comme un objet range, et c'est ce qui
+                            // manquait au trait d'origine. Seules la hauteur
+                            // et l'opacite baissent : l'onglet se signale sans
+                            // poser un bloc opaque sur la page.
+                            //
+                            // ⚠️ LE FILET DU HAUT N'EST PAS UN ORNEMENT. A 55 %
+                            // d'opacite, le fond de la barre se dilue dans le
+                            // creme comme dans le noir ; c'est ce liseré clair
+                            // d'un pixel qui garde un BORD net, donc une forme
+                            // reconnaissable, sur les trois fonds de lecture.
+                            // Sans lui on retombe sur le defaut du 2026-08-09,
+                            // un repere qu'on ne voit pas -- et il est le seul
+                            // moyen de faire revenir le menu.
+                            child: Container(
+                              width: 132,
+                              height: 18,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: (modeSombre
+                                        ? AppColors.sombreBgDeep
+                                        : AppColors.green800)
+                                    // 0,55 -> 0,40 (2026-09-14, « encore un
+                                    // peu plus transparent, legerement »).
+                                    .withValues(alpha: .40),
+                                borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(9)),
+                                border: Border(
+                                  top: BorderSide(
+                                    color: (modeSombre
+                                            ? AppColors.sombreAccent
+                                            : AppColors.brassLight)
+                                        // Suit le fond : un filet qui resterait
+                                        // net sur un fond dilue redeviendrait
+                                        // le trait qu'on vient de quitter.
+                                        .withValues(alpha: .40),
+                                    width: 1,
                                   ),
                                 ),
+                              ),
+                              child: Icon(
+                                Icons.keyboard_arrow_up_rounded,
+                                size: 15,
+                                color: (modeSombre
+                                        ? AppColors.sombreAccent
+                                        : AppColors.brassLight)
+                                    // Le chevron aussi (« celui de dessin, un
+                                    // peu transparent aussi ») : 0,85 -> 0,62.
+                                    // Il reste le plus opaque des trois -- il
+                                    // porte le seul sens de la forme, le sens
+                                    // dans lequel la barre sortira.
+                                    .withValues(alpha: .62),
                               ),
                             ),
                           ),
@@ -1133,6 +1252,13 @@ class _MushafScreenState extends ConsumerState<MushafScreen> with RouteAware {
                         ),
                       ),
                     ),
+                    // ⚠️ J'AVAIS AJOUTE ICI UNE SECONDE POIGNEE (2026-09-14),
+                    // sans voir que celle du 2026-08-09 existait deja quelques
+                    // lignes plus haut. Constat utilisateur, capture a l'appui :
+                    // « il y a DEUX traits pour le menu quand il s'enleve ».
+                    // Elle est retiree ; c'est l'originale qui a ete redessinee
+                    // en onglet -- elle porte en plus la marge de geste systeme
+                    // (`_kMargeGesteSysteme`), que la mienne n'avait pas.
                     // Barre d'outils du crayon (2026-08-28) -- flotte
                     // au-dessus de la barre du bas, seulement pendant le mode
                     // annotation (cf. `mushafAnnotationModeProvider`, activé
@@ -2772,26 +2898,46 @@ class _PastilleReduction extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
+        // ── LA PASTILLE SE POSE SUR LE TEXTE, ELLE NE LE CACHE PAS ────────
+        //
+        // Constat utilisateur, capture a l'appui (2026-09-14) : « il y a le
+        // stylo, non transparent ». Elle etait en creme PLEIN avec une ombre
+        // portee marquee -- un disque opaque au milieu de la page, qui masque
+        // les mots qu'il recouvre.
+        //
+        // Elle s'aligne sur l'onglet du menu, retravaille le meme jour : fond
+        // a 40 %, icone a 62 %, et l'ombre reduite de moitie. Un repere flottant
+        // doit se laisser trouver sans jamais disputer la page au texte -- et
+        // ce qu'il y a dessous est le Coran.
+        //
+        // La bordure du mode sombre est CONSERVEE, et renforcee : sur le fond
+        // noir, un disque translucide sans contour n'a plus de forme du tout.
         child: Container(
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: modeSombre ? AppColors.sombreBgDeep : AppColors.cream,
+            color: (modeSombre ? AppColors.sombreBgDeep : AppColors.cream)
+                .withValues(alpha: .40),
             shape: BoxShape.circle,
-            border: modeSombre
-                ? Border.all(color: AppColors.sombreAccent.withAlpha(120))
-                : null,
+            border: Border.all(
+              color: (modeSombre
+                      ? AppColors.sombreAccent
+                      : AppColors.green800)
+                  .withValues(alpha: .35),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.green900.withAlpha(90),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
+                color: AppColors.green900.withAlpha(45),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
           child: Icon(icone,
               size: 20,
-              color: modeSombre ? AppColors.sombreAccent : AppColors.green800),
+              color: (modeSombre ? AppColors.sombreAccent : AppColors.green800)
+                  .withValues(alpha: .62)),
         ),
       ),
     );
