@@ -34,12 +34,28 @@ class Tete3Test {
         return null
     }
 
-    /** Le fichier REELLEMENT DEPLOYE (2026-08-23) -- forme a 1036 entrees
-     *  (etat_encodeur_moyen_et_ecart_type[1024] + 12 scores), distincte de la
-     *  forme a 524 de [fichierReel] (etat moyen SEUL[512] + 12). Les deux
-     *  variantes coexistent dans le code (Tete3.tailleEntree s'adapte, cf.
-     *  ChaineRecitation) -- chercher un chemin different evite que ce test
-     *  et [logit_reproduit_le_python] ne se marchent dessus. */
+    /** ⚠️ PLUS LE FICHIER DEPLOYE (constate 2026-09-15). Ce test et son
+     *  commentaire datent du 2026-08-23, quand `modele_2geles_2026-08-22/
+     *  tete3.json` etait effectivement charge par l'app. Le paquet embarque
+     *  aujourd'hui est `cinq-tetes-2026-09-11-madd-normal` (SHA-256
+     *  `c594993a...`, description : « recalibree sur encoder_state de
+     *  warsh-v5-epoch6.nemo, CORRIGE 2026-09-07 ») -- un fichier DIFFERENT,
+     *  au MD5 different d'apres le propre historique de ce commentaire.
+     *
+     *  Ce test reste VERT sans rien prouver sur le paquet actuel : il
+     *  verifie une tete que l'app ne charge plus. Meme piege que
+     *  [Tete3PariteTest], une couche plus loin. Cf.
+     *  [Tete3ParitePaqueDeployeTest] pour la parite sur le paquet reel
+     *  (Hafs ET Warsh), verifiee par [benchmark/reference_parite_tete3_deployee.py]
+     *  sans avoir besoin de l'encodeur -- seulement les poids et un vecteur
+     *  deterministe, cf. sa documentation pour ce qu'elle NE prouve PAS
+     *  (l'extraction des 12 caracteristiques depuis un vrai audio, qui exige
+     *  NeMo et le checkpoint `warsh-v5-epoch6.nemo`, absents de cette
+     *  machine).
+     *
+     *  Ne pas supprimer ce test ni son fichier source : `modele_2geles_
+     *  2026-08-22/` reste la trace d'un paquet reellement deploye un jour,
+     *  et la regle du projet est de ne rien effacer de ce qui a ete tente. */
     private fun fichierDeploye1036(): File? {
         var d: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
         while (d != null) {
@@ -82,7 +98,7 @@ class Tete3Test {
             attendu.toDouble(), obtenu.toDouble(), 0.02,
         )
         assertTrue(t.verifierParite(vecteurReference(t.tailleEntree), obtenu))
-        assertEquals(1.567111f.toDouble(), t.seuil2Pct.toDouble(), 1e-5)
+        assertEquals(1.567111f.toDouble(), t.seuil2Pct!!.toDouble(), 1e-5)
     }
 
     /**
@@ -139,14 +155,10 @@ class Tete3Test {
         // ⚠️ ECART CONNU, PAS UN BUG DE CE TEST : le tete3.json livre le
         // 2026-08-22 n'a AUCUNE cle `seuils_mesures` (verifie : ses 4 seules
         // cles sont description/caracteristiques/normalisation/couches).
-        // `Tete3.charger` retombe donc sur son defaut documente (0f) --
-        // fidelement reproduit ici, PAS un seuil mesure a 2 %/10 % de
-        // collateral. Brancher cette tete sur un verdict avec ce seuil-la
-        // serait arbitraire : il manque encore la mesure de calibrage
-        // (audio reellement fautif contre ce modele), distincte de la
-        // parite de calcul que ce test couvre.
-        assertEquals(0.0, t.seuil2Pct.toDouble(), 1e-9)
-        assertEquals(0.0, t.seuil10Pct.toDouble(), 1e-9)
+        // The absent calibration must stay absent. Zero was previously a
+        // made-up fallback labelled as a measured 2%/10% threshold.
+        assertNull(t.seuil2Pct)
+        assertNull(t.seuil10Pct)
     }
 
     /** Poids connus a la main : verifie le ReLU et l'ordre des couches. */
