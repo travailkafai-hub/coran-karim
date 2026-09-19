@@ -298,12 +298,39 @@ object Orthographe {
         'ف', 'ق', 'ك')
 
     /** Shadda portee par la PREMIERE lettre du mot, ou null.
-     *  On saute la lettre initiale (et un eventuel alif wasla), puis on accepte
-     *  la shadda si elle arrive avant toute autre lettre -- les harakat
-     *  intercalees sont admises, une seconde consonne arrete la recherche. */
+     *  On saute la lettre initiale, puis on accepte la shadda si elle arrive
+     *  avant toute autre lettre -- les harakat intercalees sont admises, une
+     *  seconde consonne arrete la recherche.
+     *
+     *  ── UN MOT QUI COMMENCE PAR UN ALIF WASLA EST EXCLU (2026-09-19) ─────
+     *
+     *  Defaut trouve en verifiant sur une recitation reelle ce que la regle
+     *  (11) avait change : elle attrapait `ٱلَّذِينَ`. Or la shadda y porte sur
+     *  le lam de l'ARTICLE assimile (lam solaire) -- une propriete du mot, pas
+     *  une liaison avec le mot precedent. L'application acceptait donc
+     *  `ٱلَذِينَ` sans gemination, c'est-a-dire qu'elle cessait de signaler une
+     *  vraie faute.
+     *
+     *  L'ALIF WASLA EST LE BON DISCRIMINANT, et pas seulement l'article. Sur
+     *  les 92 mots que la regle attrapait au banc, 24 commencaient par un
+     *  wasla : 18 par l'article (`ٱلَّذِى` 12, `ٱلَّذِينَ` 4, `ٱلَّيْلَ` 2) mais
+     *  aussi 6 en forme VIII (`ٱتَّخَذَ`, `ٱتَّبَعَ`, `ٱتَّبِعُوا۟`), dont la
+     *  shadda est l'assimilation du ta' de `ifta'ala` -- tout aussi propriete
+     *  du mot. Une condition sur `ٱل` seul les aurait manques.
+     *  Linguistiquement : le wasla est precisement ce qui absorbe la voyelle de
+     *  liaison, donc ce qui suit appartient au mot.
+     *
+     *  Les 68 autres -- les vraies liaisons (`لَّا`, `مِّن`, `رَّبِّكَ`) -- sont
+     *  conservees telles quelles.
+     *
+     *  ⚠️ AUCUN GAIN CHIFFRE ATTENDU, et c'est normal : le banc d'erreurs
+     *  reelles ne contient aucune faute de gemination (ses familles sont
+     *  particule et flexion), donc il ne peut pas, par construction, montrer
+     *  ce que cette tolerance laissait passer. On referme une porte ouverte a
+     *  tort ; le controle a faire est que les taux ne BOUGENT PAS. */
     private fun indexShaddaInitiale(mot: String): Int? {
         var i = 0
-        if (i < mot.length && mot[i] == ALIF_WASLA) i++
+        if (i < mot.length && mot[i] == ALIF_WASLA) return null
         if (i >= mot.length || !estLettre(mot[i])) return null
         i++
         while (i < mot.length) {
