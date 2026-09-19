@@ -108,3 +108,8 @@ benchmark/cles_collecte/
 # que `app/build/collecte_interop/`. La regle `*.bin` plus haut les attrapait.
 !benchmark/cles_test_collecte/
 !benchmark/cles_test_collecte/*.bin
+
+# Cache local de wrangler : contient l'identifiant de compte Cloudflare et des
+# artefacts de session. Rien de tout cela n'a a etre versionne.
+collecte_worker/.wrangler/
+collecte_worker/node_modules/

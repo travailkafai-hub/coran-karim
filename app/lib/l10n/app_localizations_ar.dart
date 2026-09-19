@@ -1960,7 +1960,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get aboutPrivacyMic =>
-      'الميكروفون — تُحلَّل تلاوتك داخل الجهاز، ولا تُرسَل إلى أي جهة.';
+      'الميكروفون — تُحلَّل تلاوتك على الجهاز. ولا تُرسَل إلى أي مكان آخر إلا إذا وافقت صراحةً في الإعدادات، للمساعدة في تحسين التعرّف.';
 
   @override
   String get aboutPrivacyLocation =>
@@ -1972,7 +1972,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get aboutPrivacyNetwork =>
-      'الإنترنت — يُستخدم لجلب محتوى القرآن والتلاوات والأذكار وتشغيل الإذاعات، بحسب ما تفتحه أو تختار تنزيله.';
+      'الشبكة — لتنزيل التلاوات والأدعية التي تطلبها، وكذلك — إن وافقت — لإرسال جلساتك مشفَّرة عبر الواي-فاي.';
 
   @override
   String get aboutSectionAsr => 'كيف يحلّل التطبيق تلاوتك؟';
@@ -3221,4 +3221,43 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get preparationConsigneLire =>
       'مرّر النص، واضغط على آية لسماعها، واضغط مطولاً لفتح قائمتها.';
+
+  @override
+  String get collecteTitre => 'المساهمة في تحسين التعرّف';
+
+  @override
+  String get collecteSous => 'إرسال تلاواتك لتدريب النموذج';
+
+  @override
+  String get collecteExplication =>
+      'عندما تتلو، يقارن التطبيق ما يسمعه بالنص. ولا يزال يخطئ، خاصة في الكلمات القصيرة. تساعد تسجيلاتك على تصحيح ذلك.';
+
+  @override
+  String get collecteCeQuiPart =>
+      'ما يُرسَل: صوت الجلسة، والنص المتوقَّع، وما فهمه التطبيق. لا يُرسَل اسمك ولا عنوانك ولا موقعك أبدًا.';
+
+  @override
+  String get collecteChiffre =>
+      'يُشفَّر كل شيء على هاتفك قبل الإرسال. لا أحد سوانا يستطيع فتحه، ولا حتى المستضيف.';
+
+  @override
+  String get collecteWifi => 'يتم الإرسال عبر الواي-فاي فقط، دون أي إجراء منك.';
+
+  @override
+  String get collecteRetrait =>
+      'يمكنك سحب موافقتك في أي وقت. وعندها يُحذف كل ما لم يُرسَل بعد.';
+
+  @override
+  String collecteIdentifiant(String id) {
+    return 'رقمك: $id';
+  }
+
+  @override
+  String get collecteIdentifiantAide =>
+      'هذا الرقم عشوائي ولا يدل عليك. أرسله إن طلبت حذف ما أرسلته.';
+
+  @override
+  String collecteEnAttente(int n) {
+    return '$n جلسة في انتظار الإرسال';
+  }
 }

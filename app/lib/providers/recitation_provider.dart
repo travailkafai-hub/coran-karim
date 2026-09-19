@@ -6,6 +6,9 @@ import '../models/recitation_state.dart';
 import '../models/riwaya.dart' show Riwaya;
 import '../models/verse.dart' show Verse;
 import '../providers/judgement_provider.dart';
+import '../services/collecte_envoi.dart';
+import '../services/collecte_identite.dart';
+import '../services/collecte_paquet.dart';
 import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
 import '../services/quran_verse_locator_service.dart';
@@ -4202,6 +4205,7 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     }
     try {
       final dir = await VoiceLoraClipService().newRecitationCaptureDir();
+      _dossierCapture = dir;
       await _verifier.setClipCapture(dir);
     } catch (e) {
       // Le diagnostic ne doit JAMAIS empêcher une récitation de démarrer.
@@ -6321,6 +6325,46 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
 
   /// Stop manuel (bouton rouge). Change le statut immédiatement en "processing"
   /// → l'UI reste réactive pendant que l'inférence tourne dans compute().
+  /// Dossier de la capture en cours, retenu pour la collecte (cf.
+  /// `_deposerPourCollecte`). `null` quand la capture est eteinte.
+  String? _dossierCapture;
+
+  /// Met la session qui vient de finir dans la file d'envoi, si — et seulement
+  /// si — la personne a donne son accord.
+  ///
+  /// Tout echec est avale : une collecte qui ferait remonter une erreur a
+  /// l'ecran serait pire que pas de collecte du tout.
+  Future<void> _deposerPourCollecte() async {
+    final dossier = _dossierCapture;
+    _dossierCapture = null;
+    if (dossier == null) return;
+    try {
+      if (!await CollecteIdentite.consentement()) return;
+      final mots = state.words;
+      if (mots.isEmpty) return;
+      // Metadonnees volontairement MINIMALES : ce notifier n'est pas un
+      // `ConsumerStateNotifier` et n'a pas de `ref`, et `RecitedWord` ne porte
+      // pas le numero de sourate. Plutot que de faire remonter tout cela a
+      // travers la chaine pour un confort de collecte, on envoie ce qu'on a
+      // SUREMENT -- le texte attendu mot a mot est dans l'archive, il suffit a
+      // retrouver le passage hors appareil.
+      final archive = await CollectePaquet.construire(
+        dossierCapture: dossier,
+        mots: mots,
+        sourate: 0,
+        premierVerset: 0,
+        riwaya: '',
+        modele: '',
+        build: DiagnosticLog.buildTag,
+      );
+      if (archive == null) return;
+      await CollecteEnvoi.mettreEnFile(archive);
+      unawaited(CollecteEnvoi.viderLaFile());
+    } catch (e) {
+      DiagnosticLog.log('Collecte', 'depot impossible : $e');
+    }
+  }
+
   Future<void> stop() async {
     if (_stopping || !state.isActive) return;
     _annulerIdentificationPriere();
@@ -6350,6 +6394,17 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // pas un acces disque par mot. Sans effet si rien n'a change.
       unawaited(WordDurationStore.instance.flush());
       unawaited(_flushTraces());
+      // ── COLLECTE : DEPOSER, SANS RIEN RALENTIR (2026-09-19) ──────────
+      //
+      // `unawaited` et jamais `await` : construire l'archive lit le WAV de la
+      // session, et l'arret d'une recitation doit rendre la main tout de
+      // suite. La collecte est un confort pour le projet, pas une fonction de
+      // l'application -- elle ne doit jamais faire attendre quelqu'un.
+      //
+      // Cette methode ne depose RIEN tant qu'il n'y a pas de consentement ET
+      // de cle publique (cf. CollecteEnvoi.mettreEnFile) : aujourd'hui la cle
+      // est vide, donc cet appel est inerte.
+      unawaited(_deposerPourCollecte());
       _stopping = false;
       if (state.status != RecitationStatus.finished) {
         state = state.copyWith(status: RecitationStatus.finished);

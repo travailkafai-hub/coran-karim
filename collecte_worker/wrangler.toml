@@ -1,0 +1,33 @@
+# Worker de collecte -- cf. COLLECTE_RECITATIONS.md et src/index.js
+#
+# Deploiement :
+#     cd collecte_worker
+#     npx wrangler r2 bucket create coran-karim-collecte     # une seule fois
+#     npx wrangler deploy
+#
+# Le binding `DEPOT` donne au Worker l'acces au bucket SANS clef d'acces : il
+# n'existe donc aucun secret S3 a proteger, ni dans l'APK, ni ici, ni dans une
+# variable d'environnement.
+
+name = "coran-karim-collecte"
+main = "src/index.js"
+compatibility_date = "2026-09-19"
+
+# Pas de `workers_dev = false` : l'URL *.workers.dev suffit et evite d'avoir a
+# posseder un domaine. C'est cette URL que l'application appellera.
+
+[[r2_buckets]]
+binding = "DEPOT"
+bucket_name = "coran-karim-collecte"
+# JURIDICTION EUROPEENNE (2026-09-19). Le bucket a ete cree avec
+# `--jurisdiction eu` : les objets restent dans l'UE. Ce sont des
+# enregistrements de recitation, donc des donnees qui revelent une
+# appartenance religieuse -- les garder en Europe est le minimum.
+#
+# ⚠️ CETTE LIGNE N'EST PAS DECORATIVE : sans elle, le binding cherche un bucket
+# du meme nom dans la juridiction PAR DEFAUT, qui n'existe pas, et le
+# deploiement echoue (ou pire, viserait un homonyme).
+jurisdiction = "eu"
+
+[observability]
+enabled = true

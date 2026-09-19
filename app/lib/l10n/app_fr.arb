@@ -1094,7 +1094,14 @@
   },
   "homeReprendreSous": "{sourate} · verset {verset}",
   "@homeReprendreSous": {
-    "placeholders": { "sourate": { "type": "String" }, "verset": { "type": "int" } }
+    "placeholders": {
+      "sourate": {
+        "type": "String"
+      },
+      "verset": {
+        "type": "int"
+      }
+    }
   },
   "coachHubResumeLabel": "Reprendre",
   "@coachHubResumeLabel": {
@@ -2430,7 +2437,7 @@
   "@aboutPrivacyIntro": {
     "description": "Introduction de la section vie privée"
   },
-  "aboutPrivacyMic": "Micro — votre récitation est analysée sur l'appareil, jamais envoyée ailleurs.",
+  "aboutPrivacyMic": "Micro — votre récitation est analysée sur l'appareil. Elle n'est envoyée ailleurs que si vous l'acceptez explicitement dans les Réglages, pour aider à améliorer la reconnaissance.",
   "@aboutPrivacyMic": {
     "description": "Explication de l'usage du microphone"
   },
@@ -2442,7 +2449,7 @@
   "@aboutPrivacyDiagnostic": {
     "description": "Explication du mode diagnostic et des enregistrements conservés"
   },
-  "aboutPrivacyNetwork": "Réseau — seulement pour télécharger les récitations et invocations que vous demandez.",
+  "aboutPrivacyNetwork": "Réseau — pour télécharger les récitations et invocations que vous demandez, et, si vous l'avez accepté, pour envoyer vos séances chiffrées en Wi-Fi.",
   "@aboutPrivacyNetwork": {
     "description": "Explication de l'usage du réseau"
   },
@@ -3191,7 +3198,11 @@
   "coachGemmeSeuil": "{count, plural, =1{1 récitation complète} other{{count} récitations complètes}}",
   "@coachGemmeSeuil": {
     "description": "Legende d un palier de pierre precieuse. ETAIT EN DUR DANS LE CODE jusqu au 2026-09-14, comme les quatre noms de pierres -- ils restaient en francais en arabe et en anglais.",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "@settingsPrayerTimesSubtitle": {
     "description": "Sous-titre de la tuile Horaires de priere. ETAIT EN DUR DANS LE CODE jusqu au 2026-09-14 : il restait donc en francais quelle que soit la langue, repere par l utilisateur sur une capture en arabe. Seule chaine en dur de cet ecran."
@@ -3897,5 +3908,55 @@
   "preparationConsigneLire": "Fais défiler le texte, appuie sur un verset pour l'écouter, appuie longuement pour ouvrir son menu.",
   "@preparationConsigneLire": {
     "description": "Consigne de l'etape Essayer : ce qu'il faut faire"
+  },
+  "collecteTitre": "Aider à améliorer la reconnaissance",
+  "@collecteTitre": {
+    "description": "Collecte de recitations (cf. COLLECTE_RECITATIONS.md)"
+  },
+  "collecteSous": "Envoyer vos récitations pour entraîner le modèle",
+  "@collecteSous": {
+    "description": "Collecte de recitations (cf. COLLECTE_RECITATIONS.md)"
+  },
+  "collecteExplication": "Quand vous récitez, l'application compare ce qu'elle entend au texte. Elle se trompe encore, surtout sur les mots courts. Vos enregistrements permettent de le corriger.",
+  "@collecteExplication": {
+    "description": "Collecte de recitations (cf. COLLECTE_RECITATIONS.md)"
+  },
+  "collecteCeQuiPart": "Ce qui est envoyé : l'audio de la séance, le texte attendu et ce que l'application a compris. Jamais votre nom, votre adresse ni votre position.",
+  "@collecteCeQuiPart": {
+    "description": "Collecte de recitations (cf. COLLECTE_RECITATIONS.md)"
+  },
+  "collecteChiffre": "Tout est chiffré sur votre téléphone avant de partir. Personne d'autre que nous ne peut l'ouvrir, pas même l'hébergeur.",
+  "@collecteChiffre": {
+    "description": "Collecte de recitations (cf. COLLECTE_RECITATIONS.md)"
+  },
+  "collecteWifi": "L'envoi se fait en Wi-Fi uniquement, sans rien vous demander.",
+  "@collecteWifi": {
+    "description": "Collecte de recitations (cf. COLLECTE_RECITATIONS.md)"
+  },
+  "collecteRetrait": "Vous pouvez retirer votre accord à tout moment. Ce qui n'est pas encore parti est alors effacé.",
+  "@collecteRetrait": {
+    "description": "Collecte de recitations (cf. COLLECTE_RECITATIONS.md)"
+  },
+  "collecteIdentifiant": "Votre numéro : {id}",
+  "@collecteIdentifiant": {
+    "description": "Collecte de recitations (cf. COLLECTE_RECITATIONS.md)",
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "collecteIdentifiantAide": "Ce numéro est tiré au hasard et ne dit rien de vous. Communiquez-le si vous demandez la suppression de vos envois.",
+  "@collecteIdentifiantAide": {
+    "description": "Collecte de recitations (cf. COLLECTE_RECITATIONS.md)"
+  },
+  "collecteEnAttente": "{n} séance(s) en attente d'envoi",
+  "@collecteEnAttente": {
+    "description": "Collecte de recitations (cf. COLLECTE_RECITATIONS.md)",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
   }
 }

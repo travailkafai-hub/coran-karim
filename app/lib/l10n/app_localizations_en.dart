@@ -1960,7 +1960,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutPrivacyMic =>
-      'Microphone — your recitation is analysed on the device, never sent anywhere.';
+      'Microphone — your recitation is analysed on the device. It is sent elsewhere only if you explicitly agree in Settings, to help improve recognition.';
 
   @override
   String get aboutPrivacyLocation =>
@@ -1972,7 +1972,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutPrivacyNetwork =>
-      'Network — only to download the recitations and supplications you ask for.';
+      'Network — to download the recitations and supplications you ask for, and, if you agreed to it, to send your encrypted sessions over Wi-Fi.';
 
   @override
   String get aboutSectionAsr => 'What checks your recitation';
@@ -3200,4 +3200,44 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get preparationConsigneLire =>
       'Scroll the text, tap a verse to listen to it, long-press to open its menu.';
+
+  @override
+  String get collecteTitre => 'Help improve recognition';
+
+  @override
+  String get collecteSous => 'Send your recitations to train the model';
+
+  @override
+  String get collecteExplication =>
+      'When you recite, the app compares what it hears with the text. It still makes mistakes, especially on short words. Your recordings help fix that.';
+
+  @override
+  String get collecteCeQuiPart =>
+      'What is sent: the session audio, the expected text and what the app understood. Never your name, address or location.';
+
+  @override
+  String get collecteChiffre =>
+      'Everything is encrypted on your phone before leaving. Nobody but us can open it, not even the host.';
+
+  @override
+  String get collecteWifi =>
+      'Sending happens over Wi-Fi only, with nothing to do on your part.';
+
+  @override
+  String get collecteRetrait =>
+      'You can withdraw your consent at any time. Anything not yet sent is then deleted.';
+
+  @override
+  String collecteIdentifiant(String id) {
+    return 'Your number: $id';
+  }
+
+  @override
+  String get collecteIdentifiantAide =>
+      'This number is random and says nothing about you. Share it if you request deletion of your submissions.';
+
+  @override
+  String collecteEnAttente(int n) {
+    return '$n session(s) waiting to be sent';
+  }
 }

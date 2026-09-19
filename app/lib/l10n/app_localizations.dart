@@ -3280,7 +3280,7 @@ abstract class AppLocalizations {
   /// Explication de l'usage du microphone
   ///
   /// In fr, this message translates to:
-  /// **'Micro — votre récitation est analysée sur l\'appareil, jamais envoyée ailleurs.'**
+  /// **'Micro — votre récitation est analysée sur l\'appareil. Elle n\'est envoyée ailleurs que si vous l\'acceptez explicitement dans les Réglages, pour aider à améliorer la reconnaissance.'**
   String get aboutPrivacyMic;
 
   /// Explication de l'usage de la localisation
@@ -3298,7 +3298,7 @@ abstract class AppLocalizations {
   /// Explication de l'usage du réseau
   ///
   /// In fr, this message translates to:
-  /// **'Réseau — seulement pour télécharger les récitations et invocations que vous demandez.'**
+  /// **'Réseau — pour télécharger les récitations et invocations que vous demandez, et, si vous l\'avez accepté, pour envoyer vos séances chiffrées en Wi-Fi.'**
   String get aboutPrivacyNetwork;
 
   /// Titre de la section décrivant le modèle de reconnaissance
@@ -5232,6 +5232,66 @@ abstract class AppLocalizations {
   /// In fr, this message translates to:
   /// **'Fais défiler le texte, appuie sur un verset pour l\'écouter, appuie longuement pour ouvrir son menu.'**
   String get preparationConsigneLire;
+
+  /// Collecte de recitations (cf. COLLECTE_RECITATIONS.md)
+  ///
+  /// In fr, this message translates to:
+  /// **'Aider à améliorer la reconnaissance'**
+  String get collecteTitre;
+
+  /// Collecte de recitations (cf. COLLECTE_RECITATIONS.md)
+  ///
+  /// In fr, this message translates to:
+  /// **'Envoyer vos récitations pour entraîner le modèle'**
+  String get collecteSous;
+
+  /// Collecte de recitations (cf. COLLECTE_RECITATIONS.md)
+  ///
+  /// In fr, this message translates to:
+  /// **'Quand vous récitez, l\'application compare ce qu\'elle entend au texte. Elle se trompe encore, surtout sur les mots courts. Vos enregistrements permettent de le corriger.'**
+  String get collecteExplication;
+
+  /// Collecte de recitations (cf. COLLECTE_RECITATIONS.md)
+  ///
+  /// In fr, this message translates to:
+  /// **'Ce qui est envoyé : l\'audio de la séance, le texte attendu et ce que l\'application a compris. Jamais votre nom, votre adresse ni votre position.'**
+  String get collecteCeQuiPart;
+
+  /// Collecte de recitations (cf. COLLECTE_RECITATIONS.md)
+  ///
+  /// In fr, this message translates to:
+  /// **'Tout est chiffré sur votre téléphone avant de partir. Personne d\'autre que nous ne peut l\'ouvrir, pas même l\'hébergeur.'**
+  String get collecteChiffre;
+
+  /// Collecte de recitations (cf. COLLECTE_RECITATIONS.md)
+  ///
+  /// In fr, this message translates to:
+  /// **'L\'envoi se fait en Wi-Fi uniquement, sans rien vous demander.'**
+  String get collecteWifi;
+
+  /// Collecte de recitations (cf. COLLECTE_RECITATIONS.md)
+  ///
+  /// In fr, this message translates to:
+  /// **'Vous pouvez retirer votre accord à tout moment. Ce qui n\'est pas encore parti est alors effacé.'**
+  String get collecteRetrait;
+
+  /// Collecte de recitations (cf. COLLECTE_RECITATIONS.md)
+  ///
+  /// In fr, this message translates to:
+  /// **'Votre numéro : {id}'**
+  String collecteIdentifiant(String id);
+
+  /// Collecte de recitations (cf. COLLECTE_RECITATIONS.md)
+  ///
+  /// In fr, this message translates to:
+  /// **'Ce numéro est tiré au hasard et ne dit rien de vous. Communiquez-le si vous demandez la suppression de vos envois.'**
+  String get collecteIdentifiantAide;
+
+  /// Collecte de recitations (cf. COLLECTE_RECITATIONS.md)
+  ///
+  /// In fr, this message translates to:
+  /// **'{n} séance(s) en attente d\'envoi'**
+  String collecteEnAttente(int n);
 }
 
 class _AppLocalizationsDelegate

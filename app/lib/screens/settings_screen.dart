@@ -11,6 +11,7 @@ import '../providers/recitation_provider.dart' show recitationVerifierProvider;
 import '../services/voice_lora_clip_service.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
+import 'collecte_consentement_screen.dart';
 import '../data/guides_catalogue.dart';
 import 'decouverte_screen.dart';
 import 'contact_screen.dart';
@@ -299,6 +300,22 @@ class SettingsScreen extends ConsumerWidget {
             color: AppColors.settingsApp,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const DecouverteScreen())),
+          ),
+          // ── AIDER A AMELIORER LA RECONNAISSANCE (2026-09-19) ────────────
+          //
+          // Juste avant « A propos », qui porte les engagements sur les
+          // donnees : les deux se lisent ensemble. L'entree est VISIBLE meme
+          // quand la collecte est a l'arret -- une fonctionnalite qui ne se
+          // decouvre qu'une fois activee ne se decouvre jamais.
+          _SettingsTile(
+            icon: Icons.volunteer_activism_outlined,
+            title: t.collecteTitre,
+            subtitle: t.collecteSous,
+            color: AppColors.settingsApp,
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const CollecteConsentementScreen())),
           ),
           _SettingsTile(
             icon: Icons.info_outline_rounded,

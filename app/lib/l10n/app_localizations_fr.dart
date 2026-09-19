@@ -1982,7 +1982,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get aboutPrivacyMic =>
-      'Micro — votre récitation est analysée sur l\'appareil, jamais envoyée ailleurs.';
+      'Micro — votre récitation est analysée sur l\'appareil. Elle n\'est envoyée ailleurs que si vous l\'acceptez explicitement dans les Réglages, pour aider à améliorer la reconnaissance.';
 
   @override
   String get aboutPrivacyLocation =>
@@ -1994,7 +1994,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get aboutPrivacyNetwork =>
-      'Réseau — seulement pour télécharger les récitations et invocations que vous demandez.';
+      'Réseau — pour télécharger les récitations et invocations que vous demandez, et, si vous l\'avez accepté, pour envoyer vos séances chiffrées en Wi-Fi.';
 
   @override
   String get aboutSectionAsr => 'Ce qui vérifie votre récitation';
@@ -3223,4 +3223,44 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get preparationConsigneLire =>
       'Fais défiler le texte, appuie sur un verset pour l\'écouter, appuie longuement pour ouvrir son menu.';
+
+  @override
+  String get collecteTitre => 'Aider à améliorer la reconnaissance';
+
+  @override
+  String get collecteSous => 'Envoyer vos récitations pour entraîner le modèle';
+
+  @override
+  String get collecteExplication =>
+      'Quand vous récitez, l\'application compare ce qu\'elle entend au texte. Elle se trompe encore, surtout sur les mots courts. Vos enregistrements permettent de le corriger.';
+
+  @override
+  String get collecteCeQuiPart =>
+      'Ce qui est envoyé : l\'audio de la séance, le texte attendu et ce que l\'application a compris. Jamais votre nom, votre adresse ni votre position.';
+
+  @override
+  String get collecteChiffre =>
+      'Tout est chiffré sur votre téléphone avant de partir. Personne d\'autre que nous ne peut l\'ouvrir, pas même l\'hébergeur.';
+
+  @override
+  String get collecteWifi =>
+      'L\'envoi se fait en Wi-Fi uniquement, sans rien vous demander.';
+
+  @override
+  String get collecteRetrait =>
+      'Vous pouvez retirer votre accord à tout moment. Ce qui n\'est pas encore parti est alors effacé.';
+
+  @override
+  String collecteIdentifiant(String id) {
+    return 'Votre numéro : $id';
+  }
+
+  @override
+  String get collecteIdentifiantAide =>
+      'Ce numéro est tiré au hasard et ne dit rien de vous. Communiquez-le si vous demandez la suppression de vos envois.';
+
+  @override
+  String collecteEnAttente(int n) {
+    return '$n séance(s) en attente d\'envoi';
+  }
 }
