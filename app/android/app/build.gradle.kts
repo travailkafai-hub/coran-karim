@@ -331,6 +331,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20180813")
+    // Banc JVM sur les vrais WAV : meme version ORT que l'app, bibliotheques
+    // natives Windows/Linux uniquement dans le runtime des tests, jamais l'APK.
+    testRuntimeOnly("com.microsoft.onnxruntime:onnxruntime:1.26.0")
     // Core library desugaring (flutter_local_notifications, adhan programme).
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
@@ -343,6 +346,20 @@ flutter {
 // tourne 20 s ne rend aucun chiffre et il faut passer par les fichiers XML.
 tasks.withType<Test> {
     testLogging { showStandardStreams = true }
+    // Replay explicite : le C2 de MS JDK 21.0.10 plante en compilant
+    // Localisateur.localiser (hs_err_pid29428, 15/09). Contournement du banc
+    // PC seulement, aucune option ni modification du runtime Android.
+    if (System.getProperty("asrBanc") == "true") {
+        jvmArgs("-XX:CompileCommand=exclude,com.corankarim.coran_karim.recitation2.Localisateur::localiser")
+        // 2026-09-15, second crash du MEME C2 sur une AUTRE methode
+        // (hs_err_pid30276 : `CollectionsKt___CollectionsKt::maxOrThrow`),
+        // apparu en etendant le banc de 5 a 8 cas -- plus de code sollicite,
+        // donc plus d'occasions de tomber sur ce bug du JDK. Exclure methode
+        // par methode ne tient pas a l'echelle : on coupe C2 pour le banc.
+        // C1 seul suffit ici (le banc mesure des VERDICTS, pas des temps), et
+        // rien de tout ceci ne concerne le runtime Android.
+        jvmArgs("-XX:TieredStopAtLevel=1")
+    }
     // Les workers de test ne HERITENT PAS des -D de la ligne de commande : sans
     // ce relais, un balayage de parametres rend trois fois le meme chiffre et
     // on croit que le parametre n'a aucun effet. Piege paye le 2026-07-30.
@@ -355,7 +372,7 @@ tasks.withType<Test> {
         // "k" : nombre de preuves concordantes exigees pour figer (cf.
         // Decideur.k). Meme piege que ci-dessus -- sans le relais, tout le
         // balayage k=1/k=2 rendrait le meme chiffre.
-        "k", "apercu2", "largeurApercu2", "maxFusion")) {
+        "k", "apercu2", "largeurApercu2", "maxFusion", "asrBanc", "avanceeDebut", "teteT3", "corpusBanc", "seuilTete3", "margeGauche")) {
         System.getProperty(k)?.let { systemProperty(k, it) }
     }
 }

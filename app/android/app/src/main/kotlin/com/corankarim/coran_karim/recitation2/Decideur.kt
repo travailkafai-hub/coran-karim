@@ -128,6 +128,18 @@ class Decideur(
      *  champ ne sert donc qu'a nommer la tete dans le journal -- le jugement,
      *  lui, ne lit que les logits deja poses sur chaque observation. */
     private val politiqueTete3: JugementTete3.Politique = JugementTete3.HAFS,
+    /**
+     * La tete 3 dans la regle HISTORIQUE, sans le vote (2026-09-15).
+     *
+     * [utiliserTete3] exige `votePondere` : la tete y lit le regroupement
+     * d'occurrence du vote. La campagne du 15/09 a montre que le vote coute
+     * trois accusations fausses par detection gagnee -- d'ou la question, jusque
+     * la sans reponse mesurable, de la tete 3 SANS lui. Ce drapeau la rend
+     * mesurable ; il ne rend rien decidable en production.
+     *
+     * Par defaut FAUX : aucun chemin ne change tant qu'il n'est pas demande.
+     */
+    private val tete3SansVote: Boolean = false,
     private val journalJugement: ((String) -> Unit)? = null,
 ) {
     init { require(!utiliserTete3 || votePondere) { "La tete 3 exige le vote par occurrence" } }
@@ -449,6 +461,21 @@ class Decideur(
             val votantes = registre.observationsVotantes(i)
             if (votantes.isEmpty()) continue
 
+            // Un SEUL avis pour ce mot, applique partout ou une couleur se
+            // decide plus bas. Le calculer une fois evite qu'un des trois
+            // chemins l'oublie -- c'est exactement par la que `nette` et le
+            // secours anti-`Omis` contournaient deja le controle d'ordre.
+            // Le mot ATTENDU est necessaire pour reconnaitre un fragment de
+            // bord -- sans lui, la tete jugerait sur des demi-mots (mesure du
+            // 15/09 : +30 faux signalements, cf. JugementTete3.evaluerSansVote).
+            val avisT3 = if (tete3SansVote)
+                JugementTete3.evaluerSansVote(registre.observationsPourJugement(i),
+                    requireNotNull(contexteVote) {
+                        "tete3SansVote exige le texte attendu (ContexteVote)"
+                    }.attendus[i], k) else null
+            fun juge(c: Couleur): Couleur =
+                if (avisT3 == null) c else JugementTete3.couleur(c, avisT3)
+
             // ── LE CONTROLE D'ORDRE PASSE AVANT TOUTE COULEUR ───────────────
             //
             // Place ICI et non dans chacune des regles ci-dessous : les deux
@@ -525,7 +552,7 @@ class Decideur(
             // concordent (decodage libre + alignement force) ; la marge est une
             // TROISIEME question, elle n'a pas a annuler cette preuve. Elle
             // garde tout son effet par le chemin normal a deux fenetres.
-            if (nette != null && couleurSansMarge(nette) == Couleur.VERT) {
+            if (nette != null && juge(couleurSansMarge(nette)) == Couleur.VERT) {
                 definitifs[i] = Couleur.VERT
                 out[i] = Statut.Definitif(Couleur.VERT)
                 continue
@@ -556,7 +583,7 @@ class Decideur(
                     // faire attendre un mot juste degrade le temps reel pour
                     // rien. Un NON-VERT, lui, accuse quelqu'un : il attend que
                     // le mot ne puisse plus etre reobserve.
-                    val couleurRetenue = dernieres.first()
+                    val couleurRetenue = juge(dernieres.first())
                     val recitateurPasse = registre.indexMaxVotant() >= i + depassement
                     if (couleurRetenue == Couleur.VERT || recitateurPasse) {
                         definitifs[i] = couleurRetenue
@@ -596,7 +623,7 @@ class Decideur(
             // l'affichage provisoire, jamais le verdict definitif.
             val rang = { c: Couleur -> when (c) {
                 Couleur.VERT -> 2; Couleur.ORANGE -> 1; Couleur.ROUGE -> 0 } }
-            val nouvelle = couleurs.last()
+            val nouvelle = juge(couleurs.last())
             val gardee = meilleurProvisoire[i]
             val retenue = if (gardee == null || rang(nouvelle) > rang(gardee))
                 nouvelle else gardee
@@ -714,10 +741,59 @@ class Decideur(
             if (propres.isEmpty()) continue
             preuvesRetenues.remove(i)
             if (ordre.horsDeSaPlace(i)) { out[i] = Statut.Deplace; continue }
-            val vote = VoteFenetres.calculer(actuelles)
+            // ── UNE LECTURE ENTIERE PRIME SUR UN MOT AMPUTE (2026-09-15) ──
+            //
+            // MESURE QUI L'IMPOSE. Sur les 10 cas du banc JVM, 60 des 78 faux
+            // signalements viennent d'une lecture qui n'a montre qu'un MORCEAU
+            // du mot : `فَهُمْ` lu `هُمْ`, `بِمَغْفِرَةٍ` lu `مَغْفِرَةٍ`. La
+            // cause est en amont -- l'alignement force place la frontiere trop
+            // a droite et le mot precedent mange le debut du suivant (19 cas ou
+            // le debut manquant se retrouve DANS la lecture du voisin, 47 ou
+            // les bornes sont collees sans marge).
+            //
+            // CE N'EST PAS UNE TOLERANCE AJOUTEE, et c'est ce qui la rend
+            // admissible ici : aucun seuil ne bouge. On choisit la MEILLEURE
+            // PREUVE entre plusieurs lectures du meme son -- une lecture
+            // complete vaut mieux qu'une lecture mutilee. Le correctif de fond
+            // reste l'alignement, et il n'est pas fait par cette ligne.
+            //
+            // SEULEMENT LES SUFFIXES, et la raison est physique : un recitateur
+            // qui tronque un mot en dit le DEBUT puis s'arrete ; il ne peut pas
+            // en prononcer la fin sans le debut. Un prefixe (`وَخَلَقْ` pour
+            // `وَخَلَقْنَـٰكُمْ`) est donc une vraie troncature et reste juge --
+            // c'est exactement ce que la famille `truncate` du banc produit.
+            // Mesure : ecarter TOUS les fragments donnait 21 faux evites pour
+            // 16 vraies fautes perdues ; n'ecarter que les suffixes donne
+            // 38 pour 9.
+            //
+            // CONDITIONNE A L'EXISTENCE D'UNE LECTURE ENTIERE : sans elle, le
+            // suffixe est la seule preuve disponible et il continue de compter
+            // (11 mots corrects contre 7 fautes reelles dans ce cas -- trop
+            // ambigu pour trancher, on ne touche donc pas a ces cas).
+            val attenduCle = VoteFenetres.cle(contexte.attendus[i])
+            val lectureEntiere = actuelles.any { o ->
+                o.interieur && !o.sansCreneau &&
+                    contexte.equivalences(contexte.attendus[i])
+                        .any { VoteFenetres.cle(it) == VoteFenetres.cle(o.entendu) }
+            }
+            val pourVote = if (!lectureEntiere) actuelles else actuelles.filterNot { o ->
+                val lu = VoteFenetres.cle(o.entendu)
+                lu.isNotEmpty() && lu != attenduCle &&
+                    attenduCle.endsWith(lu) && !attenduCle.startsWith(lu)
+            }
+            val vote = VoteFenetres.calculer(pourVote)
             val gagnant = vote.gagnant
             val uniques = actuelles.associateBy { it.fenetreId }
-            val conforme = gagnant != null && contexte.equivalences(contexte.attendus[i]).any {
+            // Les equivalences du mot SEUL, plus celles que la LIAISON avec le
+            // mot suivant autorise (idgham/ikhfa' : la finale `نْ` ou le tanwin
+            // s'assimile et n'est plus prononce). Ces dernieres ne peuvent pas
+            // vivre dans `Orthographe.variantes`, qui ne voit qu'un mot isole --
+            // et c'est justement leur garde-fou : une finale absente SANS regle
+            // qui l'explique reste une faute.
+            val equivalences = contexte.equivalences(contexte.attendus[i]) +
+                Orthographe.variantesLiaison(
+                    contexte.attendus[i], contexte.attendus.getOrNull(i + 1))
+            val conforme = gagnant != null && equivalences.any {
                 VoteFenetres.cle(it) == gagnant
             }
             val couleurTexte = when {

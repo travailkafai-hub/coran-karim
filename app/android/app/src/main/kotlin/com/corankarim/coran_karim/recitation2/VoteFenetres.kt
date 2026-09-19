@@ -65,8 +65,13 @@ object VoteFenetres {
                         val fenetresRetenues: Set<Long> = emptySet())
 
     /** NFC ne retire aucune lettre/haraka ; la normalisation de localisation
-     * est INTERDITE ici. Le texte attendu n'entre jamais dans l'agregateur. */
-    fun cle(texte: String): String = Normalizer.normalize(texte.trim(), Normalizer.Form.NFC)
+     * est INTERDITE ici. Le texte attendu n'entre jamais dans l'agregateur.
+     * 15/09, T805/0 : تَبَـٰرَكَ et sa variante تَبَـارَكَ etaient compares a
+     * تَبَارَكَ avec le trait typographique U+0640 intact : faux rouge malgre
+     * trois lectures concordantes. Seule cette kashida decorative est retiree,
+     * jamais l'alif suscrit (voyelle longue), une consonne ou une haraka. */
+    fun cle(texte: String): String =
+        Normalizer.normalize(texte.trim().replace("\u0640", ""), Normalizer.Form.NFC)
 
     fun mesurer(m: AligneurForce.MotAligne, libres: List<Decodage.MotEntendu>,
                 logp: Array<FloatArray>, blank: Int, fenetre: Fenetre): Lecture {

@@ -53,8 +53,51 @@ package com.corankarim.coran_karim.recitation2
 class AligneurForce(
     private val pieces: List<String>,
     private val blank: Int,
+    /**
+     * Contexte AUDIO exige AVANT le mot pour qu'il ait le droit de voter.
+     *
+     * MESURE DU 17/09 (2 139 observations de mots CORRECTS, banc des erreurs
+     * reelles) -- taux de lecture ERRONEE selon le contexte disponible a gauche :
+     *     < 0,5 s  ->  69,1 %      < 2,0 s  ->  26,7 %
+     *     < 1,0 s  ->  78,4 %      < 3,0 s  ->   4,7 %
+     *                              >= 3,0 s ->   3,6 %
+     * Et selon la place du mot dans la fenetre : tout debut (<20 %) 40,8 %,
+     * milieu (40-60 %) 4,6 %.
+     *
+     * L'encodeur est CAUSAL : il ne voit que le passe. Un mot pose au debut
+     * d'une fenetre est lu par un encodeur sans etat accumule, et il se trompe
+     * SEPT FOIS SUR DIX. Ce n'est pas le modele qui echoue, ce sont les
+     * conditions qu'on lui donne.
+     *
+     * 2 frames (160 ms) tombait en plein dans la zone a 69 %.
+     */
     private val margeGaucheFrames: Int = 2,
     private val margeDroiteFrames: Int = Horloge.LOOKAHEAD_FRAMES,
+    /**
+     * Rend au mot les frames de son DEBUT que le CTC n'a pas encore emises.
+     *
+     * MESURE (15/09/2026, 98 mots compares a l'horodatage API sur le banc des
+     * paliers) : le debut attribue est en retard de **+13,4 frames** (mediane),
+     * la FIN tombe juste (+3,1), et la duree attribuee est **trop courte de
+     * 13,9 frames**. Le signe est positif sur 100 % des mots -- jamais en
+     * avance, donc ce n'est pas du bruit.
+     *
+     * Cause : la loss CTC est invariante a l'alignement, rien n'oblige le
+     * modele a emettre au moment du son et il emet TARD ; comme les blancs
+     * n'appartiennent a aucun mot (cf. la boucle de remontee), `premiere[w]`
+     * est la premiere frame NON BLANCHE, donc systematiquement tardive.
+     * Consequences mesurees ailleurs : lectures en suffixe (`فَهُمْ` lu
+     * `هُمْ`), voisin de gauche qui prononce le debut du suivant (19 cas), et
+     * 0 faute ratee sur 57 alignee sur la zone reellement fautee.
+     *
+     * Ce n'est PAS un decalage global : on n'avance que le DEBUT, la fin est
+     * deja juste. L'extension s'arrete a la derniere frame du mot precedent --
+     * on ne prend jamais l'audio d'un voisin, on ne fait que reprendre les
+     * blancs laisses entre les deux.
+     *
+     * 0 = comportement d'avant, strictement inchange.
+     */
+    private val framesAvanceeDebut: Int = 0,
 ) {
     data class MotAligne(
         val index: Int,
@@ -415,6 +458,42 @@ class AligneurForce(
             nb[w]++
             sommeForced[w] += logprobs[ti][etatToken[st]].toDouble()
             sommeFree[w] += Decodage.maxLogprob(logprobs[ti]).toDouble()
+        }
+
+        // ── RENDRE AU MOT LE DEBUT QUE LE CTC A EMIS EN RETARD ──────────────
+        // Cf. [framesAvanceeDebut]. On ne touche QUE `premiere` : la fin est
+        // deja juste. Bornes : jamais avant la derniere frame du mot precedent
+        // (on ne vole pas son audio), jamais avant 0, jamais apres sa propre
+        // derniere frame. `nb`, `sommeForced` et `sommeFree` ne sont PAS
+        // recalcules -- ils mesurent la qualite du chemin sur les frames que le
+        // modele a reellement emises, ce que ce deplacement ne change pas.
+        if (framesAvanceeDebut > 0) {
+            for (w in mots.indices) {
+                if (premiere[w] < 0) continue
+                // PREMIERE VERSION, MESUREE INSUFFISANTE (15/09) : le plancher
+                // etait `derniere[w-1] + 1`, donc l'extension s'arretait juste
+                // la ou le probleme commence. Mesure sur T802 `فَهُمْ` : le
+                // proclitique `ف` est le PREMIER choix du modele a cette
+                // position (logprob -0,075, soit 93 %) -- il n'est pas absent,
+                // il est DANS les frames que le mot precedent s'est appropriees.
+                // Le plancher interdisait precisement de le reprendre, et le
+                // rejeu complet n'avait rien donne (48 -> 46 faux).
+                //
+                // On recule donc tant que la frame porte SON PROPRE token ou un
+                // blanc, sans jamais depasser `premiere[w-1]` : le voisin garde
+                // au minimum sa premiere frame, il ne peut pas disparaitre.
+                val tokensDuMot = (0 until nbEtats).filter { etatMot[it] == w }
+                    .map { etatToken[it] }.toSet()
+                val plancherDur = if (w > 0 && premiere[w - 1] >= 0) premiere[w - 1] + 1 else 0
+                var p = premiere[w]
+                var recule = 0
+                while (p - 1 >= plancherDur && recule < framesAvanceeDebut) {
+                    val arg = Decodage.argmax(logprobs[p - 1])
+                    if (arg != blank && arg !in tokensDuMot) break
+                    p--; recule++
+                }
+                premiere[w] = p.coerceAtMost(derniere[w])
+            }
         }
 
         val out = ArrayList<MotAligne>(mots.size)

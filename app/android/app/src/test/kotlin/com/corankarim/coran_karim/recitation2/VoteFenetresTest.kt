@@ -5,6 +5,15 @@ import org.junit.Test
 import kotlin.math.ln
 
 class VoteFenetresTest {
+    @org.junit.Test fun `la kashida decorative ne cree pas de faute mais les phonemes restent distincts`() {
+        val attendu = "تَبَـٰرَكَ"
+        val graphies = Orthographe.variantes(attendu).map(VoteFenetres::cle)
+        org.junit.Assert.assertTrue(VoteFenetres.cle("تَبَارَكَ") in graphies)
+        org.junit.Assert.assertFalse("Une voyelle breve reste differente", VoteFenetres.cle("تَبَرَكَ") in graphies)
+        org.junit.Assert.assertFalse("La haraka finale reste jugee", VoteFenetres.cle("تَبَارَكُ") in graphies)
+        org.junit.Assert.assertFalse("Une consonne ajoutee reste jugee", VoteFenetres.cle("تَبَارَكَك") in graphies)
+        org.junit.Assert.assertEquals(VoteFenetres.cle("صَـٰفَّـٰتٍ"), VoteFenetres.cle("صَٰفَّٰتٍ"))
+    }
     private fun observation(id: Long, texte: String, poids: Double) = RegistreDePreuves.Observation(
         fenetreId = id, motIndex = 0, gop = 0f, forced = 0f, free = 0f,
         entendu = texte, frames = 2, interieur = true, couvert = true,

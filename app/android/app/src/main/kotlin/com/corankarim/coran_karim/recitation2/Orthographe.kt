@@ -210,8 +210,113 @@ object Orthographe {
         if (mot.any { SIGNES_TAJWID.contains(it) }) {
             out.add(mot.filterNot { SIGNES_TAJWID.contains(it) })
         }
+
+        // 11) SHADDA INITIALE : elle appartient a la LIAISON, pas au mot.
+        //
+        // En arabe coranique, une shadda sur la PREMIERE lettre note un idgham
+        // avec le mot precedent : `مِن مَّا`, `عَن رَّبِّ`. Le doublement nait de
+        // la rencontre des deux mots ; le mot seul ne le porte pas, et le
+        // recitateur ne prononce pas une consonne doublee sortie de nulle part.
+        // Le modele transcrit donc `مَا` la ou le texte ecrit `مَّا` -- et c'est
+        // LUI qui a raison phonetiquement.
+        //
+        // MESURE QUI L'IMPOSE (2026-09-17, banc des erreurs reelles) : un mot a
+        // shadda initiale est faussement signale dans **28,6 %** des cas (10 sur
+        // 35) contre **7,0 %** pour tous les autres (48 sur 682) -- quatre fois
+        // plus. Cas releves, ou la shadda est la SEULE difference :
+        //     لَّا        lu لَا        -> definitif:ROUGE
+        //     لَّكُمْ     lu لَكُمْ     -> definitif:ROUGE
+        //     مُّسْتَقِيمٍ lu مُسْتَقِيمٍ -> definitif:ROUGE
+        //
+        // ⚠️ SEULEMENT LA PREMIERE LETTRE. Les shaddas INTERNES (`ٱلرَّحْمَـٰنِ`,
+        // `يَتَكَلَّمُونَ`) sont des proprietes du mot : les retirer blanchirait de
+        // vraies fautes de gemination. La regle s'arrete donc au premier signe
+        // rencontre, et ne s'applique pas si la shadda arrive apres une autre
+        // lettre.
+        //
+        // Ce n'est pas une tolerance, au sens de l'en-tete de ce fichier : la
+        // variante produite se prononce EXACTEMENT comme l'original pris seul.
+        indexShaddaInitiale(mot)?.let { i ->
+            out.add(mot.substring(0, i) + mot.substring(i + 1))
+        }
+
         return out.take(MAX)
     }
+
+    /**
+     * IDGHAM / IKHFA' : la finale que la LIAISON fait disparaitre.
+     *
+     * L'autre face de la regle traitee en (11). Un `نْ` final, ou un tanwin,
+     * devant une lettre de `يرملون` s'assimile a elle : le son du noun n'est
+     * plus prononce, il double la consonne suivante. Devant les quinze lettres
+     * d'ikhfa', il se reduit a une nasalisation. Dans les deux cas le modele
+     * transcrit ce qu'il ENTEND -- une finale absente -- et le texte garde la
+     * graphie pleine.
+     *
+     * MESURE (2026-09-17) : en contexte d'idgham un mot correct est signale a
+     * tort dans 10,8 % des cas (18/166), en ikhfa' 10,0 % (7/70), contre 7,0 %
+     * ailleurs. Cas releves :
+     *     ٱلرَّحْمَـٰنِ  + لَا      lu ٱلرَّحْمَـٰ
+     *     لِلْمُتَّقِينَ + مَفَازًا  lu ٱلْمُتَّقِينَ
+     *
+     * ⚠️ CONDITIONNE AU MOT SUIVANT, et c'est tout l'interet : une finale
+     * absente SANS regle qui l'explique reste une faute. C'est pourquoi cette
+     * fonction ne vit pas dans [variantes], qui ne voit qu'un mot isole.
+     *
+     * @param suivant le mot attendu juste apres, ou null en fin de cible.
+     */
+    fun variantesLiaison(mot: String, suivant: String?): List<String> {
+        if (suivant.isNullOrBlank()) return emptyList()
+        val debut = suivant.firstOrNull { estLettre(it) && it != ALIF_WASLA } ?: return emptyList()
+        if (debut !in IDGHAM && debut !in IKHFA) return emptyList()
+        val out = LinkedHashSet<String>()
+        // fin = derniere LETTRE du mot, harakat finales ignorees
+        val dernier = mot.indexOfLast { estLettre(it) }
+        if (dernier >= 0 && mot[dernier] == NOUN) {
+            // le noun final disparait, avec la haraka qui le suit
+            out.add(mot.substring(0, dernier).trimEnd { it in HARAKAT || it == SOUKOUN })
+        }
+        // tanwin : le noun qu'il note s'assimile, la voyelle breve demeure
+        val t = mot.indexOfLast { it in TANWIN }
+        if (t >= 0) {
+            out.add(mot.substring(0, t) + TANWIN_VERS_HARAKA[mot[t]] + mot.substring(t + 1))
+            out.add(mot.substring(0, t) + mot.substring(t + 1))
+        }
+        return out.filter { it.isNotBlank() && it != mot }.take(3)
+    }
+
+    private const val NOUN = 'ن'
+    private val TANWIN = charArrayOf('ً', 'ٌ', 'ٍ')
+    private val HARAKAT = charArrayOf('َ', 'ُ', 'ِ', 'ْ') + TANWIN
+    private val TANWIN_VERS_HARAKA = mapOf(
+        'ً' to 'َ', 'ٌ' to 'ُ', 'ٍ' to 'ِ')
+    /** Lettres qui absorbent le noun (idgham) : ya ra mim lam waw noun. */
+    private val IDGHAM = charArrayOf('ي', 'ر', 'م', 'ل', 'و', 'ن')
+    /** Les quinze lettres d'ikhfa' : le noun s'y nasalise sans disparaitre. */
+    private val IKHFA = charArrayOf('ت', 'ث', 'ج', 'د', 'ذ',
+        'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ',
+        'ف', 'ق', 'ك')
+
+    /** Shadda portee par la PREMIERE lettre du mot, ou null.
+     *  On saute la lettre initiale (et un eventuel alif wasla), puis on accepte
+     *  la shadda si elle arrive avant toute autre lettre -- les harakat
+     *  intercalees sont admises, une seconde consonne arrete la recherche. */
+    private fun indexShaddaInitiale(mot: String): Int? {
+        var i = 0
+        if (i < mot.length && mot[i] == ALIF_WASLA) i++
+        if (i >= mot.length || !estLettre(mot[i])) return null
+        i++
+        while (i < mot.length) {
+            val c = mot[i]
+            if (c == SHADDA) return i
+            if (estLettre(c)) return null
+            i++
+        }
+        return null
+    }
+
+    /** Gemination. Sur la premiere lettre, elle vient de la liaison (cf. 11). */
+    private const val SHADDA = 'ّ'
 
     /** Lettres porteuses d'allongement (madd) : alif, waw, ya. */
     private val ALLONGEMENT = charArrayOf('ا', 'و', 'ي')

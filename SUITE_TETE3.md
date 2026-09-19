@@ -285,3 +285,58 @@ et reçoit déjà les équivalences orthographiques de la riwaya courante par
   du rapport de PC A sont une annonce de ce rapport, pas une mesure faite ici.
 - Le chemin reste derrière le marqueur de debug `files/vote_fenetres_actif` :
   rien ne change pour un utilisateur de l'APK de production.
+
+> ### ⚠️ CORRECTIF DU 15/09 AU SOIR — CES CHIFFRES SUR LA TÊTE 3 SONT CADUQUES
+>
+> Codex a trouvé, le même jour, que la tête 3 ne recevait **pas les bons
+> jetons** : l'aligneur utilise un dictionnaire + découpage glouton, son
+> entraînement utilisait SentencePiece BPE (`وَإِنْ` → `[393, 959]` attendu
+> contre `[4, 615, 959]` fourni). Les 12 caractéristiques étaient donc
+> calculées sur une segmentation fausse — cf.
+> `CORRECTION_TOKENISATION_TETE3_JVM_20260915.md`.
+>
+> Tout ce qui suit concernant la **tête 3** a été mesuré avec ces entrées
+> fausses, et notamment les quatre faux positifs cités en exemple, qui
+> disparaissent une fois corrigés. Rejeu avec les bonnes entrées, sur 10 cas
+> (103 mutations, 534 mots corrects) : la tête 3 détecte **autant** que le vote
+> seul (69/103 dans les deux cas) et n'ajoute plus que 2 faux — elle est
+> **neutre**, ni utile ni nuisible.
+>
+> Ce qui reste valable, parce que cela ne dépend pas d'elle : le coût du vote,
+> le décrochage sur audio correct, et le décalage d'index de la fiche.
+>
+> Diagnostic complet et suite : `TACHE_CODEX_ALIGNEMENT_PLAFOND_20260915.md`.
+
+### MESURÉ LE MÊME JOUR — et le verdict est négatif
+
+Les trois réserves ci-dessus ont été levées en partie l'après-midi même, par
+la campagne en paliers (`benchmark/CAMPAGNE_PALIERS_20260915.md`, 8 cas,
+195 erreurs sur 1 113 mots, Samsung, Hafs). Trois configurations, mêmes WAV,
+même modèle.
+
+| | fautes détectées | faux signalements |
+|---|---|---|
+| ni vote ni tête 3 | 52 | 25 |
+| vote seul | 68 | 73 |
+| vote + tête 3 | 69 | 76 |
+
+**La tête 3 en décision n'apporte rien : +1 détection, +3 faux.** Au palier
+10 % — le seul où les trois configurations jugent exactement le même nombre de
+mots (237), donc le seul strictement comparable — elle ne change **rien du
+tout** (57 % de rappel, 9,3 % de faux, avec et sans elle).
+
+⚠️ **Une hypothèse intermédiaire a été réfutée, et elle doit rester écrite.**
+On l'avait d'abord accusée de porter les faux signalements, parce que 18 de ses
+21 interventions portent sur un mot correct. C'est exact et sans effet : ces
+mots étaient **déjà** signalés par le vote texte. Elle ne fait presque que
+confirmer, dans un sens comme dans l'autre. Le coût vient du vote, pas d'elle.
+
+Conséquence appliquée : la tête 3 a désormais **son propre marqueur**
+(`files/tete3_decision_actif`), séparé de celui du vote, et elle est **éteinte
+par défaut**. Sans cette séparation, la question « lequel des deux porte le
+gain » n'avait pas de réponse mesurable — c'est ce qui manquait au §7.
+
+Ce que cela ne dit pas : rien sur Warsh (aucune source Warsh dans ce banc),
+rien sur un seuil calibré (ceux de PC A sont établis sur des mots isolés d'un
+cache d'entraînement, pas sur la règle multi-fenêtres qui décide), rien sur de
+la vraie récitation humaine (montage synthétique).

@@ -412,3 +412,66 @@ accepte le gabarit. Le checkpoint est conservé
 la tête CTC greffée n'utilise que `nn.CTCLoss` (aucun warprnnt/NVVM), et le
 fine-tuning fonctionne. Seule la performance justifie l'écart, pas la
 faisabilité technique.
+
+## 2026-09-15 — Vote entre fenêtres et tête 3 en décision : ce que chacun coûte
+
+Premier banc du projet qui **sépare** le vote entre fenêtres de la tête 3 en
+décision (jusque-là un seul marqueur activait les deux, donc inséparables).
+Trois configurations, mêmes WAV, même manifeste, **même modèle** — seuls les
+fichiers de code diffèrent entre `chantier-warsh` et `Astra`.
+
+Banc : `campagne_paliers_20260915`, 8 cas, 31 min, **195 erreurs sur
+1 113 mots** réparties en paliers de densité (40/20/10/0 %), Hafs.
+Détail complet, protocole et empreintes d'APK : `CAMPAGNE_PALIERS_20260915.md`.
+
+> ### ⚠️ CORRECTIF DU 15/09 AU SOIR — CES CHIFFRES SUR LA TÊTE 3 SONT CADUQUES
+>
+> Codex a trouvé, le même jour, que la tête 3 ne recevait **pas les bons
+> jetons** : l'aligneur utilise un dictionnaire + découpage glouton, son
+> entraînement utilisait SentencePiece BPE (`وَإِنْ` → `[393, 959]` attendu
+> contre `[4, 615, 959]` fourni). Les 12 caractéristiques étaient donc
+> calculées sur une segmentation fausse — cf.
+> `CORRECTION_TOKENISATION_TETE3_JVM_20260915.md`.
+>
+> Tout ce qui suit concernant la **tête 3** a été mesuré avec ces entrées
+> fausses, et notamment les quatre faux positifs cités en exemple, qui
+> disparaissent une fois corrigés. Rejeu avec les bonnes entrées, sur 10 cas
+> (103 mutations, 534 mots corrects) : la tête 3 détecte **autant** que le vote
+> seul (69/103 dans les deux cas) et n'ajoute plus que 2 faux — elle est
+> **neutre**, ni utile ni nuisible.
+>
+> Ce qui reste valable, parce que cela ne dépend pas d'elle : le coût du vote,
+> le décrochage sur audio correct, et le décalage d'index de la fiche.
+>
+> Diagnostic complet et suite : `TACHE_CODEX_ALIGNEMENT_PLAFOND_20260915.md`.
+
+| palier | témoin (ni vote ni tête 3) | vote seul | vote + tête 3 |
+|---|---|---|---|
+| 40 % | 51 % · 13,2 % | 68 % · 27,7 % | 68 % · 29,2 % |
+| 20 % | 51 % · 5,8 % | 55 % · 11,3 % | 57 % · 13,8 % |
+| **10 %** | **39 % · 3,3 %** | **57 % · 9,3 %** | **57 % · 9,3 %** |
+| 0 % témoin | — · 0,0 % | — · 15,5 % | — · 11,9 % |
+
+*(rappel · faux signalements ; total : 52/25, 68/73, 69/76 fautes détectées /
+faux signalements)*
+
+1. **La tête 3 n'apporte rien** : +1 détection, +3 faux. Au palier 10 %, le
+   seul où les trois jugent le même nombre de mots (237), elle ne change
+   **rien** (57 % · 9,3 % avec et sans). L'hypothèse qu'elle portait les faux
+   signalements — 18 de ses 21 interventions visent un mot correct — est
+   **réfutée** : ces mots étaient déjà signalés par le vote.
+2. **Le vote porte le gain ET le coût** : +18 pts de détection à 10 %, mais les
+   faux signalements passent de 3,3 % à 9,3 %. Globalement **16 fautes de plus
+   pour 48 faux de plus — une détection gagnée coûte trois accusations
+   fausses.** Il apporte en revanche une robustesse réelle : deux cas vont au
+   bout avec lui et décrochent sans lui.
+3. **Un témoin sans aucune erreur décroche** et demande une répétition. Cause :
+   un fragment de mot au bord de fenêtre (`لب` pour `لَّـٰبِثِينَ`) compte
+   « hors texte ». **Antérieur au vote** : 18 des 30 décrochages `horsTexte` de
+   `dense30` (14/09, sans vote) ont la même signature.
+4. Les seuils calibrés reçus de PC A le même jour (Hafs −2,222, Warsh +3,099)
+   sont établis sur des **mots isolés** d'un cache d'entraînement, pas sur la
+   règle multi-fenêtres qui décide. Non activés.
+
+⇒ Décision : tête 3 éteinte par défaut derrière son propre marqueur
+(`files/tete3_decision_actif`) ; vote non activable en l'état.

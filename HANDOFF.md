@@ -1,5 +1,112 @@
 # Passation de contexte entre agents/machines (Windows ↔ Ubuntu)
 
+## 2026-09-17 — la GRAPHIE DE LIAISON, cause de faux signalements jamais vue
+
+Analyse mot par mot des 58 faux du banc d'erreurs reelles, sans hypothese de
+depart. Une propriete separe nettement : un mot a **shadda initiale** est
+faussement signale dans **28,6 %** des cas contre **7,0 %** ailleurs.
+
+Cause : en arabe coranique la shadda sur la PREMIERE lettre note un idgham
+avec le mot PRECEDENT (`مِن مَّا`). Elle n'appartient pas au mot ; le modele
+transcrit `مَا` et il a raison phonetiquement. L'app comparait une graphie de
+LIAISON a une transcription de PRONONCIATION -- et condamnait le recitateur
+pour avoir applique correctement le tajwid.
+
+Corrige dans `Orthographe` (famille 11, premiere lettre uniquement) et, pour
+les finales assimilees, dans `Orthographe.variantesLiaison` appelee depuis
+`Decideur` -- conditionnee au mot SUIVANT, car une finale absente sans regle
+reste une faute.
+
+Mesure : faux **8,1 % -> 7,3 %** (vote), **2,0 % -> 1,8 %** (historique),
+detection **inchangee a 68 %**, et les 682 mots hors cible strictement
+identiques. L'idgham en fin de mot, lui, n'a rendu qu'UN faux : il etait
+correle aux faux sans en etre la cause -- lecon de methode notee dans le
+document.
+
+Detail : [FAUX_SIGNALEMENTS_GRAPHIE_DE_LIAISON_20260917.md](benchmark/FAUX_SIGNALEMENTS_GRAPHIE_DE_LIAISON_20260917.md).
+
+**Tete 3 Hafs v2** (recue de PC A le 17/09, split par groupe, 99,29 % en test
+isole) : mesuree **neutre** dans la chaine (54/80 et memes faux que le vote
+seul), et **nuisible avec son seuil -1,782** (+19 faux, 0 detection). Le seuil
+est donc lu mais DESACTIVE par defaut (`-DseuilTete3=true` pour mesurer) : un
+seuil calibre sur des mots ISOLES ne transfere pas a une regle qui agrege 2-3
+fenetres par mot.
+
+## 2026-09-15 (soir) — le plafond est dans l'ALIGNEMENT
+
+Objectif utilisateur : 80 % de detection, moins de 5 % de faux. Mesure apres la
+correction de tokenisation de Codex, 10 cas rejoues hors device (103 mutations,
+534 mots corrects) : **67 % / 9,2 %**.
+
+Fait etabli : sur les **57 fautes ratees, AUCUNE n'etait alignee sur l'audio
+modifie** (37 a moins de 25 % de recouvrement, 0 au-dessus de 75 %). Elles ne
+sont pas inaudibles -- la chaine lisait l'audio du voisin, intact. Cause :
+l'alignement force n'a pas d'option « absent », il doit placer tous les mots et
+redistribue les frames. Le meme defaut produit 60 des 78 faux signalements
+(19 cas ou le debut manquant se retrouve dans la lecture du voisin). C'est aussi
+la cause du decrochage sur audio correct : **un defaut, trois symptomes**.
+
+Six pistes testees, cinq mortes (marge de lettres, `couvert`, tous fragments,
+gop, duree) -- chiffres dans le document, ne pas les refaire. Seule retenue et
+implementee : une lecture ENTIERE ecarte les lectures en suffixe du meme mot
+(vote 55 -> 48 faux, detection inchangee).
+
+Verdict revise sur la tete 3, avec les bons jetons : elle est **neutre** (meme
+detection que le vote seul, +2 faux), ni utile ni nuisible. Les chiffres
+anterieurs qui la disaient nuisible sont caduques ; les documents concernes
+portent un correctif en tete.
+
+Diagnostic, pistes et commandes de reproduction :
+[TACHE_CODEX_ALIGNEMENT_PLAFOND_20260915.md](benchmark/TACHE_CODEX_ALIGNEMENT_PLAFOND_20260915.md).
+⚠️ La suite de tests complete n'a pas ete relancee apres le changement du
+`Decideur`, et rien n'est commite.
+
+## 2026-09-15 — correction Codex mesuree sur JVM (apres la campagne Claude)
+
+Cause confirmee : le lookup/glouton de l'aligneur donnait a la tete 3 des
+tokens differents du SentencePiece d'entrainement. Nouveau tokeniseur T3
+Hafs/Warsh separe, parite 606 342/606 342 textes (normalisation et ids).
+Autre correction : le vote ignore uniquement la kashida decorative U+0640.
+Sur T805 en flux natif ONNX : faux rouges 10/200 -> 5/200, mutations signalees
+11/20 -> 11/20. Gain de precision, pas de rappel prouve. T023/T005 conserves.
+Le vote et la tete restent experimentaux : faux rouges restants et decrochage
+T807 a 18,16 s. Aucun changement de seuil ou activation de marqueur.
+
+Preuves, limites, prochaines investigations et commande de replay sans
+telephone : [CORRECTION_TOKENISATION_TETE3_JVM_20260915.md](benchmark/CORRECTION_TOKENISATION_TETE3_JVM_20260915.md).
+Les anciennes sorties sont conservees dans
+`benchmark/replay_chaine_jvm_20260915_avant_kashida/`.
+
+## Actualisation 2026-09-15 : vote entre fenetres, deux tetes 3, et trois mesures
+
+Branche **`Astra`** (partie de `chantier-warsh`, commit `6bbf5b0`). Le vote
+entre fenetres et les deux tetes 3 (Hafs + Warsh) sont branches dans la
+decision, derriere des marqueurs de debug — **rien ne change pour l'APK de
+production**.
+
+Ce qui est ACQUIS et teste : une `Politique` par riwaya dans `JugementTete3`
+(la riwaya choisit un fichier de poids, jamais une regle), controle croise des
+empreintes, et parite Warsh fermee sur de la **vraie recitation**. 134 tests
+`recitation2`.
+
+Ce qui est MESURE sur Samsung (3 configurations, memes WAV, meme modele —
+`benchmark/CAMPAGNE_PALIERS_20260915.md`) :
+- **la tete 3 en decision n'apporte rien** (+1 detection, +3 faux ; aucun
+  effet au palier ou la comparaison est stricte) → **eteinte par defaut**,
+  marqueur propre `files/tete3_decision_actif` ;
+- **le vote porte le gain ET le cout** : +18 pts de detection, mais une
+  detection gagnee coute trois accusations fausses → **non activable en
+  l'etat** ;
+- **un temoin sans aucune erreur decroche** — fragment de mot au bord de
+  fenetre pris pour du hors-texte, defaut **anterieur au vote** (18 des 30
+  decrochages `horsTexte` de dense30 le 14/09). Cf. `PROBLEMATIQUES_ASR.md`.
+
+Deux correctifs identifies et **non appliques**, ils touchent la chaine de
+decision et doivent etre arbitres : le fragment de bord ci-dessus, et le
+decalage d'index de la fiche « Reessayer ce mot » (elle fait redire un mot qui
+n'est pas celui signale ; **le jugement n'est pas touche**, verifie sur
+2 282 verdicts, 0 discordance).
+
 ## Actualisation ChGPT, 2026-09-13 : ouverture sans icone centree
 
 Nouvelle demande utilisateur : retirer l'icone avant la couverture. Checkpoint

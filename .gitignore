@@ -92,4 +92,6 @@ graphify-out/*
 # l'etat precedent, en mieux.
 benchmark/.timings_cache/
 benchmark/word_timings_ref.json
+!app/android/app/src/main/assets/tokenizers_tete3/*.bin
+benchmark/parite_tokenizer_tete3_*.jsonl
 benchmark/recettes/

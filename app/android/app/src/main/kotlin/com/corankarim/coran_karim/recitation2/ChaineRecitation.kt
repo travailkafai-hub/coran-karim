@@ -399,6 +399,10 @@ class ChaineRecitation(
     private val tete3Comparaison: Tete3? = null,
     /** Tete Hafs verifiee reservee au jugement experimental par occurrence. */
     private val tete3Jugement: Tete3? = null,
+    /** SentencePiece d'entrainement, separe des tokens imposes a l'aligneur.
+     * Cause mesuree T805 (15/09/2026) : lookup/glouton produit quatre faux
+     * ecarts T3 sur des mots corrects. Null conserve les anciens bancs. */
+    private val tokeniserTete3: ((String) -> IntArray)? = null,
     /**
      * CLOISONNEMENT CTL/REF (2026-08-05). Le mecanisme SAUT REFUSE (cf. plus
      * bas dans [traiter]) est correct pour la recitation NORMALE : c'est la
@@ -574,6 +578,7 @@ class ChaineRecitation(
      *  (premiere occurrence contre toutes, quatre harakat contre sept) : les
      *  melanger rendrait `alt` et `alt2` faux sans rien signaler. */
     private var confusionsTete3: List<List<IntArray>> = emptyList()
+    private var tokensTete3: List<IntArray> = emptyList()
     private val registre = RegistreDePreuves()
     private var statutsCourants: Map<Int, Statut> = emptyMap()
 
@@ -874,6 +879,7 @@ class ChaineRecitation(
         confusionsLettresAttendues = emptyList()
         confusionsHarakatAttendues = emptyList()
         confusionsTete3 = emptyList()
+        tokensTete3 = emptyList()
         decideur.reinitialiser()
         dernierDefinitif = -1
         dernierAttesteVu = -1
@@ -955,8 +961,9 @@ class ChaineRecitation(
         // PAS les tokenisations vides comme au-dessus -- le Python n'en ecarte
         // aucune, et une liste plus courte donnerait un autre `alt2`.
         if (tete3 != null || tete3Jugement != null) {
+            tokensTete3 = tokensTete3 + mots.map(tokeniserTete3 ?: tokeniser)
             confusionsTete3 = confusionsTete3 + mots.map { m ->
-                ConfusionsRecitation.variantes(m).map(tokeniserConfusion)
+                ConfusionsRecitation.variantes(m).map(tokeniserTete3 ?: tokeniserConfusion)
             }
         }
         journal?.invoke(
@@ -2432,7 +2439,7 @@ class ChaineRecitation(
         m: AligneurForce.MotAligne, etat: Array<FloatArray>, logp: Array<FloatArray>,
     ): FloatArray? {
         if (m.frames <= 0) return null
-        val tokens = tokensAttendus.getOrNull(m.index) ?: return null
+        val tokens = tokensTete3.getOrNull(m.index) ?: return null
         if (tokens.isEmpty()) return null
         val variantes = confusionsTete3.getOrNull(m.index) ?: return null
 

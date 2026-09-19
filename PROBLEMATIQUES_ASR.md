@@ -910,3 +910,52 @@ deux, plutôt que vers les données.
 
 Piste non explorée : le récitateur qui RÉPÈTE (cf. `FONCTIONNALITES_FUTURES.md`)
 — sans objet sur ce banc (audio linéaire), mais défaut réel en usage humain.
+
+## 2026-09-15 — Le décrochage sur un audio SANS AUCUNE ERREUR : un fragment de bord
+
+Trouvé par la campagne en paliers (`benchmark/CAMPAGNE_PALIERS_20260915.md`)
+grâce à ses **témoins à 0 %** — c'est le seul type de cas qui permet de le
+voir. T807 ne contient pas une seule erreur injectée, et l'app demande quand
+même une répétition.
+
+```
+f=10 verif encoreEnCours : prochains=[كانت, مرصادا, للطغين, مابا, لبثين, فيها]
+     entenduNorm="لب" -> false
+f=10 horsTexte : fenetresHorsTexte=3 fenetresAvantDecrochage=3
+f=10 DECROCHAGE : 3 fenetres hors texte, dernier entendu="لَّـٰبِ"
+```
+
+Le récitateur est **dans le texte**. La fenêtre a capté `لَّـٰبِ`, le début de
+`لَّـٰبِثِينَ` (78:23) coupé au bord de fenêtre — et ce mot figure dans les
+attendus (`لبثين`). Le test de `ChaineRecitation` demande qu'un mot attendu
+tienne **entier** dans l'entendu :
+
+```kotlin
+val encoreEnCours = prochains.any { it.length >= 2 && entenduNorm.contains(it) }
+```
+
+Quand la fenêtre coupe au milieu d'un mot, c'est l'inverse qui est vrai :
+l'entendu est un **morceau** de l'attendu. Le test échoue, la fenêtre compte
+hors texte, et `fenetresAvantDecrochage = 3` suffit.
+
+**Ce n'est PAS un effet du vote ni de la tête 3** : dans
+`campagne_100x20_dense30` du 14/09, qui tournait sans l'un ni l'autre,
+**18 des 30 décrochages `horsTexte`** ont la même signature — dont T007 et T017
+au même mot, avec exactement le même `entenduNorm="لب"`.
+
+⚠️ Tous ne sont pas des DÉBUTS de mot : `entendu="ساء"` contre `والسماء` est
+une **fin**. La règle à corriger est donc « accepter le fragment », pas
+« accepter le préfixe » — une correction qui ne traiterait que le préfixe
+laisserait une partie des cas debout.
+
+Deux pistes, non tranchées (le correctif touche la chaîne de décision, il doit
+être arbitré) :
+1. **Accepter le fragment** — traite la cause exacte. Effet de bord à mesurer :
+   le garde devient plus permissif, un vrai décrochage serait vu plus tard.
+2. **Ne pas compter les aperçus** — la fenêtre fautive porte `apercu=true`, et
+   le graphe porte déjà `piege_verrou_sur_apercu`. Question plus profonde :
+   un aperçu doit-il peser sur une demande de répétition ?
+
+Pourquoi ces 18 cas de la veille étaient passés inaperçus : dans une campagne
+où **chaque** cas porte des fautes, un décrochage se range sous « normal, il y
+avait des erreurs ». Sans témoin propre, la cause reste invisible.

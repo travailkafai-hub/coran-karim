@@ -1838,9 +1838,48 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                         }
                     }
                 } else null
+                // ── LA TETE 3 EXIGE SON PROPRE MARQUEUR (2026-09-15) ────────
+                //
+                // Elle etait liee au marqueur du vote, ce qui rendait les deux
+                // INSEPARABLES : impossible de savoir lequel portait le gain et
+                // lequel portait les faux. La campagne en paliers du jour a
+                // rendu la question urgente -- 18 des 21 fois ou cette tete
+                // contredit le vote texte, elle le fait sur un mot CORRECT, et
+                // sur un temoin sans aucune erreur elle intervient 5 fois pour
+                // 5 erreurs. Separer les deux drapeaux est ce qui permet de
+                // mesurer le vote seul.
+                //
+                // Par defaut ELLE NE DECIDE PLUS : le marqueur doit etre pose
+                // explicitement. C'est le sens de la mesure -- une tete non
+                // calibree qui degrade la decision ne doit pas s'activer parce
+                // qu'un autre banc a ete allume.
+                val tete3Decide = voteActif && appContext?.filesDir?.let {
+                    java.io.File(it, "tete3_decision_actif").isFile
+                } == true
+                // La parite du MLP ne verifiait pas les ids fournis par l'app.
+                // T805 : quatre faux rouges viennent du lookup/glouton, et
+                // disparaissent sur les memes tenseurs avec le BPE Python.
+                // Le tokeniseur de l'aligneur reste inchange. En cas de pack
+                // incompatible, aucune tete de decision ne recoit le repli.
+                val tkTete3 = try {
+                    val riwaya = politiqueTete3.riwaya
+                    val assets = appContext!!.assets
+                    com.corankarim.coran_karim.recitation2.TokeniseurBpeTete3.charger(
+                        assets.open("tokenizers_tete3/$riwaya.json").bufferedReader().use { it.readText() },
+                        assets.open("tokenizers_tete3/$riwaya.normalizer.bin").use { it.readBytes() },
+                        moteur.vocabPieces,
+                    ).also {
+                        DiagnosticLog.log(TAG, "[t3-tokenizer] source=SENTENCEPIECE_BPE_V1 " +
+                            "riwaya=$riwaya sha256=${it.modeleSha256}")
+                    }
+                } catch (e: Exception) {
+                    DiagnosticLog.log(TAG, "[t3-tokenizer] decision=false " +
+                        "observation=LEGACY_LOOKUP erreur=${e.message}")
+                    null
+                }
                 // Nouveau paquet explicitement identifie. La copie de comparaison
                 // externe ne peut jamais se substituer a la tete de decision.
-                val teteDecision = if (voteActif) try {
+                val teteDecision = if (tete3Decide && tkTete3 != null) try {
                     val bytes = appContext!!.assets.open(politiqueTete3.asset)
                         .use { it.readBytes() }
                     com.corankarim.coran_karim.recitation2.JugementTete3
@@ -1855,7 +1894,18 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     DiagnosticLog.log(TAG, "[t3-decision-modele] " +
                         "riwaya=${politiqueTete3.riwaya} active=false erreur=${e.message}")
                     null
-                } else null
+                } else {
+                    // Le dire, meme quand il n'y a rien a charger : sans cette
+                    // ligne, « la tete n'a pas juge » et « la tete n'existait
+                    // pas » seraient indiscernables dans le journal -- le
+                    // « zero trace = zero execution » deja paye sur le secours.
+                    DiagnosticLog.log(TAG, "[t3-decision-modele] " +
+                        "riwaya=${politiqueTete3.riwaya} active=false " +
+                        "raison=" + (if (tkTete3 == null) "tokenizer_incompatible"
+                                     else if (!voteActif) "vote_inactif"
+                                     else "marqueur_tete3_decision_actif_absent"))
+                    null
+                }
                 chaine = com.corankarim.coran_karim.recitation2.ChaineRecitation(
                     // Le Decideur recoit LES MEMES `nonJugeables` que la
                     // chaine : sans eux, il declarait `Omis` tout ce qui
@@ -1974,6 +2024,7 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     tete3 = tete3PourRiwaya(moteur),
                     tete3Comparaison = teteComparee,
                     tete3Jugement = teteDecision,
+                    tokeniserTete3 = tkTete3?.let { t -> { mot: String -> t.tokeniser(mot) } },
                     // v1 de la MESURE du vote, pas une nouvelle decision.
                     // Hafs debug seulement ; les modeles et verdicts restent
                     // ceux de la campagne temoin, pour mesurer chaque lecture.

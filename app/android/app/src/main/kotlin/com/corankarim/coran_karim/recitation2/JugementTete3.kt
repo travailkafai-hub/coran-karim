@@ -80,6 +80,35 @@ object JugementTete3 {
         // Le regroupement temporel est celui du vote texte : aucune seconde
         // logique de position, aucun max pris sur un silence ou un autre son.
         val uniques = observations.associateBy { it.fenetreId }
+        // FRONTIERE = LE SEUIL MESURE, quand la tete en porte un (2026-09-17).
+        // `Tete3.Mesure` transporte `seuil2Pct` depuis toujours ; personne ne le
+        // lisait, et la frontiere brute 0 etait appliquee a toutes les tetes.
+        // C'etait sans consequence tant qu'aucune tete calibree n'existait --
+        // `tete3_hafs_v2` est la premiere. Sans ce branchement, elle serait
+        // mesuree BRIDEE dans l'ancienne politique, et son seuil (-1,782) ne
+        // servirait a rien. `Tete3.kt` previent d'ailleurs explicitement :
+        // « une calibration absente n'est PAS un seuil de zero » -- l'inverse
+        // vaut aussi, un seuil present n'est pas zero non plus.
+        //
+        // ⚠️ MESURE DU 17/09 : ACTIVER CE SEUIL DEGRADE. Sur les paliers
+        // 0/20/40 %, avec `tete3_hafs_v2` et son seuil -1,782 :
+        //     frontiere 0      -> 83/130 detectees, 57 faux
+        //     seuil -1,782     -> 83/130 detectees, 76 faux  (+19, 0 detection)
+        // et sur le temoin SANS faute, les faux passent de 12,5 % a 18,8 %.
+        // La raison est structurelle : PC A calibre sur des mots ISOLES, la
+        // decision agrege 2 a 3 fenetres par mot avec une moyenne ponderee --
+        // les deux distributions de logits n'ont pas la meme dispersion, donc
+        // le seuil de l'une ne vaut pas pour l'autre. C'est la reserve deja
+        // posee le 15/09 sur les seuils -2,222 / +3,099, et elle est confirmee.
+        //
+        // Le seuil reste donc LU mais DESACTIVE par defaut ; `-DseuilTete3=true`
+        // le rebranche pour mesurer. Ne pas l'activer sans une calibration
+        // faite sur des logits AGREGES, pas sur des clips.
+        val seuil = if (System.getProperty("seuilTete3") == "true")
+            observations.firstNotNullOfOrNull { it.mesureTete3Jugement?.seuil2Pct }
+                ?.takeIf { it.isFinite() } ?: 0f
+        else 0f
+        val frontiere = 1.0 / (1.0 + exp(-seuil.toDouble()))
         val cs = vote.fenetresRetenues.mapNotNull { id ->
             val o = uniques[id] ?: return@mapNotNull null
             val l = o.mesureTete3Jugement?.logit ?: return@mapNotNull null
@@ -90,16 +119,82 @@ object JugementTete3 {
         if (cs.isEmpty()) return Avis(Etat.INDISPONIBLE, null, cs)
         val moyenne = cs.sumOf { it.poids * it.activation } / cs.sumOf { it.poids }
         val etat = when {
-            abs(moyenne - .5) <= 1e-9 -> Etat.DOUTE
-            moyenne < .5 -> Etat.SOUS_FRONTIERE
+            abs(moyenne - frontiere) <= 1e-9 -> Etat.DOUTE
+            moyenne < frontiere -> Etat.SOUS_FRONTIERE
             // Une forte alerte seule peut suspendre le vert, mais il faut au
             // moins deux fenetres favorables a l'ecart pour condamner.
             cs.size != vote.fenetresRetenues.size ||
+                cs.count { it.logit > seuil } < maxOf(2, minimumPreuves) -> Etat.A_CONFIRMER
+            else -> Etat.ECART
+        }
+        return Avis(etat, moyenne, cs)
+    }
+
+    /**
+     * VARIANTE SANS VOTE (2026-09-15) — pour la chaine HISTORIQUE.
+     *
+     * Pourquoi elle existe : [evaluer] itere sur `vote.fenetresRetenues` et
+     * pondere par `lectureVote.confiance.poids`. Ni l'un ni l'autre n'existe
+     * hors du vote, si bien que la question « la tete 3 sert-elle SANS le
+     * vote ? » n'avait aucune reponse mesurable -- alors que la campagne du
+     * 15/09 a montre que le vote coute trois accusations fausses par detection
+     * gagnee, donc qu'on pourrait vouloir la tete sans lui.
+     *
+     * ⚠️ LES FRAGMENTS DE BORD SONT EXCLUS, ET C'EST INDISPENSABLE.
+     * Premiere version de cette fonction : elle gardait TOUTE observation
+     * votante. Mesure du 15/09 sur les archives -- +2 detections pour +30 faux
+     * signalements, et le detail montrait toujours le meme motif :
+     *     mot 14 `رَفَعَهَا`, temoin SANS AUCUNE FAUTE
+     *       f33 entendu "عَهَا"     gop -2,49  logit  +7,81
+     *       f34 entendu "رَفَعَهَا"  gop  0,00  logit  -7,47
+     *       f37 entendu "عَهَا"     gop -2,75  logit  +7,00
+     * La fenetre qui voit le mot ENTIER ne s'alarme pas ; celles qui l'ont
+     * COUPE AU BORD crient. Le vote, lui, ecarte ces lectures
+     * (`fragment_alignement`, `lecture_non_complete`) : il ne masquait donc pas
+     * les erreurs de la tete, il la PROTEGEAIT. Comparer sans ce filtre
+     * mesurait le bord de fenetre, pas la tete.
+     * Meme cause que le decrochage sur audio correct (cf. PROBLEMATIQUES_ASR).
+     *
+     * ⚠️ CE QU'ON PERD MALGRE TOUT. Le regroupement d'occurrence disparait :
+     * deux lectures d'un mot separees de plusieurs secondes sont agregees comme
+     * si elles portaient sur le meme son -- ce que [evaluer] refuse (« aucun max
+     * pris sur un silence ou un autre son », cf. T023). Les poids uniformes sont
+     * le second renoncement : la chaine historique ne mesure aucune confiance.
+     */
+    fun evaluerSansVote(observations: List<RegistreDePreuves.Observation>,
+                        attendu: String, minimumPreuves: Int = 2): Avis {
+        val cible = VoteFenetres.cle(attendu)
+        val votantes = observations.filter {
+            it.interieur && !it.sansCreneau && it.entendu.isNotBlank() &&
+                !estFragment(VoteFenetres.cle(it.entendu), cible)
+        }
+        val cs = votantes.mapNotNull { o ->
+            val l = o.mesureTete3Jugement?.logit ?: return@mapNotNull null
+            if (!l.isFinite()) return@mapNotNull null
+            Contribution(o.fenetreId, l, 1.0 / (1.0 + exp(-l.toDouble())), 1.0)
+        }
+        if (cs.isEmpty()) return Avis(Etat.INDISPONIBLE, null, cs)
+        val moyenne = cs.sumOf { it.activation } / cs.size
+        val etat = when {
+            abs(moyenne - .5) <= 1e-9 -> Etat.DOUTE
+            moyenne < .5 -> Etat.SOUS_FRONTIERE
+            // Meme exigence que [evaluer] : une alerte isolee suspend le vert,
+            // il faut deux fenetres favorables a l'ecart pour condamner. Et
+            // toutes les observations votantes doivent avoir une mesure, sinon
+            // on conclurait sur un sous-ensemble choisi par l'absence.
+            cs.size != votantes.size ||
                 cs.count { it.logit > 0f } < maxOf(2, minimumPreuves) -> Etat.A_CONFIRMER
             else -> Etat.ECART
         }
         return Avis(etat, moyenne, cs)
     }
+
+    /** Un MORCEAU du mot attendu, dans un sens ou dans l'autre -- la fenetre a
+     *  coupe, ou elle a deborde. Une lecture franchement AUTRE n'en est pas un :
+     *  celle-la porte un vrai signal et doit rester. */
+    private fun estFragment(entendu: String, attendu: String): Boolean =
+        entendu != attendu && entendu.isNotEmpty() && attendu.isNotEmpty() &&
+            (attendu.contains(entendu) || entendu.contains(attendu))
 
     /** L'absence d'alerte acoustique n'est pas une preuve de transcription
      * correcte. Elle ne peut effacer ni un rouge texte ni une indecision A/B. */
