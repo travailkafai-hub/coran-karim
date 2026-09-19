@@ -28,6 +28,8 @@ import '../l10n/app_localizations.dart';
 import '../providers/app_settings_provider.dart';
 import '../services/collecte_envoi.dart';
 import '../services/collecte_identite.dart';
+import '../services/collecte_incidents.dart';
+import 'collecte_validation_screen.dart';
 import '../theme/app_theme.dart';
 
 class CollecteConsentementScreen extends ConsumerStatefulWidget {
@@ -125,6 +127,37 @@ class _CollecteConsentementScreenState
                   ),
                 ),
                 if (_accorde!) ...[
+                  // ── LES PASSAGES QUI ATTENDENT VOTRE AVIS (2026-09-19) ──
+                  //
+                  // Rien ne part tant que la personne n'a pas tranche : un
+                  // extrait sans avis n'a pas d'etiquette fiable. Cet acces
+                  // est donc la SEULE porte de sortie des incidents, et il
+                  // affiche leur nombre pour qu'ils ne s'accumulent pas en
+                  // silence.
+                  if (CollecteIncidents.courants.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brass,
+                        foregroundColor: AppColors.green900,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      onPressed: () async {
+                        await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    const CollecteValidationScreen()));
+                        await _charger();
+                      },
+                      icon: const Icon(Icons.rate_review_outlined, size: 18),
+                      label: Text(
+                          '${CollecteIncidents.courants.length} passage(s) '
+                          'a valider',
+                          style: GoogleFonts.manrope(
+                              fontSize: 14, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   SelectableText(
                     t.collecteIdentifiant(_identifiant),

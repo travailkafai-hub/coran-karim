@@ -8,7 +8,7 @@ import '../models/verse.dart' show Verse;
 import '../providers/judgement_provider.dart';
 import '../services/collecte_envoi.dart';
 import '../services/collecte_identite.dart';
-import '../services/collecte_paquet.dart';
+import '../services/collecte_incidents.dart';
 import '../services/diagnostic_log.dart';
 import '../services/quran_api.dart';
 import '../services/quran_verse_locator_service.dart';
@@ -4205,8 +4205,11 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
     }
     try {
       final dir = await VoiceLoraClipService().newRecitationCaptureDir();
-      _dossierCapture = dir;
       await _verifier.setClipCapture(dir);
+      if (await CollecteIdentite.consentement()) {
+        CollecteIncidents.vider();
+        _brancherCollecte();
+      }
     } catch (e) {
       // Le diagnostic ne doit JAMAIS empêcher une récitation de démarrer.
       DiagnosticLog.log('ASR', 'capture WAV indisponible : $e');
@@ -6325,44 +6328,36 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
 
   /// Stop manuel (bouton rouge). Change le statut immédiatement en "processing"
   /// → l'UI reste réactive pendant que l'inférence tourne dans compute().
-  /// Dossier de la capture en cours, retenu pour la collecte (cf.
-  /// `_deposerPourCollecte`). `null` quand la capture est eteinte.
-  String? _dossierCapture;
-
-  /// Met la session qui vient de finir dans la file d'envoi, si — et seulement
-  /// si — la personne a donne son accord.
+  /// ── LA COLLECTE ECOUTE UN FLUX QUE RIEN D'AUTRE NE CONSOMME ───────────
   ///
-  /// Tout echec est avale : une collecte qui ferait remonter une erreur a
-  /// l'ecran serait pire que pas de collecte du tout.
-  Future<void> _deposerPourCollecte() async {
-    final dossier = _dossierCapture;
-    _dossierCapture = null;
-    if (dossier == null) return;
-    try {
-      if (!await CollecteIdentite.consentement()) return;
-      final mots = state.words;
-      if (mots.isEmpty) return;
-      // Metadonnees volontairement MINIMALES : ce notifier n'est pas un
-      // `ConsumerStateNotifier` et n'a pas de `ref`, et `RecitedWord` ne porte
-      // pas le numero de sourate. Plutot que de faire remonter tout cela a
-      // travers la chaine pour un confort de collecte, on envoie ce qu'on a
-      // SUREMENT -- le texte attendu mot a mot est dans l'archive, il suffit a
-      // retrouver le passage hors appareil.
-      final archive = await CollectePaquet.construire(
-        dossierCapture: dossier,
-        mots: mots,
-        sourate: 0,
-        premierVerset: 0,
-        riwaya: '',
-        modele: '',
-        build: DiagnosticLog.buildTag,
-      );
-      if (archive == null) return;
-      await CollecteEnvoi.mettreEnFile(archive);
-      unawaited(CollecteEnvoi.viderLaFile());
-    } catch (e) {
-      DiagnosticLog.log('Collecte', 'depot impossible : $e');
-    }
+  /// `alignedWords` porte le clip du segment ET les bornes de chaque mot
+  /// (`firstFrame`/`lastFrame`) : tout ce qu'il faut pour extraire le mot
+  /// signale et ses deux voisins. Verifie avant de s'y brancher : AUCUN autre
+  /// `listen` n'existe sur ce flux dans l'application -- la chaine qui peint
+  /// l'ecran passe par un autre canal. C'est donc une derivation, jamais une
+  /// interception : elle ne peut ni retarder ni modifier un jugement.
+  StreamSubscription? _collecteSub;
+
+  void _brancherCollecte() {
+    _collecteSub?.cancel();
+    _collecteSub = _verifier.alignedWords.listen((payload) {
+      try {
+        CollecteIncidents.observer(
+          payload,
+          // Le service ne connait pas les couleurs : le provider, si.
+          estSignale: (i) {
+            if (i < 0 || i >= state.words.length) return false;
+            final st = state.words[i].status;
+            return st == WordStatus.error || st == WordStatus.unclear;
+          },
+          motAttendu: (i) => (i < 0 || i >= state.words.length)
+              ? null
+              : state.words[i].display,
+        );
+      } catch (_) {
+        // La collecte ne doit jamais perturber une recitation en cours.
+      }
+    });
   }
 
   Future<void> stop() async {
@@ -6404,7 +6399,12 @@ class RecitationNotifier extends StateNotifier<RecitationSessionState> {
       // Cette methode ne depose RIEN tant qu'il n'y a pas de consentement ET
       // de cle publique (cf. CollecteEnvoi.mettreEnFile) : aujourd'hui la cle
       // est vide, donc cet appel est inerte.
-      unawaited(_deposerPourCollecte());
+      _collecteSub?.cancel();
+      _collecteSub = null;
+      // RIEN N'EST DEPOSE ICI. Les incidents restent en memoire jusqu'a ce que
+      // la personne se prononce (`CollecteIncidents.courants`) : un extrait
+      // sans avis n'a pas d'etiquette fiable, donc il ne vaut pas mieux qu'un
+      // enregistrement brut -- exactement ce qu'on a cesse d'envoyer.
       _stopping = false;
       if (state.status != RecitationStatus.finished) {
         state = state.copyWith(status: RecitationStatus.finished);

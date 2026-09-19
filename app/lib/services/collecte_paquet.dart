@@ -1,113 +1,109 @@
-// Ce qu'on envoie, et sous quelle forme.
+// Ce qui part : des extraits directement utilisables à l'entraînement.
 //
-// ── UN PAQUET = UNE SESSION ──────────────────────────────────────────────
+// ── UNE ARCHIVE = PLUSIEURS INCIDENTS D'UNE MÊME SÉANCE ─────────────────
 //
-// Archive ZIP, puis chiffrée (cf. collecte_chiffrement.dart) :
+//     manifest.jsonl    une ligne par extrait, format NeMo
+//     diagnostic.json   verdicts, avis de la personne, versions
+//     extrait_<n>.wav   le mot signalé et ses deux voisins (~3,9 s)
 //
-//     session.json    verdicts mot par mot, texte attendu, versions
-//     audio.wav       le flux de la session
-//     journal.log     la trace de la chaîne, si elle existe
+// `manifest.jsonl` est écrit AU FORMAT D'ENTRAÎNEMENT, pas dans un format
+// maison à convertir plus tard :
 //
-// Le ZIP compresse déjà (deflate). Mesuré sur un WAV réel de l'appareil :
-// 120 364 -> 60 737 octets, soit 50 % — exactement le gain qu'on attendait du
-// FLAC, sans dépendance ni perte. Le FLAC a donc été retiré du plan.
+//     {"audio_filepath": "extrait_0.wav", "text": "…", "duration": 3.87}
 //
-// ── POURQUOI L'AUDIO ENTIER ET PAS LES SEGMENTS SIGNALÉS ─────────────────
+// C'est la demande : « on aura tout pour directement l'intégrer à
+// l'entraînement ». Un format intermédiaire obligerait à écrire un convertisseur
+// — et à le maintenir d'accord avec ce fichier, ce qui finit toujours par ne
+// plus l'être.
 //
-// Le plan visait les seuls segments autour des mots signalés : dix fois moins
-// de données, et l'essentiel de l'information. C'est toujours la bonne cible.
+// ── CE QUI DÉCIDE DE CE QUI PART ────────────────────────────────────────
 //
-// CE QUI L'EMPÊCHE AUJOURD'HUI, et il faut le dire précisément : découper
-// suppose de savoir OÙ un mot se trouve dans le flux. Or `AlignedWord` porte
-// `gop`, `forced`, le nombre de frames articulées — mais AUCUN offset absolu.
-// L'information existe côté Kotlin (les observations portent `debut`/`fin` en
-// échantillons) ; elle ne remonte simplement pas jusqu'à Dart.
+// Seuls les incidents sur lesquels la personne s'est prononcée. Un incident
+// sans avis n'a pas d'étiquette fiable : il vaut un enregistrement brut, c'est
+// -à-dire ce qu'on cherchait justement à ne plus envoyer.
 //
-// La faire remonter est une modification de la chaîne de récitation, donc
-// soumise à validation (règle projet). On livre en attendant l'audio entier,
-// et on assume les conséquences :
-//
-//     volume        ~5 Mo pour 5 min au lieu de ~500 Ko
-//     10 Go gratuits ~2 000 sessions au lieu de ~20 000
-//     sensibilité   toute la récitation part, pas seulement les passages douteux
-//
-// ⇒ Tâche identifiée pour plus tard : remonter l'offset de chaque mot, puis
-// ne garder que `[debut - marge, fin + marge]` des mots signalés. Le reste de
-// la chaîne d'envoi n'aura pas à changer.
+// ⚠️ LA DISTINCTION QUI COMPTE À L'ENTRAÎNEMENT. `appSeTrompe` donne un
+// exemple SÛR : le texte attendu est bien ce qui a été prononcé, puisque la
+// personne dit que sa récitation était juste. `fauteReelle` donne un extrait
+// dont on ignore le contenu réel — il est marqué `a_annoter`, et le manifeste
+// ne le porte PAS : l'entraîner sur le texte attendu apprendrait au modèle à
+// lire une faute comme si elle était correcte.
 
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 
-import '../models/recitation_state.dart';
+import 'collecte_extrait.dart';
+import 'collecte_incidents.dart';
 
 class CollectePaquet {
-  /// Construit l'archive d'une session. Rend `null` s'il n'y a rien d'utile à
-  /// envoyer — un paquet sans audio ne sert à personne.
-  ///
-  /// [dossierCapture] contient le `stream_*.wav` écrit par la chaîne.
+  /// Rend `null` s'il n'y a rien à envoyer.
   static Future<Uint8List?> construire({
-    required String dossierCapture,
-    required List<RecitedWord> mots,
-    required int sourate,
-    required int premierVerset,
-    required String riwaya,
-    required String modele,
+    required List<Incident> incidents,
     required String build,
-    File? journal,
   }) async {
-    final dir = Directory(dossierCapture);
-    if (!dir.existsSync()) return null;
+    final retenus = incidents.where((i) => i.avis != null).toList();
+    if (retenus.isEmpty) return null;
 
-    final wavs = dir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.wav'))
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
-    if (wavs.isEmpty) return null;
+    final archive = Archive();
+    final manifeste = StringBuffer();
+    final diagnostic = <Map<String, dynamic>>[];
+    var n = 0;
 
-    // Le texte attendu et le verdict de chaque mot. `heard` est ce que le
-    // modèle a réellement lu : c'est la colonne qui permet, hors appareil, de
-    // distinguer une faute de récitation d'un défaut de la chaîne.
-    final session = <String, dynamic>{
-      'schema': 1,
-      'horodatage': DateTime.now().toUtc().toIso8601String(),
-      'sourate': sourate,
-      'premier_verset': premierVerset,
-      'riwaya': riwaya,
-      // Sans la version du modèle ET du build, une mesure relue plus tard est
-      // ambiguë — piège déjà payé sur `fastconformer-ctc-mixed-e02`, dont le
-      // nom ne dit pas qu'il contient l'epoch 14.
-      'modele': modele,
-      'build': build,
-      'mots': [
-        for (var i = 0; i < mots.length; i++)
-          {
-            'index': i,
-            'attendu': mots[i].display,
-            'entendu': mots[i].heard,
-            'statut': mots[i].status.name,
-            'verrouille': mots[i].locked,
-          },
-      ],
-    };
+    for (final incident in retenus) {
+      final wav = CollecteExtrait.decouper(
+        clipPath: incident.clipPath,
+        debutFrame: incident.debutFrame,
+        finFrame: incident.finFrame,
+        samplesParFrame: incident.samplesParFrame,
+      );
+      // Le clip a pu disparaître entre la séance et l'envoi : on saute cet
+      // incident plutôt que d'écrire une ligne de manifeste qui pointerait sur
+      // un fichier absent — un manifeste qui ment fait échouer l'entraînement
+      // loin de sa cause.
+      if (wav == null) continue;
 
-    final archive = Archive()
+      final nom = 'extrait_$n.wav';
+      archive.addFile(ArchiveFile(nom, wav.length, wav));
+      final duree = CollecteExtrait.dureeSecondes(wav);
+
+      if (incident.avis == AvisSurVerdict.appSeTrompe) {
+        manifeste.writeln(jsonEncode({
+          'audio_filepath': nom,
+          'text': incident.texteExtrait,
+          'duration': double.parse(duree.toStringAsFixed(3)),
+        }));
+      }
+      diagnostic.add({
+        'extrait': nom,
+        'index_mot': incident.indexMot,
+        'mot_attendu': incident.motAttendu,
+        'texte_extrait': incident.texteExtrait,
+        'entendu': incident.entendu,
+        'gop': double.parse(incident.gop.toStringAsFixed(3)),
+        'duree': double.parse(duree.toStringAsFixed(3)),
+        'avis': incident.avis == AvisSurVerdict.appSeTrompe
+            ? 'app_se_trompe'
+            : 'faute_reelle',
+        // Ce drapeau évite la seule erreur vraiment coûteuse : entraîner sur
+        // un extrait dont on ne connaît pas la transcription.
+        'a_annoter': incident.avis == AvisSurVerdict.fauteReelle,
+      });
+      n++;
+    }
+    if (n == 0) return null;
+
+    archive
+      ..addFile(ArchiveFile.string('manifest.jsonl', manifeste.toString()))
       ..addFile(ArchiveFile.string(
-          'session.json', const JsonEncoder.withIndent('  ').convert(session)));
-
-    for (final wav in wavs) {
-      final octets = wav.readAsBytesSync();
-      archive.addFile(
-          ArchiveFile(wav.uri.pathSegments.last, octets.length, octets));
-    }
-    if (journal != null && journal.existsSync()) {
-      final octets = journal.readAsBytesSync();
-      archive.addFile(ArchiveFile('journal.log', octets.length, octets));
-    }
+          'diagnostic.json',
+          const JsonEncoder.withIndent('  ').convert({
+            'schema': 2,
+            'horodatage': DateTime.now().toUtc().toIso8601String(),
+            'build': build,
+            'incidents': diagnostic,
+          })));
 
     final zip = ZipEncoder().encode(archive);
     return zip == null ? null : Uint8List.fromList(zip);
