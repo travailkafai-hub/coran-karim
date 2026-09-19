@@ -443,6 +443,27 @@ class MemorizationGameNotifier extends StateNotifier<MemorizationGameState> {
     // `toList()` avant `shuffle` : un Set ne se melange pas en place.
     final poolMelange = pool.toList()..shuffle(_random);
     final distractors = poolMelange.take(_distractorCount).toList();
+    // ── TOUJOURS QUATRE CASES, MEME A LA FIN (2026-09-18) ─────────────────
+    //
+    // Demande utilisateur : « faut toujours proposer 4 choix ». Sur les
+    // derniers mots d'une portion, le pool ci-dessus est presque vide -- il ne
+    // regarde QUE ce qui reste devant -- et l'ecran finissait a trois cases,
+    // puis deux, puis une seule qui donnait la reponse.
+    //
+    // ⚠️ L'ORDRE DE PREFERENCE NE CHANGE PAS : les mots a venir restent la
+    // source normale, pour la raison ecrite plus haut (un mot deja vu est un
+    // indice trop facile). On ne pioche dans le reste de la portion que pour
+    // COMPLETER, et seulement quand il n'y a plus assez de mots devant.
+    if (distractors.length < _distractorCount) {
+      final repli = <String>{};
+      for (final v in state.verses) {
+        for (final w in v.words) {
+          if (w != correct && !distractors.contains(w)) repli.add(w);
+        }
+      }
+      final secours = repli.toList()..shuffle(_random);
+      distractors.addAll(secours.take(_distractorCount - distractors.length));
+    }
     final choices = [correct, ...distractors]..shuffle(_random);
     state = state.copyWith(
       choices: choices,

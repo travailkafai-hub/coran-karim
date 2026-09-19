@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/player_state_model.dart';
 import '../models/riwaya.dart';
 import '../models/verse.dart';
 import '../providers/player_provider.dart';
@@ -470,19 +471,67 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     super.didUpdateWidget(oldWidget);
     if (widget.apercuGuide && oldWidget.pageInitiale != widget.pageInitiale) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_ctrl.hasClients) return;
-        final target = widget.pageInitiale.clamp(1, _kPages) - 1;
-        final current = (_ctrl.page ?? (_pageLue - 1).toDouble()).round();
-        if (MediaQuery.disableAnimationsOf(context) ||
-            (target - current).abs() > 1) {
-          _ctrl.jumpToPage(target);
-        } else {
-          _ctrl.animateToPage(target,
-            duration: mushafPageAdvanceDuration(math.min(current, target) + 1),
-            curve: Curves.easeInOutCubic);
-        }
+        _allerALaPage(widget.pageInitiale);
       });
     }
+  }
+
+  /// Va a [page], en tournant si elle est voisine et en sautant si elle est
+  /// loin. Extrait de `didUpdateWidget` le 2026-09-18 pour servir aussi au
+  /// suivi de la lecture audio -- une seule facon de se deplacer dans le
+  /// livre, donc un seul endroit ou regler l'animation.
+  ///
+  /// Le saut au-dela d'une page d'ecart n'est pas une economie d'animation :
+  /// `animateToPage` fait defiler TOUTES les pages intermediaires, ce qui
+  /// donne un feuilletage interminable des qu'on saute de dix pages.
+  void _allerALaPage(int page) {
+    if (!mounted || !_ctrl.hasClients) return;
+    final cible = page.clamp(1, _kPages) - 1;
+    final courante = (_ctrl.page ?? (_pageLue - 1).toDouble()).round();
+    if (cible == courante) return;
+    if (MediaQuery.disableAnimationsOf(context) ||
+        (cible - courante).abs() > 1) {
+      _ctrl.jumpToPage(cible);
+    } else {
+      _ctrl.animateToPage(cible,
+          duration: mushafPageAdvanceDuration(math.min(courante, cible) + 1),
+          curve: Curves.easeInOutCubic);
+    }
+  }
+
+  // ── LA PAGE TOURNE AVEC LA LECTURE (2026-09-18) ────────────────────────
+  //
+  // Demande utilisateur : « quand il y a la lecture audio d'une sourate, sur
+  // le Mushaf le vert suit, du coup la page defile ; on veut la meme chose si
+  // on est sur Mushaf papier : gerer automatiquement tourner les pages ».
+  //
+  // Le surlignement suivait deja ici depuis le 2026-09-12 -- mais seulement
+  // TANT QUE le verset lu restait sur la page affichee. Des que la lecture
+  // passait a la page suivante, le vert disparaissait de l'ecran et il
+  // fallait tourner a la main pour le retrouver : le suivi s'arretait
+  // exactement la ou il devient utile.
+  //
+  // MEME DECLENCHEUR QUE LA VUE LISTE (`mushaf_screen.dart`, le `ref.listen`
+  // sur `playerProvider`) : on ne reagit qu'au CHANGEMENT de verset courant,
+  // jamais a la position dans le verset -- sinon chaque tick du lecteur
+  // relancerait le calcul. Et comme la-bas, on ne filtre pas sur `isPlaying` :
+  // au moment ou `currentVerse` change, le statut vaut encore « loading ».
+  String? _cleSuivie;
+
+  void _suivreLaLecture(Verse verse) async {
+    // ⚠️ La page se resout dans la pagination AFFICHEE, pas dans celle du
+    // verset : `verse.pageNumber` porte toujours Hafs, et le livre Warsh a sa
+    // propre mise en page (cf. `pageMushafWarshDuVerset`). Lire l'une pour
+    // tourner l'autre enverrait sur une page prise dans un autre livre.
+    final warsh = ref.read(riwayaProvider) == Riwaya.warsh;
+    final cle = verse.key;
+    final page = warsh
+        ? await QuranApi.pageMushafWarshDuVerset(cle)
+        : (verse.pageNumber ?? await QuranApi.pageDuVerset(cle));
+    // La lecture a pu avancer pendant la resolution : ne pas tourner vers la
+    // page d'un verset qui n'est plus celui qu'on entend.
+    if (!mounted || page == null || cle != _cleSuivie) return;
+    _allerALaPage(page);
   }
 
   /// Une police vient d'arriver : la page doit se remesurer.
@@ -592,6 +641,13 @@ class _MushafMaquetteScreenState extends ConsumerState<MushafMaquetteScreen> {
     final etatLecteur = ref.watch(playerProvider);
     final cleVersetJoue =
         etatLecteur.isActive ? etatLecteur.currentVerse?.key : null;
+    // ... et la PAGE suit le surlignement (cf. `_suivreLaLecture`).
+    ref.listen<PlayerStateModel>(playerProvider, (prev, next) {
+      final verse = next.currentVerse;
+      if (verse == null || verse.key == prev?.currentVerse?.key) return;
+      _cleSuivie = verse.key;
+      _suivreLaLecture(verse);
+    });
     // ── RETOUR ET SIGNET, ICI AUSSI (2026-09-12) ─────────────────────────
     //
     // Demande utilisateur : « je veux egalement les marquer dans mushaf

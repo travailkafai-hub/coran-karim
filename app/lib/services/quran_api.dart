@@ -376,6 +376,56 @@ class QuranApi {
     }
   }
 
+  // ── QUELLE PAGE CONTIENT CE VERSET (2026-09-18) ─────────────────────────
+  //
+  // Demande utilisateur : le Mushaf papier doit tourner ses pages tout seul
+  // pendant la lecture audio, « la même chose » que le défilement de la vue
+  // liste. Suivre un verset suppose de savoir sur quelle page il se trouve, et
+  // c'est l'inverse exact de ce que l'app savait faire : tout l'index va de la
+  // page vers ses versets.
+  //
+  // ⚠️ DEUX PAGINATIONS, ET ELLES NE SE RESSEMBLENT PAS. Le Mushaf Warsh a sa
+  // propre mise en page, servie par un asset distinct : le verset 2:30 n'est
+  // pas sur la même page selon la riwāya affichée. Utiliser `verse.pageNumber`
+  // (qui porte toujours la pagination Ḥafṣ) ferait tourner la page Warsh vers
+  // un numéro pris dans l'autre livre — d'où DEUX fonctions, jamais une.
+  //
+  // L'index inverse est construit une seule fois, à la première demande, à
+  // partir de l'index déjà chargé : aucun accès asset supplémentaire.
+  static Map<String, int>? _pageParVerset;
+  static Map<String, int>? _pageParVersetWarsh;
+
+  /// Page du Mushaf standard (Ḥafṣ) qui porte ce verset, ou `null`.
+  static Future<int?> pageDuVerset(String verseKey) async {
+    await _ensureLoaded();
+    final byPage = _versesByPage;
+    if (byPage == null) return null;
+    final index = _pageParVerset ??= {
+      for (final e in byPage.entries)
+        for (final v in e.value) v.key: e.key,
+    };
+    return index[verseKey];
+  }
+
+  /// Page du Mushaf papier Warsh qui porte ce verset, ou `null`.
+  ///
+  /// Les clés restent celles de Ḥafṣ (cf. `fetchWarshMushafVersesByPage` :
+  /// l'asset de récitation en a besoin pour apparier les fichiers audio), donc
+  /// une même clé interroge les deux index sans conversion.
+  static Future<int?> pageMushafWarshDuVerset(String verseKey) async {
+    await _ensureLoaded();
+    if (_warshMushafByPage == null) {
+      await (_warshMushafLoading ??= _loadWarshMushaf());
+    }
+    final byPage = _warshMushafByPage;
+    if (byPage == null) return null;
+    final index = _pageParVersetWarsh ??= {
+      for (final e in byPage.entries)
+        for (final v in e.value) v.key: e.key,
+    };
+    return index[verseKey];
+  }
+
   static Map<int, List<Verse>>? _warshMushafByPage;
   static Future<void>? _warshMushafLoading;
   static Map<int, int>? _warshMushafVerseCounts;

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../models/verse.dart';
+import '../services/decision_transport.dart';
 import '../models/player_state_model.dart';
 import '../models/riwaya.dart';
 import '../providers/app_settings_provider.dart';
@@ -1846,15 +1847,35 @@ class _MushafScreenState extends ConsumerState<MushafScreen> with RouteAware {
     // sont IDENTIQUES, sinon c'est un changement de cible -> lecture neuve.
     final selectionne = _verses[_activeVerse].key;
     final chargeEstLeSelectionne = cle != null && cle == selectionne;
+    // ── LES DEUX CONDITIONS SONT SEPAREES, ET C'EST LE FOND (2026-09-18) ────
+    //
+    // Cinquieme version de ce bouton. Le symptome du 08-13 etait REVENU :
+    // « audio tourne, je clique sur pause, parfois ca marche, parfois mon clic
+    // sur pause relance l'audio depuis la ou un verset est selectionne » --
+    // parce que le correctif du 08-16 (comparaison verset-a-verset) avait
+    // annule celui du 08-13 (comparaison de passage).
+    //
+    // Les deux avaient raison sur LEUR scenario : ils repondaient a deux
+    // questions differentes avec un seul booleen. La decision vit desormais
+    // dans `decisionTransport`, une fonction PURE ou chaque question a sa
+    // branche -- et chaque plainte utilisateur ci-dessus a son test dans
+    // `test/decision_transport_test.dart`. Ne pas refusionner les conditions.
+    final afficheCeQuiJoue = cle != null && _verses.any((v) => v.key == cle);
     // Le menu doit etre visible des qu'on touche au transport, et le rester
     // tant que ca joue (cf. `_scheduleHeaderHide`).
     _showHeader();
-    if (chargeEstLeSelectionne && player.isPlaying) {
-      ref.read(playerProvider.notifier).pause();
-    } else if (chargeEstLeSelectionne && player.isPaused) {
-      ref.read(playerProvider.notifier).resume();
-    } else {
-      _playFromActive();
+    switch (decisionTransport(
+      afficheCeQuiJoue: afficheCeQuiJoue,
+      selectionEstLeVersetCharge: chargeEstLeSelectionne,
+      enLecture: player.isPlaying,
+      enPause: player.isPaused,
+    )) {
+      case ActionTransport.pause:
+        ref.read(playerProvider.notifier).pause();
+      case ActionTransport.reprise:
+        ref.read(playerProvider.notifier).resume();
+      case ActionTransport.lectureNeuve:
+        _playFromActive();
     }
   }
 

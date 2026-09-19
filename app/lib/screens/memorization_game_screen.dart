@@ -343,12 +343,17 @@ class _StyleSegment extends StatelessWidget {
   }
 }
 
-/// Jeu « début de verset » (2026-08-28) : pioche un verset au hasard dans la
-/// PORTION déjà ouverte (même `verses` que l'enchaînement, cf. la doc de
-/// `debutVersetGameProvider`), affiche son numéro en grand, et propose 4 QCM
-/// pour ses deux premiers mots. Cf. debut_verset_game_provider.dart pour le
-/// pourquoi de ce mode (ancrer le numéro du verset à SON début, l'endroit le
-/// plus sujet à l'oubli).
+/// Jeu « début de verset » (2026-08-28) : parcourt les versets de la SOURATE,
+/// affiche le numéro en grand, et propose 4 QCM pour ses deux premiers mots.
+/// Cf. debut_verset_game_provider.dart pour le pourquoi de ce mode (ancrer le
+/// numéro du verset à SON début, l'endroit le plus sujet à l'oubli).
+///
+/// ⚠️ IL NE PARTAGE PLUS LA PORTION DE L'ENCHAÎNEMENT (2026-09-19). Le champ
+/// `verses` reste reçu, mais seulement comme REPLI le temps que la sourate
+/// arrive -- et parce que sur une sourate d'un seul verset les deux sont la
+/// même chose. Le pool réel vient de `versetsSourateProvider` : une portion de
+/// page tombait à un seul verset dès que le verset était long, et le QCM
+/// n'avait plus qu'une proposition.
 class _DebutVersetGameBody extends ConsumerWidget {
   final Surah surah;
   final List<Verse> verses;
@@ -357,7 +362,16 @@ class _DebutVersetGameBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
-    final provider = debutVersetGameProvider(verses);
+    // Tant que la sourate n'est pas là, on joue sur la portion : l'index de
+    // `QuranApi` est deja en memoire, donc c'est l'affaire d'une frame -- mais
+    // un ecran vide clignotant serait visible, lui.
+    final sourate = ref.watch(versetsSourateProvider(surah.number));
+    final pool = sourate.asData?.value ??
+        PoolDebutVerset(sourate: surah.number, versets: verses);
+    final provider = debutVersetGameProvider(
+        pool.versets.isEmpty
+            ? PoolDebutVerset(sourate: surah.number, versets: verses)
+            : pool);
     final state = ref.watch(provider);
     final notifier = ref.read(provider.notifier);
     final q = state.question;
