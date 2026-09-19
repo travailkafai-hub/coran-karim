@@ -1260,7 +1260,19 @@ class BufferedTranscriber(private val engine: FastConformerCtc) {
                 // puisse le recuperer s'il promeut CET apercu en final sans
                 // rappeler align() -- cf. Finding #7, revue de code 2026-07-16.
             ) + (if (res.deferredIndex != null) mapOf("deferredIndex" to res.deferredIndex) else emptyMap()) +
-                (if (clipPath != null) mapOf("clipPath" to clipPath) else emptyMap())
+                (if (clipPath != null) mapOf("clipPath" to clipPath) else emptyMap()) +
+                // ── LA CONVERSION FRAME -> ECHANTILLON, DEDUITE (2026-09-19) ─
+                //
+                // Envoyee a Dart pour qu'il puisse situer un mot DANS le clip
+                // (cf. `AlignedWord.firstFrame`), et n'extraire que le mot
+                // signale et ses deux voisins au lieu de toute la recitation.
+                //
+                // ⚠️ SURTOUT PAS UNE CONSTANTE COTE DART. Le facteur de
+                // sous-echantillonnage est une propriete du MODELE exporte : une
+                // valeur codee en dur ne se verrait pas et decalerait toutes les
+                // extractions -- la meme regle est deja ecrite plus bas, la ou
+                // `samplesPerFrame` est calcule.
+                mapOf("samplesParFrame" to spfRescue)
             // IMPORTANT (bug corrige 2026-07-11) : sur un segment FIGE, Dart juge
             // (et verrouille) TOUS les mots de `res.words` -- y compris le mot a
             // la frontiere lui-meme s'il a recu ne serait-ce que quelques frames

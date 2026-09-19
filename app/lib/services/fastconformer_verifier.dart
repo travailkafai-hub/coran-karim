@@ -94,6 +94,22 @@ class AlignedWord {
   /// 0 si la DP ne lui a attribué aucune frame.
   final int frames;
 
+  /// ── OU CE MOT TOMBE DANS LE CLIP DU SEGMENT (2026-09-19) ───────────────
+  ///
+  /// Bornes en FRAMES, relatives au segment analysé -- et `clipPath` porte
+  /// exactement ce segment. La correspondance est donc directe :
+  ///
+  ///     echantillon = frame * (taille du clip / nombre de frames)
+  ///
+  /// Aucun offset absolu n'est nécessaire, ce qui était le point bloquant.
+  /// C'est ce qui permet à la collecte de n'envoyer que le mot signalé et ses
+  /// deux voisins (~3,9 s au débit médian mesuré) au lieu de la récitation
+  /// entière -- soit ~56 Ko par erreur contre ~5 Mo par séance.
+  ///
+  /// `-1` quand la DP n'a rien placé (mot non couvert, `starved`).
+  final int firstFrame;
+  final int lastFrame;
+
   /// VRAI quand la DP n'a donné aucune frame à ce mot alors que la place
   /// suffisait, et que sa seconde chance est épuisée : il n'y a aucune preuve
   /// acoustique à juger, mais il ne faut plus le différer (l'ancre bloquerait).
@@ -113,6 +129,8 @@ class AlignedWord {
     this.actualFromFree = false,
     this.starved = false,
     this.frames = 0,
+    this.firstFrame = -1,
+    this.lastFrame = -1,
     this.noEvidence = false,
   });
 }
@@ -144,6 +162,12 @@ class AlignPayload {
   // commit normal (pas le repli "borne dure" qui réutilise l'aperçu sans clip).
   final String? clipPath;
 
+  /// Échantillons par frame, DÉDUIT côté natif (`segmentSamples / nbFrames`) et
+  /// jamais codé en dur : c'est une propriété du modèle exporté, et une
+  /// constante fausse décalerait silencieusement toutes les extractions.
+  /// Permet de situer un mot dans [clipPath] via `AlignedWord.firstFrame`.
+  final int samplesParFrame;
+
   const AlignPayload({
     required this.seq,
     required this.anchor,
@@ -151,6 +175,7 @@ class AlignPayload {
     required this.isFinal,
     required this.words,
     this.clipPath,
+    this.samplesParFrame = 0,
   });
 
   static AlignPayload? fromMap(dynamic m) {
@@ -171,6 +196,8 @@ class AlignPayload {
           actualFromFree: w['srcFree'] as bool? ?? false,
           starved: w['starved'] as bool? ?? false,
           frames: (w['frames'] as num?)?.toInt() ?? 0,
+          firstFrame: (w['firstFrame'] as num?)?.toInt() ?? -1,
+          lastFrame: (w['lastFrame'] as num?)?.toInt() ?? -1,
           noEvidence: w['noEvidence'] as bool? ?? false,
           detectedRules: [
             for (final r in (w['rules'] as List? ?? const []))
@@ -188,6 +215,7 @@ class AlignPayload {
       isFinal: m['final'] as bool? ?? false,
       words: words,
       clipPath: m['clipPath'] as String?,
+      samplesParFrame: (m['samplesParFrame'] as num?)?.toInt() ?? 0,
     );
   }
 }

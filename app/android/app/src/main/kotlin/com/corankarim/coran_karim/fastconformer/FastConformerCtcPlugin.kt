@@ -1087,6 +1087,24 @@ class FastConformerCtcPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                                 "actual" to it.actual,
                                 "starved" to it.starved,
                                 "frames" to it.frames,
+                                // ── OU LE MOT TOMBE DANS LE CLIP (2026-09-19) ──
+                                //
+                                // Ces deux bornes etaient DEJA calculees par
+                                // l'aligneur (`wordFirstFrame`/`wordLastFrame`) et
+                                // portees par `WordResult` -- elles ne remontaient
+                                // simplement pas jusqu'a Dart. Ajout purement
+                                // ADDITIF : aucun calcul, aucun seuil, aucun verdict
+                                // n'est touche.
+                                //
+                                // Elles sont relatives AU SEGMENT, et `clipPath`
+                                // porte precisement ce segment : la correspondance
+                                // est donc directe (frame x samplesPerFrame), sans
+                                // aucun offset absolu a retrouver. C'est ce qui
+                                // permet a la collecte de n'envoyer que quelques
+                                // secondes autour d'un mot signale au lieu de la
+                                // recitation entiere.
+                                "firstFrame" to it.firstFrame,
+                                "lastFrame" to it.lastFrame,
                                 "noEvidence" to it.noEvidence,
                             ) + (it.rescoreMargin?.let { m -> mapOf("rescoreMargin" to m) } ?: emptyMap()) +
                                 (it.rescoreHeard?.let { h -> mapOf("rescoreHeard" to h) } ?: emptyMap()) +
