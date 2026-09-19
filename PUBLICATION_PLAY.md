@@ -11,6 +11,78 @@ Ne pas transformer une hypothèse de ce document en fait.
 
 ---
 
+## 0. Mise à jour obligatoire — correction du 2026-09-17
+
+La demande est d'imposer chaque nouvelle version détectée sur le Store.
+Le bouton **Mettre à jour** ouvre la fiche Google Play ; l'utilisateur y lance
+l'installation. L'application ne peut pas installer silencieusement la mise
+à jour. L'invite des **Outils de récupération** de la Play Console peut, elle,
+être ignorée : elle ne remplace pas le blocage dans notre code.
+
+### Défaut corrigé
+
+L'ancien `UpgradeAlert(showIgnore: false, showLater: false)` de `main.dart`
+masquait deux boutons, mais ne rendait pas la mise à jour obligatoire pour
+`upgrader` 13.7.0. Son bouton **Mettre à jour** appelait
+`onUserUpdated(context, !upgrader.blocked())`. Sans version minimale ou mise
+à jour critique, `blocked()` restait faux : le dialogue se fermait dès le clic,
+même sans installation. La date de l'alerte était conservée et le délai par
+défaut de **trois jours** pouvait ensuite empêcher sa réapparition.
+
+`app/lib/widgets/mise_a_jour_obligatoire.dart` applique maintenant
+`blocked() => isUpdateAvailable()` : une version plus récente détectée garde
+le dialogue ouvert après le clic et ignore le délai et une ancienne préférence
+« Ignorer ». Retour Android et toucher extérieur restent bloqués. Le contrôle
+revérifie au retour de l'arrière-plan ; son observateur est libéré à la
+destruction du widget. `main.dart` conserve l'entrée du banc de recette.
+
+Le manifeste déclare aussi l'intention HTTPS utilisée par `canLaunchUrl` :
+sur Android 11+, la visibilité de l'application gérant la fiche Play doit
+être déclarée pour que cette vérification puisse fonctionner.
+
+### Portée et publication
+
+- Le contrôle compare les **noms de version**, par exemple `1.0.9` et `1.0.10`.
+  À chaque publication, augmenter la partie avant **et** après le `+` de
+  `app/pubspec.yaml` : changer seulement `+12` en `+13` n'est pas détecté par
+  ce mécanisme.
+- Il consulte la **fiche publique** via `upgrader`, pas l'API native Play
+  In-App Updates. Il ne certifie pas que le compte ou l'appareil peut installer
+  la version annoncée. Un déploiement progressif, un canal de test ou une
+  restriction de compatibilité peut donc poser problème. Pour garantir cette
+  disponibilité par utilisateur, remplacer la détection par l'API native
+  avant d'utiliser ces modes de publication avec le blocage systématique.
+- Une panne réseau ou une fiche sans version exploitable ne crée pas de
+  blocage au démarrage. Il n'y a pas de version minimale persistée entre les
+  lancements : fermer l'app et la rouvrir hors ligne peut éviter le contrôle.
+  Cette correction ne doit donc pas être présentée comme une révocation
+  absolue des anciennes versions, y compris hors ligne.
+- Les utilisateurs doivent **installer une première version contenant ce
+  correctif** pour en bénéficier lors des publications suivantes. Publier
+  ce code ne modifie pas les anciennes applications déjà installées.
+- Aucun serveur de configuration, aucune publication et aucun changement de
+  version dans `pubspec.yaml` n'ont été effectués pendant cette correction.
+
+### Vérification
+
+Tests Flutter ciblés : `app/test/mise_a_jour_obligatoire_test.dart`.
+Ils utilisent le vrai comparateur, les préférences et le dialogue d'upgrader ;
+seules la réponse du Store et l'ouverture de sa fiche sont simulées.
+Cas couverts : retour/toucher extérieur, clic puis retour sans installation,
+redémarrage immédiat, ancienne préférence Ignorer, version installée à jour
+ou plus récente, version Store inconnue, nouvelle version détectée à la reprise.
+
+La validation réelle sur une installation Google Play reste à effectuer :
+ancienne version → clic → fiche correcte → retour sans installation →
+dialogue toujours présent → installation → ouverture normale de l'app mise
+à jour. Un APK debug `.dev` n'a pas la fiche du paquet de production.
+
+Références officielles consultées le 2026-09-17 :
+[invite Play Console](https://support.google.com/googleplay/android-developer/answer/13812041?hl=fr),
+[mises à jour dans l'application](https://developer.android.com/guide/playcore/in-app-updates).
+
+---
+
 ## 1. Ce qu'est l'application
 
 Application Android (Flutter + Kotlin) de mémorisation et de récitation du
