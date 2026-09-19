@@ -163,3 +163,78 @@ modèle embarqué et la chaîne entière sans téléphone :
 
 Un gain sur le mot témoin obtenu en dégradant le reste serait un faux gain, et
 le fichier serait refusé.
+
+
+---
+
+# RELANCE DU 2026-09-19 — ce n'est plus un chiffre de banc, ça interrompt l'utilisateur
+
+Cette demande était étayée par le banc. Depuis, une **session réelle** l'a
+confirmée de façon beaucoup plus nette. Priorité relevée.
+
+## Ce qui s'est passé
+
+Session du 2026-09-19 18:51, préréglage **tajwid**, Al-Ḥujurāt 49:1-9, 143 mots
+jugés. **Six décrochages en sept minutes**, sept déclenchements du souffleur.
+L'utilisateur : *« il bloque alors que je pensais avoir bien dit »*.
+
+**Tous les mots qui l'ont bloqué sont écartés du dictionnaire.** Décomposition
+réellement utilisée (repli glouton, reproduite hors app depuis `vocab.json`) :
+
+```
+وَٱعْلَمُوٓا۟   ▁وَٱ  عْ  لَمُ  و  ٓ  ا۟        6 pieces   -> definitif:ROUGE
+تَرْفَعُوٓا۟    ▁تَ  رْ  فَ  عُو  ٓ  ا۟         6 pieces   -> definitif:ROUGE
+فَتُصْبِحُوا۟   ▁فَ  تُ  صْ  بِ  حُ  و  ا۟      7 pieces   -> definitif:ROUGE
+فَاسِقٌۢ       ▁فَ  ا  سِ  ق  ٌ  ۢ            6 pieces   -> definitif:ORANGE
+```
+
+Des pièces isolées — une **maddah seule** (`ٓ`), un `و` seul — que le modèle
+n'émet pratiquement jamais ainsi.
+
+## Le cas qui ne laisse aucune place au doute
+
+Mot 96, `وَٱعْلَمُوٓا۟` :
+
+```
+[CTL][V2] mot=96 "وَٱعْلَمُوٓا۟" -> definitif:rouge
+          gop=-4.73 forced=-4.75 free=-0.03  entendu="وَٱعْلَمُوٓا۟"
+```
+
+**`entendu` est identique à l'attendu.** Le modèle a lu le mot exactement, avec
+`free = -0,03` (il est certain). Et le verdict est ROUGE, parce que
+l'alignement forcé doit traverser les six pièces ci-dessus.
+
+Mot 84, `فَاسِقٌۢ`, même famille, avec en plus la preuve que le tajwid n'y est
+pour rien :
+
+```
+[CTL][V2tajwidDetail] mot=84 statut=unclear tajwidFiable=true
+          attendues=iqlab(p=1.000/0.800,480ms)  detectees=iqlab(p=1.000/0.800,480ms)
+```
+
+La règle attendue est **détectée à 100 %**. Le mot est orange à cause du `gop`
+seul (−1,44, entre les seuils −1,60 et −0,45).
+
+## L'effet en cascade, qui est le vrai coût
+
+1. le mot est rouge alors qu'il a été bien prononcé ;
+2. l'alignement se décale : le mot 81 `ءَامَنُوٓا۟` reçoit `إِن` — la lecture du
+   mot **82** — et sort en **`omis`**, le verdict le plus grave de l'app ;
+3. le décrochage part sur ce faux `omis` ;
+4. le souffleur interrompt l'utilisateur et lui redonne un mot qu'il venait de
+   dire correctement. Chaque souffle dure 2,5 à 6,3 s.
+
+⇒ Ce n'est plus « 49 % de couverture » dans un tableau : c'est **six
+interruptions en sept minutes** sur une récitation correcte.
+
+## Ce que cela ne demande pas
+
+Aucune refonte de la chaîne. Le modèle acoustique fait son travail — il lit le
+mot juste, et la tête tajwid détecte la règle attendue à 100 %. **Un seul
+fichier est en cause.** La demande ci-dessus est inchangée : régénérer
+`word_tokens.json` avec le tokeniseur du modèle, sur tout le texte porté par
+l'application.
+
+Les trois mots ci-dessus sont des **témoins supplémentaires** à reporter dans la
+réponse, à côté de `تُحِلُّوا۟` : leur décomposition doit tenir en une ou deux
+pièces, pas en six.
