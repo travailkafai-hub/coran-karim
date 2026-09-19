@@ -273,6 +273,34 @@ sur un chemin voisin jamais essayé (lire puis revenir en arrière).
   tenté — les faire disparaître fait perdre cette mémoire pour de bon, aucun
   historique git ne compense un agent qui ne pense pas à `git log -p` avant
   d'agir.
+- **NE JAMAIS FAIRE TRANSITER UN FICHIER BINAIRE PAR UNE REDIRECTION SHELL**
+  (`>`, `|`, `Out-File`, `Set-Content`) — ni en PowerShell, ni en Bash. Le
+  binaire est alors traité comme du TEXTE : un BOM est ajouté en tête et tout
+  octet non décodable devient `EF BF BD` (le caractère de remplacement Unicode).
+  Le fichier garde une taille plausible, porte la bonne extension, et il est
+  **silencieusement détruit**.
+  → **La méthode qui marche**, et la seule : Python avec un flux binaire.
+  ```python
+  r = subprocess.run([adb, "-s", SERIAL, "exec-out", "run-as", PKG, "cat", src],
+                     capture_output=True)
+  open(dst, "wb").write(r.stdout)        # ou stdout=open(dst,"wb") dans run()
+  ```
+  → **Vérifier APRÈS coup, jamais se fier à la taille** : un WAV doit commencer
+  par `RIFF` (`52 49 46 46`), un PNG par `89 50 4E 47`. Trois octets `EF BB BF`
+  en tête = fichier corrompu à jeter.
+  ```bash
+  head -c 4 fichier.wav | xxd     # doit afficher RIFF, pas efbbbf
+  ```
+  ⇒ **Payé DEUX fois.** Le 2026-09-15 sur une capture d'écran PNG (corrigé, et
+  la leçon notée). Puis le 2026-09-19 sur les WAV d'une session de récitation —
+  la même erreur, avec le même outil, en ayant la note sous les yeux. Le fichier
+  a été analysé, une durée fausse en a été déduite (137 s au lieu de 67,04 s),
+  et le défaut n'a été vu que parce que le parseur RIFF du banc a REFUSÉ le
+  fichier — et que Codex a eu la bonne réaction : ne pas assouplir le parseur
+  pour faire passer un fichier invalide.
+  ⇒ Corollaire : **un outil qui refuse une donnée est une information, pas un
+  obstacle.** Avant d'assouplir une validation, vérifier que la donnée est saine.
+
 - **UN RÉSULTAT NÉGATIF ("je ne trouve pas X") EST UNE AFFIRMATION À VÉRIFIER,
   PAS UN FAIT ACQUIS — ne jamais inventer d'explication autour** (consigne
   utilisateur 2026-08-05 : « arrête de mentir pour trouver une solution »).
