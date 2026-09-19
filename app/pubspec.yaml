@@ -79,6 +79,9 @@ dependencies:
   # empaquetage zip.
   share_plus: ^13.2.0
   archive: ^3.6.1
+  # Chiffrement de bout en bout de la collecte (X25519 + HKDF + AES-GCM,
+  # cf. COLLECTE_RECITATIONS.md). Dart pur : aucun binaire natif ajoute.
+  cryptography: ^2.7.0
 
   # Carte mentale des sourates (REFONTE_IHM.md §7) — rendu eventail gauche/droite
   graphview: ^1.2.0

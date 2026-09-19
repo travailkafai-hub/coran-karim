@@ -95,3 +95,16 @@ benchmark/word_timings_ref.json
 !app/android/app/src/main/assets/tokenizers_tete3/*.bin
 benchmark/parite_tokenizer_tete3_*.jsonl
 benchmark/recettes/
+# Cles de la collecte (cf. COLLECTE_RECITATIONS.md).
+#
+# La cle PRIVEE de production ne doit JAMAIS entrer dans le depot : elle ouvre
+# tout ce qui a ete collecte. Elle vit sur la machine d'entrainement, et sa
+# sauvegarde se fait hors depot.
+benchmark/cles_collecte/
+#
+# Les cles de TEST, elles, sont versionnees a dessein : sans elles le test
+# d'interoperabilite Dart <-> Python ne peut pas tourner ailleurs que sur la
+# machine qui les a generees. Elles sont jetables et n'ouvrent rien d'autre
+# que `app/build/collecte_interop/`. La regle `*.bin` plus haut les attrapait.
+!benchmark/cles_test_collecte/
+!benchmark/cles_test_collecte/*.bin
