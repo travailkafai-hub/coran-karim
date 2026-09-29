@@ -18,42 +18,127 @@
 <body>
 
 <h1>Politique de confidentialité — Coran Karim</h1>
-<p class="maj">Dernière mise à jour : 11 août 2026</p>
+<p class="maj">Dernière mise à jour : 29 septembre 2026</p>
 
-<p><strong>Principe : tout se passe sur votre téléphone.</strong> Coran Karim n'a
+<p><strong>Principe : l'essentiel se passe sur votre téléphone.</strong> Coran Karim n'a
 pas de compte utilisateur, n'affiche aucune publicité, n'intègre aucun
-traceur publicitaire ou analytique, et n'envoie votre voix nulle part.</p>
+traceur publicitaire ou analytique. Par défaut, votre voix ne quitte jamais
+votre téléphone ; la seule exception, entièrement optionnelle et désactivée
+tant que vous ne l'activez pas vous-même, est décrite plus bas
+(« Participer à l'amélioration du modèle »).</p>
 
 <h2>Ce que l'application utilise, et pourquoi</h2>
 <ul>
   <li><strong>Microphone</strong> — utilisé pour analyser votre récitation et
   la comparer au texte coranique. L'analyse est effectuée entièrement par un
-  modèle de reconnaissance vocale qui tourne <em>sur l'appareil</em> : aucun
-  enregistrement n'est transmis à un serveur, aucune voix ne quitte votre
-  téléphone.</li>
+  modèle de reconnaissance vocale qui tourne <em>sur l'appareil</em> : par
+  défaut, aucun enregistrement n'est transmis à un serveur et aucune voix ne
+  quitte votre téléphone — sauf si vous activez vous-même la participation à
+  l'amélioration du modèle, décrite plus bas.</li>
   <li><strong>Position (localisation)</strong> — utilisée uniquement pour
   calculer la direction de la Qibla et les horaires de prière de votre lieu.
   Le calcul est effectué localement sur l'appareil ; la position n'est
   envoyée à aucun serveur.</li>
-  <li><strong>Réseau</strong> — utilisé uniquement pour télécharger, à votre
-  demande, les fichiers audio de récitation (Quran.com) et d'invocations
-  (hisnmuslim.com) que vous choisissez d'écouter. Aucune autre donnée ne
-  transite par le réseau.</li>
+  <li><strong>Réseau</strong> — utilisé pour télécharger, à votre demande, du
+  contenu audio et certaines écritures d'affichage optionnelles. Le texte
+  coranique lui-même est intégralement local : l'afficher ne déclenche aucune
+  requête réseau. Détail des services contactés ci-dessous.</li>
   <li><strong>Notifications</strong> — utilisées pour l'appel à la prière
   (adhan) programmé localement, sans service distant.</li>
 </ul>
 
-<h2>Ce qui reste local, et n'est jamais transmis</h2>
+<h2>Services réseau contactés, et pour quoi</h2>
+<p>Aucun de ces services ne reçoit votre voix, votre position ni un
+identifiant qui vous distingue : chaque requête ne porte que ce qui est
+nécessaire pour récupérer le contenu demandé (un numéro de sourate/verset,
+un récitateur, une écriture).</p>
 <ul>
-  <li>Les extraits audio de votre récitation (s'il y en a de conservés sur
-  l'appareil pour le diagnostic — désactivé par défaut).</li>
-  <li>Votre progression, vos statistiques de mémorisation, vos signets.</li>
-  <li>Toute donnée liée à votre voix (empreinte vocale locale utilisée pour
-  la personnalisation, si activée).</li>
+  <li><strong>MP3Quran.net</strong> (avec son miroir de secours qurango.net)
+  et <strong>EveryAyah.com</strong> — fichiers audio de récitation des
+  récitateurs proposés dans l'application.</li>
+  <li><strong>hisnmuslim.com</strong> — fichiers audio des invocations
+  (Hisn al-Muslim).</li>
+  <li><strong>Google Fonts</strong> — les écritures d'affichage
+  additionnelles du sélecteur (au-delà de l'écriture par défaut, Amiri, qui
+  est embarquée dans l'application et ne nécessite aucun réseau) sont
+  téléchargées à la demande la première fois que vous les essayez, puis
+  conservées sur l'appareil.</li>
+  <li><strong>Cloudflare</strong> — reçoit, chiffré, l'extrait de récitation
+  décrit ci-dessus (« Participer à l'amélioration du modèle »), et uniquement
+  si vous avez activé ce réglage vous-même.</li>
 </ul>
-<p>La sauvegarde automatique du système (Android Auto Backup) est
-<strong>désactivée</strong> pour cette application : ces données ne sont donc
-jamais copiées vers un service cloud à votre insu.</p>
+<p>Toutes ces requêtes se font en HTTPS.</p>
+
+<h2>Ce qui reste local, et n'est jamais transmis automatiquement</h2>
+<ul>
+  <li><strong>Historique de vos récitations</strong> — lors d'une récitation
+  normale (hors session de référence et hors mode tajwid), un résumé de
+  chaque session (mots correctement récités ou non) est conservé sur
+  l'appareil, avec un court extrait audio de chaque mot non maîtrisé pour
+  vous permettre de le réécouter. L'extrait audio est supprimé
+  automatiquement au bout de 7 jours ; le résultat écrit du mot reste
+  disponible dans votre suivi au-delà. Vous pouvez supprimer une récitation
+  ou tout l'historique à tout moment depuis l'écran Coach (suivi de vos
+  récitations). Cette fonction est distincte du diagnostic ci-dessous.</li>
+  <li><strong>Journal et extraits de diagnostic</strong> — un mécanisme de
+  journalisation technique existe dans l'application pour son propre
+  développement, mais reste <strong>désactivé dans la version publiée, sans
+  réglage accessible pour l'activer vous-même</strong> : aucun journal ni
+  extrait de ce type n'est produit par une utilisation normale de
+  l'application.</li>
+  <li><strong>Votre progression, vos statistiques de mémorisation, vos
+  signets.</strong></li>
+  <li><strong>Empreinte vocale locale</strong> utilisée pour la
+  personnalisation, si vous l'activez.</li>
+</ul>
+<p>La sauvegarde automatique du système (Android Auto Backup) et le
+transfert d'appareil à appareil sont tous deux <strong>désactivés</strong>
+pour cette application : ces données ne sont donc jamais copiées vers un
+service cloud ni migrées vers un nouveau téléphone à votre insu.</p>
+
+<h2>Participer à l'amélioration du modèle (optionnelle, désactivée par défaut)</h2>
+<p>L'application propose, dans les réglages, un interrupteur <em>« Participer
+à l'apprentissage »</em>. Il est <strong>désactivé par défaut</strong> : tant
+que vous ne l'activez pas vous-même, rien de ce qui suit ne se produit.</p>
+<p>Une fois activé, lorsqu'un mot de votre récitation n'est pas reconnu comme
+correct (récitation libre, tajwid, mémorisation par palier ou contrôle), un
+court extrait audio de ce mot (avec le mot précédent et le mot suivant, environ
+3 à 4 secondes) peut être envoyé avec : le texte reconnu et le texte attendu,
+la référence du verset, la riwāya et le récitateur de référence, le verdict de
+l'application, et votre avis lorsque vous l'avez donné explicitement (pouce
+levé/baissé sur un mot).</p>
+<p>Cet envoi est protégé de bout en bout : chaque extrait est chiffré
+<strong>sur votre téléphone</strong>, avant tout envoi, avec une clé propre à
+cet envoi (X25519 + AES-256-GCM). L'application ne porte que la clé publique
+nécessaire pour chiffrer ; la clé privée permettant de déchiffrer n'existe que
+sur la machine d'entraînement du développeur. Un téléphone perdu ou une
+interception du réseau ne rend donc lisible aucun envoi. Les données sont
+reçues par un serveur (Cloudflare) exploité par le développeur de
+l'application, à la seule fin d'améliorer le modèle de reconnaissance.</p>
+<p>L'extrait audio est supprimé de votre téléphone dès qu'il a été mis en
+file d'envoi — il n'a servi qu'à être écouté une fois pour vérification, avant
+ce moment. Les données envoyées sont conservées 12 mois. Un identifiant tiré
+au hasard (visible dans les réglages) est associé à vos envois, uniquement
+pour permettre une demande de suppression : il ne contient aucune information
+sur vous ni sur votre appareil. Vous pouvez désactiver ce réglage à tout
+moment — cela arrête les envois futurs, sans effacer rétroactivement ce qui
+est déjà parti — et demander la suppression de vos envois déjà effectués en
+communiquant cet identifiant à l'adresse de contact ci-dessous.</p>
+
+<h2>Ce que VOUS pouvez transmettre, par un geste explicite</h2>
+<p>Certains écrans de diagnostic proposent d'exporter un fichier (.zip) et
+d'ouvrir le partage natif d'Android pour l'envoyer où vous le souhaitez
+(e-mail, stockage cloud, etc.). Rien n'est jamais partagé sans cette action
+volontaire de votre part.</p>
+
+<h2>Synthèse vocale (lecture des explications)</h2>
+<p>Certaines explications textuelles peuvent être lues à voix haute via le
+moteur de synthèse vocale déjà configuré dans les réglages de votre
+téléphone. L'application ne choisit pas elle-même un moteur ni une voix :
+selon la configuration de votre appareil, ce moteur peut être entièrement
+local ou, sur certains téléphones, s'appuyer sur un service en ligne fourni
+par le fabricant du système — un réglage propre à Android, pas à Coran
+Karim.</p>
 
 <h2>Ce que l'application n'a jamais fait et ne fera pas</h2>
 <ul>
@@ -64,20 +149,27 @@ jamais copiées vers un service cloud à votre insu.</p>
 </ul>
 
 <h2>Sources et attribution</h2>
-<p>Texte coranique et récitations audio : Quran.com (Quran Foundation).
-Audio des invocations : hisnmuslim.com. Modèle de reconnaissance de la
-récitation : dérivé d'un modèle NVIDIA distribué sous licence Creative
-Commons Attribution 4.0 (CC BY 4.0), affiné pour la récitation coranique et
-exécuté hors ligne sur l'appareil. Le détail des licences est consultable
-dans l'application (Réglages → À propos → Voir toutes les licences).</p>
+<p>Texte coranique : Complexe du Roi Fahd pour l'impression du Noble Coran
+(KFGQPC), intégralement local, aucune requête réseau pour l'afficher.
+Récitations audio : MP3Quran.net et EveryAyah.com selon le récitateur
+choisi. Audio des
+invocations : hisnmuslim.com. Modèle de reconnaissance de la récitation :
+dérivé d'un modèle NVIDIA distribué sous licence Creative Commons
+Attribution 4.0 (CC BY 4.0), affiné pour la récitation coranique et exécuté
+hors ligne sur l'appareil. Le détail des licences est consultable dans
+l'application (Réglages → À propos → Voir toutes les licences).</p>
 
 <h2>Vos droits</h2>
-<p>Puisqu'aucune donnée personnelle n'est collectée ni transmise par
-l'application, il n'existe aucune donnée à supprimer, exporter ou rectifier
-de notre côté : tout reste sur votre appareil, sous votre contrôle. Vous
-pouvez supprimer les données locales de l'application à tout moment depuis
-les réglages de votre téléphone (Applications → Coran Karim → Stockage →
-Effacer les données), ou en désinstallant l'application.</p>
+<p>L'application ne collecte ni ne transmet de donnée personnelle vers ses
+propres serveurs pour son fonctionnement normal — elle n'en a pas. Les
+données décrites ci-dessus restent sur votre appareil, sous votre contrôle :
+vous pouvez supprimer votre historique de récitation depuis l'écran Coach,
+désactiver à tout moment la participation à l'amélioration du modèle depuis
+les réglages et demander la suppression de vos envois déjà effectués (voir
+plus haut), ou supprimer toutes les données locales de
+l'application à tout moment depuis les réglages de votre téléphone
+(Applications → Coran Karim → Stockage → Effacer les données), ou en
+désinstallant l'application.</p>
 
 <h2>Modifications de cette politique</h2>
 <p>Si cette politique évolue, la date de mise à jour en tête de page sera
